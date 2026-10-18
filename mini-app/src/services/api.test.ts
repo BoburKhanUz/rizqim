@@ -55,6 +55,8 @@ beforeEach(async () => {
 
   const { AxiosError, default: axios } = await import('axios');
   const adapter: AxiosAdapter = async (config) => {
+    // A re-authentication loop would never end: fail the test instead of hanging it
+    if (requests.length >= 25) throw new Error('Runaway request loop');
     requests.push({
       method: (config.method ?? 'get').toLowerCase(),
       url: config.url ?? '',

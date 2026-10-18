@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider, focusManager } from '@tanstack/react-query';
-import { act, renderHook } from '@testing-library/react';
+import { act, render, renderHook, screen } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import api from '../services/api';
@@ -26,7 +26,7 @@ function wrapper({ children }: { children: ReactNode }) {
 const advance = (ms: number) => act(() => vi.advanceTimersByTimeAsync(ms));
 
 beforeEach(() => {
-  vi.useFakeTimers();
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'] });
   client = new QueryClient();
   get.mockImplementation((url) => {
     if (url === '/orders') return Promise.resolve({ data: { success: true, data: [makeOrder({ id: 1 })] } });
@@ -69,14 +69,18 @@ describe('useStaffOrders', () => {
   });
 
   it('keeps the last orders on screen through failed polls and polls less often meanwhile', async () => {
-    const { result } = renderHook(() => useStaffOrders('adminOrders', 15_000), { wrapper });
+    // Read through a component, as a screen does: that is what has to keep showing the orders
+    function Probe() {
+      const { data, isError } = useStaffOrders('adminOrders', 15_000);
+      return <p>{`orders:${data?.length ?? 'none'} error:${isError}`}</p>;
+    }
+    render(<QueryClientProvider client={client}><Probe /></QueryClientProvider>);
     await advance(0);
-    expect(result.current.data).toHaveLength(1);
+    expect(screen.getByText('orders:1 error:false')).toBeInTheDocument();
 
     get.mockRejectedValue(failedRequest(502, {}, '/orders'));
     await advance(15_000 + 5000); // a poll fails (and its one retry)
-    expect(result.current.isError).toBe(true);
-    expect(result.current.data).toHaveLength(1); // still the last good orders
+    expect(screen.getByText('orders:1 error:true')).toBeInTheDocument(); // the last good orders are still there
     const callsAfterFirstFailure = ordersCalls();
 
     await advance(15_000); // the normal interval has passed, but the next poll is twice as far away
@@ -85,8 +89,7 @@ describe('useStaffOrders', () => {
     // The server comes back: the next poll succeeds and everything is normal again
     get.mockImplementation(() => Promise.resolve({ data: { success: true, data: [makeOrder({ id: 1 }), makeOrder({ id: 2 })] } }));
     await advance(60_000);
-    expect(result.current.isError).toBe(false);
-    expect(result.current.data).toHaveLength(2);
+    expect(screen.getByText('orders:2 error:false')).toBeInTheDocument();
 
     const callsWhenRecovered = ordersCalls();
     await advance(15_000);
