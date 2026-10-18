@@ -93,7 +93,7 @@ class LedgerService
 
                 $lockedStore->forceFill(['debt_balance' => $balanceAfter->toString()])->save();
 
-                // Block an active store once its debt reaches the credit limit; other states (e.g. a finance hold) are kept.
+                // Block an active store once its debt goes over the credit limit; other states (e.g. a finance hold) are kept.
                 if ($this->exceedsCreditLimit($lockedStore, $balanceAfter) && $this->hasStatus($lockedStore, StoreStatus::ACTIVE)) {
                     $lockedStore->forceFill([
                         'status' => StoreStatus::PAYMENT_REQUIRED->value,
@@ -148,7 +148,7 @@ class LedgerService
     }
 
     /**
-     * Reduce the store's debt by a payment and unblock it once the debt is back under its credit limit.
+     * Reduce the store's debt by a payment and unblock it once the debt is back within its credit limit (at most abs(credit_limit)).
      */
     public function reduceDebt(Store $store, Money|string|int|float $amount, string $notes, ?string $referenceId = null, ?int $performedBy = null): StoreTransaction
     {
@@ -534,11 +534,12 @@ class LedgerService
     }
 
     /**
-     * Debt (positive balance) at or above abs(credit_limit) blocks the store — the same rule CreateOrderAction uses to refuse orders.
+     * Debt (positive balance) over abs(credit_limit) blocks the store; one at the limit does not. The same rule
+     * CreateOrderAction uses to refuse orders (Store::exceedsCreditLimit).
      */
     private function exceedsCreditLimit(Store $store, Money $debt): bool
     {
-        return $debt->isGreaterThanOrEqualTo(Money::of($store->credit_limit)->abs());
+        return $store->exceedsCreditLimit($debt);
     }
 
     private function hasStatus(Store $store, StoreStatus $status): bool

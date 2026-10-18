@@ -33,7 +33,7 @@ class Store extends Model
 
     /**
      * Whether new orders are refused: the rule CreateOrderAction applies (payment_required / finance_hold, or debt
-     * at or over the credit limit).
+     * over the credit limit).
      */
     public function getIsOrderLockedAttribute(): bool
     {
@@ -48,7 +48,19 @@ class Store extends Model
             return false;
         }
 
-        return \App\Support\Money::of($this->debt_balance)->isGreaterThanOrEqualTo(\App\Support\Money::of($this->credit_limit)->abs());
+        return $this->exceedsCreditLimit();
+    }
+
+    /**
+     * Whether a debt (the store's own by default) is over its credit limit, the most the store may owe the platform.
+     * The limit is kept as a negative balance floor (-100000 = up to 100 000 UZS of debt), so its absolute value
+     * counts, and a debt equal to it is still allowed: with a limit of 0 a debt-free store sells, any debt blocks it.
+     * Every refusal, block and unblock (CreateOrderAction, LedgerService, is_order_locked) uses this one rule.
+     */
+    public function exceedsCreditLimit(\App\Support\Money|string|int|float|null $debt = null): bool
+    {
+        return \App\Support\Money::of(func_num_args() > 0 ? $debt : $this->debt_balance)
+            ->isGreaterThan(\App\Support\Money::of($this->credit_limit)->abs());
     }
 
     /**

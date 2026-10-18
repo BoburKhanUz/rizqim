@@ -49,7 +49,7 @@ class CreateOrderAction
             if ($storeStatus === \App\Enums\StoreStatus::FINANCE_HOLD->value) {
                 throw new Exception("Restoran faoliyati moliyaviy tekshiruv tufayli to'xtatilgan.");
             }
-            if (Money::of($store->debt_balance)->isGreaterThanOrEqualTo(Money::of($store->credit_limit)->abs())) {
+            if ($store->exceedsCreditLimit()) {
                 throw new Exception("Restoran vaqtincha to'lov qabul qilmayapti (Meyordagi qarz limitidan oshgan).");
             }
 
