@@ -44,6 +44,7 @@ class OwnerSettingsController extends Controller
             'banner' => $store->banner,
             'banner_url' => $store->banner_url,
             'description' => $store->description,
+            'phone' => $store->phone,
             'address' => $store->address,
             'location_url' => $store->location_url,
             'is_open' => (bool) $store->is_open,
@@ -80,6 +81,7 @@ class OwnerSettingsController extends Controller
             'logo' => 'nullable|string|max:500',
             'banner' => 'nullable|string|max:500',
             'description' => 'nullable|string|max:1000',
+            'phone' => 'nullable|string|max:255',
             'address' => 'nullable|string|max:500',
             'location_url' => 'nullable|string|max:1000',
             'is_open' => 'required|boolean',
@@ -137,7 +139,7 @@ class OwnerSettingsController extends Controller
             'is_open' => $request->is_open,
             'min_order_amount' => $request->min_order_amount ?? 0,
             'payment_settings' => $currentSettings,
-        ]);
+        ] + ($request->has('phone') ? ['phone' => $request->phone] : [])); // a client that never sends phone keeps it
 
         // Parse coordinates and update main branch
         $latitude = null;

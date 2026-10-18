@@ -3,6 +3,7 @@
 namespace App\Filament\Widgets;
 
 use Filament\Widgets\Widget;
+use App\Filament\Support\StorePanelScope;
 use App\Models\OrderStatusHistory;
 
 class LiveActivityFeed extends Widget
@@ -13,10 +14,9 @@ class LiveActivityFeed extends Widget
 
     public function getActivities()
     {
+        // The tenant store's orders, and a branch manager's branch only (as the Orders page)
         return OrderStatusHistory::with(['order', 'user'])
-            ->whereHas('order', function($q) {
-                $q->where('store_id', filament()->getTenant()->id);
-            })
+            ->whereHas('order', fn ($query) => StorePanelScope::scopeOrders($query))
             ->orderBy('created_at', 'desc')
             ->take(8)
             ->get();

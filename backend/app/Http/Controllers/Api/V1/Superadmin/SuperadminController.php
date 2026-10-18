@@ -142,6 +142,7 @@ class SuperadminController extends Controller
                 'id' => $store->id,
                 'uuid' => $store->uuid,
                 'name' => $store->name,
+                'phone' => $store->phone,
                 'slug' => $store->slug,
                 'is_active' => $store->is_active,
                 'commission_rate' => $store->commission_rate,

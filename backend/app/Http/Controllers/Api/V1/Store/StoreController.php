@@ -30,7 +30,7 @@ class StoreController extends Controller
         }
 
         $query = Store::query()
-            ->select('id', 'uuid', 'name', 'address', 'logo', 'banner', 'description', 'is_open', 'is_premium', 'review_count', 'payment_settings', 'status', 'debt_balance', 'credit_limit', 'open_time', 'close_time', 'min_order_amount')
+            ->select('id', 'uuid', 'name', 'phone', 'address', 'logo', 'banner', 'description', 'is_open', 'is_premium', 'review_count', 'payment_settings', 'status', 'debt_balance', 'credit_limit', 'open_time', 'close_time', 'min_order_amount')
             ->where('is_active', true)
             ->where('status', '!=', \App\Enums\StoreStatus::PAYMENT_REQUIRED->value)
             ->with(['branches' => function ($q) {

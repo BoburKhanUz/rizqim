@@ -2,6 +2,8 @@
 
 namespace App\Filament\Widgets;
 
+use App\Filament\Support\StorePanelScope;
+use App\Models\OrderItem;
 use Filament\Widgets\ChartWidget;
 
 class TopProductsChart extends ChartWidget
@@ -12,7 +14,9 @@ class TopProductsChart extends ChartWidget
 
     protected function getData(): array
     {
-        $topItems = \Illuminate\Support\Facades\DB::table('order_items')
+        // Items of the tenant store's orders (a branch manager's branch) only: the raw order_items table held every store's sales
+        $topItems = OrderItem::query()
+            ->whereHas('order', fn ($query) => StorePanelScope::scopeOrders($query))
             ->selectRaw('product_name, sum(quantity) as total_qty')
             ->groupBy('product_name')
             ->orderByDesc('total_qty')

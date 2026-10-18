@@ -143,7 +143,8 @@ class TelegramNotificationService
             if ($order->type !== 'delivery' && !in_array($statusValue, ['canceled', 'rejected', 'refunded'], true)) {
                 $cafeName = $order->branch?->name ?: ($order->store?->name ?? 'Kafe');
                 $cafeAddress = $order->branch?->address ?: ($order->store?->address ?: 'Ko\'rsatilmagan');
-                $cafePhone = $order->branch?->phone;
+                // The branch's number, else the store's own, else a manager's/owner's
+                $cafePhone = $order->branch?->phone ?: $order->store?->phone;
                 if (!$cafePhone) {
                     $manager = \App\Models\User::where('store_id', $order->store_id)
                         ->whereIn('role', [\App\Enums\UserRole::MANAGER->value, \App\Enums\UserRole::OWNER->value])

@@ -2,8 +2,7 @@
 
 namespace App\Filament\Widgets;
 
-use App\Models\Order;
-use App\Models\User;
+use App\Filament\Support\StorePanelScope;
 use Filament\Widgets\StatsOverviewWidget as BaseWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 use Carbon\Carbon;
@@ -16,14 +15,15 @@ class StatsOverview extends BaseWidget
     protected function getStats(): array
     {
         $today = Carbon::today();
-        
-        $todayRevenue = Order::whereDate('created_at', $today)
+
+        // Only the tenant store's orders (a branch manager's branch), never the whole platform's
+        $todayRevenue = StorePanelScope::orders()->whereDate('created_at', $today)
             ->whereIn('status', ['accepted', 'preparing', 'delivery', 'delivered'])
             ->sum('total_price');
-            
-        $ordersToday = Order::whereDate('created_at', $today)->count();
-            
-        $activeOrdersCount = Order::whereIn('status', ['new', 'accepted', 'preparing', 'delivery'])->count();
+
+        $ordersToday = StorePanelScope::orders()->whereDate('created_at', $today)->count();
+
+        $activeOrdersCount = StorePanelScope::orders()->whereIn('status', ['new', 'accepted', 'preparing', 'delivery'])->count();
             
         $avgCheck = $ordersToday > 0 ? $todayRevenue / $ordersToday : 0;
 

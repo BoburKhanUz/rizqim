@@ -3,7 +3,7 @@
 namespace App\Filament\Widgets;
 
 use Filament\Facades\Filament;
-use App\Models\Order;
+use App\Filament\Support\StorePanelScope;
 use App\Enums\OrderStatus;
 use Filament\Widgets\StatsOverviewWidget as BaseWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
@@ -27,7 +27,8 @@ class ManagerOrdersOverviewWidget extends BaseWidget
 
         $today = \Carbon\Carbon::today();
 
-        $todaysOrders = Order::where('store_id', $tenant->id)
+        // The tenant store's orders, narrowed to the manager's branch when they have one
+        $todaysOrders = StorePanelScope::orders()
             ->whereDate('created_at', $today);
 
         $totalCount = (clone $todaysOrders)->count();

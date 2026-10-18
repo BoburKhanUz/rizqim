@@ -2,7 +2,7 @@
 
 namespace App\Filament\Widgets;
 
-use App\Models\Order;
+use App\Filament\Support\StorePanelScope;
 use App\Services\Ops\InventoryVelocityService;
 use Filament\Widgets\StatsOverviewWidget as BaseWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
@@ -13,9 +13,9 @@ class AnalyticsStatsWidget extends BaseWidget
 
     protected function getStats(): array
     {
-        // 1. Orders Today
-        $ordersToday = Order::whereDate('created_at', today())->count();
-        $ordersYesterday = Order::whereDate('created_at', today()->subDay())->count();
+        // 1. Orders Today (the tenant store's orders only)
+        $ordersToday = StorePanelScope::orders()->whereDate('created_at', today())->count();
+        $ordersYesterday = StorePanelScope::orders()->whereDate('created_at', today()->subDay())->count();
 
         $change = $ordersYesterday > 0 
             ? round((($ordersToday - $ordersYesterday) / $ordersYesterday) * 100)
@@ -44,7 +44,7 @@ class AnalyticsStatsWidget extends BaseWidget
         // 3. Dynamic hourly chart data
         $hourlyData = [];
         for ($i = 6; $i >= 0; $i--) {
-            $hourlyData[] = Order::whereDate('created_at', today())
+            $hourlyData[] = StorePanelScope::orders()->whereDate('created_at', today())
                 ->where('created_at', '>=', now()->subHours($i + 1))
                 ->where('created_at', '<', now()->subHours($i))
                 ->count();

@@ -25,42 +25,9 @@ class Order extends Model
             }
         });
 
-        static::saved(function ($order) {
-            $storeId = $order->store_id;
-            if ($storeId) {
-                // Invalidate all cached operational metrics for this store
-                \Illuminate\Support\Facades\Cache::forget("ops:delayed_orders_count:store_{$storeId}");
-                \Illuminate\Support\Facades\Cache::forget("ops:active_prep_count:store_{$storeId}");
-                \Illuminate\Support\Facades\Cache::forget("ops:active_transit_count:store_{$storeId}");
-                \Illuminate\Support\Facades\Cache::forget("ops:pending_accept_count:store_{$storeId}");
-                \Illuminate\Support\Facades\Cache::forget("ops:kitchen_state_object:store_{$storeId}");
-                \Illuminate\Support\Facades\Cache::forget("ops:courier_pressure_object:store_{$storeId}");
-                \Illuminate\Support\Facades\Cache::forget("ops:operator_state_map:store_{$storeId}");
-                \Illuminate\Support\Facades\Cache::forget("ops:top_selling_product_today:store_{$storeId}");
-                \Illuminate\Support\Facades\Cache::forget("ops:average_order_value:store_{$storeId}");
-                \Illuminate\Support\Facades\Cache::forget("ops:payment_method_dominance:store_{$storeId}");
-                \Illuminate\Support\Facades\Cache::forget("ops:failed_transactions_count:store_{$storeId}");
-                \Illuminate\Support\Facades\Cache::forget("ops:rush_hour_profitability:store_{$storeId}");
-            }
-        });
-
-        static::deleted(function ($order) {
-            $storeId = $order->store_id;
-            if ($storeId) {
-                \Illuminate\Support\Facades\Cache::forget("ops:delayed_orders_count:store_{$storeId}");
-                \Illuminate\Support\Facades\Cache::forget("ops:active_prep_count:store_{$storeId}");
-                \Illuminate\Support\Facades\Cache::forget("ops:active_transit_count:store_{$storeId}");
-                \Illuminate\Support\Facades\Cache::forget("ops:pending_accept_count:store_{$storeId}");
-                \Illuminate\Support\Facades\Cache::forget("ops:kitchen_state_object:store_{$storeId}");
-                \Illuminate\Support\Facades\Cache::forget("ops:courier_pressure_object:store_{$storeId}");
-                \Illuminate\Support\Facades\Cache::forget("ops:operator_state_map:store_{$storeId}");
-                \Illuminate\Support\Facades\Cache::forget("ops:top_selling_product_today:store_{$storeId}");
-                \Illuminate\Support\Facades\Cache::forget("ops:average_order_value:store_{$storeId}");
-                \Illuminate\Support\Facades\Cache::forget("ops:payment_method_dominance:store_{$storeId}");
-                \Illuminate\Support\Facades\Cache::forget("ops:failed_transactions_count:store_{$storeId}");
-                \Illuminate\Support\Facades\Cache::forget("ops:rush_hour_profitability:store_{$storeId}");
-            }
-        });
+        // Cached operational metrics (store-wide and per branch) go stale with every order change
+        static::saved(fn ($order) => \App\Services\Ops\OpsContext::forgetOrderMetrics($order));
+        static::deleted(fn ($order) => \App\Services\Ops\OpsContext::forgetOrderMetrics($order));
     }
     
     protected $appends = ['address', 'type'];

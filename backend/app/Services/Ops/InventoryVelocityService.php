@@ -29,15 +29,13 @@ class InventoryVelocityService
     }
 
     /**
-     * Get the dynamic top selling product variant scoped to store context.
+     * Get the dynamic top selling product variant scoped to store context (a branch manager's branch).
      */
     public static function getTopSellingProductToday(): array
     {
-        $storeId = OpsContext::getStoreId();
-        
-        return Cache::remember("ops:top_selling_product_today:store_{$storeId}", 15, function () use ($storeId) {
+        return Cache::remember(OpsContext::cacheKey('top_selling_product_today'), 15, function () {
             $topItem = OrderItem::whereDate('created_at', today())
-                ->whereHas('order', fn($q) => $q->where('store_id', $storeId))
+                ->whereHas('order', fn ($q) => OpsContext::scopeOrders($q))
                 ->select('product_name')
                 ->selectRaw('SUM(quantity) as qty')
                 ->groupBy('product_name')

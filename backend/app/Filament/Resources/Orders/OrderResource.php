@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Orders;
 
 use App\Filament\Resources\Orders\Pages;
+use App\Filament\Support\StorePanelScope;
 use App\Models\Order;
 use App\Enums\OrderStatus;
 use App\Enums\PaymentStatus;
@@ -413,12 +414,7 @@ class OrderResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        $storeId = \Filament\Facades\Filament::getTenant()?->id ?? auth()->user()?->store_id;
-        $user = auth()->user();
-
-        return parent::getEloquentQuery()
-            ->where('store_id', $storeId)
-            // Same scope as OrderPolicy: a branch manager works with their branch's orders only
-            ->when($user?->role === \App\Enums\UserRole::MANAGER && $user->branch_id, fn (Builder $query) => $query->where('branch_id', $user->branch_id));
+        // Same scope as OrderPolicy: the tenant store, and a branch manager works with their branch's orders only
+        return StorePanelScope::scopeOrders(parent::getEloquentQuery());
     }
 }

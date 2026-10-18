@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Employees;
 
 use App\Filament\Resources\Employees\Pages\ManageEmployees;
+use App\Filament\Support\StorePanelScope;
 use App\Models\User;
 use App\Enums\UserRole;
 use BackedEnum;
@@ -19,11 +20,18 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 class EmployeeResource extends Resource
 {
     protected static ?string $model = User::class;
-    
+
+    /**
+     * getEloquentQuery() scopes the list to the tenant's staff itself. Filament's tenancy scope would sit on every User
+     * query in the panel and hide everyone without a store, such as the customer of each order.
+     */
+    protected static bool $isScopedToTenant = false;
+
     protected static ?string $modelLabel = 'Employee';
     protected static ?string $pluralModelLabel = 'Employees';
     protected static string|\UnitEnum|null $navigationGroup = null;
@@ -58,10 +66,9 @@ class EmployeeResource extends Resource
                     ->required(),
                 Select::make('branch_id')
                     ->label('Filial (Branch)')
-                    ->relationship('branch', 'name', function ($query) {
-                        $storeId = \Filament\Facades\Filament::getTenant()?->id ?? auth()->user()?->store_id;
-                        return $query->where('store_id', $storeId);
-                    })
+                    // The tenant's branches; a branch manager may only place couriers in their own branch
+                    ->relationship('branch', 'name', fn ($query) => $query->where('store_id', StorePanelScope::storeId())
+                        ->when(StorePanelScope::branchId(), fn ($query, int $branchId) => $query->whereKey($branchId)))
                     ->searchable()
                     ->preload()
                     ->required(),
@@ -70,17 +77,23 @@ class EmployeeResource extends Resource
 
     public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
     {
-        $storeId = \Filament\Facades\Filament::getTenant()?->id ?? auth()->user()?->store_id;
+        $storeId = StorePanelScope::storeId();
+        // Not tenant-scoped (see $isScopedToTenant), so no panel tenancy scope to take off; works outside a panel too
+        $query = User::query();
 
         // A NULL store would become "store_id IS NULL" and list every customer and super admin
         if ($storeId === null) {
-            return parent::getEloquentQuery()->whereRaw('1 = 0');
+            return $query->whereRaw('1 = 0');
         }
 
-        $query = parent::getEloquentQuery()->where('store_id', $storeId);
+        $query->where('store_id', $storeId);
 
         if (auth()->user()->role === UserRole::MANAGER) {
-            $query->where('role', UserRole::COURIER->value);
+            // A branch manager: their branch's couriers and the store-wide ones, as the API's courier list
+            $query->where('role', UserRole::COURIER->value)
+                ->when(StorePanelScope::branchId(), fn ($query, int $branchId) => $query->where(
+                    fn ($query) => $query->where('branch_id', $branchId)->orWhereNull('branch_id')
+                ));
         } else {
             $query->whereIn('role', [UserRole::MANAGER->value, UserRole::COURIER->value]);
         }
@@ -117,12 +130,12 @@ class EmployeeResource extends Resource
                     ->searchable()
                     ->formatStateUsing(fn ($state) => $state ? "@{$state}" : '-'),
                 TextColumn::make('orders_count')
-                    ->counts('orders')
+                    ->counts(['orders' => fn (Builder $query) => StorePanelScope::scopeOrders($query)])
                     ->label('Orders')
                     ->sortable(),
                 TextColumn::make('total_spent')
                     ->label('Total Spent')
-                    ->getStateUsing(fn (User $record) => $record->orders()->where('status', 'delivered')->sum('total_price'))
+                    ->getStateUsing(fn (User $record) => static::ordersOf($record)->where('status', 'delivered')->sum('total_price'))
                     ->formatStateUsing(fn ($state) => number_format($state ?? 0, 0, ',', ' ') . ' UZS')
                     ->sortable(),
                 TextColumn::make('segment')
@@ -136,7 +149,7 @@ class EmployeeResource extends Resource
                         default => $state
                     })
                     ->getStateUsing(function (User $record) {
-                        $count = $record->orders()->count();
+                        $count = static::ordersOf($record)->count();
                         if ($count >= 10) return 'VIP';
                         if ($count > 1) return 'Returning';
                         if ($count === 1) return 'New';
@@ -209,18 +222,18 @@ class EmployeeResource extends Resource
                           ->schema([
                               \Filament\Infolists\Components\TextEntry::make('orders_count')
                                   ->label('Total Orders')
-                                  ->getStateUsing(fn (User $record) => $record->orders()->count()),
+                                  ->getStateUsing(fn (User $record) => static::ordersOf($record)->count()),
                               \Filament\Infolists\Components\TextEntry::make('total_spent')
                                   ->label('Lifetime Value')
                                   ->weight('bold')
                                   ->color('primary')
-                                  ->getStateUsing(fn (User $record) => $record->orders()->where('status', 'delivered')->sum('total_price'))
+                                  ->getStateUsing(fn (User $record) => static::ordersOf($record)->where('status', 'delivered')->sum('total_price'))
                                   ->formatStateUsing(fn ($state) => number_format($state ?? 0, 0, ',', ' ') . ' UZS'),
                               \Filament\Infolists\Components\TextEntry::make('avg_check')
                                   ->label('Average Check')
                                   ->getStateUsing(function (User $record) {
-                                      $count = $record->orders()->where('status', 'delivered')->count();
-                                      $total = $record->orders()->where('status', 'delivered')->sum('total_price');
+                                      $count = static::ordersOf($record)->where('status', 'delivered')->count();
+                                      $total = static::ordersOf($record)->where('status', 'delivered')->sum('total_price');
                                       return $count > 0 ? $total / $count : 0;
                                   })
                                   ->formatStateUsing(fn ($state) => number_format($state ?? 0, 0, ',', ' ') . ' UZS'),
@@ -233,7 +246,7 @@ class EmployeeResource extends Resource
                               \Filament\Infolists\Components\TextEntry::make('id')
                                   ->hiddenLabel()
                                   ->formatStateUsing(function ($state, User $record) {
-                                      $orders = $record->orders()->orderBy('created_at', 'desc')->take(5)->get();
+                                      $orders = static::ordersOf($record)->orderBy('created_at', 'desc')->take(5)->get();
                                       if ($orders->isEmpty()) return 'No orders yet.';
                                       
                                       $html = '<div class="flex flex-col gap-4 mt-2">';
@@ -264,6 +277,17 @@ class EmployeeResource extends Resource
                   ->columnSpanFull(),
           ]);
   }
+
+    /**
+     * The employee's own orders (placed as a customer) this panel may show: the tenant store's, and only a branch
+     * manager's branch. User::orders() alone spans every store on the platform.
+     *
+     * @return Builder<\App\Models\Order>
+     */
+    protected static function ordersOf(User $record): Builder
+    {
+        return StorePanelScope::scopeOrders($record->orders()->getQuery());
+    }
 
     public static function getPages(): array
     {

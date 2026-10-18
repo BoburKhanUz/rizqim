@@ -2,7 +2,7 @@
 
 namespace App\Filament\Widgets;
 
-use App\Models\Order;
+use App\Filament\Support\StorePanelScope;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Widgets\TableWidget as BaseWidget;
@@ -17,7 +17,8 @@ class PaymentsRecentWidget extends BaseWidget
     {
         return $table
             ->query(
-                Order::query()
+                // The tenant store's orders only
+                StorePanelScope::orders()
                     ->orderBy('created_at', 'desc')
             )
             ->columns([

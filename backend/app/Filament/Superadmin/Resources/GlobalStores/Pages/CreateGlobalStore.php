@@ -32,6 +32,10 @@ class CreateGlobalStore extends CreateRecord
                         ->label('Store Name')
                         ->required()
                         ->maxLength(255),
+                    TextInput::make('phone')
+                        ->label("Do'kon telefoni")
+                        ->tel()
+                        ->maxLength(255),
                     TextInput::make('commission_rate')
                         ->label('Commission Rate (%)')
                         ->numeric()
@@ -126,6 +130,7 @@ class CreateGlobalStore extends CreateRecord
 
             $store = static::getModel()::create([
                 'name' => $data['name'],
+                'phone' => $data['phone'] ?? null,
                 'commission_rate' => $data['commission_rate'],
                 'payment_account_type' => $data['payment_account_type'],
                 'payment_settings' => $paymentSettings,
