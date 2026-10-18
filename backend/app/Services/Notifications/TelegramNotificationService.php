@@ -106,31 +106,41 @@ class TelegramNotificationService
         $statusValue = $order->status->value ?? $order->status;
         if (!$this->telegram->isConfigured()) return;
 
-        // 1. Notify Customer about status change if they have a telegram_id
+        // 1. Notify Customer about status change if they have a telegram_id (the only customer alert of a transition)
         if ($order->user && $order->user->telegram_id) {
+            $canceledText = "❌ *Buyurtmangiz bekor qilindi.*\n🆔 ID: #{$order->short_code}\n😔 Agar xatolik bo'lgan bo'lsa, iltimos biz bilan bog'laning.";
+
             if ($order->type !== 'delivery') {
                 $statusTexts = [
                     'new' => "🆕 *Buyurtmangiz muvaffaqiyatli qabul qilindi!*\n🆔 ID: #{$order->short_code}",
                     'accepted' => "✅ *Buyurtmangiz qabul qilindi!*\n🆔 ID: #{$order->short_code}\n👨‍🍳 Oshxonamiz tez orada uni tayyorlashni boshlaydi.",
                     'preparing' => "🍳 *Buyurtmangiz tayyorlanmoqda!*\n🆔 ID: #{$order->short_code}\n🔥 Oshpazlarimiz siz uchun eng shirin taomlarni tayyorlashmoqda.",
                     'delivered' => "🎉 *Buyurtmangiz tayyor, olib ketishingiz mumkin!*\n🆔 ID: #{$order->short_code}\n🏪 Biz sizni kutmoqdamiz!",
-                    'canceled' => "❌ *Buyurtmangiz bekor qilindi.*\n🆔 ID: #{$order->short_code}\n😔 Agar xatolik bo'lgan bo'lsa, iltimos biz bilan bog'laning."
+                    'canceled' => $canceledText,
+                    'rejected' => $canceledText,
+                    'refunded' => $this->refundText($order),
                 ];
             } else {
+                $courier = in_array($statusValue, ['delivery', 'on_the_way'], true) ? $order->courier : null;
+                $onTheWay = "🚚 *Buyurtmangiz yo'lga chiqdi!*\n🆔 ID: #{$order->short_code}\n🚴 Kuryerimiz uni sizga yetkazish uchun tezlikda yo'lga chiqdi."
+                    . ($courier ? "\n👤 *Kuryer:* {$courier->name}" . ($courier->phone ? " ({$courier->phone})" : '') : '');
+
                 $statusTexts = [
                     'new' => "🆕 *Buyurtmangiz muvaffaqiyatli qabul qilindi!*\n🆔 ID: #{$order->short_code}",
                     'accepted' => "✅ *Buyurtmangiz qabul qilindi!*\n🆔 ID: #{$order->short_code}\n👨‍🍳 Oshxonamiz tez orada uni tayyorlashni boshlaydi.",
                     'preparing' => "🍳 *Buyurtmangiz tayyorlanmoqda!*\n🆔 ID: #{$order->short_code}\n🔥 Oshpazlarimiz siz uchun eng shirin taomlarni tayyorlashmoqda.",
-                    'delivery' => "🚚 *Buyurtmangiz yo'lga chiqdi!*\n🆔 ID: #{$order->short_code}\n🚴 Kuryerimiz uni sizga yetkazish uchun tezlikda yo'lga chiqdi.",
-                    'on_the_way' => "🚚 *Buyurtmangiz yo'lga chiqdi!*\n🆔 ID: #{$order->short_code}\n🚴 Kuryerimiz uni sizga yetkazish uchun tezlikda yo'lga chiqdi.",
+                    'delivery' => $onTheWay,
+                    'on_the_way' => $onTheWay,
                     'delivered' => "🎉 *Buyurtmangiz muvaffaqiyatli yetkazildi!*\n🆔 ID: #{$order->short_code}\n😋 Yoqimli ishtaha tilaymiz! Bizni tanlaganingiz uchun rahmat!",
-                    'canceled' => "❌ *Buyurtmangiz bekor qilindi.*\n🆔 ID: #{$order->short_code}\n😔 Agar xatolik bo'lgan bo'lsa, iltimos biz bilan bog'laning."
+                    'canceled' => $canceledText,
+                    'rejected' => $canceledText,
+                    'refunded' => $this->refundText($order),
                 ];
             }
 
             $customerMsg = $statusTexts[$statusValue] ?? "🔔 *Buyurtmangiz holati o'zgardi:* " . strtoupper($statusValue);
 
-            if ($order->type !== 'delivery' && $statusValue !== 'canceled') {
+            if ($order->type !== 'delivery' && !in_array($statusValue, ['canceled', 'rejected', 'refunded'], true)) {
                 $cafeName = $order->branch?->name ?: ($order->store?->name ?? 'Kafe');
                 $cafeAddress = $order->branch?->address ?: ($order->store?->address ?: 'Ko\'rsatilmagan');
                 $cafePhone = $order->branch?->phone;
@@ -158,7 +168,21 @@ class TelegramNotificationService
                 ]
             ];
 
-            $this->sendMessage($order->user->telegram_id, $customerMsg, $customerKeyboard);
+            // These statuses also land in the customer's in-app feed, under the types it has always shown
+            $feedType = match ($statusValue) {
+                'accepted' => 'telegram_customer_accepted',
+                'delivery', 'on_the_way' => 'telegram_customer_on_the_way',
+                'delivered' => 'telegram_customer_delivered',
+                'canceled', 'rejected' => 'telegram_customer_canceled',
+                default => null,
+            };
+
+            $this->telegram->sendMessage(
+                $order->user->telegram_id,
+                $customerMsg,
+                ['parse_mode' => 'Markdown', 'reply_markup' => $customerKeyboard],
+                $feedType ? ['user_id' => $order->user->id, 'order_id' => $order->id, 'type' => $feedType] : null
+            );
         }
 
         // 2. If the order is sent for delivery, notify courier (or fallback to managers/owners if no courier is assigned)
@@ -425,6 +449,15 @@ class TelegramNotificationService
         $keyboard = ['inline_keyboard' => $buttons];
 
         return [$message, $keyboard];
+    }
+
+    protected function refundText(Order $order): string
+    {
+        $amount = (float) $order->total_price;
+
+        return "💸 *Buyurtmangiz bo'yicha pul qaytarildi*\n🆔 ID: #{$order->short_code}"
+            . ($amount > 0 ? "\n💰 Summa: *" . number_format($amount, 0, '.', ' ') . " UZS*" : '')
+            . ($order->payment_method === 'keshbek' ? "\n👛 Mablag' keshbek balansingizga qaytarildi." : '');
     }
 
     protected function sendMessage(string $chatId, string $text, array $replyMarkup = [], string $parseMode = 'Markdown'): void

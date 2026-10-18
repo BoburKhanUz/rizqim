@@ -343,7 +343,7 @@ class CreateOrderAction
                 'notes' => 'Order created via Mini App',
             ]);
             
-            // Listeners call Telegram synchronously; don't hold the stock/promo/balance row locks during that
+            // After commit: a rolled-back order is never announced, nor its Telegram cards built under the row locks
             DB::afterCommit(fn () => event(new \App\Events\OrderCreated($order)));
 
             // Create notification logs for the customer

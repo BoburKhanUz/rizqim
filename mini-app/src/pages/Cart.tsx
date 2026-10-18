@@ -13,11 +13,12 @@ import { useAuthStore } from '../store/authStore';
 import { getAddBlockedMessage, getVariantStock, isProductSoldOut } from '../lib/stock';
 import type { StockVariant } from '../lib/stock';
 import { formatUzbekSum } from '../lib/format';
+import { parseAmount } from '../lib/money';
 import { buildCartItem, getProductBasePrice, getStoreInfo, parsePrice } from '../lib/catalog';
 import AddressLocationField from '../features/address/AddressLocationField';
 import { isOnAnyBranch, toLatLng } from '../features/address/coordinates';
 import type { AddressLocationValue, LatLng } from '../features/address/types';
-import type { ApiErrorBody, ApiResponse, BranchSummary, PaymentProviderSettings, PaymentSettings, Product, StoreCatalog, StoreListItem } from '../types';
+import type { ApiErrorBody, ApiResponse, BranchSummary, PaymentProviderSettings, PaymentSettings, Product, PromoValidation, StoreCatalog, StoreListItem } from '../types';
 
 interface AppliedPromo {
   // The code string is what we send as `promo_code` when placing the order
@@ -56,16 +57,6 @@ const EMPTY_ADDRESS_DRAFT: AddressDraft = {
   apartment: '',
   floor: '',
 };
-
-// Decimals can arrive as strings (e.g. "10.00") from the API; anything non-numeric becomes null.
-function toFiniteNumber(value: unknown): number | null {
-  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
-  if (typeof value === 'string' && value.trim() !== '') {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-  return null;
-}
 
 // Never invent an order number: use what the server sent, else the start of the order uuid, else nothing.
 function getOrderDisplayNumber(order: OrderResponseData): string {
@@ -308,7 +299,7 @@ export default function Cart() {
     try {
       const storeId = parseInt(items[0].storeId);
       const validatedSubtotal = getSubtotal();
-      const res = await api.post('/promo/validate', {
+      const res = await api.post<ApiResponse<PromoValidation>>('/promo/validate', {
         code: code,
         store_id: storeId,
         subtotal: validatedSubtotal
@@ -320,8 +311,8 @@ export default function Cart() {
           // Keep the code string: the order is sent with `promo_code` and the server recomputes the discount
           code: typeof promoData.code === 'string' && promoData.code.trim() ? promoData.code.trim() : code.trim(),
           type: String(promoData.type ?? ''),
-          amount: toFiniteNumber(promoData.amount) ?? 0,
-          discountAmount: toFiniteNumber(promoData.discount_amount),
+          amount: parseAmount(promoData.amount) ?? 0,
+          discountAmount: parseAmount(promoData.discount_amount),
           validatedSubtotal,
           description: promoData.description
         });
@@ -438,9 +429,9 @@ export default function Cart() {
         longitude: deliveryMethod === 'delivery' ? deliveryPoint?.lng ?? null : null,
       };
 
-      const res = await api.post('/orders', payload);
+      const res = await api.post<ApiResponse<OrderResponseData>>('/orders', payload);
       if (res.data.success) {
-        const orderData: OrderResponseData = res.data.data ?? {};
+        const orderData = res.data.data ?? {};
         setSuccessOrderNumber(getOrderDisplayNumber(orderData));
 
         // Handle redirect to click/payme URL if present

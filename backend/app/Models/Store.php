@@ -76,6 +76,61 @@ class Store extends Model
     }
 
     /**
+     * Payment providers: each has a section in payment_settings ({enabled, merchant credentials...}).
+     */
+    public const PAYMENT_PROVIDERS = ['cash', 'click', 'payme', 'uzum', 'paynet'];
+
+    /**
+     * Older rows (the first creation wizard) hold a provider as a bare boolean (`cash: true`), which every reader takes
+     * as {enabled: true}; forms and saves work on that section form instead.
+     */
+    public static function normalizePaymentSettings(array $settings): array
+    {
+        foreach (self::PAYMENT_PROVIDERS as $provider) {
+            if (isset($settings[$provider]) && !is_array($settings[$provider])) {
+                $settings[$provider] = ['enabled' => (bool) $settings[$provider]];
+            }
+        }
+
+        return $settings;
+    }
+
+    /**
+     * Payment settings as the panel forms edit them: a switch that is missing gets what checkout makes of a missing
+     * key (cash, delivery and pickup on; online methods off), so saving a form never turns anything off by itself.
+     */
+    public static function paymentSettingsForForm(array $settings): array
+    {
+        $settings = static::normalizePaymentSettings($settings);
+
+        foreach (self::PAYMENT_PROVIDERS as $provider) {
+            if (!is_array($settings[$provider] ?? null)) {
+                $settings[$provider] = ['enabled' => $provider === 'cash'];
+            }
+        }
+
+        $settings['delivery_enabled'] ??= true;
+        $settings['pickup_enabled'] ??= true;
+
+        return $settings;
+    }
+
+    /**
+     * Settings a new store starts with: every provider as a section (one not offered yet stays off), delivery and pickup on.
+     *
+     * @param list<string> $enabledMethods
+     */
+    public static function initialPaymentSettings(array $enabledMethods): array
+    {
+        $settings = [];
+        foreach (self::PAYMENT_PROVIDERS as $provider) {
+            $settings[$provider] = ['enabled' => in_array($provider, $enabledMethods, true) && static::isPaymentMethodAvailable($provider)];
+        }
+
+        return $settings + ['delivery_enabled' => true, 'pickup_enabled' => true];
+    }
+
+    /**
      * Payment methods not offered yet (config orders.unavailable_payment_methods): checkout refuses them and clients
      * see them switched off, whatever a store saved for them (which is kept).
      *
@@ -145,9 +200,8 @@ class Store extends Model
 
     /**
      * Merge incoming payment settings into the stored ones: keys a writer leaves out (e.g. form sections that were
-     * hidden) keep their stored value, nested sections merge the same way (a section sent empty also keeps a stored
-     * legacy scalar such as `uzum: true`), lists are replaced whole, and a secret is only replaced by a new non-empty
-     * value (clients only ever see secrets removed).
+     * hidden) keep their stored value, nested sections merge the same way, lists are replaced whole, and a secret
+     * is only replaced by a new non-empty value (clients only ever see secrets removed).
      */
     protected static function mergeSettings(array $stored, array $incoming): array
     {
@@ -162,8 +216,6 @@ class Store extends Model
             } elseif (is_array($value) && !array_is_list($value) && is_array($incoming[$key])
                 && ($incoming[$key] === [] || !array_is_list($incoming[$key]))) {
                 $incoming[$key] = static::mergeSettings($value, $incoming[$key]);
-            } elseif ($incoming[$key] === [] && !is_array($value)) {
-                $incoming[$key] = $value;
             }
         }
 
@@ -189,11 +241,14 @@ class Store extends Model
         });
 
         static::saving(function ($store) {
+            // Both sides in section form, so a legacy `cash: true` merges with what a form sends for cash
             if ($store->exists && $store->isDirty('payment_settings')) {
                 $store->payment_settings = static::mergeSettings(
-                    $store->getOriginal('payment_settings') ?? [],
-                    $store->payment_settings ?? []
+                    static::normalizePaymentSettings($store->getOriginal('payment_settings') ?? []),
+                    static::normalizePaymentSettings($store->payment_settings ?? [])
                 );
+            } elseif (!$store->exists && is_array($store->payment_settings)) {
+                $store->payment_settings = static::normalizePaymentSettings($store->payment_settings);
             }
 
             // Two-way sync: JSON payment_settings.working_hours <-> open_time/close_time columns
@@ -314,7 +369,7 @@ class Store extends Model
             return array_values(array_filter($settings['allowed_methods'], fn ($method) => static::isPaymentMethodAvailable((string) $method)));
         }
         
-        foreach (['cash', 'click', 'payme', 'uzum', 'paynet'] as $provider) {
+        foreach (self::PAYMENT_PROVIDERS as $provider) {
             if (!static::isPaymentMethodAvailable($provider)) {
                 continue;
             }
@@ -339,7 +394,7 @@ class Store extends Model
         $methods = $methods ?? [];
         $currentSettings = $this->payment_settings ?? [];
         
-        foreach (['cash', 'click', 'payme', 'uzum', 'paynet'] as $provider) {
+        foreach (self::PAYMENT_PROVIDERS as $provider) {
             if (!static::isPaymentMethodAvailable($provider)) {
                 continue; // what the store saved for a method not offered yet is kept
             }

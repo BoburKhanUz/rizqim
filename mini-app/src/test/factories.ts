@@ -144,7 +144,7 @@ export function makeOrder(overrides: Partial<Order> = {}): Order {
     delivery_price: '5000.00',
     discount: '0.00',
     total_price: '30000.00',
-    commission_amount: 0,
+    commission_amount: '0.00',
     currency: 'UZS',
     notes: null,
     shipping_address: null,

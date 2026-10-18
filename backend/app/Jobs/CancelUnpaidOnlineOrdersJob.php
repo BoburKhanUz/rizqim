@@ -4,7 +4,6 @@ namespace App\Jobs;
 
 use App\Enums\OrderStatus;
 use App\Enums\PaymentStatus;
-use App\Models\NotificationLog;
 use App\Models\Order;
 use App\Services\Order\OrderStatusService;
 use App\Services\Order\OrderTransitionException;
@@ -49,21 +48,11 @@ class CancelUnpaidOnlineOrdersJob
                     return;
                 }
 
-                $result = $orderStatus->transition($locked, OrderStatus::CANCELED, null, [
+                // The customer's alert (Telegram and in-app feed) goes out with the OrderCancelled event
+                $orderStatus->transition($locked, OrderStatus::CANCELED, null, [
                     'from' => [OrderStatus::NEW],
                     'notes' => "To'lov {$ttl} daqiqa ichida amalga oshirilmadi, buyurtma avtomatik bekor qilindi.",
                 ]);
-
-                // The customer's Telegram alert goes out with the OrderCancelled event; this is the in-app one
-                if ($result->changed) {
-                    NotificationLog::create([
-                        'user_id' => $locked->user_id,
-                        'order_id' => $locked->id,
-                        'type' => 'canceled',
-                        'status' => 'sent',
-                        'sent_at' => now(),
-                    ]);
-                }
             });
         } catch (OrderTransitionException) {
             // Moved on meanwhile (e.g. accepted): nothing to expire

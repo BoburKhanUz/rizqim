@@ -1,3 +1,4 @@
+import type { Decimal } from './api';
 import type { Branch, Store } from './store';
 
 // Mirrors App\Enums\UserRole.
@@ -18,7 +19,7 @@ export interface ApiUser {
   role: UserRole;
   store_id: number | null;
   branch_id: number | null;
-  balance: string | number; // cashback points: a DECIMAL column, so usually a string ("0.00")
+  balance: Decimal; // cashback points (a DECIMAL column)
   referred_by: number | null;
   telegram_invite_token: string | null; // set while an invited employee/owner has not joined yet
   created_at: string;

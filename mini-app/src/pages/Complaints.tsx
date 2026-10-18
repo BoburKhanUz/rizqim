@@ -4,6 +4,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../services/api';
 import { hapticFeedback } from '../lib/telegram';
 import { getApiErrorMessage } from '../lib/apiError';
+import { toAmount } from '../lib/money';
 import { fetchOrders } from '../hooks/useOrders';
 import { useLanguageStore } from '../store/languageStore';
 import { useAuthStore } from '../store/authStore';
@@ -216,7 +217,7 @@ export default function Complaints() {
                 <option value="">-- Buyurtma tanlash --</option>
                 {orders.map((order) => (
                   <option key={order.id} value={order.id}>
-                    #{order.short_code || order.uuid.substring(0, 8)} ({order.total_price.toLocaleString()} UZS)
+                    #{order.short_code || order.uuid.substring(0, 8)} ({toAmount(order.total_price).toLocaleString()} UZS)
                   </option>
                 ))}
               </select>

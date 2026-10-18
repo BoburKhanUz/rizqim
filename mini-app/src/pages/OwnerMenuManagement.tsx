@@ -5,7 +5,7 @@ import { PlusCircle, Search, Edit2, Trash2, Tag, CheckCircle2, XCircle } from 'l
 import { hapticFeedback } from '../lib/telegram';
 import api from '../services/api';
 import { logApiError } from '../lib/apiError';
-import { parsePrice } from '../lib/catalog';
+import { toAmount } from '../lib/money';
 import { FullScreenLoader, ErrorFallback } from '../components/Feedback';
 import type { ApiResponse, Product } from '../types';
 
@@ -115,7 +115,7 @@ export default function OwnerMenuManagement() {
       <div className="space-y-4">
         {filteredProducts.map(product => {
           const startingPrice = product.variants?.length > 0 
-            ? Math.min(...product.variants.map((v) => parsePrice(v.price)))
+            ? Math.min(...product.variants.map((v) => toAmount(v.price)))
             : 0;
 
           return (

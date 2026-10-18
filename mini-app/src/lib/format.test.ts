@@ -19,4 +19,11 @@ describe('formatUzbekSum', () => {
     expect(formatUzbekSum(undefined)).toBe("0 so'm");
     expect(formatUzbekSum(null)).toBe("0 so'm");
   });
+
+  it('never shows NaN: a broken value is shown as zero too', () => {
+    expect(formatUzbekSum('')).toBe("0 so'm");
+    expect(formatUzbekSum('abc')).toBe("0 so'm");
+    expect(formatUzbekSum(Number.NaN)).toBe("0 so'm");
+    expect(formatUzbekSum(Number.POSITIVE_INFINITY)).toBe("0 so'm");
+  });
 });

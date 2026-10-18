@@ -1,4 +1,4 @@
-import type { Decimal } from './api';
+import type { Amount, Decimal } from './api';
 import type { BranchSummary } from './store';
 import type { Category, Product, ProductVariant } from './catalog';
 import type { ApiUser } from './user';
@@ -82,7 +82,7 @@ export interface Order {
   delivery_price: Decimal;
   discount: Decimal;
   total_price: Decimal;
-  commission_amount: number;
+  commission_amount: Decimal; // a `decimal:2` cast, like every money field of the order
   currency: string;
   notes: string | null;
   shipping_address: ShippingAddress | null;
@@ -105,4 +105,16 @@ export interface CreatedOrder {
   order_number: string | null;
   status: OrderStatus;
   payment_url: string | null;
+}
+
+export type PromoType = 'percentage' | 'fixed';
+
+// POST /promo/validate: a preview, the discount is calculated again when the order is placed.
+export interface PromoValidation {
+  id: number;
+  code: string;
+  type: PromoType;
+  amount: Amount; // the promo's value: a percentage or a sum in UZS
+  discount_amount: Amount | null; // what it takes off the subtotal that was sent (the server applies its caps)
+  description: string;
 }

@@ -14,7 +14,7 @@ import {
 import api from '../services/api';
 import { getApiErrorMessage } from '../lib/apiError';
 import { isInTimeframe, type Timeframe } from '../lib/analytics';
-import { parsePrice } from '../lib/catalog';
+import { sumAmounts } from '../lib/money';
 import { POLL_INTERVAL_MS } from '../lib/polling';
 import { useStaffOrders } from '../hooks/useOrders';
 import type { ApiResponse, Order } from '../types';
@@ -80,7 +80,7 @@ export default function AdminReports() {
       filteredOrders: filtered,
       deliveredOrders: delivered,
       canceledOrders: filtered.filter((o) => o.status === 'canceled'),
-      totalRevenue: delivered.reduce((sum, o) => sum + parsePrice(o.total_price), 0),
+      totalRevenue: sumAmounts(delivered.map((o) => o.total_price)),
     };
   }, [orders, timeframe, startDate, endDate, dataUpdatedAt]);
 

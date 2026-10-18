@@ -122,13 +122,7 @@ class CreateGlobalStore extends CreateRecord
     protected function handleRecordCreation(array $data): Model
     {
         return DB::transaction(function () use ($data) {
-            $paymentSettings = [
-                'cash' => true,
-                'click' => true,
-                'payme' => true,
-                'uzum' => \App\Models\Store::isPaymentMethodAvailable('uzum'),
-                'paynet' => \App\Models\Store::isPaymentMethodAvailable('paynet'),
-            ];
+            $paymentSettings = \App\Models\Store::initialPaymentSettings(['cash', 'click', 'payme']);
 
             $store = static::getModel()::create([
                 'name' => $data['name'],
@@ -180,39 +174,22 @@ class CreateGlobalStore extends CreateRecord
         $branch = Branch::where('store_id', $store->id)->first();
         
         $botUsername = config('services.telegram.bot_username') ?: env('TELEGRAM_BOT_USERNAME', 'rizqimbot');
-        $botToken = config('services.telegram.bot_token') ?: env('TELEGRAM_BOT_TOKEN');
+        $telegram = app(\App\Services\Telegram\TelegramMessenger::class);
         
-        if ($owner && $botToken) {
+        if ($owner && $telegram->isConfigured()) {
             $inviteLink = "https://t.me/{$botUsername}?start=invite_{$owner->telegram_invite_token}";
             
-            try {
-                $superAdmins = User::where('role', \App\Enums\UserRole::SUPER_ADMIN)
-                    ->whereNotNull('telegram_id')
-                    ->get();
-                    
-                if ($superAdmins->isNotEmpty()) {
-                    foreach ($superAdmins as $admin) {
-                        $response = \Illuminate\Support\Facades\Http::post("https://api.telegram.org/bot{$botToken}/sendMessage", [
-                            'chat_id' => $admin->telegram_id,
-                            'text' => "🏢 <b>Yangi do'kon qo'shildi (Filament)!</b>\n\n" .
-                                      "Nomi: <b>" . htmlspecialchars($store->name) . "</b>\n" .
-                                      "Komissiya: <b>{$store->commission_rate}%</b>\n" .
-                                      "Egasi: <b>" . htmlspecialchars($owner->name) . "</b> (" . htmlspecialchars($owner->phone) . ")\n" .
-                                      "Filial: <b>" . htmlspecialchars($branch->address) . "</b>\n\n" .
-                                      "🔗 <b>Egasi uchun taklifnoma havolasi:</b>\n{$inviteLink}",
-                            'parse_mode' => 'HTML',
-                        ]);
-                        
-                        if (!$response->successful()) {
-                            \Illuminate\Support\Facades\Log::warning("Telegram Filament Superadmin Notification Failed", [
-                                'response' => $response->json(),
-                                'chat_id' => $admin->telegram_id
-                            ]);
-                        }
-                    }
-                }
-            } catch (\Exception $e) {
-                \Illuminate\Support\Facades\Log::error("Failed to notify superadmin via Telegram from Filament: " . $e->getMessage());
+            $superAdmins = User::where('role', \App\Enums\UserRole::SUPER_ADMIN)
+                ->whereNotNull('telegram_id')
+                ->get();
+
+            foreach ($superAdmins as $admin) {
+                $telegram->sendMessage($admin->telegram_id, "🏢 <b>Yangi do'kon qo'shildi (Filament)!</b>\n\n" .
+                    "Nomi: <b>" . htmlspecialchars($store->name) . "</b>\n" .
+                    "Komissiya: <b>{$store->commission_rate}%</b>\n" .
+                    "Egasi: <b>" . htmlspecialchars($owner->name) . "</b> (" . htmlspecialchars($owner->phone) . ")\n" .
+                    "Filial: <b>" . htmlspecialchars($branch->address) . "</b>\n\n" .
+                    "🔗 <b>Egasi uchun taklifnoma havolasi:</b>\n{$inviteLink}", ['parse_mode' => 'HTML']);
             }
         }
     }

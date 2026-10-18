@@ -9,8 +9,9 @@ use App\Services\Telegram\TelegramMessenger;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Telegram alerts about orders handled in the Mini App (new order, status changes, courier assignment). Each one
- * is queued with its NotificationLog type, so the recipient's in-app notification feed shows it as well.
+ * Telegram alerts to staff about orders handled in the Mini App (new order, ready, courier assignment). Each one is
+ * queued with its NotificationLog type, so the recipient's in-app notification feed shows it as well. The customer
+ * hears about every transition from the OrderStatusUpdated/OrderCancelled listeners instead.
  */
 class OrderAlertService
 {
@@ -50,7 +51,7 @@ class OrderAlertService
     }
 
     /**
-     * Whoever has to act next, or the customer, after the order reached $status.
+     * Whoever has to act next after the order reached $status.
      */
     public function statusChanged(Order $order, string $status): void
     {
@@ -59,17 +60,7 @@ class OrderAlertService
                 return;
             }
 
-            // 1. ACCEPTED -> notify customer
-            if ($status === 'accepted') {
-                if ($order->user?->telegram_id) {
-                    $text = "✅ *Sizning buyurtmangiz qabul qilindi!*\n\n"
-                          . "🔢 *Buyurtma ID:* #{$order->short_code}\n"
-                          . "⏳ Tez orada tayyor bo'ladi.";
-                    $this->send($order->user->telegram_id, $text, $order->id, $order->user->id, 'telegram_customer_accepted');
-                }
-            }
-
-            // 2. READY -> notify branch manager OR courier
+            // READY -> notify branch manager OR courier
             if ($status === 'ready') {
                 list($displayAddress, $keyboard) = $this->addressAndKeyboard($order->delivery_address, $order->shipping_address);
 
@@ -116,38 +107,6 @@ class OrderAlertService
                             $this->send($staff->telegram_id, $text, $order->id, $staff->id, 'telegram_courier_ready', $keyboard);
                         }
                     }
-                }
-            }
-
-            // 3. ON_THE_WAY -> notify customer
-            if ($status === 'delivery' || $status === 'on_the_way') {
-                if ($order->user?->telegram_id) {
-                    $courierName = $order->courier?->name ?? 'Kuryer';
-                    $courierPhone = $order->courier?->phone ?? '';
-                    $text = "🚚 *Buyurtmangiz yo\'lda!*\n\n"
-                          . "🔢 *Buyurtma ID:* #{$order->short_code}\n"
-                          . "👤 *Kuryer:* {$courierName} " . ($courierPhone ? "({$courierPhone})" : "") . "\n"
-                          . "Tez orada yetib boradi.";
-                    $this->send($order->user->telegram_id, $text, $order->id, $order->user->id, 'telegram_customer_on_the_way');
-                }
-            }
-
-            // 4. DELIVERED -> notify customer
-            if ($status === 'delivered') {
-                if ($order->user?->telegram_id) {
-                    $text = "🎉 *Buyurtmangiz yetkazib berildi!*\n\n"
-                          . "🔢 *Buyurtma ID:* #{$order->short_code}\n"
-                          . "Sog\' bo\'ling, yana buyurtma kutib qolamiz! 😊";
-                    $this->send($order->user->telegram_id, $text, $order->id, $order->user->id, 'telegram_customer_delivered');
-                }
-            }
-
-            // 5. CANCELLED -> notify customer
-            if ($status === 'canceled' || $status === 'rejected') {
-                if ($order->user?->telegram_id) {
-                    $text = "❌ *Sizning buyurtmangiz bekor qilindi.*\n\n"
-                          . "🔢 *Buyurtma ID:* #{$order->short_code}";
-                    $this->send($order->user->telegram_id, $text, $order->id, $order->user->id, 'telegram_customer_canceled');
                 }
             }
         } catch (\Exception $e) {

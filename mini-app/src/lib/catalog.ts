@@ -1,21 +1,23 @@
 import type { CartItem, CartStoreInfo } from '../store/cartStore';
-import type { Decimal, Product, ProductVariant } from '../types';
+import type { Amount, Product, ProductVariant } from '../types';
+import { parseAmount, toAmount } from './money';
 
-// Decimals arrive as strings ("12000.00"); anything that is not a number becomes NaN, like parseFloat.
-export function parsePrice(value: Decimal | null | undefined): number {
-  return Number.parseFloat(String(value));
+// A price as a number, or NaN when it is not one: for the callers that must tell "no price" from 0
+// (everything that only adds up or shows prices uses toAmount instead).
+export function parsePrice(value: Amount | null | undefined): number {
+  return parseAmount(value) ?? Number.NaN;
 }
 
 // The price to show on a product card: the product's own price if it has one, else the cheapest variant.
 export function getProductBasePrice(
-  product: { price?: Decimal; variants?: Pick<ProductVariant, 'price'>[] | null } | null | undefined,
+  product: { price?: Amount; variants?: Pick<ProductVariant, 'price'>[] | null } | null | undefined,
 ): number {
   if (!product) return 0;
-  if (product.price && parsePrice(product.price) > 0) {
-    return parsePrice(product.price);
+  if (product.price && toAmount(product.price) > 0) {
+    return toAmount(product.price);
   }
   if (product.variants && product.variants.length > 0) {
-    const prices = product.variants.map((v) => parsePrice(v.price)).filter((p) => !Number.isNaN(p) && p > 0);
+    const prices = product.variants.map((v) => toAmount(v.price)).filter((price) => price > 0);
     if (prices.length > 0) {
       return Math.min(...prices);
     }
@@ -40,7 +42,7 @@ export function buildCartItem(product: Product, variant: ProductVariant | undefi
     variantId: variant?.uuid,
     storeId: product.store_id.toString(),
     name: variant ? `${product.name} (${variant.name})` : product.name,
-    price: variant ? parsePrice(variant.price) : 0,
+    price: variant ? toAmount(variant.price) : 0,
     quantity: 1,
     image: product.image_url ?? undefined,
   };

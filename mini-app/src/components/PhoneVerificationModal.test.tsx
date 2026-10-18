@@ -8,7 +8,6 @@ vi.mock('../lib/telegram', () => ({ hapticFeedback: vi.fn(), tg: { initDataUnsaf
 vi.mock('../services/api', () => ({ default: { post: vi.fn() } }));
 
 const post = vi.mocked(api.post);
-const reply = (data: unknown) => Promise.resolve({ data });
 
 const phoneInput = () => screen.getByPlaceholderText('90 123 45 67');
 const codeInput = () => screen.getByPlaceholderText('123456');

@@ -19,7 +19,7 @@ import type { ApiResponse, OwnerStoreSettings, PaymentProviderSettings, PaymentS
 
 // A provider of payment_settings: a settings object or (legacy data) a bare boolean. The API adds `available: false`
 // to a provider that is not integrated yet (Uzum, Paynet): it is shown but can't be switched on.
-type ProviderSetting = boolean | (PaymentProviderSettings & { available?: boolean }) | null | undefined;
+type ProviderSetting = boolean | PaymentProviderSettings | null | undefined;
 
 // Cash is on unless the store switched it off
 function isCashOn(setting: ProviderSetting): boolean {

@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import api from '../services/api';
 import { getApiErrorMessage, logApiError } from '../lib/apiError';
-import { parsePrice } from '../lib/catalog';
+import { toAmount } from '../lib/money';
 import { POLL_INTERVAL_MS } from '../lib/polling';
 import { useStaffOrders } from '../hooks/useOrders';
 import type { ApiResponse, AssignableStaff, Order, OrderStatus } from '../types';
@@ -289,7 +289,7 @@ export default function ManagerDashboard() {
                     ))}
                     <div className="flex justify-between items-center text-[11px] font-black text-text-h border-t border-hint/5 pt-2 mt-1">
                       <span>{language === 'uz' ? 'Jami summa' : 'Сумма'}</span>
-                      <span className="text-primary">{formatPrice(parsePrice(order.total_price))}</span>
+                      <span className="text-primary">{formatPrice(toAmount(order.total_price))}</span>
                     </div>
                     <div className="flex justify-between items-center text-[10px] text-hint font-medium pt-1">
                       <span>{language === 'uz' ? 'To\'lov turi' : 'Оплата'}</span>
@@ -513,7 +513,7 @@ export default function ManagerDashboard() {
                   </div>
                   <div className="flex justify-between items-center text-xs font-bold text-hint">
                     <span>{order.user?.name}</span>
-                    <span className="text-text-h">{formatPrice(parsePrice(order.total_price))}</span>
+                    <span className="text-text-h">{formatPrice(toAmount(order.total_price))}</span>
                   </div>
 
                   {/* Historic Timings */}

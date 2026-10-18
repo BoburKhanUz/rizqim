@@ -70,7 +70,8 @@ class OrderLifecycleUnpaidExpiryTest extends TestCase
         $this->assertStringContainsString("30 daqiqa ichida amalga oshirilmadi", $history->notes);
         Http::assertSent(fn ($request) => (string) ($request['chat_id'] ?? '') === '9100'
             && str_contains($request['text'] ?? '', 'bekor qilindi'));
-        $this->assertSame(1, NotificationLog::where('user_id', $customer->id)->where('order_id', $order->id)->where('type', 'canceled')->count());
+        $this->assertSame(['telegram_customer_canceled'], NotificationLog::where('user_id', $customer->id)->where('order_id', $order->id)
+            ->whereIn('type', ['canceled', 'telegram_customer_canceled'])->pluck('type')->all());
     }
 
     public function test_paid_recent_offline_and_accepted_orders_are_left_alone(): void

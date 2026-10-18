@@ -23,6 +23,19 @@ class EditStoreProfile extends EditTenantProfile
         ]);
     }
 
+    /**
+     * As on the settings page: no secrets in the page state (a save keeps the stored ones), and every switch as
+     * checkout reads it, so saving the profile never turns a payment method, delivery or pickup off by itself.
+     */
+    protected function mutateFormDataBeforeFill(array $data): array
+    {
+        $data['payment_settings'] = \App\Models\Store::paymentSettingsForForm(
+            \App\Models\Store::withoutSecrets($data['payment_settings'] ?? [])
+        );
+
+        return $data;
+    }
+
     public function form(Schema $schema): Schema
     {
         return $schema

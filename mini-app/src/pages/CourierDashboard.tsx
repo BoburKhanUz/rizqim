@@ -7,7 +7,7 @@ import { ErrorFallback } from '../components/Feedback';
 import { Phone, MapPin, CheckCircle, Navigation, Clock, ShieldCheck, DollarSign } from 'lucide-react';
 import api from '../services/api';
 import { getApiErrorMessage, logApiError } from '../lib/apiError';
-import { parsePrice } from '../lib/catalog';
+import { sumAmounts, toAmount } from '../lib/money';
 import { POLL_INTERVAL_MS } from '../lib/polling';
 import { useStaffOrders } from '../hooks/useOrders';
 import type { ApiResponse, Order, OrderStatus } from '../types';
@@ -68,7 +68,7 @@ export default function CourierDashboard() {
   const completedOrders = allOrders.filter((order) => order.status === 'delivered');
 
   // Compute statistics
-  const todayTotalEarnings = completedOrders.reduce((sum, order) => sum + (parsePrice(order.delivery_price || 0) || 0), 0);
+  const todayTotalEarnings = sumAmounts(completedOrders.map((order) => order.delivery_price));
 
   const formatPrice = (price: number) => {
     return price.toLocaleString() + ' UZS';
@@ -272,7 +272,7 @@ export default function CourierDashboard() {
                   ))}
                   <div className="flex justify-between items-center text-[11px] font-black text-text-h border-t border-hint/5 pt-2 mt-1">
                     <span>{language === 'uz' ? 'Jami summa' : 'Итоговая сумма'}</span>
-                    <span className="text-primary">{formatPrice(parsePrice(order.total_price))}</span>
+                    <span className="text-primary">{formatPrice(toAmount(order.total_price))}</span>
                   </div>
                 </div>
 
@@ -336,7 +336,7 @@ export default function CourierDashboard() {
                 </div>
                 <div className="flex justify-between items-center text-xs font-bold text-hint">
                   <span>{order.user?.name}</span>
-                  <span className="text-text-h">{formatPrice(parsePrice(order.total_price))}</span>
+                  <span className="text-text-h">{formatPrice(toAmount(order.total_price))}</span>
                 </div>
                 <div className="text-[10px] text-hint flex items-center gap-1.5">
                   <Clock className="w-3.5 h-3.5" />

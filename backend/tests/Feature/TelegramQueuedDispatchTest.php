@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Enums\OrderStatus;
 use App\Enums\UserRole;
 use App\Events\SettlementCompleted;
+use App\Events\StoreBalanceLow;
 use App\Jobs\CheckUnacceptedAssignmentsJob;
 use App\Jobs\SendOrderReport;
 use App\Jobs\SendTelegramRequest;
@@ -86,14 +87,11 @@ class TelegramQueuedDispatchTest extends TestCase
         $this->setStatus($order, $this->manager, 'accepted')->assertOk();
 
         Http::assertNothingSent();
+        // The OrderStatusUpdated listener's customer alert, carrying the customer's feed entry
         Queue::assertPushed(SendTelegramRequest::class, fn (SendTelegramRequest $job) => $job->method === 'sendMessage'
             && $job->params['chat_id'] === '5009'
-            && str_contains($job->params['text'], 'Sizning buyurtmangiz qabul qilindi')
+            && str_contains($job->params['text'], 'Buyurtmangiz qabul qilindi!')
             && $job->notification === ['user_id' => $this->customer->id, 'order_id' => $order->id, 'type' => 'telegram_customer_accepted']);
-        // The OrderStatusUpdated listener's customer alert goes the same way
-        Queue::assertPushed(SendTelegramRequest::class, fn (SendTelegramRequest $job) => $job->notification === null
-            && $job->params['chat_id'] === '5009'
-            && str_contains($job->params['text'], 'Buyurtmangiz qabul qilindi!'));
         // The feed entry is written by the job, with the outcome of the send
         $this->assertSame(0, NotificationLog::where('order_id', $order->id)->count());
     }
@@ -317,9 +315,14 @@ class TelegramQueuedDispatchTest extends TestCase
         $invited = $this->makeStaff(UserRole::COURIER, $this->branch, null, ['telegram_id' => null, 'telegram_invite_token' => 'emp_invite1']);
 
         event(new SettlementCompleted($this->store, 150000));
+        event(new StoreBalanceLow($this->store));
         app(TelegramNotificationService::class)->sendEmployeeInvite($invited, $this->owner);
 
         Http::assertNothingSent();
+        Queue::assertPushed(SendTelegramRequest::class, fn (SendTelegramRequest $job) => $job->params['chat_id'] === '-100777'
+            && $job->params['parse_mode'] === 'Markdown'
+            && str_contains($job->params['text'], 'Moliyaviy ogohlantirish'));
+        $this->assertTrue(NotificationLog::where('user_id', $this->owner->id)->where('type', 'store_payment_required')->exists());
         Queue::assertPushed(SendTelegramRequest::class, fn (SendTelegramRequest $job) => $job->params['chat_id'] === '-100777'
             && str_contains($job->params['text'], '150 000 UZS'));
         Queue::assertPushed(SendTelegramRequest::class, fn (SendTelegramRequest $job) => $job->params['chat_id'] === '5003'

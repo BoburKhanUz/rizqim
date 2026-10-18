@@ -198,6 +198,8 @@ class SuperadminController extends Controller
                 'uuid' => Str::uuid(),
                 'phone' => $validated['phone'],
                 'commission_rate' => $validated['commission_rate'],
+                // What a store without settings got before (cash only), written out in full
+                'payment_settings' => Store::initialPaymentSettings(['cash']),
                 'is_active' => true,
             ]);
 
@@ -233,34 +235,20 @@ class SuperadminController extends Controller
             $inviteLink = "https://t.me/{$botUsername}?start=invite_{$ownerToken}";
 
             // Notify Super Admins via Telegram
-            try {
+            $telegram = app(\App\Services\Telegram\TelegramMessenger::class);
+            if ($telegram->isConfigured()) {
                 $superAdmins = User::where('role', \App\Enums\UserRole::SUPER_ADMIN)
                     ->whereNotNull('telegram_id')
                     ->get();
-                $botToken = env('TELEGRAM_BOT_TOKEN');
-                if ($botToken && $superAdmins->isNotEmpty()) {
-                    foreach ($superAdmins as $admin) {
-                        $response = \Illuminate\Support\Facades\Http::post("https://api.telegram.org/bot{$botToken}/sendMessage", [
-                            'chat_id' => $admin->telegram_id,
-                            'text' => "🏢 <b>Yangi do'kon qo'shildi!</b>\n\n" .
-                                      "Nomi: <b>" . htmlspecialchars($store->name) . "</b>\n" .
-                                      "Komissiya: <b>{$store->commission_rate}%</b>\n" .
-                                      "Egasi: <b>" . htmlspecialchars($owner->name) . "</b> (" . htmlspecialchars($owner->phone) . ")\n" .
-                                      "Filial: <b>" . htmlspecialchars($validated['branch_address']) . "</b>\n\n" .
-                                      "🔗 <b>Egasi uchun taklifnoma havolasi:</b>\n{$inviteLink}",
-                            'parse_mode' => 'HTML',
-                        ]);
-                        
-                        if (!$response->successful()) {
-                            \Illuminate\Support\Facades\Log::warning("Telegram Superadmin Notification Failed", [
-                                'response' => $response->json(),
-                                'chat_id' => $admin->telegram_id
-                            ]);
-                        }
-                    }
+
+                foreach ($superAdmins as $admin) {
+                    $telegram->sendMessage($admin->telegram_id, "🏢 <b>Yangi do'kon qo'shildi!</b>\n\n" .
+                        "Nomi: <b>" . htmlspecialchars($store->name) . "</b>\n" .
+                        "Komissiya: <b>{$store->commission_rate}%</b>\n" .
+                        "Egasi: <b>" . htmlspecialchars($owner->name) . "</b> (" . htmlspecialchars($owner->phone) . ")\n" .
+                        "Filial: <b>" . htmlspecialchars($validated['branch_address']) . "</b>\n\n" .
+                        "🔗 <b>Egasi uchun taklifnoma havolasi:</b>\n{$inviteLink}", ['parse_mode' => 'HTML']);
                 }
-            } catch (\Exception $e) {
-                \Illuminate\Support\Facades\Log::error("Failed to notify superadmin via Telegram: " . $e->getMessage());
             }
 
             return response()->json([

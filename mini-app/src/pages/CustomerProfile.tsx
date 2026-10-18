@@ -12,7 +12,8 @@ import { toLatLng } from '../features/address/coordinates';
 import type { AddressLocationValue } from '../features/address/types';
 import { classifyPhoneChange } from '../lib/phone';
 import { getApiFieldError, logApiError } from '../lib/apiError';
-import type { ApiResponse, Order } from '../types';
+import { toAmount } from '../lib/money';
+import type { Amount, ApiResponse, Order } from '../types';
 
 interface Region {
   id: number;
@@ -239,9 +240,8 @@ export default function CustomerProfile() {
     hapticFeedback('success');
   };
 
-  const formatBalance = (val: number | string | undefined) => {
-    if (val === undefined || val === null) return "0";
-    const num = Math.round(Number(val));
+  const formatBalance = (val: Amount | undefined) => {
+    const num = Math.round(toAmount(val));
     return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
   };
 

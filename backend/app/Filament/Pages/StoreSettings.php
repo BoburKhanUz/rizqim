@@ -43,9 +43,9 @@ class StoreSettings extends Page implements HasForms
             $data = $tenant->attributesToArray();
 
             // Map old structure for the form if it exists
-            $settings = \App\Models\Store::withoutSecrets($data['payment_settings'] ?? []);
+            $settings = \App\Models\Store::normalizePaymentSettings(\App\Models\Store::withoutSecrets($data['payment_settings'] ?? []));
             if (isset($settings['allowed_methods'])) {
-                foreach (['cash', 'click', 'payme', 'uzum', 'paynet'] as $provider) {
+                foreach (\App\Models\Store::PAYMENT_PROVIDERS as $provider) {
                     if (!isset($settings[$provider])) {
                         $settings[$provider] = [];
                     }
@@ -54,7 +54,7 @@ class StoreSettings extends Page implements HasForms
                     }
                 }
             }
-            $data['payment_settings'] = $settings;
+            $data['payment_settings'] = \App\Models\Store::paymentSettingsForForm($settings);
 
             $this->form->fill($data);
         }

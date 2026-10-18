@@ -1,4 +1,4 @@
-import { parsePrice } from './catalog';
+import { sumAmounts } from './money';
 import type { Order, OrderStatus } from '../types';
 
 export type Timeframe = 'today' | 'weekly' | 'monthly' | 'yearly' | 'custom';
@@ -76,10 +76,10 @@ export function computeOrderAnalytics(orders: Order[], timeframe: Timeframe, now
   );
   const deliveredOrders = periodOrders.filter((order) => order.status === 'delivered');
 
-  const totalRevenue = deliveredOrders.reduce((sum, order) => sum + parsePrice(order.total_price), 0);
-  const cashRevenue = deliveredOrders
-    .filter((order) => order.payment_method === 'cash')
-    .reduce((sum, order) => sum + parsePrice(order.total_price), 0);
+  const totalRevenue = sumAmounts(deliveredOrders.map((order) => order.total_price));
+  const cashRevenue = sumAmounts(
+    deliveredOrders.filter((order) => order.payment_method === 'cash').map((order) => order.total_price),
+  );
 
   const prepDurations: number[] = [];
   const deliveryDurations: number[] = [];

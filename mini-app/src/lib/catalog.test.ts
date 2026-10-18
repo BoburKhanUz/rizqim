@@ -9,10 +9,12 @@ describe('parsePrice', () => {
     expect(parsePrice(8000)).toBe(8000);
   });
 
-  it('is NaN for anything that is not a price', () => {
+  it('is NaN for anything that is not a price, so "no price" can be told from 0', () => {
     expect(parsePrice(undefined)).toBeNaN();
     expect(parsePrice(null)).toBeNaN();
     expect(parsePrice('abc')).toBeNaN();
+    expect(parsePrice('')).toBeNaN();
+    expect(parsePrice('0.00')).toBe(0);
   });
 });
 
@@ -88,6 +90,10 @@ describe('buildCartItem', () => {
       price: 0,
       quantity: 1,
     });
+  });
+
+  it('prices a variant with a broken price at 0, not NaN', () => {
+    expect(buildCartItem(product, makeVariant({ price: 'n/a' })).price).toBe(0);
   });
 
   it('has no image instead of a null one', () => {

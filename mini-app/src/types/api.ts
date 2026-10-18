@@ -20,5 +20,10 @@ export interface Pagination {
   per_page: number;
 }
 
-// Laravel serializes DECIMAL columns as strings ("12000.00") but casted/computed values as numbers.
-export type Decimal = string | number;
+// A DECIMAL column or `decimal:2` cast, which Laravel serialises as a string ("15000.00"). `+` on two of them
+// concatenates, so read one with toAmount() (lib/money.ts) before any arithmetic or formatting.
+export type Decimal = string;
+
+// What the money helpers accept: a Decimal from the API, or a number the app has computed. Values the API computes
+// in PHP (sums, float accessors such as Store.min_order) arrive as numbers.
+export type Amount = Decimal | number;

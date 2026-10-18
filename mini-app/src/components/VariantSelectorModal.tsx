@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { X, Check } from 'lucide-react';
 import { hapticFeedback } from '../lib/telegram';
 import { formatUzbekSum } from '../lib/format';
-import { parsePrice } from '../lib/catalog';
+import { toAmount } from '../lib/money';
 import { isVariantActive, isVariantOutOfStock } from '../lib/stock';
 import type { Product, ProductVariant } from '../types';
 
@@ -87,10 +87,10 @@ function VariantSheet({ product, onClose, onAdd }: VariantSheetProps) {
             <p className="text-xs text-slate-500 font-semibold line-clamp-2 leading-relaxed">{product.description || "Mazali taom variantini tanlang"}</p>
             <p className="text-xs font-black text-slate-800 mt-2">
               Asosiy narx: {formatUzbekSum(
-                product.price && parsePrice(product.price) > 0
-                  ? parsePrice(product.price)
+                product.price && toAmount(product.price) > 0
+                  ? toAmount(product.price)
                   : (variants.length > 0
-                      ? Math.min(...variants.map((v) => parsePrice(v.price) || 0))
+                      ? Math.min(...variants.map((v) => toAmount(v.price)))
                       : 0)
               )}
             </p>

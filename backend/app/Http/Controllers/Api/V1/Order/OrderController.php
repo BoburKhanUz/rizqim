@@ -66,7 +66,8 @@ class OrderController extends Controller
         }
 
         if ($result->changed) {
-            $this->alerts->statusChanged($result->order, 'delivered');
+            // Still in the response, as when the delivered alert (now the listener's) was sent from here and loaded it
+            $result->order->loadMissing('user');
         }
 
         return $this->success($result->order, 'Order delivered successfully.');

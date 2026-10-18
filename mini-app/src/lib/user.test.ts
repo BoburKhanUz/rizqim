@@ -6,7 +6,12 @@ describe('normalizeUser', () => {
   it('turns the DECIMAL balance string of the API into a number', () => {
     expect(normalizeUser(makeUser({ balance: '125000.00' })).balance).toBe(125000);
     expect(normalizeUser(makeUser({ balance: '0.00' })).balance).toBe(0);
-    expect(normalizeUser(makeUser({ balance: 4500 })).balance).toBe(4500);
+    expect(normalizeUser(makeUser({ balance: '4500.50' })).balance).toBe(4500.5);
+  });
+
+  it('never lets a broken balance become NaN', () => {
+    expect(normalizeUser(makeUser({ balance: 'abc' })).balance).toBe(0);
+    expect(normalizeUser(makeUser({ balance: '' })).balance).toBe(0);
   });
 
   it('keeps every other field as it came', () => {

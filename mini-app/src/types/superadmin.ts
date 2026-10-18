@@ -1,23 +1,23 @@
-import type { Decimal } from './api';
+import type { Amount, Decimal } from './api';
 
-// GET /superadmin/dashboard
+// GET /superadmin/dashboard. The money figures are PHP/SQL sums, so each is a number or a numeric string.
 export interface DashboardStats {
   total_stores: number;
   active_stores: number;
   payment_required_stores: number;
   total_users: number;
-  total_gmv: Decimal;
-  total_commission: Decimal;
-  monthly_gmv: Decimal;
-  monthly_commission: Decimal;
-  last_30_days_gmv: Decimal;
-  last_30_days_commission: Decimal;
-  today_gmv: Decimal;
+  total_gmv: Amount;
+  total_commission: Amount;
+  monthly_gmv: Amount;
+  monthly_commission: Amount;
+  last_30_days_gmv: Amount;
+  last_30_days_commission: Amount;
+  today_gmv: Amount;
   today_orders: number;
-  today_commission: Decimal;
+  today_commission: Amount;
   pending_payouts: number;
-  total_store_debt: Decimal;
-  total_cashback_balance: Decimal;
+  total_store_debt: Amount;
+  total_cashback_balance: Amount;
 }
 
 export interface SuperadminStoreOwner {

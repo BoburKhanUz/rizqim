@@ -1,4 +1,4 @@
-import type { Decimal } from './api';
+import type { Amount, Decimal } from './api';
 
 // Mirrors App\Enums\StoreStatus.
 export type StoreStatus =
@@ -42,6 +42,7 @@ export interface PaymentProviderSettings {
   enabled?: boolean;
   merchant_id?: string;
   service_id?: string;
+  available?: boolean; // false for a provider the platform cannot process yet (uzum, paynet)
 }
 
 // Store.payment_settings (a JSON column). A provider is either a bare boolean (legacy) or a settings object.
@@ -51,7 +52,7 @@ export interface PaymentSettings {
   payme?: boolean | PaymentProviderSettings;
   uzum?: boolean | PaymentProviderSettings;
   paynet?: boolean | PaymentProviderSettings;
-  delivery_fee?: Decimal;
+  delivery_fee?: Amount; // a JSON column: whatever the owner's form saved
   delivery_enabled?: boolean;
   pickup_enabled?: boolean;
   working_hours?: { open?: string; close?: string };
@@ -76,8 +77,9 @@ export interface StoreRating {
   user?: StoreRatingAuthor | null;
 }
 
-// The store columns the API serializes. Financial and internal columns (balance, credit_limit, commission_rate,
-// tax numbers, ...) and payment secrets are removed by Store::toArray().
+// The store columns the API serializes. Financial and internal columns (debt_balance, wallet_balance, credit_limit,
+// commission_rate, tax numbers, ...) and payment secrets are removed by Store::toArray(); the public JSON does not
+// carry the store's debt at all, only the derived `is_order_locked`.
 export interface StoreBase {
   id: number;
   uuid: string;
@@ -102,8 +104,8 @@ export interface StoreBase {
   open_time: string | null;
   close_time: string | null;
   min_order_amount: Decimal;
-  min_order: number; // min_order_amount as a number
-  delivery_fee: number; // payment_settings.delivery_fee as a number
+  min_order: number; // min_order_amount as a float (an accessor, so a JSON number)
+  delivery_fee: number; // payment_settings.delivery_fee as a float (an accessor)
   is_premium: boolean;
   is_featured: boolean;
   is_order_locked: boolean;

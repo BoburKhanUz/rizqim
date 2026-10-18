@@ -71,7 +71,7 @@ describe('computeOrderAnalytics', () => {
     const orders = [
       order('delivered', { id: 1, total_price: '30000.00', payment_method: 'cash' }),
       order('delivered', { id: 2, total_price: '45000.50', payment_method: 'click' }),
-      order('delivered', { id: 3, total_price: 20000, payment_method: 'payme' }),
+      order('delivered', { id: 3, total_price: '20000.00', payment_method: 'payme' }),
       order('canceled', { id: 4, total_price: '99999.00', payment_method: 'cash' }),
     ];
 

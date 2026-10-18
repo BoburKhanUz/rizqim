@@ -47,7 +47,8 @@ class PaymentUnavailableMethodsTest extends TestCase
     {
         $settings = $this->store->fresh()->payment_settings;
         $this->assertEquals(self::SAVED_UZUM, $settings['uzum']);
-        $this->assertTrue($settings['paynet']);
+        // Saved as a legacy bare `true`, which saving turns into its section form
+        $this->assertSame(['enabled' => true], $settings['paynet']);
     }
 
     public function test_checkout_refuses_uzum_and_paynet_even_where_a_store_enabled_them(): void
@@ -176,8 +177,8 @@ class PaymentUnavailableMethodsTest extends TestCase
             ->assertHasNoFormErrors();
 
         $settings = Store::where('name', 'New Cafe')->sole()->payment_settings;
-        $this->assertTrue($settings['click']);
-        $this->assertFalse($settings['uzum']);
-        $this->assertFalse($settings['paynet']);
+        $this->assertSame(['enabled' => true], $settings['click']);
+        $this->assertSame(['enabled' => false], $settings['uzum']);
+        $this->assertSame(['enabled' => false], $settings['paynet']);
     }
 }

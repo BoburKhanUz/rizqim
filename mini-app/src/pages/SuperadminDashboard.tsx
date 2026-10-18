@@ -7,7 +7,8 @@ import { hapticFeedback } from '../lib/telegram';
 import api from '../services/api';
 import { logApiError } from '../lib/apiError';
 import { FullScreenLoader, ErrorFallback } from '../components/Feedback';
-import type { ApiResponse, DashboardStats, Decimal } from '../types';
+import { toAmount } from '../lib/money';
+import type { Amount, ApiResponse, DashboardStats } from '../types';
 
 export default function SuperadminDashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -43,13 +44,13 @@ export default function SuperadminDashboard() {
     setReloadCount((count) => count + 1);
   };
 
-  const formatMoney = (amount: Decimal) => {
-    const num = Math.round(Number(amount));
+  const formatMoney = (amount: Amount) => {
+    const num = Math.round(toAmount(amount));
     return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + " so'm";
   };
 
-  const formatPoints = (amount: Decimal) => {
-    const num = Math.round(Number(amount));
+  const formatPoints = (amount: Amount) => {
+    const num = Math.round(toAmount(amount));
     return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + " ball";
   };
 

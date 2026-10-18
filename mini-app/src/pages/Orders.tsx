@@ -5,6 +5,7 @@ import { hapticFeedback } from '../lib/telegram';
 import { Link } from 'react-router-dom';
 import api from '../services/api';
 import { getApiErrorMessage, logApiError } from '../lib/apiError';
+import { toAmount } from '../lib/money';
 import type { OrderStatus, PaymentStatus } from '../types';
 import {
   ArrowLeft,
@@ -228,7 +229,7 @@ export default function Orders() {
                       {config.icon}
                       <span>{t(config.labelKey)}</span>
                     </span>
-                    <span className="font-black text-xs text-amber-500">{Number(order.total_price).toLocaleString()} UZS</span>
+                    <span className="font-black text-xs text-amber-500">{toAmount(order.total_price).toLocaleString()} UZS</span>
                   </div>
                 </div>
 
@@ -253,7 +254,7 @@ export default function Orders() {
                           </div>
                           <span className="text-slate-400 text-[10px] font-extrabold">x{item.quantity}</span>
                           <span className="font-extrabold text-slate-800">
-                            {Number(item.total_price || (Number(item.unit_price) * item.quantity)).toLocaleString()} UZS
+                            {(item.total_price ? toAmount(item.total_price) : toAmount(item.unit_price) * item.quantity).toLocaleString()} UZS
                           </span>
                         </div>
                       ))}
