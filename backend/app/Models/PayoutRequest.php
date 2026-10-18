@@ -21,23 +21,40 @@ class PayoutRequest extends Model
     protected static function booted()
     {
         static::updating(function ($payout) {
-            $originalStatus = $payout->getOriginal('status');
-            
-            // Transitioning from pending -> completed
-            if ($originalStatus === 'pending' && $payout->status === 'completed') {
-                $payout->processed_at = now();
-                $payout->processed_by = auth()->id();
+            if (!$payout->isDirty('status')) {
+                return;
+            }
 
-                DB::transaction(function () use ($payout) {
+            $newStatus = $payout->status;
+            if (!in_array($newStatus, ['completed', 'rejected'], true)) {
+                throw new \DomainException("Payout so'rovi holatini '{$newStatus}' ga o'zgartirib bo'lmaydi.");
+            }
+
+            $payout->processed_at = now();
+            $payout->processed_by = auth()->id();
+
+            DB::transaction(function () use ($payout, $newStatus) {
+                // The in-memory original may be stale (double click / two admins): decide on the locked row.
+                $currentStatus = static::whereKey($payout->getKey())->lockForUpdate()->value('status');
+                if ($currentStatus !== 'pending') {
+                    throw new \DomainException("Payout so'rovi allaqachon ko'rib chiqilgan.");
+                }
+
+                // Transitioning from pending -> completed
+                if ($newStatus === 'completed') {
                     $store = Store::where('id', $payout->store_id)->lockForUpdate()->firstOrFail();
-                    
+
                     $balanceBefore = (float) $store->wallet_balance;
                     $balanceAfter = $balanceBefore - (float) $payout->amount;
 
+                    if ($balanceAfter < 0) {
+                        throw new \DomainException("Hamyonda yetarli mablag' yo'q: " . number_format($balanceBefore) . " UZS.");
+                    }
+
                     // Update store wallet balance
-                    $store->update([
+                    $store->forceFill([
                         'wallet_balance' => $balanceAfter,
-                    ]);
+                    ])->save();
 
                     // Record wallet transaction
                     StoreWalletTransaction::create([
@@ -49,14 +66,15 @@ class PayoutRequest extends Model
                         'notes' => "Payout completed to card: {$payout->card_number}",
                         'performed_by' => auth()->id(),
                     ]);
-                });
-            }
+                }
 
-            // Transitioning from pending -> rejected
-            if ($originalStatus === 'pending' && $payout->status === 'rejected') {
-                $payout->processed_at = now();
-                $payout->processed_by = auth()->id();
-            }
+                // Persist the transition while the row lock is held, so a parallel approval sees it.
+                static::whereKey($payout->getKey())->update([
+                    'status' => $newStatus,
+                    'processed_at' => $payout->processed_at,
+                    'processed_by' => $payout->processed_by,
+                ]);
+            });
         });
     }
 

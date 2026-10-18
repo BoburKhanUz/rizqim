@@ -2,11 +2,16 @@
 
 namespace App\Services\Finance;
 
+use App\Models\PayoutRequest;
 use App\Models\Store;
+use App\Models\StoreTopupRequest;
 use App\Models\StoreTransaction;
 use App\Models\StoreWalletTransaction;
+use App\Enums\PaymentStatus;
+use App\Enums\StoreStatus;
 use App\Enums\StoreTransactionType;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Exception;
 
 class LedgerService
@@ -69,7 +74,7 @@ class LedgerService
                     'notes' => "Commission deduction from wallet for order #{$order->short_code}",
                 ]);
 
-                $lockedStore->update(['wallet_balance' => $walletAfter]);
+                $lockedStore->forceFill(['wallet_balance' => $walletAfter])->save();
             }
 
             // 2. Add to debt balance if any
@@ -92,14 +97,13 @@ class LedgerService
                     'notes' => "Commission deduction for order #{$order->short_code}",
                 ]);
 
-                $lockedStore->update(['balance' => $balanceAfter]);
+                $lockedStore->forceFill(['balance' => $balanceAfter])->save();
 
-                // Check if credit limit exceeded (using absolute value of credit_limit)
-                $limit = abs($lockedStore->credit_limit);
-                if ($balanceAfter >= $limit) {
-                    $lockedStore->update([
-                        'status' => \App\Enums\StoreStatus::PAYMENT_REQUIRED->value,
-                    ]);
+                // Block an active store once its debt reaches the credit limit; other states (e.g. a finance hold) are kept.
+                if ($this->exceedsCreditLimit($lockedStore, $balanceAfter) && $this->hasStatus($lockedStore, StoreStatus::ACTIVE)) {
+                    $lockedStore->forceFill([
+                        'status' => StoreStatus::PAYMENT_REQUIRED->value,
+                    ])->save();
                     event(new \App\Events\StoreBalanceLow($lockedStore));
                 }
             }
@@ -141,9 +145,110 @@ class LedgerService
                 'notes' => "Settlement added for order #{$order->short_code}",
             ]);
 
-            $lockedStore->update(['wallet_balance' => $balanceAfter]);
+            $lockedStore->forceFill(['wallet_balance' => $balanceAfter])->save();
 
             return $transaction;
+        });
+    }
+
+    /**
+     * Reduce the store's debt by a payment and unblock it once the debt is back under its credit limit.
+     */
+    public function reduceDebt(Store $store, float $amount, string $notes, ?string $referenceId = null, ?int $performedBy = null): StoreTransaction
+    {
+        return DB::transaction(function () use ($store, $amount, $notes, $referenceId, $performedBy) {
+            $lockedStore = Store::where('id', $store->id)->lockForUpdate()->firstOrFail();
+
+            $balanceBefore = (float) $lockedStore->balance;
+            $balanceAfter = $balanceBefore - $amount; // reduce debt
+
+            $transaction = StoreTransaction::create([
+                'store_id' => $lockedStore->id,
+                'type' => StoreTransactionType::TOPUP->value,
+                'amount' => -$amount,
+                'balance_before' => $balanceBefore,
+                'balance_after' => $balanceAfter,
+                'notes' => $notes,
+                'reference_id' => $referenceId,
+                'performed_by' => $performedBy,
+            ]);
+
+            $updateData = ['balance' => $balanceAfter];
+
+            if ($this->hasStatus($lockedStore, StoreStatus::PAYMENT_REQUIRED) && !$this->exceedsCreditLimit($lockedStore, $balanceAfter)) {
+                $updateData['status'] = StoreStatus::ACTIVE->value;
+            }
+
+            $lockedStore->forceFill($updateData)->save();
+
+            return $transaction;
+        });
+    }
+
+    /**
+     * Reduce the store's debt by a paid online top-up. Callers must hold the lock on the top-up row
+     * and only call this on its pending -> paid transition.
+     */
+    public function creditTopup(StoreTopupRequest $topup, string $providerLabel): StoreTransaction
+    {
+        return DB::transaction(function () use ($topup, $providerLabel) {
+            $store = Store::where('id', $topup->store_id)->lockForUpdate()->firstOrFail();
+
+            $existing = StoreTransaction::where('store_id', $store->id)
+                ->where('type', StoreTransactionType::TOPUP->value)
+                ->where('reference_id', $topup->uuid)
+                ->first();
+
+            return $existing ?? $this->reduceDebt($store, (float) $topup->amount, "Online top-up via {$providerLabel}", $topup->uuid);
+        });
+    }
+
+    /**
+     * Amount the owner may still request: wallet balance minus pending payouts minus the reserve.
+     * Callers must hold the lock on the store row.
+     */
+    public function availableForPayout(Store $store): float
+    {
+        $pending = (float) PayoutRequest::where('store_id', $store->id)
+            ->where('status', 'pending')
+            ->sum('amount');
+
+        $minReserve = (float) ($store->min_payout_reserve ?? 100000.00);
+
+        return max(0.0, round((float) $store->wallet_balance - $pending - $minReserve, 2));
+    }
+
+    /**
+     * Create a pending payout request (API and owner panel). Throws \DomainException with a user-facing
+     * message when the card is invalid or the wallet minus pending payouts minus the reserve cannot cover it.
+     */
+    public function requestPayout(Store $store, float $amount, string $cardNumber, ?string $notes = null): PayoutRequest
+    {
+        if (!preg_match('/^\d{16}$/', $cardNumber)) {
+            throw new \DomainException('Karta raqami 16 ta raqamdan iborat bo\'lishi kerak.');
+        }
+
+        return DB::transaction(function () use ($store, $amount, $cardNumber, $notes) {
+            // Lock the store so parallel requests cannot each pass the check and together exceed the wallet.
+            $lockedStore = Store::where('id', $store->id)->lockForUpdate()->firstOrFail();
+            $minReserve = (float) ($lockedStore->min_payout_reserve ?? 100000.00);
+
+            if ((float) $lockedStore->wallet_balance < $minReserve) {
+                throw new \DomainException('Mablag\' yechish uchun hamyonda kamida ' . number_format($minReserve) . ' UZS qoldiq bo\'lishi shart.');
+            }
+
+            $available = $this->availableForPayout($lockedStore);
+            if ($amount > $available) {
+                throw new \DomainException("Yechib olingandan so'ng hamyonda kamida " . number_format($minReserve) . " UZS qolishi shart. Kutilayotgan so'rovlarni hisobga olganda siz ko'pi bilan " . number_format($available) . " UZS yechishingiz mumkin.");
+            }
+
+            return PayoutRequest::create([
+                'store_id' => $lockedStore->id,
+                'amount' => $amount,
+                'card_number' => $cardNumber,
+                'notes' => $notes,
+                'status' => 'pending',
+            ]);
         });
     }
 
@@ -154,7 +259,10 @@ class LedgerService
     {
         $store = $order->store;
         $commissionRate = $store->commission_rate ?? 10;
-        $commissionAmount = $order->total_price * ($commissionRate / 100);
+        // Charge the snapshot taken at order time as-is (0 is valid); the rate is only a fallback for an in-memory order without the attribute.
+        $commissionAmount = $order->commission_amount !== null
+            ? (float) $order->commission_amount
+            : round($order->total_price * $commissionRate / 100, 2);
 
         // 1. Always deduct commission for every order to log the commission transaction
         if ($commissionAmount > 0) {
@@ -162,92 +270,7 @@ class LedgerService
         }
 
         // 2. Settle full amount if collected by the platform
-        if ($order->payment_owner === 'PLATFORM') {
-            $settlementAmount = $order->total_price;
-            if ($settlementAmount > 0) {
-                if ($order->payment_method === 'keshbek') {
-                    // Cashback payment logic: Pay off debt first, remainder goes to wallet
-                    DB::transaction(function () use ($store, $settlementAmount, $order, $performedBy) {
-                        $lockedStore = Store::where('id', $store->id)->lockForUpdate()->firstOrFail();
-                        $debt = $lockedStore->balance;
-
-                        if ($debt > 0) {
-                            if ($settlementAmount <= $debt) {
-                                $amountToPayOff = $settlementAmount;
-                                $remainingToWallet = 0.0;
-                            } else {
-                                $amountToPayOff = $debt;
-                                $remainingToWallet = $settlementAmount - $debt;
-                            }
-
-                            // Reduce debt
-                            $balanceBefore = $lockedStore->balance;
-                            $balanceAfter = $balanceBefore - $amountToPayOff;
-
-                            StoreTransaction::create([
-                                'store_id' => $lockedStore->id,
-                                'type' => StoreTransactionType::TOPUP->value,
-                                'amount' => -$amountToPayOff,
-                                'balance_before' => $balanceBefore,
-                                'balance_after' => $balanceAfter,
-                                'reference_id' => $order->uuid,
-                                'order_id' => $order->id,
-                                'performed_by' => $performedBy,
-                                'notes' => "Keshbek payment covering restaurant debt for order #{$order->short_code}",
-                            ]);
-
-                            $updateData = ['balance' => $balanceAfter];
-                            
-                            $limit = abs($lockedStore->credit_limit);
-                            if ($lockedStore->status === \App\Enums\StoreStatus::PAYMENT_REQUIRED->value && ($balanceAfter < $limit || $balanceAfter <= -100000)) {
-                                $updateData['status'] = \App\Enums\StoreStatus::ACTIVE->value;
-                            }
-                            $lockedStore->update($updateData);
-
-                            // Add remaining to wallet if any
-                            if ($remainingToWallet > 0) {
-                                $walletBefore = $lockedStore->wallet_balance;
-                                $walletAfter = $walletBefore + $remainingToWallet;
-
-                                StoreWalletTransaction::create([
-                                    'store_id' => $lockedStore->id,
-                                    'type' => StoreTransactionType::SETTLEMENT->value,
-                                    'amount' => $remainingToWallet,
-                                    'balance_before' => $walletBefore,
-                                    'balance_after' => $walletAfter,
-                                    'reference_id' => $order->uuid,
-                                    'order_id' => $order->id,
-                                    'performed_by' => $performedBy,
-                                    'notes' => "Keshbek payment remainder settlement for order #{$order->short_code}",
-                                ]);
-
-                                $lockedStore->update(['wallet_balance' => $walletAfter]);
-                            }
-                        } else {
-                            // No debt, goes directly to wallet
-                            $walletBefore = $lockedStore->wallet_balance;
-                            $walletAfter = $walletBefore + $settlementAmount;
-
-                            StoreWalletTransaction::create([
-                                'store_id' => $lockedStore->id,
-                                'type' => StoreTransactionType::SETTLEMENT->value,
-                                'amount' => $settlementAmount,
-                                'balance_before' => $walletBefore,
-                                'balance_after' => $walletAfter,
-                                'reference_id' => $order->uuid,
-                                'order_id' => $order->id,
-                                'performed_by' => $performedBy,
-                                'notes' => "Keshbek payment settlement for order #{$order->short_code}",
-                            ]);
-
-                            $lockedStore->update(['wallet_balance' => $walletAfter]);
-                        }
-                    });
-                } else {
-                    $this->addSettlement($store, $settlementAmount, $order, null, $performedBy);
-                }
-            }
-        }
+        $this->settlePlatformOrder($order, $performedBy);
 
         // --- Referral & Cashback Processing ---
         try {
@@ -282,7 +305,7 @@ class LedgerService
                                 'notes' => "Referral cashback reward cost for referred user #{$user->id}",
                             ]);
 
-                            $lockedStore->update(['balance' => $balanceAfter]);
+                            $lockedStore->forceFill(['balance' => $balanceAfter])->save();
                         });
                     }
                 }
@@ -290,5 +313,137 @@ class LedgerService
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error("Failed to process referral reward for order {$order->uuid}: " . $e->getMessage());
         }
+    }
+
+    /**
+     * Credit a paid, platform-collected order to its store exactly once: at delivery, or when the payment only
+     * arrives after delivery. Returns whether it credited now.
+     */
+    public function settlePlatformOrder(\App\Models\Order $order, ?int $performedBy = null): bool
+    {
+        if ($order->payment_owner !== 'PLATFORM' || (float) $order->total_price <= 0) {
+            return false;
+        }
+
+        if ($order->payment_status !== PaymentStatus::PAID) {
+            // Never credit the wallet for money the platform has not received (e.g. an unpaid online order marked delivered).
+            Log::warning("Settlement skipped for unpaid platform order {$order->uuid}");
+            return false;
+        }
+
+        return DB::transaction(function () use ($order, $performedBy) {
+            $lockedStore = Store::where('id', $order->store_id)->lockForUpdate()->firstOrFail();
+
+            if ($this->hasSettlement($order)) {
+                return false;
+            }
+
+            if ($order->payment_method === 'keshbek') {
+                // Cashback payment logic: Pay off debt first, remainder goes to wallet
+                $this->settleKeshbek($lockedStore, (float) $order->total_price, $order, $performedBy);
+            } else {
+                $this->addSettlement($lockedStore, (float) $order->total_price, $order, null, $performedBy);
+            }
+
+            return true;
+        });
+    }
+
+    /**
+     * Whether the order's money has already been credited to its store (wallet settlement or keshbek debt payoff).
+     */
+    public function hasSettlement(\App\Models\Order $order): bool
+    {
+        return StoreWalletTransaction::where('order_id', $order->id)->where('type', StoreTransactionType::SETTLEMENT->value)->exists()
+            || StoreTransaction::where('order_id', $order->id)->where('type', StoreTransactionType::TOPUP->value)->exists();
+    }
+
+    private function settleKeshbek(Store $lockedStore, float $settlementAmount, \App\Models\Order $order, ?int $performedBy): void
+    {
+        $debt = $lockedStore->balance;
+
+        if ($debt > 0) {
+            if ($settlementAmount <= $debt) {
+                $amountToPayOff = $settlementAmount;
+                $remainingToWallet = 0.0;
+            } else {
+                $amountToPayOff = $debt;
+                $remainingToWallet = $settlementAmount - $debt;
+            }
+
+            // Reduce debt
+            $balanceBefore = $lockedStore->balance;
+            $balanceAfter = $balanceBefore - $amountToPayOff;
+
+            StoreTransaction::create([
+                'store_id' => $lockedStore->id,
+                'type' => StoreTransactionType::TOPUP->value,
+                'amount' => -$amountToPayOff,
+                'balance_before' => $balanceBefore,
+                'balance_after' => $balanceAfter,
+                'reference_id' => $order->uuid,
+                'order_id' => $order->id,
+                'performed_by' => $performedBy,
+                'notes' => "Keshbek payment covering restaurant debt for order #{$order->short_code}",
+            ]);
+
+            $updateData = ['balance' => $balanceAfter];
+
+            if ($this->hasStatus($lockedStore, StoreStatus::PAYMENT_REQUIRED) && !$this->exceedsCreditLimit($lockedStore, $balanceAfter)) {
+                $updateData['status'] = StoreStatus::ACTIVE->value;
+            }
+            $lockedStore->forceFill($updateData)->save();
+
+            // Add remaining to wallet if any
+            if ($remainingToWallet > 0) {
+                $walletBefore = $lockedStore->wallet_balance;
+                $walletAfter = $walletBefore + $remainingToWallet;
+
+                StoreWalletTransaction::create([
+                    'store_id' => $lockedStore->id,
+                    'type' => StoreTransactionType::SETTLEMENT->value,
+                    'amount' => $remainingToWallet,
+                    'balance_before' => $walletBefore,
+                    'balance_after' => $walletAfter,
+                    'reference_id' => $order->uuid,
+                    'order_id' => $order->id,
+                    'performed_by' => $performedBy,
+                    'notes' => "Keshbek payment remainder settlement for order #{$order->short_code}",
+                ]);
+
+                $lockedStore->forceFill(['wallet_balance' => $walletAfter])->save();
+            }
+        } else {
+            // No debt, goes directly to wallet
+            $walletBefore = $lockedStore->wallet_balance;
+            $walletAfter = $walletBefore + $settlementAmount;
+
+            StoreWalletTransaction::create([
+                'store_id' => $lockedStore->id,
+                'type' => StoreTransactionType::SETTLEMENT->value,
+                'amount' => $settlementAmount,
+                'balance_before' => $walletBefore,
+                'balance_after' => $walletAfter,
+                'reference_id' => $order->uuid,
+                'order_id' => $order->id,
+                'performed_by' => $performedBy,
+                'notes' => "Keshbek payment settlement for order #{$order->short_code}",
+            ]);
+
+            $lockedStore->forceFill(['wallet_balance' => $walletAfter])->save();
+        }
+    }
+
+    /**
+     * Debt (positive balance) at or above abs(credit_limit) blocks the store — the same rule CreateOrderAction uses to refuse orders.
+     */
+    private function exceedsCreditLimit(Store $store, float $debt): bool
+    {
+        return $debt >= abs((float) $store->credit_limit);
+    }
+
+    private function hasStatus(Store $store, StoreStatus $status): bool
+    {
+        return ($store->status->value ?? $store->status) === $status->value;
     }
 }

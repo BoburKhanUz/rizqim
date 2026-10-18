@@ -25,7 +25,7 @@ class KeshbekPaymentFinanceTest extends TestCase
 
         $this->ledgerService = app(LedgerService::class);
 
-        $this->store = Store::create([
+        $this->store = Store::forceCreate([
             'name' => 'Cashback Test Restaurant',
             'slug' => 'cashback-test-restaurant',
             'balance' => 100000.00, // Owes 100,000 UZS
@@ -133,7 +133,7 @@ class KeshbekPaymentFinanceTest extends TestCase
     public function test_keshbek_payment_goes_directly_to_wallet_if_no_debt(): void
     {
         // Store balance is 0 (no debt)
-        $this->store->update(['balance' => 0.00]);
+        $this->store->forceFill(['balance' => 0.00])->save();
 
         // Order total price = 50,000 UZS. Commission = 10% (5,000 UZS).
         // 1. Commission is deducted: Debt becomes 5,000 UZS.
@@ -184,10 +184,10 @@ class KeshbekPaymentFinanceTest extends TestCase
     public function test_commission_is_first_deducted_from_debit_wallet_then_credit_balance(): void
     {
         // Set store wallet_balance = 8,000 UZS, balance (debt) = 0 UZS
-        $this->store->update([
+        $this->store->forceFill([
             'balance' => 0.00,
             'wallet_balance' => 8000.00,
-        ]);
+        ])->save();
 
         $order = Order::create([
             'uuid' => '00000000-0000-0000-0000-000000000004',

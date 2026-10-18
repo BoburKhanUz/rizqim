@@ -10,7 +10,8 @@ use Filament\Actions\Action;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Select;
 use App\Models\StoreTopupRequest;
-use App\Models\PayoutRequest;
+use App\Models\PaymentProvider;
+use App\Services\Finance\LedgerService;
 use Filament\Notifications\Notification;
 use Filament\Facades\Filament;
 
@@ -77,10 +78,8 @@ class StoreFinance extends Page
                     $returnUrl = url()->current();
 
                     if ($provider === 'click') {
-                        $providerModel = \App\Models\PaymentProvider::where('slug', 'click')->first();
-                        $clickConfig = $providerModel?->credentials ?? [];
-                        $serviceId = $clickConfig['service_id'] ?? env('CLICK_SERVICE_ID', '32104');
-                        $merchantId = $clickConfig['merchant_id'] ?? env('CLICK_MERCHANT_ID', '24185');
+                        $serviceId = PaymentProvider::platformCredential('click', 'service_id');
+                        $merchantId = PaymentProvider::platformCredential('click', 'merchant_id');
 
                         $paymentUrl = "https://my.click.uz/services/pay" .
                                "?service_id={$serviceId}" .
@@ -89,11 +88,9 @@ class StoreFinance extends Page
                                "&transaction_param=topup_{$topupRequest->uuid}" .
                                "&return_url=" . urlencode($returnUrl);
                     } elseif ($provider === 'payme') {
-                        $providerModel = \App\Models\PaymentProvider::where('slug', 'payme')->first();
-                        $paymeConfig = $providerModel?->credentials ?? [];
-                        $merchantId = $paymeConfig['merchant_id'] ?? env('PAYME_MERCHANT_ID', '65eb2b988f01b97b0a7c4912');
-                        
-                        $tiyinAmount = $amount * 100;
+                        $merchantId = PaymentProvider::platformCredential('payme', 'merchant_id');
+
+                        $tiyinAmount = (int) round($amount * 100);
                         $params = "m={$merchantId};ac.order_id=topup_{$topupRequest->uuid};a={$tiyinAmount};c=" . urlencode($returnUrl);
                         $paymentUrl = "https://checkout.paycom.uz/" . base64_encode($params);
                     }
@@ -111,8 +108,7 @@ class StoreFinance extends Page
                 ->form(function () {
                     $store = Filament::getTenant();
                     $minReserve = $store ? (float) ($store->min_payout_reserve ?? 100000) : 100000;
-                    $walletBalance = $store ? (float) $store->wallet_balance : 0;
-                    $maxWithdrawal = max(0.00, $walletBalance - $minReserve);
+                    $maxWithdrawal = $store ? app(LedgerService::class)->availableForPayout($store) : 0.0;
 
                     return [
                         TextInput::make('amount')
@@ -121,14 +117,18 @@ class StoreFinance extends Page
                             ->required()
                             ->minValue(1000)
                             ->maxValue($maxWithdrawal)
-                            ->helperText("Maksimal yechib olish mumkin bo'lgan summa: " . number_format($maxWithdrawal) . " UZS (Eng kamida " . number_format($minReserve) . " UZS hamyon qoldig'i qolishi shart).")
+                            ->helperText("Maksimal yechib olish mumkin bo'lgan summa: " . number_format($maxWithdrawal) . " UZS (kutilayotgan so'rovlar hisobga olingan; eng kamida " . number_format($minReserve) . " UZS hamyon qoldig'i qolishi shart).")
                             ->default($maxWithdrawal),
                         TextInput::make('card_number')
                             ->label('Karta Raqami (8600..., 9860...)')
                             ->required()
                             ->placeholder('8600123456789012')
-                            ->minLength(16)
-                            ->maxLength(19),
+                            ->maxLength(19)
+                            ->rule(fn () => function (string $attribute, $value, \Closure $fail) {
+                                if (!preg_match('/^\d{16}$/', preg_replace('/\s+/', '', (string) $value))) {
+                                    $fail('Karta raqami 16 ta raqamdan iborat bo\'lishi kerak.');
+                                }
+                            }),
                         TextInput::make('notes')
                             ->label('Izoh (Qo\'shimcha ma\'lumotlar)')
                             ->maxLength(255),
@@ -138,34 +138,22 @@ class StoreFinance extends Page
                     $store = Filament::getTenant();
                     if (!$store) return;
 
-                    $amount = (float) $data['amount'];
-                    $minReserve = (float) ($store->min_payout_reserve ?? 100000.00);
-
-                    if ($store->wallet_balance < $minReserve) {
+                    // Same locked check as the API: wallet minus pending payouts minus the reserve.
+                    try {
+                        app(LedgerService::class)->requestPayout(
+                            $store,
+                            round((float) $data['amount'], 2),
+                            preg_replace('/\s+/', '', (string) $data['card_number']),
+                            $data['notes'] ?? null
+                        );
+                    } catch (\DomainException $e) {
                         Notification::make()
                             ->title('Xatolik')
-                            ->body('Hamyonda eng kamida ' . number_format($minReserve) . ' UZS bo\'lysis kerak.')
+                            ->body($e->getMessage())
                             ->danger()
                             ->send();
                         return;
                     }
-
-                    if (($store->wallet_balance - $amount) < $minReserve) {
-                        Notification::make()
-                            ->title('Xatolik')
-                            ->body('Hamyonda yechib olingandan so\'ng kamida ' . number_format($minReserve) . ' UZS qolishi kerak.')
-                            ->danger()
-                            ->send();
-                        return;
-                    }
-
-                    PayoutRequest::create([
-                        'store_id' => $store->id,
-                        'amount' => $amount,
-                        'card_number' => $data['card_number'],
-                        'notes' => $data['notes'] ?? null,
-                        'status' => 'pending',
-                    ]);
 
                     Notification::make()
                         ->title('So\'rov yuborildi')
@@ -182,11 +170,9 @@ class StoreFinance extends Page
     {
         $store = Filament::getTenant();
         if (!$store) return true;
-        
-        $minReserve = (float) ($store->min_payout_reserve ?? 100000);
-        $walletBalance = (float) $store->wallet_balance;
-        
-        return $walletBalance < $minReserve;
+
+        // Below the 1,000 UZS minimum request there is nothing left to withdraw.
+        return app(LedgerService::class)->availableForPayout($store) < 1000;
     }
 
     protected function getHeaderWidgets(): array

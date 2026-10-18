@@ -38,10 +38,12 @@ class StoreSettings extends Page implements HasForms
     {
         $tenant = Filament::getTenant();
         if ($tenant) {
-            $data = $tenant->toArray();
-            
+            // Attributes (not the public toArray(), which drops internal fields such as telegram_admin_chat_id);
+            // secrets stay out of the page state and are kept on save by Store's settings merge.
+            $data = $tenant->attributesToArray();
+
             // Map old structure for the form if it exists
-            $settings = $data['payment_settings'] ?? [];
+            $settings = \App\Models\Store::withoutSecrets($data['payment_settings'] ?? []);
             if (isset($settings['allowed_methods'])) {
                 foreach (['cash', 'click', 'payme', 'uzum', 'paynet'] as $provider) {
                     if (!isset($settings[$provider])) {
@@ -51,9 +53,9 @@ class StoreSettings extends Page implements HasForms
                         $settings[$provider]['enabled'] = in_array($provider, $settings['allowed_methods']);
                     }
                 }
-                $data['payment_settings'] = $settings;
             }
-            
+            $data['payment_settings'] = $settings;
+
             $this->form->fill($data);
         }
     }

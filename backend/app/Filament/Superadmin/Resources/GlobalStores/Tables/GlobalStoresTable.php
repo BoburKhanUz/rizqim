@@ -70,30 +70,8 @@ class GlobalStoresTable
                         $amount = (float) $data['amount'];
                         $notes = $data['notes'] ?? 'Manual top-up';
 
-                        \Illuminate\Support\Facades\DB::transaction(function () use ($record, $amount, $notes) {
-                            $lockedStore = \App\Models\Store::where('id', $record->id)->lockForUpdate()->firstOrFail();
-
-                            $balanceBefore = $lockedStore->balance;
-                            $balanceAfter = $balanceBefore - $amount; // Reduce debt
-
-                            \App\Models\StoreTransaction::create([
-                                'store_id' => $lockedStore->id,
-                                'type' => \App\Enums\StoreTransactionType::TOPUP->value,
-                                'amount' => -$amount, // negative represents payment reducing debt
-                                'balance_before' => $balanceBefore,
-                                'balance_after' => $balanceAfter,
-                                'notes' => $notes,
-                                'performed_by' => auth()->id(),
-                            ]);
-
-                            $updateData = ['balance' => $balanceAfter];
-
-                            if ($lockedStore->status === \App\Enums\StoreStatus::PAYMENT_REQUIRED && $balanceAfter <= -100000) {
-                                $updateData['status'] = \App\Enums\StoreStatus::ACTIVE->value;
-                            }
-
-                            $lockedStore->update($updateData);
-                        });
+                        // Same ledger entry and credit-limit unblock rule as online top-ups
+                        app(\App\Services\Finance\LedgerService::class)->reduceDebt($record, $amount, $notes, null, auth()->id());
 
                         \Filament\Notifications\Notification::make()
                             ->title('Balans to\'ldirildi')

@@ -6,9 +6,11 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use App\Traits\ApiResponse;
+use App\Models\PaymentProvider;
 use App\Models\StoreTransaction;
 use App\Models\StoreWalletTransaction;
 use App\Models\PayoutRequest;
+use App\Services\Finance\LedgerService;
 use App\Enums\UserRole;
 
 class OwnerFinanceController extends Controller
@@ -21,6 +23,11 @@ class OwnerFinanceController extends Controller
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
+
+        if ($user->role !== UserRole::OWNER) {
+            return $this->error('Ruxsat etilmagan', [], 403);
+        }
+
         $store = $user->store;
 
         if (!$store) {
@@ -52,6 +59,8 @@ class OwnerFinanceController extends Controller
             'min_payout_reserve' => (float) ($store->min_payout_reserve ?? 100000.00),
             'payment_account_type' => $store->payment_account_type,
             'commission_rate' => (float) $store->commission_rate,
+            'status' => $store->status->value ?? $store->status,
+            'is_order_locked' => $store->is_order_locked,
             'ledger_transactions' => $ledgerTransactions,
             'wallet_transactions' => $walletTransactions,
             'payout_requests' => $payoutRequests,
@@ -61,41 +70,37 @@ class OwnerFinanceController extends Controller
     /**
      * Create a new payout request.
      */
-    public function requestPayout(Request $request): JsonResponse
+    public function requestPayout(Request $request, LedgerService $ledger): JsonResponse
     {
         $user = $request->user();
+
+        if ($user->role !== UserRole::OWNER) {
+            return $this->error('Ruxsat etilmagan', [], 403);
+        }
+
         $store = $user->store;
 
         if (!$store) {
             return $this->error('Do\'kon topilmadi.', [], 404);
         }
 
+        if (is_string($request->input('card_number'))) {
+            $request->merge(['card_number' => preg_replace('/\s+/', '', $request->input('card_number'))]);
+        }
+
         $data = $request->validate([
             'amount' => 'required|numeric|min:1000',
-            'card_number' => 'required|string|min:16|max:19',
+            'card_number' => 'required|string|digits:16',
             'notes' => 'nullable|string|max:500',
+        ], [
+            'card_number.digits' => 'Karta raqami 16 ta raqamdan iborat bo\'lishi kerak.',
         ]);
 
-        $amount = (float) $data['amount'];
-        $minReserve = (float) ($store->min_payout_reserve ?? 100000.00);
-
-        if ($store->wallet_balance < $minReserve) {
-            return $this->error('Mablag\' yechish uchun hamyonda kamida ' . number_format($minReserve) . ' UZS qoldiq bo\'lishi shart.', [], 422);
+        try {
+            $payout = $ledger->requestPayout($store, round((float) $data['amount'], 2), $data['card_number'], $data['notes'] ?? null);
+        } catch (\DomainException $e) {
+            return $this->error($e->getMessage(), [], 422);
         }
-
-        if (($store->wallet_balance - $amount) < $minReserve) {
-            $maxWithdrawal = max(0.00, $store->wallet_balance - $minReserve);
-            return $this->error("Yechib olingandan so'ng hamyonda kamida " . number_format($minReserve) . " UZS qolishi shart. Siz ko'pi bilan " . number_format($maxWithdrawal) . " UZS yechishingiz mumkin.", [], 422);
-        }
-
-        // Create the payout request
-        $payout = PayoutRequest::create([
-            'store_id' => $store->id,
-            'amount' => $amount,
-            'card_number' => $data['card_number'],
-            'notes' => $data['notes'] ?? null,
-            'status' => 'pending',
-        ]);
 
         return $this->success($payout, 'Payout so\'rovi muvaffaqiyatli yuborildi.');
     }
@@ -106,6 +111,11 @@ class OwnerFinanceController extends Controller
     public function initiateTopup(Request $request): JsonResponse
     {
         $user = $request->user();
+
+        if ($user->role !== UserRole::OWNER) {
+            return $this->error('Ruxsat etilmagan', [], 403);
+        }
+
         $store = $user->store;
 
         if (!$store) {
@@ -133,12 +143,9 @@ class OwnerFinanceController extends Controller
         $returnUrl = url('/admin'); // Return to platform admin/app dashboard
 
         if ($provider === 'click') {
-            // Find platform click provider config
-            $providerModel = \App\Models\PaymentProvider::where('slug', 'click')->first();
-            $clickConfig = $providerModel?->credentials ?? [];
-
-            $serviceId = $clickConfig['service_id'] ?? env('CLICK_SERVICE_ID', '32104');
-            $merchantId = $clickConfig['merchant_id'] ?? env('CLICK_MERCHANT_ID', '24185');
+            // Platform click credentials (top-ups are always paid to the platform)
+            $serviceId = PaymentProvider::platformCredential('click', 'service_id');
+            $merchantId = PaymentProvider::platformCredential('click', 'merchant_id');
 
             $paymentUrl = "https://my.click.uz/services/pay" .
                    "?service_id={$serviceId}" .
@@ -147,13 +154,10 @@ class OwnerFinanceController extends Controller
                    "&transaction_param=topup_{$topupRequest->uuid}" .
                    "&return_url=" . urlencode($returnUrl);
         } elseif ($provider === 'payme') {
-            // Find platform payme provider config
-            $providerModel = \App\Models\PaymentProvider::where('slug', 'payme')->first();
-            $paymeConfig = $providerModel?->credentials ?? [];
+            // Platform payme credentials (top-ups are always paid to the platform)
+            $merchantId = PaymentProvider::platformCredential('payme', 'merchant_id');
 
-            $merchantId = $paymeConfig['merchant_id'] ?? env('PAYME_MERCHANT_ID', '65eb2b988f01b97b0a7c4912');
-            
-            $tiyinAmount = $amount * 100;
+            $tiyinAmount = (int) round($amount * 100);
             $params = "m={$merchantId};ac.order_id=topup_{$topupRequest->uuid};a={$tiyinAmount};c=" . urlencode($returnUrl);
             $paymentUrl = "https://checkout.paycom.uz/" . base64_encode($params);
         }

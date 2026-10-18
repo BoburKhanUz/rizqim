@@ -42,4 +42,16 @@ return [
         ],
     ],
 
+    // Platform-level merchant credentials. Secrets deliberately have no default: webhooks fail closed when unset.
+    'click' => [
+        'secret_key' => env('CLICK_SECRET_KEY'),
+        'service_id' => env('CLICK_SERVICE_ID', '32104'),
+        'merchant_id' => env('CLICK_MERCHANT_ID', '24185'),
+    ],
+
+    'payme' => [
+        'secret_key' => env('PAYME_SECRET_KEY'),
+        'merchant_id' => env('PAYME_MERCHANT_ID', '65eb2b988f01b97b0a7c4912'),
+    ],
+
 ];

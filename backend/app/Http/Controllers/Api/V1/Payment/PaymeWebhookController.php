@@ -7,12 +7,21 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use App\Models\Order;
 use App\Models\Payment;
+use App\Models\PaymentProvider;
+use App\Models\StoreTopupRequest;
+use App\Enums\OrderStatus;
 use App\Enums\PaymentStatus;
 use App\Events\PaymentPaid;
+use App\Services\Finance\LedgerService;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class PaymeWebhookController extends Controller
 {
+    // Payme Merchant API: a transaction that is not performed within 12 hours is cancelled with reason 4.
+    private const TRANSACTION_TIMEOUT_MS = 43200000;
+
     /**
      * Handle Payme JSON-RPC 2.0 Callbacks.
      */
@@ -22,11 +31,11 @@ class PaymeWebhookController extends Controller
         Log::info("Payme Webhook Received", $payload);
 
         $method = $payload['method'] ?? '';
-        $params = $payload['params'] ?? [];
+        $params = is_array($payload['params'] ?? null) ? $payload['params'] : [];
         $id = $payload['id'] ?? null;
 
         // 1. Basic Auth check for Payme (merchant key validation)
-        if (!$this->authorizePayme($request)) {
+        if (!$this->authorizePayme($request, $params)) {
             return response()->json([
                 'jsonrpc' => '2.0',
                 'id' => $id,
@@ -49,6 +58,8 @@ class PaymeWebhookController extends Controller
                     return $this->cancelTransaction($params, $id);
                 case 'CheckTransaction':
                     return $this->checkTransaction($params, $id);
+                case 'GetStatement':
+                    return $this->getStatement($params, $id);
                 default:
                     return response()->json([
                         'jsonrpc' => '2.0',
@@ -75,67 +86,68 @@ class PaymeWebhookController extends Controller
     /**
      * Authorize Payme via HTTP Basic Authentication.
      */
-    protected function authorizePayme(Request $request): bool
+    protected function authorizePayme(Request $request, array $params): bool
     {
-        $header = $request->header('Authorization');
-        if (!$header || !str_starts_with($header, 'Basic ')) {
+        $header = (string) $request->header('Authorization');
+        if (!str_starts_with($header, 'Basic ')) {
             return false;
         }
 
-        $credentials = base64_decode(substr($header, 6));
-        $parts = explode(':', $credentials, 2);
-        if (count($parts) < 2) {
+        $credentials = base64_decode(substr($header, 6), true);
+        if ($credentials === false) {
             return false;
         }
 
         // Payme sends basic auth as 'Paycom:secret_key'
-        $username = $parts[0];
-        $key = trim($parts[1]);
-
-        if ($username !== 'Paycom') {
+        $parts = explode(':', $credentials, 2);
+        if (count($parts) < 2 || $parts[0] !== 'Paycom') {
             return false;
         }
 
-        // Parse payload to identify order/store
-        $payload = $request->all();
-        $params = $payload['params'] ?? [];
-        $orderUuid = $params['account']['order_id'] ?? null;
-
-        if (!$orderUuid) {
-            $trxId = $params['id'] ?? null;
-            if ($trxId) {
-                $payment = Payment::where('provider', 'payme')
-                    ->where('provider_transaction_id', $trxId)
-                    ->first();
-                if ($payment && $payment->order) {
-                    $orderUuid = $payment->order->uuid;
-                }
-            }
+        $expectedKey = $this->secretKey($this->orderForAuthorization($params));
+        if ($expectedKey === null) {
+            Log::error('Payme webhook rejected: no merchant key is configured for this payment (PAYME_SECRET_KEY or the store\'s own key).');
+            return false;
         }
 
-        if ($orderUuid) {
-            $isTopup = str_starts_with($orderUuid, 'topup_');
-            if ($isTopup) {
-                return $key === env('PAYME_SECRET_KEY', 'payme_sandbox_secret');
-            }
+        return hash_equals($expectedKey, trim($parts[1]));
+    }
 
-            $order = Order::where('uuid', $orderUuid)
-                ->orWhere('short_code', $orderUuid)
-                ->first();
-
-            if ($order && $order->store) {
-                $settings = $order->store->payment_settings ?? [];
-                if (($order->store->payment_account_type ?? 'platform') === 'own_account' || !empty($settings['payme']['secret_key'])) {
-                    $storeSecretKey = $settings['payme']['secret_key'] ?? null;
-                    if ($storeSecretKey) {
-                        return $key === trim($storeSecretKey);
-                    }
-                }
-            }
+    /**
+     * The order whose merchant key must sign this request (null means the platform key).
+     */
+    protected function orderForAuthorization(array $params): ?Order
+    {
+        $payment = $this->findPayment($params);
+        if ($payment) {
+            // An existing transaction is always authorised by its own order, whatever `account` claims.
+            return $payment->order;
         }
 
-        // Fallback to platform-level secret key
-        return $key === env('PAYME_SECRET_KEY', 'payme_sandbox_secret');
+        return $this->findTarget($this->accountReference($params))[0];
+    }
+
+    /**
+     * A store's own key may only confirm money paid into the store's own merchant account;
+     * platform-collected orders and top-ups must be signed with the platform key.
+     */
+    protected function secretKey(?Order $order): ?string
+    {
+        if ($order && $order->payment_owner !== 'PLATFORM') {
+            // A STORE-owned order is paid into the store's own Payme cashbox: only its own key can confirm it.
+            return $this->storeKey($order);
+        }
+
+        return PaymentProvider::platformCredential('payme', 'secret_key');
+    }
+
+    protected function storeKey(?Order $order): ?string
+    {
+        if (!$order || $order->payment_owner === 'PLATFORM' || !$order->store?->collectsOwnPayments('payme')) {
+            return null;
+        }
+
+        return trim((string) $order->store->payment_settings['payme']['secret_key']);
     }
 
     /**
@@ -143,48 +155,14 @@ class PaymeWebhookController extends Controller
      */
     protected function checkPerformTransaction(array $params, $id): JsonResponse
     {
-        $amount = (float) ($params['amount'] ?? 0) / 100; // in tiyins
-        $orderUuid = $params['account']['order_id'] ?? '';
+        [$order, $topupRequest] = $this->findTarget($this->accountReference($params));
 
-        $isTopup = str_starts_with($orderUuid, 'topup_');
-        $topupRequest = null;
-        $order = null;
-
-        if ($isTopup) {
-            $topupUuid = substr($orderUuid, 6);
-            $topupRequest = \App\Models\StoreTopupRequest::where('uuid', $topupUuid)->first();
-            if (!$topupRequest) {
-                return $this->rpcError($id, -31008, 'Topup request not found');
-            }
-            if ($topupRequest->status === 'paid') {
-                return $this->rpcError($id, -31008, 'Topup already paid');
-            }
-            $expectedAmount = (float) $topupRequest->amount;
-        } else {
-            $order = Order::where('uuid', $orderUuid)
-                ->orWhere('short_code', $orderUuid)
-                ->first();
-
-            if (!$order) {
-                return $this->rpcError($id, -31008, 'Order not found');
-            }
-
-            if ($order->payment_status === PaymentStatus::PAID) {
-                return $this->rpcError($id, -31008, 'Order already paid');
-            }
-            $expectedAmount = (float) $order->total_price;
+        if ($error = $this->accountError($order, $topupRequest, $params['amount'] ?? null)) {
+            return $this->rpcError($id, ...$error);
         }
 
-        if (abs($amount - $expectedAmount) > 0.01) {
-            return $this->rpcError($id, -31008, 'Incorrect amount');
-        }
-
-        return response()->json([
-            'jsonrpc' => '2.0',
-            'id' => $id,
-            'result' => [
-                'allow' => true
-            ]
+        return $this->result($id, [
+            'allow' => true
         ]);
     }
 
@@ -193,85 +171,83 @@ class PaymeWebhookController extends Controller
      */
     protected function createTransaction(array $params, $id): JsonResponse
     {
-        $trxId = $params['id'] ?? '';
-        $time = $params['time'] ?? 0;
-        $amount = (float) ($params['amount'] ?? 0) / 100;
-        $orderUuid = $params['account']['order_id'] ?? '';
+        $trxId = $this->transactionId($params);
+        if ($trxId === '') {
+            return $this->rpcError($id, -32600, 'Transaction id is required');
+        }
 
-        $isTopup = str_starts_with($orderUuid, 'topup_');
-        $topupRequest = null;
-        $order = null;
+        [$order, $topupRequest] = $this->findTarget($this->accountReference($params));
+        if (!$order && !$topupRequest) {
+            return $this->rpcError($id, -31050, 'Order not found', 'order_id');
+        }
 
-        if ($isTopup) {
-            $topupUuid = substr($orderUuid, 6);
-            $topupRequest = \App\Models\StoreTopupRequest::where('uuid', $topupUuid)->first();
-            if (!$topupRequest) {
-                return $this->rpcError($id, -31008, 'Topup request not found');
-            }
-            if ($topupRequest->status === 'paid') {
-                return $this->rpcError($id, -31008, 'Topup already paid');
-            }
-        } else {
-            $order = Order::where('uuid', $orderUuid)
-                ->orWhere('short_code', $orderUuid)
+        return DB::transaction(function () use ($params, $id, $trxId, $order, $topupRequest) {
+            // All transactions of one account are serialised on its row.
+            [$order, $topupRequest] = $this->lockTarget($order, $topupRequest);
+
+            $payment = Payment::where('provider', 'payme')
+                ->where('provider_transaction_id', $trxId)
+                ->lockForUpdate()
                 ->first();
 
-            if (!$order) {
-                return $this->rpcError($id, -31008, 'Order not found');
-            }
-        }
+            if ($payment) {
+                if (!$this->belongsToTarget($payment, $order, $topupRequest)) {
+                    return $this->rpcError($id, -31050, 'Transaction belongs to another order', 'order_id');
+                }
 
-        // Idempotency check: find existing transaction
-        $payment = Payment::where('provider', 'payme')
-            ->where('provider_transaction_id', $trxId)
-            ->first();
+                if ($payment->status !== PaymentStatus::PENDING) {
+                    return $this->rpcError($id, -31008, 'Unable to perform operation');
+                }
 
-        if ($payment) {
-            if ($payment->status === PaymentStatus::CANCELLED) {
-                return $this->rpcError($id, -31008, 'Transaction already cancelled');
-            }
-            if ($payment->status === PaymentStatus::PAID) {
-                return $this->rpcError($id, -31008, 'Transaction already paid');
-            }
+                if ($this->isExpired($payment)) {
+                    $this->cancelPayment($payment, 4);
+                    return $this->rpcError($id, -31008, 'Transaction timed out');
+                }
 
-            // Return current pending state (state = 1)
-            return response()->json([
-                'jsonrpc' => '2.0',
-                'id' => $id,
-                'result' => [
-                    'create_time' => (int) $payment->created_at->getTimestamp() * 1000,
+                // Repeated CreateTransaction with the same id returns the same result.
+                return $this->result($id, [
+                    'create_time' => $this->createTime($payment),
                     'transaction' => (string) $payment->id,
                     'state' => 1
-                ]
+                ]);
+            }
+
+            if ($error = $this->accountError($order, $topupRequest, $params['amount'] ?? null)) {
+                return $this->rpcError($id, ...$error);
+            }
+
+            // An account may wait on only one live Payme transaction, otherwise it could be paid twice.
+            $awaitingPayment = Payment::where('provider', 'payme')
+                ->whereNotNull('provider_transaction_id')
+                ->where('status', PaymentStatus::PENDING->value)
+                ->when(
+                    $order,
+                    fn ($query) => $query->where('order_id', $order->id),
+                    fn ($query) => $query->whereNull('order_id')->where('payload->account->order_id', 'topup_' . $topupRequest->uuid)
+                )
+                ->get()
+                ->contains(fn (Payment $pending) => !$this->isExpired($pending));
+
+            if ($awaitingPayment) {
+                return $this->rpcError($id, -31099, 'Order is awaiting payment by another transaction', 'order_id');
+            }
+
+            // Create new pending payment
+            $payment = Payment::create([
+                'order_id' => $order?->id,
+                'provider' => 'payme',
+                'provider_transaction_id' => $trxId,
+                'amount' => (float) $params['amount'] / 100, // in tiyins
+                'status' => PaymentStatus::PENDING,
+                'payload' => $params,
             ]);
-        }
 
-        // Create new pending payment
-        $paymentData = [
-            'provider' => 'payme',
-            'provider_transaction_id' => $trxId,
-            'amount' => $amount,
-            'status' => PaymentStatus::PENDING,
-            'payload' => $params,
-        ];
-
-        if ($isTopup) {
-            $paymentData['order_id'] = null;
-        } else {
-            $paymentData['order_id'] = $order->id;
-        }
-
-        $payment = Payment::create($paymentData);
-
-        return response()->json([
-            'jsonrpc' => '2.0',
-            'id' => $id,
-            'result' => [
-                'create_time' => (int) $time,
+            return $this->result($id, [
+                'create_time' => $this->createTime($payment),
                 'transaction' => (string) $payment->id,
                 'state' => 1
-            ]
-        ]);
+            ]);
+        });
     }
 
     /**
@@ -279,84 +255,37 @@ class PaymeWebhookController extends Controller
      */
     protected function performTransaction(array $params, $id): JsonResponse
     {
-        $trxId = $params['id'] ?? '';
-
-        $payment = Payment::where('provider', 'payme')
-            ->where('provider_transaction_id', $trxId)
-            ->first();
+        $payment = $this->findPayment($params);
 
         if (!$payment) {
             return $this->rpcError($id, -31003, 'Transaction not found');
         }
 
-        if ($payment->status === PaymentStatus::PAID) {
-            return response()->json([
-                'jsonrpc' => '2.0',
-                'id' => $id,
-                'result' => [
-                    'perform_time' => (int) $payment->paid_at->getTimestamp() * 1000,
-                    'transaction' => (string) $payment->id,
-                    'state' => 2
-                ]
-            ]);
-        }
+        [$order, $topupRequest] = $this->targetOf($payment);
 
-        if ($payment->status !== PaymentStatus::PENDING) {
-            return $this->rpcError($id, -31008, 'Invalid transaction state');
-        }
+        [$response, $paidPayment] = DB::transaction(function () use ($params, $id, $payment, $order, $topupRequest) {
+            [$order, $topupRequest] = $this->lockTarget($order, $topupRequest);
+            $payment = Payment::whereKey($payment->id)->lockForUpdate()->first();
 
-        // Check if this is a topup request
-        $orderUuid = $payment->payload['account']['order_id'] ?? '';
-        $isTopup = str_starts_with($orderUuid, 'topup_');
-
-        if ($isTopup) {
-            $topupUuid = substr($orderUuid, 6);
-            $topupRequest = \App\Models\StoreTopupRequest::where('uuid', $topupUuid)->first();
-            if (!$topupRequest) {
-                return $this->rpcError($id, -31008, 'Topup request not found');
+            if ($payment->status === PaymentStatus::PAID) {
+                // Repeated PerformTransaction with the same id returns the same result.
+                return [$this->performResult($id, $payment), null];
             }
 
-            // Mark payment and topup request as paid
-            \Illuminate\Support\Facades\DB::transaction(function () use ($payment, $topupRequest, $params) {
-                $payment->update([
-                    'status' => PaymentStatus::PAID,
-                    'paid_at' => now(),
-                    'payload' => array_merge($payment->payload ?? [], ['perform_params' => $params]),
-                ]);
+            if ($payment->status !== PaymentStatus::PENDING) {
+                return [$this->rpcError($id, -31008, 'Invalid transaction state'), null];
+            }
 
-                $lockedTopup = \App\Models\StoreTopupRequest::where('id', $topupRequest->id)->lockForUpdate()->firstOrFail();
-                if ($lockedTopup->status !== 'paid') {
-                    $lockedTopup->update([
-                        'status' => 'paid',
-                        'paid_at' => now(),
-                        'provider_transaction_id' => $payment->provider_transaction_id,
-                        'payload' => $params,
-                    ]);
+            if ($this->isExpired($payment)) {
+                $this->cancelPayment($payment, 4);
+                return [$this->rpcError($id, -31008, 'Transaction timed out'), null];
+            }
 
-                    $store = \App\Models\Store::where('id', $lockedTopup->store_id)->lockForUpdate()->firstOrFail();
-                    $balanceBefore = $store->balance;
-                    $balanceAfter = $balanceBefore - $lockedTopup->amount; // reduce debt
+            // Re-check under lock: the account may have been paid, cancelled or changed since CreateTransaction.
+            if ($this->accountError($order, $topupRequest, round((float) $payment->amount * 100))) {
+                return [$this->rpcError($id, -31008, 'Unable to perform operation'), null];
+            }
 
-                    \App\Models\StoreTransaction::create([
-                        'store_id' => $store->id,
-                        'type' => \App\Enums\StoreTransactionType::TOPUP->value,
-                        'amount' => -$lockedTopup->amount,
-                        'balance_before' => $balanceBefore,
-                        'balance_after' => $balanceAfter,
-                        'notes' => 'Online top-up via Payme',
-                        'reference_id' => $lockedTopup->uuid,
-                    ]);
-
-                    $updateData = ['balance' => $balanceAfter];
-
-                    if ($store->status === \App\Enums\StoreStatus::PAYMENT_REQUIRED && $balanceAfter <= -100000) {
-                        $updateData['status'] = \App\Enums\StoreStatus::ACTIVE->value;
-                    }
-
-                    $store->update($updateData);
-                }
-            });
-        } else {
             // Mark payment as paid
             $payment->update([
                 'status' => PaymentStatus::PAID,
@@ -364,19 +293,30 @@ class PaymeWebhookController extends Controller
                 'payload' => array_merge($payment->payload ?? [], ['perform_params' => $params]),
             ]);
 
-            // Dispatch decoupled event
-            event(new PaymentPaid($payment));
+            if ($topupRequest) {
+                $topupRequest->update([
+                    'status' => 'paid',
+                    'paid_at' => now(),
+                    'provider_transaction_id' => $payment->provider_transaction_id,
+                    'payload' => $params,
+                ]);
+
+                app(LedgerService::class)->creditTopup($topupRequest, 'Payme');
+
+                return [$this->performResult($id, $payment), null];
+            }
+
+            $order->update(['payment_status' => PaymentStatus::PAID->value]);
+
+            return [$this->performResult($id, $payment), $payment];
+        });
+
+        if ($paidPayment) {
+            // Dispatch decoupled event only on the real transition, after commit
+            event(new PaymentPaid($paidPayment));
         }
 
-        return response()->json([
-            'jsonrpc' => '2.0',
-            'id' => $id,
-            'result' => [
-                'perform_time' => (int) $payment->paid_at->getTimestamp() * 1000,
-                'transaction' => (string) $payment->id,
-                'state' => 2
-            ]
-        ]);
+        return $response;
     }
 
     /**
@@ -384,65 +324,54 @@ class PaymeWebhookController extends Controller
      */
     protected function cancelTransaction(array $params, $id): JsonResponse
     {
-        $trxId = $params['id'] ?? '';
-        $reason = (int) ($params['reason'] ?? 0);
-
-        $payment = Payment::where('provider', 'payme')
-            ->where('provider_transaction_id', $trxId)
-            ->first();
+        $payment = $this->findPayment($params);
 
         if (!$payment) {
             return $this->rpcError($id, -31003, 'Transaction not found');
         }
 
-        if ($payment->status === PaymentStatus::CANCELLED) {
-            $state = $payment->paid_at !== null ? -2 : -1;
-            return response()->json([
-                'jsonrpc' => '2.0',
-                'id' => $id,
-                'result' => [
-                    'cancel_time' => (int) $payment->cancelled_at->getTimestamp() * 1000,
-                    'transaction' => (string) $payment->id,
-                    'state' => $state
-                ]
-            ]);
-        }
+        $reason = (int) ($params['reason'] ?? 0);
+        [$order, $topupRequest] = $this->targetOf($payment);
 
-        $state = $payment->status === PaymentStatus::PAID ? -2 : -1;
+        return DB::transaction(function () use ($id, $payment, $reason, $order, $topupRequest) {
+            [$order, $topupRequest] = $this->lockTarget($order, $topupRequest);
+            $payment = Payment::whereKey($payment->id)->lockForUpdate()->first();
 
-        $payment->update([
-            'status' => PaymentStatus::CANCELLED,
-            'cancelled_at' => now(),
-            'payload' => array_merge($payment->payload ?? [], ['cancel_reason' => $reason]),
-        ]);
-
-        $orderUuid = $payment->payload['account']['order_id'] ?? '';
-        $isTopup = str_starts_with($orderUuid, 'topup_');
-
-        if ($isTopup) {
-            $topupUuid = substr($orderUuid, 6);
-            $topupRequest = \App\Models\StoreTopupRequest::where('uuid', $topupUuid)->first();
-            if ($topupRequest) {
-                $topupRequest->update(['status' => 'cancelled']);
+            if ($payment->status === PaymentStatus::PAID) {
+                // Refused only once the money was passed on: a top-up reduced the store's debt, or a platform-collected
+                // order was credited to the store's wallet. A STORE-owned order's money is the store's to refund.
+                if ($topupRequest || ($order && $order->payment_owner === 'PLATFORM' && app(LedgerService::class)->hasSettlement($order))) {
+                    return $this->rpcError($id, -31007, 'Unable to cancel transaction');
+                }
+            } elseif ($payment->status !== PaymentStatus::PENDING) {
+                // Repeated CancelTransaction returns the same result.
+                return $this->cancelResult($id, $payment);
             }
-        } else {
-            // If order was already paid, revert back to pending/canceled
-            if ($state === -2 && $payment->order) {
-                $payment->order->update([
+
+            $wasPaid = $payment->status === PaymentStatus::PAID;
+            $this->cancelPayment($payment, $reason, $wasPaid ? PaymentStatus::REFUNDED : PaymentStatus::CANCELLED);
+
+            if ($topupRequest && $topupRequest->status === 'pending') {
+                $topupRequest->update(['status' => 'cancelled']);
+            } elseif ($wasPaid && $order?->status === OrderStatus::DELIVERED) {
+                // Refunded after delivery: order status and commission stay as they are; an admin follows up.
+                $payment->update(['payload' => array_merge($payment->payload ?? [], ['refunded_after_delivery' => true])]);
+                $order->update(['payment_status' => PaymentStatus::REFUNDED->value]);
+                Log::warning("Payme refund after delivery for order {$order->uuid}: order and commission unchanged, admin follow-up needed", [
+                    'order_id' => $order->id,
+                    'payment_id' => $payment->id,
+                    'payment_owner' => $order->payment_owner,
+                    'amount' => (float) $payment->amount,
+                ]);
+            } elseif ($wasPaid && $order?->payment_status === PaymentStatus::PAID) {
+                // If order was already paid, revert back to pending
+                $order->update([
                     'payment_status' => PaymentStatus::PENDING->value,
                 ]);
             }
-        }
 
-        return response()->json([
-            'jsonrpc' => '2.0',
-            'id' => $id,
-            'result' => [
-                'cancel_time' => (int) $payment->cancelled_at->getTimestamp() * 1000,
-                'transaction' => (string) $payment->id,
-                'state' => $state
-            ]
-        ]);
+            return $this->cancelResult($id, $payment);
+        });
     }
 
     /**
@@ -450,49 +379,267 @@ class PaymeWebhookController extends Controller
      */
     protected function checkTransaction(array $params, $id): JsonResponse
     {
-        $trxId = $params['id'] ?? '';
-
-        $payment = Payment::where('provider', 'payme')
-            ->where('provider_transaction_id', $trxId)
-            ->first();
+        $payment = $this->findPayment($params);
 
         if (!$payment) {
             return $this->rpcError($id, -31003, 'Transaction not found');
         }
 
-        $state = 1; // pending
-        if ($payment->status === PaymentStatus::PAID) {
-            $state = 2;
-        } elseif ($payment->status === PaymentStatus::CANCELLED) {
-            $state = $payment->paid_at !== null ? -2 : -1;
+        return $this->result($id, [
+            'create_time' => $this->createTime($payment),
+            'perform_time' => $payment->paid_at ? $payment->paid_at->getTimestamp() * 1000 : 0,
+            'cancel_time' => $payment->cancelled_at ? $payment->cancelled_at->getTimestamp() * 1000 : 0,
+            'transaction' => (string) $payment->id,
+            'state' => $this->state($payment),
+            'reason' => $payment->payload['cancel_reason'] ?? null
+        ]);
+    }
+
+    /**
+     * Transactions Payme created within [from, to] (ms), for reconciliation.
+     */
+    protected function getStatement(array $params, $id): JsonResponse
+    {
+        $from = $params['from'] ?? null;
+        $to = $params['to'] ?? null;
+
+        if (!is_numeric($from) || !is_numeric($to)) {
+            return $this->rpcError($id, -32600, 'Invalid statement period');
         }
 
+        $transactions = Payment::with('order.store')
+            ->where('provider', 'payme')
+            ->whereNotNull('provider_transaction_id')
+            ->whereRaw(
+                "(CASE WHEN payload->>'time' ~ '^[0-9]+$' THEN CAST(payload->>'time' AS BIGINT) END) BETWEEN ? AND ?",
+                [(int) $from, (int) $to]
+            )
+            ->get()
+            // A statement request names no account, so it is the platform cashbox asking: leave out stores' own cashboxes.
+            ->filter(fn (Payment $payment) => $this->storeKey($payment->order) === null)
+            ->sortBy(fn (Payment $payment) => $this->createTime($payment))
+            ->values()
+            ->map(fn (Payment $payment) => [
+                'id' => $payment->provider_transaction_id,
+                'time' => $this->createTime($payment),
+                'amount' => (int) round((float) $payment->amount * 100),
+                'account' => $payment->payload['account'] ?? (object) [],
+                'create_time' => $this->createTime($payment),
+                'perform_time' => $payment->paid_at ? $payment->paid_at->getTimestamp() * 1000 : 0,
+                'cancel_time' => $payment->cancelled_at ? $payment->cancelled_at->getTimestamp() * 1000 : 0,
+                'transaction' => (string) $payment->id,
+                'state' => $this->state($payment),
+                'reason' => $payment->payload['cancel_reason'] ?? null,
+                'receivers' => null,
+            ]);
+
+        return $this->result($id, [
+            'transactions' => $transactions,
+        ]);
+    }
+
+    protected function state(Payment $payment): int
+    {
+        if ($payment->status === PaymentStatus::PAID) {
+            return 2;
+        }
+
+        if ($payment->status === PaymentStatus::PENDING) {
+            return 1;
+        }
+
+        return $payment->paid_at !== null ? -2 : -1;
+    }
+
+    /**
+     * Payme error for an account that cannot be paid with this amount (in tiyin), or null when it can.
+     */
+    protected function accountError(?Order $order, ?StoreTopupRequest $topupRequest, $amount): ?array
+    {
+        if ($topupRequest) {
+            if ($topupRequest->status !== 'pending') {
+                return [-31051, $topupRequest->status === 'paid' ? 'Topup already paid' : 'Topup is not payable', 'order_id'];
+            }
+            $expectedAmount = $topupRequest->amount;
+        } elseif ($order) {
+            // An order placed for another payment method (e.g. cash) is not a Payme account
+            if ($order->payment_method !== 'payme') {
+                return [-31050, 'Order is not payable via Payme', 'order_id'];
+            }
+            if ($order->payment_status === PaymentStatus::PAID) {
+                return [-31051, 'Order already paid', 'order_id'];
+            }
+            if (in_array($order->status, [OrderStatus::CANCELED, OrderStatus::REJECTED, OrderStatus::REFUNDED], true)) {
+                return [-31051, 'Order is not payable', 'order_id'];
+            }
+            $expectedAmount = $order->total_price;
+        } else {
+            return [-31050, 'Order not found', 'order_id'];
+        }
+
+        // Payme sends tiyin (UZS * 100)
+        if (!is_numeric($amount) || (int) round((float) $amount) !== (int) round((float) $expectedAmount * 100)) {
+            return [-31001, 'Incorrect amount'];
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{0: ?Order, 1: ?StoreTopupRequest}
+     */
+    protected function findTarget(string $reference): array
+    {
+        if (str_starts_with($reference, 'topup_')) {
+            $topupUuid = substr($reference, 6);
+
+            return [null, Str::isUuid($topupUuid) ? StoreTopupRequest::where('uuid', $topupUuid)->first() : null];
+        }
+
+        if ($reference === '') {
+            return [null, null];
+        }
+
+        $order = Str::isUuid($reference)
+            ? Order::where('uuid', $reference)->first()
+            : Order::where('short_code', $reference)->first();
+
+        return [$order, null];
+    }
+
+    /**
+     * @return array{0: ?Order, 1: ?StoreTopupRequest}
+     */
+    protected function targetOf(Payment $payment): array
+    {
+        if ($payment->order_id) {
+            return [Order::find($payment->order_id), null];
+        }
+
+        $reference = $payment->payload['account']['order_id'] ?? '';
+
+        return $this->findTarget(is_string($reference) ? $reference : '');
+    }
+
+    /**
+     * @return array{0: ?Order, 1: ?StoreTopupRequest}
+     */
+    protected function lockTarget(?Order $order, ?StoreTopupRequest $topupRequest): array
+    {
+        return [
+            $order ? Order::whereKey($order->id)->lockForUpdate()->first() : null,
+            $topupRequest ? StoreTopupRequest::whereKey($topupRequest->id)->lockForUpdate()->first() : null,
+        ];
+    }
+
+    protected function belongsToTarget(Payment $payment, ?Order $order, ?StoreTopupRequest $topupRequest): bool
+    {
+        if ($order) {
+            return (int) $payment->order_id === (int) $order->id;
+        }
+
+        return $payment->order_id === null
+            && $topupRequest !== null
+            && ($payment->payload['account']['order_id'] ?? null) === 'topup_' . $topupRequest->uuid;
+    }
+
+    protected function findPayment(array $params): ?Payment
+    {
+        $trxId = $this->transactionId($params);
+        if ($trxId === '') {
+            return null;
+        }
+
+        return Payment::where('provider', 'payme')
+            ->where('provider_transaction_id', $trxId)
+            ->first();
+    }
+
+    protected function transactionId(array $params): string
+    {
+        $trxId = $params['id'] ?? '';
+
+        return is_scalar($trxId) ? (string) $trxId : '';
+    }
+
+    protected function accountReference(array $params): string
+    {
+        $reference = $params['account']['order_id'] ?? '';
+
+        return is_scalar($reference) ? (string) $reference : '';
+    }
+
+    protected function isExpired(Payment $payment): bool
+    {
+        return $payment->status === PaymentStatus::PENDING
+            && $payment->created_at->lt(now()->subMilliseconds(self::TRANSACTION_TIMEOUT_MS));
+    }
+
+    protected function cancelPayment(Payment $payment, int $reason, PaymentStatus $status = PaymentStatus::CANCELLED): void
+    {
+        $payment->update([
+            'status' => $status,
+            'cancelled_at' => now(),
+            'payload' => array_merge($payment->payload ?? [], ['cancel_reason' => $reason]),
+        ]);
+    }
+
+    /**
+     * Payme's own `time` from CreateTransaction, so every response reports the same create_time.
+     */
+    protected function createTime(Payment $payment): int
+    {
+        $time = $payment->payload['time'] ?? null;
+
+        return is_numeric($time) ? (int) $time : $payment->created_at->getTimestamp() * 1000;
+    }
+
+    protected function performResult($id, Payment $payment): JsonResponse
+    {
+        return $this->result($id, [
+            'perform_time' => $payment->paid_at->getTimestamp() * 1000,
+            'transaction' => (string) $payment->id,
+            'state' => 2
+        ]);
+    }
+
+    protected function cancelResult($id, Payment $payment): JsonResponse
+    {
+        return $this->result($id, [
+            'cancel_time' => $payment->cancelled_at ? $payment->cancelled_at->getTimestamp() * 1000 : 0,
+            'transaction' => (string) $payment->id,
+            'state' => $this->state($payment)
+        ]);
+    }
+
+    protected function result($id, array $result): JsonResponse
+    {
         return response()->json([
             'jsonrpc' => '2.0',
             'id' => $id,
-            'result' => [
-                'create_time' => (int) $payment->created_at->getTimestamp() * 1000,
-                'perform_time' => $payment->paid_at ? (int) $payment->paid_at->getTimestamp() * 1000 : 0,
-                'cancel_time' => $payment->cancelled_at ? (int) $payment->cancelled_at->getTimestamp() * 1000 : 0,
-                'transaction' => (string) $payment->id,
-                'state' => $state,
-                'reason' => $payment->payload['cancel_reason'] ?? null
-            ]
+            'result' => $result
         ]);
     }
 
     /**
      * Return formatted RPC error payload.
      */
-    protected function rpcError($id, int $code, string $message): JsonResponse
+    protected function rpcError($id, int $code, string $message, ?string $data = null): JsonResponse
     {
+        $error = [
+            'code' => $code,
+            'message' => $message
+        ];
+
+        // Account errors name the offending account field
+        if ($data !== null) {
+            $error['data'] = $data;
+        }
+
         return response()->json([
             'jsonrpc' => '2.0',
             'id' => $id,
-            'error' => [
-                'code' => $code,
-                'message' => $message
-            ]
+            'error' => $error
         ]);
     }
 }

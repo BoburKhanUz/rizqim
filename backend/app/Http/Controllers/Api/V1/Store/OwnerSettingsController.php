@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use App\Traits\ApiResponse;
+use App\Models\Store;
+use App\Enums\UserRole;
 
 class OwnerSettingsController extends Controller
 {
@@ -17,6 +19,11 @@ class OwnerSettingsController extends Controller
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
+
+        if ($user->role !== UserRole::OWNER) {
+            return $this->error('Ruxsat etilmagan', [], 403);
+        }
+
         $store = $user->store;
 
         if (!$store) {
@@ -35,8 +42,10 @@ class OwnerSettingsController extends Controller
             'location_url' => $store->location_url,
             'is_open' => (bool) $store->is_open,
             'min_order_amount' => (float) $store->min_order_amount,
-            'payment_settings' => $store->payment_settings ?? [],
+            'payment_settings' => $this->settingsForOwner($store->payment_settings ?? []),
             'payment_account_type' => $store->payment_account_type,
+            'status' => $store->status->value ?? $store->status,
+            'is_order_locked' => $store->is_order_locked,
             'allowed_methods' => $store->payment_settings['allowed_methods'] ?? ['cash', 'click', 'payme', 'uzum', 'paynet'],
         ]);
     }
@@ -47,6 +56,11 @@ class OwnerSettingsController extends Controller
     public function update(Request $request): JsonResponse
     {
         $user = $request->user();
+
+        if ($user->role !== UserRole::OWNER) {
+            return $this->error('Ruxsat etilmagan', [], 403);
+        }
+
         $store = $user->store;
 
         if (!$store) {
@@ -66,6 +80,9 @@ class OwnerSettingsController extends Controller
             'payment_settings.working_hours' => 'nullable|array',
             'payment_settings.working_hours.open' => 'nullable|string',
             'payment_settings.working_hours.close' => 'nullable|string',
+            'payment_settings.*.merchant_id' => 'nullable|string|max:255',
+            'payment_settings.*.service_id' => 'nullable|string|max:255',
+            'payment_settings.*.secret_key' => 'nullable|string|max:255',
         ]);
 
         $currentSettings = $store->payment_settings ?? [];
@@ -80,6 +97,15 @@ class OwnerSettingsController extends Controller
                     $currentSettings[$provider] = [];
                 }
                 $currentSettings[$provider]['enabled'] = (bool) ($newSettings[$provider]['enabled'] ?? false);
+
+                // Own merchant credentials, as in the panel; a blank or masked secret keeps the stored one (see Store).
+                if ($store->payment_account_type === 'own_account' && is_array($newSettings[$provider])) {
+                    foreach (['merchant_id', 'service_id', 'secret_key'] as $field) {
+                        if (array_key_exists($field, $newSettings[$provider])) {
+                            $currentSettings[$provider][$field] = $newSettings[$provider][$field];
+                        }
+                    }
+                }
             }
         }
 
@@ -141,10 +167,32 @@ class OwnerSettingsController extends Controller
     }
 
     /**
+     * Secrets are never sent back; the owner only sees which ones are configured (has_secret_key...).
+     */
+    private function settingsForOwner(array $settings): array
+    {
+        $public = [];
+
+        foreach ($settings as $key => $value) {
+            if (Store::isSecretKey($key)) {
+                $public["has_{$key}"] = filled($value);
+            } else {
+                $public[$key] = is_array($value) ? $this->settingsForOwner($value) : $value;
+            }
+        }
+
+        return $public;
+    }
+
+    /**
      * Upload store asset.
      */
     public function upload(Request $request): JsonResponse
     {
+        if ($request->user()->role !== UserRole::OWNER) {
+            return $this->error('Ruxsat etilmagan', [], 403);
+        }
+
         $request->validate([
             'file' => 'required|image|mimes:jpeg,png,jpg,gif,webp|max:5120',
         ]);
