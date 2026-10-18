@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\DB;
 
 class LocationSeeder extends Seeder
 {
-    public function run()
+    public function run(): void
     {
         $regions = [
             'Qoraqalpog‘iston Respublikasi' => ['Amudaryo tumani', 'Beruniy tumani', 'Kegayli tumani', 'Qonliko‘l tumani', 'Qorao‘zak tumani', 'Qo‘ng‘irot tumani', 'Mo‘ynoq tumani', 'Nukus tumani', 'Nukus shahri', 'Taxtako‘pir tumani', 'To‘rtko‘l tumani', 'Xo‘jayli tumani', 'Chimboy tumani', 'Shumanay tumani', 'Ellikqal‘a tumani', 'Taxiatosh shahri', 'Bo‘zatov tumani'],
@@ -28,24 +28,24 @@ class LocationSeeder extends Seeder
             'Toshkent shahri' => ['Bektimer tumani', 'Mirzo Ulug\'bek tumani', 'Mirobod tumani', 'Olmazor tumani', 'Sirg\'ali tumani', 'Uchtepa tumani', 'Yashnobod tumani', 'Chilonzor tumani', 'Shayxontohur tumani', 'Yunusobod tumani', 'Yakkasaroy tumani', 'Yangihayot tumani'],
         ];
 
-        DB::statement('TRUNCATE TABLE regions CASCADE;');
-        DB::statement('TRUNCATE TABLE districts CASCADE;');
+        // Safe to re-run on a live database: it only adds the regions and districts that are missing and never deletes or
+        // renames a row (branches and addresses point at them; the old TRUNCATE ... CASCADE emptied those tables too).
+        // Only rows it creates get the launch defaults (Andijon viloyati / Asaka tumani active), so whatever was switched
+        // on or off in the superadmin panel stays as it is.
+        DB::transaction(function () use ($regions) {
+            foreach ($regions as $regionName => $districts) {
+                $region = Region::firstOrCreate(
+                    ['name_uz' => $regionName],
+                    ['is_active' => $regionName === 'Andijon viloyati']
+                );
 
-        foreach ($regions as $regionName => $districts) {
-            $regionIsActive = ($regionName === 'Andijon viloyati');
-            $region = Region::create([
-                'name_uz' => $regionName,
-                'is_active' => $regionIsActive,
-            ]);
-
-            foreach ($districts as $districtName) {
-                $districtIsActive = ($regionName === 'Andijon viloyati' && $districtName === 'Asaka tumani');
-                District::create([
-                    'region_id' => $region->id,
-                    'name_uz' => $districtName,
-                    'is_active' => $districtIsActive,
-                ]);
+                foreach ($districts as $districtName) {
+                    District::firstOrCreate(
+                        ['region_id' => $region->id, 'name_uz' => $districtName],
+                        ['is_active' => $regionName === 'Andijon viloyati' && $districtName === 'Asaka tumani']
+                    );
+                }
             }
-        }
+        });
     }
 }

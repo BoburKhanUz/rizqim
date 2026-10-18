@@ -129,7 +129,8 @@ class AccessStorelessStaffTest extends TestCase
     {
         $this->staff(UserRole::OWNER, null, '5000030');
         $this->staff(UserRole::COURIER, null, '5000031');
-        config(['app.env' => 'production', 'app.debug' => false, 'telegram.allow_mock_auth' => false, 'services.telegram.webhook_secret' => 'valid_secret-1']);
+        config(['app.env' => 'production', 'app.debug' => false, 'telegram.allow_mock_auth' => false, 'services.telegram.webhook_secret' => 'valid_secret-1',
+            'services.telegram.webapp_url' => 'https://app.rizqim.example/', 'app.key' => 'base64:' . base64_encode(str_repeat('k', 32))]);
 
         $exitCode = Artisan::call('app:check-production');
 

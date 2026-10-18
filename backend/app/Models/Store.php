@@ -8,6 +8,17 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 use App\Traits\Auditable;
 
+/**
+ * Cast attributes, declared because Larastan does not read casts from the casts() method:
+ *
+ * @property array<string, mixed>|null $payment_settings
+ * @property \App\Enums\StoreStatus $status
+ * @property numeric-string $debt_balance
+ * @property numeric-string $wallet_balance
+ * @property numeric-string $credit_limit
+ * @property numeric-string $min_payout_reserve
+ * @property numeric-string $min_order_amount
+ */
 class Store extends Model
 {
     use SoftDeletes;
@@ -422,36 +433,57 @@ class Store extends Model
         $this->attributes['payment_settings'] = json_encode($currentSettings);
     }
     
+    /**
+     * @return HasMany<User, $this>
+     */
     public function users(): HasMany
     {
         return $this->hasMany(User::class);
     }
     
+    /**
+     * @return HasMany<Product, $this>
+     */
     public function products(): HasMany
     {
         return $this->hasMany(Product::class);
     }
     
+    /**
+     * @return HasMany<Branch, $this>
+     */
     public function branches(): HasMany
     {
         return $this->hasMany(Branch::class);
     }
     
+    /**
+     * @return HasMany<Order, $this>
+     */
     public function orders(): HasMany
     {
         return $this->hasMany(Order::class);
     }
 
+    /**
+     * @return HasMany<PayoutRequest, $this>
+     */
     public function payoutRequests(): HasMany
     {
         return $this->hasMany(PayoutRequest::class);
     }
 
+    /**
+     * @return HasMany<StoreWalletTransaction, $this>
+     */
     public function walletTransactions(): HasMany
     {
         return $this->hasMany(StoreWalletTransaction::class);
     }
 
+    /**
+     * @return HasMany<StoreRating, $this>
+     */
     public function ratings(): HasMany
     {
         return $this->hasMany(StoreRating::class);

@@ -7,6 +7,19 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+/**
+ * Cast attributes, declared because Larastan does not read casts from the casts() method:
+ *
+ * @property \App\Enums\OrderStatus $status
+ * @property \App\Enums\PaymentStatus $payment_status
+ * @property \App\Enums\OrderType $order_type
+ * @property array<string, mixed>|null $shipping_address
+ * @property numeric-string $subtotal
+ * @property numeric-string $delivery_price
+ * @property numeric-string $discount
+ * @property numeric-string $total_price
+ * @property numeric-string $commission_amount
+ */
 class Order extends Model
 {
     use SoftDeletes;
@@ -49,7 +62,8 @@ class Order extends Model
 
     public function getTypeAttribute(): ?string
     {
-        return is_object($this->order_type) ? $this->order_type->value : $this->order_type;
+        // Null only on an in-memory order created without an order_type (the column default is not read back)
+        return $this->order_type->value ?? null;
     }
 
     public function getAddressAttribute(): ?string
@@ -62,46 +76,73 @@ class Order extends Model
         return $this->shipping_address['address'] ?? null;
     }
     
+    /**
+     * @return BelongsTo<Store, $this>
+     */
     public function store(): BelongsTo
     {
         return $this->belongsTo(Store::class);
     }
     
+    /**
+     * @return BelongsTo<User, $this>
+     */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
+    /**
+     * @return BelongsTo<User, $this>
+     */
     public function courier(): BelongsTo
     {
         return $this->belongsTo(User::class, 'courier_id');
     }
 
+    /**
+     * @return BelongsTo<User, $this>
+     */
     public function manager(): BelongsTo
     {
         return $this->belongsTo(User::class, 'manager_id');
     }
 
+    /**
+     * @return BelongsTo<Branch, $this>
+     */
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
     }
     
+    /**
+     * @return HasMany<OrderItem, $this>
+     */
     public function items(): HasMany
     {
         return $this->hasMany(OrderItem::class);
     }
     
+    /**
+     * @return HasMany<OrderStatusHistory, $this>
+     */
     public function statusHistories(): HasMany
     {
         return $this->hasMany(OrderStatusHistory::class);
     }
 
+    /**
+     * @return HasMany<Payment, $this>
+     */
     public function payments(): HasMany
     {
         return $this->hasMany(Payment::class);
     }
 
+    /**
+     * @return BelongsTo<PromoCode, $this>
+     */
     public function promoCode(): BelongsTo
     {
         return $this->belongsTo(PromoCode::class);

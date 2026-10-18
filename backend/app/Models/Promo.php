@@ -27,11 +27,17 @@ class Promo extends Model
         return asset('storage/' . $this->image);
     }
 
+    /**
+     * @return BelongsTo<Store, $this>
+     */
     public function store(): BelongsTo
     {
         return $this->belongsTo(Store::class);
     }
 
+    /**
+     * @return BelongsTo<Product, $this>
+     */
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);

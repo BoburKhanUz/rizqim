@@ -25,6 +25,9 @@ class AuditLog extends Model
         'payload_json' => 'array',
     ];
 
+    /**
+     * @return BelongsTo<User, $this>
+     */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);

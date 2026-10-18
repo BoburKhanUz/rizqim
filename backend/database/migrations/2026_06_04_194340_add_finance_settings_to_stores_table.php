@@ -31,12 +31,18 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('stores', function (Blueprint $table) {
-            $table->dropColumn([
-                'payment_account_type', 'settlement_type', 
-                'accept_cash', 'accept_click', 'accept_payme', 
-                'balance', 'credit_limit', 'wallet_balance', 'low_balance_threshold'
-            ]);
-        });
+        // Only the columns still there: rolling back 2026_06_07_110000_add_missing_wallet_balance_to_stores (which found
+        // wallet_balance already added here) has dropped wallet_balance before this runs
+        $columns = array_values(array_filter([
+            'payment_account_type', 'settlement_type',
+            'accept_cash', 'accept_click', 'accept_payme',
+            'balance', 'credit_limit', 'wallet_balance', 'low_balance_threshold',
+        ], fn (string $column) => Schema::hasColumn('stores', $column)));
+
+        if ($columns !== []) {
+            Schema::table('stores', function (Blueprint $table) use ($columns) {
+                $table->dropColumn($columns);
+            });
+        }
     }
 };

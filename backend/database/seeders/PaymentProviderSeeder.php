@@ -53,8 +53,10 @@ class PaymentProviderSeeder extends Seeder
             ],
         ];
 
+        // Adds the providers that are missing; one that exists keeps its credentials and switch (re-running the seeder
+        // used to blank every merchant key entered in the superadmin panel)
         foreach ($providers as $provider) {
-            \App\Models\PaymentProvider::updateOrCreate(
+            \App\Models\PaymentProvider::firstOrCreate(
                 ['slug' => $provider['slug']],
                 $provider
             );

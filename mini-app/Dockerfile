@@ -1,4 +1,5 @@
-FROM node:20-alpine AS build
+# Node 22 LTS, as CI and scripts/setup-server.sh: the locked vitest 5 needs Node ^22.12 (npm ci warns on Node 20)
+FROM node:22-alpine AS build
 WORKDIR /app
 
 COPY package.json package-lock.json ./

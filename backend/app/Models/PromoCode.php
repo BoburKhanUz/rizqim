@@ -26,11 +26,17 @@ class PromoCode extends Model
         'per_user_limit' => 'integer',
     ];
 
+    /**
+     * @return BelongsTo<Store, $this>
+     */
     public function store(): BelongsTo
     {
         return $this->belongsTo(Store::class);
     }
 
+    /**
+     * @return HasMany<Order, $this>
+     */
     public function orders(): HasMany
     {
         return $this->hasMany(Order::class);

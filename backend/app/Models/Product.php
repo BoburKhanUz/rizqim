@@ -43,16 +43,25 @@ class Product extends Model
         return asset('storage/' . $this->image);
     }
     
+    /**
+     * @return BelongsTo<Store, $this>
+     */
     public function store(): BelongsTo
     {
         return $this->belongsTo(Store::class);
     }
     
+    /**
+     * @return BelongsTo<Category, $this>
+     */
     public function category(): BelongsTo
     {
         return $this->belongsTo(Category::class);
     }
     
+    /**
+     * @return HasMany<ProductVariant, $this>
+     */
     public function variants(): HasMany
     {
         return $this->hasMany(ProductVariant::class);

@@ -336,7 +336,7 @@ export default function OwnerPayments() {
       )}
 
       {/* Warning Box */}
-      {debtBalance >= Math.abs(creditLimit) && (
+      {debtBalance > Math.abs(creditLimit) && (
         <div className="bg-rose-500/10 border border-rose-500/20 rounded-2xl p-4 flex gap-3 items-start animate-pulse">
           <span className="text-xl shrink-0">⚠️</span>
           <div>

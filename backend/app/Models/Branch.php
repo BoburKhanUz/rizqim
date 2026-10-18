@@ -3,9 +3,19 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 use App\Traits\Auditable;
 
+/**
+ * Cast attributes, declared because Larastan does not read casts from the casts() method:
+ *
+ * @property float|null $latitude
+ * @property float|null $longitude
+ * @property float $radius_km
+ * @property \App\Enums\BranchStatus $status
+ */
 class Branch extends Model
 {
     use Auditable;
@@ -22,27 +32,42 @@ class Branch extends Model
         ];
     }
 
-    public function store()
+    /**
+     * @return BelongsTo<Store, $this>
+     */
+    public function store(): BelongsTo
     {
         return $this->belongsTo(Store::class);
     }
 
-    public function users()
+    /**
+     * @return HasMany<User, $this>
+     */
+    public function users(): HasMany
     {
         return $this->hasMany(User::class);
     }
 
-    public function orders()
+    /**
+     * @return HasMany<Order, $this>
+     */
+    public function orders(): HasMany
     {
         return $this->hasMany(Order::class);
     }
 
-    public function region()
+    /**
+     * @return BelongsTo<Region, $this>
+     */
+    public function region(): BelongsTo
     {
         return $this->belongsTo(Region::class);
     }
 
-    public function district()
+    /**
+     * @return BelongsTo<District, $this>
+     */
+    public function district(): BelongsTo
     {
         return $this->belongsTo(District::class);
     }

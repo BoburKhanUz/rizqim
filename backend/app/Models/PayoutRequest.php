@@ -80,11 +80,17 @@ class PayoutRequest extends Model
         });
     }
 
+    /**
+     * @return BelongsTo<Store, $this>
+     */
     public function store(): BelongsTo
     {
         return $this->belongsTo(Store::class);
     }
 
+    /**
+     * @return BelongsTo<User, $this>
+     */
     public function processedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'processed_by');

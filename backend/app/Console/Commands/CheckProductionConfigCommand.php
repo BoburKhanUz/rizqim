@@ -21,7 +21,7 @@ class CheckProductionConfigCommand extends Command
      *
      * @var string
      */
-    protected $description = 'Fail (exit 1) on production-unsafe settings: APP_ENV, APP_DEBUG, TELEGRAM_ALLOW_MOCK_AUTH, TELEGRAM_WEBHOOK_SECRET, default super admin password';
+    protected $description = 'Fail (exit 1) on production-unsafe settings: APP_ENV, APP_DEBUG, APP_KEY, TELEGRAM_ALLOW_MOCK_AUTH, TELEGRAM_WEBHOOK_SECRET, TELEGRAM_WEBAPP_URL, default super admin password';
 
     private const DEFAULT_SEED_PASSWORD = '12345678';
 
@@ -37,6 +37,12 @@ class CheckProductionConfigCommand extends Command
             $problems[] = 'APP_DEBUG=true — false bo\'lishi shart (xatolik sahifalari maxfiy ma\'lumotlarni ochib beradi)';
         }
 
+        // One key for every process (web, queue, scheduler; each Docker container): sessions, cookies and encrypted
+        // data written by one must be readable by the others, so production never generates its own
+        if (blank(config('app.key'))) {
+            $problems[] = 'APP_KEY o\'rnatilmagan — bir marta yarating va backend/.env ga yozing (php artisan key:generate --show, yoki: echo "base64:$(openssl rand -base64 32)"); productionda kalit avtomatik yaratilmaydi';
+        }
+
         if (config('telegram.allow_mock_auth')) {
             $problems[] = 'TELEGRAM_ALLOW_MOCK_AUTH=true — false bo\'lishi shart (imzosiz Telegram login)';
         }
@@ -46,6 +52,14 @@ class CheckProductionConfigCommand extends Command
             $problems[] = 'TELEGRAM_WEBHOOK_SECRET o\'rnatilmagan — Telegram webhook barcha yangilanishlarni rad etadi (403)';
         } elseif (!preg_match('/^[A-Za-z0-9_-]{1,256}$/', $webhookSecret)) {
             $problems[] = 'TELEGRAM_WEBHOOK_SECRET faqat A-Z, a-z, 0-9, "_" va "-" belgilaridan iborat bo\'lishi kerak (1-256 belgi)';
+        }
+
+        // Every bot button opens the Mini App at this address; without it the buttons are left out
+        $webAppUrl = trim((string) config('services.telegram.webapp_url'));
+        if ($webAppUrl === '') {
+            $problems[] = 'TELEGRAM_WEBAPP_URL o\'rnatilmagan — bot xabarlarida Mini App tugmalari bo\'lmaydi (Mini App\'ning https:// manzilini yozing)';
+        } elseif (!str_starts_with(strtolower($webAppUrl), 'https://')) {
+            $problems[] = 'TELEGRAM_WEBAPP_URL https:// bilan boshlanishi kerak — Telegram Mini App\'ni faqat HTTPS manzildan ochadi';
         }
 
         $problems = array_merge($problems, $this->accountProblems());

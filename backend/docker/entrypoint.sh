@@ -11,15 +11,14 @@ until nc -z "${DB_HOST:-pgsql}" "${DB_PORT:-5432}"; do
 done
 echo "Database is up."
 
-# Refuse to start with production-unsafe settings (APP_ENV, APP_DEBUG, TELEGRAM_ALLOW_MOCK_AUTH,
-# TELEGRAM_WEBHOOK_SECRET, default super admin password); runs after the DB wait because it checks accounts
+# Refuse to start with production-unsafe settings (APP_ENV, APP_DEBUG, APP_KEY, TELEGRAM_ALLOW_MOCK_AUTH,
+# TELEGRAM_WEBHOOK_SECRET, TELEGRAM_WEBAPP_URL, default super admin password); runs after the DB wait because it
+# checks accounts. APP_KEY is never generated here: web, queue and scheduler each run this script in their own
+# container, so each would get a different key (and a new one on every recreate) and could not read the others'
+# sessions or encrypted data. It must come from backend/.env; only a local setup runs key:generate itself.
 if ! php artisan app:check-production; then
     echo "XATO: konteyner ishga tushirilmadi. backend/.env dagi yuqorida ko'rsatilgan sozlamalarni tuzating." >&2
     exit 1
-fi
-
-if [ -z "$APP_KEY" ]; then
-    php artisan key:generate --force
 fi
 
 # Only the web container (RUN_MIGRATIONS=true) deploys; queue and scheduler wait for its healthcheck (docker-compose.yml)

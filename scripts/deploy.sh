@@ -19,7 +19,7 @@ cd backend
 echo "Composer paketlari o'rnatilmoqda..."
 composer install --optimize-autoloader --no-dev
 
-echo "Production xavfsizlik sozlamalari tekshirilmoqda (APP_ENV, APP_DEBUG, TELEGRAM_ALLOW_MOCK_AUTH, TELEGRAM_WEBHOOK_SECRET, super admin paroli)..."
+echo "Production xavfsizlik sozlamalari tekshirilmoqda (APP_ENV, APP_DEBUG, APP_KEY, TELEGRAM_ALLOW_MOCK_AUTH, TELEGRAM_WEBHOOK_SECRET, TELEGRAM_WEBAPP_URL, super admin paroli)..."
 php artisan config:clear
 if ! php artisan app:check-production; then
     echo "DEPLOY TO'XTATILDI: backend/.env xavfsiz emas. Yuqoridagi sozlamalarni tuzatib, qayta ishga tushiring."

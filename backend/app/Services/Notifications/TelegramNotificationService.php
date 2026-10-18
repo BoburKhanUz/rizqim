@@ -159,15 +159,9 @@ class TelegramNotificationService
                 $customerMsg .= "📞 Tel: {$cafePhone}";
             }
             
-            // Add a button to open the webapp to track or view
-            $webAppUrl = $this->webAppUrl();
-            $customerKeyboard = [
-                'inline_keyboard' => [
-                    [
-                        ['text' => '📱 Buyurtmani ko\'rish (Ilova)', 'web_app' => ['url' => $webAppUrl]]
-                    ]
-                ]
-            ];
+            // A button to open the Mini App to track or view the order (none without a configured Mini App URL)
+            $appButton = $this->telegram->webAppButton('📱 Buyurtmani ko\'rish (Ilova)');
+            $customerKeyboard = $appButton ? ['inline_keyboard' => [[$appButton]]] : [];
 
             // These statuses also land in the customer's in-app feed, under the types it has always shown
             $feedType = match ($statusValue) {
@@ -441,11 +435,11 @@ class TelegramNotificationService
             }
         }
 
-        // Always add open in mini app link at the bottom
-        $webAppUrl = $this->webAppUrl();
-        $buttons[] = [
-            ['text' => '📱 Mini ilovada ochish', 'web_app' => ['url' => rtrim($webAppUrl, '/') . '/manager']]
-        ];
+        // Open in the Mini App, at the bottom (left out without a configured Mini App URL)
+        $appButton = $this->telegram->webAppButton('📱 Mini ilovada ochish', 'manager');
+        if ($appButton) {
+            $buttons[] = [$appButton];
+        }
 
         $keyboard = ['inline_keyboard' => $buttons];
 
@@ -467,13 +461,5 @@ class TelegramNotificationService
             'parse_mode' => $parseMode,
             'reply_markup' => $replyMarkup,
         ]);
-    }
-
-    /**
-     * From config, not env(): env() reads nothing once the config is cached, which left buttons on the fallback URL.
-     */
-    protected function webAppUrl(): string
-    {
-        return config('services.telegram.webapp_url') ?: 'https://chatty-bikes-say.loca.lt';
     }
 }

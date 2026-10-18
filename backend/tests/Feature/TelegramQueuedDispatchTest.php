@@ -261,6 +261,7 @@ class TelegramQueuedDispatchTest extends TestCase
     {
         $this->fakeTelegram();
         Bus::fake();
+        config(['services.telegram.webapp_url' => 'https://app.rizqim.example/']);
 
         $this->webhook(['message' => [
             'message_id' => 2,
@@ -345,6 +346,39 @@ class TelegramQueuedDispatchTest extends TestCase
             && str_contains($job->params['reply_markup'], json_encode('https://app.rizqim.example/manager')));
         Queue::assertPushed(SendTelegramRequest::class, fn (SendTelegramRequest $job) => $job->params['chat_id'] === '5009'
             && str_contains($job->params['reply_markup'], json_encode('https://app.rizqim.example/')));
+    }
+
+    public function test_without_a_mini_app_url_no_message_carries_a_mini_app_button(): void
+    {
+        $this->fakeTelegram();
+        Queue::fake([SendTelegramRequest::class]);
+        config(['services.telegram.webapp_url' => null]);
+        $this->store->forceFill(['telegram_admin_chat_id' => '-100777'])->save();
+        $order = $this->makeOrder(OrderStatus::NEW);
+
+        app(TelegramNotificationService::class)->sendOrderCreated($order);
+        app(TelegramNotificationService::class)->sendOrderStatusChanged($order);
+
+        // The order card keeps its own buttons and the customer still hears the news, neither opens some other site
+        Queue::assertPushed(SendTelegramRequest::class, fn (SendTelegramRequest $job) => $job->params['chat_id'] === '-100777'
+            && str_contains($job->params['reply_markup'], 'callback_data')
+            && !str_contains($job->params['reply_markup'], 'web_app'));
+        Queue::assertPushed(SendTelegramRequest::class, fn (SendTelegramRequest $job) => $job->params['chat_id'] === '5009'
+            && !array_key_exists('reply_markup', $job->params));
+
+        // A shared contact is confirmed; the "press the button below" message and the /start welcome need the Mini App
+        $this->webhook(['message' => [
+            'message_id' => 3,
+            'from' => ['id' => 8400, 'first_name' => 'Vali'],
+            'chat' => ['id' => 8400],
+            'contact' => ['phone_number' => '998901234568', 'user_id' => 8400],
+        ]])->assertJsonPath('status', 'contact_linked');
+        $this->webhook(['message' => ['message_id' => 4, 'from' => ['id' => 8400], 'chat' => ['id' => 8400], 'text' => '/start']])
+            ->assertJsonPath('status', 'webapp_url_missing');
+
+        Queue::assertPushed(SendTelegramRequest::class, fn (SendTelegramRequest $job) => $job->params['chat_id'] === 8400
+            && str_contains($job->params['text'], 'tasdiqlandi'));
+        Queue::assertNotPushed(SendTelegramRequest::class, fn (SendTelegramRequest $job) => str_contains((string) ($job->params['reply_markup'] ?? ''), 'web_app'));
     }
 
     public function test_a_late_courier_warning_is_queued_once_while_it_is_still_being_sent(): void

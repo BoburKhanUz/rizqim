@@ -29,23 +29,30 @@ class LedgerMoneyArithmeticTest extends TestCase
         ], $attributes));
     }
 
-    public function test_top_up_leaving_the_debt_exactly_at_the_credit_limit_keeps_the_store_blocked(): void
+    public function test_top_up_leaving_the_debt_exactly_at_the_credit_limit_unblocks_the_store(): void
     {
-        // As floats 131072.02 - 31072.02 is 99999.999999999985, which passed for "under the limit" and unblocked it
-        $store = $this->store(['status' => StoreStatus::PAYMENT_REQUIRED->value, 'debt_balance' => '131072.02']);
+        // A debt equal to the limit is allowed. As floats 131072.01 - 31072.01 is 100000.00000000001, which would
+        // count as over the limit and keep the store blocked
+        $store = $this->store(['status' => StoreStatus::PAYMENT_REQUIRED->value, 'debt_balance' => '131072.01']);
 
-        app(LedgerService::class)->reduceDebt($store, '31072.02', 'Naqd to\'lov');
+        app(LedgerService::class)->reduceDebt($store, '31072.01', 'Naqd to\'lov');
 
         $store->refresh();
         $this->assertSame('100000.00', $store->debt_balance);
-        $this->assertSame(StoreStatus::PAYMENT_REQUIRED, $store->status);
-        $this->assertTrue($store->is_order_locked);
+        $this->assertSame(StoreStatus::ACTIVE, $store->status);
+        $this->assertFalse($store->is_order_locked);
         $this->assertDatabaseHas('store_transactions', [
             'store_id' => $store->id,
-            'amount' => '-31072.02',
-            'balance_before' => '131072.02',
+            'amount' => '-31072.01',
+            'balance_before' => '131072.01',
             'balance_after' => '100000.00',
         ]);
+
+        // One tiyin over the limit keeps it blocked
+        $over = $this->store(['status' => StoreStatus::PAYMENT_REQUIRED->value, 'debt_balance' => '131072.03']);
+        app(LedgerService::class)->reduceDebt($over, '31072.02', 'Naqd to\'lov');
+        $this->assertSame('100000.01', $over->fresh()->debt_balance);
+        $this->assertSame(StoreStatus::PAYMENT_REQUIRED, $over->fresh()->status);
     }
 
     public function test_owner_panel_shows_what_the_payout_form_allows(): void

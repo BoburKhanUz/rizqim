@@ -5,7 +5,8 @@
 # Skriptni qayta ishga tushirish xavfsiz: o'rnatilganlar o'zgarmaydi, sozlamalar bir xil holatga keltiriladi.
 #
 # Docker varianti (docker-compose.yml) bilan bir xil versiyalar: PHP 8.3 (composer.lock 8.3+ talab qiladi), PostgreSQL 17,
-# Redis (kesh, navbat, sessiya), Node.js 20. Versiyalarni o'zgartirish: PHP_VERSION=8.4 PG_VERSION=17 ./setup-server.sh
+# Redis (kesh, navbat, sessiya), Node.js 22 LTS (mini-app'dagi vitest 5 Node ^22.12 talab qiladi; CI va mini-app/Dockerfile ham 22).
+# Versiyalarni o'zgartirish: PHP_VERSION=8.4 PG_VERSION=17 ./setup-server.sh
 
 set -euo pipefail
 
@@ -70,8 +71,8 @@ echo "Composer o'rnatilmoqda..."
 curl -sS https://getcomposer.org/installer | "$PHP_BIN"
 sudo mv composer.phar /usr/local/bin/composer
 
-echo "Node.js 20 va NPM o'rnatilmoqda..."
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+echo "Node.js 22 LTS va NPM o'rnatilmoqda..."
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
 sudo apt install -y nodejs
 
 echo "Ma'lumotlar bazasi sifatida PostgreSQL ${PG_VERSION} o'rnatilmoqda (docker-compose.yml dagi postgres:${PG_VERSION}-alpine bilan bir xil major versiya)..."

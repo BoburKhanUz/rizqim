@@ -20,11 +20,17 @@ class StoreStatusLog extends Model
         'comment',
     ];
 
+    /**
+     * @return BelongsTo<Store, $this>
+     */
     public function store(): BelongsTo
     {
         return $this->belongsTo(Store::class);
     }
 
+    /**
+     * @return BelongsTo<User, $this>
+     */
     public function admin(): BelongsTo
     {
         return $this->belongsTo(User::class, 'admin_id');

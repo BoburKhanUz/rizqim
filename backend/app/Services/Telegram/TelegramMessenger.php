@@ -52,6 +52,27 @@ class TelegramMessenger
         ));
     }
 
+    /**
+     * An inline button that opens the Mini App (TELEGRAM_WEBAPP_URL, at $path inside it), or null while that URL is not
+     * set: the button is then left out, never pointed at some fallback site. app:check-production requires the URL.
+     *
+     * @return array{text: string, web_app: array{url: string}}|null
+     */
+    public function webAppButton(string $text, string $path = ''): ?array
+    {
+        $url = trim((string) config('services.telegram.webapp_url'));
+
+        if ($url === '') {
+            return null;
+        }
+
+        if ($path !== '') {
+            $url = rtrim($url, '/') . '/' . ltrim($path, '/');
+        }
+
+        return ['text' => $text, 'web_app' => ['url' => $url]];
+    }
+
     public function answerCallbackQuery(string $callbackQueryId, string $text, bool $showAlert = false): void
     {
         $this->queue(new SendTelegramRequest('answerCallbackQuery', [

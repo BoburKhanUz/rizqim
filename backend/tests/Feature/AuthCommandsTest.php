@@ -152,7 +152,25 @@ class AuthCommandsTest extends TestCase
 
     private function safeProductionConfig(): void
     {
-        config(['app.env' => 'production', 'app.debug' => false, 'telegram.allow_mock_auth' => false, 'services.telegram.webhook_secret' => 'valid_secret-1']);
+        config(['app.env' => 'production', 'app.debug' => false, 'telegram.allow_mock_auth' => false, 'services.telegram.webhook_secret' => 'valid_secret-1',
+            'services.telegram.webapp_url' => 'https://app.rizqim.example/', 'app.key' => 'base64:' . base64_encode(str_repeat('k', 32))]);
+    }
+
+    public function test_production_check_requires_one_app_key_and_the_mini_app_url(): void
+    {
+        $this->safeProductionConfig();
+        $this->artisan('app:check-production')->assertSuccessful();
+
+        // Every container would otherwise make up its own key
+        config(['app.key' => '']);
+        $this->artisan('app:check-production')->expectsOutputToContain('APP_KEY')->assertFailed();
+
+        $this->safeProductionConfig();
+        config(['services.telegram.webapp_url' => null]);
+        $this->artisan('app:check-production')->expectsOutputToContain('TELEGRAM_WEBAPP_URL')->assertFailed();
+
+        config(['services.telegram.webapp_url' => 'http://app.rizqim.example/']);
+        $this->artisan('app:check-production')->assertFailed();
     }
 
     public function test_production_check_fails_without_a_valid_webhook_secret(): void
@@ -217,7 +235,8 @@ class AuthCommandsTest extends TestCase
 
     public function test_production_check_rejects_unsafe_settings(): void
     {
-        config(['app.env' => 'production', 'app.debug' => false, 'telegram.allow_mock_auth' => false, 'services.telegram.webhook_secret' => 's']);
+        $this->safeProductionConfig();
+        config(['services.telegram.webhook_secret' => 's']);
         $this->artisan('app:check-production')->assertSuccessful();
 
         config(['app.env' => 'local']);

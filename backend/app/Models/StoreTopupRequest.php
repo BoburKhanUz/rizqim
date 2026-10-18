@@ -17,6 +17,9 @@ class StoreTopupRequest extends Model
         'payload' => 'array',
     ];
 
+    /**
+     * @return BelongsTo<Store, $this>
+     */
     public function store(): BelongsTo
     {
         return $this->belongsTo(Store::class);

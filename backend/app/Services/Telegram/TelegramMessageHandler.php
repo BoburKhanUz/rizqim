@@ -6,6 +6,7 @@ use App\Enums\UserRole;
 use App\Models\Store;
 use App\Models\User;
 use App\Services\Auth\ReferralService;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 /**
@@ -72,24 +73,21 @@ class TelegramMessageHandler
             $this->referrals->applyPendingReferral($newUser, (string) $senderId);
         }
 
-        $webAppUrl = config('services.telegram.webapp_url', 'https://food-order.boburkhan.uz/');
-
-        // First remove reply keyboard with a message, then the welcome with the WebApp button
-        $this->telegram->sendMessagesInOrder($chatId, [
+        // First remove reply keyboard with a message, then the welcome with the WebApp button (only when the Mini App
+        // URL is configured: without it there is nothing to open)
+        $messages = [
             ["✅ Telefon raqamingiz muvaffaqiyatli tasdiqlandi!", [
                 'reply_markup' => ['remove_keyboard' => true],
             ]],
-            ["Buyurtma berishni boshlash uchun quyidagi tugmani bosing 👇", [
+        ];
+        $orderButton = $this->telegram->webAppButton('🍔 Buyurtma berish');
+        if ($orderButton) {
+            $messages[] = ["Buyurtma berishni boshlash uchun quyidagi tugmani bosing 👇", [
                 'parse_mode' => 'Markdown',
-                'reply_markup' => [
-                    'inline_keyboard' => [
-                        [
-                            ['text' => '🍔 Buyurtma berish', 'web_app' => ['url' => $webAppUrl]]
-                        ]
-                    ]
-                ],
-            ]],
-        ]);
+                'reply_markup' => ['inline_keyboard' => [[$orderButton]]],
+            ]];
+        }
+        $this->telegram->sendMessagesInOrder($chatId, $messages);
 
         return 'contact_linked';
     }
@@ -223,8 +221,6 @@ class TelegramMessageHandler
             return null;
         }
 
-        $webAppUrl = config('services.telegram.webapp_url', 'https://food-order.boburkhan.uz/');
-
         // Identify user role from database (Prioritize super admin if multiple records exist)
         $existingUser = User::where('telegram_id', $chatId)
             ->orderByRaw("CASE WHEN role = 'super_admin' THEN 1 ELSE 0 END DESC")
@@ -262,15 +258,14 @@ class TelegramMessageHandler
             $buttonText = '🍔 Buyurtma berish';
         }
 
-        $keyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => $buttonText, 'web_app' => ['url' => $webAppUrl]]
-                ]
-            ]
-        ];
+        // Every welcome below points at the Mini App button: without a configured Mini App URL none is sent
+        $button = $this->telegram->webAppButton($buttonText);
+        if (!$button) {
+            Log::warning('Telegram welcome not sent: TELEGRAM_WEBAPP_URL is not set, so there is no Mini App to open.');
+            return 'webapp_url_missing';
+        }
 
-        $this->telegram->sendMessage($chatId, $welcomeText, ['parse_mode' => 'Markdown', 'reply_markup' => $keyboard]);
+        $this->telegram->sendMessage($chatId, $welcomeText, ['parse_mode' => 'Markdown', 'reply_markup' => ['inline_keyboard' => [[$button]]]]);
         return 'welcome_sent';
     }
 }

@@ -49,7 +49,7 @@ backend      --- geokodlash proksisi ------> Nominatim   (Mini App unga o'zi mur
 
 `POST /api/v1/orders` (daqiqasiga 10 ta) `CreateOrderAction` ichida bitta tranzaksiyada bajariladi:
 
-1. **Do'kon:** `payment_required` yoki `finance_hold` holatida, `debt_balance >= |credit_limit|` bo'lganda yoki do'kon yopiq bo'lganda (`is_open` va ish vaqti) buyurtma rad etiladi.
+1. **Do'kon:** `payment_required` yoki `finance_hold` holatida, `debt_balance > |credit_limit|` bo'lganda yoki do'kon yopiq bo'lganda (`is_open` va ish vaqti) buyurtma rad etiladi.
 2. **Usullar:** to'lov usuli, yetkazish (`delivery`) va olib ketish (`pickup`) do'kon sozlamalarida yoqilgan bo'lishi shart; `uzum` va `paynet` har doim rad etiladi; naqd uchun "naqd + olib ketish taqiqi" tekshiriladi.
 3. **Filial:** `pickup` — tanlangan faol filial; `delivery` — manzil nuqtasini `radius_km` ichiga oladigan eng yaqin faol filial (Haversine), hech biriga tushmasa rad etiladi (koordinata yo'q bo'lsa birinchi faol filial).
 4. **Narx va zaxira faqat serverda:** mijoz faqat `variant_id` (uuid) va `quantity` yuboradi. Variantlar `FOR UPDATE` bilan id tartibida qulflanadi va zaxira buyurtma yaratilishi bilan darhol kamaytiriladi (`stock >= quantity` sharti va bazadagi `CHECK (stock >= 0)`). Filialda o'chirilgan mahsulot, minimal buyurtma summasi tekshiriladi; yetkazish narxi `payment_settings.delivery_fee` dan olinadi (faqat `delivery`).
@@ -103,7 +103,7 @@ backend      --- geokodlash proksisi ------> Nominatim   (Mini App unga o'zi mur
 
 - **Komissiya** har bir `delivered` buyurtma uchun (naqd ham) yechiladi: avval do'kon hamyonidan (`wallet_balance`), yetmagan qismi `debt_balance` (do'kon platformadan qarzi) ga qo'shiladi. Standartlar: `commission_rate` 10%, `credit_limit` -100000, `min_payout_reserve` 100000.
 - **Hisob-kitob (settlement):** `PLATFORM` buyurtma yetkazilganda to'langan summa hamyonga yoziladi. Keshbek buyurtmasida avval do'kon qarzi yopiladi, qoldig'i hamyonga o'tadi.
-- **Bloklash:** komissiyadan keyin `debt_balance >= |credit_limit|` bo'lsa `active` do'kon `payment_required` ga o'tadi, yangi buyurtma olmaydi va `/stores` ro'yxatida chiqmaydi, do'kon admin chatiga Telegram ogohlantirishi ketadi. `credit_limit = 0` bo'lsa do'kon buyurtma qabul qilmaydi (0 >= 0). `finance_hold` ham buyurtmani to'xtatadi, lekin avtomatik o'zgarmaydi.
+- **Bloklash:** komissiyadan keyin `debt_balance > |credit_limit|` bo'lsa `active` do'kon `payment_required` ga o'tadi, yangi buyurtma olmaydi va `/stores` ro'yxatida chiqmaydi, do'kon admin chatiga Telegram ogohlantirishi ketadi. `credit_limit = 0` — qarzga ruxsat yo'q: qarzi yo'q do'kon sotadi, har qanday qarz paydo bo'lsa bloklanadi (qoida `Store::exceedsCreditLimit()`). `finance_hold` ham buyurtmani to'xtatadi, lekin avtomatik o'zgarmaydi.
 - **Top-up:** egasi Click/Payme orqali platformaga to'laydi (`POST /owner/finance/top-up`) yoki super admin qo'lda "To'lov Qabul Qilish" bajaradi; `debt_balance` kamayadi; do'kon `payment_required` holatida bo'lib, qarz limitdan pastga tushsa, yana `active` bo'ladi.
 - **Yechib olish:** egasi `POST /owner/payouts` (16 xonali karta, kamida 1000) yuboradi; summa `wallet_balance` - kutilayotgan so'rovlar - `min_payout_reserve` dan oshmasligi kerak. Super admin (Superadmin > Moliya > Yechib Olish So'rovlari) so'rovni `completed` (hamyondan yechiladi) yoki `rejected` qiladi.
 - **Referral:** taklif qilingan mijozning birinchi yetkazilgan, kamida 50 000 UZS li buyurtmasidan keyin taklif qilganga 5 000 keshbek beriladi; bu summa do'kon qarziga yoziladi.
