@@ -8,12 +8,12 @@ import { useLanguageStore } from './store/languageStore';
 import { useAuthStore } from './store/authStore';
 import { ShoppingBag, User as UserIcon, BarChart3, Activity, Building2, PlusCircle, LayoutGrid, Users, Home as HomeIcon, List, ClipboardList } from 'lucide-react';
 import api from './services/api';
+import PhoneVerificationModal from './components/PhoneVerificationModal';
 
 import Home from './pages/Home';
 import StoreDetail from './pages/StoreDetail';
 import Cart from './pages/Cart';
 import CustomerProfile from './pages/CustomerProfile';
-import Checkout from './pages/Checkout';
 import Success from './pages/Success';
 import Orders from './pages/Orders';
 import Profile from './pages/Profile';
@@ -99,8 +99,8 @@ function BottomNavBar() {
   const { t, language } = useLanguageStore();
   const { user } = useAuthStore();
 
-  // Hide BottomNavBar on checkout and success pages
-  const hidePaths = ['/checkout', '/success'];
+  // Hide BottomNavBar on the success page
+  const hidePaths = ['/success'];
   if (hidePaths.includes(location.pathname)) return null;
 
   const totalItems = getTotalItems();
@@ -294,55 +294,17 @@ function BottomNavBar() {
   );
 }
 
-// Gorgeous Premium Phone Prompt Modal
+// Asks users that have no phone number yet for one (SMS verified when the server requires it)
 function PhonePromptModal() {
   const { user, updateUser, smsVerificationRequired } = useAuthStore();
-  const { language } = useLanguageStore();
-  const [phone, setPhone] = useState('');
-  const [code, setCode] = useState('');
-  const [step, setStep] = useState<'phone' | 'code'>('phone');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [countdown, setCountdown] = useState(60);
 
   // If no authenticated user, or user already has a phone number set, don't show the modal
   if (!user || user.phone) return null;
 
-  useEffect(() => {
-    let timer: any;
-    if (step === 'code' && countdown > 0) {
-      timer = setTimeout(() => setCountdown(countdown - 1), 1000);
-    }
-    return () => clearTimeout(timer);
-  }, [step, countdown]);
-
-  const handleSendCode = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const cleanPhone = phone.replace(/\D/g, '');
-    if (cleanPhone.length !== 9) {
-      alert(language === 'uz' ? 'Iltimos, 9 xonali telefon raqamingizni kiriting!' : 'Пожалуйста, введите 9-значный номер телефона!');
-      return;
-    }
-
-    const fullPhone = `+998${cleanPhone}`;
-    hapticFeedback('medium');
-    
-    try {
-      setIsSubmitting(true);
-      
-      if (smsVerificationRequired) {
-        const response = await api.post('/phone/send-code', { phone: fullPhone });
-        if (response.data?.success) {
-          // If in debug/local mode, show code in alert for developer convenience
-          if (response.data.code) {
-            console.log('Verification code (Debug Mode):', response.data.code);
-            alert(`[DEBUG MODE] Tasdiqlash kodi: ${response.data.code}`);
-          }
-          setStep('code');
-          setCountdown(60);
-        } else {
-          alert(response.data?.message || 'Xatolik yuz berdi.');
-        }
-      } else {
+  return (
+    <PhoneVerificationModal
+      onVerified={(fullPhone) => updateUser({ phone: fullPhone })}
+      saveWithoutVerification={smsVerificationRequired ? undefined : async (fullPhone) => {
         // Direct save without SMS if not required
         await api.post('/user/profile', {
           name: user.name,
@@ -350,184 +312,8 @@ function PhonePromptModal() {
           address: user.address || ''
         });
         updateUser({ phone: fullPhone });
-      }
-    } catch (err: any) {
-      console.error('Failed to send code or save phone number:', err);
-      alert(err.response?.data?.message || (language === 'uz' ? 'Xatolik yuz berdi. Iltimos qaytadan urining.' : 'Произошла ошибка. Пожалуйста, попробуйте еще раз.'));
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleVerifyCode = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (code.length !== 6) {
-      alert(language === 'uz' ? 'Iltimos, 6 xonali kodni kiriting!' : 'Пожалуйста, введите 6-значный код!');
-      return;
-    }
-
-    const cleanPhone = phone.replace(/\D/g, '');
-    const fullPhone = `+998${cleanPhone}`;
-    hapticFeedback('medium');
-
-    try {
-      setIsSubmitting(true);
-      const response = await api.post('/phone/verify-code', {
-        phone: fullPhone,
-        code: code
-      });
-
-      if (response.data?.success) {
-        updateUser({ phone: fullPhone });
-      } else {
-        alert(response.data?.message || 'Kod noto\'g\'ri.');
-      }
-    } catch (err: any) {
-      console.error('Failed to verify code:', err);
-      alert(err.response?.data?.message || (language === 'uz' ? 'Kod noto\'g\'ri yoki muddati tugagan.' : 'Код неверный или срок его действия истек.'));
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleResendCode = async () => {
-    if (countdown > 0) return;
-    const cleanPhone = phone.replace(/\D/g, '');
-    const fullPhone = `+998${cleanPhone}`;
-    hapticFeedback('light');
-    try {
-      setIsSubmitting(true);
-      const response = await api.post('/phone/send-code', { phone: fullPhone });
-      if (response.data?.success) {
-        if (response.data.code) {
-          alert(`[DEBUG MODE] Yangi tasdiqlash kodi: ${response.data.code}`);
-        }
-        setCountdown(60);
-      }
-    } catch (err: any) {
-      alert(err.response?.data?.message || 'Kodni qayta yuborishda xatolik.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-6 animate-fade-in">
-      <div className="bg-white w-full max-w-sm rounded-[32px] p-6 shadow-2xl border border-slate-100 flex flex-col gap-5 text-center animate-scale-up">
-        <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center text-primary text-3xl mx-auto mb-1 animate-pulse">
-          📱
-        </div>
-
-        {step === 'phone' ? (
-          <>
-            <div>
-              <h2 className="text-xl font-black text-slate-900 mb-2">
-                {language === 'uz' ? 'Telefon raqamingiz' : 'Номер телефона'}
-              </h2>
-              <p className="text-xs text-slate-500 leading-relaxed">
-                {language === 'uz' 
-                  ? 'Buyurtmalaringizni tez va to\'g\'ri yetkazib berish uchun iltimos telefon raqamingizni kiriting:' 
-                  : 'Для быстрой доставки ваших заказов введите ваш номер телефона:'}
-              </p>
-            </div>
-
-            <form onSubmit={handleSendCode} className="flex flex-col gap-4">
-              <div className="flex items-center bg-slate-50 border border-slate-200/80 rounded-2xl px-4 py-3.5 focus-within:border-primary transition-all">
-                <span className="text-xs font-black text-slate-800 mr-2 border-r border-slate-200 pr-2">+998</span>
-                <input
-                  type="tel"
-                  placeholder="90 123 45 67"
-                  maxLength={9}
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
-                  className="bg-transparent border-none outline-none font-bold text-xs text-slate-800 w-full tracking-wider placeholder-slate-400"
-                  disabled={isSubmitting}
-                  autoFocus
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={isSubmitting || phone.length !== 9}
-                className="w-full bg-primary text-white font-extrabold text-xs py-4 rounded-2xl active:scale-95 transition-all shadow-md shadow-primary/20 disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-2"
-              >
-                {isSubmitting ? (
-                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                ) : (
-                  <span>{language === 'uz' ? 'Tasdiqlash' : 'Подтвердить'}</span>
-                )}
-              </button>
-            </form>
-          </>
-        ) : (
-          <>
-            <div>
-              <h2 className="text-xl font-black text-slate-900 mb-2">
-                {language === 'uz' ? 'Tasdiqlash kodi' : 'Код подтверждения'}
-              </h2>
-              <p className="text-xs text-slate-500 leading-relaxed">
-                {language === 'uz'
-                  ? `+998 ${phone.substring(0,2)} ${phone.substring(2,5)} ${phone.substring(5,7)} ${phone.substring(7,9)} raqamiga SMS kod yuborildi:`
-                  : `SMS код был отправлен на номер +998 ${phone}:`}
-              </p>
-            </div>
-
-            <form onSubmit={handleVerifyCode} className="flex flex-col gap-4">
-              <div className="flex items-center bg-slate-50 border border-slate-200/80 rounded-2xl px-4 py-3.5 focus-within:border-primary transition-all">
-                <input
-                  type="tel"
-                  placeholder="123456"
-                  maxLength={6}
-                  value={code}
-                  onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
-                  className="bg-transparent border-none outline-none font-black text-center text-base text-slate-800 w-full tracking-[0.5rem] pl-2 placeholder-slate-400"
-                  disabled={isSubmitting}
-                  autoFocus
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={isSubmitting || code.length !== 6}
-                className="w-full bg-primary text-white font-extrabold text-xs py-4 rounded-2xl active:scale-95 transition-all shadow-md shadow-primary/20 disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-2"
-              >
-                {isSubmitting ? (
-                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                ) : (
-                  <span>{language === 'uz' ? 'Kodni tasdiqlash' : 'Подтвердить код'}</span>
-                )}
-              </button>
-
-              <div className="flex flex-col gap-2 mt-2">
-                {countdown > 0 ? (
-                  <span className="text-[11px] text-slate-500">
-                    {language === 'uz' ? `Kodni qayta yuborish (${countdown}s)` : `Повторная отправка через (${countdown}с)`}
-                  </span>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={handleResendCode}
-                    disabled={isSubmitting}
-                    className="text-[11px] text-primary font-bold hover:underline self-center cursor-pointer"
-                  >
-                    {language === 'uz' ? 'Kodni qayta yuborish' : 'Отправить код еще раз'}
-                  </button>
-                )}
-
-                <button
-                  type="button"
-                  onClick={() => setStep('phone')}
-                  disabled={isSubmitting}
-                  className="text-[11px] text-slate-500 font-medium hover:underline hover:text-slate-800 self-center cursor-pointer"
-                >
-                  {language === 'uz' ? 'Raqamni o\'zgartirish' : 'Изменить номер'}
-                </button>
-              </div>
-            </form>
-          </>
-        )}
-      </div>
-    </div>
+      }}
+    />
   );
 }
 
@@ -620,7 +406,7 @@ function FloatingCartBar() {
   const totalItems = getTotalItems();
   const totalAmount = getSubtotal();
 
-  const hidePaths = ['/cart', '/checkout', '/success', '/orders', '/profile', '/complaints', '/notifications'];
+  const hidePaths = ['/cart', '/success', '/orders', '/profile', '/complaints', '/notifications'];
   const shouldHide = hidePaths.some(p => location.pathname.startsWith(p)) || 
                      location.pathname.includes('/admin') || 
                      location.pathname.includes('/superadmin') || 
@@ -707,7 +493,6 @@ function AppContent() {
         <Route path="/admin/employees" element={<OwnerEmployees />} />
         <Route path="/admin/payments" element={<OwnerPayments />} />
         <Route path="/cart" element={<Cart />} />
-        <Route path="/checkout" element={<Checkout />} />
         <Route path="/orders" element={<Orders />} />
         <Route path="/profile" element={(!user?.role || user?.role === 'customer' || user?.role === 'user') ? <CustomerProfile /> : <Profile />} />
         <Route path="/complaints" element={<Complaints />} />

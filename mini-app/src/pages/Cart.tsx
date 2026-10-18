@@ -1,5 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { isAxiosError } from 'axios';
+import { logApiError } from '../lib/apiError';
 import { useCartStore } from '../store/cartStore';
 import { useAddressStore } from '../store/useAddressStore';
 import { hapticFeedback, tg } from '../lib/telegram';
@@ -7,6 +9,7 @@ import api from '../services/api';
 import { Trash2, Minus, Plus, ShoppingBag, CheckCircle2, PlusCircle, ArrowLeft } from 'lucide-react';
 import VariantSelectorModal from '../components/VariantSelectorModal';
 import { useAuthStore } from '../store/authStore';
+import { getAddBlockedMessage, getVariantStock, isProductSoldOut } from '../lib/stock';
 
 
 function formatUzbekSum(value: number | string | undefined) {
@@ -29,6 +32,48 @@ function getProductBasePrice(product: any): number {
   return 0;
 }
 
+interface AppliedPromo {
+  // The code string is what we send as `promo_code` when placing the order
+  code: string;
+  type: string;
+  amount: number;
+  // Discount the server computed for `validatedSubtotal` (older backends may not send it)
+  discountAmount: number | null;
+  validatedSubtotal: number;
+  description?: string;
+}
+
+interface OrderResponseData {
+  order_number?: string | number | null;
+  order_uuid?: string | null;
+  uuid?: string | null;
+  payment_url?: string | null;
+}
+
+interface ApiErrorBody {
+  message?: string;
+  errors?: Record<string, string[] | string | undefined>;
+}
+
+// Decimals can arrive as strings (e.g. "10.00") from the API; anything non-numeric becomes null.
+function toFiniteNumber(value: unknown): number | null {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+// Never invent an order number: use what the server sent, else the start of the order uuid, else nothing.
+function getOrderDisplayNumber(order: OrderResponseData): string {
+  if (order.order_number !== undefined && order.order_number !== null && String(order.order_number).trim() !== '') {
+    return String(order.order_number);
+  }
+  const uuid = order.order_uuid || order.uuid;
+  return uuid ? uuid.substring(0, 8) : '';
+}
+
 export default function Cart() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
@@ -38,7 +83,7 @@ export default function Cart() {
   const [deliveryNote, setDeliveryNote] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('click');
   const [promoCodeInput, setPromoCodeInput] = useState('');
-  const [activePromo, setActivePromo] = useState<any>(null);
+  const [activePromo, setActivePromo] = useState<AppliedPromo | null>(null);
   const [promoError, setPromoError] = useState('');
 
   const [storeProducts, setStoreProducts] = useState<any[]>([]);
@@ -102,7 +147,7 @@ export default function Cart() {
           }
         }
       }).catch(err => {
-        console.error('Failed to fetch store branches', err);
+        logApiError('Failed to fetch store branches', err);
       });
     }
   }, [items]);
@@ -179,7 +224,7 @@ export default function Cart() {
           setStoreProducts(res.data.data.products || []);
         }
       }).catch(err => {
-        console.error('Failed to fetch store products for upsell', err);
+        logApiError('Failed to fetch store products for upsell', err);
       });
     } else {
       setStoreProducts([]);
@@ -190,9 +235,25 @@ export default function Cart() {
     if (items.length === 0) return [];
     const inCartProductIds = items.map(item => item.productId);
     return storeProducts
-      .filter(p => !inCartProductIds.includes(p.id) && p.variants && p.variants.length > 0)
+      .filter(p => !inCartProductIds.includes(p.id) && p.variants && p.variants.length > 0 && !isProductSoldOut(p))
       .slice(0, 3);
   }, [storeProducts, items]);
+
+  // Cart items carry no stock info: look the variant up in the store catalog fetched above.
+  const findCatalogVariant = (productId: number, variantId?: string) =>
+    storeProducts.find(p => p.id === productId)?.variants?.find((v: { uuid?: string }) => v.uuid === variantId);
+
+  // Same stock rule as the store page: never add a sold-out variant or more than what is in stock.
+  const canAddMore = (variant: { stock?: unknown } | undefined, cartItemId: string): boolean => {
+    const inCart = items.find(item => item.id === cartItemId)?.quantity ?? 0;
+    const blocked = getAddBlockedMessage(variant, inCart);
+    if (blocked) {
+      hapticFeedback('error');
+      alert(blocked);
+      return false;
+    }
+    return true;
+  };
 
   const handleAddUpsellItem = (product: any) => {
     hapticFeedback('medium');
@@ -203,9 +264,12 @@ export default function Cart() {
 
     const variant = product.variants?.[0];
     const itemPrice = variant ? parseFloat(variant.price) : 0;
+    const cartItemId = variant ? `${product.id}-${variant.uuid}` : `${product.id}`;
+
+    if (!canAddMore(variant, cartItemId)) return;
 
     const cartItem = {
-      id: variant ? `${product.id}-${variant.uuid}` : `${product.id}`,
+      id: cartItemId,
       productId: product.id,
       variantId: variant?.uuid,
       storeId: product.store_id.toString(),
@@ -233,9 +297,14 @@ export default function Cart() {
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         const { latitude, longitude } = position.coords;
+        // Nominatim can hang: give up after 8s and fall back to the plain coordinates
+        const controller = new AbortController();
+        const timeoutId = window.setTimeout(() => controller.abort(), 8000);
         try {
           // OpenStreetMap Nominatim reverse geocoding API
-          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}`);
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}`, {
+            signal: controller.signal
+          });
           const data = await res.json();
           const addressText = data.display_name || `📍 Lokatsiya (${latitude.toFixed(5)}, ${longitude.toFixed(5)})`;
           
@@ -253,7 +322,7 @@ export default function Cart() {
           setSelectedAddressId(newId);
           setShowAddressForm(false);
           hapticFeedback('success');
-        } catch (err) {
+        } catch {
           const addressText = `📍 Lokatsiya (${latitude.toFixed(5)}, ${longitude.toFixed(5)})`;
           const newId = Date.now();
           addAddress({
@@ -270,6 +339,7 @@ export default function Cart() {
           setShowAddressForm(false);
           hapticFeedback('warning');
         } finally {
+          window.clearTimeout(timeoutId);
           setIsLocating(false);
         }
       },
@@ -320,27 +390,30 @@ export default function Cart() {
     
     try {
       const storeId = parseInt(items[0].storeId);
+      const validatedSubtotal = getSubtotal();
       const res = await api.post('/promo/validate', {
         code: code,
         store_id: storeId,
-        subtotal: getSubtotal()
+        subtotal: validatedSubtotal
       });
 
       if (res.data?.success) {
         const promoData = res.data.data;
         setActivePromo({
-          code: promoData.code,
-          type: promoData.type,
-          amount: promoData.amount,
-          discountAmount: promoData.discount_amount,
+          // Keep the code string: the order is sent with `promo_code` and the server recomputes the discount
+          code: typeof promoData.code === 'string' && promoData.code.trim() ? promoData.code.trim() : code.trim(),
+          type: String(promoData.type ?? ''),
+          amount: toFiniteNumber(promoData.amount) ?? 0,
+          discountAmount: toFiniteNumber(promoData.discount_amount),
+          validatedSubtotal,
           description: promoData.description
         });
         setPromoError('');
         setPromoCodeInput('');
       }
-    } catch (err: any) {
-      console.error(err);
-      const errorMsg = err.response?.data?.message || "Promo-kod yaroqsiz yoki muddati tugagan";
+    } catch (err) {
+      logApiError('Failed to apply promo code:', err);
+      const errorMsg = (isAxiosError<ApiErrorBody>(err) && err.response?.data?.message) || "Promo-kod yaroqsiz yoki muddati tugagan";
       setPromoError(errorMsg);
       setActivePromo(null);
     }
@@ -353,18 +426,37 @@ export default function Cart() {
 
   const subtotal = getSubtotal();
   const discountAmount = useMemo(() => {
-    if (!activePromo) return 0;
-    if (activePromo.type === 'percentage') {
-      return subtotal * (activePromo.amount / 100);
+    if (!activePromo || subtotal <= 0) return 0;
+
+    let discount: number;
+    if (activePromo.discountAmount !== null && activePromo.validatedSubtotal === subtotal) {
+      // Prefer the server's figure (it knows caps like max_discount_amount). It is only valid for the
+      // subtotal it was computed for, so once the cart changes we fall back to the local estimate.
+      discount = activePromo.discountAmount;
+    } else if (activePromo.type === 'percentage') {
+      discount = Math.round(subtotal * (activePromo.amount / 100));
+    } else {
+      discount = Math.round(activePromo.amount);
     }
-    return activePromo.amount || 0;
+    // The preview can never exceed the cart subtotal
+    return Math.min(Math.max(discount, 0), subtotal);
   }, [activePromo, subtotal]);
 
   const deliveryFee = deliveryMethod === 'delivery' ? storeDeliveryFee : 0;
   const total = Math.max(0, subtotal - discountAmount + deliveryFee);
   const minOrderLimit = storeDetail?.min_order !== undefined && storeDetail?.min_order !== null ? storeDetail.min_order : 0;
   const isMinOrderNotMet = subtotal < minOrderLimit;
+  // The server decides whether the store can take orders (debt / finance status): `is_order_locked` on the
+  // public store. A missing field (older backend) means not locked.
+  const isStoreLocked = storeDetail?.is_order_locked === true;
   const selectedBranch = storeBranches.find(b => b.id === selectedBranchId) || storeBranches[0];
+
+  // Delivery orders are routed to a branch (and priced) by their coordinates, so we need real ones.
+  const selectedAddress = addresses.find(a => a.id === selectedAddressId);
+  const deliveryLatitude = toFiniteNumber(selectedAddress?.lat);
+  const deliveryLongitude = toFiniteNumber(selectedAddress?.lng);
+  const hasDeliveryLocation = deliveryLatitude !== null && deliveryLongitude !== null;
+  const isOrderDisabled = isOrdering || isMinOrderNotMet || isStoreLocked || (deliveryMethod === 'delivery' && !hasDeliveryLocation);
 
   useEffect(() => {
     if (paymentMethod === 'keshbek' && user?.balance !== undefined && user.balance < total) {
@@ -375,6 +467,11 @@ export default function Cart() {
 
   const handlePlaceOrder = async () => {
     if (items.length === 0) return;
+    if (isStoreLocked) {
+      hapticFeedback('error');
+      alert("Do'kon vaqtincha to'lov muammolari sababli buyurtma qabul qilmayapti. Savat saqlanadi, keyinroq urinib ko'ring.");
+      return;
+    }
     if (isMinOrderNotMet) {
       alert(`Minimal buyurtma summasi ${formatUzbekSum(minOrderLimit)}. Iltimos, yana taom qo'shing.`);
       return;
@@ -382,13 +479,19 @@ export default function Cart() {
     hapticFeedback('success');
     setIsOrdering(true);
 
-    if (deliveryMethod === 'delivery' && !selectedAddressId) {
+    if (deliveryMethod === 'delivery' && !selectedAddress) {
       alert("Iltimos, yetkazib berish manzilini tanlang yoki yangisini qo'shing!");
       setIsOrdering(false);
       return;
     }
 
-    const selectedAddress = addresses.find(a => a.id === selectedAddressId);
+    // Never send made-up coordinates: they silently pick the wrong branch and delivery fee.
+    if (deliveryMethod === 'delivery' && !hasDeliveryLocation) {
+      hapticFeedback('error');
+      alert("Tanlangan manzilning joylashuvi (xarita nuqtasi) aniqlanmagan. Iltimos, \"Hozirgi joylashuvni aniqlash\" tugmasi orqali joylashuvni belgilang yoki manzilni qayta saqlang.");
+      setIsOrdering(false);
+      return;
+    }
 
     if (deliveryMethod === 'pickup' && !selectedBranch) {
       alert("Kechirasiz, restoranning faol filiali topilmadi.");
@@ -406,19 +509,20 @@ export default function Cart() {
         type: deliveryMethod, // 'delivery' or 'pickup'
         payment_method: paymentMethod === 'naqd' ? 'cash' : paymentMethod,
         notes: deliveryNote.trim() ? deliveryNote : null,
-        discount: discountAmount,
+        // The server computes the discount itself from the promo code
+        promo_code: activePromo?.code ?? null,
 
         // Conditional fields based on deliveryMethod
         branch_id: deliveryMethod === 'pickup' ? (selectedBranch ? selectedBranch.id : null) : null,
         address: deliveryMethod === 'delivery' ? (selectedAddress?.address || "") : null,
-        latitude: deliveryMethod === 'delivery' ? (selectedAddress?.lat || 40.7821) : null,
-        longitude: deliveryMethod === 'delivery' ? (selectedAddress?.lng || 72.3442) : null,
+        latitude: deliveryMethod === 'delivery' ? deliveryLatitude : null,
+        longitude: deliveryMethod === 'delivery' ? deliveryLongitude : null,
       };
 
       const res = await api.post('/orders', payload);
       if (res.data.success) {
-        const orderData = res.data.data;
-        setSuccessOrderNumber(orderData.order_number || orderData.order_uuid?.substring(0, 8) || `#${Math.floor(1000 + Math.random() * 9000)}`);
+        const orderData: OrderResponseData = res.data.data ?? {};
+        setSuccessOrderNumber(getOrderDisplayNumber(orderData));
         
         // Handle redirect to click/payme URL if present
         const paymentUrl = orderData.payment_url;
@@ -433,10 +537,21 @@ export default function Cart() {
         setOrderSuccess(true);
         clearCart();
       }
-    } catch (err: any) {
-      console.error(err);
-      const errorMsg = err.response?.data?.message || "Buyurtma berishda xatolik yuz berdi. Iltimos, qaytadan urinib ko'ring.";
-      alert(errorMsg);
+    } catch (err) {
+      logApiError('Failed to place order:', err);
+      const response = isAxiosError<ApiErrorBody>(err) ? err.response : undefined;
+      const promoErrors = response?.data?.errors?.promo_code;
+      if (response?.status === 422 && promoErrors) {
+        // The server no longer accepts the promo: drop it and make the user re-check the total.
+        const promoMessage = (Array.isArray(promoErrors) ? promoErrors[0] : promoErrors) || response.data?.message || "Promo-kod yaroqsiz yoki muddati tugagan";
+        setActivePromo(null);
+        setPromoError(promoMessage);
+        hapticFeedback('error');
+        alert(`${promoMessage}\n\nPromo-kod olib tashlandi. Iltimos, jami summani qayta tekshirib, buyurtmani qaytadan tasdiqlang.`);
+      } else {
+        const errorMsg = response?.data?.message || "Buyurtma berishda xatolik yuz berdi. Iltimos, qaytadan urinib ko'ring.";
+        alert(errorMsg);
+      }
     } finally {
       setIsOrdering(false);
     }
@@ -448,10 +563,12 @@ export default function Cart() {
         <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center mb-6 animate-scale-up shadow-xl shadow-amber-600">
           <span className="text-5xl">🎉</span>
         </div>
-        <h2 className="text-3xl font-black text-center leading-tight mb-2">Buyurtma qabul qilindi!</h2>
-        <p className="text-amber-100 font-bold text-center mb-8 bg-amber-600/30 px-4 py-2 rounded-2xl">
-          Buyurtma raqami: <span className="text-white tracking-widest">{successOrderNumber}</span>
-        </p>
+        <h2 className={`text-3xl font-black text-center leading-tight ${successOrderNumber ? 'mb-2' : 'mb-8'}`}>Buyurtma qabul qilindi!</h2>
+        {successOrderNumber && (
+          <p className="text-amber-100 font-bold text-center mb-8 bg-amber-600/30 px-4 py-2 rounded-2xl">
+            Buyurtma raqami: <span className="text-white tracking-widest">{successOrderNumber}</span>
+          </p>
+        )}
         
         <div className="w-full bg-white text-slate-800 rounded-3xl p-5 shadow-2xl mb-8 relative overflow-hidden">
           <div className="flex items-center gap-4 mb-4">
@@ -529,6 +646,16 @@ export default function Cart() {
       </div>
 
       <div className="p-4 space-y-4 pb-28 flex-1 overflow-y-auto">
+        {isStoreLocked && (
+          <div className="bg-rose-50 border border-rose-100 p-3.5 rounded-2xl text-[10px] font-bold text-rose-600 flex items-start gap-2.5 animate-pulse">
+            <span className="text-sm">⚠️</span>
+            <div>
+              <p className="font-black">DO'KON VAQTINCHA BLOKLANGAN</p>
+              <p className="text-[9px] text-rose-500 font-semibold mt-0.5 leading-relaxed">Do'kon vaqtincha to'lov muammolari (qarz limitidan oshganlik) sababli buyurtma qabul qilmayapti. Savat ma'lumotlarini saqlab, keyinroq urinib ko'ring.</p>
+            </div>
+          </div>
+        )}
+
         {/* Delivery Method Selector */}
         <div className="bg-white p-2 rounded-2xl border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.02)] flex gap-1">
           <button 
@@ -689,6 +816,9 @@ export default function Cart() {
         {/* Cart Item Row List */}
         <div className="space-y-3">
           {items.map((item) => {
+            const catalogVariant = findCatalogVariant(item.productId, item.variantId);
+            const itemStock = getVariantStock(catalogVariant);
+            const isAtStockLimit = itemStock !== null && item.quantity >= itemStock;
             return (
               <div key={item.id} className="flex items-center gap-3 bg-slate-50/50 p-2.5 rounded-2xl border border-slate-100">
                 <div className="w-12 h-12 rounded-xl overflow-hidden shrink-0 bg-white flex items-center justify-center border border-slate-100">
@@ -719,10 +849,11 @@ export default function Cart() {
                   <span className="px-2 text-xs font-black text-slate-800 w-6 text-center">{item.quantity}</span>
                   <button 
                     onClick={() => {
+                      if (!canAddMore(catalogVariant, item.id)) return;
                       hapticFeedback('light');
                       updateQuantity(item.id, item.quantity + 1);
                     }} 
-                    className="w-6 h-6 flex items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 transition"
+                    className={`w-6 h-6 flex items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 transition ${isAtStockLimit ? 'opacity-40' : ''}`}
                   >
                     <Plus className="w-3 h-3" />
                   </button>
@@ -888,19 +1019,24 @@ export default function Cart() {
         
         <button 
           onClick={handlePlaceOrder}
-          disabled={isOrdering || (deliveryMethod === 'delivery' && !selectedAddressId) || isMinOrderNotMet}
+          disabled={isOrderDisabled}
           className={`w-full py-4 rounded-2xl font-black text-sm transition-all shadow-lg flex items-center justify-center gap-2 ${
-            isOrdering || (deliveryMethod === 'delivery' && !selectedAddressId) || isMinOrderNotMet ? 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none' : 'bg-amber-500 hover:bg-amber-600 text-white shadow-amber-500/30 active:scale-95 hover:shadow-xl'
+            isOrderDisabled ? 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none' : 'bg-amber-500 hover:bg-amber-600 text-white shadow-amber-500/30 active:scale-95 hover:shadow-xl'
           }`}
         >
           {isOrdering ? (
             <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+          ) : isStoreLocked ? (
+            <>Do'kon vaqtincha yopiq</>
           ) : (
             <>Buyurtma berish - {formatUzbekSum(total)}</>
           )}
         </button>
-        {(deliveryMethod === 'delivery' && !selectedAddressId) && (
+        {(deliveryMethod === 'delivery' && !selectedAddress) && (
           <p className="text-[10px] text-center text-rose-500 font-bold mt-2">Iltimos, yetkazib berish manzilini tanlang</p>
+        )}
+        {(deliveryMethod === 'delivery' && selectedAddress && !hasDeliveryLocation) && (
+          <p className="text-[10px] text-center text-rose-500 font-bold mt-2">Tanlangan manzilning joylashuvi (xarita nuqtasi) aniqlanmagan. "Hozirgi joylashuvni aniqlash" tugmasi orqali joylashuvni belgilang yoki manzilni qayta saqlang</p>
         )}
       </div>
 
@@ -910,8 +1046,11 @@ export default function Cart() {
         onClose={() => setSelectedProductForVariant(null)}
         product={selectedProductForVariant}
         onAdd={(variant) => {
+          const cartItemId = `${selectedProductForVariant.id}-${variant.uuid}`;
+          if (!canAddMore(variant, cartItemId)) return;
+
           const cartItem = {
-            id: `${selectedProductForVariant.id}-${variant.uuid}`,
+            id: cartItemId,
             productId: selectedProductForVariant.id,
             variantId: variant.uuid,
             storeId: selectedProductForVariant.store_id.toString(),

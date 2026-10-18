@@ -21,6 +21,9 @@ export interface OrderItem {
   };
 }
 
+// Mirrors the backend PaymentStatus enum
+export type PaymentStatus = 'pending' | 'paid' | 'failed' | 'cancelled' | 'expired' | 'refunded';
+
 export interface Order {
   id: number;
   uuid: string;
@@ -30,7 +33,7 @@ export interface Order {
   status: 'new' | 'accepted' | 'preparing' | 'delivery' | 'delivered' | 'canceled';
   type: 'delivery' | 'pickup' | 'dine_in';
   payment_method: 'cash' | 'click' | 'payme';
-  payment_status: 'pending' | 'paid' | 'failed';
+  payment_status: PaymentStatus;
   address: string | null;
   notes: string | null;
   created_at: string;

@@ -3,6 +3,7 @@ import { ChevronLeft, Save, MapPin, Building2, User as UserIcon, Navigation } fr
 import { useNavigate } from 'react-router-dom';
 import { hapticFeedback } from '../lib/telegram';
 import api from '../services/api';
+import { logApiError } from '../lib/apiError';
 
 export default function SuperadminCreateStore() {
   const navigate = useNavigate();
@@ -48,7 +49,7 @@ export default function SuperadminCreateStore() {
             branch_address: address
           }));
         }
-      }).catch(console.error);
+      }).catch((err: unknown) => logApiError('Failed to resolve address:', err));
     }
   };
 
@@ -185,7 +186,7 @@ export default function SuperadminCreateStore() {
         navigate('/superadmin/stores');
       }
     } catch (err) {
-      console.error(err);
+      logApiError('Failed to create store:', err);
       hapticFeedback('error');
       alert("Xatolik yuz berdi");
     } finally {
@@ -203,7 +204,7 @@ export default function SuperadminCreateStore() {
           setDistricts(res.data.data.districts || []);
         }
       } catch (err) {
-        console.error('Failed to fetch locations', err);
+        logApiError('Failed to fetch locations', err);
       }
     };
     fetchLocations();

@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ChevronLeft, Save, Image as ImageIcon, Plus, Trash2, LayoutGrid, DollarSign } from 'lucide-react';
 import { hapticFeedback } from '../lib/telegram';
 import api from '../services/api';
+import { logApiError } from '../lib/apiError';
 import { FullScreenLoader } from '../App';
 
 export default function OwnerProductForm() {
@@ -55,7 +56,7 @@ export default function OwnerProductForm() {
           }
         }
       } catch (err) {
-        console.error(err);
+        logApiError('Failed to load product:', err);
         alert('Ma\'lumotlarni yuklashda xatolik');
       } finally {
         setLoading(false);
@@ -135,7 +136,7 @@ export default function OwnerProductForm() {
       hapticFeedback('success');
       navigate('/admin/catalog');
     } catch (err: any) {
-      console.error(err);
+      logApiError('Failed to save product:', err);
       alert(err.response?.data?.message || 'Xatolik yuz berdi');
       hapticFeedback('error');
     } finally {

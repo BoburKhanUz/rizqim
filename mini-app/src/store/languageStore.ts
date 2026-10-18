@@ -49,6 +49,13 @@ const translations = {
     status_delivery: 'Yo\'lda',
     status_delivered: 'Yetkazildi',
     status_canceled: 'Bekor qilindi',
+    // Payment statuses
+    paymentStatus_pending: 'Kutilmoqda',
+    paymentStatus_paid: 'To\'langan',
+    paymentStatus_failed: 'Muvaffaqiyatsiz',
+    paymentStatus_cancelled: 'Bekor qilindi',
+    paymentStatus_expired: 'Muddati tugagan',
+    paymentStatus_refunded: 'Qaytarildi',
   },
   ru: {
     catalog: 'Каталог',
@@ -92,6 +99,13 @@ const translations = {
     status_delivery: 'В пути',
     status_delivered: 'Доставлен',
     status_canceled: 'Отменен',
+    // Payment statuses
+    paymentStatus_pending: 'Ожидает оплаты',
+    paymentStatus_paid: 'Оплачено',
+    paymentStatus_failed: 'Не удалась',
+    paymentStatus_cancelled: 'Отменена',
+    paymentStatus_expired: 'Истекла',
+    paymentStatus_refunded: 'Возвращена',
   },
   en: {
     catalog: 'Catalog',
@@ -135,6 +149,13 @@ const translations = {
     status_delivery: 'Delivering',
     status_delivered: 'Delivered',
     status_canceled: 'Cancelled',
+    // Payment statuses
+    paymentStatus_pending: 'Pending',
+    paymentStatus_paid: 'Paid',
+    paymentStatus_failed: 'Failed',
+    paymentStatus_cancelled: 'Cancelled',
+    paymentStatus_expired: 'Expired',
+    paymentStatus_refunded: 'Refunded',
   }
 };
 

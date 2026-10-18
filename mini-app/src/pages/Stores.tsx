@@ -4,6 +4,7 @@ import { useLanguageStore } from '../store/languageStore';
 import { hapticFeedback } from '../lib/telegram';
 import { ArrowLeft, Search, X, Star, Heart } from 'lucide-react';
 import api from '../services/api';
+import { logApiError } from '../lib/apiError';
 
 import { useAddressStore } from '../store/useAddressStore';
 
@@ -40,7 +41,7 @@ export default function Stores() {
           setStores(res.data.data || []);
         }
       } catch (err) {
-        console.error(err);
+        logApiError('Failed to load stores:', err);
       } finally {
         setLoading(false);
       }

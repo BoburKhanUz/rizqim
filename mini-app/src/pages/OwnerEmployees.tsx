@@ -3,6 +3,7 @@ import { Users, UserPlus, Trash2, Shield, Share2, Copy, Check, MapPin } from 'lu
 import { hapticFeedback } from '../lib/telegram';
 import api from '../services/api';
 import { useAuthStore } from '../store/authStore';
+import { getApiErrorMessage, getApiFieldError, logApiError } from '../lib/apiError';
 import { FullScreenLoader } from '../App';
 
 export default function OwnerEmployees() {
@@ -25,7 +26,7 @@ export default function OwnerEmployees() {
         setEmployees(res.data.data);
       }
     } catch (err) {
-      console.error(err);
+      logApiError('Failed to load employees:', err);
     } finally {
       setLoading(false);
     }
@@ -77,17 +78,18 @@ export default function OwnerEmployees() {
   };
 
   const handleTransferBranch = async (employeeId: number, branchIdStr: string) => {
+    // The backend only moves an employee to another branch (branch_id is required)
+    if (!branchIdStr) return;
     hapticFeedback('medium');
     try {
-      const res = await api.post('/owner/employees/transfer', {
-        employee_id: employeeId,
-        branch_id: branchIdStr ? parseInt(branchIdStr) : null,
+      const res = await api.post(`/owner/employees/${employeeId}/transfer`, {
+        branch_id: parseInt(branchIdStr),
       });
       if (res.data.success) {
         fetchEmployees();
       }
-    } catch (err: any) {
-      alert(err.response?.data?.message || 'Filialni o\'zgartirishda xatolik yuz berdi');
+    } catch (err) {
+      alert(getApiFieldError(err, 'branch_id') || getApiErrorMessage(err) || 'Filialni o\'zgartirishda xatolik yuz berdi');
     }
   };
 
@@ -266,7 +268,7 @@ export default function OwnerEmployees() {
                     onChange={(e) => handleTransferBranch(emp.id, e.target.value)}
                     className="flex-1 text-[11px] bg-bg/50 border border-white/5 rounded-lg px-2 py-1 outline-none text-text font-bold"
                   >
-                    <option value="">Filialsiz</option>
+                    <option value="" disabled>Filialsiz</option>
                     {branches.map((b: any) => (
                       <option key={b.id} value={b.id}>
                         {b.name}

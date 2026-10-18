@@ -6,6 +6,7 @@ import { ErrorFallback } from '../App';
 import api from '../services/api';
 import { ArrowLeft, Heart, Star, Minus, Plus } from 'lucide-react';
 import VariantSelectorModal from '../components/VariantSelectorModal';
+import { getAddBlockedMessage, getVariantStock, isProductSoldOut, type StockVariant } from '../lib/stock';
 
 function formatUzbekSum(value: number | string | undefined) {
   if (value === undefined || value === null) return "0 so'm";
@@ -115,6 +116,19 @@ export default function StoreDetail() {
     setIsFav(!isFav);
   };
 
+  // Mirrors VariantSelectorModal: a variant with stock <= 0 can't be added,
+  // and the cart can never hold more of a variant than is in stock.
+  const canAddVariant = (variant: StockVariant | undefined, cartItemId: string): boolean => {
+    const inCart = cartItems.find(item => item.id === cartItemId)?.quantity ?? 0;
+    const blocked = getAddBlockedMessage(variant, inCart);
+    if (blocked) {
+      hapticFeedback('error');
+      alert(blocked);
+      return false;
+    }
+    return true;
+  };
+
   const handleAddToCart = (e: React.MouseEvent, product: any) => {
     e.stopPropagation();
     hapticFeedback('medium');
@@ -126,9 +140,12 @@ export default function StoreDetail() {
     
     const variant = product.variants?.[0];
     const itemPrice = variant ? parseFloat(variant.price) : 0;
+    const cartItemId = variant ? `${product.id}-${variant.uuid}` : `${product.id}`;
+
+    if (!canAddVariant(variant, cartItemId)) return;
     
     const cartItem = {
-      id: variant ? `${product.id}-${variant.uuid}` : `${product.id}`,
+      id: cartItemId,
       productId: product.id,
       variantId: variant?.uuid,
       storeId: product.store_id.toString(),
@@ -367,12 +384,16 @@ export default function StoreDetail() {
                   {productsGroup.map((product) => {
                     const cartItemsArray = cartItems.filter(item => item.productId === product.id);
                     const cartQty = cartItemsArray.reduce((sum, item) => sum + item.quantity, 0);
+                    const isSoldOut = isProductSoldOut(product);
+                    // Single-variant products: the "+" stops at the available stock
+                    const singleVariantStock = product.variants?.length === 1 ? getVariantStock(product.variants[0]) : null;
+                    const isAtStockLimit = singleVariantStock !== null && cartQty >= singleVariantStock;
 
                     return (
                       <div 
                         key={product.id} 
                         className={`bg-white rounded-3xl p-3 border border-slate-100 flex items-center justify-between gap-3 shadow-[0_8px_30px_rgb(0,0,0,0.02)] transition-all duration-200 ${
-                          !store.is_open ? 'opacity-60 cursor-not-allowed' : 'hover:shadow-sm active:scale-[0.98]'
+                          !store.is_open ? 'opacity-60 cursor-not-allowed' : isSoldOut ? 'opacity-60' : 'hover:shadow-sm active:scale-[0.98]'
                         }`}
                       >
                         <div className="flex-1 min-w-0">
@@ -396,11 +417,18 @@ export default function StoreDetail() {
                                     <Minus className="w-3 h-3" />
                                   </button>
                                   <span className="px-1.5 text-xs font-black">{cartQty}</span>
-                                  <button onClick={(e) => handleAddToCart(e, product)} className="w-6 h-6 flex items-center justify-center rounded-full text-white active:scale-90 transition">
+                                  <button onClick={(e) => handleAddToCart(e, product)} className={`w-6 h-6 flex items-center justify-center rounded-full text-white active:scale-90 transition ${isSoldOut || isAtStockLimit ? 'opacity-40' : ''}`}>
                                     <Plus className="w-3 h-3" />
                                   </button>
                                 </>
                               </div>
+                            ) : isSoldOut ? (
+                              <button
+                                disabled
+                                className="bg-slate-100 text-red-500 px-3 py-1.5 rounded-full font-extrabold text-[9px] border border-slate-200 whitespace-nowrap cursor-not-allowed"
+                              >
+                                Tugagan
+                              </button>
                             ) : (
                               <button 
                                 onClick={(e) => handleAddToCart(e, product)} 
@@ -494,8 +522,11 @@ export default function StoreDetail() {
         onClose={() => setSelectedProductForVariant(null)}
         product={selectedProductForVariant}
         onAdd={(variant) => {
+          const cartItemId = `${selectedProductForVariant.id}-${variant.uuid}`;
+          if (!canAddVariant(variant, cartItemId)) return;
+
           const cartItem = {
-            id: `${selectedProductForVariant.id}-${variant.uuid}`,
+            id: cartItemId,
             productId: selectedProductForVariant.id,
             variantId: variant.uuid,
             storeId: selectedProductForVariant.store_id.toString(),

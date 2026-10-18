@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { isAxiosError } from 'axios';
+import { logApiError, sanitizeError } from '../lib/apiError';
 import { getInitData, getTelegramUser } from '../lib/telegram';
 import { useAuthStore } from '../store/authStore';
 import api from '../services/api';
@@ -13,6 +15,7 @@ export const useTelegramAuth = () => {
       // 1. Check if Telegram SDK is loaded
       if (!window.Telegram || !window.Telegram.WebApp) {
         setError('Telegram SDK not loaded.');
+        setIsAuthenticating(false); // otherwise the app stays on the loading spinner forever
         return;
       }
 
@@ -30,11 +33,16 @@ export const useTelegramAuth = () => {
         api.get('/user').then((res) => {
           if (res.data?.success && res.data?.data) {
             const freshData = res.data.data;
-            setAuth(token, freshData.user, freshData.store, freshData.sms_verification_required);
+            // The 401 handler may have renewed the token meanwhile (or logged out): never write the captured, stale one back
+            const currentToken = useAuthStore.getState().token;
+            if (currentToken) {
+              setAuth(currentToken, freshData.user, freshData.store, freshData.sms_verification_required);
+            }
             console.log('Background session refreshed with fresh store settings.');
           }
         }).catch((e) => {
-          console.warn('Silent background session verification failed:', e);
+          // Log a short summary only: the raw axios error embeds the Authorization header
+          console.warn('Silent background session verification failed:', sanitizeError(e));
           if (e.response?.status === 401) {
             logout();
           }
@@ -44,14 +52,14 @@ export const useTelegramAuth = () => {
 
       // 3. Authenticate with Backend
       let initData = getInitData();
-      let user = getTelegramUser();
-      
-      // Developer Mock Bypass: Only use mock if NO initData is present (not running inside Telegram)
+
       if (initData) {
         localStorage.removeItem('mock_telegram_id');
         localStorage.removeItem('mock_telegram_username');
         localStorage.removeItem('mock_first_name');
-      } else {
+      } else if (import.meta.env.DEV) {
+        // Developer Mock Bypass: dev server only (stripped from production builds).
+        // Only used when NO initData is present (not running inside Telegram).
         console.log('Using mock credentials override...');
         let mockId = localStorage.getItem('mock_telegram_id');
         const mockUsername = localStorage.getItem('mock_telegram_username');
@@ -69,11 +77,13 @@ export const useTelegramAuth = () => {
           language_code: 'uz'
         };
         initData = `mock_data=true&user=${encodeURIComponent(JSON.stringify(mockUser))}&auth_date=${Math.floor(Date.now() / 1000)}&hash=mock`;
-        user = mockUser;
+      } else {
+        // Production build outside Telegram: never fabricate a user or store a token.
+        // Surface an error (rendered by AppContent's ErrorFallback) instead of an endless spinner.
+        setError('Iltimos, ilovani Telegram orqali oching');
+        setIsAuthenticating(false);
+        return;
       }
-      
-      console.log('Telegram InitData:', initData);
-      console.log('Telegram InitDataUnsafe:', user);
 
       try {
         setIsAuthenticating(true);
@@ -96,12 +106,14 @@ export const useTelegramAuth = () => {
         } else {
           setError('Authentication failed: Invalid response format.');
         }
-      } catch (err: any) {
-        console.error('Auth Error:', err);
-        if (err.code === 'ECONNABORTED') {
+      } catch (err) {
+        const axiosError = isAxiosError<{ message?: string }>(err) ? err : null;
+        // Status + message only: the raw axios error embeds the request body (initData) in err.config
+        logApiError('Auth Error:', err);
+        if (axiosError?.code === 'ECONNABORTED') {
           setError('Connection timeout. Please check your internet connection.');
         } else {
-          setError(err.response?.data?.message || 'Failed to authenticate with backend.');
+          setError(axiosError?.response?.data?.message || 'Failed to authenticate with backend.');
         }
       } finally {
         setIsAuthenticating(false);

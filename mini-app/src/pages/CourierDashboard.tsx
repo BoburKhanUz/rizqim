@@ -6,6 +6,7 @@ import { hapticFeedback } from '../lib/telegram';
 import { ErrorFallback } from '../App';
 import { Phone, MapPin, CheckCircle, Navigation, Clock, ShieldCheck, DollarSign } from 'lucide-react';
 import api from '../services/api';
+import { logApiError } from '../lib/apiError';
 
 export default function CourierDashboard() {
   const { user } = useAuthStore();
@@ -36,7 +37,7 @@ export default function CourierDashboard() {
       hapticFeedback('medium');
     },
     onError: (err) => {
-      console.error('Failed to complete order:', err);
+      logApiError('Failed to complete order:', err);
       alert(language === 'uz' ? 'Buyurtmani topshirishda xatolik yuz berdi!' : 'Ошибка при завершении заказа!');
     }
   });
@@ -55,7 +56,7 @@ export default function CourierDashboard() {
       hapticFeedback('medium');
     },
     onError: (err: any) => {
-      console.error('Failed to update status:', err);
+      logApiError('Failed to update status:', err);
       alert(err.response?.data?.message || (language === 'uz' ? 'Holatni yangilashda xatolik yuz berdi!' : 'Ошибка!'));
     }
   });

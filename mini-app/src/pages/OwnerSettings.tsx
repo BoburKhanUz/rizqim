@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
+import { logApiError } from '../lib/apiError';
 import { hapticFeedback } from '../lib/telegram';
 import { useLanguageStore } from '../store/languageStore';
 import { 
@@ -119,7 +120,7 @@ export default function OwnerSettings() {
       }
       hapticFeedback('success');
     } catch (err: any) {
-      console.error(err);
+      logApiError('Failed to upload file:', err);
       hapticFeedback('rigid');
       alert(err.response?.data?.message || 'Fayl yuklashda xatolik yuz berdi.');
     } finally {
@@ -158,7 +159,7 @@ export default function OwnerSettings() {
         alert(language === 'uz' ? 'Lokatsiya muvaffaqiyatli aniqlandi!' : 'Локация успешно определена!');
       },
       (error) => {
-        console.error(error);
+        logApiError('Failed to get location:', error);
         hapticFeedback('rigid');
         setIsGettingLocation(false);
         alert(language === 'uz' ? 'Joylashuvni aniqlash imkoni bo\'lmadi. Iltimos, ruxsat berilganligini tekshiring.' : 'Не удалось определить локацию. Проверьте разрешения.');

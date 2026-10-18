@@ -12,6 +12,7 @@ import {
   Activity
 } from 'lucide-react';
 import api from '../services/api';
+import { logApiError } from '../lib/apiError';
 
 export default function ManagerDashboard() {
   const { user } = useAuthStore();
@@ -61,7 +62,7 @@ export default function ManagerDashboard() {
       hapticFeedback('medium');
     },
     onError: (err: any) => {
-      console.error('Failed to update status:', err);
+      logApiError('Failed to update status:', err);
       alert(err.response?.data?.message || (language === 'uz' ? 'Holatni yangilashda xatolik yuz berdi!' : 'Ошибка при обновлении статуса!'));
     }
   });

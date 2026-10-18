@@ -5,10 +5,13 @@ import { useLanguageStore } from '../store/languageStore';
 import { hapticFeedback } from '../lib/telegram';
 import { User as UserIcon, Phone, MapPin, Save, Globe, Loader2, Bell } from 'lucide-react';
 import api from '../services/api';
+import PhoneVerificationModal from '../components/PhoneVerificationModal';
+import { classifyPhoneChange } from '../lib/phone';
+import { getApiFieldError, logApiError } from '../lib/apiError';
 
 export default function Profile() {
   const navigate = useNavigate();
-  const { user, updateUser } = useAuthStore();
+  const { user, updateUser, smsVerificationRequired } = useAuthStore();
   const { language, setLanguage } = useLanguageStore();
 
   const isOwner = user?.role === 'owner';
@@ -26,6 +29,10 @@ export default function Profile() {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showToast, setShowToast] = useState(false);
+
+  // Phone changes go through the SMS flow when the server requires verification
+  const [verifyingPhone, setVerifyingPhone] = useState<string | null>(null);
+  const [phoneError, setPhoneError] = useState('');
 
   // Sync state with Zustand user once loaded asynchronously, but ONLY when not actively editing
   useEffect(() => {
@@ -49,7 +56,7 @@ export default function Profile() {
             setStoreInfo(data);
           }
         } catch (err) {
-          console.error('Failed to load store settings:', err);
+          logApiError('Failed to load store settings:', err);
         } finally {
           setStoreLoading(false);
         }
@@ -58,29 +65,31 @@ export default function Profile() {
     }
   }, [user, isOwner]);
 
-  const handleSavePersonalProfile = async () => {
+  // `phoneToSave` is null when the saved phone must stay untouched (it only changes through the SMS flow)
+  const handleSavePersonalProfile = async (phoneToSave: string | null) => {
     try {
       setIsSaving(true);
+      setPhoneError('');
+      const fields = phoneToSave === null ? { name, address } : { name, phone: phoneToSave, address };
+
       // Save permanently to backend database
-      await api.post('/user/profile', {
-        name,
-        phone,
-        address
-      });
+      await api.post('/user/profile', fields);
 
       // Update local Zustand store
-      updateUser({
-        name,
-        phone,
-        address
-      });
+      updateUser(fields);
 
       setIsEditing(false);
       setShowToast(true);
       setTimeout(() => setShowToast(false), 3000);
     } catch (err) {
-      console.error('Failed to update profile:', err);
-      alert(language === 'uz' ? 'Profilni saqlashda xatolik yuz berdi.' : 'Ошибка при сохранении профиля.');
+      logApiError('Failed to update profile:', err);
+      const phoneMessage = getApiFieldError(err, 'phone');
+      if (phoneMessage) {
+        hapticFeedback('error');
+        setPhoneError(phoneMessage);
+      } else {
+        alert(language === 'uz' ? 'Profilni saqlashda xatolik yuz berdi.' : 'Ошибка при сохранении профиля.');
+      }
     } finally {
       setIsSaving(false);
     }
@@ -88,7 +97,28 @@ export default function Profile() {
 
   const handleSave = async () => {
     hapticFeedback('medium');
-    await handleSavePersonalProfile();
+    setPhoneError('');
+
+    // SMS verification is off: save everything directly, as before
+    if (!smsVerificationRequired) {
+      await handleSavePersonalProfile(phone);
+      return;
+    }
+
+    // SMS verification is on: the server only accepts a new phone that went through the SMS flow
+    const change = classifyPhoneChange(phone, user?.phone);
+    if (change.kind === 'invalid' || change.kind === 'cleared') {
+      hapticFeedback('error');
+      setPhoneError(change.kind === 'invalid'
+        ? (language === 'uz' ? 'Telefon raqami +998 bilan boshlanib, 9 ta raqamdan iborat bo\'lishi kerak.' : 'Номер телефона должен начинаться с +998 и содержать 9 цифр.')
+        : (language === 'uz' ? 'Tasdiqlangan telefon raqamini o\'chirib bo\'lmaydi.' : 'Подтверждённый номер телефона нельзя удалить.'));
+      return;
+    }
+    if (change.kind === 'changed') {
+      setVerifyingPhone(change.fullPhone);
+      return;
+    }
+    await handleSavePersonalProfile(null);
   };
 
   if (isOwner && storeLoading && !storeInfo) {
@@ -101,6 +131,19 @@ export default function Profile() {
 
   return (
     <div className="p-4 flex flex-col gap-6 min-h-screen pb-24">
+      {verifyingPhone && (
+        <PhoneVerificationModal
+          initialPhone={verifyingPhone}
+          onClose={() => setVerifyingPhone(null)}
+          onVerified={(fullPhone) => {
+            setVerifyingPhone(null);
+            setPhone(fullPhone);
+            updateUser({ phone: fullPhone }); // the server already saved it when the code was verified
+            handleSavePersonalProfile(null); // name / address
+          }}
+        />
+      )}
+
       {/* Toast Alert */}
       {showToast && (
         <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 w-11/12 max-w-xs animate-fade-in-up">
@@ -221,9 +264,16 @@ export default function Profile() {
             disabled={!isEditing}
             placeholder="+998 (90) 123-45-67"
             value={phone}
-            onChange={(e) => setPhone(e.target.value)}
+            onChange={(e) => { setPhone(e.target.value); setPhoneError(''); }}
             className="w-full px-4 py-3 rounded-2xl bg-bg border border-hint/15 font-bold text-xs text-text-h outline-none focus:border-primary disabled:opacity-75"
           />
+          {phoneError ? (
+            <p className="text-[10px] text-rose-500 font-bold pl-1">{phoneError}</p>
+          ) : isEditing && smsVerificationRequired && (
+            <p className="text-[10px] text-hint font-medium pl-1">
+              {language === 'uz' ? 'Yangi raqam SMS kod orqali tasdiqlanadi' : 'Новый номер будет подтверждён по SMS'}
+            </p>
+          )}
         </div>
 
         {!isOwner && (

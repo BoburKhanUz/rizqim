@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { useOrders } from '../hooks/useOrders';
+import { useOrders, type PaymentStatus } from '../hooks/useOrders';
 import { useLanguageStore } from '../store/languageStore';
 import { hapticFeedback } from '../lib/telegram';
 import { Link } from 'react-router-dom';
 import api from '../services/api';
+import { logApiError } from '../lib/apiError';
 import {
   ArrowLeft,
   Clock,
@@ -19,6 +20,15 @@ import {
   MessageSquare,
   PackageOpen
 } from 'lucide-react';
+
+const paymentStatusConfig: Record<PaymentStatus, { labelKey: `paymentStatus_${PaymentStatus}`; color: string }> = {
+  pending: { labelKey: 'paymentStatus_pending', color: 'text-amber-500' },
+  paid: { labelKey: 'paymentStatus_paid', color: 'text-emerald-500' },
+  failed: { labelKey: 'paymentStatus_failed', color: 'text-rose-500' },
+  cancelled: { labelKey: 'paymentStatus_cancelled', color: 'text-rose-500' },
+  expired: { labelKey: 'paymentStatus_expired', color: 'text-slate-400' },
+  refunded: { labelKey: 'paymentStatus_refunded', color: 'text-sky-500' },
+};
 
 // Premium Inline Skeleton Loader for modern premium feel
 const OrdersSkeleton = () => (
@@ -77,7 +87,7 @@ export default function Orders() {
       alert(language === 'uz' ? "Baho yuborildi! Rahmat." : "Baho yuborildi! Rahmat.");
       setShowRatingModal(false);
     } catch (err: any) {
-      console.error(err);
+      logApiError('Failed to submit rating:', err);
       hapticFeedback('error');
       alert(err.response?.data?.message || "Xatolik yuz berdi");
     } finally {
@@ -184,6 +194,7 @@ export default function Orders() {
         <div className="flex flex-col gap-3.5">
           {orders.map(order => {
             const config = statusConfig[order.status] || statusConfig.new;
+            const paymentConfig = paymentStatusConfig[order.payment_status]; // undefined for a status this app doesn't know yet
             const isExpanded = expandedOrderId === order.id;
 
             return (
@@ -265,8 +276,8 @@ export default function Orders() {
                         <CheckCircle className="w-3.5 h-3.5 text-amber-500" />
                         <span>{language === 'uz' ? 'To\'lov holati' : 'Статус оплаты'}:</span>
                       </span>
-                      <span className={`font-black uppercase ${order.payment_status === 'paid' ? 'text-emerald-500' : 'text-amber-500'}`}>
-                        {order.payment_status}
+                      <span className={`font-black uppercase ${paymentConfig?.color ?? 'text-amber-500'}`}>
+                        {paymentConfig ? t(paymentConfig.labelKey) : order.payment_status}
                       </span>
                     </div>
 

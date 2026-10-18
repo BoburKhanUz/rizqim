@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Store, CheckCircle2, XCircle, Search, AlertTriangle, ExternalLink } from 'lucide-react';
 import { hapticFeedback } from '../lib/telegram';
 import api from '../services/api';
+import { logApiError } from '../lib/apiError';
 import { FullScreenLoader, ErrorFallback } from '../App';
 
 export default function SuperadminStores() {
@@ -17,7 +18,7 @@ export default function SuperadminStores() {
       setStores(res.data.data);
       setError(null);
     } catch (err) {
-      console.error(err);
+      logApiError('Failed to load stores:', err);
       setError('Restoranlarni yuklashda xatolik yuz berdi');
     } finally {
       setLoading(false);

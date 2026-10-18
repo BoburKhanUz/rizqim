@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { hapticFeedback } from '../lib/telegram';
 import api from '../services/api';
+import { logApiError } from '../lib/apiError';
 import { FullScreenLoader, ErrorFallback } from '../App';
 
 interface DashboardStats {
@@ -38,7 +39,7 @@ export default function SuperadminDashboard() {
       setStats(res.data.data);
       setError(null);
     } catch (err) {
-      console.error(err);
+      logApiError('Failed to load dashboard:', err);
       setError('Statistikalarni yuklashda xatolik yuz berdi');
     } finally {
       setLoading(false);

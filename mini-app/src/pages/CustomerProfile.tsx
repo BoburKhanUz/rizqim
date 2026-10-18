@@ -5,10 +5,13 @@ import { useAddressStore } from '../store/useAddressStore';
 import { hapticFeedback } from '../lib/telegram';
 import { Trash2, Bell } from 'lucide-react';
 import api from '../services/api';
+import PhoneVerificationModal from '../components/PhoneVerificationModal';
+import { classifyPhoneChange } from '../lib/phone';
+import { getApiFieldError, logApiError } from '../lib/apiError';
 
 export default function CustomerProfile() {
   const navigate = useNavigate();
-  const { user, updateUser } = useAuthStore();
+  const { user, updateUser, smsVerificationRequired, setSmsVerificationRequired } = useAuthStore();
   const { addresses, deleteAddress, addAddress, selectedAddressId, setSelectedAddressId } = useAddressStore();
 
   const [addressTitle, setAddressTitle] = useState("");
@@ -22,6 +25,9 @@ export default function CustomerProfile() {
   const [editName, setEditName] = useState(user?.name || "");
   const [editPhone, setEditPhone] = useState(user?.phone || "");
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+  // Phone changes go through the SMS flow when the server requires verification
+  const [verifyingPhone, setVerifyingPhone] = useState<string | null>(null);
+  const [phoneError, setPhoneError] = useState("");
 
   const [completedOrdersCount, setCompletedOrdersCount] = useState(0);
 
@@ -82,8 +88,9 @@ export default function CustomerProfile() {
     api.get('/user').then(res => {
       if (res.data?.success && res.data.data?.user) {
         updateUser(res.data.data.user);
+        setSmsVerificationRequired(!!res.data.data.sms_verification_required);
       }
-    }).catch(err => console.error(err));
+    }).catch(err => logApiError('Failed to refresh user:', err));
 
     // Fetch locations
     api.get('/locations').then(res => {
@@ -91,7 +98,7 @@ export default function CustomerProfile() {
         setRegions(res.data.data.regions || []);
         setDistricts(res.data.data.districts || []);
       }
-    }).catch(err => console.error(err));
+    }).catch(err => logApiError('Failed to load locations:', err));
 
     // Fetch order history for badge calculation
     api.get('/orders').then(res => {
@@ -99,39 +106,68 @@ export default function CustomerProfile() {
         const delivered = res.data.data.filter((o: any) => o.status === 'delivered' || o.status === 'completed');
         setCompletedOrdersCount(delivered.length);
       }
-    }).catch(err => console.error(err));
+    }).catch(err => logApiError('Failed to load orders:', err));
   }, []);
 
   const username = user?.telegram_username ? `@${user.telegram_username}` : "";
   const userFullName = user?.name || "Mijoz";
   const initials = user?.name ? user.name.slice(0, 2).toUpperCase() : "MJ";
 
+  // `phoneToSave` is null when the saved phone must stay untouched (it only changes through the SMS flow)
+  const saveProfile = async (phoneToSave: string | null) => {
+    setIsSavingProfile(true);
+    setPhoneError("");
+    try {
+      const fields = phoneToSave === null
+        ? { name: editName.trim() }
+        : { name: editName.trim(), phone: phoneToSave };
+      const res = await api.post('/user/profile', fields);
+      if (res.data?.success) {
+        updateUser(fields);
+        setIsEditingProfile(false);
+        hapticFeedback('success');
+      }
+    } catch (err) {
+      logApiError('Failed to update profile:', err);
+      hapticFeedback('error');
+      const phoneMessage = getApiFieldError(err, 'phone');
+      if (phoneMessage) {
+        setPhoneError(phoneMessage);
+      } else {
+        alert("Profilni saqlashda xatolik yuz berdi");
+      }
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editName.trim()) return;
 
     hapticFeedback('medium');
-    setIsSavingProfile(true);
-    try {
-      const res = await api.post('/user/profile', {
-        name: editName.trim(),
-        phone: editPhone.trim()
-      });
-      if (res.data?.success) {
-        updateUser({
-          name: editName.trim(),
-          phone: editPhone.trim()
-        });
-        setIsEditingProfile(false);
-        hapticFeedback('success');
-      }
-    } catch (err) {
-      console.error(err);
-      hapticFeedback('error');
-      alert("Profilni saqlashda xatolik yuz berdi");
-    } finally {
-      setIsSavingProfile(false);
+    setPhoneError("");
+
+    // SMS verification is off: save everything directly, as before
+    if (!smsVerificationRequired) {
+      await saveProfile(editPhone.trim());
+      return;
     }
+
+    // SMS verification is on: the server only accepts a new phone that went through the SMS flow
+    const change = classifyPhoneChange(editPhone, user?.phone);
+    if (change.kind === 'invalid' || change.kind === 'cleared') {
+      hapticFeedback('error');
+      setPhoneError(change.kind === 'invalid'
+        ? "Telefon raqami +998 bilan boshlanib, 9 ta raqamdan iborat bo'lishi kerak."
+        : "Tasdiqlangan telefon raqamini o'chirib bo'lmaydi.");
+      return;
+    }
+    if (change.kind === 'changed') {
+      setVerifyingPhone(change.fullPhone);
+      return;
+    }
+    await saveProfile(null);
   };
 
   const handleGetLocation = () => {
@@ -146,8 +182,13 @@ export default function CustomerProfile() {
         const { latitude, longitude } = position.coords;
         setAddressLat(latitude);
         setAddressLng(longitude);
+        // Nominatim can hang: give up after 8s and fall back to the plain coordinates
+        const controller = new AbortController();
+        const timeoutId = window.setTimeout(() => controller.abort(), 8000);
         try {
-          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}`);
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}`, {
+            signal: controller.signal
+          });
           const data = await res.json();
           if (data && data.display_name) {
             setAddressValue(data.display_name);
@@ -155,10 +196,11 @@ export default function CustomerProfile() {
             setAddressValue(`📍 Lokatsiya (${latitude.toFixed(5)}, ${longitude.toFixed(5)})`);
           }
           hapticFeedback('success');
-        } catch (err) {
+        } catch {
           setAddressValue(`📍 Lokatsiya (${latitude.toFixed(5)}, ${longitude.toFixed(5)})`);
           hapticFeedback('warning');
         } finally {
+          window.clearTimeout(timeoutId);
           setIsLocating(false);
         }
       },
@@ -213,7 +255,7 @@ export default function CustomerProfile() {
       setIsAdding(false);
       hapticFeedback('success');
     } catch (err) {
-      console.error(err);
+      logApiError('Failed to add address:', err);
       hapticFeedback('error');
     }
   };
@@ -224,7 +266,7 @@ export default function CustomerProfile() {
       await deleteAddress(id);
       hapticFeedback('success');
     } catch (err) {
-      console.error(err);
+      logApiError('Failed to delete address:', err);
       hapticFeedback('error');
     }
   };
@@ -237,6 +279,19 @@ export default function CustomerProfile() {
 
   return (
     <div className="p-4 space-y-4 pb-28 animate-fade-in bg-slate-50 min-h-screen">
+      {verifyingPhone && (
+        <PhoneVerificationModal
+          initialPhone={verifyingPhone}
+          onClose={() => setVerifyingPhone(null)}
+          onVerified={(fullPhone) => {
+            setVerifyingPhone(null);
+            setEditPhone(fullPhone);
+            updateUser({ phone: fullPhone }); // the server already saved it when the code was verified
+            saveProfile(null); // name
+          }}
+        />
+      )}
+
       <header className="flex justify-between items-center pb-2">
         <h1 className="text-xl font-black text-slate-800">
           Mening profilim
@@ -270,10 +325,15 @@ export default function CustomerProfile() {
                 <input 
                   type="text"
                   value={editPhone}
-                  onChange={(e) => setEditPhone(e.target.value)}
+                  onChange={(e) => { setEditPhone(e.target.value); setPhoneError(""); }}
                   placeholder="+998901234567"
                   className="w-full text-xs bg-slate-550 border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:border-amber-500 font-semibold"
                 />
+                {phoneError ? (
+                  <p className="text-[10px] text-rose-500 font-bold mt-1 pl-1">{phoneError}</p>
+                ) : smsVerificationRequired && (
+                  <p className="text-[10px] text-slate-400 font-semibold mt-1 pl-1">Yangi raqam SMS kod orqali tasdiqlanadi</p>
+                )}
               </div>
             </div>
             <div className="flex gap-2 pt-2">

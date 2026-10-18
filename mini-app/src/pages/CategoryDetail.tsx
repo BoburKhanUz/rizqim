@@ -6,6 +6,7 @@ import { hapticFeedback } from '../lib/telegram';
 import { ArrowLeft, Search, X, ShoppingBag } from 'lucide-react';
 import VariantSelectorModal from '../components/VariantSelectorModal';
 import api from '../services/api';
+import { logApiError } from '../lib/apiError';
 
 function formatUzbekSum(value: number | string | undefined) {
   if (value === undefined || value === null) return "0 so'm";
@@ -53,7 +54,7 @@ export default function CategoryDetail() {
           setProducts(res.data.data.products || []);
         }
       } catch (err) {
-        console.error(err);
+        logApiError('Failed to load category:', err);
       } finally {
         setLoading(false);
       }

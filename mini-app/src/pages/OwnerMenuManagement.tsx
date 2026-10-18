@@ -4,6 +4,7 @@ import { PlusCircle, Search, Edit2, Trash2, Tag, CheckCircle2, XCircle } from 'l
 
 import { hapticFeedback } from '../lib/telegram';
 import api from '../services/api';
+import { logApiError } from '../lib/apiError';
 import { FullScreenLoader, ErrorFallback } from '../App';
 
 export default function OwnerMenuManagement() {
@@ -21,7 +22,7 @@ export default function OwnerMenuManagement() {
       setProducts(res.data.data);
       setError(null);
     } catch (err) {
-      console.error(err);
+      logApiError('Failed to load products:', err);
       setError('Mahsulotlarni yuklashda xatolik yuz berdi');
     } finally {
       setLoading(false);

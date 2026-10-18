@@ -29,6 +29,7 @@ interface AuthState {
   isAuthenticated: boolean;
   smsVerificationRequired: boolean;
   setAuth: (token: string, user: User, store: Store, smsVerificationRequired?: boolean) => void;
+  setSmsVerificationRequired: (required: boolean) => void;
   updateUser: (userData: Partial<User>) => void;
   logout: () => void;
 }
@@ -43,6 +44,7 @@ export const useAuthStore = create<AuthState>()(
       smsVerificationRequired: false,
       setAuth: (token, user, store, smsVerificationRequired = false) => 
         set({ token, user, store, isAuthenticated: true, smsVerificationRequired }),
+      setSmsVerificationRequired: (required) => set({ smsVerificationRequired: required }),
       updateUser: (userData) => set((state) => ({
         user: state.user ? { ...state.user, ...userData } : null
       })),
