@@ -1,15 +1,15 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:17-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${DB_DATABASE:-rizqim}
-      POSTGRES_USER: ${DB_USERNAME:-rizqim}
+      POSTGRES_DB: ${DB_DATABASE:-rizqimbot}
+      POSTGRES_USER: ${DB_USERNAME:-rizqimbot}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-secret}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-rizqim} -d ${DB_DATABASE:-rizqim}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-rizqimbot} -d ${DB_DATABASE:-rizqimbot}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -35,8 +35,8 @@ services:
       DB_CONNECTION: pgsql
       DB_HOST: postgres
       DB_PORT: 5432
-      DB_DATABASE: ${DB_DATABASE:-rizqim}
-      DB_USERNAME: ${DB_USERNAME:-rizqim}
+      DB_DATABASE: ${DB_DATABASE:-rizqimbot}
+      DB_USERNAME: ${DB_USERNAME:-rizqimbot}
       DB_PASSWORD: ${DB_PASSWORD:-secret}
       REDIS_HOST: redis
       REDIS_PORT: 6379
@@ -57,8 +57,8 @@ services:
       DB_CONNECTION: pgsql
       DB_HOST: postgres
       DB_PORT: 5432
-      DB_DATABASE: ${DB_DATABASE:-rizqim}
-      DB_USERNAME: ${DB_USERNAME:-rizqim}
+      DB_DATABASE: ${DB_DATABASE:-rizqimbot}
+      DB_USERNAME: ${DB_USERNAME:-rizqimbot}
       DB_PASSWORD: ${DB_PASSWORD:-secret}
       REDIS_HOST: redis
       REDIS_PORT: 6379
@@ -75,8 +75,8 @@ services:
       DB_CONNECTION: pgsql
       DB_HOST: postgres
       DB_PORT: 5432
-      DB_DATABASE: ${DB_DATABASE:-rizqim}
-      DB_USERNAME: ${DB_USERNAME:-rizqim}
+      DB_DATABASE: ${DB_DATABASE:-rizqimbot}
+      DB_USERNAME: ${DB_USERNAME:-rizqimbot}
       DB_PASSWORD: ${DB_PASSWORD:-secret}
       REDIS_HOST: redis
       REDIS_PORT: 6379
