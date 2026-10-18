@@ -1,0 +1,35 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        Schema::create('store_topup_requests', function (Blueprint $table) {
+            $table->id();
+            $table->uuid('uuid')->unique();
+            $table->foreignId('store_id')->constrained()->cascadeOnDelete();
+            $table->decimal('amount', 12, 2);
+            $table->string('provider'); // click, payme
+            $table->string('status')->default('pending'); // pending, paid, cancelled
+            $table->string('provider_transaction_id')->nullable();
+            $table->jsonb('payload')->nullable();
+            $table->timestamp('paid_at')->nullable();
+            $table->timestamps();
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::dropIfExists('store_topup_requests');
+    }
+};

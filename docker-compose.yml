@@ -1,0 +1,105 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-rizqim}
+      POSTGRES_USER: ${DB_USERNAME:-rizqim}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-secret}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-rizqim} -d ${DB_DATABASE:-rizqim}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend: &backend
+    build:
+      context: ./backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: ${DB_DATABASE:-rizqim}
+      DB_USERNAME: ${DB_USERNAME:-rizqim}
+      DB_PASSWORD: ${DB_PASSWORD:-secret}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      RUN_MIGRATIONS: "true"
+    volumes:
+      - backend_storage:/var/www/html/storage/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "${BACKEND_PORT:-8000}:80"
+
+  queue:
+    <<: *backend
+    environment:
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: ${DB_DATABASE:-rizqim}
+      DB_USERNAME: ${DB_USERNAME:-rizqim}
+      DB_PASSWORD: ${DB_PASSWORD:-secret}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      RUN_MIGRATIONS: "false"
+    ports: []
+    depends_on:
+      backend:
+        condition: service_started
+    command: ["php", "artisan", "queue:work", "--tries=3", "--max-time=3600"]
+
+  scheduler:
+    <<: *backend
+    environment:
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: ${DB_DATABASE:-rizqim}
+      DB_USERNAME: ${DB_USERNAME:-rizqim}
+      DB_PASSWORD: ${DB_PASSWORD:-secret}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      RUN_MIGRATIONS: "false"
+    ports: []
+    depends_on:
+      backend:
+        condition: service_started
+    command: ["php", "artisan", "schedule:work"]
+
+  frontend:
+    build:
+      context: ./mini-app
+      args:
+        VITE_BOT_USERNAME: ${VITE_BOT_USERNAME:-rizqimbot}
+        VITE_API_URL: ${VITE_API_URL:-/api/v1}
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+
+volumes:
+  postgres_data:
+  redis_data:
+  backend_storage:

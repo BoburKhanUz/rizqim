@@ -1,0 +1,113 @@
+<?php
+
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Api\V1\Auth\TelegramAuthController;
+
+Route::prefix('v1')->group(function () {
+    Route::prefix('auth')->group(function () {
+        Route::post('/telegram', [TelegramAuthController::class, 'authenticate']);
+    });
+
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::get('/user', function (Request $request) {
+            $user = $request->user();
+            $store = $user->store;
+            if ($store) {
+                $store->load('branches');
+            }
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'user' => $user,
+                    'store' => $store,
+                    'sms_verification_required' => setting('sms_driver', 'log') === 'eskiz',
+                ]
+            ]);
+        });
+
+        Route::post('/phone/send-code', [\App\Http\Controllers\Api\V1\Auth\PhoneVerificationController::class, 'sendCode']);
+        Route::post('/phone/verify-code', [\App\Http\Controllers\Api\V1\Auth\PhoneVerificationController::class, 'verifyCode']);
+
+        Route::post('/user/profile', function (Request $request) {
+            $user = $request->user();
+            $data = $request->validate([
+                'name' => 'required|string|max:255',
+                'phone' => 'nullable|string|max:255',
+                'address' => 'nullable|string|max:1000',
+            ]);
+            $user->update($data);
+            return response()->json([
+                'success' => true,
+                'message' => 'Profile updated successfully.',
+                'data' => $user,
+            ]);
+        });
+
+        Route::get('/addresses', [\App\Http\Controllers\Api\V1\User\AddressController::class, 'index']);
+        Route::post('/addresses', [\App\Http\Controllers\Api\V1\User\AddressController::class, 'store']);
+        Route::put('/addresses/{id}', [\App\Http\Controllers\Api\V1\User\AddressController::class, 'update']);
+        Route::delete('/addresses/{id}', [\App\Http\Controllers\Api\V1\User\AddressController::class, 'destroy']);
+        Route::get('/locations', [\App\Http\Controllers\Api\V1\LocationController::class, 'index']);
+
+        Route::get('/stores', [\App\Http\Controllers\Api\V1\Store\StoreController::class, 'index']);
+        Route::post('/stores/{id}/rate', [\App\Http\Controllers\Api\V1\StoreRatingController::class, 'rate']);
+        Route::get('/catalog', [\App\Http\Controllers\Api\V1\Catalog\CatalogController::class, 'index']);
+        Route::get('/orders', [\App\Http\Controllers\Api\V1\Order\OrderController::class, 'index']);
+        Route::get('/notifications', [\App\Http\Controllers\Api\V1\Order\OrderController::class, 'notifications']);
+        Route::post('/notifications/read', [\App\Http\Controllers\Api\V1\Order\OrderController::class, 'markNotificationsRead']);
+        Route::post('/orders', [\App\Http\Controllers\Api\V1\Order\OrderController::class, 'store']);
+        Route::post('/orders/{uuid}/complete', [\App\Http\Controllers\Api\V1\Order\OrderController::class, 'complete']);
+        Route::post('/orders/{uuid}/status', [\App\Http\Controllers\Api\V1\Order\OrderController::class, 'updateStatus']);
+        Route::post('/orders/{uuid}/assign-courier', [\App\Http\Controllers\Api\V1\Order\OrderController::class, 'assignCourier']);
+        Route::get('/couriers', [\App\Http\Controllers\Api\V1\Order\OrderController::class, 'couriers']);
+        Route::post('/reports/export', [\App\Http\Controllers\Api\V1\Order\OrderController::class, 'exportReport']);
+        Route::post('/promo/validate', [\App\Http\Controllers\Api\V1\PromoCodeController::class, 'validateCode']);
+
+        // Complaints Routes
+        Route::get('/complaints', [\App\Http\Controllers\Api\V1\Order\ComplaintController::class, 'index']);
+        Route::post('/complaints', [\App\Http\Controllers\Api\V1\Order\ComplaintController::class, 'store']);
+        Route::post('/complaints/{id}/reply', [\App\Http\Controllers\Api\V1\Order\ComplaintController::class, 'reply']);
+        Route::post('/complaints/{id}/escalate', [\App\Http\Controllers\Api\V1\Order\ComplaintController::class, 'escalate']);
+
+        // Owner Catalog Routes
+        Route::get('/owner/categories', [\App\Http\Controllers\Api\V1\Store\OwnerCatalogController::class, 'getCategories']);
+        Route::post('/owner/categories', [\App\Http\Controllers\Api\V1\Store\OwnerCatalogController::class, 'storeCategory']);
+        Route::get('/owner/products', [\App\Http\Controllers\Api\V1\Store\OwnerCatalogController::class, 'getProducts']);
+        Route::post('/owner/products', [\App\Http\Controllers\Api\V1\Store\OwnerCatalogController::class, 'storeProduct']);
+        Route::post('/owner/products/{id}', [\App\Http\Controllers\Api\V1\Store\OwnerCatalogController::class, 'updateProduct']); // Use POST with _method=PUT from frontend if needed, but here we just use POST for multipart/form-data
+        Route::delete('/owner/products/{id}', [\App\Http\Controllers\Api\V1\Store\OwnerCatalogController::class, 'deleteProduct']);
+        Route::get('/owner/branch-variants', [\App\Http\Controllers\Api\V1\Catalog\BranchProductVariantController::class, 'index']);
+        Route::post('/owner/branch-variants', [\App\Http\Controllers\Api\V1\Catalog\BranchProductVariantController::class, 'update']);
+
+        // Owner Employee Routes
+        Route::get('/owner/employees', [\App\Http\Controllers\Api\V1\Store\OwnerEmployeeController::class, 'index']);
+        Route::post('/owner/employees/invite', [\App\Http\Controllers\Api\V1\Store\OwnerEmployeeController::class, 'generateInvite']);
+        Route::post('/owner/employees/{id}/transfer', [\App\Http\Controllers\Api\V1\Store\OwnerEmployeeController::class, 'updateBranch']);
+        Route::delete('/owner/employees/{id}', [\App\Http\Controllers\Api\V1\Store\OwnerEmployeeController::class, 'destroy']);
+
+        // Owner Finance Routes
+        Route::get('/owner/finance', [\App\Http\Controllers\Api\V1\Store\OwnerFinanceController::class, 'index']);
+        Route::post('/owner/payouts', [\App\Http\Controllers\Api\V1\Store\OwnerFinanceController::class, 'requestPayout']);
+        Route::post('/owner/finance/top-up', [\App\Http\Controllers\Api\V1\Store\OwnerFinanceController::class, 'initiateTopup']);
+
+        // Owner Settings Routes
+        Route::get('/owner/settings', [\App\Http\Controllers\Api\V1\Store\OwnerSettingsController::class, 'index']);
+        Route::post('/owner/settings', [\App\Http\Controllers\Api\V1\Store\OwnerSettingsController::class, 'update']);
+        Route::post('/owner/settings/upload', [\App\Http\Controllers\Api\V1\Store\OwnerSettingsController::class, 'upload']);
+
+        // Super Admin Routes
+        Route::get('/superadmin/dashboard', [\App\Http\Controllers\Api\V1\Superadmin\SuperadminController::class, 'dashboard']);
+        Route::get('/superadmin/locations', [\App\Http\Controllers\Api\V1\Superadmin\SuperadminController::class, 'getLocations']);
+        Route::get('/superadmin/stores', [\App\Http\Controllers\Api\V1\Superadmin\SuperadminController::class, 'stores']);
+        Route::post('/superadmin/stores', [\App\Http\Controllers\Api\V1\Superadmin\SuperadminController::class, 'createStore']);
+    });
+
+    // Decoupled Billing Webhooks
+    Route::post('/payments/click/webhook', [\App\Http\Controllers\Api\V1\Payment\ClickWebhookController::class, 'handle']);
+    Route::post('/payments/payme/webhook', [\App\Http\Controllers\Api\V1\Payment\PaymeWebhookController::class, 'handle']);
+
+    // Telegram Webhook
+    Route::post('/telegram/webhook', [\App\Http\Controllers\Api\V1\Telegram\TelegramWebhookController::class, 'handle'])
+        ->middleware(\App\Http\Middleware\VerifyTelegramSecretToken::class);
+});

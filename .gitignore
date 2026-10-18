@@ -1,0 +1,46 @@
+# Archived/old files (zips, sql dumps, tunnel logs) - never commit
+/_archive/
+
+# Env files
+.env
+.env.backup
+.env.production
+*/.env
+*/.env.backup
+
+# Backend (Laravel)
+backend/vendor/
+backend/node_modules/
+backend/public/build/
+backend/public/hot/
+backend/public/storage/
+backend/storage/*.key
+backend/storage/app/*
+!backend/storage/app/.gitkeep
+backend/storage/framework/cache/*
+backend/storage/framework/sessions/*
+backend/storage/framework/testing/*
+backend/storage/framework/views/*
+backend/storage/logs/*
+backend/storage/pail/
+backend/bootstrap/cache/*.php
+backend/database/database.sqlite
+backend/.phpunit.result.cache
+backend/auth.json
+
+# Frontend (Vite/React)
+mini-app/node_modules/
+mini-app/dist/
+mini-app/dist-ssr/
+mini-app/*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+Thumbs.db

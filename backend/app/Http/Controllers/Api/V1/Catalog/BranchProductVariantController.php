@@ -1,0 +1,137 @@
+<?php
+
+namespace App\Http\Controllers\Api\V1\Catalog;
+
+use App\Http\Controllers\Controller;
+use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
+use App\Traits\ApiResponse;
+
+class BranchProductVariantController extends Controller
+{
+    use ApiResponse;
+
+    /**
+     * List all products and variants with their branch override settings.
+     */
+    public function index(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        if (!$user) {
+            return $this->error('Unauthorized.', [], 401);
+        }
+
+        $userRole = is_object($user->role) ? $user->role->value : $user->role;
+        if (!in_array($userRole, ['owner', 'manager'])) {
+            return $this->error('Unauthorized.', [], 403);
+        }
+
+        $branchId = $userRole === 'manager' ? $user->branch_id : $request->query('branch_id');
+        if (!$branchId) {
+            return $this->error('Branch ID is required.', [], 422);
+        }
+
+        // Ensure branch belongs to store
+        $branch = \App\Models\Branch::where('store_id', $user->store_id)
+            ->where('id', $branchId)
+            ->first();
+
+        if (!$branch) {
+            return $this->error('Branch not found.', [], 404);
+        }
+
+        // Fetch all products of the store with their variants
+        $products = \App\Models\Product::where('store_id', $user->store_id)
+            ->with(['variants'])
+            ->get();
+
+        // Fetch overrides for this branch
+        $overrides = \App\Models\BranchProductVariant::where('branch_id', $branchId)->get()->keyBy('variant_id');
+
+        $result = $products->map(function ($product) use ($overrides) {
+            $variants = $product->variants->map(function ($variant) use ($product, $overrides) {
+                $override = $overrides->get($variant->id);
+
+                return [
+                    'variant_id' => $variant->id,
+                    'variant_uuid' => $variant->uuid,
+                    'name' => $variant->name,
+                    'price' => $variant->price,
+                    'is_active' => $override ? (bool)$override->is_active : true,
+                    'hidden_reason' => $override ? $override->hidden_reason : null,
+                    'sort_order' => $override ? (int)$override->sort_order : 0,
+                ];
+            });
+
+            return [
+                'product_id' => $product->id,
+                'name' => $product->name,
+                'description' => $product->description,
+                'image_url' => $product->image_url,
+                'variants' => $variants,
+            ];
+        });
+
+        return $this->success($result);
+    }
+
+    /**
+     * Update or Create branch-specific overrides for a variant.
+     */
+    public function update(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        if (!$user) {
+            return $this->error('Unauthorized.', [], 401);
+        }
+
+        $userRole = is_object($user->role) ? $user->role->value : $user->role;
+        if (!in_array($userRole, ['owner', 'manager'])) {
+            return $this->error('Unauthorized.', [], 403);
+        }
+
+        $request->validate([
+            'branch_id' => 'required|exists:branches,id',
+            'product_id' => 'required|exists:products,id',
+            'product_variant_id' => 'required|exists:product_variants,id',
+            'is_active' => 'required|boolean',
+            'hidden_reason' => 'nullable|string|max:255',
+            'sort_order' => 'nullable|integer',
+        ]);
+
+        $branchId = $userRole === 'manager' ? $user->branch_id : $request->branch_id;
+
+        // Verify branch belongs to store
+        $branch = \App\Models\Branch::where('store_id', $user->store_id)
+            ->where('id', $branchId)
+            ->first();
+
+        if (!$branch) {
+            return $this->error('Branch not found.', [], 404);
+        }
+
+        // Verify product belongs to store
+        $product = \App\Models\Product::where('store_id', $user->store_id)
+            ->where('id', $request->product_id)
+            ->first();
+
+        if (!$product) {
+            return $this->error('Product not found.', [], 404);
+        }
+
+        // Update or Create override
+        $variantOverride = \App\Models\BranchProductVariant::updateOrCreate(
+            [
+                'branch_id' => $branchId,
+                'variant_id' => $request->product_variant_id,
+            ],
+            [
+                'is_active' => $request->is_active,
+                'hidden_reason' => !$request->is_active ? $request->hidden_reason : null,
+                'sort_order' => $request->sort_order ?? 0,
+            ]
+        );
+
+        return $this->success($variantOverride, 'Branch product variant status updated successfully.');
+    }
+}
