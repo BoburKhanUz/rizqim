@@ -36,6 +36,13 @@ class TelegramPollCommand extends Command
             return Command::FAILURE;
         }
 
+        // The webhook route rejects every update without this header (VerifyTelegramSecretToken)
+        $webhookSecret = (string) config('services.telegram.webhook_secret');
+        if ($webhookSecret === '') {
+            $this->error("❌ TELEGRAM_WEBHOOK_SECRET is not configured: the local webhook would reject every update (403). Set any random value in .env.");
+            return Command::FAILURE;
+        }
+
         $botUsername = config('services.telegram.bot_username', 'rizqimbot');
         $this->info("🤖 Bot Username: " . $botUsername);
         $this->info("🔑 Token: " . substr($botToken, 0, 10) . "..." . substr($botToken, -5));
@@ -71,7 +78,9 @@ class TelegramPollCommand extends Command
                             // Port 8000 is our exact serving port
                             $webhookUrl = "http://127.0.0.1:8000/api/v1/telegram/webhook";
                             
-                            $webhookResponse = Http::post($webhookUrl, $update);
+                            $webhookResponse = Http::withHeaders([
+                                'X-Telegram-Bot-Api-Secret-Token' => $webhookSecret,
+                            ])->post($webhookUrl, $update);
                             
                             if ($webhookResponse->successful()) {
                                 $this->info("✅ Update #{$updateId} processed successfully: " . $webhookResponse->body());

@@ -2,6 +2,9 @@
 
 namespace App\Providers;
 
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -26,5 +29,52 @@ class AppServiceProvider extends ServiceProvider
             \Illuminate\Support\Facades\URL::forceScheme('https');
         }
 
+        $this->configureRateLimiting();
+    }
+
+    protected function configureRateLimiting(): void
+    {
+        $byUser = fn (Request $request): string => $request->user() ? 'user:' . $request->user()->id : 'ip:' . $request->ip();
+
+        // Generous: staff dashboards poll several endpoints every 8-15s
+        RateLimiter::for('api', fn (Request $request) => Limit::perMinute(300)->by($byUser($request)));
+
+        RateLimiter::for('telegram-auth', function (Request $request) {
+            // Generous per IP: behind an outer proxy / carrier NAT many users share one address
+            $limits = [Limit::perMinute(300)->by('ip:' . $request->ip())];
+
+            // Unverified id, used only as a bucket key; scoped to the IP so nobody can lock a victim's account out remotely
+            parse_str((string) $request->input('initData'), $initData);
+            $telegramUser = is_string($initData['user'] ?? null) ? json_decode($initData['user'], true) : null;
+            $telegramId = is_array($telegramUser) ? ($telegramUser['id'] ?? null) : null;
+
+            if (is_scalar($telegramId) && ctype_digit((string) $telegramId)) {
+                $limits[] = Limit::perMinute(10)->by('tg:' . $telegramId . '|ip:' . $request->ip());
+            }
+
+            return $limits;
+        });
+
+        RateLimiter::for('otp-send', function (Request $request) use ($byUser) {
+            $user = $byUser($request);
+            $phone = 'phone:' . (string) $request->input('phone');
+
+            return [
+                Limit::perMinute(1)->by('cooldown:' . $user),
+                Limit::perMinute(1)->by('cooldown:' . $phone),
+                Limit::perHour(5)->by('hourly:' . $user),
+                Limit::perHour(5)->by('hourly:' . $phone),
+            ];
+        });
+
+        RateLimiter::for('otp-verify', fn (Request $request) => Limit::perMinute(10)->by($byUser($request)));
+
+        RateLimiter::for('orders', fn (Request $request) => Limit::perMinute(10)->by($byUser($request)));
+
+        RateLimiter::for('promo', fn (Request $request) => Limit::perMinute(20)->by($byUser($request)));
+
+        RateLimiter::for('store-ratings', fn (Request $request) => Limit::perMinute(10)->by($byUser($request)));
+
+        RateLimiter::for('complaints', fn (Request $request) => Limit::perMinute(5)->by($byUser($request)));
     }
 }

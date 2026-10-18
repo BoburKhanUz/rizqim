@@ -35,6 +35,7 @@ class TelegramAuthController extends Controller
         // 1. Determine Bot Token
         $botToken = null;
         $store = null;
+        $botStore = null;
 
         if ($isGlobalBot) {
             $botToken = config('services.telegram.bot_token');
@@ -47,6 +48,11 @@ class TelegramAuthController extends Controller
                 ->where('is_active', true)
                 ->first();
             $botToken = $store?->telegram_bot_token ?? config('services.telegram.bot_token');
+
+            // The store owner holds this token and could sign initData for any Telegram id
+            if ($store && filled($store->telegram_bot_token) && $store->telegram_bot_token !== config('services.telegram.bot_token')) {
+                $botStore = $store;
+            }
         }
 
         if (empty($botToken)) {
@@ -83,7 +89,11 @@ class TelegramAuthController extends Controller
         }
 
         // 3. Find or Create User
-        $user = $this->authenticateAction->execute($telegramUser, $store, $request->start_param);
+        $user = $this->authenticateAction->execute($telegramUser, $store, $request->start_param, $botStore);
+
+        if (!$user) {
+            return $this->error("Bu bot orqali tizimga kirib bo'lmaydi. Iltimos, asosiy bot orqali kiring.", [], 403);
+        }
 
         // 4. Generate Token
         $token = $this->generateTokenAction->execute($user);

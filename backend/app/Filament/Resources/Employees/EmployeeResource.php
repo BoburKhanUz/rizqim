@@ -71,8 +71,14 @@ class EmployeeResource extends Resource
     public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
     {
         $storeId = \Filament\Facades\Filament::getTenant()?->id ?? auth()->user()?->store_id;
+
+        // A NULL store would become "store_id IS NULL" and list every customer and super admin
+        if ($storeId === null) {
+            return parent::getEloquentQuery()->whereRaw('1 = 0');
+        }
+
         $query = parent::getEloquentQuery()->where('store_id', $storeId);
-        
+
         if (auth()->user()->role === UserRole::MANAGER) {
             $query->where('role', UserRole::COURIER->value);
         } else {

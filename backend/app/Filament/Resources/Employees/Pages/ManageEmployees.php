@@ -16,6 +16,7 @@ class ManageEmployees extends ManageRecords
             CreateAction::make()
                 ->mutateFormDataUsing(function (array $data): array {
                     $storeId = \Filament\Facades\Filament::getTenant()?->id ?? auth()->user()?->store_id;
+                    abort_if($storeId === null, 403);
                     $data['store_id'] = $storeId;
                     $data['password'] = \Illuminate\Support\Facades\Hash::make(\Illuminate\Support\Str::random(12));
                     $data['telegram_invite_token'] = \Illuminate\Support\Str::uuid()->toString();

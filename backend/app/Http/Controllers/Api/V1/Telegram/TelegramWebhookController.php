@@ -4,19 +4,27 @@ namespace App\Http\Controllers\Api\V1\Telegram;
 
 use App\Http\Controllers\Controller;
 use App\Models\Order;
-use App\Models\OrderStatusHistory;
+use App\Models\User;
 use App\Enums\OrderStatus;
+use App\Enums\UserRole;
+use App\Services\Auth\ReferralService;
 use App\Services\Notifications\TelegramNotificationService;
+use App\Services\Order\OrderStatusService;
+use App\Services\Order\OrderTransitionException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 
 class TelegramWebhookController extends Controller
 {
     protected TelegramNotificationService $telegramService;
 
-    public function __construct(TelegramNotificationService $telegramService)
-    {
+    public function __construct(
+        TelegramNotificationService $telegramService,
+        protected OrderStatusService $orderStatus,
+        protected ReferralService $referrals
+    ) {
         $this->telegramService = $telegramService;
     }
 
@@ -38,24 +46,29 @@ class TelegramWebhookController extends Controller
                 $contact = $message['contact'];
                 $phoneNumber = $contact['phone_number'];
                 $userId = $contact['user_id'] ?? null;
+                $senderId = $message['from']['id'] ?? null;
 
-                if (!$userId || (string)$userId === (string)$chatId) {
+                // Only the sender's own contact (request_contact button) proves the number; any forwarded card is ignored
+                if ($userId !== null && $senderId !== null && (string) $userId === (string) $senderId) {
                     $phoneNumber = '+' . ltrim($phoneNumber, '+');
 
-                    $users = \App\Models\User::where('telegram_id', $chatId)->get();
+                    $users = \App\Models\User::where('telegram_id', (string) $senderId)->get();
                     if ($users->isNotEmpty()) {
                         foreach ($users as $user) {
                             $user->update(['phone' => $phoneNumber]);
                         }
                     } else {
-                        \App\Models\User::create([
-                            'telegram_id' => $chatId,
+                        $newUser = \App\Models\User::create([
+                            'telegram_id' => (string) $senderId,
                             'store_id' => null, // Customers are global
                             'name' => trim(($message['from']['first_name'] ?? '') . ' ' . ($message['from']['last_name'] ?? '')),
                             'telegram_username' => $message['from']['username'] ?? null,
                             'phone' => $phoneNumber,
                             'role' => \App\Enums\UserRole::CUSTOMER->value,
                         ]);
+
+                        // Registered here, before the Mini App login could consume a referral parked by /start
+                        $this->referrals->applyPendingReferral($newUser, (string) $senderId);
                     }
 
                     $botToken = config('services.telegram.bot_token');
@@ -94,14 +107,49 @@ class TelegramWebhookController extends Controller
                 $parts = preg_split('/\s+/', trim($text), 2);
                 $command = $parts[0] ?? '';
                 $payload = $parts[1] ?? '';
+                $senderId = (string) ($message['from']['id'] ?? $chatId);
+
+                // Referral link opened by someone without an account yet: parked until they register
+                $referrerId = $this->referrals->referrerIdFromParam($payload, $senderId);
+                if ($referrerId !== null && !User::where('telegram_id', $senderId)->exists()) {
+                    $this->referrals->storePendingReferral($senderId, $referrerId);
+                }
 
                 if (str_starts_with($payload, 'store_')) {
                     $token = str_replace('store_', '', $payload);
-                    $store = \App\Models\Store::where('uuid', $token)->first();
-                    
+                    $store = Str::isUuid($token) ? \App\Models\Store::where('uuid', $token)->first() : null;
+
                     if ($store) {
-                        $store->update(['telegram_admin_chat_id' => $chatId]);
-                        
+                        // The store uuid is public and this chat gets every order and its action buttons:
+                        // only the owner, or a store-wide manager (no branch), may route it
+                        $canBindStoreChat = isset($message['from']['id']) && User::where('telegram_id', (string) $message['from']['id'])
+                            ->where('store_id', $store->id)
+                            ->where(function ($query) {
+                                $query->where('role', UserRole::OWNER->value)
+                                    ->orWhere(fn ($q) => $q->where('role', UserRole::MANAGER->value)->whereNull('branch_id'));
+                            })
+                            ->exists();
+
+                        if (!$canBindStoreChat) {
+                            if ($botToken) {
+                                Http::post("https://api.telegram.org/bot{$botToken}/sendMessage", [
+                                    'chat_id' => $chatId,
+                                    'text' => "⛔ Bu chatni restoranga faqat shu restoranning egasi yoki filialga biriktirilmagan menejeri bog'lay oladi.",
+                                ]);
+                            }
+                            return response()->json(['status' => 'store_link_forbidden']);
+                        }
+
+                        $previousChatId = $store->telegram_admin_chat_id;
+                        $store->forceFill(['telegram_admin_chat_id' => $chatId])->save();
+
+                        if ($botToken && $previousChatId && (string) $previousChatId !== (string) $chatId) {
+                            Http::post("https://api.telegram.org/bot{$botToken}/sendMessage", [
+                                'chat_id' => $previousChatId,
+                                'text' => "⚠️ {$store->name} restorani buyurtmalari endi boshqa chatga yuboriladi: bu chat restorandan uzildi. Agar buni siz qilmagan bo'lsangiz, restoran egasiga xabar bering.",
+                            ]);
+                        }
+
                         if ($botToken) {
                             Http::post("https://api.telegram.org/bot{$botToken}/sendMessage", [
                                 'chat_id' => $chatId,
@@ -117,10 +165,11 @@ class TelegramWebhookController extends Controller
                 $employee = null;
                 if (!empty($payload)) {
                     $tokenWithoutPrefix = str_replace('invite_', '', $payload);
+                    // A storeless invite would match the person's global account via "store_id IS NULL" below
                     $employee = \App\Models\User::where(function ($q) use ($payload, $tokenWithoutPrefix) {
                         $q->where('telegram_invite_token', $payload)
                           ->orWhere('telegram_invite_token', $tokenWithoutPrefix);
-                    })->first();
+                    })->whereNotNull('store_id')->first();
                 }
 
                 if ($employee) {
@@ -307,97 +356,70 @@ class TelegramWebhookController extends Controller
             return response()->json(['status' => 'unhandled_action']);
         }
 
-        // Mark token as used
-        $telegramAction->update(['used_at' => now()]);
+        // The button only proves the message reached some chat: the presser must be staff allowed to make this change
+        $actor = $this->staffActor($fromUser['id'] ?? null, $order);
+        if (!$actor) {
+            $this->answerCallbackQuery($callbackQuery['id'], "Sizda bu buyurtma bo'yicha amal bajarishga ruxsat yo'q!", true);
+            return response()->json(['status' => 'forbidden']);
+        }
 
-        // Prevent canceling if it is already past the new stage
-        if ($newStatus === OrderStatus::CANCELED) {
-            $oldStatus = $order->status->value ?? $order->status;
-            if ($oldStatus !== 'new') {
+        try {
+            $result = $this->orderStatus->transition($order, $newStatus, $actor, [
+                // "Rad etish" is offered on new orders only: an old button must not cancel an accepted order
+                'from' => $newStatus === OrderStatus::CANCELED ? [OrderStatus::NEW] : null,
+                'notes' => "Status updated via Telegram Webhook by: {$actorName}",
+            ]);
+        } catch (OrderTransitionException $e) {
+            if ($e->reason === 'forbidden') {
+                $this->answerCallbackQuery($callbackQuery['id'], "Sizda bu buyurtma bo'yicha amal bajarishga ruxsat yo'q!", true);
+                return response()->json(['status' => 'forbidden']);
+            }
+
+            if ($newStatus === OrderStatus::CANCELED) {
                 $this->answerCallbackQuery($callbackQuery['id'], "Buyurtma qabul qilinganidan keyin uni bekor qilib bo'lmaydi!");
                 return response()->json(['status' => 'cannot_cancel']);
             }
+
+            $this->answerCallbackQuery($callbackQuery['id'], $e->getMessage(), true);
+            return response()->json(['status' => 'invalid_transition']);
         }
 
-        // Don't downgrade status unless needed, but allow updates
-        if ($order->status === $newStatus) {
+        // Spent only once it went through, so a refused press leaves the button usable for staff who may use it
+        $telegramAction->update(['used_at' => now()]);
+
+        if (!$result->changed) {
             $this->answerCallbackQuery($callbackQuery['id'], "Buyurtma allaqachon bu holatda!");
             return response()->json(['status' => 'no_change']);
         }
 
-        // Update order status with auto courier/owner assignment if transitioning to delivery/courier_assigned
-        $updateData = ['status' => $newStatus->value];
-
-        if (in_array($newStatus->value, ['delivery', 'on_the_way', 'courier_assigned']) && !$order->courier_id) {
-            $courier = \App\Models\User::where('store_id', $order->store_id)
-                ->where('role', \App\Enums\UserRole::COURIER->value)
-                ->where('branch_id', $order->branch_id)
-                ->first();
-                
-            if (!$courier) {
-                $courier = \App\Models\User::where('store_id', $order->store_id)
-                    ->where('role', \App\Enums\UserRole::COURIER->value)
-                    ->first();
-            }
-
-            if ($courier) {
-                $updateData['courier_id'] = $courier->id;
-            } else {
-                $owner = \App\Models\User::where('store_id', $order->store_id)
-                    ->where('role', \App\Enums\UserRole::OWNER->value)
-                    ->first();
-                if ($owner) {
-                    $updateData['courier_id'] = $owner->id;
-                }
-            }
-
-            // Create assignment log
-            if (isset($updateData['courier_id'])) {
-                \App\Models\OrderAssignment::create([
-                    'order_id' => $order->id,
-                    'courier_id' => $updateData['courier_id'],
-                    'assigned_by' => $updateData['courier_id'],
-                    'assigned_branch_id' => $order->branch_id,
-                    'is_current' => true,
-                    'assigned_at' => now(),
-                ]);
-            }
-        }
-
-        $oldStatus = $order->status->value ?? $order->status;
-        $order->update($updateData);
-
-        // Save history
-        OrderStatusHistory::create([
-            'order_id' => $order->id,
-            'status' => $newStatus->value,
-            'note' => "Status updated via Telegram Webhook by: {$actorName}",
-        ]);
-
-        if ($oldStatus !== \App\Enums\OrderStatus::DELIVERED->value && $newStatus->value === \App\Enums\OrderStatus::DELIVERED->value) {
-            try {
-                $performedBy = null;
-                $performerUser = \App\Models\User::where('telegram_id', $chatId)->first();
-                if ($performerUser) {
-                    $performedBy = $performerUser->id;
-                }
-                app(\App\Services\Finance\LedgerService::class)->processOrderDelivered($order, $performedBy);
-            } catch (\Exception $e) {
-                \Illuminate\Support\Facades\Log::error("Failed to process financials via Telegram for order {$order->uuid}: " . $e->getMessage());
-            }
-        }
-
         // Update the Telegram message visually
-        $this->telegramService->updateOrderTelegramMessage($order, $actorName, $messageId, $chatId);
-
-        // Dispatch Event for further queued actions (e.g., notify customer)
-        event(new \App\Events\OrderStatusUpdated($order));
+        $this->telegramService->updateOrderTelegramMessage($result->order, $actorName, $messageId, $chatId);
 
         // Answer callback query with success banner
         $statusLabel = $newStatus->label();
         $this->answerCallbackQuery($callbackQuery['id'], "Buyurtma holati: {$statusLabel}!");
 
         return response()->json(['status' => 'success']);
+    }
+
+    /**
+     * The staff account behind a Telegram user for this order: their account in the order's store, else a super admin.
+     * Whether it may make the change is decided by OrderPolicy inside OrderStatusService.
+     */
+    protected function staffActor(mixed $telegramUserId, Order $order): ?User
+    {
+        if (!is_scalar($telegramUserId) || (string) $telegramUserId === '') {
+            return null;
+        }
+
+        return User::where('telegram_id', (string) $telegramUserId)
+            ->whereIn('role', [UserRole::OWNER->value, UserRole::MANAGER->value, UserRole::COURIER->value, UserRole::SUPER_ADMIN->value])
+            ->where(function ($query) use ($order) {
+                $query->where('store_id', $order->store_id)
+                    ->orWhere('role', UserRole::SUPER_ADMIN->value);
+            })
+            ->orderByRaw('CASE WHEN store_id = ? THEN 0 ELSE 1 END', [$order->store_id])
+            ->first();
     }
 
     protected function answerCallbackQuery(string $callbackQueryId, string $text, bool $showAlert = false): void

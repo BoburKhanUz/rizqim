@@ -48,7 +48,18 @@ class GlobalUserResource extends Resource
                 Select::make('role')
                     ->options(UserRole::class)
                     ->default(UserRole::CUSTOMER->value)
-                    ->required(),
+                    ->required()
+                    ->live(),
+                // Staff without a store would turn store-scoped queries into "store_id IS NULL"
+                Select::make('store_id')
+                    ->label("Do'kon")
+                    ->relationship('store', 'name')
+                    ->searchable()
+                    ->preload()
+                    ->visible(fn ($get) => self::isStoreRole($get('role')))
+                    ->required(fn ($get) => self::isStoreRole($get('role')))
+                    ->dehydratedWhenHidden()
+                    ->dehydrateStateUsing(fn ($state, $get) => self::isStoreRole($get('role')) ? $state : null),
                 TextInput::make('password')
                     ->password()
                     ->dehydrated(fn ($state) => filled($state))
@@ -240,5 +251,12 @@ class GlobalUserResource extends Resource
         return [
             'index' => ManageGlobalUsers::route('/'),
         ];
+    }
+
+    public static function isStoreRole(mixed $role): bool
+    {
+        $value = $role instanceof UserRole ? $role->value : $role;
+
+        return in_array($value, [UserRole::OWNER->value, UserRole::MANAGER->value, UserRole::COURIER->value], true);
     }
 }

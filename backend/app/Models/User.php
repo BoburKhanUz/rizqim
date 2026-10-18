@@ -93,6 +93,11 @@ class User extends Authenticatable implements FilamentUser, HasTenants
             return $this->role === \App\Enums\UserRole::SUPER_ADMIN;
         }
 
+        // Store staff must belong to a store (tenant); storeless staff accounts are invalid
+        if ($this->role !== \App\Enums\UserRole::SUPER_ADMIN && $this->store_id === null) {
+            return false;
+        }
+
         return in_array($this->role, [
             \App\Enums\UserRole::SUPER_ADMIN, 
             \App\Enums\UserRole::OWNER, 
