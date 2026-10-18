@@ -220,6 +220,22 @@ class OrderResource extends Resource
                     ->requiresConfirmation()
                     ->visible(fn (Order $record) => static::canMoveTo($record, OrderStatus::CANCELED))
                     ->action(fn (Order $record) => static::updateStatus($record, OrderStatus::CANCELED)),
+
+                // Delivered -> refunded: super_admin only (OrderPolicy)
+                Action::make('refund')
+                    ->label('Qaytarish')
+                    ->color('danger')
+                    ->icon('heroicon-m-arrow-uturn-left')
+                    ->visible(fn (Order $record) => static::canMoveTo($record, OrderStatus::REFUNDED))
+                    ->modalHeading('Buyurtmani qaytarish')
+                    ->modalDescription("Komissiya do'konga qaytariladi, platforma yig'ib do'konga o'tkazgan pul qaytarib olinadi, keshbek mijozga qaytadi. Click/Payme to'lovini mijozga qo'lda qaytarish kerak bo'ladi.")
+                    ->form([
+                        Forms\Components\Textarea::make('reason')
+                            ->label('Sabab')
+                            ->required()
+                            ->maxLength(500),
+                    ])
+                    ->action(fn (Order $record, array $data) => static::refund($record, $data['reason'])),
             ]);
     }
 
@@ -260,6 +276,26 @@ class OrderResource extends Resource
             ->send();
     }
 
+    protected static function refund(Order $order, string $reason): void
+    {
+        try {
+            $result = app(OrderStatusService::class)->refund($order, auth()->user(), $reason);
+        } catch (OrderTransitionException $e) {
+            \Filament\Notifications\Notification::make()
+                ->title($e->getMessage())
+                ->danger()
+                ->send();
+
+            return;
+        }
+
+        \Filament\Notifications\Notification::make()
+            ->title($result->changed ? 'Buyurtma qaytarildi' : 'Buyurtma allaqachon qaytarilgan')
+            ->body($result->manualRefundRequired ? "To'lov mijozga qo'lda qaytarilishi kerak." : null)
+            ->success()
+            ->send();
+    }
+
     public static function infolist(Schema $schema): Schema
     {
         return $schema
@@ -277,14 +313,14 @@ class OrderResource extends Resource
                                     ->label('Courier')
                                     ->icon('heroicon-m-truck')
                                     ->placeholder('No courier assigned yet 🛵'),
-                                // Cancelled after Click/Payme (or cash) took the money: the payment stays "paid" until refunded by hand
+                                // Cancelled or refunded after Click/Payme (or cash) took the money: the payment stays "paid" until refunded by hand
                                 \Filament\Infolists\Components\TextEntry::make('manual_refund')
                                     ->hiddenLabel()
                                     ->icon('heroicon-m-exclamation-triangle')
                                     ->color('danger')
                                     ->state(fn (Order $record) => "To'lov qaytarilmagan: " . number_format((float) $record->total_price, 0, '.', ' ') . " UZS ({$record->payment_method}) mijozga qo'lda qaytarilishi kerak.")
                                     ->visible(fn (Order $record) => $record->status instanceof OrderStatus
-                                        && $record->status->isCancellation()
+                                        && ($record->status->isCancellation() || $record->status === OrderStatus::REFUNDED)
                                         && $record->payment_status === PaymentStatus::PAID),
                             ])->columnSpan(1),
                             

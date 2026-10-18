@@ -17,7 +17,7 @@ class PaymentStorePublicDataTest extends TestCase
     use RefreshDatabase;
 
     private const INTERNAL = [
-        'balance', 'wallet_balance', 'credit_limit', 'low_balance_threshold', 'min_payout_reserve', 'commission_rate',
+        'debt_balance', 'wallet_balance', 'credit_limit', 'low_balance_threshold', 'min_payout_reserve', 'commission_rate',
         'payment_account_type', 'settlement_type', 'legal_name', 'tax_number', 'bank_account', 'moderation_note',
         'telegram_admin_chat_id', 'telegram_bot_token',
     ];
@@ -47,8 +47,8 @@ class PaymentStorePublicDataTest extends TestCase
             'telegram_admin_chat_id' => '-100777',
         ];
 
-        $this->open = Store::forceCreate(['name' => 'Open Cafe', 'balance' => 0] + $internal);
-        $this->overLimit = Store::forceCreate(['name' => 'Indebted Cafe', 'balance' => 150000] + $internal);
+        $this->open = Store::forceCreate(['name' => 'Open Cafe', 'debt_balance' => 0] + $internal);
+        $this->overLimit = Store::forceCreate(['name' => 'Indebted Cafe', 'debt_balance' => 150000] + $internal);
     }
 
     private function member(UserRole $role, Store $store, string $phone): User
@@ -106,7 +106,7 @@ class PaymentStorePublicDataTest extends TestCase
         $owner = $this->member(UserRole::OWNER, $this->overLimit, '+998902020003');
 
         $this->actingAs($owner)->getJson('/api/v1/owner/finance')->assertOk()
-            ->assertJsonPath('data.balance', 150000)
+            ->assertJsonPath('data.debt_balance', 150000)
             ->assertJsonPath('data.credit_limit', -100000)
             ->assertJsonPath('data.commission_rate', 12.5)
             ->assertJsonPath('data.payment_account_type', 'platform_account')

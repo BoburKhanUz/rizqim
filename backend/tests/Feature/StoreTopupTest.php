@@ -23,7 +23,7 @@ class StoreTopupTest extends TestCase
         $this->store = Store::forceCreate([
             'name' => 'Test Restaurant',
             'slug' => 'test-restaurant',
-            'balance' => 150000.00, // owes 150,000 UZS
+            'debt_balance' => 150000.00, // owes 150,000 UZS
             'credit_limit' => -100000.00, // limit is 100,000 UZS debt
             'commission_rate' => 10,
             'status' => 'payment_required', // blocked due to debt limit exceeded
@@ -141,9 +141,9 @@ class StoreTopupTest extends TestCase
             'status' => 'paid',
         ]);
 
-        // Assert balance is updated (150,000 - 250,000 = -100,000 UZS debt/surplus)
+        // Assert debt_balance is updated (150,000 - 250,000 = -100,000 UZS debt/surplus)
         $this->store->refresh();
-        $this->assertEquals(-100000.00, $this->store->balance);
+        $this->assertEquals(-100000.00, $this->store->debt_balance);
 
         // Assert store is reactivated (debt is now <= -100,000 UZS)
         $this->assertEquals('active', $this->store->status->value);

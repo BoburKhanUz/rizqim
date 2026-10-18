@@ -14,6 +14,7 @@ use App\Models\OrderStatusLog;
 use App\Models\ProductVariant;
 use App\Models\User;
 use App\Services\Finance\LedgerService;
+use App\Support\Money;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -29,7 +30,8 @@ class OrderStatusService
      * The single place an order's status changes, under a row lock on the order. Options:
      *  - courier_id: courier to (re)assign when the order goes to a courier (validated like assign-courier);
      *  - from: statuses the caller's action was offered in (e.g. a Telegram button); the order must still be in one;
-     *  - notes: status history note.
+     *  - notes: status history note;
+     *  - refunded_by_provider: a refund the payment provider already made (nothing is flagged for a manual refund).
      * Requesting the current status is a no-op (changed = false), so retries never repeat side effects.
      * A null actor is the system and skips the permission checks.
      *
@@ -88,6 +90,19 @@ class OrderStatusService
                 }
             }
 
+            if ($to === OrderStatus::REFUNDED) {
+                // The food was delivered, so no stock comes back; the store's ledger first, then the customer's keshbek
+                if ($ledgerNote = $this->reverseDelivery($order, $actor)) {
+                    $notes[] = $ledgerNote;
+                }
+                $this->refundKeshbek($order);
+
+                if (empty($options['refunded_by_provider']) && ($refundNote = $this->flagManualRefund($order, $to))) {
+                    $notes[] = $refundNote;
+                    $manualRefund = true;
+                }
+            }
+
             OrderStatusHistory::create([
                 'order_id' => $order->id,
                 'user_id' => $actor?->id,
@@ -111,6 +126,24 @@ class OrderStatusService
 
             return new OrderTransitionResult($order, $from, true, $courier, $manualRefund);
         });
+    }
+
+    /**
+     * The one way to refund a delivered order (super_admin; a null actor is the system, e.g. a refund Payme made).
+     * Calling it again is a no-op.
+     *
+     * @throws OrderTransitionException
+     */
+    public function refund(Order $order, ?User $actor, string $reason, bool $refundedByProvider = false): OrderTransitionResult
+    {
+        if (trim($reason) === '') {
+            throw new OrderTransitionException("Qaytarish sababini kiriting.", 422, 'reason');
+        }
+
+        return $this->transition($order, OrderStatus::REFUNDED, $actor, [
+            'notes' => trim($reason),
+            'refunded_by_provider' => $refundedByProvider,
+        ]);
     }
 
     /**
@@ -244,17 +277,17 @@ class OrderStatusService
             ->where('status', PaymentStatus::PAID->value)
             ->lockForUpdate()
             ->first();
-        $amount = round((float) ($payment?->amount ?? $order->total_price), 2);
+        $amount = Money::of($payment?->amount ?? $order->total_price);
 
-        if ($amount > 0) {
-            User::whereKey($order->user_id)->increment('balance', $amount);
+        if ($amount->isPositive()) {
+            User::whereKey($order->user_id)->increment('balance', $amount->toString());
         }
 
         $payment?->update([
             'status' => PaymentStatus::REFUNDED,
             'cancelled_at' => now(),
             'payload' => array_merge($payment->payload ?? [], [
-                'refunded_to_balance' => $amount,
+                'refunded_to_balance' => $amount->toFloat(),
                 'refunded_at' => now()->toIso8601String(),
             ]),
         ]);
@@ -281,16 +314,34 @@ class OrderStatusService
             ])]);
         }
 
-        $amount = (float) ($payments->sum('amount') ?: $order->total_price);
+        $paid = Money::sum(...$payments->pluck('amount')->all());
+        $amount = $paid->isZero() ? Money::of($order->total_price) : $paid;
 
         Log::warning("Manual refund required for {$to->value} order {$order->uuid}", [
             'order_id' => $order->id,
             'payment_method' => $order->payment_method,
-            'amount' => $amount,
+            'amount' => $amount->toString(),
         ]);
 
-        return "To'lov avtomatik qaytarilmadi: " . number_format($amount, 0, '.', ' ')
+        return "To'lov avtomatik qaytarilmadi: " . number_format($amount->toFloat(), 0, '.', ' ')
             . " UZS ({$order->payment_method}) mijozga qo'lda qaytarilishi kerak.";
+    }
+
+    /**
+     * Undoes what delivery booked to the store (LedgerService::reverseDeliveredOrder); returns the history note.
+     */
+    protected function reverseDelivery(Order $order, ?User $actor): ?string
+    {
+        $reversed = $this->ledger->reverseDeliveredOrder($order, $actor?->id);
+        $uzs = fn (Money $amount) => number_format($amount->toFloat(), 0, '.', ' ') . ' UZS';
+
+        $parts = array_filter([
+            $reversed['commission']->isPositive() ? "komissiya {$uzs($reversed['commission'])} qaytarildi" : null,
+            $reversed['settlement']->isPositive() ? "do'konga o'tkazilgan {$uzs($reversed['settlement'])} qaytarib olindi" : null,
+            $reversed['added_to_debt']->isPositive() ? "shundan {$uzs($reversed['added_to_debt'])} hamyonda yo'qligi uchun qarzga yozildi" : null,
+        ]);
+
+        return $parts ? 'Moliya: ' . implode(', ', $parts) . '.' : null;
     }
 
     protected function settle(Order $order, ?User $actor): void

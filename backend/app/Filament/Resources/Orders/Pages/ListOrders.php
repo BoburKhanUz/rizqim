@@ -11,6 +11,9 @@ class ListOrders extends ListRecords
 {
     protected static string $resource = OrderResource::class;
 
+    // Orders nobody acts on any more: the archive, never the active queue
+    private const FINISHED = ['delivered', 'canceled', 'rejected', 'refunded'];
+
     protected function getHeaderActions(): array
     {
         return [];
@@ -22,8 +25,8 @@ class ListOrders extends ListRecords
 
         return [
             'active' => Tab::make('Active Queue')
-                ->modifyQueryUsing(fn ($query) => $query->where('store_id', $storeId)->whereNotIn('status', ['delivered', 'canceled']))
-                ->badge(Order::query()->where('store_id', $storeId)->whereNotIn('status', ['delivered', 'canceled'])->count())
+                ->modifyQueryUsing(fn ($query) => $query->where('store_id', $storeId)->whereNotIn('status', self::FINISHED))
+                ->badge(Order::query()->where('store_id', $storeId)->whereNotIn('status', self::FINISHED)->count())
                 ->badgeColor('primary'),
                 
             'new' => Tab::make('1. Awaiting Accept')
@@ -42,8 +45,8 @@ class ListOrders extends ListRecords
                 ->badgeColor('info'),
                 
             'completed' => Tab::make('4. Archive')
-                ->modifyQueryUsing(fn ($query) => $query->where('store_id', $storeId)->whereIn('status', ['delivered', 'canceled']))
-                ->badge(Order::query()->where('store_id', $storeId)->whereIn('status', ['delivered', 'canceled'])->count())
+                ->modifyQueryUsing(fn ($query) => $query->where('store_id', $storeId)->whereIn('status', self::FINISHED))
+                ->badge(Order::query()->where('store_id', $storeId)->whereIn('status', self::FINISHED)->count())
                 ->badgeColor('success'),
         ];
     }

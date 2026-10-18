@@ -13,6 +13,9 @@ RUN composer dump-autoload --optimize --no-dev
 
 FROM php:8.3-fpm-alpine
 
+# Cache, queue, sessions and rate limiting run on Redis (REDIS_CLIENT=phpredis), so the redis extension must be
+# built for THIS image's PHP: Alpine's php83-pecl-redis package targets Alpine's own PHP and is never loaded here.
+# The last command fails the build if the extension did not load.
 RUN apk add --no-cache \
     nginx \
     supervisor \
@@ -24,7 +27,6 @@ RUN apk add --no-cache \
     freetype-dev \
     icu-dev \
     oniguruma-dev \
-    php83-pecl-redis \
     $PHPIZE_DEPS \
     && docker-php-ext-configure gd --with-jpeg --with-freetype \
     && docker-php-ext-install -j$(nproc) \
@@ -36,7 +38,11 @@ RUN apk add --no-cache \
         zip \
         pcntl \
         opcache \
-    && apk del $PHPIZE_DEPS
+    && pecl install redis-6.3.0 \
+    && docker-php-ext-enable redis \
+    && apk del $PHPIZE_DEPS \
+    && rm -rf /tmp/pear \
+    && php -r 'exit(extension_loaded("redis") ? 0 : 1);'
 
 WORKDIR /var/www/html
 

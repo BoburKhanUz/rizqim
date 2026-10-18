@@ -1,36 +1,23 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { isAxiosError } from 'axios';
 import { logApiError } from '../lib/apiError';
 import { useCartStore } from '../store/cartStore';
 import { useAddressStore } from '../store/useAddressStore';
+import type { Address } from '../store/useAddressStore';
 import { hapticFeedback, tg } from '../lib/telegram';
 import api from '../services/api';
-import { Trash2, Minus, Plus, ShoppingBag, CheckCircle2, PlusCircle, ArrowLeft } from 'lucide-react';
+import { Trash2, Minus, Plus, ShoppingBag, CheckCircle2, PlusCircle, ArrowLeft, Pencil } from 'lucide-react';
 import VariantSelectorModal from '../components/VariantSelectorModal';
 import { useAuthStore } from '../store/authStore';
 import { getAddBlockedMessage, getVariantStock, isProductSoldOut } from '../lib/stock';
-
-
-function formatUzbekSum(value: number | string | undefined) {
-  if (value === undefined || value === null) return "0 so'm";
-  const numValue = Math.round(Number(value));
-  return numValue.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ") + " so'm";
-}
-
-function getProductBasePrice(product: any): number {
-  if (!product) return 0;
-  if (product.price && parseFloat(product.price) > 0) {
-    return parseFloat(product.price);
-  }
-  if (product.variants && product.variants.length > 0) {
-    const prices = product.variants.map((v: any) => parseFloat(v.price)).filter((p: number) => !isNaN(p) && p > 0);
-    if (prices.length > 0) {
-      return Math.min(...prices);
-    }
-  }
-  return 0;
-}
+import type { StockVariant } from '../lib/stock';
+import { formatUzbekSum } from '../lib/format';
+import { buildCartItem, getProductBasePrice, getStoreInfo, parsePrice } from '../lib/catalog';
+import AddressLocationField from '../features/address/AddressLocationField';
+import { isOnAnyBranch, toLatLng } from '../features/address/coordinates';
+import type { AddressLocationValue, LatLng } from '../features/address/types';
+import type { ApiErrorBody, ApiResponse, BranchSummary, PaymentProviderSettings, PaymentSettings, Product, StoreCatalog, StoreListItem } from '../types';
 
 interface AppliedPromo {
   // The code string is what we send as `promo_code` when placing the order
@@ -50,10 +37,25 @@ interface OrderResponseData {
   payment_url?: string | null;
 }
 
-interface ApiErrorBody {
-  message?: string;
-  errors?: Record<string, string[] | string | undefined>;
+// The payment methods the cart offers. Uzum and Paynet are not integrated yet, so they are never offered here,
+// whatever a store's payment settings say.
+type CartPaymentMethod = 'naqd' | 'click' | 'payme' | 'keshbek';
+
+// The address form of the cart: the location (text + pin) plus the few extra fields it asks for
+interface AddressDraft extends AddressLocationValue {
+  title: string;
+  apartment: string;
+  floor: string;
 }
+
+const EMPTY_ADDRESS_DRAFT: AddressDraft = {
+  title: 'Yangi manzil',
+  address: '',
+  lat: null,
+  lng: null,
+  apartment: '',
+  floor: '',
+};
 
 // Decimals can arrive as strings (e.g. "10.00") from the API; anything non-numeric becomes null.
 function toFiniteNumber(value: unknown): number | null {
@@ -74,41 +76,63 @@ function getOrderDisplayNumber(order: OrderResponseData): string {
   return uuid ? uuid.substring(0, 8) : '';
 }
 
+// A provider of a store's payment_settings is a settings object, or (legacy data) a bare boolean.
+// Cash is on unless the store switched it off; an online provider has to be switched on explicitly once it is configured.
+function isCashEnabled(setting: boolean | PaymentProviderSettings | null | undefined): boolean {
+  if (setting === undefined || setting === null) return true;
+  return typeof setting === 'boolean' ? setting : setting.enabled !== false;
+}
+
+function isOnlineProviderEnabled(setting: boolean | PaymentProviderSettings | null | undefined): boolean {
+  if (setting === undefined || setting === null) return true;
+  return typeof setting === 'boolean' ? setting : setting.enabled === true;
+}
+
+function getAllowedPaymentMethods(settings: PaymentSettings | null | undefined, balance: number | undefined): CartPaymentMethod[] {
+  const allowed = settings?.allowed_methods || ['cash', 'click', 'payme'];
+  const methods: CartPaymentMethod[] = [];
+
+  if ((allowed.includes('cash') || allowed.includes('naqd')) && isCashEnabled(settings?.cash)) methods.push('naqd');
+  if (allowed.includes('click') && isOnlineProviderEnabled(settings?.click)) methods.push('click');
+  if (allowed.includes('payme') && isOnlineProviderEnabled(settings?.payme)) methods.push('payme');
+  if (balance !== undefined && balance > 0) methods.push('keshbek');
+
+  return methods.length > 0 ? methods : ['naqd'];
+}
+
 export default function Cart() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const { items, storeName, storeAddress, updateQuantity, removeItem, clearCart, getSubtotal, addItem } = useCartStore();
-  const { addresses, selectedAddressId, setSelectedAddressId, addAddress } = useAddressStore();
+  const { addresses, selectedAddressId, setSelectedAddressId, addAddress, updateAddress } = useAddressStore();
+  const balance = user?.balance;
 
   const [deliveryNote, setDeliveryNote] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('click');
+  const [paymentMethod, setPaymentMethod] = useState<CartPaymentMethod>('click');
   const [promoCodeInput, setPromoCodeInput] = useState('');
   const [activePromo, setActivePromo] = useState<AppliedPromo | null>(null);
   const [promoError, setPromoError] = useState('');
 
-  const [storeProducts, setStoreProducts] = useState<any[]>([]);
-  const [selectedProductForVariant, setSelectedProductForVariant] = useState<any>(null);
+  // The upsell catalog of the store it was fetched for, so a different store's products are never shown
+  const [catalog, setCatalog] = useState<{ storeId: string; products: Product[] } | null>(null);
+  const [selectedProductForVariant, setSelectedProductForVariant] = useState<Product | null>(null);
 
   const [deliveryMethod, setDeliveryMethod] = useState<'delivery' | 'pickup'>('delivery');
-  const [storeBranches, setStoreBranches] = useState<any[]>([]);
+  const [storeBranches, setStoreBranches] = useState<BranchSummary[]>([]);
+  // Every branch of every store: a saved address sitting exactly on one of them is a leftover of the old cart
+  // copying the restaurant's coordinates into hand-typed addresses (see isOnAnyBranch)
+  const [branchPoints, setBranchPoints] = useState<LatLng[]>([]);
   const [selectedBranchId, setSelectedBranchId] = useState<number | null>(null);
   const [storeDeliveryFee, setStoreDeliveryFee] = useState(15000);
-  const [isLocating, setIsLocating] = useState(false);
 
-  const [storeDetail, setStoreDetail] = useState<any>(null);
+  const [storeDetail, setStoreDetail] = useState<StoreListItem | null>(null);
 
   const [showAddressForm, setShowAddressForm] = useState(false);
-  const [newAddress, setNewAddress] = useState({
-    title: 'Yangi manzil',
-    address: '',
-    lat: 40.7821,
-    lng: 72.3442,
-    apartment: '',
-    entrance: '',
-    floor: '',
-    intercom: '',
-    comment: ''
-  });
+  const [editingAddressId, setEditingAddressId] = useState<number | null>(null);
+  const [addressDraft, setAddressDraft] = useState<AddressDraft>(EMPTY_ADDRESS_DRAFT);
+  const patchAddressDraft = useCallback((patch: Partial<AddressDraft>) => {
+    setAddressDraft((prev) => ({ ...prev, ...patch }));
+  }, []);
 
   const [isOrdering, setIsOrdering] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState(false);
@@ -123,26 +147,24 @@ export default function Cart() {
   useEffect(() => {
     if (items.length > 0) {
       const storeId = items[0].storeId;
-      api.get('/stores').then(res => {
+      api.get<ApiResponse<StoreListItem[]>>('/stores').then(res => {
         if (res.data?.success) {
-          const matchedStore = res.data.data.find((s: any) => s.id.toString() === storeId);
+          const stores = res.data.data;
+          setBranchPoints(stores.flatMap(s => (s.branches ?? []).flatMap(b => toLatLng(b.latitude, b.longitude) ?? [])));
+
+          const matchedStore = stores.find(s => s.id.toString() === storeId);
           if (matchedStore) {
             setStoreDetail(matchedStore);
             if (matchedStore.branches) {
               setStoreBranches(matchedStore.branches);
-              if (matchedStore.branches.length > 0) {
-                const mainBranch = matchedStore.branches[0];
-                setSelectedBranchId(mainBranch.id);
-                setNewAddress(prev => ({
-                  ...prev,
-                  lat: parseFloat(mainBranch.latitude) || 41.316755,
-                  lng: parseFloat(mainBranch.longitude) || 69.123402
-                }));
-              }
+              // Keep the branch the customer picked for pickup; only fall back to the first one
+              setSelectedBranchId(current =>
+                matchedStore.branches.some(b => b.id === current) ? current : (matchedStore.branches[0]?.id ?? null)
+              );
             }
             const rawFee = matchedStore.delivery_fee !== undefined && matchedStore.delivery_fee !== null
               ? matchedStore.delivery_fee
-              : (matchedStore.payment_settings ? parseFloat(matchedStore.payment_settings.delivery_fee) : NaN);
+              : (matchedStore.payment_settings?.delivery_fee !== undefined ? parsePrice(matchedStore.payment_settings.delivery_fee) : NaN);
             setStoreDeliveryFee(isNaN(rawFee) ? 15000 : rawFee);
           }
         }
@@ -153,83 +175,30 @@ export default function Cart() {
   }, [items]);
 
   // Calculate dynamic allowed payment methods based on store's admin settings
-  const availablePaymentMethods = useMemo(() => {
+  const availablePaymentMethods = useMemo<CartPaymentMethod[]>(() => {
     if (!storeDetail) return ['click', 'payme', 'naqd'];
-    
-    const settings = storeDetail.payment_settings || {};
-    const allowed = settings.allowed_methods || ['cash', 'click', 'payme'];
-    
-    const methods: string[] = [];
-    
-    // Check cash
-    if (allowed.includes('cash') || allowed.includes('naqd')) {
-      const isEnabled = settings.cash ? settings.cash.enabled !== false : true;
-      if (isEnabled) {
-        methods.push('naqd');
-      }
-    }
-    
-    // Check click
-    if (allowed.includes('click')) {
-      const isEnabled = settings.click ? settings.click.enabled === true : true;
-      if (isEnabled) {
-        methods.push('click');
-      }
-    }
-    
-    // Check payme
-    if (allowed.includes('payme')) {
-      const isEnabled = settings.payme ? settings.payme.enabled === true : true;
-      if (isEnabled) {
-        methods.push('payme');
-      }
-    }
-    
-    // Check uzum
-    if (allowed.includes('uzum')) {
-      const isEnabled = settings.uzum ? settings.uzum.enabled === true : true;
-      if (isEnabled) {
-        methods.push('uzum');
-      }
-    }
-
-    // Check paynet
-    if (allowed.includes('paynet')) {
-      const isEnabled = settings.paynet ? settings.paynet.enabled === true : true;
-      if (isEnabled) {
-        methods.push('paynet');
-      }
-    }
-
-    // Check keshbek
-    if (user?.balance && user.balance > 0) {
-      methods.push('keshbek');
-    }
-    
-    return methods.length > 0 ? methods : ['naqd'];
-  }, [storeDetail, user?.balance]);
-
-  useEffect(() => {
-    if (availablePaymentMethods.length > 0 && !availablePaymentMethods.includes(paymentMethod)) {
-      setPaymentMethod(availablePaymentMethods[0]);
-    }
-  }, [availablePaymentMethods, paymentMethod]);
+    return getAllowedPaymentMethods(storeDetail.payment_settings, balance);
+  }, [storeDetail, balance]);
 
   // Fetch store catalog for upsell recommendations
   useEffect(() => {
     if (items.length > 0) {
       const storeId = items[0].storeId;
-      api.get(`/catalog?store_id=${storeId}`).then(res => {
+      api.get<ApiResponse<StoreCatalog>>(`/catalog?store_id=${storeId}`).then(res => {
         if (res.data?.success) {
-          setStoreProducts(res.data.data.products || []);
+          setCatalog({ storeId, products: res.data.data.products || [] });
         }
       }).catch(err => {
         logApiError('Failed to fetch store products for upsell', err);
       });
-    } else {
-      setStoreProducts([]);
     }
   }, [items]);
+
+  const cartStoreId = items[0]?.storeId;
+  const storeProducts = useMemo<Product[]>(
+    () => (catalog && catalog.storeId === cartStoreId ? catalog.products : []),
+    [catalog, cartStoreId]
+  );
 
   const upsellRecommendations = useMemo(() => {
     if (items.length === 0) return [];
@@ -241,10 +210,10 @@ export default function Cart() {
 
   // Cart items carry no stock info: look the variant up in the store catalog fetched above.
   const findCatalogVariant = (productId: number, variantId?: string) =>
-    storeProducts.find(p => p.id === productId)?.variants?.find((v: { uuid?: string }) => v.uuid === variantId);
+    storeProducts.find(p => p.id === productId)?.variants?.find(v => v.uuid === variantId);
 
   // Same stock rule as the store page: never add a sold-out variant or more than what is in stock.
-  const canAddMore = (variant: { stock?: unknown } | undefined, cartItemId: string): boolean => {
+  const canAddMore = (variant: StockVariant | undefined, cartItemId: string): boolean => {
     const inCart = items.find(item => item.id === cartItemId)?.quantity ?? 0;
     const blocked = getAddBlockedMessage(variant, inCart);
     if (blocked) {
@@ -255,7 +224,7 @@ export default function Cart() {
     return true;
   };
 
-  const handleAddUpsellItem = (product: any) => {
+  const handleAddUpsellItem = (product: Product) => {
     hapticFeedback('medium');
     if (product.variants && product.variants.length > 1) {
       setSelectedProductForVariant(product);
@@ -263,131 +232,79 @@ export default function Cart() {
     }
 
     const variant = product.variants?.[0];
-    const itemPrice = variant ? parseFloat(variant.price) : 0;
-    const cartItemId = variant ? `${product.id}-${variant.uuid}` : `${product.id}`;
+    const cartItem = buildCartItem(product, variant);
 
-    if (!canAddMore(variant, cartItemId)) return;
+    if (!canAddMore(variant, cartItem.id)) return;
 
-    const cartItem = {
-      id: cartItemId,
-      productId: product.id,
-      variantId: variant?.uuid,
-      storeId: product.store_id.toString(),
-      name: variant && product.variants && product.variants.length > 0 ? `${product.name} (${variant.name})` : product.name,
-      price: itemPrice,
-      quantity: 1,
-      image: product.image_url
-    };
-
-    const storeInfo = {
-      name: storeName,
-      address: storeAddress || 'Asosiy filial'
-    };
-
-    addItem(cartItem, storeInfo);
+    addItem(cartItem, getStoreInfo({ name: storeName, address: storeAddress }));
   };
 
-  const handleGetLocation = () => {
-    if (!navigator.geolocation) {
-      alert("Geolokatsiya brauzeringiz tomonidan qo'llab-quvvatlanmaydi.");
-      return;
-    }
+  // The map point of a saved address, or null when it has none that can be trusted
+  const getAddressPoint = (address: Address): LatLng | null => {
+    const point = toLatLng(address.lat, address.lng);
+    return point && !isOnAnyBranch(point, branchPoints) ? point : null;
+  };
+
+  const closeAddressForm = () => {
+    setShowAddressForm(false);
+    setEditingAddressId(null);
+    setAddressDraft(EMPTY_ADDRESS_DRAFT);
+  };
+
+  const openNewAddressForm = () => {
+    hapticFeedback('medium');
+    setEditingAddressId(null);
+    setAddressDraft(EMPTY_ADDRESS_DRAFT);
+    setShowAddressForm(true);
+  };
+
+  // Editing is also how an address without a (trustworthy) map point gets one: the pin starts empty for it
+  const openEditAddressForm = (address: Address) => {
     hapticFeedback('light');
-    setIsLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const { latitude, longitude } = position.coords;
-        // Nominatim can hang: give up after 8s and fall back to the plain coordinates
-        const controller = new AbortController();
-        const timeoutId = window.setTimeout(() => controller.abort(), 8000);
-        try {
-          // OpenStreetMap Nominatim reverse geocoding API
-          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}`, {
-            signal: controller.signal
-          });
-          const data = await res.json();
-          const addressText = data.display_name || `📍 Lokatsiya (${latitude.toFixed(5)}, ${longitude.toFixed(5)})`;
-          
-          const newId = Date.now();
-          addAddress({
-            id: newId,
-            title: "Mening joylashuvim",
-            address: addressText,
-            lat: latitude,
-            lng: longitude,
-            apartment: "",
-            comment: "Avtomatik aniqlangan",
-            is_default: true
-          });
-          setSelectedAddressId(newId);
-          setShowAddressForm(false);
-          hapticFeedback('success');
-        } catch {
-          const addressText = `📍 Lokatsiya (${latitude.toFixed(5)}, ${longitude.toFixed(5)})`;
-          const newId = Date.now();
-          addAddress({
-            id: newId,
-            title: "Mening joylashuvim",
-            address: addressText,
-            lat: latitude,
-            lng: longitude,
-            apartment: "",
-            comment: "Avtomatik aniqlangan",
-            is_default: true
-          });
-          setSelectedAddressId(newId);
-          setShowAddressForm(false);
-          hapticFeedback('warning');
-        } finally {
-          window.clearTimeout(timeoutId);
-          setIsLocating(false);
-        }
-      },
-      () => {
-        setIsLocating(false);
-        alert("Lokatsiyani aniqlab bo'lmadi. Ruxsat berilganini tekshiring.");
-        hapticFeedback('error');
-      },
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
+    const point = getAddressPoint(address);
+    setEditingAddressId(address.id);
+    setAddressDraft({
+      title: address.title,
+      address: address.address,
+      lat: point?.lat ?? null,
+      lng: point?.lng ?? null,
+      apartment: address.apartment ?? '',
+      floor: address.floor ?? '',
+    });
+    setShowAddressForm(true);
   };
+
+  const draftPoint = toLatLng(addressDraft.lat, addressDraft.lng);
+  const canSaveAddress = addressDraft.address.trim() !== '' && draftPoint !== null;
 
   const handleSaveAddress = () => {
-    if (!newAddress.address.trim()) return;
+    if (!canSaveAddress || draftPoint === null) return;
     hapticFeedback('medium');
-    const newId = Date.now();
-    addAddress({
-      id: newId,
-      title: newAddress.title,
-      address: newAddress.address,
-      lat: newAddress.lat,
-      lng: newAddress.lng,
-      apartment: newAddress.apartment,
-      entrance: newAddress.entrance,
-      floor: newAddress.floor,
-      intercom: newAddress.intercom,
-      comment: newAddress.comment,
-      is_default: false
-    });
-    setSelectedAddressId(newId);
-    setShowAddressForm(false);
-    setNewAddress({
-      title: 'Yangi manzil',
-      address: '',
-      lat: 40.7821,
-      lng: 72.3442,
-      apartment: '',
-      entrance: '',
-      floor: '',
-      intercom: '',
-      comment: ''
-    });
+
+    const fields = {
+      title: addressDraft.title,
+      address: addressDraft.address.trim(),
+      lat: draftPoint.lat,
+      lng: draftPoint.lng,
+      apartment: addressDraft.apartment,
+      floor: addressDraft.floor,
+    };
+
+    if (editingAddressId !== null) {
+      updateAddress(editingAddressId, fields);
+      setSelectedAddressId(editingAddressId);
+    } else {
+      const newId = Date.now();
+      addAddress({ id: newId, ...fields, is_default: false });
+      setSelectedAddressId(newId);
+    }
+    closeAddressForm();
   };
 
   const applyPromoCode = async (code: string) => {
     hapticFeedback('medium');
     if (!code.trim() || items.length === 0) return;
-    
+
     try {
       const storeId = parseInt(items[0].storeId);
       const validatedSubtotal = getSubtotal();
@@ -450,20 +367,22 @@ export default function Cart() {
   // public store. A missing field (older backend) means not locked.
   const isStoreLocked = storeDetail?.is_order_locked === true;
   const selectedBranch = storeBranches.find(b => b.id === selectedBranchId) || storeBranches[0];
+  // The map opens at the restaurant until the customer has dropped a pin (a view only, never saved as an address)
+  const mapFallbackCenter = toLatLng(selectedBranch?.latitude, selectedBranch?.longitude);
+
+  // Cashback pays for the whole order or not at all; a choice that is no longer possible (store settings changed,
+  // cart grew past the balance) quietly becomes the first method that is
+  const isKeshbekAffordable = balance !== undefined && balance >= total;
+  const effectivePaymentMethod: CartPaymentMethod =
+    availablePaymentMethods.find(m => m === paymentMethod && (m !== 'keshbek' || isKeshbekAffordable))
+    ?? availablePaymentMethods.find(m => m !== 'keshbek' || isKeshbekAffordable)
+    ?? 'naqd';
 
   // Delivery orders are routed to a branch (and priced) by their coordinates, so we need real ones.
   const selectedAddress = addresses.find(a => a.id === selectedAddressId);
-  const deliveryLatitude = toFiniteNumber(selectedAddress?.lat);
-  const deliveryLongitude = toFiniteNumber(selectedAddress?.lng);
-  const hasDeliveryLocation = deliveryLatitude !== null && deliveryLongitude !== null;
+  const deliveryPoint = selectedAddress ? getAddressPoint(selectedAddress) : null;
+  const hasDeliveryLocation = deliveryPoint !== null;
   const isOrderDisabled = isOrdering || isMinOrderNotMet || isStoreLocked || (deliveryMethod === 'delivery' && !hasDeliveryLocation);
-
-  useEffect(() => {
-    if (paymentMethod === 'keshbek' && user?.balance !== undefined && user.balance < total) {
-      const fallback = availablePaymentMethods.find(m => m !== 'keshbek') || 'naqd';
-      setPaymentMethod(fallback);
-    }
-  }, [total, user?.balance, paymentMethod, availablePaymentMethods]);
 
   const handlePlaceOrder = async () => {
     if (items.length === 0) return;
@@ -486,9 +405,9 @@ export default function Cart() {
     }
 
     // Never send made-up coordinates: they silently pick the wrong branch and delivery fee.
-    if (deliveryMethod === 'delivery' && !hasDeliveryLocation) {
+    if (deliveryMethod === 'delivery' && !deliveryPoint) {
       hapticFeedback('error');
-      alert("Tanlangan manzilning joylashuvi (xarita nuqtasi) aniqlanmagan. Iltimos, \"Hozirgi joylashuvni aniqlash\" tugmasi orqali joylashuvni belgilang yoki manzilni qayta saqlang.");
+      alert("Tanlangan manzilning xaritadagi joylashuvi aniqlanmagan. Iltimos, manzilni tahrirlab, xaritada belgilang.");
       setIsOrdering(false);
       return;
     }
@@ -507,7 +426,7 @@ export default function Cart() {
           quantity: item.quantity
         })),
         type: deliveryMethod, // 'delivery' or 'pickup'
-        payment_method: paymentMethod === 'naqd' ? 'cash' : paymentMethod,
+        payment_method: effectivePaymentMethod === 'naqd' ? 'cash' : effectivePaymentMethod,
         notes: deliveryNote.trim() ? deliveryNote : null,
         // The server computes the discount itself from the promo code
         promo_code: activePromo?.code ?? null,
@@ -515,19 +434,19 @@ export default function Cart() {
         // Conditional fields based on deliveryMethod
         branch_id: deliveryMethod === 'pickup' ? (selectedBranch ? selectedBranch.id : null) : null,
         address: deliveryMethod === 'delivery' ? (selectedAddress?.address || "") : null,
-        latitude: deliveryMethod === 'delivery' ? deliveryLatitude : null,
-        longitude: deliveryMethod === 'delivery' ? deliveryLongitude : null,
+        latitude: deliveryMethod === 'delivery' ? deliveryPoint?.lat ?? null : null,
+        longitude: deliveryMethod === 'delivery' ? deliveryPoint?.lng ?? null : null,
       };
 
       const res = await api.post('/orders', payload);
       if (res.data.success) {
         const orderData: OrderResponseData = res.data.data ?? {};
         setSuccessOrderNumber(getOrderDisplayNumber(orderData));
-        
+
         // Handle redirect to click/payme URL if present
         const paymentUrl = orderData.payment_url;
         if (paymentUrl) {
-          if (tg.openLink && typeof tg.openLink === 'function') {
+          if (typeof tg.openLink === 'function') {
             tg.openLink(paymentUrl);
           } else {
             window.open(paymentUrl, '_blank');
@@ -679,79 +598,88 @@ export default function Cart() {
         
         {showAddressForm ? (
           <div className="bg-slate-50 p-4 rounded-2xl border border-amber-500/20 flex flex-col gap-3 animate-fade-in">
-            <button
-              type="button"
-              onClick={handleGetLocation}
-              disabled={isLocating}
-              className="w-full py-3 bg-amber-500/10 text-amber-600 rounded-xl text-xs font-black flex items-center justify-center gap-2 border border-amber-500/20 hover:bg-amber-500/20 active:scale-95 transition-all disabled:opacity-50"
-            >
-              {isLocating ? (
-                <span className="w-4 h-4 border-2 border-amber-500 border-t-transparent rounded-full animate-spin"></span>
-              ) : (
-                <span>📍</span>
-              )}
-              <span>{isLocating ? "Lokatsiya olinmoqda..." : "Hozirgi joylashuvni aniqlash"}</span>
-            </button>
-            <input 
-              type="text" 
-              placeholder="Ko'cha va uy raqami (masalan: Chilonzor 12)"
-              value={newAddress.address}
-              onChange={e => setNewAddress({...newAddress, address: e.target.value})}
-              className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs outline-none focus:border-amber-500 transition-colors font-semibold"
+            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+              {editingAddressId !== null ? 'Manzilni tahrirlash' : 'Yangi manzil'}
+            </p>
+            <AddressLocationField
+              key={editingAddressId ?? 'new'}
+              value={addressDraft}
+              onChange={patchAddressDraft}
+              fallbackCenter={mapFallbackCenter}
             />
             <div className="grid grid-cols-2 gap-3">
               <input 
                 type="text" placeholder="Xonadon"
-                value={newAddress.apartment} onChange={e => setNewAddress({...newAddress, apartment: e.target.value})}
+                value={addressDraft.apartment} onChange={e => patchAddressDraft({ apartment: e.target.value })}
                 className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs outline-none focus:border-amber-500 transition-colors"
               />
               <input 
                 type="text" placeholder="Qavat"
-                value={newAddress.floor} onChange={e => setNewAddress({...newAddress, floor: e.target.value})}
+                value={addressDraft.floor} onChange={e => patchAddressDraft({ floor: e.target.value })}
                 className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs outline-none focus:border-amber-500 transition-colors"
               />
             </div>
             <div className="flex gap-2 pt-2">
               <button 
-                onClick={() => setShowAddressForm(false)}
+                onClick={closeAddressForm}
                 className="flex-1 py-3 bg-slate-200 text-slate-600 font-bold rounded-xl text-xs active:scale-95 transition"
               >
                 Bekor qilish
               </button>
               <button 
                 onClick={handleSaveAddress}
-                className="flex-1 py-3 bg-amber-500 text-white font-bold rounded-xl text-xs active:scale-95 transition"
+                disabled={!canSaveAddress}
+                className="flex-1 py-3 bg-amber-500 text-white font-bold rounded-xl text-xs active:scale-95 transition disabled:opacity-40 disabled:active:scale-100"
               >
                 Saqlash
               </button>
             </div>
+            {!canSaveAddress && (
+              <p className="text-[10px] text-center font-bold text-slate-400 -mt-1">
+                Saqlash uchun xaritada joylashuvni belgilang va manzilni yozing
+              </p>
+            )}
           </div>
         ) : (
           <div className="space-y-2">
-            {addresses.map((addr) => (
-              <div 
-                key={addr.id}
-                onClick={() => {
-                  hapticFeedback('light');
-                  setSelectedAddressId(addr.id);
-                }}
-                className={`p-3 rounded-2xl border transition flex items-start gap-3 cursor-pointer ${
-                  selectedAddressId === addr.id ? 'border-amber-500 bg-amber-50/20' : 'border-slate-100 bg-white hover:bg-slate-50'
-                }`}
-              >
-                <span className="text-base mt-0.5">🏠</span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-black text-slate-800 flex items-center gap-1.5">
-                    {addr.title}
-                    {addr.is_default && <span className="text-[8px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-400">Asosiy</span>}
-                  </p>
-                  <p className="text-[10px] text-slate-400 font-medium truncate mt-0.5">{addr.address}</p>
+            {addresses.map((addr) => {
+              const hasMapPoint = getAddressPoint(addr) !== null;
+              return (
+                <div 
+                  key={addr.id}
+                  onClick={() => {
+                    hapticFeedback('light');
+                    setSelectedAddressId(addr.id);
+                  }}
+                  className={`p-3 rounded-2xl border transition flex items-start gap-3 cursor-pointer ${
+                    selectedAddressId === addr.id ? 'border-amber-500 bg-amber-50/20' : 'border-slate-100 bg-white hover:bg-slate-50'
+                  }`}
+                >
+                  <span className="text-base mt-0.5">🏠</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                      {addr.title}
+                      {addr.is_default && <span className="text-[8px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-400">Asosiy</span>}
+                    </p>
+                    <p className="text-[10px] text-slate-400 font-medium truncate mt-0.5">{addr.address}</p>
+                    {!hasMapPoint && (
+                      <p className="text-[9px] text-rose-500 font-black mt-1">📍 Xaritada belgilanmagan</p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    aria-label="Manzilni tahrirlash"
+                    onClick={(e) => { e.stopPropagation(); openEditAddressForm(addr); }}
+                    className="p-1.5 -m-1.5 text-slate-400 hover:text-amber-600 active:scale-90 transition"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </button>
+                  {selectedAddressId === addr.id && <CheckCircle2 className="w-4 h-4 text-amber-500 mt-1" />}
                 </div>
-                {selectedAddressId === addr.id && <CheckCircle2 className="w-4 h-4 text-amber-500 mt-1" />}
-              </div>
-            ))}
+              );
+            })}
             <button 
-              onClick={() => { hapticFeedback('medium'); setShowAddressForm(true); }}
+              onClick={openNewAddressForm}
               className="flex items-center justify-center gap-2 w-full p-3 border border-dashed border-slate-300 rounded-2xl text-slate-500 font-bold text-xs hover:bg-slate-50 transition active:scale-95"
             >
               <PlusCircle className="w-4 h-4" />
@@ -776,7 +704,7 @@ export default function Cart() {
                 }}
                 className="w-full text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500 font-sans"
               >
-                {storeBranches.map((branch: any) => (
+                {storeBranches.map((branch) => (
                   <option key={branch.id} value={branch.id}>
                     {branch.name}
                   </option>
@@ -944,9 +872,9 @@ export default function Cart() {
         <h3 className="text-[9px] font-black uppercase tracking-widest text-slate-400">To'lov Turi</h3>
         <div className="grid grid-cols-3 gap-2">
           {availablePaymentMethods.map((method) => {
-            const icon = method === 'click' ? '🔵' : method === 'payme' ? '🟢' : method === 'uzum' ? '🟣' : method === 'paynet' ? '🔴' : method === 'keshbek' ? '✨' : '💵';
-            const label = method === 'naqd' ? 'Naqd' : method === 'uzum' ? 'Uzum' : method === 'paynet' ? 'Paynet' : method === 'keshbek' ? 'Keshbek' : method.toUpperCase();
-            const isDisabled = method === 'keshbek' && user?.balance !== undefined && user.balance < total;
+            const icon = method === 'click' ? '🔵' : method === 'payme' ? '🟢' : method === 'keshbek' ? '✨' : '💵';
+            const label = method === 'naqd' ? 'Naqd' : method === 'keshbek' ? 'Keshbek' : method.toUpperCase();
+            const isDisabled = method === 'keshbek' && !isKeshbekAffordable;
             return (
               <button
                 key={method}
@@ -957,13 +885,13 @@ export default function Cart() {
                 }}
                 className={`py-3 px-1 rounded-2xl border text-[10px] font-black flex flex-col items-center justify-center gap-1 transition active:scale-95 duration-200 ${
                   isDisabled ? 'opacity-40 cursor-not-allowed border-slate-100 bg-slate-50 text-slate-400' :
-                  paymentMethod === method ? 'border-amber-500 bg-amber-50 text-amber-700 shadow-sm' : 'border-slate-100 bg-white text-slate-500'
+                  effectivePaymentMethod === method ? 'border-amber-500 bg-amber-50 text-amber-700 shadow-sm' : 'border-slate-100 bg-white text-slate-500'
                 }`}
               >
                 <span className="text-base leading-none">{icon}</span>
                 <span className="uppercase tracking-wider">{label}</span>
-                {method === 'keshbek' && user?.balance !== undefined && (
-                  <span className="text-[8px] text-slate-400 font-bold lowercase">({formatUzbekSum(user.balance)})</span>
+                {method === 'keshbek' && balance !== undefined && (
+                  <span className="text-[8px] text-slate-400 font-bold lowercase">({formatUzbekSum(balance)})</span>
                 )}
               </button>
             );
@@ -1036,7 +964,16 @@ export default function Cart() {
           <p className="text-[10px] text-center text-rose-500 font-bold mt-2">Iltimos, yetkazib berish manzilini tanlang</p>
         )}
         {(deliveryMethod === 'delivery' && selectedAddress && !hasDeliveryLocation) && (
-          <p className="text-[10px] text-center text-rose-500 font-bold mt-2">Tanlangan manzilning joylashuvi (xarita nuqtasi) aniqlanmagan. "Hozirgi joylashuvni aniqlash" tugmasi orqali joylashuvni belgilang yoki manzilni qayta saqlang</p>
+          <div className="mt-2 text-center">
+            <p className="text-[10px] text-rose-500 font-bold">Tanlangan manzilning xaritadagi joylashuvi aniqlanmagan. Buyurtma berish uchun uni xaritada belgilang.</p>
+            <button
+              type="button"
+              onClick={() => openEditAddressForm(selectedAddress)}
+              className="mt-2 px-4 py-2 bg-amber-500/10 text-amber-600 rounded-xl text-[11px] font-black border border-amber-500/20 active:scale-95 transition"
+            >
+              📍 Xaritada belgilash
+            </button>
+          </div>
         )}
       </div>
 
@@ -1046,26 +983,11 @@ export default function Cart() {
         onClose={() => setSelectedProductForVariant(null)}
         product={selectedProductForVariant}
         onAdd={(variant) => {
-          const cartItemId = `${selectedProductForVariant.id}-${variant.uuid}`;
-          if (!canAddMore(variant, cartItemId)) return;
+          if (!selectedProductForVariant) return;
+          const cartItem = buildCartItem(selectedProductForVariant, variant);
+          if (!canAddMore(variant, cartItem.id)) return;
 
-          const cartItem = {
-            id: cartItemId,
-            productId: selectedProductForVariant.id,
-            variantId: variant.uuid,
-            storeId: selectedProductForVariant.store_id.toString(),
-            name: `${selectedProductForVariant.name} (${variant.name})`,
-            price: parseFloat(variant.price as string),
-            quantity: 1,
-            image: selectedProductForVariant.image_url
-          };
-
-          const storeInfo = {
-            name: storeName,
-            address: storeAddress || 'Asosiy filial'
-          };
-
-          addItem(cartItem, storeInfo);
+          addItem(cartItem, getStoreInfo({ name: storeName, address: storeAddress }));
         }}
       />
       </div>

@@ -3,11 +3,18 @@
 namespace App\Services\Notifications;
 
 use App\Models\Order;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
+use App\Services\Telegram\TelegramMessenger;
 
+/**
+ * Order cards (with one-time action buttons), customer status alerts and employee invites. Messages and their
+ * TelegramAction tokens are built here; sending is queued through TelegramMessenger.
+ */
 class TelegramNotificationService
 {
+    public function __construct(
+        protected TelegramMessenger $telegram
+    ) {}
+
     public function sendOrderCreated(Order $order): void
     {
         $store = $order->store;
@@ -16,8 +23,7 @@ class TelegramNotificationService
             return;
         }
 
-        $botToken = config('services.telegram.bot_token');
-        if (!$botToken) {
+        if (!$this->telegram->isConfigured()) {
             return;
         }
 
@@ -27,7 +33,7 @@ class TelegramNotificationService
 
         // 1. Send to store admin chat if set
         if ($store->telegram_admin_chat_id) {
-            $this->sendMessage($botToken, $store->telegram_admin_chat_id, $message, $keyboard);
+            $this->sendMessage($store->telegram_admin_chat_id, $message, $keyboard);
             $sentChatIds[] = $store->telegram_admin_chat_id;
         }
 
@@ -38,7 +44,7 @@ class TelegramNotificationService
             // If managers are registered, send to them
             foreach ($managers as $manager) {
                 if (!in_array($manager->telegram_id, $sentChatIds)) {
-                    $this->sendMessage($botToken, $manager->telegram_id, $message, $keyboard);
+                    $this->sendMessage($manager->telegram_id, $message, $keyboard);
                     $sentChatIds[] = $manager->telegram_id;
                 }
             }
@@ -51,7 +57,7 @@ class TelegramNotificationService
 
             foreach ($owners as $owner) {
                 if (!in_array($owner->telegram_id, $sentChatIds)) {
-                    $this->sendMessage($botToken, $owner->telegram_id, $message, $keyboard);
+                    $this->sendMessage($owner->telegram_id, $message, $keyboard);
                     $sentChatIds[] = $owner->telegram_id;
                 }
             }
@@ -75,10 +81,9 @@ class TelegramNotificationService
 
     public function sendEmployeeInvite(\App\Models\User $employee, \App\Models\User $owner): void
     {
-        $botToken = config('services.telegram.bot_token');
         $chatId = $owner->telegram_id;
 
-        if (!$botToken || !$chatId) {
+        if (!$this->telegram->isConfigured() || !$chatId) {
             return;
         }
 
@@ -93,14 +98,13 @@ class TelegramNotificationService
                    "{$inviteLink}\n\n" .
                    "<i>Xodim ushbu link ustiga bosib botga kirishi bilan tizimga ulanadi.</i>";
 
-        $this->sendMessage($botToken, $chatId, $message, [], 'HTML');
+        $this->sendMessage($chatId, $message, [], 'HTML');
     }
     
     public function sendOrderStatusChanged(Order $order): void
     {
         $statusValue = $order->status->value ?? $order->status;
-        $botToken = config('services.telegram.bot_token');
-        if (!$botToken) return;
+        if (!$this->telegram->isConfigured()) return;
 
         // 1. Notify Customer about status change if they have a telegram_id
         if ($order->user && $order->user->telegram_id) {
@@ -145,7 +149,7 @@ class TelegramNotificationService
             }
             
             // Add a button to open the webapp to track or view
-            $webAppUrl = env('TELEGRAM_WEBAPP_URL', 'https://chatty-bikes-say.loca.lt');
+            $webAppUrl = $this->webAppUrl();
             $customerKeyboard = [
                 'inline_keyboard' => [
                     [
@@ -154,7 +158,7 @@ class TelegramNotificationService
                 ]
             ];
 
-            $this->sendMessage($botToken, $order->user->telegram_id, $customerMsg, $customerKeyboard);
+            $this->sendMessage($order->user->telegram_id, $customerMsg, $customerKeyboard);
         }
 
         // 2. If the order is sent for delivery, notify courier (or fallback to managers/owners if no courier is assigned)
@@ -260,7 +264,6 @@ class TelegramNotificationService
                     $keyboard = ['inline_keyboard' => $buttons];
 
                     $this->sendMessage(
-                        $botToken,
                         $recipient->telegram_id,
                         $message,
                         $keyboard
@@ -272,30 +275,16 @@ class TelegramNotificationService
 
     public function updateOrderTelegramMessage(Order $order, ?string $actorName = null, ?string $messageId = null, ?string $chatId = null): void
     {
-        $botToken = config('services.telegram.bot_token');
-        if (!$botToken || !$chatId || !$messageId) {
+        if (!$this->telegram->isConfigured() || !$chatId || !$messageId) {
             return;
         }
 
         list($message, $keyboard) = $this->buildMessageAndKeyboard($order, $actorName);
 
-        try {
-            $url = "https://api.telegram.org/bot{$botToken}/editMessageText";
-            
-            $response = Http::timeout(5)->post($url, [
-                'chat_id' => $chatId,
-                'message_id' => $messageId,
-                'text' => $message,
-                'parse_mode' => 'Markdown',
-                'reply_markup' => json_encode($keyboard)
-            ]);
-
-            if (!$response->successful()) {
-                Log::warning("Telegram editMessageText Failed", ['response' => $response->json()]);
-            }
-        } catch (\Exception $e) {
-            Log::error("Telegram Edit Message Failed: " . $e->getMessage());
-        }
+        $this->telegram->editMessageText($chatId, $messageId, $message, [
+            'parse_mode' => 'Markdown',
+            'reply_markup' => $keyboard,
+        ]);
     }
 
     public function buildMessageAndKeyboard(Order $order, ?string $actorName = null): array
@@ -428,7 +417,7 @@ class TelegramNotificationService
         }
 
         // Always add open in mini app link at the bottom
-        $webAppUrl = env('TELEGRAM_WEBAPP_URL', 'https://chatty-bikes-say.loca.lt');
+        $webAppUrl = $this->webAppUrl();
         $buttons[] = [
             ['text' => '📱 Mini ilovada ochish', 'web_app' => ['url' => rtrim($webAppUrl, '/') . '/manager']]
         ];
@@ -438,29 +427,19 @@ class TelegramNotificationService
         return [$message, $keyboard];
     }
 
-    protected function sendMessage(string $botToken, string $chatId, string $text, array $replyMarkup = [], string $parseMode = 'Markdown'): void
+    protected function sendMessage(string $chatId, string $text, array $replyMarkup = [], string $parseMode = 'Markdown'): void
     {
-        try {
-            $url = "https://api.telegram.org/bot{$botToken}/sendMessage";
-            
-            $payload = [
-                'chat_id' => $chatId,
-                'text' => $text,
-                'parse_mode' => $parseMode,
-            ];
-            
-            if (!empty($replyMarkup)) {
-                $payload['reply_markup'] = json_encode($replyMarkup);
-            }
-            
-            $response = Http::timeout(5)->post($url, $payload);
-            
-            if (!$response->successful()) {
-                Log::warning("Telegram Notification Failed", ['response' => $response->json()]);
-            }
-        } catch (\Exception $e) {
-            // Non-blocking
-            Log::error("Telegram Notification Exception: " . $e->getMessage());
-        }
+        $this->telegram->sendMessage($chatId, $text, [
+            'parse_mode' => $parseMode,
+            'reply_markup' => $replyMarkup,
+        ]);
+    }
+
+    /**
+     * From config, not env(): env() reads nothing once the config is cached, which left buttons on the fallback URL.
+     */
+    protected function webAppUrl(): string
+    {
+        return config('services.telegram.webapp_url') ?: 'https://chatty-bikes-say.loca.lt';
     }
 }

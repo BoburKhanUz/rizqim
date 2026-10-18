@@ -13,6 +13,8 @@ use App\Enums\OrderStatus;
 use App\Enums\PaymentStatus;
 use App\Events\PaymentPaid;
 use App\Services\Finance\LedgerService;
+use App\Services\Order\OrderStatusService;
+use App\Support\Money;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -237,7 +239,7 @@ class PaymeWebhookController extends Controller
                 'order_id' => $order?->id,
                 'provider' => 'payme',
                 'provider_transaction_id' => $trxId,
-                'amount' => (float) $params['amount'] / 100, // in tiyins
+                'amount' => Money::fromTiyin($params['amount'])->toString(), // Payme sends tiyin
                 'status' => PaymentStatus::PENDING,
                 'payload' => $params,
             ]);
@@ -282,7 +284,7 @@ class PaymeWebhookController extends Controller
             }
 
             // Re-check under lock: the account may have been paid, cancelled or changed since CreateTransaction.
-            if ($this->accountError($order, $topupRequest, round((float) $payment->amount * 100))) {
+            if ($this->accountError($order, $topupRequest, Money::of($payment->amount)->toTiyin())) {
                 return [$this->rpcError($id, -31008, 'Unable to perform operation'), null];
             }
 
@@ -338,9 +340,11 @@ class PaymeWebhookController extends Controller
             $payment = Payment::whereKey($payment->id)->lockForUpdate()->first();
 
             if ($payment->status === PaymentStatus::PAID) {
-                // Refused only once the money was passed on: a top-up reduced the store's debt, or a platform-collected
-                // order was credited to the store's wallet. A STORE-owned order's money is the store's to refund.
-                if ($topupRequest || ($order && $order->payment_owner === 'PLATFORM' && app(LedgerService::class)->hasSettlement($order))) {
+                // Refused only while the money is passed on: a top-up reduced the store's debt, or a platform-collected
+                // order was credited to the store's wallet and not taken back by the admin refund (the path for it).
+                // A STORE-owned order's money is the store's to refund.
+                if ($topupRequest || ($order && $order->payment_owner === 'PLATFORM' && $order->status !== OrderStatus::REFUNDED
+                    && app(LedgerService::class)->hasSettlement($order))) {
                     return $this->rpcError($id, -31007, 'Unable to cancel transaction');
                 }
             } elseif ($payment->status !== PaymentStatus::PENDING) {
@@ -354,15 +358,19 @@ class PaymeWebhookController extends Controller
             if ($topupRequest && $topupRequest->status === 'pending') {
                 $topupRequest->update(['status' => 'cancelled']);
             } elseif ($wasPaid && $order?->status === OrderStatus::DELIVERED) {
-                // Refunded after delivery: order status and commission stay as they are; an admin follows up.
+                // Refunded after delivery: the order is refunded with it, which reverses its commission.
                 $payment->update(['payload' => array_merge($payment->payload ?? [], ['refunded_after_delivery' => true])]);
                 $order->update(['payment_status' => PaymentStatus::REFUNDED->value]);
-                Log::warning("Payme refund after delivery for order {$order->uuid}: order and commission unchanged, admin follow-up needed", [
+                app(OrderStatusService::class)->refund($order, null, "Payme to'lovni qaytardi (sabab kodi: {$reason}).", true);
+                Log::warning("Payme refund after delivery for order {$order->uuid}: order refunded", [
                     'order_id' => $order->id,
                     'payment_id' => $payment->id,
                     'payment_owner' => $order->payment_owner,
-                    'amount' => (float) $payment->amount,
+                    'amount' => Money::of($payment->amount)->toString(),
                 ]);
+            } elseif ($wasPaid && $order?->status === OrderStatus::REFUNDED) {
+                // The money an admin refund left for a manual refund went back through Payme.
+                $order->update(['payment_status' => PaymentStatus::REFUNDED->value]);
             } elseif ($wasPaid && $order?->payment_status === PaymentStatus::PAID) {
                 // If order was already paid, revert back to pending
                 $order->update([
@@ -422,7 +430,7 @@ class PaymeWebhookController extends Controller
             ->map(fn (Payment $payment) => [
                 'id' => $payment->provider_transaction_id,
                 'time' => $this->createTime($payment),
-                'amount' => (int) round((float) $payment->amount * 100),
+                'amount' => Money::of($payment->amount)->toTiyin(),
                 'account' => $payment->payload['account'] ?? (object) [],
                 'create_time' => $this->createTime($payment),
                 'perform_time' => $payment->paid_at ? $payment->paid_at->getTimestamp() * 1000 : 0,
@@ -478,7 +486,7 @@ class PaymeWebhookController extends Controller
         }
 
         // Payme sends tiyin (UZS * 100)
-        if (!is_numeric($amount) || (int) round((float) $amount) !== (int) round((float) $expectedAmount * 100)) {
+        if (!is_numeric($amount) || !Money::fromTiyin($amount)->equals($expectedAmount)) {
             return [-31001, 'Incorrect amount'];
         }
 

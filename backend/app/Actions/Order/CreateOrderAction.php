@@ -13,6 +13,7 @@ use App\Enums\PaymentStatus;
 use App\Enums\OrderType;
 use App\Services\Promo\InvalidPromoCodeException;
 use App\Services\Promo\PromoCodeService;
+use App\Support\Money;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Exception;
@@ -43,7 +44,7 @@ class CreateOrderAction
             if ($storeStatus === \App\Enums\StoreStatus::FINANCE_HOLD->value) {
                 throw new Exception("Restoran faoliyati moliyaviy tekshiruv tufayli to'xtatilgan.");
             }
-            if ($store->balance >= abs($store->credit_limit)) {
+            if (Money::of($store->debt_balance)->isGreaterThanOrEqualTo(Money::of($store->credit_limit)->abs())) {
                 throw new Exception("Restoran vaqtincha to'lov qabul qilmayapti (Meyordagi qarz limitidan oshgan).");
             }
 
@@ -147,7 +148,7 @@ class CreateOrderAction
             }
 
             // 3. Validate variants and calculate total securely
-            $totalAmount = 0;
+            $totalAmount = Money::zero();
             $orderItemsData = [];
             
             // The same variant may be sent on several lines; stock is checked against the combined quantity
@@ -192,10 +193,10 @@ class CreateOrderAction
                     throw $this->outOfStock($variant, (int) $variant->stock);
                 }
                 
-                $price = $variant->price;
-                $totalPrice = $price * $quantity;
+                $price = Money::of($variant->price);
+                $lineTotal = $price->times($quantity);
                 
-                $totalAmount += $totalPrice;
+                $totalAmount = $totalAmount->plus($lineTotal);
                 
                 // Prepare snapshot data
                 $orderItemsData[] = [
@@ -203,26 +204,28 @@ class CreateOrderAction
                     'product_name' => $variant->product->name,
                     'variant_name' => $variant->name,
                     'quantity' => $quantity,
-                    'unit_price' => $price,
-                    'total_price' => $totalPrice,
+                    'unit_price' => $price->toString(),
+                    'total_price' => $lineTotal->toString(),
                     'variant_model' => $variant, // Temporary reference for stock deduction
                 ];
             }
             
-            if ($totalAmount <= 0) {
+            if (!$totalAmount->isPositive()) {
                 throw new Exception("Buyurtma summasi noldan katta bo'lishi kerak.");
             }
 
             // 4. Minimum Order Validation
-            if ($store->min_order_amount > 0 && $totalAmount < $store->min_order_amount) {
-                throw new Exception("Eng kam buyurtma summasi: " . number_format($store->min_order_amount, 0, '.', ' ') . " UZS.");
+            $minOrderAmount = Money::of($store->min_order_amount);
+            if ($minOrderAmount->isPositive() && $totalAmount->isLessThan($minOrderAmount)) {
+                throw new Exception("Eng kam buyurtma summasi: " . number_format($minOrderAmount->toFloat(), 0, '.', ' ') . " UZS.");
             }
 
             // 5. Radius validation is now handled during Branch Routing Engine (above)
             // Fetch delivery fee from store payment settings
-            $deliveryFee = 0;
-            if ($payload['type'] === 'delivery') {
-                $deliveryFee = (float) ($store->payment_settings['delivery_fee'] ?? 0);
+            $deliveryFee = Money::zero();
+            $configuredFee = $store->payment_settings['delivery_fee'] ?? 0;
+            if ($payload['type'] === 'delivery' && is_numeric($configuredFee)) {
+                $deliveryFee = Money::of($configuredFee);
             }
 
             // 2. Create Order
@@ -239,36 +242,35 @@ class CreateOrderAction
             }
 
             // Discount is computed only on the server, from a promo code locked for the rest of the transaction
-            $discount = 0.0;
+            $discount = Money::zero();
             $promoCodeId = null;
             $promoCode = trim((string) ($payload['promo_code'] ?? ''));
             if ($promoCode !== '') {
                 try {
                     $promo = $this->promoCodes->find($promoCode, true);
-                    $discount = $this->promoCodes->discountFor($promo, (int) $storeId, (float) $totalAmount, $user->id);
+                    $discount = $this->promoCodes->discountFor($promo, (int) $storeId, $totalAmount, $user->id);
                 } catch (InvalidPromoCodeException $e) {
                     throw ValidationException::withMessages(['promo_code' => $e->getMessage()]);
                 }
                 $promoCodeId = $promo->id;
             }
 
-            $totalPrice = round(max(0, $totalAmount - $discount + $deliveryFee), 2);
+            $totalPrice = Money::max(Money::zero(), $totalAmount->minus($discount)->plus($deliveryFee));
 
             // Same base and rounding the ledger settles on, so the stored snapshot is exactly what gets charged
-            $commissionRate = (float) ($store->commission_rate ?? 10);
-            $commissionAmount = round($totalPrice * $commissionRate / 100, 2);
+            $commissionAmount = $totalPrice->percent($store->commission_rate ?? 10);
 
             $paymentStatus = PaymentStatus::PENDING;
             if ($paymentMethod === 'keshbek') {
                 // Re-read under lock: the authenticated user instance may hold a stale balance
-                $balance = (float) User::whereKey($user->id)->lockForUpdate()->value('balance');
-                $insufficientBalance = "Keshbek balansi yetarli emas (Mavjud: " . number_format($balance, 0, '.', ' ') . " ball, Kerak: " . number_format($totalPrice, 0, '.', ' ') . " UZS).";
-                if ($balance < $totalPrice) {
+                $balance = Money::of(User::whereKey($user->id)->lockForUpdate()->value('balance'));
+                $insufficientBalance = "Keshbek balansi yetarli emas (Mavjud: " . number_format($balance->toFloat(), 0, '.', ' ') . " ball, Kerak: " . number_format($totalPrice->toFloat(), 0, '.', ' ') . " UZS).";
+                if ($balance->isLessThan($totalPrice)) {
                     throw new Exception($insufficientBalance);
                 }
                 $debited = User::whereKey($user->id)
-                    ->where('balance', '>=', $totalPrice)
-                    ->decrement('balance', $totalPrice);
+                    ->where('balance', '>=', $totalPrice->toString())
+                    ->decrement('balance', $totalPrice->toString());
                 if ($debited !== 1) {
                     throw new Exception($insufficientBalance);
                 }
@@ -280,12 +282,12 @@ class CreateOrderAction
                 'store_id' => $storeId,
                 'branch_id' => $branch?->id,
                 'short_code' => $shortCode,
-                'total_price' => $totalPrice,
-                'subtotal' => $totalAmount,
-                'delivery_price' => $deliveryFee,
-                'discount' => $discount,
+                'total_price' => $totalPrice->toString(),
+                'subtotal' => $totalAmount->toString(),
+                'delivery_price' => $deliveryFee->toString(),
+                'discount' => $discount->toString(),
                 'promo_code_id' => $promoCodeId,
-                'commission_amount' => $commissionAmount,
+                'commission_amount' => $commissionAmount->toString(),
                 'status' => OrderStatus::NEW,
                 'order_type' => $payload['type'],
                 'payment_method' => $paymentMethod,
@@ -303,7 +305,7 @@ class CreateOrderAction
             Payment::create([
                 'order_id' => $order->id,
                 'provider' => $order->payment_method,
-                'amount' => $totalPrice,
+                'amount' => $totalPrice->toString(),
                 'status' => $paymentStatus,
             ]);
 

@@ -4,6 +4,8 @@ import { tg } from '../lib/telegram';
 
 export type Language = 'uz' | 'ru' | 'en';
 
+export const isLanguage = (value: string): value is Language => value === 'uz' || value === 'ru' || value === 'en';
+
 const translations = {
   uz: {
     // Menu & general
@@ -168,8 +170,8 @@ interface LanguageState {
 // Helper to determine initial user language from Telegram WebApp config
 const getInitialLanguage = (): Language => {
   const tgLang = tg.initDataUnsafe?.user?.language_code;
-  if (tgLang === 'uz' || tgLang === 'ru' || tgLang === 'en') {
-    return tgLang as Language;
+  if (tgLang && isLanguage(tgLang)) {
+    return tgLang;
   }
   return 'uz'; // default fallback is Uzbek
 };

@@ -3,6 +3,7 @@
 namespace App\Services\Promo;
 
 use App\Models\PromoCode;
+use App\Support\Money;
 
 class PromoCodeService
 {
@@ -33,7 +34,7 @@ class PromoCodeService
      *
      * @throws InvalidPromoCodeException
      */
-    public function discountFor(PromoCode $promo, int $storeId, ?float $subtotal, ?int $userId): ?float
+    public function discountFor(PromoCode $promo, int $storeId, Money|string|int|float|null $subtotal, ?int $userId): ?Money
     {
         if (!$promo->is_active || ($promo->expires_at && $promo->expires_at->isPast())) {
             throw new InvalidPromoCodeException("Bu promo-kod faol emas yoki muddati tugagan");
@@ -43,7 +44,7 @@ class PromoCodeService
             throw new InvalidPromoCodeException("Ushbu promo-kod tanlangan do'kon uchun yaroqsiz");
         }
 
-        if ($subtotal !== null && $subtotal < (float) $promo->min_order_amount) {
+        if ($subtotal !== null && Money::of($subtotal)->isLessThan($promo->min_order_amount)) {
             $minFormatted = number_format($promo->min_order_amount, 0, '.', ' ');
             throw new InvalidPromoCodeException("Ushbu promo-koddan foydalanish uchun minimal buyurtma summasi {$minFormatted} UZS bo'lishi kerak");
         }
@@ -63,17 +64,20 @@ class PromoCodeService
     /**
      * Discount in whole UZS, never more than the items subtotal (the delivery fee is not discounted).
      */
-    public function calculate(PromoCode $promo, float $subtotal): float
+    public function calculate(PromoCode $promo, Money|string|int|float $subtotal): Money
     {
+        $subtotal = Money::of($subtotal);
+
         if ($promo->type === 'percentage') {
-            $discount = round($subtotal * (float) $promo->value / 100);
-            if ($promo->max_discount_amount && $discount > $promo->max_discount_amount) {
-                $discount = (float) $promo->max_discount_amount;
+            $discount = $subtotal->percent($promo->value, 0);
+            $cap = Money::of($promo->max_discount_amount);
+            if (!$cap->isZero() && $discount->isGreaterThan($cap)) {
+                $discount = $cap;
             }
         } else {
-            $discount = round((float) $promo->value);
+            $discount = Money::of($promo->value)->roundTo(0);
         }
 
-        return round(max(0.0, min($discount, $subtotal)), 2);
+        return Money::max(Money::zero(), Money::min($discount, $subtotal));
     }
 }

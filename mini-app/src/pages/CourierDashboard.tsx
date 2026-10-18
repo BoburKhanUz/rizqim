@@ -1,12 +1,18 @@
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLanguageStore } from '../store/languageStore';
 import { useAuthStore } from '../store/authStore';
 import { hapticFeedback } from '../lib/telegram';
-import { ErrorFallback } from '../App';
+import { ErrorFallback } from '../components/Feedback';
 import { Phone, MapPin, CheckCircle, Navigation, Clock, ShieldCheck, DollarSign } from 'lucide-react';
 import api from '../services/api';
-import { logApiError } from '../lib/apiError';
+import { getApiErrorMessage, logApiError } from '../lib/apiError';
+import { parsePrice } from '../lib/catalog';
+import { POLL_INTERVAL_MS } from '../lib/polling';
+import { useStaffOrders } from '../hooks/useOrders';
+import type { ApiResponse, Order, OrderStatus } from '../types';
+
+const ACTIVE_STATUSES: readonly OrderStatus[] = ['courier_assigned', 'on_the_way', 'delivery'];
 
 export default function CourierDashboard() {
   const { user } = useAuthStore();
@@ -14,22 +20,14 @@ export default function CourierDashboard() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<'active' | 'completed'>('active');
 
-  // Fetch courier assigned orders with shared caching and non-blocking background refetching
-  const { data: ordersResponse = [], isLoading, error } = useQuery<any[]>({
-    queryKey: ['courierOrders'],
-    queryFn: async () => {
-      const response = await api.get('/orders');
-      return response.data?.data || [];
-    },
-    refetchInterval: 15000, // Auto refresh every 15s for active courier deliveries!
-    staleTime: 1000 * 60 * 5, // 5 minutes stale time for instant transitions
-  });
+  // Courier assigned orders: polled while the screen is visible (active deliveries change quickly)
+  const { data: allOrders = [], isLoading, error } = useStaffOrders('courierOrders', POLL_INTERVAL_MS.courierOrders);
 
   // Complete order mutation
   const completeMutation = useMutation({
     mutationFn: async (orderUuid: string) => {
       hapticFeedback('medium');
-      const response = await api.post(`/orders/${orderUuid}/complete`);
+      const response = await api.post<ApiResponse<Order>>(`/orders/${orderUuid}/complete`);
       return response.data;
     },
     onSuccess: () => {
@@ -44,9 +42,9 @@ export default function CourierDashboard() {
 
   // Update status mutation (e.g. for marking as on_the_way)
   const updateStatusMutation = useMutation({
-    mutationFn: async ({ orderUuid, status }: { orderUuid: string; status: string }) => {
+    mutationFn: async ({ orderUuid, status }: { orderUuid: string; status: OrderStatus }) => {
       hapticFeedback('medium');
-      const response = await api.post(`/orders/${orderUuid}/status`, {
+      const response = await api.post<ApiResponse<Order>>(`/orders/${orderUuid}/status`, {
         status
       });
       return response.data;
@@ -55,35 +53,30 @@ export default function CourierDashboard() {
       queryClient.invalidateQueries({ queryKey: ['courierOrders'] });
       hapticFeedback('medium');
     },
-    onError: (err: any) => {
+    onError: (err) => {
       logApiError('Failed to update status:', err);
-      alert(err.response?.data?.message || (language === 'uz' ? 'Holatni yangilashda xatolik yuz berdi!' : 'Ошибка!'));
+      alert(getApiErrorMessage(err) || (language === 'uz' ? 'Holatni yangilashda xatolik yuz berdi!' : 'Ошибка!'));
     }
   });
 
-  if (error) return <ErrorFallback error="Failed to fetch courier deliveries." />;
+  // A failed background refresh keeps showing the last deliveries; the error screen is only for "nothing to show"
+  if (error && allOrders.length === 0) return <ErrorFallback error="Failed to fetch courier deliveries." />;
 
-  const allOrders = ordersResponse || [];
-  
   // Filter active and completed orders
-  const activeOrders = allOrders.filter((order: any) => 
-    ['courier_assigned', 'on_the_way', 'delivery'].includes(order.status)
-  );
+  const activeOrders = allOrders.filter((order) => ACTIVE_STATUSES.includes(order.status));
   
-  const completedOrders = allOrders.filter((order: any) => 
-    ['delivered'].includes(order.status)
-  );
+  const completedOrders = allOrders.filter((order) => order.status === 'delivered');
 
   // Compute statistics
-  const todayTotalEarnings = completedOrders.reduce((sum: number, order: any) => sum + parseFloat(order.delivery_price || 0), 0);
+  const todayTotalEarnings = completedOrders.reduce((sum, order) => sum + (parsePrice(order.delivery_price || 0) || 0), 0);
 
   const formatPrice = (price: number) => {
     return price.toLocaleString() + ' UZS';
   };
 
-  const handleOpenMap = (addressText: string) => {
+  const handleOpenMap = (addressText: string | null) => {
     hapticFeedback('light');
-    if (pregMatchUrl(addressText)) {
+    if (addressText && pregMatchUrl(addressText)) {
       const url = getUrl(addressText);
       window.open(url, '_blank');
     }
@@ -182,7 +175,7 @@ export default function CourierDashboard() {
 
       {/* Orders List Container */}
       <div className="flex flex-col gap-4">
-        {isLoading && (!ordersResponse || ordersResponse.length === 0) ? (
+        {isLoading && allOrders.length === 0 ? (
           <div className="flex flex-col gap-4 animate-pulse">
             {[1, 2].map((n) => (
               <div key={n} className="bg-secondary p-5 rounded-3xl border border-hint/5 flex flex-col gap-3">
@@ -204,7 +197,7 @@ export default function CourierDashboard() {
               </p>
             </div>
           ) : (
-            activeOrders.map((order: any) => (
+            activeOrders.map((order) => (
               <div 
                 key={order.id}
                 className="bg-secondary p-5 rounded-3xl border border-hint/5 shadow-sm flex flex-col gap-4 relative overflow-hidden"
@@ -272,14 +265,14 @@ export default function CourierDashboard() {
                   <div className="text-[9px] font-black uppercase text-hint tracking-wider mb-1">
                     {language === 'uz' ? 'Mahsulotlar' : 'Содержимое'}
                   </div>
-                  {order.items?.map((item: any, idx: number) => (
+                  {order.items?.map((item, idx) => (
                     <div key={idx} className="flex justify-between items-center text-[11px] font-bold text-text">
                       <span>{item.product_name} x{item.quantity}</span>
                     </div>
                   ))}
                   <div className="flex justify-between items-center text-[11px] font-black text-text-h border-t border-hint/5 pt-2 mt-1">
                     <span>{language === 'uz' ? 'Jami summa' : 'Итоговая сумма'}</span>
-                    <span className="text-primary">{formatPrice(parseFloat(order.total_price))}</span>
+                    <span className="text-primary">{formatPrice(parsePrice(order.total_price))}</span>
                   </div>
                 </div>
 
@@ -329,7 +322,7 @@ export default function CourierDashboard() {
               </p>
             </div>
           ) : (
-            completedOrders.map((order: any) => (
+            completedOrders.map((order) => (
               <div 
                 key={order.id}
                 className="bg-secondary p-4 rounded-3xl border border-hint/5 shadow-sm flex flex-col gap-3 opacity-80"
@@ -343,7 +336,7 @@ export default function CourierDashboard() {
                 </div>
                 <div className="flex justify-between items-center text-xs font-bold text-hint">
                   <span>{order.user?.name}</span>
-                  <span className="text-text-h">{formatPrice(parseFloat(order.total_price))}</span>
+                  <span className="text-text-h">{formatPrice(parsePrice(order.total_price))}</span>
                 </div>
                 <div className="text-[10px] text-hint flex items-center gap-1.5">
                   <Clock className="w-3.5 h-3.5" />

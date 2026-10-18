@@ -94,7 +94,7 @@ class SuperadminController extends Controller
 
         // Additional Platform Metrics
         $pendingPayouts = \App\Models\PayoutRequest::where('status', 'pending')->count();
-        $totalStoreDebt = Store::where('balance', '>', 0)->sum('balance');
+        $totalStoreDebt = Store::where('debt_balance', '>', 0)->sum('debt_balance');
         $totalCashbackBalance = User::where('role', \App\Enums\UserRole::CUSTOMER->value)->sum('balance');
 
         return response()->json([

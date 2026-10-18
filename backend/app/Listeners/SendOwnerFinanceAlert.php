@@ -19,7 +19,7 @@ class SendOwnerFinanceAlert implements ShouldQueue
 
         $msg = "⚠️ *Diqqat! Moliyaviy ogohlantirish*\n\n";
         $msg .= "Hurmatli hamkor, sizning qarzingiz belgilangan limitdan oshib ketdi:\n";
-        $msg .= "Joriy balans: *" . number_format($store->balance, 0, '.', ' ') . " UZS*\n\n";
+        $msg .= "Joriy balans: *" . number_format($store->debt_balance, 0, '.', ' ') . " UZS*\n\n";
         $msg .= "Faoliyatingiz to'xtatilmasligi uchun zudlik bilan hisobingizni to'ldirishingizni so'raymiz.";
 
         Http::post("https://api.telegram.org/bot{$botToken}/sendMessage", [

@@ -21,7 +21,7 @@ class SuperadminDashboardTest extends TestCase
             'name' => 'Pizza House',
             'slug' => 'pizza-house',
             'address' => 'Chilonzor',
-            'balance' => 0,
+            'debt_balance' => 0,
             'wallet_balance' => 0,
             'credit_limit' => -50000,
             'commission_rate' => 10,

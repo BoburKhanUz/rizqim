@@ -1,7 +1,7 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
 import { useAuthStore } from '../store/authStore';
 import { getInitData, tg } from '../lib/telegram';
-
+import type { ApiResponse, LoginPayload } from '../types';
 
 
 const clientConfig = {
@@ -49,7 +49,7 @@ async function requestFreshToken(): Promise<string | null> {
   if (!initData) return null;
 
   try {
-    const res = await authClient.post('/auth/telegram', {
+    const res = await authClient.post<ApiResponse<LoginPayload>>('/auth/telegram', {
       initData,
       bot_username: import.meta.env.VITE_BOT_USERNAME || 'rizqimbot',
       start_param: tg.initDataUnsafe?.start_param || null,
@@ -58,7 +58,7 @@ async function requestFreshToken(): Promise<string | null> {
     const data = res.data?.data;
     if (res.data?.success && data?.token) {
       useAuthStore.getState().setAuth(data.token, data.user, data.store, data.sms_verification_required);
-      return data.token as string;
+      return data.token;
     }
   } catch {
     // handled by the caller: it falls back to logging out

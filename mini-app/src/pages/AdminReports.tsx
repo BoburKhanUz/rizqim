@@ -1,7 +1,6 @@
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMemo, useRef, useState, useEffect } from 'react';
 import { useLanguageStore } from '../store/languageStore';
-import { ErrorFallback } from '../App';
+import { ErrorFallback } from '../components/Feedback';
 import { 
   Calendar, 
   FileSpreadsheet, 
@@ -13,8 +12,23 @@ import {
   Download
 } from 'lucide-react';
 import api from '../services/api';
+import { getApiErrorMessage } from '../lib/apiError';
+import { isInTimeframe, type Timeframe } from '../lib/analytics';
+import { parsePrice } from '../lib/catalog';
+import { POLL_INTERVAL_MS } from '../lib/polling';
+import { useStaffOrders } from '../hooks/useOrders';
+import type { ApiResponse, Order } from '../types';
 
-type Timeframe = 'today' | 'weekly' | 'monthly' | 'yearly' | 'custom';
+const TIMEFRAMES: readonly Timeframe[] = ['today', 'weekly', 'monthly', 'yearly', 'custom'];
+
+const NO_ORDERS: Order[] = [];
+
+// POST /reports/export
+interface ExportPayload {
+  timeframe: Timeframe;
+  start_date?: string;
+  end_date?: string;
+}
 
 export default function AdminReports() {
   const { language } = useLanguageStore();
@@ -23,74 +37,56 @@ export default function AdminReports() {
   const [endDate, setEndDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [isExporting, setIsExporting] = useState(false);
   const [exportMessage, setExportMessage] = useState<string | null>(null);
+  const clearMessageTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  // Fetch all orders of the store with shared caching and non-blocking background refetching
-  const { data: orders = [], isLoading, error } = useQuery({
-    queryKey: ['adminOrders'],
-    queryFn: async () => {
-      const response = await api.get('/orders');
-      return response.data?.data || [];
-    },
-    refetchInterval: 15000,
-    staleTime: 1000 * 60 * 5, // 5 minutes stale time for instant tab switches
-  });
+  // The message disappears after a few seconds; the timer must not outlive the screen
+  useEffect(() => () => clearTimeout(clearMessageTimer.current), []);
+
+  // All orders of the store, refreshed in the background while the screen is visible
+  const { data, isLoading, error, dataUpdatedAt } = useStaffOrders('adminOrders', POLL_INTERVAL_MS.adminOrders);
+  const orders = data ?? NO_ORDERS;
 
   const handleExportReport = async () => {
     setIsExporting(true);
     setExportMessage(null);
     try {
-      const payload: any = { timeframe };
+      const payload: ExportPayload = { timeframe };
       if (timeframe === 'custom') {
         payload.start_date = startDate;
         payload.end_date = endDate;
       }
       
-      const response = await api.post('/reports/export', payload);
+      const response = await api.post<ApiResponse<null>>('/reports/export', payload);
       if (response.data?.success) {
         setExportMessage(response.data?.message || 'Hisobot muvaffaqiyatli yuborildi!');
       } else {
         setExportMessage('Xatolik yuz berdi.');
       }
-    } catch (err: any) {
-      setExportMessage(err.response?.data?.message || 'Xatolik yuz berdi.');
+    } catch (err) {
+      setExportMessage(getApiErrorMessage(err) || 'Xatolik yuz berdi.');
     } finally {
       setIsExporting(false);
-      setTimeout(() => setExportMessage(null), 6000);
+      clearTimeout(clearMessageTimer.current);
+      clearMessageTimer.current = setTimeout(() => setExportMessage(null), 6000);
     }
   };
 
-  if (error) return <ErrorFallback error="Failed to fetch reports data." />;
+  // Orders of the timeframe, measured from the time of the last refresh so the periods move on with the data
+  const { filteredOrders, deliveredOrders, canceledOrders, totalRevenue } = useMemo(() => {
+    const range = { start: startDate, end: endDate };
+    const filtered = orders.filter((o) => isInTimeframe(o.updated_at, timeframe, dataUpdatedAt, range));
+    const delivered = filtered.filter((o) => o.status === 'delivered');
+    return {
+      filteredOrders: filtered,
+      deliveredOrders: delivered,
+      canceledOrders: filtered.filter((o) => o.status === 'canceled'),
+      totalRevenue: delivered.reduce((sum, o) => sum + parsePrice(o.total_price), 0),
+    };
+  }, [orders, timeframe, startDate, endDate, dataUpdatedAt]);
 
-  // Filter orders based on timeframe
-  const filteredOrders = orders.filter((o: any) => {
-    const updatedAt = new Date(o.updated_at).getTime();
-    const now = Date.now();
-    
-    if (timeframe === 'today') {
-      const todayDate = new Date().toDateString();
-      return new Date(o.updated_at).toDateString() === todayDate;
-    }
-    if (timeframe === 'weekly') {
-      return now - updatedAt <= 7 * 24 * 60 * 60 * 1000;
-    }
-    if (timeframe === 'monthly') {
-      return now - updatedAt <= 30 * 24 * 60 * 60 * 1000;
-    }
-    if (timeframe === 'yearly') {
-      return now - updatedAt <= 365 * 24 * 60 * 60 * 1000;
-    }
-    if (timeframe === 'custom') {
-      const start = new Date(startDate).setHours(0, 0, 0, 0);
-      const end = new Date(endDate).setHours(23, 59, 59, 999);
-      return updatedAt >= start && updatedAt <= end;
-    }
-    return true;
-  });
+  // A failed background refresh keeps showing the last numbers; the error screen is only for "nothing to show"
+  if (error && orders.length === 0) return <ErrorFallback error="Failed to fetch reports data." />;
 
-  const deliveredOrders = filteredOrders.filter((o: any) => o.status === 'delivered');
-  const canceledOrders = filteredOrders.filter((o: any) => o.status === 'canceled');
-
-  const totalRevenue = deliveredOrders.reduce((sum: number, o: any) => sum + Number(o.total_price), 0);
   const successRate = filteredOrders.length > 0 
     ? Math.round((deliveredOrders.length / filteredOrders.length) * 100) 
     : 100;
@@ -128,7 +124,7 @@ export default function AdminReports() {
 
       {/* Timeframe Switcher Tabs */}
       <div className="flex bg-secondary p-1 rounded-2xl border border-hint/5 overflow-x-auto gap-0.5 scrollbar-none">
-        {(['today', 'weekly', 'monthly', 'yearly', 'custom'] as Timeframe[]).map((tab) => (
+        {TIMEFRAMES.map((tab) => (
           <button
             key={tab}
             onClick={() => setTimeframe(tab)}

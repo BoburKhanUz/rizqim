@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLanguageStore } from '../store/languageStore';
 import { useAuthStore } from '../store/authStore';
 import { hapticFeedback } from '../lib/telegram';
-import { ErrorFallback } from '../App';
+import { ErrorFallback } from '../components/Feedback';
 import { 
   Bike, 
   CheckCircle, 
@@ -12,7 +12,21 @@ import {
   Activity
 } from 'lucide-react';
 import api from '../services/api';
-import { logApiError } from '../lib/apiError';
+import { getApiErrorMessage, logApiError } from '../lib/apiError';
+import { parsePrice } from '../lib/catalog';
+import { POLL_INTERVAL_MS } from '../lib/polling';
+import { useStaffOrders } from '../hooks/useOrders';
+import type { ApiResponse, AssignableStaff, Order, OrderStatus } from '../types';
+
+const ACTIVE_STATUSES: readonly OrderStatus[] = ['new', 'accepted', 'preparing', 'ready', 'courier_assigned', 'on_the_way', 'delivery'];
+const COMPLETED_STATUSES: readonly OrderStatus[] = ['delivered', 'canceled', 'rejected'];
+const WITH_COURIER_STATUSES: readonly OrderStatus[] = ['courier_assigned', 'on_the_way', 'delivery'];
+
+interface StatusChange {
+  orderUuid: string;
+  status: OrderStatus;
+  courierId?: number;
+}
 
 export default function ManagerDashboard() {
   const { user } = useAuthStore();
@@ -21,37 +35,29 @@ export default function ManagerDashboard() {
   const [activeTab, setActiveTab] = useState<'active' | 'completed'>('active');
   const [selectedCourierId, setSelectedCourierId] = useState<Record<string, number>>({});
 
-  // 1. Fetch store orders with shared caching and non-blocking background refetching
-  const { data: orders = [], isLoading, error } = useQuery({
-    queryKey: ['managerOrders'],
-    queryFn: async () => {
-      const response = await api.get('/orders');
-      return response.data?.data || [];
-    },
-    refetchInterval: 8000, // Real-time kitchen updates every 8 seconds!
-    staleTime: 1000 * 60 * 5, // 5 minutes stale time for instant transitions
-  });
+  // 1. Fetch store orders: polled while the screen is visible (real-time kitchen updates)
+  const { data: orders = [], isLoading, error } = useStaffOrders('managerOrders', POLL_INTERVAL_MS.managerOrders);
 
   // 2. Fetch active couriers
   const { data: couriers = [] } = useQuery({
     queryKey: ['storeCouriers'],
     queryFn: async () => {
-      const response = await api.get('/couriers');
+      const response = await api.get<ApiResponse<AssignableStaff[]>>('/couriers');
       return response.data?.data || [];
     }
   });
 
   // 3. Update order status mutation
   const updateStatusMutation = useMutation({
-    mutationFn: async ({ orderUuid, status, courierId }: { orderUuid: string; status: string; courierId?: number }) => {
+    mutationFn: async ({ orderUuid, status, courierId }: StatusChange) => {
       hapticFeedback('medium');
       if (status === 'courier_assigned') {
-        const response = await api.post(`/orders/${orderUuid}/assign-courier`, {
+        const response = await api.post<ApiResponse<Order>>(`/orders/${orderUuid}/assign-courier`, {
           courier_id: courierId
         });
         return response.data;
       } else {
-        const response = await api.post(`/orders/${orderUuid}/status`, {
+        const response = await api.post<ApiResponse<Order>>(`/orders/${orderUuid}/status`, {
           status
         });
         return response.data;
@@ -61,27 +67,24 @@ export default function ManagerDashboard() {
       queryClient.invalidateQueries({ queryKey: ['managerOrders'] });
       hapticFeedback('medium');
     },
-    onError: (err: any) => {
+    onError: (err) => {
       logApiError('Failed to update status:', err);
-      alert(err.response?.data?.message || (language === 'uz' ? 'Holatni yangilashda xatolik yuz berdi!' : 'Ошибка при обновлении статуса!'));
+      alert(getApiErrorMessage(err) || (language === 'uz' ? 'Holatni yangilashda xatolik yuz berdi!' : 'Ошибка при обновлении статуса!'));
     }
   });
 
-  if (error) return <ErrorFallback error="Failed to fetch store orders." />;
+  // A failed background refresh keeps showing the last orders; the error screen is only for "nothing to show"
+  if (error && orders.length === 0) return <ErrorFallback error="Failed to fetch store orders." />;
 
-  const activeOrders = orders.filter((order: any) => 
-    ['new', 'accepted', 'preparing', 'ready', 'courier_assigned', 'on_the_way', 'delivery'].includes(order.status)
-  );
+  const activeOrders = orders.filter((order) => ACTIVE_STATUSES.includes(order.status));
 
-  const completedOrders = orders.filter((order: any) => 
-    ['delivered', 'canceled', 'rejected'].includes(order.status)
-  );
+  const completedOrders = orders.filter((order) => COMPLETED_STATUSES.includes(order.status));
 
   const formatPrice = (price: number) => {
     return price.toLocaleString() + ' UZS';
   };
 
-  const getCleanAddress = (addressText: string) => {
+  const getCleanAddress = (addressText: string | null) => {
     if (!addressText) return '';
     const urlMatches = addressText.match(/(https?:\/\/[^\s]+)/);
     if (urlMatches) {
@@ -103,12 +106,12 @@ export default function ManagerDashboard() {
   };
 
   // --- Individual Order Stage Time Trackers ---
-  const getStageDurations = (order: any) => {
-    const histories = order.status_histories || order.statusHistories;
+  const getStageDurations = (order: Order) => {
+    const histories = order.status_histories;
     if (!histories || histories.length === 0) return null;
     
-    const times: Record<string, Date> = {};
-    histories.forEach((h: any) => {
+    const times: Partial<Record<OrderStatus, Date>> = {};
+    histories.forEach((h) => {
       times[h.status] = new Date(h.created_at);
     });
     
@@ -163,7 +166,7 @@ export default function ManagerDashboard() {
             {language === 'uz' ? 'Yangi' : 'Новые'}
           </span>
           <span className="text-sm font-black text-amber-500 mt-1">
-            {orders.filter((o: any) => o.status === 'new').length}
+            {orders.filter((o) => o.status === 'new').length}
           </span>
         </div>
         <div className="bg-secondary p-2 rounded-2xl border border-hint/5 flex flex-col gap-0.5 items-center justify-center text-center">
@@ -171,7 +174,7 @@ export default function ManagerDashboard() {
             {language === 'uz' ? 'Tayyorlash' : 'Готовка'}
           </span>
           <span className="text-sm font-black text-purple-500 mt-1">
-            {orders.filter((o: any) => o.status === 'preparing').length}
+            {orders.filter((o) => o.status === 'preparing').length}
           </span>
         </div>
         <div className="bg-secondary p-2 rounded-2xl border border-hint/5 flex flex-col gap-0.5 items-center justify-center text-center">
@@ -179,7 +182,7 @@ export default function ManagerDashboard() {
             {language === 'uz' ? 'Tayyor' : 'Готовы'}
           </span>
           <span className="text-sm font-black text-emerald-500 mt-1">
-            {orders.filter((o: any) => o.status === 'ready').length}
+            {orders.filter((o) => o.status === 'ready').length}
           </span>
         </div>
         <div className="bg-secondary p-2 rounded-2xl border border-hint/5 flex flex-col gap-0.5 items-center justify-center text-center">
@@ -187,7 +190,7 @@ export default function ManagerDashboard() {
             {language === 'uz' ? 'Kuryer' : 'Курьер'}
           </span>
           <span className="text-sm font-black text-orange-500 mt-1">
-            {orders.filter((o: any) => ['courier_assigned', 'on_the_way', 'delivery'].includes(o.status)).length}
+            {orders.filter((o) => WITH_COURIER_STATUSES.includes(o.status)).length}
           </span>
         </div>
       </div>
@@ -240,7 +243,7 @@ export default function ManagerDashboard() {
               </p>
             </div>
           ) : (
-            activeOrders.map((order: any) => {
+            activeOrders.map((order) => {
               const timings = getStageDurations(order);
               return (
                 <div 
@@ -279,14 +282,14 @@ export default function ManagerDashboard() {
                     <div className="text-[9px] font-black uppercase text-hint tracking-wider mb-1">
                       {language === 'uz' ? 'Tarkibi' : 'Детали заказа'}
                     </div>
-                    {order.items?.map((item: any, idx: number) => (
+                    {order.items?.map((item, idx) => (
                       <div key={idx} className="flex justify-between items-center text-[11px] font-bold text-text">
                         <span>{item.product_name} x{item.quantity}</span>
                       </div>
                     ))}
                     <div className="flex justify-between items-center text-[11px] font-black text-text-h border-t border-hint/5 pt-2 mt-1">
                       <span>{language === 'uz' ? 'Jami summa' : 'Сумма'}</span>
-                      <span className="text-primary">{formatPrice(parseFloat(order.total_price))}</span>
+                      <span className="text-primary">{formatPrice(parsePrice(order.total_price))}</span>
                     </div>
                     <div className="flex justify-between items-center text-[10px] text-hint font-medium pt-1">
                       <span>{language === 'uz' ? 'To\'lov turi' : 'Оплата'}</span>
@@ -404,7 +407,7 @@ export default function ManagerDashboard() {
                                 className="w-full px-3 py-2 rounded-xl bg-bg border border-hint/15 font-bold text-xs text-text-h outline-none"
                               >
                                 <option value="">-- {language === 'uz' ? 'Kuryerni tanlang' : 'Выбрать курьера'} --</option>
-                                {couriers.map((courier: any) => (
+                                {couriers.map((courier) => (
                                   <option key={courier.id} value={courier.id}>
                                     {courier.name} {courier.telegram_username ? `(@${courier.telegram_username})` : ''}
                                   </option>
@@ -482,7 +485,7 @@ export default function ManagerDashboard() {
               </p>
             </div>
           ) : (
-            completedOrders.map((order: any) => {
+            completedOrders.map((order) => {
               const timings = getStageDurations(order);
               return (
                 <div 
@@ -510,7 +513,7 @@ export default function ManagerDashboard() {
                   </div>
                   <div className="flex justify-between items-center text-xs font-bold text-hint">
                     <span>{order.user?.name}</span>
-                    <span className="text-text-h">{formatPrice(parseFloat(order.total_price))}</span>
+                    <span className="text-text-h">{formatPrice(parsePrice(order.total_price))}</span>
                   </div>
 
                   {/* Historic Timings */}

@@ -12,13 +12,25 @@ export interface CartItem {
   image?: string;
 }
 
+// The store the cart's items come from, as the cart screen shows it.
+export interface CartStoreInfo {
+  name: string;
+  address: string;
+}
+
+// An item that could not be added because the cart holds another store's items; kept until the customer decides.
+export interface PendingCartItem {
+  item: CartItem;
+  storeInfo?: CartStoreInfo;
+}
+
 interface CartState {
   items: CartItem[];
   storeName: string;
   storeAddress: string;
   specialInstructions: string;
-  addItem: (item: CartItem, storeInfo?: { name: string, address: string }) => boolean;
-  forceClearAndAdd: (item: CartItem, storeInfo?: { name: string, address: string }) => void;
+  addItem: (item: CartItem, storeInfo?: CartStoreInfo) => boolean;
+  forceClearAndAdd: (item: CartItem, storeInfo?: CartStoreInfo) => void;
   removeItem: (id: string) => void;
   updateQuantity: (id: string, quantity: number) => void;
   clearCart: () => void;

@@ -1,32 +1,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useCartStore } from '../store/cartStore';
+import { useCartStore, type PendingCartItem } from '../store/cartStore';
 import { useLanguageStore } from '../store/languageStore';
 import { hapticFeedback } from '../lib/telegram';
 import { ArrowLeft, Search, X, ShoppingBag } from 'lucide-react';
 import VariantSelectorModal from '../components/VariantSelectorModal';
 import api from '../services/api';
 import { logApiError } from '../lib/apiError';
-
-function formatUzbekSum(value: number | string | undefined) {
-  if (value === undefined || value === null) return "0 so'm";
-  const numValue = Math.round(Number(value));
-  return numValue.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ") + " so'm";
-}
-
-function getProductBasePrice(product: any): number {
-  if (!product) return 0;
-  if (product.price && parseFloat(product.price) > 0) {
-    return parseFloat(product.price);
-  }
-  if (product.variants && product.variants.length > 0) {
-    const prices = product.variants.map((v: any) => parseFloat(v.price)).filter((p: number) => !isNaN(p) && p > 0);
-    if (prices.length > 0) {
-      return Math.min(...prices);
-    }
-  }
-  return 0;
-}
+import { formatUzbekSum } from '../lib/format';
+import { buildCartItem, getProductBasePrice, getStoreInfo } from '../lib/catalog';
+import type { ApiResponse, Category, FeedCatalog, Product, ProductVariant } from '../types';
 
 export default function CategoryDetail() {
   const { id } = useParams();
@@ -34,34 +17,37 @@ export default function CategoryDetail() {
   const { language } = useLanguageStore();
   const { items: cartItems, addItem, forceClearAndAdd } = useCartStore();
 
-  const [categories, setCategories] = useState<any[]>([]);
-  const [products, setProducts] = useState<any[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [selectedSubCategoryId, setSelectedSubCategoryId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   
-  const [selectedProductForVariant, setSelectedProductForVariant] = useState<any>(null);
-  const [pendingCartItem, setPendingCartItem] = useState<{item: any, storeInfo: any} | null>(null);
+  const [selectedProductForVariant, setSelectedProductForVariant] = useState<Product | null>(null);
+  const [pendingCartItem, setPendingCartItem] = useState<PendingCartItem | null>(null);
 
   useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
     const fetchCategoryData = async () => {
       setLoading(true);
       try {
-        const res = await api.get(`/catalog?category_id=${id}`);
-        if (res.data.success) {
+        const res = await api.get<ApiResponse<FeedCatalog>>(`/catalog?category_id=${id}`);
+        if (res.data.success && !cancelled) {
           setCategories(res.data.data.categories || []);
           setProducts(res.data.data.products || []);
         }
       } catch (err) {
         logApiError('Failed to load category:', err);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
-    if (id) {
-      fetchCategoryData();
-    }
+    fetchCategoryData();
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
 
   const currentCategory = useMemo(() => {
@@ -86,7 +72,18 @@ export default function CategoryDetail() {
     return result;
   }, [products, selectedSubCategoryId, searchQuery]);
 
-  const handleAddToCart = (e: React.MouseEvent, product: any) => {
+  // Puts one unit into the cart; another store's items in the cart ask the customer first
+  const addToCart = (product: Product, variant: ProductVariant | undefined) => {
+    const cartItem = buildCartItem(product, variant);
+    const storeInfo = getStoreInfo(product.store);
+
+    const isSuccess = addItem(cartItem, storeInfo);
+    if (!isSuccess) {
+      setPendingCartItem({ item: cartItem, storeInfo });
+    }
+  };
+
+  const handleAddToCart = (e: React.MouseEvent, product: Product) => {
     e.stopPropagation();
     hapticFeedback('medium');
 
@@ -94,30 +91,8 @@ export default function CategoryDetail() {
       setSelectedProductForVariant(product);
       return;
     }
-    
-    const variant = product.variants?.[0];
-    const itemPrice = variant ? parseFloat(variant.price) : 0;
-    
-    const cartItem = {
-      id: variant ? `${product.id}-${variant.uuid}` : `${product.id}`,
-      productId: product.id,
-      variantId: variant?.uuid,
-      storeId: product.store_id.toString(),
-      name: variant && product.variants && product.variants.length > 0 ? `${product.name} (${variant.name})` : product.name,
-      price: itemPrice,
-      quantity: 1,
-      image: product.image_url
-    };
 
-    const storeInfo = product.store ? { 
-      name: product.store.name, 
-      address: product.store.address || 'Asosiy filial' 
-    } : undefined;
-
-    const isSuccess = addItem(cartItem, storeInfo);
-    if (!isSuccess) {
-      setPendingCartItem({ item: cartItem, storeInfo });
-    }
+    addToCart(product, product.variants?.[0]);
   };
 
   const handleConfirmClearCart = () => {
@@ -293,26 +268,7 @@ export default function CategoryDetail() {
           product={selectedProductForVariant}
           onClose={() => setSelectedProductForVariant(null)}
           onAdd={(variant) => {
-            const cartItem = {
-              id: `${selectedProductForVariant.id}-${variant.uuid}`,
-              productId: selectedProductForVariant.id,
-              variantId: variant.uuid,
-              storeId: selectedProductForVariant.store_id.toString(),
-              name: `${selectedProductForVariant.name} (${variant.name})`,
-              price: parseFloat(variant.price as string),
-              quantity: 1,
-              image: selectedProductForVariant.image_url
-            };
-
-            const storeInfo = selectedProductForVariant.store ? { 
-              name: selectedProductForVariant.store.name, 
-              address: selectedProductForVariant.store.address || 'Asosiy filial' 
-            } : undefined;
-
-            const isSuccess = addItem(cartItem, storeInfo);
-            if (!isSuccess) {
-              setPendingCartItem({ item: cartItem, storeInfo });
-            }
+            addToCart(selectedProductForVariant, variant);
             setSelectedProductForVariant(null);
           }}
         />

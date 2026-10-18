@@ -1,35 +1,20 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useCartStore } from '../store/cartStore';
+import { useCartStore, type PendingCartItem } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
 import { useAddressStore } from '../store/useAddressStore';
 import { hapticFeedback } from '../lib/telegram';
-import { ErrorFallback } from '../App';
+import { ErrorFallback } from '../components/Feedback';
 import api from '../services/api';
 import { Search, X, MapPin, Heart, Star, Plus, Bell } from 'lucide-react';
 import HeroPromoSlider from '../components/HeroPromoSlider';
 import { useNavigate } from 'react-router-dom';
 import VariantSelectorModal from '../components/VariantSelectorModal';
 import { useLanguageStore } from '../store/languageStore';
-
-function formatUzbekSum(value: number | string | undefined) {
-  if (value === undefined || value === null) return "0 so'm";
-  const numValue = Math.round(Number(value));
-  return numValue.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ") + " so'm";
-}
-
-function getProductBasePrice(product: any): number {
-  if (!product) return 0;
-  if (product.price && parseFloat(product.price) > 0) {
-    return parseFloat(product.price);
-  }
-  if (product.variants && product.variants.length > 0) {
-    const prices = product.variants.map((v: any) => parseFloat(v.price)).filter((p: number) => !isNaN(p) && p > 0);
-    if (prices.length > 0) {
-      return Math.min(...prices);
-    }
-  }
-  return 0;
-}
+import { formatUzbekSum } from '../lib/format';
+import { buildCartItem, getProductBasePrice, getStoreInfo } from '../lib/catalog';
+import { getErrorMessage } from '../lib/apiError';
+import { getLocationParams } from '../lib/location';
+import type { ApiResponse, Category, FeedCatalog, Product, ProductVariant, Promo, StoreListItem } from '../types';
 
 export default function Home() {
   const navigate = useNavigate();
@@ -39,17 +24,17 @@ export default function Home() {
   const activeAddress = addresses.find(a => a.id === selectedAddressId) || addresses[0];
 
   const { items: cartItems, addItem, forceClearAndAdd } = useCartStore();
-  const [pendingCartItem, setPendingCartItem] = useState<{item: any, storeInfo: any} | null>(null);
-  const [selectedProductForVariant, setSelectedProductForVariant] = useState<any>(null);
+  const [pendingCartItem, setPendingCartItem] = useState<PendingCartItem | null>(null);
+  const [selectedProductForVariant, setSelectedProductForVariant] = useState<Product | null>(null);
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [categories, setCategories] = useState<any[]>([]);
-  const [products, setProducts] = useState<any[]>([]);
-  const [promos, setPromos] = useState<any[]>([]);
-  const [highlightProduct, setHighlightProduct] = useState<any>(null);
-  const [stores, setStores] = useState<any[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [promos, setPromos] = useState<Promo[]>([]);
+  const [highlightProduct, setHighlightProduct] = useState<Product | null>(null);
+  const [stores, setStores] = useState<StoreListItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<any>(null);
+  const [error, setError] = useState<unknown>(null);
   
   // Favorites mock state
   const [favoriteStores, setFavoriteStores] = useState<string[]>([]);
@@ -58,17 +43,11 @@ export default function Home() {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const params: any = {};
-        if (activeAddress) {
-          if (activeAddress.lat) params.lat = activeAddress.lat;
-          if (activeAddress.lng) params.lng = activeAddress.lng;
-          if (activeAddress.region_id) params.region_id = activeAddress.region_id;
-          if (activeAddress.district_id) params.district_id = activeAddress.district_id;
-        }
+        const params = getLocationParams(activeAddress);
 
         const [catalogRes, storesRes] = await Promise.all([
-          api.get('/catalog', { params }),
-          api.get('/stores', { params })
+          api.get<ApiResponse<FeedCatalog>>('/catalog', { params }),
+          api.get<ApiResponse<StoreListItem[]>>('/stores', { params })
         ]);
         
         if (catalogRes.data.success) {
@@ -87,7 +66,7 @@ export default function Home() {
       }
     };
     fetchData();
-  }, [selectedAddressId, addresses]);
+  }, [activeAddress]);
 
   const toggleFavoriteStore = (e: React.MouseEvent, uuid: string) => {
     e.stopPropagation();
@@ -97,7 +76,18 @@ export default function Home() {
     );
   };
 
-  const handleAddToCart = (e: React.MouseEvent, product: any) => {
+  // Puts one unit into the cart; another store's items in the cart ask the customer first
+  const addToCart = (product: Product, variant: ProductVariant | undefined) => {
+    const cartItem = buildCartItem(product, variant);
+    const storeInfo = getStoreInfo(product.store);
+
+    const isSuccess = addItem(cartItem, storeInfo);
+    if (!isSuccess) {
+      setPendingCartItem({ item: cartItem, storeInfo });
+    }
+  };
+
+  const handleAddToCart = (e: React.MouseEvent, product: Product) => {
     e.stopPropagation();
     hapticFeedback('medium');
 
@@ -105,30 +95,8 @@ export default function Home() {
       setSelectedProductForVariant(product);
       return;
     }
-    
-    const variant = product.variants?.[0];
-    const itemPrice = variant ? parseFloat(variant.price) : 0;
-    
-    const cartItem = {
-      id: variant ? `${product.id}-${variant.uuid}` : `${product.id}`,
-      productId: product.id,
-      variantId: variant?.uuid,
-      storeId: product.store_id.toString(),
-      name: variant && product.variants && product.variants.length > 0 ? `${product.name} (${variant.name})` : product.name,
-      price: itemPrice,
-      quantity: 1,
-      image: product.image_url
-    };
 
-    const storeInfo = product.store ? { 
-      name: product.store.name, 
-      address: product.store.address || 'Asosiy filial' 
-    } : undefined;
-
-    const isSuccess = addItem(cartItem, storeInfo);
-    if (!isSuccess) {
-      setPendingCartItem({ item: cartItem, storeInfo });
-    }
+    addToCart(product, product.variants?.[0]);
   };
 
   const parentCategories = useMemo(() => {
@@ -148,7 +116,7 @@ export default function Home() {
     return filtered;
   }, [searchQuery, products, stores]);
 
-  if (error) return <ErrorFallback error={error?.message || "Failed to load"} />;
+  if (error) return <ErrorFallback error={getErrorMessage(error) || "Failed to load"} />;
   if (loading) {
     return (
       <div className="space-y-6 pb-24 bg-white min-h-screen">
@@ -371,7 +339,7 @@ export default function Home() {
           {stores.map((store) => {
             const isFav = favoriteStores.includes(store.uuid);
             
-            const hasLogo = store.logo_url && store.logo_url.trim() !== "";
+            const logoUrl = store.logo_url && store.logo_url.trim() !== "" ? store.logo_url : null;
             const initials = store.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase();
 
             return (
@@ -390,9 +358,9 @@ export default function Home() {
 
                 <div>
                   <div className="flex items-center gap-2.5 mb-2.5">
-                    {hasLogo ? (
+                    {logoUrl ? (
                       <div className="w-12 h-12 bg-slate-50 rounded-2xl overflow-hidden shadow-inner border border-slate-100 shrink-0">
-                        <img src={store.logo_url} alt="" className="w-full h-full object-cover" />
+                        <img src={logoUrl} alt="" className="w-full h-full object-cover" />
                       </div>
                     ) : (
                       <div className="w-12 h-12 bg-amber-100 text-amber-700 rounded-2xl flex items-center justify-center font-black text-sm tracking-tight border border-amber-200 shrink-0">
@@ -516,26 +484,7 @@ export default function Home() {
         onClose={() => setSelectedProductForVariant(null)}
         product={selectedProductForVariant}
         onAdd={(variant) => {
-          const cartItem = {
-            id: `${selectedProductForVariant.id}-${variant.uuid}`,
-            productId: selectedProductForVariant.id,
-            variantId: variant.uuid,
-            storeId: selectedProductForVariant.store_id.toString(),
-            name: `${selectedProductForVariant.name} (${variant.name})`,
-            price: parseFloat(variant.price as string),
-            quantity: 1,
-            image: selectedProductForVariant.image_url
-          };
-
-          const storeInfo = selectedProductForVariant.store ? { 
-            name: selectedProductForVariant.store.name, 
-            address: selectedProductForVariant.store.address || 'Asosiy filial' 
-          } : undefined;
-
-          const isSuccess = addItem(cartItem, storeInfo);
-          if (!isSuccess) {
-            setPendingCartItem({ item: cartItem, storeInfo });
-          }
+          if (selectedProductForVariant) addToCart(selectedProductForVariant, variant);
         }}
       />
     </div>

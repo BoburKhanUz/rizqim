@@ -6,56 +6,49 @@ import {
 import { hapticFeedback } from '../lib/telegram';
 import api from '../services/api';
 import { logApiError } from '../lib/apiError';
-import { FullScreenLoader, ErrorFallback } from '../App';
-
-interface DashboardStats {
-  total_stores: number;
-  active_stores: number;
-  payment_required_stores: number;
-  total_users: number;
-  total_gmv: number;
-  total_commission: number;
-  monthly_gmv: number;
-  monthly_commission: number;
-  last_30_days_gmv: number;
-  last_30_days_commission: number;
-  today_gmv: number;
-  today_orders: number;
-  today_commission: number;
-  pending_payouts: number;
-  total_store_debt: number;
-  total_cashback_balance: number;
-}
+import { FullScreenLoader, ErrorFallback } from '../components/Feedback';
+import type { ApiResponse, DashboardStats, Decimal } from '../types';
 
 export default function SuperadminDashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  const fetchStats = async () => {
-    try {
-      setLoading(true);
-      const res = await api.get('/superadmin/dashboard');
-      setStats(res.data.data);
-      setError(null);
-    } catch (err) {
-      logApiError('Failed to load dashboard:', err);
-      setError('Statistikalarni yuklashda xatolik yuz berdi');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Bumped by the refresh button
+  const [reloadCount, setReloadCount] = useState(0);
 
   useEffect(() => {
+    let cancelled = false;
+    const fetchStats = async () => {
+      try {
+        const res = await api.get<ApiResponse<DashboardStats>>('/superadmin/dashboard');
+        if (cancelled) return;
+        setStats(res.data.data);
+        setError(null);
+      } catch (err) {
+        if (cancelled) return;
+        logApiError('Failed to load dashboard:', err);
+        setError('Statistikalarni yuklashda xatolik yuz berdi');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
     fetchStats();
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadCount]);
 
-  const formatMoney = (amount: number | string) => {
+  const refresh = () => {
+    setLoading(true);
+    setReloadCount((count) => count + 1);
+  };
+
+  const formatMoney = (amount: Decimal) => {
     const num = Math.round(Number(amount));
     return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + " so'm";
   };
 
-  const formatPoints = (amount: number | string) => {
+  const formatPoints = (amount: Decimal) => {
     const num = Math.round(Number(amount));
     return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + " ball";
   };
@@ -74,7 +67,7 @@ export default function SuperadminDashboard() {
         <button 
           onClick={() => {
             hapticFeedback('light');
-            fetchStats();
+            refresh();
           }}
           className="p-2.5 bg-secondary rounded-2xl active:scale-95 transition-transform shadow-sm"
         >

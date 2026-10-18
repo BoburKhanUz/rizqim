@@ -5,32 +5,38 @@ import { PlusCircle, Search, Edit2, Trash2, Tag, CheckCircle2, XCircle } from 'l
 import { hapticFeedback } from '../lib/telegram';
 import api from '../services/api';
 import { logApiError } from '../lib/apiError';
-import { FullScreenLoader, ErrorFallback } from '../App';
+import { parsePrice } from '../lib/catalog';
+import { FullScreenLoader, ErrorFallback } from '../components/Feedback';
+import type { ApiResponse, Product } from '../types';
 
 export default function OwnerMenuManagement() {
   const navigate = useNavigate();
   
-  const [products, setProducts] = useState<any[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   
-  const fetchProducts = async () => {
-    try {
-      setLoading(true);
-      const res = await api.get('/owner/products');
-      setProducts(res.data.data);
-      setError(null);
-    } catch (err) {
-      logApiError('Failed to load products:', err);
-      setError('Mahsulotlarni yuklashda xatolik yuz berdi');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
+    let cancelled = false;
+    const fetchProducts = async () => {
+      try {
+        const res = await api.get<ApiResponse<Product[]>>('/owner/products');
+        if (cancelled) return;
+        setProducts(res.data.data);
+        setError(null);
+      } catch (err) {
+        if (cancelled) return;
+        logApiError('Failed to load products:', err);
+        setError('Mahsulotlarni yuklashda xatolik yuz berdi');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
     fetchProducts();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const toggleActive = async (id: number) => {
@@ -39,7 +45,7 @@ export default function OwnerMenuManagement() {
     setProducts(prev => prev.map(p => p.id === id ? { ...p, status: p.status === 'active' ? 'inactive' : 'active' } : p));
     try {
       await api.post(`/owner/products/${id}?toggle_active=1`);
-    } catch (err) {
+    } catch {
       // Revert on error
       setProducts(prev => prev.map(p => p.id === id ? { ...p, status: p.status === 'active' ? 'inactive' : 'active' } : p));
       hapticFeedback('error');
@@ -55,7 +61,7 @@ export default function OwnerMenuManagement() {
       await api.delete(`/owner/products/${id}`);
       setProducts(prev => prev.filter(p => p.id !== id));
       hapticFeedback('success');
-    } catch (err) {
+    } catch {
       alert("O'chirishda xatolik yuz berdi");
       hapticFeedback('error');
     }
@@ -109,7 +115,7 @@ export default function OwnerMenuManagement() {
       <div className="space-y-4">
         {filteredProducts.map(product => {
           const startingPrice = product.variants?.length > 0 
-            ? Math.min(...product.variants.map((v: any) => v.price))
+            ? Math.min(...product.variants.map((v) => parsePrice(v.price)))
             : 0;
 
           return (

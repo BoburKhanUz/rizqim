@@ -1,59 +1,55 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Check } from 'lucide-react';
 import { hapticFeedback } from '../lib/telegram';
-
-interface ProductVariant {
-  id: number;
-  uuid: string;
-  name: string;
-  price: string | number;
-  stock: number;
-  is_active: boolean;
-}
+import { formatUzbekSum } from '../lib/format';
+import { parsePrice } from '../lib/catalog';
+import { isVariantActive, isVariantOutOfStock } from '../lib/stock';
+import type { Product, ProductVariant } from '../types';
 
 interface VariantSelectorModalProps {
   isOpen: boolean;
   onClose: () => void;
-  product: any;
+  product: Product | null;
   onAdd: (variant: ProductVariant) => void;
 }
 
-function formatUzbekSum(value: number | string | undefined) {
-  if (value === undefined || value === null) return "0 so'm";
-  const numValue = Math.round(Number(value));
-  return numValue.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ") + " so'm";
-}
+// A variant the customer can pick: switched on by the store and not known to be sold out.
+const isSelectable = (variant: ProductVariant) => isVariantActive(variant) && !isVariantOutOfStock(variant);
 
 export default function VariantSelectorModal({ isOpen, onClose, product, onAdd }: VariantSelectorModalProps) {
-  const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
-
-  // Auto-select the first active variant on product change
-  useEffect(() => {
-    if (product && product.variants && product.variants.length > 0) {
-      const firstActive = product.variants.find((v: ProductVariant) => (v.is_active as any) !== false && (v.is_active as any) !== 0 && v.stock > 0);
-      setSelectedVariant(firstActive || product.variants[0]);
-    } else {
-      setSelectedVariant(null);
-    }
-  }, [product]);
-
   if (!isOpen || !product) return null;
 
+  // Keyed by product so every product starts with its own default selection
+  return createPortal(<VariantSheet key={product.uuid} product={product} onClose={onClose} onAdd={onAdd} />, document.body);
+}
+
+interface VariantSheetProps {
+  product: Product;
+  onClose: () => void;
+  onAdd: (variant: ProductVariant) => void;
+}
+
+function VariantSheet({ product, onClose, onAdd }: VariantSheetProps) {
+  const variants = product.variants ?? [];
+  // Starts on the first variant that can be ordered; with none, nothing is selected and nothing can be added
+  const [selectedUuid, setSelectedUuid] = useState<string | null>(() => variants.find(isSelectable)?.uuid ?? null);
+  const selectedVariant = variants.find((v) => v.uuid === selectedUuid) ?? null;
+
   const handleSelect = (variant: ProductVariant) => {
-    if (!variant.is_active) return;
+    if (!isSelectable(variant)) return;
     hapticFeedback('light');
-    setSelectedVariant(variant);
+    setSelectedUuid(variant.uuid);
   };
 
   const handleConfirm = () => {
-    if (!selectedVariant) return;
+    if (!selectedVariant || !isSelectable(selectedVariant)) return;
     hapticFeedback('success');
     onAdd(selectedVariant);
     onClose();
   };
 
-  return createPortal(
+  return (
     <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/50 backdrop-blur-sm animate-fade-in">
       {/* Backdrop Click */}
       <div className="absolute inset-0" onClick={onClose}></div>
@@ -91,10 +87,10 @@ export default function VariantSelectorModal({ isOpen, onClose, product, onAdd }
             <p className="text-xs text-slate-500 font-semibold line-clamp-2 leading-relaxed">{product.description || "Mazali taom variantini tanlang"}</p>
             <p className="text-xs font-black text-slate-800 mt-2">
               Asosiy narx: {formatUzbekSum(
-                product.price && parseFloat(product.price) > 0 
-                  ? parseFloat(product.price)
-                  : (product.variants && product.variants.length > 0 
-                      ? Math.min(...product.variants.map((v: any) => parseFloat(v.price) || 0)) 
+                product.price && parsePrice(product.price) > 0
+                  ? parsePrice(product.price)
+                  : (variants.length > 0
+                      ? Math.min(...variants.map((v) => parsePrice(v.price) || 0))
                       : 0)
               )}
             </p>
@@ -103,15 +99,15 @@ export default function VariantSelectorModal({ isOpen, onClose, product, onAdd }
 
         {/* Scrollable Variants List */}
         <div className="flex-1 overflow-y-auto no-scrollbar py-1 space-y-2.5">
-          {product.variants?.map((v: ProductVariant) => {
+          {variants.map((v) => {
             const isSelected = selectedVariant?.uuid === v.uuid;
-            const isOutOfStock = v.stock <= 0;
-            const isDisabled = ((v.is_active as any) === false || (v.is_active as any) === 0) || isOutOfStock;
+            const isOutOfStock = isVariantOutOfStock(v);
+            const isDisabled = !isSelectable(v);
 
             return (
               <div
                 key={v.id}
-                onClick={() => !isDisabled && handleSelect(v)}
+                onClick={() => handleSelect(v)}
                 className={`p-4 rounded-2xl border-2 flex items-center justify-between transition cursor-pointer ${
                   isDisabled 
                     ? 'border-slate-100 bg-slate-50/50 opacity-50 cursor-not-allowed'
@@ -166,7 +162,6 @@ export default function VariantSelectorModal({ isOpen, onClose, product, onAdd }
           </button>
         </div>
       </div>
-    </div>,
-    document.body
+    </div>
   );
 }

@@ -12,6 +12,7 @@ use Filament\Forms\Components\Select;
 use App\Models\StoreTopupRequest;
 use App\Models\PaymentProvider;
 use App\Services\Finance\LedgerService;
+use App\Support\Money;
 use Filament\Notifications\Notification;
 use Filament\Facades\Filament;
 
@@ -64,12 +65,12 @@ class StoreFinance extends Page
                     $store = Filament::getTenant();
                     if (!$store) return;
 
-                    $amount = (float) $data['amount'];
+                    $amount = Money::of($data['amount']);
                     $provider = $data['provider'];
 
                     $topupRequest = StoreTopupRequest::create([
                         'store_id' => $store->id,
-                        'amount' => $amount,
+                        'amount' => $amount->toString(),
                         'provider' => $provider,
                         'status' => 'pending',
                     ]);
@@ -84,13 +85,13 @@ class StoreFinance extends Page
                         $paymentUrl = "https://my.click.uz/services/pay" .
                                "?service_id={$serviceId}" .
                                "&merchant_id={$merchantId}" .
-                               "&amount={$amount}" .
+                               "&amount={$amount->toFloat()}" .
                                "&transaction_param=topup_{$topupRequest->uuid}" .
                                "&return_url=" . urlencode($returnUrl);
                     } elseif ($provider === 'payme') {
                         $merchantId = PaymentProvider::platformCredential('payme', 'merchant_id');
 
-                        $tiyinAmount = (int) round($amount * 100);
+                        $tiyinAmount = $amount->toTiyin();
                         $params = "m={$merchantId};ac.order_id=topup_{$topupRequest->uuid};a={$tiyinAmount};c=" . urlencode($returnUrl);
                         $paymentUrl = "https://checkout.paycom.uz/" . base64_encode($params);
                     }
@@ -108,7 +109,7 @@ class StoreFinance extends Page
                 ->form(function () {
                     $store = Filament::getTenant();
                     $minReserve = $store ? (float) ($store->min_payout_reserve ?? 100000) : 100000;
-                    $maxWithdrawal = $store ? app(LedgerService::class)->availableForPayout($store) : 0.0;
+                    $maxWithdrawal = $store ? app(LedgerService::class)->availableForPayout($store)->toFloat() : 0.0;
 
                     return [
                         TextInput::make('amount')
@@ -142,7 +143,7 @@ class StoreFinance extends Page
                     try {
                         app(LedgerService::class)->requestPayout(
                             $store,
-                            round((float) $data['amount'], 2),
+                            Money::of($data['amount']),
                             preg_replace('/\s+/', '', (string) $data['card_number']),
                             $data['notes'] ?? null
                         );
@@ -172,7 +173,7 @@ class StoreFinance extends Page
         if (!$store) return true;
 
         // Below the 1,000 UZS minimum request there is nothing left to withdraw.
-        return app(LedgerService::class)->availableForPayout($store) < 1000;
+        return app(LedgerService::class)->availableForPayout($store)->isLessThan(1000);
     }
 
     protected function getHeaderWidgets(): array

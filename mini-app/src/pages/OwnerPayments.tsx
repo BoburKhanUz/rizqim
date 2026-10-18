@@ -5,6 +5,48 @@ import { useLanguageStore } from '../store/languageStore';
 import { FullScreenLoader } from '../App';
 import api from '../services/api';
 import { tg, hapticFeedback } from '../lib/telegram';
+import { getApiErrorMessage, getErrorMessage } from '../lib/apiError';
+import type { ApiResponse, Decimal } from '../types';
+
+// A row of the store's debt ledger (StoreTransaction): commission adds to the debt, a top-up reduces it,
+// a refunded order's reversal can do either.
+interface LedgerTransaction {
+  id: number;
+  type: 'commission' | 'topup' | 'refund' | 'adjustment' | string;
+  amount: Decimal;
+  balance_after: Decimal;
+  created_at: string;
+}
+
+interface PayoutRequestRow {
+  id: number;
+  amount: Decimal;
+  card_number: string;
+  status: 'pending' | 'completed' | 'rejected' | string;
+  created_at: string;
+}
+
+// GET /owner/finance. debt_balance is what the store owes the platform (negative: prepaid);
+// wallet_balance is what the platform owes the store.
+interface OwnerFinance {
+  debt_balance: number;
+  wallet_balance: number;
+  credit_limit: number;
+  min_payout_reserve: number;
+  payment_account_type: string;
+  commission_rate: number;
+  status: string;
+  is_order_locked: boolean;
+  ledger_transactions: LedgerTransaction[];
+  payout_requests: PayoutRequestRow[];
+}
+
+interface TopupInitiated {
+  topup_uuid: string;
+  payment_url: string;
+}
+
+const errorText = (err: unknown) => getApiErrorMessage(err) || getErrorMessage(err) || '';
 
 export default function OwnerPayments() {
   const { language } = useLanguageStore();
@@ -25,13 +67,13 @@ export default function OwnerPayments() {
   // Mutation to initiate top-up
   const topupMutation = useMutation({
     mutationFn: async (payload: { amount: number; provider: string }) => {
-      const res = await api.post('/owner/finance/top-up', payload);
+      const res = await api.post<ApiResponse<TopupInitiated>>('/owner/finance/top-up', payload);
       return res.data?.data;
     },
     onSuccess: (data) => {
       hapticFeedback('success');
       setShowTopupModal(false);
-      const paymentUrl = data.payment_url;
+      const paymentUrl = data?.payment_url;
       if (paymentUrl) {
         if (tg.openLink && typeof tg.openLink === 'function') {
           tg.openLink(paymentUrl);
@@ -40,9 +82,9 @@ export default function OwnerPayments() {
         }
       }
     },
-    onError: (err: any) => {
+    onError: (err: unknown) => {
       hapticFeedback('error');
-      const msg = err.response?.data?.message || err.message;
+      const msg = errorText(err);
       alert(language === 'uz' ? `Xatolik: ${msg}` : `Ошибка: ${msg}`);
     }
   });
@@ -51,7 +93,7 @@ export default function OwnerPayments() {
   const { data: financeData, isLoading, error } = useQuery({
     queryKey: ['ownerFinance'],
     queryFn: async () => {
-      const res = await api.get('/owner/finance');
+      const res = await api.get<ApiResponse<OwnerFinance>>('/owner/finance');
       return res.data?.data || null;
     },
     refetchInterval: 10000,
@@ -76,9 +118,8 @@ export default function OwnerPayments() {
       queryClient.invalidateQueries({ queryKey: ['ownerFinance'] });
       setTimeout(() => setSuccessMessage(''), 5000);
     },
-    onError: (err: any) => {
-      const msg = err.response?.data?.message || err.message;
-      setErrorMessage(msg);
+    onError: (err: unknown) => {
+      setErrorMessage(errorText(err));
       setSuccessMessage('');
     },
   });
@@ -87,7 +128,7 @@ export default function OwnerPayments() {
   if (error || !financeData) return <div className="p-4 text-center text-red-500">Moliya ma'lumotlarini yuklashda xatolik yuz berdi.</div>;
 
   const {
-    balance = 0,
+    debt_balance = 0,
     wallet_balance = 0,
     credit_limit = 0,
     min_payout_reserve = 100000,
@@ -101,11 +142,11 @@ export default function OwnerPayments() {
   const hasPlatformWallet = payment_account_type === 'platform_account';
 
   // Under Aggregator model:
-  // - balance > 0 => Cafe owes Platform (Debt)
-  // - balance < 0 => Cafe has prepaid (Advance)
-  const currentDebt = balance > 0 ? balance : 0;
-  const advancePayment = balance < 0 ? Math.abs(balance) : 0;
-  const availableCredit = Math.max(0, Math.abs(credit_limit) - balance);
+  // - debt_balance > 0 => Cafe owes Platform (Debt)
+  // - debt_balance < 0 => Cafe has prepaid (Advance)
+  const currentDebt = debt_balance > 0 ? debt_balance : 0;
+  const advancePayment = debt_balance < 0 ? Math.abs(debt_balance) : 0;
+  const availableCredit = Math.max(0, Math.abs(credit_limit) - debt_balance);
 
   const formatPrice = (price: number) => {
     return price.toLocaleString() + ' UZS';
@@ -246,7 +287,7 @@ export default function OwnerPayments() {
             {formatPrice(currentDebt)}
           </span>
           <span className="text-[8px] text-hint font-medium">
-            {balance > 0 ? (language === 'uz' ? 'To\'lanishi kerak' : 'Необходимо оплатить') : (language === 'uz' ? 'Qarz yo\'q' : 'Долга нет')}
+            {debt_balance > 0 ? (language === 'uz' ? 'To\'lanishi kerak' : 'Необходимо оплатить') : (language === 'uz' ? 'Qarz yo\'q' : 'Долга нет')}
           </span>
         </div>
 
@@ -320,7 +361,7 @@ export default function OwnerPayments() {
       )}
 
       {/* Warning Box */}
-      {balance >= Math.abs(credit_limit) && (
+      {debt_balance >= Math.abs(credit_limit) && (
         <div className="bg-rose-500/10 border border-rose-500/20 rounded-2xl p-4 flex gap-3 items-start animate-pulse">
           <span className="text-xl shrink-0">⚠️</span>
           <div>
@@ -430,7 +471,7 @@ export default function OwnerPayments() {
             {language === 'uz' ? 'Yechib Olish So\'rovlari' : 'Запросы на выплату'}
           </h2>
           <div className="space-y-2.5">
-            {payout_requests.map((req: any) => (
+            {payout_requests.map((req) => (
               <div key={req.id} className="bg-secondary p-4 rounded-2xl border border-hint/5 flex justify-between items-center shadow-sm">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-hint/5 rounded-xl shrink-0">
@@ -438,7 +479,7 @@ export default function OwnerPayments() {
                   </div>
                   <div>
                     <span className="text-[11px] font-black text-text-h uppercase tracking-wide block">
-                      {formatPrice(parseFloat(req.amount))}
+                      {formatPrice(Number(req.amount))}
                     </span>
                     <span className="text-[9px] text-hint font-bold block mt-0.5">
                       Karta: {req.card_number.replace(/(\d{4})\d{8}(\d{4})/, '$1 **** **** $2')}
@@ -476,12 +517,18 @@ export default function OwnerPayments() {
           </div>
         ) : (
           <div className="space-y-2.5">
-            {ledger_transactions.map((tx: any) => {
-              const amountValue = parseFloat(tx.amount);
+            {ledger_transactions.map((tx) => {
+              const amountValue = Number(tx.amount);
               // In this ledger:
               // - positive amount (e.g. +15,000 UZS) represents commission deduction (owes us more)
               // - negative amount (e.g. -100,000 UZS) represents store topup/payment (owes us less)
               const isCommission = tx.type === 'commission' || amountValue > 0;
+              const isRefund = tx.type === 'refund';
+              const label = isRefund
+                ? (language === 'uz' ? 'Buyurtma qaytarildi' : 'Возврат заказа')
+                : isCommission
+                  ? (language === 'uz' ? 'Buyurtma Komissiyasi' : 'Комиссия с заказа')
+                  : (language === 'uz' ? 'Balansni To\'ldirish' : 'Пополнение баланса');
 
               return (
                 <div key={tx.id} className="bg-secondary p-4 rounded-2xl border border-hint/5 flex justify-between items-center shadow-sm">
@@ -491,7 +538,7 @@ export default function OwnerPayments() {
                     </div>
                     <div>
                       <span className="text-[11px] font-black text-text-h uppercase tracking-wide block">
-                        {isCommission ? (language === 'uz' ? 'Buyurtma Komissiyasi' : 'Комиссия с заказа') : (language === 'uz' ? 'Balansni To\'ldirish' : 'Пополнение баланса')}
+                        {label}
                       </span>
                       <span className="text-[9px] text-hint font-bold block mt-0.5">{new Date(tx.created_at).toLocaleString()}</span>
                     </div>
@@ -501,7 +548,7 @@ export default function OwnerPayments() {
                       {isCommission ? '+' : '-'}{formatPrice(Math.abs(amountValue))}
                     </span>
                     <span className="text-[8px] text-hint font-bold block mt-0.5">
-                      {language === 'uz' ? 'Qarzdorlik: ' : 'Задолженность: '}{formatPrice(parseFloat(tx.balance_after))}
+                      {language === 'uz' ? 'Qarzdorlik: ' : 'Задолженность: '}{formatPrice(Number(tx.balance_after))}
                     </span>
                   </div>
                 </div>

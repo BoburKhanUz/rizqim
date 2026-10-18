@@ -1,19 +1,11 @@
-import { useQuery } from '@tanstack/react-query';
 import { Bell, CheckCircle2, Clock, ShieldAlert, Sparkles, MessageSquare, Flame } from 'lucide-react';
 import { useLanguageStore } from '../store/languageStore';
-import api from '../services/api';
+import { useNotifications } from '../hooks/useNotifications';
 
 export default function NotificationCenter() {
   const { language } = useLanguageStore();
 
-  const { data: notifications = [], isLoading } = useQuery({
-    queryKey: ['notifications'],
-    queryFn: async () => {
-      const res = await api.get('/notifications');
-      return res.data?.data?.items || res.data?.data || [];
-    },
-    refetchInterval: 15000,
-  });
+  const { data: notifications = [], isLoading } = useNotifications();
 
   const getIcon = (type: string) => {
     switch (type) {
@@ -70,7 +62,7 @@ export default function NotificationCenter() {
         </p>
       ) : (
         <div className="space-y-2.5 max-h-[250px] overflow-y-auto pr-1">
-          {notifications.map((notif: any) => (
+          {notifications.map((notif) => (
             <div
               key={notif.id}
               className={`p-3 rounded-2xl flex gap-3 items-start transition-all ${getBgClass(notif.type)}`}

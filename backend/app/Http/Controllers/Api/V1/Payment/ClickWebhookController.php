@@ -13,6 +13,7 @@ use App\Enums\OrderStatus;
 use App\Enums\PaymentStatus;
 use App\Events\PaymentPaid;
 use App\Services\Finance\LedgerService;
+use App\Support\Money;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -104,7 +105,7 @@ class ClickWebhookController extends Controller
 
         // 4. Verify Billing Amount matches exactly
         $expectedAmount = $isTopup ? $topupRequest->amount : $order->total_price;
-        if (!is_numeric($amount) || (int) round((float) $amount * 100) !== (int) round((float) $expectedAmount * 100)) {
+        if (!is_numeric($amount) || !Money::of($amount)->equals($expectedAmount)) {
             return response()->json([
                 'error' => -2,
                 'error_note' => 'Incorrect amount'
@@ -245,7 +246,7 @@ class ClickWebhookController extends Controller
                 'order_id' => $lockedOrder->id,
                 'provider' => 'click',
                 'provider_transaction_id' => $clickTransId,
-                'amount' => (float) $request->input('amount'),
+                'amount' => Money::of($request->input('amount'))->toString(),
                 'payload' => $request->all(),
             ]);
 

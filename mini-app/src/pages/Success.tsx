@@ -7,6 +7,14 @@ import {
   ChevronRight, Sparkles 
 } from 'lucide-react';
 
+// The order the cart just created ("/success" is opened with its uuid as router state)
+function getOrderUuidFromState(state: unknown): string | undefined {
+  if (typeof state === 'object' && state !== null && 'order_uuid' in state && typeof state.order_uuid === 'string') {
+    return state.order_uuid;
+  }
+  return undefined;
+}
+
 export default function Success() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -16,7 +24,7 @@ export default function Success() {
   const [currentStep, setCurrentStep] = useState(1);
   const [timeLeft, setTimeLeft] = useState(24);
 
-  const state = location.state as { order_uuid?: string; status?: string };
+  const orderUuid = getOrderUuidFromState(location.state);
 
   useEffect(() => {
     // Mocking real-time tracking progression for demonstration
@@ -35,11 +43,11 @@ export default function Success() {
     return () => { clearTimeout(timer1); clearTimeout(timer2); };
   }, []);
 
-  if (!state?.order_uuid && import.meta.env.PROD) {
+  if (!orderUuid && import.meta.env.PROD) {
     return <Navigate to="/" replace />;
   }
 
-  const orderId = state?.order_uuid?.split('-')[0]?.toUpperCase() || 'NEW';
+  const orderId = orderUuid?.split('-')[0]?.toUpperCase() || 'NEW';
 
   const steps = [
     { id: 1, title: language === 'uz' ? 'Tasdiqlandi' : 'Подтвержден', desc: language === 'uz' ? 'Buyurtma qabul qilindi' : 'Заказ принят', icon: <CheckCircle2 className="w-5 h-5" /> },

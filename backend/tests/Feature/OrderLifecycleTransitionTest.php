@@ -54,7 +54,7 @@ class OrderLifecycleTransitionTest extends TestCase
         $this->assertSame(OrderStatus::DELIVERED, $order->fresh()->status);
         $this->assertSame(1, StoreTransaction::where('order_id', $order->id)
             ->where('type', StoreTransactionType::COMMISSION->value)->count());
-        $this->assertEquals(5000, (float) $this->store->fresh()->balance);
+        $this->assertEquals(5000, (float) $this->store->fresh()->debt_balance);
 
         $this->assertSame(
             ['new', 'accepted', 'preparing', 'ready', 'courier_assigned', 'on_the_way'],

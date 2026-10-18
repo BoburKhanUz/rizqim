@@ -8,6 +8,17 @@ export function getVariantStock(variant: StockVariant | null | undefined): numbe
   return typeof stock === 'number' && Number.isFinite(stock) ? stock : null;
 }
 
+// Known to have nothing left. A variant whose stock the API did not send is not out of stock.
+export function isVariantOutOfStock(variant: StockVariant | null | undefined): boolean {
+  const stock = getVariantStock(variant);
+  return stock !== null && stock <= 0;
+}
+
+// A variant the store has not switched off. The API sends a boolean (0/1 on legacy drivers).
+export function isVariantActive(variant: { is_active?: unknown }): boolean {
+  return variant.is_active !== false && variant.is_active !== 0;
+}
+
 // A product is sold out only when every variant is known to have no stock left.
 export function isProductSoldOut(product: { variants?: StockVariant[] | null }): boolean {
   const variants = product.variants;

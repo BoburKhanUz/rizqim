@@ -123,7 +123,7 @@ class PaymentOwnershipTest extends TestCase
         // The platform holds the money: the full total is credited to the wallet, the 10% commission becomes debt.
         $store = $this->store->fresh();
         $this->assertEquals(50000, (float) $store->wallet_balance);
-        $this->assertEquals(5000, (float) $store->balance);
+        $this->assertEquals(5000, (float) $store->debt_balance);
     }
 
     public function test_own_account_with_complete_click_credentials_collects_its_own_payments(): void
@@ -141,7 +141,7 @@ class PaymentOwnershipTest extends TestCase
         // The money went to the store's own account: no wallet credit, only the commission becomes debt.
         $store = $this->store->fresh();
         $this->assertEquals(0, (float) $store->wallet_balance);
-        $this->assertEquals(5000, (float) $store->balance);
+        $this->assertEquals(5000, (float) $store->debt_balance);
     }
 
     public function test_platform_account_and_cash_ownership_are_unchanged(): void

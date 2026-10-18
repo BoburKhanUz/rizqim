@@ -1,24 +1,55 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { useAddressStore } from '../store/useAddressStore';
+import type { Address } from '../store/useAddressStore';
 import { hapticFeedback } from '../lib/telegram';
-import { Trash2, Bell } from 'lucide-react';
+import { Trash2, Bell, Pencil } from 'lucide-react';
 import api from '../services/api';
 import PhoneVerificationModal from '../components/PhoneVerificationModal';
+import AddressLocationField from '../features/address/AddressLocationField';
+import { toLatLng } from '../features/address/coordinates';
+import type { AddressLocationValue } from '../features/address/types';
 import { classifyPhoneChange } from '../lib/phone';
 import { getApiFieldError, logApiError } from '../lib/apiError';
+import type { ApiResponse, Order } from '../types';
+
+interface Region {
+  id: number;
+  name: string;
+  is_active: boolean;
+}
+
+interface District {
+  id: number;
+  region_id: number;
+  name: string;
+  is_active: boolean;
+}
+
+// GET /locations
+interface LocationsData {
+  regions: Region[];
+  districts: District[];
+}
+
+const EMPTY_LOCATION: AddressLocationValue = { address: '', lat: null, lng: null };
 
 export default function CustomerProfile() {
   const navigate = useNavigate();
   const { user, updateUser, smsVerificationRequired, setSmsVerificationRequired } = useAuthStore();
-  const { addresses, deleteAddress, addAddress, selectedAddressId, setSelectedAddressId } = useAddressStore();
+  const { addresses, deleteAddress, addAddress, updateAddress, selectedAddressId, setSelectedAddressId } = useAddressStore();
 
   const [addressTitle, setAddressTitle] = useState("");
-  const [addressValue, setAddressValue] = useState("");
+  // Address text and map pin: the pin starts empty and only ever holds a point the customer picked
+  const [location, setLocation] = useState<AddressLocationValue>(EMPTY_LOCATION);
+  const patchLocation = useCallback((patch: Partial<AddressLocationValue>) => {
+    setLocation((prev) => ({ ...prev, ...patch }));
+  }, []);
   const [apartmentValue, setApartmentValue] = useState("");
   const [commentValue, setCommentValue] = useState("");
   const [isAdding, setIsAdding] = useState(false);
+  const [editingAddressId, setEditingAddressId] = useState<number | null>(null);
 
   // Profile Edit State
   const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -32,55 +63,18 @@ export default function CustomerProfile() {
   const [completedOrdersCount, setCompletedOrdersCount] = useState(0);
 
   // Region & District States
-  interface Region {
-    id: number;
-    name: string;
-    is_active: boolean;
-  }
-  interface District {
-    id: number;
-    region_id: number;
-    name: string;
-    is_active: boolean;
-  }
-
   const [regions, setRegions] = useState<Region[]>([]);
   const [districts, setDistricts] = useState<District[]>([]);
   const [selectedRegionId, setSelectedRegionId] = useState<number | "">("");
   const [selectedDistrictId, setSelectedDistrictId] = useState<number | "">("");
 
-  // Geolocation states
-  const [addressLat, setAddressLat] = useState<number | null>(null);
-  const [addressLng, setAddressLng] = useState<number | null>(null);
-  const [isLocating, setIsLocating] = useState(false);
-
-  // Filter active regions and districts
+  // Filter active regions and districts. A single choice is simply the value (there is nothing to pick).
   const activeRegions = regions.filter(r => r.is_active);
+  const regionId: number | "" = activeRegions.length === 1 ? activeRegions[0].id : selectedRegionId;
   const activeDistsForRegion = districts.filter(
-    (dist) => dist.is_active && dist.region_id === Number(selectedRegionId)
+    (dist) => dist.is_active && dist.region_id === Number(regionId)
   );
-
-  // Auto-select single active region
-  useEffect(() => {
-    const active = regions.filter(r => r.is_active);
-    if (active.length === 1) {
-      setSelectedRegionId(active[0].id);
-    }
-  }, [regions]);
-
-  // Auto-select single active district for selected region
-  useEffect(() => {
-    if (selectedRegionId) {
-      const active = districts.filter(d => d.is_active && d.region_id === Number(selectedRegionId));
-      if (active.length === 1) {
-        setSelectedDistrictId(active[0].id);
-      } else {
-        setSelectedDistrictId("");
-      }
-    } else {
-      setSelectedDistrictId("");
-    }
-  }, [selectedRegionId, districts]);
+  const districtId: number | "" = activeDistsForRegion.length === 1 ? activeDistsForRegion[0].id : selectedDistrictId;
 
   // Fetch fresh user details, locations, and orders count on mount
   useEffect(() => {
@@ -93,7 +87,7 @@ export default function CustomerProfile() {
     }).catch(err => logApiError('Failed to refresh user:', err));
 
     // Fetch locations
-    api.get('/locations').then(res => {
+    api.get<ApiResponse<LocationsData>>('/locations').then(res => {
       if (res.data?.success) {
         setRegions(res.data.data.regions || []);
         setDistricts(res.data.data.districts || []);
@@ -101,13 +95,13 @@ export default function CustomerProfile() {
     }).catch(err => logApiError('Failed to load locations:', err));
 
     // Fetch order history for badge calculation
-    api.get('/orders').then(res => {
+    api.get<ApiResponse<Order[]>>('/orders').then(res => {
       if (res.data?.success) {
-        const delivered = res.data.data.filter((o: any) => o.status === 'delivered' || o.status === 'completed');
+        const delivered = res.data.data.filter(o => o.status === 'delivered');
         setCompletedOrdersCount(delivered.length);
       }
     }).catch(err => logApiError('Failed to load orders:', err));
-  }, []);
+  }, [updateUser, setSmsVerificationRequired]);
 
   const username = user?.telegram_username ? `@${user.telegram_username}` : "";
   const userFullName = user?.name || "Mijoz";
@@ -170,105 +164,79 @@ export default function CustomerProfile() {
     await saveProfile(null);
   };
 
-  const handleGetLocation = () => {
-    if (!navigator.geolocation) {
-      alert("Geolokatsiya brauzeringiz tomonidan qo'llab-quvvatlanmaydi.");
-      return;
-    }
+  const resetAddressForm = () => {
+    setAddressTitle("");
+    setLocation(EMPTY_LOCATION);
+    setApartmentValue("");
+    setCommentValue("");
+    setSelectedRegionId("");
+    setSelectedDistrictId("");
+    setEditingAddressId(null);
+    setIsAdding(false);
+  };
+
+  const handleToggleAddressForm = () => {
     hapticFeedback('light');
-    setIsLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const { latitude, longitude } = position.coords;
-        setAddressLat(latitude);
-        setAddressLng(longitude);
-        // Nominatim can hang: give up after 8s and fall back to the plain coordinates
-        const controller = new AbortController();
-        const timeoutId = window.setTimeout(() => controller.abort(), 8000);
-        try {
-          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}`, {
-            signal: controller.signal
-          });
-          const data = await res.json();
-          if (data && data.display_name) {
-            setAddressValue(data.display_name);
-          } else {
-            setAddressValue(`📍 Lokatsiya (${latitude.toFixed(5)}, ${longitude.toFixed(5)})`);
-          }
-          hapticFeedback('success');
-        } catch {
-          setAddressValue(`📍 Lokatsiya (${latitude.toFixed(5)}, ${longitude.toFixed(5)})`);
-          hapticFeedback('warning');
-        } finally {
-          window.clearTimeout(timeoutId);
-          setIsLocating(false);
-        }
-      },
-      () => {
-        setIsLocating(false);
-        alert("Lokatsiyani aniqlab bo'lmadi. Ruxsat berilganini tekshiring.");
-        hapticFeedback('error');
-      },
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
+    if (isAdding) {
+      resetAddressForm();
+    } else {
+      setIsAdding(true);
+    }
   };
 
-  const handleAddAddressSubmit = async (e: React.FormEvent) => {
+  // Editing is also how an address saved without a map point gets one: the pin starts empty for it
+  const handleEditAddress = (addr: Address) => {
+    hapticFeedback('light');
+    const point = toLatLng(addr.lat, addr.lng);
+    setEditingAddressId(addr.id);
+    setAddressTitle(addr.title);
+    setLocation({ address: addr.address, lat: point?.lat ?? null, lng: point?.lng ?? null });
+    setApartmentValue(addr.apartment ?? "");
+    setCommentValue(addr.comment ?? "");
+    setSelectedRegionId(addr.region_id ?? "");
+    setSelectedDistrictId(addr.district_id ?? "");
+    setIsAdding(true);
+  };
+
+  const locationPoint = toLatLng(location.lat, location.lng);
+
+  const handleSaveAddressSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!addressTitle || !addressValue) return;
+    // The pin is what the delivery zone and the courier use: no address is saved without one
+    if (!addressTitle || !location.address.trim() || !locationPoint) return;
 
-    const rId = selectedRegionId ? Number(selectedRegionId) : undefined;
-    const dId = selectedDistrictId ? Number(selectedDistrictId) : undefined;
-    const rName = regions.find(r => r.id === rId)?.name;
-    const dName = districts.find(d => d.id === dId)?.name;
+    const rId = regionId ? Number(regionId) : undefined;
+    const dId = districtId ? Number(districtId) : undefined;
 
     hapticFeedback('medium');
-    try {
-      await addAddress({
-        id: Date.now(),
-        title: addressTitle,
-        address: addressValue,
-        apartment: apartmentValue,
-        comment: commentValue,
-        lat: addressLat || 41.31,
-        lng: addressLng || 69.28,
-        is_default: addresses.length === 0,
-        region_id: rId,
-        district_id: dId,
-        region_name: rName,
-        district_name: dName
-      });
-      
-      setAddressTitle("");
-      setAddressValue("");
-      setApartmentValue("");
-      setCommentValue("");
-      if (regions.filter(r => r.is_active).length > 1) {
-        setSelectedRegionId("");
-      }
-      const activeDists = districts.filter(d => d.is_active && d.region_id === Number(selectedRegionId));
-      if (activeDists.length > 1) {
-        setSelectedDistrictId("");
-      }
-      setAddressLat(null);
-      setAddressLng(null);
-      setIsAdding(false);
-      hapticFeedback('success');
-    } catch (err) {
-      logApiError('Failed to add address:', err);
-      hapticFeedback('error');
+    const fields = {
+      title: addressTitle,
+      address: location.address.trim(),
+      apartment: apartmentValue,
+      comment: commentValue,
+      lat: locationPoint.lat,
+      lng: locationPoint.lng,
+      region_id: rId,
+      district_id: dId,
+      region_name: regions.find(r => r.id === rId)?.name,
+      district_name: districts.find(d => d.id === dId)?.name,
+    };
+
+    if (editingAddressId !== null) {
+      updateAddress(editingAddressId, fields);
+    } else {
+      addAddress({ id: Date.now(), ...fields, is_default: addresses.length === 0 });
     }
+
+    resetAddressForm();
+    hapticFeedback('success');
   };
 
-  const handleDeleteAddress = async (id: number) => {
+  const handleDeleteAddress = (id: number) => {
     hapticFeedback('medium');
-    try {
-      await deleteAddress(id);
-      hapticFeedback('success');
-    } catch (err) {
-      logApiError('Failed to delete address:', err);
-      hapticFeedback('error');
-    }
+    if (editingAddressId === id) resetAddressForm();
+    deleteAddress(id);
+    hapticFeedback('success');
   };
 
   const formatBalance = (val: number | string | undefined) => {
@@ -409,10 +377,7 @@ export default function CustomerProfile() {
         <div className="flex justify-between items-center">
           <h4 className="text-[10px] font-black uppercase tracking-wider text-slate-400">Manzillarim</h4>
           <button 
-            onClick={() => {
-              hapticFeedback('light');
-              setIsAdding(!isAdding);
-            }}
+            onClick={handleToggleAddressForm}
             className="text-[10px] font-black text-amber-600 bg-amber-50 px-2.5 py-1.5 rounded-xl border border-amber-100"
           >
             {isAdding ? "Yopish ✕" : "+ Yangi manzil"}
@@ -420,8 +385,10 @@ export default function CustomerProfile() {
         </div>
 
         {isAdding && (
-          <form onSubmit={handleAddAddressSubmit} className="bg-slate-50 border border-slate-100 p-4 rounded-2xl space-y-3">
-            <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Yangi Manzil kiritish</h4>
+          <form onSubmit={handleSaveAddressSubmit} className="bg-slate-50 border border-slate-100 p-4 rounded-2xl space-y-3">
+            <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-wider">
+              {editingAddressId !== null ? "Manzilni tahrirlash" : "Yangi Manzil kiritish"}
+            </h4>
             <input 
               type="text"
               required
@@ -435,7 +402,7 @@ export default function CustomerProfile() {
             <select
               required
               disabled={activeRegions.length === 1}
-              value={selectedRegionId}
+              value={regionId}
               onChange={(e) => {
                 const val = e.target.value;
                 setSelectedRegionId(val ? Number(val) : "");
@@ -452,8 +419,8 @@ export default function CustomerProfile() {
             {/* District Selector */}
             <select
               required
-              disabled={!selectedRegionId || activeDistsForRegion.length === 1}
-              value={selectedDistrictId}
+              disabled={!regionId || activeDistsForRegion.length === 1}
+              value={districtId}
               onChange={(e) => {
                 const val = e.target.value;
                 setSelectedDistrictId(val ? Number(val) : "");
@@ -466,31 +433,14 @@ export default function CustomerProfile() {
               ))}
             </select>
 
-            {/* Geolocation Trigger */}
-            <button
-              type="button"
-              onClick={handleGetLocation}
-              disabled={isLocating}
-              className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs py-2.5 rounded-xl transition flex justify-center items-center gap-1.5 border border-slate-200"
-            >
-              {isLocating ? (
-                <>
-                  <div className="w-3.5 h-3.5 border-2 border-slate-700 border-t-transparent rounded-full animate-spin"></div>
-                  Joylashuv aniqlanmoqda...
-                </>
-              ) : (
-                <>📍 Hozirgi joylashuvni aniqlash</>
-              )}
-            </button>
-
-            <input 
-              type="text"
+            {/* Where exactly: find yourself, look an address up or drop a pin on the map */}
+            <AddressLocationField
+              key={editingAddressId ?? 'new'}
+              value={location}
+              onChange={patchLocation}
               required
-              value={addressValue}
-              onChange={(e) => setAddressValue(e.target.value)}
-              placeholder="To'liq manzil ko'chasi"
-              className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:border-amber-500 font-semibold"
             />
+
             <input 
               type="text"
               value={apartmentValue}
@@ -507,10 +457,14 @@ export default function CustomerProfile() {
             />
             <button 
               type="submit"
-              className="w-full bg-amber-500 hover:bg-amber-600 text-white font-black text-xs py-2.5 rounded-xl transition"
+              disabled={!locationPoint}
+              className="w-full bg-amber-500 hover:bg-amber-600 text-white font-black text-xs py-2.5 rounded-xl transition disabled:opacity-40"
             >
-              Manzilni saqlash
+              {editingAddressId !== null ? "O'zgarishlarni saqlash" : "Manzilni saqlash"}
             </button>
+            {!locationPoint && (
+              <p className="text-[10px] text-center font-bold text-slate-400 -mt-1">Saqlash uchun xaritada joylashuvni belgilang</p>
+            )}
           </form>
         )}
 
@@ -525,31 +479,49 @@ export default function CustomerProfile() {
                 hapticFeedback('light');
                 setSelectedAddressId(addr.id);
               }}
-              className={`p-3 rounded-2xl flex justify-between items-center border ${
+              className={`p-3 rounded-2xl flex justify-between items-center gap-2 border ${
                 selectedAddressId === addr.id ? 'border-amber-500 bg-amber-50/20' : 'border-slate-100 bg-white'
               }`}
             >
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 min-w-0">
                 <span className="text-base">🏠</span>
-                <div className="text-left">
+                <div className="text-left min-w-0">
                   <p className="font-bold text-slate-800">{addr.title}</p>
                   <p className="text-slate-400 text-[10px] mt-0.5">
                     {addr.region_name ? `${addr.region_name}, ` : ''}
                     {addr.district_name ? `${addr.district_name}, ` : ''}
                     {addr.address}
                   </p>
+                  {toLatLng(addr.lat, addr.lng) === null && (
+                    <p className="text-[9px] text-rose-500 font-black mt-1">📍 Xaritada belgilanmagan: buyurtma berish uchun tahrirlab, joylashuvni belgilang</p>
+                  )}
                 </div>
               </div>
               
-              <button 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDeleteAddress(addr.id);
-                }}
-                className="p-1.5 bg-slate-50 hover:bg-red-50 text-slate-400 hover:text-red-500 rounded-lg transition"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button 
+                  type="button"
+                  aria-label="Manzilni tahrirlash"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleEditAddress(addr);
+                  }}
+                  className="p-1.5 bg-slate-50 hover:bg-amber-50 text-slate-400 hover:text-amber-600 rounded-lg transition"
+                >
+                  <Pencil className="w-4 h-4" />
+                </button>
+                <button 
+                  type="button"
+                  aria-label="Manzilni o'chirish"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteAddress(addr.id);
+                  }}
+                  className="p-1.5 bg-slate-50 hover:bg-red-50 text-slate-400 hover:text-red-500 rounded-lg transition"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           ))}
         </div>

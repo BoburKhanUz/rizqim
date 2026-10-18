@@ -60,6 +60,10 @@ Route::prefix('v1')->group(function () {
         Route::delete('/addresses/{id}', [\App\Http\Controllers\Api\V1\User\AddressController::class, 'destroy']);
         Route::get('/locations', [\App\Http\Controllers\Api\V1\LocationController::class, 'index']);
 
+        // Server-side proxy to the geocoding provider (the Mini App must not call Nominatim itself)
+        Route::get('/geocode/reverse', [\App\Http\Controllers\Api\V1\GeocodeController::class, 'reverse'])->middleware('throttle:geocode');
+        Route::get('/geocode/search', [\App\Http\Controllers\Api\V1\GeocodeController::class, 'search'])->middleware('throttle:geocode');
+
         Route::get('/stores', [\App\Http\Controllers\Api\V1\Store\StoreController::class, 'index']);
         Route::post('/stores/{id}/rate', [\App\Http\Controllers\Api\V1\StoreRatingController::class, 'rate'])->middleware('throttle:store-ratings');
         Route::get('/catalog', [\App\Http\Controllers\Api\V1\Catalog\CatalogController::class, 'index']);

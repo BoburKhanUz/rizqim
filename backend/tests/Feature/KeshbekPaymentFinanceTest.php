@@ -28,7 +28,7 @@ class KeshbekPaymentFinanceTest extends TestCase
         $this->store = Store::forceCreate([
             'name' => 'Cashback Test Restaurant',
             'slug' => 'cashback-test-restaurant',
-            'balance' => 100000.00, // Owes 100,000 UZS
+            'debt_balance' => 100000.00, // Owes 100,000 UZS
             'wallet_balance' => 0.00,
             'credit_limit' => -150000.00,
             'commission_rate' => 10,
@@ -62,7 +62,7 @@ class KeshbekPaymentFinanceTest extends TestCase
         $this->ledgerService->processOrderDelivered($order);
 
         $this->store->refresh();
-        $this->assertEquals(55000.00, $this->store->balance);
+        $this->assertEquals(55000.00, $this->store->debt_balance);
         $this->assertEquals(0.00, $this->store->wallet_balance);
 
         $this->assertDatabaseHas('store_transactions', [
@@ -102,7 +102,7 @@ class KeshbekPaymentFinanceTest extends TestCase
         $this->ledgerService->processOrderDelivered($order);
 
         $this->store->refresh();
-        $this->assertEquals(0.00, $this->store->balance);
+        $this->assertEquals(0.00, $this->store->debt_balance);
         $this->assertEquals(35000.00, $this->store->wallet_balance);
 
         $this->assertDatabaseHas('store_transactions', [
@@ -132,8 +132,8 @@ class KeshbekPaymentFinanceTest extends TestCase
 
     public function test_keshbek_payment_goes_directly_to_wallet_if_no_debt(): void
     {
-        // Store balance is 0 (no debt)
-        $this->store->forceFill(['balance' => 0.00])->save();
+        // Store debt_balance is 0 (no debt)
+        $this->store->forceFill(['debt_balance' => 0.00])->save();
 
         // Order total price = 50,000 UZS. Commission = 10% (5,000 UZS).
         // 1. Commission is deducted: Debt becomes 5,000 UZS.
@@ -153,7 +153,7 @@ class KeshbekPaymentFinanceTest extends TestCase
         $this->ledgerService->processOrderDelivered($order);
 
         $this->store->refresh();
-        $this->assertEquals(0.00, $this->store->balance);
+        $this->assertEquals(0.00, $this->store->debt_balance);
         $this->assertEquals(45000.00, $this->store->wallet_balance);
 
         $this->assertDatabaseHas('store_transactions', [
@@ -183,9 +183,9 @@ class KeshbekPaymentFinanceTest extends TestCase
 
     public function test_commission_is_first_deducted_from_debit_wallet_then_credit_balance(): void
     {
-        // Set store wallet_balance = 8,000 UZS, balance (debt) = 0 UZS
+        // Set store wallet_balance = 8,000 UZS, debt_balance = 0 UZS
         $this->store->forceFill([
-            'balance' => 0.00,
+            'debt_balance' => 0.00,
             'wallet_balance' => 8000.00,
         ])->save();
 
@@ -203,9 +203,9 @@ class KeshbekPaymentFinanceTest extends TestCase
 
         $this->store->refresh();
         // 8,000 UZS from wallet (wallet_balance should be 0.00)
-        // 2,000 UZS from credit (balance/debt should be 2,000.00)
+        // 2,000 UZS from credit (debt_balance should be 2,000.00)
         $this->assertEquals(0.00, $this->store->wallet_balance);
-        $this->assertEquals(20000.00 / 10, $this->store->balance); // 2000.00 UZS
+        $this->assertEquals(20000.00 / 10, $this->store->debt_balance); // 2000.00 UZS
 
         $this->assertDatabaseHas('store_wallet_transactions', [
             'store_id' => $this->store->id,

@@ -54,4 +54,26 @@ return [
         'merchant_id' => env('PAYME_MERCHANT_ID', '65eb2b988f01b97b0a7c4912'),
     ],
 
+    // Address search / reverse geocoding behind /api/v1/geocode/* (see App\Services\Geo). The Mini App never calls a
+    // geocoder directly: the server adds the identification, caching and rate limiting a provider's usage policy asks for.
+    'geocoding' => [
+        // Only "nominatim" is implemented; others are added in App\Services\Geo\GeocoderManager
+        'provider' => env('GEOCODING_PROVIDER', 'nominatim'),
+        // Seconds an answer is remembered (minimum one day, default a week)
+        'cache_ttl' => (int) env('GEOCODING_CACHE_TTL', 604800),
+    ],
+
+    'nominatim' => [
+        'base_url' => env('NOMINATIM_BASE_URL', 'https://nominatim.openstreetmap.org'),
+        // Contact put into the User-Agent as the usage policy of the public instance requires; falls back to APP_URL
+        'email' => env('NOMINATIM_EMAIL'),
+        'accept_language' => 'uz,ru',
+        'country_codes' => 'uz',
+        'timeout' => 5,
+        // The public instance allows 1 request per second for the whole platform. 0 turns the pause off (self-hosted Nominatim only)
+        'min_interval' => (float) env('NOMINATIM_MIN_INTERVAL', 1),
+        // Seconds a request may queue for its turn before the API answers 503
+        'lock_wait' => 3,
+    ],
+
 ];

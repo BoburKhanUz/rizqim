@@ -1,10 +1,11 @@
-import { useState } from 'react';
-import { useOrders, type PaymentStatus } from '../hooks/useOrders';
+import { useState, type ReactNode } from 'react';
+import { useOrders } from '../hooks/useOrders';
 import { useLanguageStore } from '../store/languageStore';
 import { hapticFeedback } from '../lib/telegram';
 import { Link } from 'react-router-dom';
 import api from '../services/api';
-import { logApiError } from '../lib/apiError';
+import { getApiErrorMessage, logApiError } from '../lib/apiError';
+import type { OrderStatus, PaymentStatus } from '../types';
 import {
   ArrowLeft,
   Clock,
@@ -29,6 +30,12 @@ const paymentStatusConfig: Record<PaymentStatus, { labelKey: `paymentStatus_${Pa
   expired: { labelKey: 'paymentStatus_expired', color: 'text-slate-400' },
   refunded: { labelKey: 'paymentStatus_refunded', color: 'text-sky-500' },
 };
+
+interface StatusStyle {
+  bg: string;
+  labelKey: `status_${'new' | 'accepted' | 'preparing' | 'delivery' | 'delivered' | 'canceled'}`;
+  icon: ReactNode;
+}
 
 // Premium Inline Skeleton Loader for modern premium feel
 const OrdersSkeleton = () => (
@@ -86,10 +93,10 @@ export default function Orders() {
       hapticFeedback('success');
       alert(language === 'uz' ? "Baho yuborildi! Rahmat." : "Baho yuborildi! Rahmat.");
       setShowRatingModal(false);
-    } catch (err: any) {
+    } catch (err) {
       logApiError('Failed to submit rating:', err);
       hapticFeedback('error');
-      alert(err.response?.data?.message || "Xatolik yuz berdi");
+      alert(getApiErrorMessage(err) || "Xatolik yuz berdi");
     } finally {
       setIsSubmittingRating(false);
     }
@@ -110,7 +117,8 @@ export default function Orders() {
     });
   };
 
-  const statusConfig = {
+  // Statuses this screen has no look of its own for (ready, courier_assigned, ...) are shown like `new`
+  const statusConfig: Partial<Record<OrderStatus, StatusStyle>> & { new: StatusStyle } = {
     new: {
       bg: 'bg-amber-500/10 text-amber-500 border border-amber-500/20',
       labelKey: 'status_new' as const,
@@ -160,7 +168,7 @@ export default function Orders() {
         </div>
       </header>
 
-      {error ? (
+      {error && orders.length === 0 ? (
         <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-2xl text-center text-red-500 text-xs font-bold">
           {language === 'uz' ? 'Xatolik yuz berdi. Iltimos qayta urinib ko\'ring.' : 'Error loading history. Please try again.'}
         </div>
@@ -193,7 +201,7 @@ export default function Orders() {
       ) : (
         <div className="flex flex-col gap-3.5">
           {orders.map(order => {
-            const config = statusConfig[order.status] || statusConfig.new;
+            const config = statusConfig[order.status] ?? statusConfig.new;
             const paymentConfig = paymentStatusConfig[order.payment_status]; // undefined for a status this app doesn't know yet
             const isExpanded = expandedOrderId === order.id;
 

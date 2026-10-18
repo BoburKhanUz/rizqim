@@ -1,8 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { hapticFeedback } from '../lib/telegram';
+import { useVisibleInterval } from '../hooks/useVisibleInterval';
+import type { Promo } from '../types';
 
-export default function HeroPromoSlider({ promos = [] }: { promos?: any[] }) {
+const SLIDE_INTERVAL_MS = 5000;
+
+export default function HeroPromoSlider({ promos = [] }: { promos?: Promo[] }) {
   const navigate = useNavigate();
   const [activeIndex, setActiveIndex] = useState(0);
   const [touchStart, setTouchStart] = useState<number | null>(null);
@@ -34,13 +38,11 @@ export default function HeroPromoSlider({ promos = [] }: { promos?: any[] }) {
     }
   };
 
-  useEffect(() => {
-    if (!promos || promos.length === 0) return;
-    const interval = setInterval(() => {
-      setActiveIndex((prev) => (prev + 1) % promos.length);
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [promos]);
+  // Auto-advance only when there is something to advance to, and not while the page is hidden
+  useVisibleInterval(
+    () => setActiveIndex((prev) => (prev + 1) % promos.length),
+    promos.length > 1 ? SLIDE_INTERVAL_MS : null,
+  );
 
   if (!promos || promos.length === 0) return null;
 
@@ -72,7 +74,7 @@ export default function HeroPromoSlider({ promos = [] }: { promos?: any[] }) {
               }}
               className={`w-full h-full flex-shrink-0 relative ${isClickable ? 'cursor-pointer' : ''}`}
             >
-              <img src={banner.image_url} alt="" className="absolute inset-0 w-full h-full object-cover" />
+              <img src={banner.image_url ?? undefined} alt="" className="absolute inset-0 w-full h-full object-cover" />
               {/* Overlay for legibility */}
               <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/40 to-slate-950/10"></div>
               

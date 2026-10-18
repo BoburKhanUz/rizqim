@@ -37,7 +37,7 @@ class LedgerStoreBlockingTest extends TestCase
         return Store::forceCreate([
             'name' => 'Blocking Cafe',
             'status' => $status,
-            'balance' => $debt,
+            'debt_balance' => $debt,
             'credit_limit' => $creditLimit,
             'commission_rate' => 10,
         ]);
@@ -80,7 +80,7 @@ class LedgerStoreBlockingTest extends TestCase
 
         // 110k -> 90k: under the limit, so unblocked without having to prepay a 100k surplus.
         $ledger->creditTopup($this->topup($store, 20000), 'Payme');
-        $this->assertEquals(90000, (float) $store->fresh()->balance);
+        $this->assertEquals(90000, (float) $store->fresh()->debt_balance);
         $this->assertSame(StoreStatus::ACTIVE, $store->fresh()->status);
     }
 
@@ -97,7 +97,7 @@ class LedgerStoreBlockingTest extends TestCase
         app(LedgerService::class)->processOrderDelivered($order);
 
         // 160k + 5k commission - 50k keshbek payoff = 115k < 150k limit
-        $this->assertEquals(115000, (float) $store->fresh()->balance);
+        $this->assertEquals(115000, (float) $store->fresh()->debt_balance);
         $this->assertSame(StoreStatus::ACTIVE, $store->fresh()->status);
     }
 

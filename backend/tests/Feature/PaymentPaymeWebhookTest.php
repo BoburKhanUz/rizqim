@@ -38,7 +38,7 @@ class PaymentPaymeWebhookTest extends TestCase
             'slug' => 'payme-cafe',
             'status' => 'active',
             'payment_account_type' => 'platform_account',
-            'balance' => 150000,
+            'debt_balance' => 150000,
         ]);
 
         $this->customer = User::create([
@@ -212,12 +212,12 @@ class PaymentPaymeWebhookTest extends TestCase
         $this->rpc('PerformTransaction', ['id' => 'trx-topup'])->assertJsonPath('result.state', 2);
         $this->rpc('PerformTransaction', ['id' => 'trx-topup'])->assertJsonPath('result.state', 2);
 
-        $this->assertEquals(50000, (float) $this->store->fresh()->balance);
+        $this->assertEquals(50000, (float) $this->store->fresh()->debt_balance);
         $this->assertSame(1, StoreTransaction::where('store_id', $this->store->id)->where('type', StoreTransactionType::TOPUP->value)->count());
 
         $this->rpc('CancelTransaction', ['id' => 'trx-topup', 'reason' => 5])->assertJsonPath('error.code', -31007);
 
-        $this->assertEquals(50000, (float) $this->store->fresh()->balance);
+        $this->assertEquals(50000, (float) $this->store->fresh()->debt_balance);
         $this->assertSame('paid', $topup->fresh()->status);
     }
 

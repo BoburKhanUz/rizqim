@@ -49,7 +49,7 @@ class OrderLifecycleFilamentTest extends TestCase
         $this->assertSame(OrderStatus::DELIVERED, $order->fresh()->status);
         $this->assertSame(1, StoreTransaction::where('order_id', $order->id)
             ->where('type', StoreTransactionType::COMMISSION->value)->count());
-        $this->assertEquals(5000, (float) $this->store->fresh()->balance);
+        $this->assertEquals(5000, (float) $this->store->fresh()->debt_balance);
 
         // The action is gone for a delivered order, and a stale tab's late click (same path) charges nothing more
         Livewire::test(ListOrders::class)
@@ -58,7 +58,7 @@ class OrderLifecycleFilamentTest extends TestCase
         $this->assertFalse(app(OrderStatusService::class)->transition($order, OrderStatus::DELIVERED, $this->owner)->changed);
 
         $this->assertSame(1, StoreTransaction::where('order_id', $order->id)->count());
-        $this->assertEquals(5000, (float) $this->store->fresh()->balance);
+        $this->assertEquals(5000, (float) $this->store->fresh()->debt_balance);
         $this->assertSame($this->owner->id, OrderStatusHistory::where('order_id', $order->id)->where('status', 'delivered')->value('user_id'));
     }
 

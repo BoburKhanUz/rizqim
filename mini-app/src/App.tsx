@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, NavLink, useLocation, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { initTelegramApp, hapticFeedback } from './lib/telegram';
@@ -9,55 +9,59 @@ import { useAuthStore } from './store/authStore';
 import { ShoppingBag, User as UserIcon, BarChart3, Activity, Building2, PlusCircle, LayoutGrid, Users, Home as HomeIcon, List, ClipboardList } from 'lucide-react';
 import api from './services/api';
 import PhoneVerificationModal from './components/PhoneVerificationModal';
+import { FullScreenLoader, ErrorFallback, RouteErrorBoundary, RouteFallback } from './components/Feedback';
+import { lazyWithRetry } from './lib/lazyWithRetry';
+import { formatUzbekSum } from './lib/format';
+import { getRoleHomePath, isCustomerRole } from './lib/roles';
+import type { User } from './types';
 
+// The customer's landing page is part of the entry bundle; every other page is its own chunk that is
+// downloaded when its route is first visited (see lazyWithRetry), so a courier never downloads the
+// owner screens and a customer never downloads the superadmin ones.
 import Home from './pages/Home';
-import StoreDetail from './pages/StoreDetail';
-import Cart from './pages/Cart';
-import CustomerProfile from './pages/CustomerProfile';
-import Success from './pages/Success';
-import Orders from './pages/Orders';
-import Profile from './pages/Profile';
-import CourierDashboard from './pages/CourierDashboard';
-import ManagerDashboard from './pages/ManagerDashboard';
-import AdminAnalytics from './pages/AdminAnalytics';
-import AdminReports from './pages/AdminReports';
-import OwnerMenuManagement from './pages/OwnerMenuManagement';
-import OwnerProductForm from './pages/OwnerProductForm';
-import OwnerEmployees from './pages/OwnerEmployees';
-import OwnerPayments from './pages/OwnerPayments';
-import SuperadminDashboard from './pages/SuperadminDashboard';
-import SuperadminStores from './pages/SuperadminStores';
-import SuperadminCreateStore from './pages/SuperadminCreateStore';
-import Complaints from './pages/Complaints';
-import OwnerSettings from './pages/OwnerSettings';
-import Notifications from './pages/Notifications';
-import CategoryDetail from './pages/CategoryDetail';
-import Stores from './pages/Stores';
+
+const loadStoreDetail = () => import('./pages/StoreDetail');
+const loadCategoryDetail = () => import('./pages/CategoryDetail');
+const loadStores = () => import('./pages/Stores');
+const loadOrders = () => import('./pages/Orders');
+
+const StoreDetail = lazyWithRetry(loadStoreDetail);
+const CategoryDetail = lazyWithRetry(loadCategoryDetail);
+const Stores = lazyWithRetry(loadStores);
+const Orders = lazyWithRetry(loadOrders);
+const Cart = lazyWithRetry(() => import('./pages/Cart'));
+const CustomerProfile = lazyWithRetry(() => import('./pages/CustomerProfile'));
+const Success = lazyWithRetry(() => import('./pages/Success'));
+const Profile = lazyWithRetry(() => import('./pages/Profile'));
+const Complaints = lazyWithRetry(() => import('./pages/Complaints'));
+const Notifications = lazyWithRetry(() => import('./pages/Notifications'));
+const CourierDashboard = lazyWithRetry(() => import('./pages/CourierDashboard'));
+const ManagerDashboard = lazyWithRetry(() => import('./pages/ManagerDashboard'));
+const AdminAnalytics = lazyWithRetry(() => import('./pages/AdminAnalytics'));
+const AdminReports = lazyWithRetry(() => import('./pages/AdminReports'));
+const OwnerMenuManagement = lazyWithRetry(() => import('./pages/OwnerMenuManagement'));
+const OwnerProductForm = lazyWithRetry(() => import('./pages/OwnerProductForm'));
+const OwnerEmployees = lazyWithRetry(() => import('./pages/OwnerEmployees'));
+const OwnerPayments = lazyWithRetry(() => import('./pages/OwnerPayments'));
+const OwnerSettings = lazyWithRetry(() => import('./pages/OwnerSettings'));
+const SuperadminDashboard = lazyWithRetry(() => import('./pages/SuperadminDashboard'));
+const SuperadminStores = lazyWithRetry(() => import('./pages/SuperadminStores'));
+const SuperadminCreateStore = lazyWithRetry(() => import('./pages/SuperadminCreateStore'));
+
+// Other modules (including pages owned by other people) still import these from here.
+export { FullScreenLoader, ErrorFallback };
 
 const isDebugMode = import.meta.env.VITE_APP_DEBUG === 'true';
 
-// Loading Skeleton / Spinner
-export const FullScreenLoader = ({ message = 'Connecting...' }) => (
-  <div className="fixed inset-0 flex flex-col items-center justify-center bg-bg z-50">
-    <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
-    <p className="text-hint font-medium">{message}</p>
-  </div>
-);
-
-// Fallback UI for Auth Errors
-export const ErrorFallback = ({ error }: { error: string }) => (
-  <div className="fixed inset-0 flex flex-col items-center justify-center bg-bg p-6 text-center z-50">
-    <div className="text-4xl mb-4">⚠️</div>
-    <h2 className="text-xl font-bold text-text mb-2">Authentication Failed</h2>
-    <p className="text-hint mb-6">{error}</p>
-    <button onClick={() => window.location.reload()} className="bg-primary text-white px-6 py-2 rounded-xl font-medium w-full max-w-xs">
-      Try Again
-    </button>
-  </div>
-);
-
 // Debugger (only visible if VITE_APP_DEBUG=true)
-const AuthDebugger = ({ error, token, user, isAuthenticated }: any) => {
+interface AuthDebuggerProps {
+  error: string | null;
+  token: string | null;
+  user: User | null;
+  isAuthenticated: boolean;
+}
+
+const AuthDebugger = ({ error, token, user, isAuthenticated }: AuthDebuggerProps) => {
   if (!isDebugMode) return null;
   return (
     <div className="p-4 m-4 bg-secondary rounded-xl border border-hint/20 text-xs text-left">
@@ -73,18 +77,10 @@ const AuthDebugger = ({ error, token, user, isAuthenticated }: any) => {
 // Dynamic Home Route based on authenticated user's role
 function HomeRoute() {
   const { user } = useAuthStore();
-  
-  if (user?.role === 'super_admin') {
-    return <Navigate to="/superadmin/dashboard" replace />;
-  }
-  if (user?.role === 'courier') {
-    return <Navigate to="/courier" replace />;
-  }
-  if (user?.role === 'owner') {
-    return <Navigate to="/admin/analytics" replace />;
-  }
-  if (user?.role === 'manager') {
-    return <Navigate to="/manager" replace />;
+
+  const roleHome = getRoleHomePath(user?.role);
+  if (roleHome) {
+    return <Navigate to={roleHome} replace />;
   }
   // SaaS Magic feature has been disabled as requested by the user,
   // so that clicking Catalog always goes to the global feed.
@@ -392,12 +388,6 @@ const queryClient = new QueryClient({
   },
 });
 
-function formatUzbekSum(value: number | string | undefined) {
-  if (value === undefined || value === null) return "0 so'm";
-  const numValue = Math.round(Number(value));
-  return numValue.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ") + " so'm";
-}
-
 function FloatingCartBar() {
   const location = useLocation();
   const getSubtotal = useCartStore((state) => state.getSubtotal);
@@ -439,9 +429,26 @@ function FloatingCartBar() {
   );
 }
 
+// Customers are likely to open these next from the catalog: fetch them once the app is idle so the tap is instant.
+function usePrefetchCustomerPages(enabled: boolean) {
+  useEffect(() => {
+    if (!enabled) return;
+    const timer = setTimeout(() => {
+      void loadStoreDetail();
+      void loadCategoryDetail();
+      void loadStores();
+      void loadOrders();
+    }, 2500);
+    return () => clearTimeout(timer);
+  }, [enabled]);
+}
+
 function AppContent() {
   const { isAuthenticating, error, isAuthenticated, token, user } = useTelegramAuth();
-  const isCustomer = !user || user.role === 'customer' || user.role === 'user';
+  const location = useLocation();
+  const isCustomer = isCustomerRole(user?.role);
+
+  usePrefetchCustomerPages(isCustomer && isAuthenticated);
 
   useEffect(() => {
     initTelegramApp();
@@ -477,31 +484,35 @@ function AppContent() {
       {/* Automatically Prompts User for Phone Number on first login if not yet provided */}
       <PhonePromptModal />
 
-      <Routes>
-        <Route path="/" element={<HomeRoute />} />
-        <Route path="/superadmin/dashboard" element={<SuperadminDashboard />} />
-        <Route path="/superadmin/stores" element={<SuperadminStores />} />
-        <Route path="/superadmin/stores/create" element={<SuperadminCreateStore />} />
-        <Route path="/store/:id" element={<StoreDetail />} />
-        <Route path="/courier" element={<CourierDashboard />} />
-        <Route path="/manager" element={<ManagerDashboard />} />
-        <Route path="/admin/analytics" element={<AdminAnalytics />} />
-        <Route path="/admin/reports" element={<AdminReports />} />
-        <Route path="/admin/catalog" element={<OwnerMenuManagement />} />
-        <Route path="/admin/catalog/create" element={<OwnerProductForm />} />
-        <Route path="/admin/catalog/edit/:id" element={<OwnerProductForm />} />
-        <Route path="/admin/employees" element={<OwnerEmployees />} />
-        <Route path="/admin/payments" element={<OwnerPayments />} />
-        <Route path="/cart" element={<Cart />} />
-        <Route path="/orders" element={<Orders />} />
-        <Route path="/profile" element={(!user?.role || user?.role === 'customer' || user?.role === 'user') ? <CustomerProfile /> : <Profile />} />
-        <Route path="/complaints" element={<Complaints />} />
-        <Route path="/admin/settings" element={<OwnerSettings />} />
-        <Route path="/success" element={<Success />} />
-        <Route path="/notifications" element={<Notifications />} />
-        <Route path="/category/:id" element={<CategoryDetail />} />
-        <Route path="/stores" element={<Stores />} />
-      </Routes>
+      <RouteErrorBoundary resetKey={location.pathname}>
+        <Suspense fallback={<RouteFallback />}>
+          <Routes>
+            <Route path="/" element={<HomeRoute />} />
+            <Route path="/superadmin/dashboard" element={<SuperadminDashboard />} />
+            <Route path="/superadmin/stores" element={<SuperadminStores />} />
+            <Route path="/superadmin/stores/create" element={<SuperadminCreateStore />} />
+            <Route path="/store/:id" element={<StoreDetail />} />
+            <Route path="/courier" element={<CourierDashboard />} />
+            <Route path="/manager" element={<ManagerDashboard />} />
+            <Route path="/admin/analytics" element={<AdminAnalytics />} />
+            <Route path="/admin/reports" element={<AdminReports />} />
+            <Route path="/admin/catalog" element={<OwnerMenuManagement />} />
+            <Route path="/admin/catalog/create" element={<OwnerProductForm />} />
+            <Route path="/admin/catalog/edit/:id" element={<OwnerProductForm />} />
+            <Route path="/admin/employees" element={<OwnerEmployees />} />
+            <Route path="/admin/payments" element={<OwnerPayments />} />
+            <Route path="/cart" element={<Cart />} />
+            <Route path="/orders" element={<Orders />} />
+            <Route path="/profile" element={isCustomer ? <CustomerProfile /> : <Profile />} />
+            <Route path="/complaints" element={<Complaints />} />
+            <Route path="/admin/settings" element={<OwnerSettings />} />
+            <Route path="/success" element={<Success />} />
+            <Route path="/notifications" element={<Notifications />} />
+            <Route path="/category/:id" element={<CategoryDetail />} />
+            <Route path="/stores" element={<Stores />} />
+          </Routes>
+        </Suspense>
+      </RouteErrorBoundary>
       
       {/* Floating Sticky Cart Indicator Bar */}
       <FloatingCartBar />

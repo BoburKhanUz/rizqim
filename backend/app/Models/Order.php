@@ -72,7 +72,11 @@ class Order extends Model
             'payment_status' => \App\Enums\PaymentStatus::class,
             'order_type' => \App\Enums\OrderType::class,
             'shipping_address' => 'array',
-            'commission_amount' => 'float',
+            'subtotal' => 'decimal:2',
+            'delivery_price' => 'decimal:2',
+            'discount' => 'decimal:2',
+            'total_price' => 'decimal:2',
+            'commission_amount' => 'decimal:2',
         ];
     }
 

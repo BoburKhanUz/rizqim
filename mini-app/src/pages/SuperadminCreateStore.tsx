@@ -1,22 +1,37 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useCallback, useState, useEffect, useRef } from 'react';
 import { ChevronLeft, Save, MapPin, Building2, User as UserIcon, Navigation } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { hapticFeedback } from '../lib/telegram';
 import api from '../services/api';
 import { logApiError } from '../lib/apiError';
+import type { YandexMap, YandexPlacemark } from '../types/ymaps';
+import type { ApiResponse, CreatedStore, CreateStorePayload, District, Locations, Region } from '../types';
+
+// Tashkent
+const DEFAULT_CENTER: [number, number] = [41.311081, 69.240562];
+
+// The text inputs of the form (their `name` is the field they edit)
+const TEXT_FIELDS = [
+  'name', 'phone', 'commission_rate', 'owner_name', 'owner_phone',
+  'branch_region_id', 'branch_district_id', 'branch_address', 'branch_phone',
+] as const;
+type TextField = (typeof TEXT_FIELDS)[number];
+const isTextField = (name: string): name is TextField => (TEXT_FIELDS as readonly string[]).includes(name);
+
+const toCoordinate = (value: number) => parseFloat(value.toFixed(6));
 
 export default function SuperadminCreateStore() {
   const navigate = useNavigate();
   const mapRef = useRef<HTMLDivElement>(null);
-  const ymapsMapRef = useRef<any>(null);
-  const placemarkRef = useRef<any>(null);
+  const ymapsMapRef = useRef<YandexMap | null>(null);
+  const placemarkRef = useRef<YandexPlacemark | null>(null);
   
   const [loading, setLoading] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
-  const [regions, setRegions] = useState<any[]>([]);
-  const [districts, setDistricts] = useState<any[]>([]);
+  const [regions, setRegions] = useState<Region[]>([]);
+  const [districts, setDistricts] = useState<District[]>([]);
   
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<CreateStorePayload>({
     name: '',
     phone: '',
     commission_rate: 5,
@@ -26,19 +41,18 @@ export default function SuperadminCreateStore() {
     branch_district_id: '',
     branch_address: '',
     branch_phone: '',
-    branch_lat: 41.311081,
-    branch_lng: 69.240562,
+    branch_lat: DEFAULT_CENTER[0],
+    branch_lng: DEFAULT_CENTER[1],
     branch_radius: 5,
     branch_open_time: '09:00',
     branch_close_time: '23:00'
   });
 
   // Helper to reverse geocode and set address
-  const fetchAddressFromCoords = (lat: number, lng: number) => {
-    // @ts-ignore
-    if (window.ymaps && window.ymaps.geocode) {
-      // @ts-ignore
-      window.ymaps.geocode([lat, lng]).then((res: any) => {
+  const fetchAddressFromCoords = useCallback((lat: number, lng: number) => {
+    const ymaps = window.ymaps;
+    if (ymaps && ymaps.geocode) {
+      ymaps.geocode([lat, lng]).then((res) => {
         const firstGeoObject = res.geoObjects.get(0);
         if (firstGeoObject) {
           // getAddressLine() gets the formatted address string
@@ -51,37 +65,36 @@ export default function SuperadminCreateStore() {
         }
       }).catch((err: unknown) => logApiError('Failed to resolve address:', err));
     }
-  };
+  }, []);
 
   // Simplified Map Integration (Yandex Maps)
   useEffect(() => {
     const initYmaps = () => {
-      // @ts-ignore
-      if (!window.ymaps || !mapRef.current) return;
-      // @ts-ignore
-      window.ymaps.ready(() => {
+      const ymaps = window.ymaps;
+      if (!ymaps || !mapRef.current) return;
+      ymaps.ready(() => {
         if (!mapRef.current) return;
         
-        // @ts-ignore
-        ymapsMapRef.current = new window.ymaps.Map(mapRef.current, {
-          center: [formData.branch_lat, formData.branch_lng],
+        const map = new ymaps.Map(mapRef.current, {
+          center: DEFAULT_CENTER,
           zoom: 12,
           controls: ['zoomControl']
         });
+        ymapsMapRef.current = map;
 
-        // @ts-ignore
-        placemarkRef.current = new window.ymaps.Placemark([formData.branch_lat, formData.branch_lng], {}, {
+        const placemark = new ymaps.Placemark(DEFAULT_CENTER, {}, {
           preset: 'islands#redDotIcon',
           draggable: true
         });
+        placemarkRef.current = placemark;
 
-        ymapsMapRef.current.geoObjects.add(placemarkRef.current);
+        map.geoObjects.add(placemark);
 
         // Update coordinates on drag end
-        placemarkRef.current.events.add('dragend', () => {
-          const coords = placemarkRef.current.geometry.getCoordinates();
-          const lat = parseFloat(coords[0].toFixed(6));
-          const lng = parseFloat(coords[1].toFixed(6));
+        placemark.events.add('dragend', () => {
+          const coords = placemark.geometry.getCoordinates();
+          const lat = toCoordinate(coords[0]);
+          const lng = toCoordinate(coords[1]);
           setFormData(prev => ({
             ...prev,
             branch_lat: lat,
@@ -91,11 +104,11 @@ export default function SuperadminCreateStore() {
         });
 
         // Update coordinates on map click
-        ymapsMapRef.current.events.add('click', (e: any) => {
+        map.events.add('click', (e) => {
           const coords = e.get('coords');
-          const lat = parseFloat(coords[0].toFixed(6));
-          const lng = parseFloat(coords[1].toFixed(6));
-          placemarkRef.current.geometry.setCoordinates(coords);
+          const lat = toCoordinate(coords[0]);
+          const lng = toCoordinate(coords[1]);
+          placemark.geometry.setCoordinates(coords);
           setFormData(prev => ({
             ...prev,
             branch_lat: lat,
@@ -112,7 +125,6 @@ export default function SuperadminCreateStore() {
       script.src = 'https://api-maps.yandex.ru/2.1/?lang=uz_UZ&apikey=';
       document.head.appendChild(script);
       script.onload = initYmaps;
-    // @ts-ignore
     } else if (window.ymaps) {
       initYmaps();
     }
@@ -120,13 +132,12 @@ export default function SuperadminCreateStore() {
     return () => {
       if (ymapsMapRef.current) ymapsMapRef.current.destroy();
     };
-  }, []);
+  }, [fetchAddressFromCoords]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
+    const { name, value } = e.target;
+    if (!isTextField(name)) return;
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleFindLocation = () => {
@@ -141,8 +152,8 @@ export default function SuperadminCreateStore() {
       (position) => {
         setIsLocating(false);
         const { latitude, longitude } = position.coords;
-        const lat = parseFloat(latitude.toFixed(6));
-        const lng = parseFloat(longitude.toFixed(6));
+        const lat = toCoordinate(latitude);
+        const lng = toCoordinate(longitude);
         
         setFormData(prev => ({
           ...prev,
@@ -167,19 +178,46 @@ export default function SuperadminCreateStore() {
     );
   };
 
+  useEffect(() => {
+    const fetchLocations = async () => {
+      try {
+        const res = await api.get<ApiResponse<Locations>>('/superadmin/locations');
+        if (res.data.success) {
+          setRegions(res.data.data.regions || []);
+          setDistricts(res.data.data.districts || []);
+        }
+      } catch (err) {
+        logApiError('Failed to fetch locations', err);
+      }
+    };
+    fetchLocations();
+  }, []);
+
+  // With a single region (or a single district in the chosen region) there is nothing to choose: it is selected.
+  // A chosen district that does not belong to the chosen region is dropped.
+  const branchRegionId = formData.branch_region_id || (regions.length === 1 ? regions[0].id.toString() : '');
+  const availableDistricts = districts.filter(d => d.region_id === Number(branchRegionId));
+  const branchDistrictId = availableDistricts.some(d => d.id.toString() === formData.branch_district_id)
+    ? formData.branch_district_id
+    : (availableDistricts.length === 1 ? availableDistricts[0].id.toString() : '');
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     hapticFeedback('medium');
     
     // Basic validation
-    if (!formData.name || !formData.owner_name || !formData.branch_region_id) {
+    if (!formData.name || !formData.owner_name || !branchRegionId) {
       alert("Iltimos barcha majburiy maydonlarni to'ldiring.");
       return;
     }
 
     try {
       setLoading(true);
-      const res = await api.post('/superadmin/stores', formData);
+      const res = await api.post<ApiResponse<CreatedStore>>('/superadmin/stores', {
+        ...formData,
+        branch_region_id: branchRegionId,
+        branch_district_id: branchDistrictId,
+      });
       if (res.data.success) {
         hapticFeedback('success');
         alert('Restoran muvaffaqiyatli yaratildi!\n\nLink: ' + res.data.data.invite_link);
@@ -193,41 +231,6 @@ export default function SuperadminCreateStore() {
       setLoading(false);
     }
   };
-
-  useEffect(() => {
-    const fetchLocations = async () => {
-      try {
-        const res = await api.get('/superadmin/locations');
-        if (res.data.success) {
-          const fetchedRegions = res.data.data.regions || [];
-          setRegions(fetchedRegions);
-          setDistricts(res.data.data.districts || []);
-        }
-      } catch (err) {
-        logApiError('Failed to fetch locations', err);
-      }
-    };
-    fetchLocations();
-  }, []);
-
-  const availableDistricts = districts.filter(d => d.region_id === Number(formData.branch_region_id));
-
-  // Auto-select Region if there's only 1 option
-  useEffect(() => {
-    if (regions.length === 1 && !formData.branch_region_id) {
-      setFormData(prev => ({ ...prev, branch_region_id: regions[0].id.toString() }));
-    }
-  }, [regions]);
-
-  // Auto-select District if there's only 1 option
-  useEffect(() => {
-    if (availableDistricts.length === 1 && !formData.branch_district_id) {
-      setFormData(prev => ({ ...prev, branch_district_id: availableDistricts[0].id.toString() }));
-    } else if (availableDistricts.length === 0) {
-      // Clear district if no available districts
-      setFormData(prev => ({ ...prev, branch_district_id: '' }));
-    }
-  }, [availableDistricts.length, formData.branch_region_id]);
 
   return (
     <div className="p-4 pb-24 animate-fade-in">
@@ -337,7 +340,7 @@ export default function SuperadminCreateStore() {
               <label className="text-xs font-bold text-hint mb-1.5 block">Viloyat *</label>
               <select 
                 name="branch_region_id" 
-                value={formData.branch_region_id} 
+                value={branchRegionId} 
                 onChange={handleChange}
                 disabled={regions.length === 1}
                 className={`w-full bg-bg border border-hint/20 rounded-xl px-3 py-3 text-sm focus:border-green-500 outline-none ${regions.length === 1 ? 'opacity-80' : ''}`}
@@ -351,10 +354,10 @@ export default function SuperadminCreateStore() {
               <label className="text-xs font-bold text-hint mb-1.5 block">Tuman *</label>
               <select 
                 name="branch_district_id" 
-                value={formData.branch_district_id} 
+                value={branchDistrictId} 
                 onChange={handleChange}
-                disabled={availableDistricts.length === 1 || !formData.branch_region_id}
-                className={`w-full bg-bg border border-hint/20 rounded-xl px-3 py-3 text-sm focus:border-green-500 outline-none ${availableDistricts.length === 1 || !formData.branch_region_id ? 'opacity-80' : ''}`}
+                disabled={availableDistricts.length === 1 || !branchRegionId}
+                className={`w-full bg-bg border border-hint/20 rounded-xl px-3 py-3 text-sm focus:border-green-500 outline-none ${availableDistricts.length === 1 || !branchRegionId ? 'opacity-80' : ''}`}
                 required
               >
                 {availableDistricts.length !== 1 && <option value="">Tanlang</option>}

@@ -11,6 +11,7 @@ use App\Models\StoreTransaction;
 use App\Models\StoreWalletTransaction;
 use App\Models\PayoutRequest;
 use App\Services\Finance\LedgerService;
+use App\Support\Money;
 use App\Enums\UserRole;
 
 class OwnerFinanceController extends Controller
@@ -53,7 +54,7 @@ class OwnerFinanceController extends Controller
             ->get();
 
         return $this->success([
-            'balance' => (float) $store->balance,
+            'debt_balance' => (float) $store->debt_balance,
             'wallet_balance' => (float) $store->wallet_balance,
             'credit_limit' => (float) $store->credit_limit,
             'min_payout_reserve' => (float) ($store->min_payout_reserve ?? 100000.00),
@@ -97,7 +98,7 @@ class OwnerFinanceController extends Controller
         ]);
 
         try {
-            $payout = $ledger->requestPayout($store, round((float) $data['amount'], 2), $data['card_number'], $data['notes'] ?? null);
+            $payout = $ledger->requestPayout($store, Money::of($data['amount']), $data['card_number'], $data['notes'] ?? null);
         } catch (\DomainException $e) {
             return $this->error($e->getMessage(), [], 422);
         }
@@ -127,13 +128,13 @@ class OwnerFinanceController extends Controller
             'provider' => 'required|string|in:click,payme',
         ]);
 
-        $amount = (float) $data['amount'];
+        $amount = Money::of($data['amount']);
         $provider = $data['provider'];
 
         // Create a pending top-up request
         $topupRequest = \App\Models\StoreTopupRequest::create([
             'store_id' => $store->id,
-            'amount' => $amount,
+            'amount' => $amount->toString(),
             'provider' => $provider,
             'status' => 'pending',
         ]);
@@ -150,14 +151,14 @@ class OwnerFinanceController extends Controller
             $paymentUrl = "https://my.click.uz/services/pay" .
                    "?service_id={$serviceId}" .
                    "&merchant_id={$merchantId}" .
-                   "&amount={$amount}" .
+                   "&amount={$amount->toFloat()}" .
                    "&transaction_param=topup_{$topupRequest->uuid}" .
                    "&return_url=" . urlencode($returnUrl);
         } elseif ($provider === 'payme') {
             // Platform payme credentials (top-ups are always paid to the platform)
             $merchantId = PaymentProvider::platformCredential('payme', 'merchant_id');
 
-            $tiyinAmount = (int) round($amount * 100);
+            $tiyinAmount = $amount->toTiyin();
             $params = "m={$merchantId};ac.order_id=topup_{$topupRequest->uuid};a={$tiyinAmount};c=" . urlencode($returnUrl);
             $paymentUrl = "https://checkout.paycom.uz/" . base64_encode($params);
         }

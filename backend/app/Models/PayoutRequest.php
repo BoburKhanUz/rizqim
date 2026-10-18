@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\DB;
+use App\Support\Money;
 use App\Traits\Auditable;
 
 class PayoutRequest extends Model
@@ -15,7 +16,7 @@ class PayoutRequest extends Model
 
     protected $casts = [
         'processed_at' => 'datetime',
-        'amount' => 'float',
+        'amount' => 'decimal:2',
     ];
 
     protected static function booted()
@@ -44,25 +45,26 @@ class PayoutRequest extends Model
                 if ($newStatus === 'completed') {
                     $store = Store::where('id', $payout->store_id)->lockForUpdate()->firstOrFail();
 
-                    $balanceBefore = (float) $store->wallet_balance;
-                    $balanceAfter = $balanceBefore - (float) $payout->amount;
+                    $amount = Money::of($payout->amount);
+                    $balanceBefore = Money::of($store->wallet_balance);
+                    $balanceAfter = $balanceBefore->minus($amount);
 
-                    if ($balanceAfter < 0) {
-                        throw new \DomainException("Hamyonda yetarli mablag' yo'q: " . number_format($balanceBefore) . " UZS.");
+                    if ($balanceAfter->isNegative()) {
+                        throw new \DomainException("Hamyonda yetarli mablag' yo'q: " . number_format($balanceBefore->toFloat()) . " UZS.");
                     }
 
                     // Update store wallet balance
                     $store->forceFill([
-                        'wallet_balance' => $balanceAfter,
+                        'wallet_balance' => $balanceAfter->toString(),
                     ])->save();
 
                     // Record wallet transaction
                     StoreWalletTransaction::create([
                         'store_id' => $store->id,
                         'type' => \App\Enums\StoreTransactionType::PAYOUT->value,
-                        'amount' => -(float) $payout->amount,
-                        'balance_before' => $balanceBefore,
-                        'balance_after' => $balanceAfter,
+                        'amount' => $amount->negated()->toString(),
+                        'balance_before' => $balanceBefore->toString(),
+                        'balance_after' => $balanceAfter->toString(),
                         'notes' => "Payout completed to card: {$payout->card_number}",
                         'performed_by' => auth()->id(),
                     ]);

@@ -1,82 +1,68 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { useCartStore } from '../store/cartStore';
+import { useCartStore, type PendingCartItem } from '../store/cartStore';
 import { hapticFeedback } from '../lib/telegram';
-import { ErrorFallback } from '../App';
+import { ErrorFallback } from '../components/Feedback';
 import api from '../services/api';
 import { ArrowLeft, Heart, Star, Minus, Plus } from 'lucide-react';
 import VariantSelectorModal from '../components/VariantSelectorModal';
 import { getAddBlockedMessage, getVariantStock, isProductSoldOut, type StockVariant } from '../lib/stock';
-
-function formatUzbekSum(value: number | string | undefined) {
-  if (value === undefined || value === null) return "0 so'm";
-  const numValue = Math.round(Number(value));
-  return numValue.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ") + " so'm";
-}
-
-function getProductBasePrice(product: any): number {
-  if (!product) return 0;
-  if (product.price && parseFloat(product.price) > 0) {
-    return parseFloat(product.price);
-  }
-  if (product.variants && product.variants.length > 0) {
-    const prices = product.variants.map((v: any) => parseFloat(v.price)).filter((p: number) => !isNaN(p) && p > 0);
-    if (prices.length > 0) {
-      return Math.min(...prices);
-    }
-  }
-  return 0;
-}
+import { formatUzbekSum } from '../lib/format';
+import { buildCartItem, getProductBasePrice, getStoreInfo } from '../lib/catalog';
+import { getErrorMessage } from '../lib/apiError';
+import type { ApiResponse, Category, Product, ProductVariant, StoreCatalog, StoreCatalogStore } from '../types';
 
 export default function StoreDetail() {
   const { id: uuid } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { items: cartItems, addItem, forceClearAndAdd, removeItem } = useCartStore();
-  const [pendingCartItem, setPendingCartItem] = useState<{item: any, storeInfo: any} | null>(null);
-  const [selectedProductForVariant, setSelectedProductForVariant] = useState<any>(null);
+  const [pendingCartItem, setPendingCartItem] = useState<PendingCartItem | null>(null);
+  const [selectedProductForVariant, setSelectedProductForVariant] = useState<Product | null>(null);
 
-  const [store, setStore] = useState<any>(null);
-  const [categories, setCategories] = useState<any[]>([]);
-  const [products, setProducts] = useState<any[]>([]);
+  const [store, setStore] = useState<StoreCatalogStore | null>(null);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<any>(null);
+  const [error, setError] = useState<unknown>(null);
 
   const [selectedParentCategoryId, setSelectedParentCategoryId] = useState<number | null>(null);
   const [selectedSubCategoryId, setSelectedSubCategoryId] = useState<number | null>(null);
-  const [activeSegment, setActiveSegment] = useState('menu'); // 'menu' | 'reviews'
+  const [activeSegment, setActiveSegment] = useState<'menu' | 'reviews'>('menu');
   const [isFav, setIsFav] = useState(false); // Mock favorite state
 
   useEffect(() => {
+    if (!uuid) return;
+    let cancelled = false;
     const fetchStoreCatalog = async () => {
       try {
-        const res = await api.get(`/catalog?store_id=${uuid}`);
-        if (res.data.success) {
+        const res = await api.get<ApiResponse<StoreCatalog>>(`/catalog?store_id=${uuid}`);
+        if (res.data.success && !cancelled) {
           setStore(res.data.data.store);
           setCategories(res.data.data.categories);
           setProducts(res.data.data.products);
         }
       } catch (err) {
-        setError(err);
+        if (!cancelled) setError(err);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
-    if (uuid) {
-      fetchStoreCatalog();
-    }
+    fetchStoreCatalog();
+    return () => {
+      cancelled = true;
+    };
   }, [uuid]);
 
-  // Open target product if routed from promo banner
+  // A promo banner links here with ?product_id=...: that product's selector opens once the menu has loaded,
+  // until the customer closes it.
   const targetProductId = searchParams.get('product_id');
-  useEffect(() => {
-    if (targetProductId && products.length > 0) {
-      const prod = products.find(p => p.id.toString() === targetProductId);
-      if (prod) {
-        setSelectedProductForVariant(prod);
-      }
-    }
-  }, [targetProductId, products]);
+  const [dismissedTargetId, setDismissedTargetId] = useState<string | null>(null);
+  const targetProduct = useMemo(() => {
+    if (!targetProductId || targetProductId === dismissedTargetId) return null;
+    return products.find(p => p.id.toString() === targetProductId) ?? null;
+  }, [targetProductId, dismissedTargetId, products]);
+  const variantModalProduct = selectedProductForVariant ?? targetProduct;
 
   const parentCategories = useMemo(() => {
     return categories.filter(c => !c.parent_id);
@@ -99,7 +85,7 @@ export default function StoreDetail() {
   }, [products, categories, selectedParentCategoryId, selectedSubCategoryId]);
 
   const groupedProducts = useMemo(() => {
-    const groups: Record<string, any[]> = {};
+    const groups: Record<string, Product[]> = {};
     filteredProducts.forEach(product => {
       const category = categories.find(c => c.id === product.category_id);
       const catName = category ? category.name : 'Boshqalar';
@@ -129,7 +115,21 @@ export default function StoreDetail() {
     return true;
   };
 
-  const handleAddToCart = (e: React.MouseEvent, product: any) => {
+  // Puts one unit of the variant into the cart (unless the stock rule blocks it); another store's items in the cart
+  // ask the customer first
+  const addToCart = (product: Product, variant: ProductVariant | undefined) => {
+    const cartItem = buildCartItem(product, variant);
+    if (!canAddVariant(variant, cartItem.id)) return;
+
+    const storeInfo = getStoreInfo(store);
+
+    const isSuccess = addItem(cartItem, storeInfo);
+    if (!isSuccess) {
+      setPendingCartItem({ item: cartItem, storeInfo });
+    }
+  };
+
+  const handleAddToCart = (e: React.MouseEvent, product: Product) => {
     e.stopPropagation();
     hapticFeedback('medium');
 
@@ -137,33 +137,8 @@ export default function StoreDetail() {
       setSelectedProductForVariant(product);
       return;
     }
-    
-    const variant = product.variants?.[0];
-    const itemPrice = variant ? parseFloat(variant.price) : 0;
-    const cartItemId = variant ? `${product.id}-${variant.uuid}` : `${product.id}`;
 
-    if (!canAddVariant(variant, cartItemId)) return;
-    
-    const cartItem = {
-      id: cartItemId,
-      productId: product.id,
-      variantId: variant?.uuid,
-      storeId: product.store_id.toString(),
-      name: variant && product.variants && product.variants.length > 0 ? `${product.name} (${variant.name})` : product.name,
-      price: itemPrice,
-      quantity: 1,
-      image: product.image_url
-    };
-
-    const storeInfo = store ? {
-      name: store.name,
-      address: store.address || 'Asosiy filial'
-    } : undefined;
-
-    const isSuccess = addItem(cartItem, storeInfo);
-    if (!isSuccess) {
-      setPendingCartItem({ item: cartItem, storeInfo });
-    }
+    addToCart(product, product.variants?.[0]);
   };
 
   const handleRemoveFromCart = (e: React.MouseEvent, productId: string) => {
@@ -172,7 +147,7 @@ export default function StoreDetail() {
     removeItem(productId);
   };
 
-  if (error) return <ErrorFallback error={error?.message || "Do'konni yuklashda xatolik"} />;
+  if (error) return <ErrorFallback error={getErrorMessage(error) || "Do'konni yuklashda xatolik"} />;
   if (loading || !store) {
     return (
       <div className="pb-28 bg-white min-h-screen">
@@ -231,7 +206,7 @@ export default function StoreDetail() {
     );
   }
 
-  const initials = store.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase();
+  const initials = store.name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
 
   return (
     <div className="pb-28 animate-fade-in bg-white min-h-screen">
@@ -452,7 +427,7 @@ export default function StoreDetail() {
       ) : (
         <div className="p-4 space-y-3">
           {store?.ratings && store.ratings.length > 0 ? (
-            store.ratings.map((rate: any) => (
+            store.ratings.map((rate) => (
               <div key={rate.id} className="bg-white p-4 rounded-3xl border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.01)] space-y-2">
                 <div className="flex justify-between items-center">
                   <div>
@@ -518,33 +493,14 @@ export default function StoreDetail() {
 
       {/* Product Variant / Option Selector Sheet */}
       <VariantSelectorModal
-        isOpen={!!selectedProductForVariant}
-        onClose={() => setSelectedProductForVariant(null)}
-        product={selectedProductForVariant}
+        isOpen={!!variantModalProduct}
+        onClose={() => {
+          setSelectedProductForVariant(null);
+          setDismissedTargetId(targetProductId);
+        }}
+        product={variantModalProduct}
         onAdd={(variant) => {
-          const cartItemId = `${selectedProductForVariant.id}-${variant.uuid}`;
-          if (!canAddVariant(variant, cartItemId)) return;
-
-          const cartItem = {
-            id: cartItemId,
-            productId: selectedProductForVariant.id,
-            variantId: variant.uuid,
-            storeId: selectedProductForVariant.store_id.toString(),
-            name: `${selectedProductForVariant.name} (${variant.name})`,
-            price: parseFloat(variant.price as string),
-            quantity: 1,
-            image: selectedProductForVariant.image_url
-          };
-
-          const storeInfo = store ? {
-            name: store.name,
-            address: store.address || 'Asosiy filial'
-          } : undefined;
-
-          const isSuccess = addItem(cartItem, storeInfo);
-          if (!isSuccess) {
-            setPendingCartItem({ item: cartItem, storeInfo });
-          }
+          if (variantModalProduct) addToCart(variantModalProduct, variant);
         }}
       />
     </div>

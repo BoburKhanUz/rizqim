@@ -22,16 +22,16 @@ class LedgerBalanceGuardTest extends TestCase
     {
         $store = Store::create([
             'name' => 'Guarded Cafe',
-            'balance' => -999999,
+            'debt_balance' => -999999,
             'wallet_balance' => 999999,
             'credit_limit' => -50000,
             'commission_rate' => 7,
         ]);
 
-        $store->update(['balance' => -1, 'wallet_balance' => 1, 'min_payout_reserve' => 20000]);
+        $store->update(['debt_balance' => -1, 'wallet_balance' => 1, 'min_payout_reserve' => 20000]);
         $store = $store->fresh();
 
-        $this->assertEquals(0, (float) $store->balance);
+        $this->assertEquals(0, (float) $store->debt_balance);
         $this->assertEquals(0, (float) $store->wallet_balance);
         $this->assertEquals(-50000, (float) $store->credit_limit);
         $this->assertEquals(7, (float) $store->commission_rate);
@@ -49,7 +49,7 @@ class LedgerBalanceGuardTest extends TestCase
         $store = Store::forceCreate([
             'name' => 'Blocked Cafe',
             'status' => StoreStatus::PAYMENT_REQUIRED->value,
-            'balance' => 120000,
+            'debt_balance' => 120000,
             'credit_limit' => -100000,
         ]);
 
@@ -61,7 +61,7 @@ class LedgerBalanceGuardTest extends TestCase
             ->assertHasNoTableActionErrors();
 
         $store = $store->fresh();
-        $this->assertEquals(90000, (float) $store->balance);
+        $this->assertEquals(90000, (float) $store->debt_balance);
         $this->assertSame(StoreStatus::ACTIVE, $store->status);
         $this->assertDatabaseHas('store_transactions', [
             'store_id' => $store->id,

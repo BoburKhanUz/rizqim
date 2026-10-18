@@ -16,6 +16,7 @@ class Payment extends Model
     {
         return [
             'status' => PaymentStatus::class,
+            'amount' => 'decimal:2',
             'payload' => 'array',
             'paid_at' => 'datetime',
             'cancelled_at' => 'datetime',

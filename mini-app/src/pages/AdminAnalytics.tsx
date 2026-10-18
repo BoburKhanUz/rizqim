@@ -1,7 +1,6 @@
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMemo, useState } from 'react';
 import { useLanguageStore } from '../store/languageStore';
-import { ErrorFallback } from '../App';
+import { ErrorFallback } from '../components/Feedback';
 import { 
   Clock, 
   Bike,
@@ -11,158 +10,44 @@ import {
   Award,
   BarChart3
 } from 'lucide-react';
-import api from '../services/api';
+import { computeOrderAnalytics } from '../lib/analytics';
+import { POLL_INTERVAL_MS } from '../lib/polling';
+import { useStaffOrders } from '../hooks/useOrders';
+import type { Order } from '../types';
 
-type Timeframe = 'today' | 'weekly' | 'monthly' | 'yearly';
+type AnalyticsTimeframe = 'today' | 'weekly' | 'monthly' | 'yearly';
+
+const TIMEFRAMES: readonly AnalyticsTimeframe[] = ['today', 'weekly', 'monthly', 'yearly'];
+
+const NO_ORDERS: Order[] = [];
+
+// "--" until there is data; seconds below a minute, whole minutes above
+const formatPrepTime = (ms: number | null) => {
+  if (ms === null) return '--';
+  const secs = ms / 1000;
+  return secs < 60 ? `${Math.round(secs)}s` : `${Math.round(secs / 60)}m`;
+};
+
+const formatDeliveryTime = (ms: number | null) => (ms === null ? '--' : `${Math.round(ms / 60000)}m`);
 
 export default function AdminAnalytics() {
   const { language } = useLanguageStore();
-  const [timeframe, setTimeframe] = useState<Timeframe>('today');
+  const [timeframe, setTimeframe] = useState<AnalyticsTimeframe>('today');
 
-  // Fetch all orders of the store with shared caching and non-blocking background refetching
-  const { data: orders = [], isLoading, error } = useQuery({
-    queryKey: ['adminOrders'],
-    queryFn: async () => {
-      const response = await api.get('/orders');
-      return response.data?.data || [];
-    },
-    refetchInterval: 15000, // Refresh analytics every 15s in background
-    staleTime: 1000 * 60 * 5, // 5 minutes stale time for instant transitions
-  });
+  // All orders of the store, refreshed in the background while the screen is visible
+  const { data, isLoading, error, dataUpdatedAt } = useStaffOrders('adminOrders', POLL_INTERVAL_MS.adminOrders);
+  const orders = data ?? NO_ORDERS;
 
-  if (error) return <ErrorFallback error="Failed to fetch analytics data." />;
-
-  const completedOrders = orders.filter((order: any) => 
-    ['delivered', 'canceled'].includes(order.status)
+  // "Now" is the time of the last refresh, so the periods move on together with the data
+  const analytics = useMemo(
+    () => computeOrderAnalytics(orders, timeframe, dataUpdatedAt),
+    [orders, timeframe, dataUpdatedAt],
   );
 
-  // --- Dynamic Filtering Logic based on timeframe ---
-  const getFilteredOrders = () => {
-    const now = Date.now();
-    const todayStr = new Date().toDateString();
+  // A failed background refresh keeps showing the last numbers; the error screen is only for "nothing to show"
+  if (error && orders.length === 0) return <ErrorFallback error="Failed to fetch analytics data." />;
 
-    return completedOrders.filter((o: any) => {
-      const orderTime = new Date(o.updated_at).getTime();
-      const orderDateStr = new Date(o.updated_at).toDateString();
-
-      switch (timeframe) {
-        case 'today':
-          return orderDateStr === todayStr;
-        case 'weekly':
-          // Past 7 days
-          return orderTime >= now - 7 * 24 * 60 * 60 * 1000;
-        case 'monthly':
-          // Past 30 days
-          return orderTime >= now - 30 * 24 * 60 * 60 * 1000;
-        case 'yearly':
-          // Past 365 days
-          return orderTime >= now - 365 * 24 * 60 * 60 * 1000;
-        default:
-          return orderDateStr === todayStr;
-      }
-    });
-  };
-
-  const periodOrders = getFilteredOrders();
-  const deliveredOrders = periodOrders.filter((o: any) => o.status === 'delivered');
-
-  // Calculations for active timeframe
-  const totalRevenue = deliveredOrders.reduce((sum: number, o: any) => sum + parseFloat(o.total_price), 0);
-
-  // Split payment methods revenue
-  const cashRevenue = deliveredOrders
-    .filter((o: any) => o.payment_method === 'cash')
-    .reduce((sum: number, o: any) => sum + parseFloat(o.total_price), 0);
-
-  const onlineRevenue = totalRevenue - cashRevenue;
-
-  // --- Individual Order Stage Time Trackers ---
-  const getAveragePrepTime = () => {
-    let count = 0;
-    let totalMs = 0;
-    
-    periodOrders.forEach((o: any) => {
-      const histories = o.status_histories || o.statusHistories;
-      if (!histories || histories.length === 0) return;
-      
-      const times: Record<string, number> = {};
-      histories.forEach((h: any) => {
-        times[h.status] = new Date(h.created_at).getTime();
-      });
-      
-      const start = times['accepted'];
-      if (start && times['preparing']) {
-        totalMs += (times['preparing'] - start);
-        count++;
-      }
-    });
-    
-    if (count === 0) return '--';
-    const avgSecs = totalMs / count / 1000;
-    if (avgSecs < 60) return `${Math.round(avgSecs)}s`;
-    return `${Math.round(avgSecs / 60)}m`;
-  };
-
-  const getAverageDeliveryTime = () => {
-    let count = 0;
-    let totalMs = 0;
-    
-    periodOrders.forEach((o: any) => {
-      const histories = o.status_histories || o.statusHistories;
-      if (!histories || histories.length === 0) return;
-      
-      const times: Record<string, number> = {};
-      histories.forEach((h: any) => {
-        times[h.status] = new Date(h.created_at).getTime();
-      });
-      
-      const start = times['delivery'] || times['preparing'];
-      if (start && times['delivered']) {
-        totalMs += (times['delivered'] - start);
-        count++;
-      }
-    });
-    
-    if (count === 0) return '--';
-    const avgMins = Math.round((totalMs / count) / 60000);
-    return `${avgMins}m`;
-  };
-
-  // --- Advanced Trend Analytics: Popular Products ---
-  const getTopProducts = () => {
-    const counts: Record<string, { count: number; name: string }> = {};
-    deliveredOrders.forEach((o: any) => {
-      o.items?.forEach((item: any) => {
-        const name = item.product_name || 'Burger';
-        if (!counts[name]) {
-          counts[name] = { count: 0, name };
-        }
-        counts[name].count += item.quantity;
-      });
-    });
-    return Object.values(counts)
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 3);
-  };
-
-  // --- Advanced Trend Analytics: Courier Standings ---
-  const getTopCouriers = () => {
-    const counts: Record<string, { count: number; name: string }> = {};
-    deliveredOrders.forEach((o: any) => {
-      if (!o.courier) return;
-      const name = o.courier.name;
-      if (!counts[name]) {
-        counts[name] = { count: 0, name };
-      }
-      counts[name].count += 1;
-    });
-    return Object.values(counts)
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 3);
-  };
-
-  const topProducts = getTopProducts();
-  const topCouriers = getTopCouriers();
+  const { deliveredOrders, totalRevenue, cashRevenue, onlineRevenue, topProducts, topCouriers } = analytics;
 
   // Helper to render premium inline skeleton loader
   const renderValue = (val: React.ReactNode, widthClass = 'w-20') => {
@@ -197,7 +82,7 @@ export default function AdminAnalytics() {
 
       {/* Timeframe Switcher Tabs */}
       <div className="flex bg-secondary p-1 rounded-2xl border border-hint/5">
-        {(['today', 'weekly', 'monthly', 'yearly'] as Timeframe[]).map((tab) => (
+        {TIMEFRAMES.map((tab) => (
           <button
             key={tab}
             onClick={() => setTimeframe(tab)}
@@ -246,7 +131,7 @@ export default function AdminAnalytics() {
             {language === 'uz' ? 'Tayyorlash (Avg)' : 'Кухня (Среднее)'}
           </span>
           <span className="text-base font-black text-purple-500 mt-2">
-            {renderValue(getAveragePrepTime(), 'w-12')}
+            {renderValue(formatPrepTime(analytics.averagePrepMs), 'w-12')}
           </span>
         </div>
 
@@ -256,7 +141,7 @@ export default function AdminAnalytics() {
             {language === 'uz' ? 'Yetkazish (Avg)' : 'Доставка (Среднее)'}
           </span>
           <span className="text-base font-black text-orange-500 mt-2">
-            {renderValue(getAverageDeliveryTime(), 'w-12')}
+            {renderValue(formatDeliveryTime(analytics.averageDeliveryMs), 'w-12')}
           </span>
         </div>
       </div>

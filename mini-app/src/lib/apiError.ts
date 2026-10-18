@@ -1,9 +1,5 @@
 import { isAxiosError } from 'axios';
-
-interface ApiErrorBody {
-  message?: string;
-  errors?: Record<string, string[] | string | undefined>;
-}
+import type { ApiErrorBody } from '../types';
 
 // What is safe to print for a caught error. A raw axios error carries the whole request in `err.config`
 // (Authorization header, bodies with phone numbers and OTP codes), so it is never logged as is: only the
@@ -31,4 +27,9 @@ export function getApiFieldError(err: unknown, field: string): string | undefine
   const messages = err.response.data?.errors?.[field];
   const first = Array.isArray(messages) ? messages[0] : messages;
   return typeof first === 'string' && first.trim() !== '' ? first : undefined;
+}
+
+// The text of any thrown Error (e.g. axios' "Network Error"), for screens that show what went wrong.
+export function getErrorMessage(err: unknown): string | undefined {
+  return err instanceof Error && err.message ? err.message : undefined;
 }

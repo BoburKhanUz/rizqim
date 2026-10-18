@@ -5,10 +5,13 @@ namespace Tests\Feature;
 use App\Enums\OrderStatus;
 use App\Enums\PaymentStatus;
 use App\Enums\StoreTransactionType;
+use App\Enums\UserRole;
 use App\Events\PaymentPaid;
 use App\Models\Order;
+use App\Models\OrderStatusHistory;
 use App\Models\Payment;
 use App\Models\Store;
+use App\Models\StoreTransaction;
 use App\Models\StoreWalletTransaction;
 use App\Models\User;
 use App\Services\Order\OrderStatusService;
@@ -80,7 +83,7 @@ class PaymentLateSettlementTest extends TestCase
 
         // Delivered unpaid: commission charged, settlement skipped
         $this->assertEquals(0, (float) $this->store->fresh()->wallet_balance);
-        $this->assertEquals(5000, (float) $this->store->fresh()->balance);
+        $this->assertEquals(5000, (float) $this->store->fresh()->debt_balance);
 
         $this->postJson('/api/v1/payments/click/webhook', [
             'click_trans_id' => '42', 'service_id' => '1', 'click_paydoc_id' => '1',
@@ -90,7 +93,7 @@ class PaymentLateSettlementTest extends TestCase
         ])->assertJson(['error' => 0]);
 
         $this->assertEquals(50000, (float) $this->store->fresh()->wallet_balance);
-        $this->assertEquals(5000, (float) $this->store->fresh()->balance);
+        $this->assertEquals(5000, (float) $this->store->fresh()->debt_balance);
         $this->assertSame(OrderStatus::DELIVERED, $order->fresh()->status);
 
         event(new PaymentPaid(Payment::where('provider', 'click')->firstOrFail()));
@@ -124,7 +127,7 @@ class PaymentLateSettlementTest extends TestCase
         $this->assertSame(PaymentStatus::REFUNDED, Payment::where('provider_transaction_id', 'early-1')->first()->status);
     }
 
-    public function test_store_owned_payme_order_can_be_refunded_after_delivery_without_touching_order_or_commission(): void
+    public function test_payme_refund_after_delivery_refunds_a_store_owned_order_and_reverses_its_commission(): void
     {
         $this->store->update([
             'payment_account_type' => 'own_account',
@@ -137,16 +140,51 @@ class PaymentLateSettlementTest extends TestCase
             ->assertJsonPath('result.state', 1);
         $this->payme('PerformTransaction', ['id' => 'own-1'], 'store-payme-key')->assertJsonPath('result.state', 2);
 
+        $this->assertEquals(5000, (float) $this->store->fresh()->debt_balance);
+
         Log::spy();
+        $this->payme('CancelTransaction', ['id' => 'own-1', 'reason' => 5], 'store-payme-key')->assertJsonPath('result.state', -2);
         $this->payme('CancelTransaction', ['id' => 'own-1', 'reason' => 5], 'store-payme-key')->assertJsonPath('result.state', -2);
 
         $payment = Payment::where('provider_transaction_id', 'own-1')->first();
         $this->assertSame(PaymentStatus::REFUNDED, $payment->status);
         $this->assertTrue($payment->payload['refunded_after_delivery']);
-        $this->assertSame(OrderStatus::DELIVERED, $order->fresh()->status);
+        // Payme has already returned the money: nothing is left for a manual refund
+        $this->assertArrayNotHasKey('manual_refund_required', $payment->payload);
+        $this->assertSame(OrderStatus::REFUNDED, $order->fresh()->status);
         $this->assertSame(PaymentStatus::REFUNDED, $order->fresh()->payment_status);
-        $this->assertEquals(5000, (float) $this->store->fresh()->balance);
+        $this->assertEquals(0, (float) $this->store->fresh()->debt_balance);
+        $this->assertSame(1, StoreTransaction::where('order_id', $order->id)->where('type', StoreTransactionType::REFUND->value)->count());
         $this->assertSame(0, $this->settlements($order));
+        $history = OrderStatusHistory::where('order_id', $order->id)->where('status', 'refunded')->sole();
+        $this->assertNull($history->user_id);
+        $this->assertStringContainsString('Payme', $history->notes);
         Log::shouldHaveReceived('warning')->withArgs(fn ($message) => str_contains($message, 'refund after delivery'));
+    }
+
+    public function test_payme_can_return_a_platform_orders_money_once_the_admin_refund_took_it_back_from_the_store(): void
+    {
+        $admin = User::create(['name' => 'Super Admin', 'phone' => '+998909990002', 'role' => UserRole::SUPER_ADMIN->value, 'password' => bcrypt('password')]);
+        $order = $this->order('payme');
+        $this->payme('CreateTransaction', ['id' => 'adm-1', 'time' => 1760000000000, 'amount' => 5000000, 'account' => ['order_id' => $order->uuid]])
+            ->assertJsonPath('result.state', 1);
+        $this->payme('PerformTransaction', ['id' => 'adm-1'])->assertJsonPath('result.state', 2);
+        $this->deliverUnpaid($order);
+        $this->assertSame(1, $this->settlements($order));
+
+        // While the store holds the money, Payme cannot take it back
+        $this->payme('CancelTransaction', ['id' => 'adm-1', 'reason' => 5])->assertJsonPath('error.code', -31007);
+
+        app(OrderStatusService::class)->refund($order, $admin, 'Mijoz shikoyati');
+        $this->assertEquals(0, (float) $this->store->fresh()->wallet_balance);
+        $this->assertEquals(0, (float) $this->store->fresh()->debt_balance);
+        $ledgerRows = StoreTransaction::count() + StoreWalletTransaction::count();
+
+        $this->payme('CancelTransaction', ['id' => 'adm-1', 'reason' => 5])->assertJsonPath('result.state', -2);
+
+        $this->assertSame(PaymentStatus::REFUNDED, Payment::where('provider_transaction_id', 'adm-1')->first()->status);
+        $this->assertSame(OrderStatus::REFUNDED, $order->fresh()->status);
+        $this->assertSame(PaymentStatus::REFUNDED, $order->fresh()->payment_status);
+        $this->assertSame($ledgerRows, StoreTransaction::count() + StoreWalletTransaction::count());
     }
 }

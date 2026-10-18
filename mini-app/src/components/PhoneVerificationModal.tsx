@@ -4,6 +4,7 @@ import { getApiErrorMessage, getApiFieldError, logApiError } from '../lib/apiErr
 import { getUzPhoneDigits, UZ_PHONE_PREFIX } from '../lib/phone';
 import { useLanguageStore } from '../store/languageStore';
 import api from '../services/api';
+import type { SendCodeResponse, VerifyCodeResponse } from '../types';
 
 interface PhoneVerificationModalProps {
   // Called with the full number (+998XXXXXXXXX) once the server accepted the SMS code.
@@ -51,7 +52,7 @@ export default function PhoneVerificationModal({ onVerified, onClose, initialPho
       setIsSubmitting(true);
 
       if (!saveWithoutVerification) {
-        const response = await api.post('/phone/send-code', { phone: fullPhone });
+        const response = await api.post<SendCodeResponse>('/phone/send-code', { phone: fullPhone });
         if (response.data?.success) {
           // If in debug/local mode, show code in alert for developer convenience
           if (response.data.code) {
@@ -87,7 +88,7 @@ export default function PhoneVerificationModal({ onVerified, onClose, initialPho
 
     try {
       setIsSubmitting(true);
-      const response = await api.post('/phone/verify-code', {
+      const response = await api.post<VerifyCodeResponse>('/phone/verify-code', {
         phone: fullPhone,
         code: code
       });
@@ -112,7 +113,7 @@ export default function PhoneVerificationModal({ onVerified, onClose, initialPho
     hapticFeedback('light');
     try {
       setIsSubmitting(true);
-      const response = await api.post('/phone/send-code', { phone: fullPhone });
+      const response = await api.post<SendCodeResponse>('/phone/send-code', { phone: fullPhone });
       if (response.data?.success) {
         if (response.data.code) {
           alert(`[DEBUG MODE] Yangi tasdiqlash kodi: ${response.data.code}`);

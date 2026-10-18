@@ -1,25 +1,17 @@
-import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Bell, CheckCircle2, Clock, ShieldAlert, Sparkles, MessageSquare, Flame } from 'lucide-react';
 import { useLanguageStore } from '../store/languageStore';
 import { useAuthStore } from '../store/authStore';
 import { hapticFeedback } from '../lib/telegram';
-import api from '../services/api';
+import { useNotifications } from '../hooks/useNotifications';
 
 export default function Notifications() {
   const navigate = useNavigate();
   const { language } = useLanguageStore();
   const { user } = useAuthStore();
-  const isBusiness = user?.role === 'owner' || user?.role === 'manager' || user?.role === 'courier' || user?.role === 'superadmin';
+  const isBusiness = user?.role === 'owner' || user?.role === 'manager' || user?.role === 'courier' || user?.role === 'super_admin';
 
-  const { data: notifications = [], isLoading } = useQuery({
-    queryKey: ['notifications'],
-    queryFn: async () => {
-      const res = await api.get('/notifications');
-      return res.data?.data?.items || res.data?.data || [];
-    },
-    refetchInterval: 15000,
-  });
+  const { data: notifications = [], isLoading } = useNotifications();
 
   const getIcon = (type: string) => {
     switch (type) {
@@ -145,7 +137,7 @@ export default function Notifications() {
           </div>
         ) : (
           <div className="space-y-3">
-            {notifications.map((notif: any) => (
+            {notifications.map((notif) => (
               <div
                 key={notif.id}
                 className={`p-4 rounded-3xl flex gap-3.5 items-start shadow-[0_4px_15px_rgba(0,0,0,0.01)] transition-all ${getBgClass(notif.type)}`}

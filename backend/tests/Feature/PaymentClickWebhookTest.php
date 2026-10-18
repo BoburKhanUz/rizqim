@@ -41,7 +41,7 @@ class PaymentClickWebhookTest extends TestCase
             'slug' => 'click-cafe',
             'status' => 'active',
             'payment_account_type' => 'platform_account',
-            'balance' => 150000,
+            'debt_balance' => 150000,
         ]);
 
         $this->customer = User::create([
@@ -221,7 +221,7 @@ class PaymentClickWebhookTest extends TestCase
         $this->click(1, $ref, '100000', prepareId: $topup->id)->assertJson(['error' => 0, 'error_note' => 'Already confirmed']);
         $this->click(1, $ref, '100000', clickTransId: '9002', prepareId: $topup->id)->assertJson(['error' => -4]);
 
-        $this->assertEquals(50000, (float) $this->store->fresh()->balance);
+        $this->assertEquals(50000, (float) $this->store->fresh()->debt_balance);
         $this->assertSame(1, StoreTransaction::where('store_id', $this->store->id)->where('type', StoreTransactionType::TOPUP->value)->count());
         $this->assertSame('paid', $topup->fresh()->status);
     }

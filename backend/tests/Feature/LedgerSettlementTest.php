@@ -68,7 +68,7 @@ class LedgerSettlementTest extends TestCase
                 ->where('type', StoreTransactionType::COMMISSION->value)
                 ->pluck('amount')->map(fn ($amount) => (float) $amount)->all()
         );
-        $this->assertEquals(7000, (float) $this->store->fresh()->balance);
+        $this->assertEquals(7000, (float) $this->store->fresh()->debt_balance);
         $this->assertEquals(100000, (float) $this->store->fresh()->wallet_balance);
     }
 
@@ -81,7 +81,7 @@ class LedgerSettlementTest extends TestCase
 
         $this->assertSame(0, StoreTransaction::where('order_id', $order->id)
             ->where('type', StoreTransactionType::COMMISSION->value)->count());
-        $this->assertEquals(0, (float) $this->store->fresh()->balance);
+        $this->assertEquals(0, (float) $this->store->fresh()->debt_balance);
         $this->assertEquals(100000, (float) $this->store->fresh()->wallet_balance);
     }
 
@@ -98,6 +98,6 @@ class LedgerSettlementTest extends TestCase
         $this->assertSame(0, StoreWalletTransaction::where('order_id', $order->id)
             ->where('type', StoreTransactionType::SETTLEMENT->value)->count());
         // Commission is still charged for the delivered order.
-        $this->assertEquals(10000, (float) $this->store->fresh()->balance);
+        $this->assertEquals(10000, (float) $this->store->fresh()->debt_balance);
     }
 }

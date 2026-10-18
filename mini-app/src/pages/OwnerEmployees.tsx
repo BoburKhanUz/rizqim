@@ -4,43 +4,48 @@ import { hapticFeedback } from '../lib/telegram';
 import api from '../services/api';
 import { useAuthStore } from '../store/authStore';
 import { getApiErrorMessage, getApiFieldError, logApiError } from '../lib/apiError';
-import { FullScreenLoader } from '../App';
+import { FullScreenLoader } from '../components/Feedback';
+import type { ApiResponse, Branch, Employee, EmployeeInvite } from '../types';
+
+const NO_BRANCHES: Branch[] = [];
 
 export default function OwnerEmployees() {
   const { store } = useAuthStore();
-  const branches = store?.branches || [];
+  const branches = store?.branches ?? NO_BRANCHES;
 
-  const [employees, setEmployees] = useState<any[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [newRole, setNewRole] = useState<'manager' | 'courier'>('manager');
   const [newName, setNewName] = useState('');
-  const [selectedBranchId, setSelectedBranchId] = useState<string>('');
+  const [chosenBranchId, setChosenBranchId] = useState<string>('');
+  // Until the owner picks one, the first branch is selected
+  const selectedBranchId = chosenBranchId || (branches[0] ? branches[0].id.toString() : '');
+  // Bumped to load the list again after an invite, a transfer or a removal
+  const [reloadCount, setReloadCount] = useState(0);
+  const refreshEmployees = () => setReloadCount((count) => count + 1);
 
-  const fetchEmployees = async () => {
-    try {
-      const res = await api.get('/owner/employees');
-      if (res.data.success) {
-        setEmployees(res.data.data);
+  useEffect(() => {
+    let cancelled = false;
+    const fetchEmployees = async () => {
+      try {
+        const res = await api.get<ApiResponse<Employee[]>>('/owner/employees');
+        if (res.data.success && !cancelled) {
+          setEmployees(res.data.data);
+        }
+      } catch (err) {
+        logApiError('Failed to load employees:', err);
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-    } catch (err) {
-      logApiError('Failed to load employees:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
+    };
     fetchEmployees();
-  }, []);
-
-  useEffect(() => {
-    if (branches.length > 0 && !selectedBranchId) {
-      setSelectedBranchId(branches[0].id.toString());
-    }
-  }, [store, branches]);
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadCount]);
 
   const handleGenerateInvite = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,18 +54,18 @@ export default function OwnerEmployees() {
     hapticFeedback('medium');
     setGenerating(true);
     try {
-      const res = await api.post('/owner/employees/invite', {
+      const res = await api.post<ApiResponse<EmployeeInvite>>('/owner/employees/invite', {
         role: newRole,
         name: newName,
         branch_id: selectedBranchId ? parseInt(selectedBranchId) : null,
       });
       if (res.data.success) {
         setInviteLink(res.data.data.invite_link);
-        fetchEmployees(); // Refresh list to show pending employee
+        refreshEmployees(); // Refresh list to show pending employee
         setNewName('');
       }
-    } catch (err: any) {
-      alert(err.response?.data?.message || 'Xatolik yuz berdi');
+    } catch (err) {
+      alert(getApiErrorMessage(err) || 'Xatolik yuz berdi');
     } finally {
       setGenerating(false);
     }
@@ -71,8 +76,8 @@ export default function OwnerEmployees() {
     hapticFeedback('heavy');
     try {
       await api.delete(`/owner/employees/${id}`);
-      fetchEmployees();
-    } catch (err) {
+      refreshEmployees();
+    } catch {
       alert('O\'chirishda xatolik yuz berdi');
     }
   };
@@ -82,11 +87,11 @@ export default function OwnerEmployees() {
     if (!branchIdStr) return;
     hapticFeedback('medium');
     try {
-      const res = await api.post(`/owner/employees/${employeeId}/transfer`, {
+      const res = await api.post<ApiResponse<Employee>>(`/owner/employees/${employeeId}/transfer`, {
         branch_id: parseInt(branchIdStr),
       });
       if (res.data.success) {
-        fetchEmployees();
+        refreshEmployees();
       }
     } catch (err) {
       alert(getApiFieldError(err, 'branch_id') || getApiErrorMessage(err) || 'Filialni o\'zgartirishda xatolik yuz berdi');
@@ -172,10 +177,10 @@ export default function OwnerEmployees() {
                   <label className="text-[10px] text-hint font-black uppercase tracking-wider pl-1">Filial Biriktirish</label>
                   <select
                     value={selectedBranchId}
-                    onChange={(e) => setSelectedBranchId(e.target.value)}
+                    onChange={(e) => setChosenBranchId(e.target.value)}
                     className="w-full bg-bg/80 backdrop-blur-sm border border-white/5 rounded-2xl px-4 py-3.5 text-sm focus:border-primary/50 focus:bg-secondary outline-none font-bold shadow-inner transition-all text-text"
                   >
-                    {branches.map((b: any) => (
+                    {branches.map((b) => (
                       <option key={b.id} value={b.id}>
                         {b.name}
                       </option>
@@ -269,7 +274,7 @@ export default function OwnerEmployees() {
                     className="flex-1 text-[11px] bg-bg/50 border border-white/5 rounded-lg px-2 py-1 outline-none text-text font-bold"
                   >
                     <option value="" disabled>Filialsiz</option>
-                    {branches.map((b: any) => (
+                    {branches.map((b) => (
                       <option key={b.id} value={b.id}>
                         {b.name}
                       </option>

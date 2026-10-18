@@ -33,7 +33,7 @@ class SelfPickupNotificationTest extends TestCase
             'name' => 'Test Cafe Name',
             'slug' => 'test-cafe-name',
             'address' => 'Test Cafe Main Address 456',
-            'balance' => 0,
+            'debt_balance' => 0,
             'wallet_balance' => 0,
             'credit_limit' => -100000,
             'status' => 'active',

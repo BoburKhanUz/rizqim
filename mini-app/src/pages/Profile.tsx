@@ -1,13 +1,21 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
-import { useLanguageStore } from '../store/languageStore';
+import { isLanguage, useLanguageStore } from '../store/languageStore';
 import { hapticFeedback } from '../lib/telegram';
 import { User as UserIcon, Phone, MapPin, Save, Globe, Loader2, Bell } from 'lucide-react';
 import api from '../services/api';
 import PhoneVerificationModal from '../components/PhoneVerificationModal';
 import { classifyPhoneChange } from '../lib/phone';
 import { getApiFieldError, logApiError } from '../lib/apiError';
+import type { ApiResponse, OwnerStoreSettings } from '../types';
+
+// What the form fields hold while the profile is being edited
+interface ProfileDraft {
+  name: string;
+  phone: string;
+  address: string;
+}
 
 export default function Profile() {
   const navigate = useNavigate();
@@ -16,17 +24,18 @@ export default function Profile() {
 
   const isOwner = user?.role === 'owner';
 
-  // Personal profile local state
-  const [name, setName] = useState(user?.name || '');
-  const [phone, setPhone] = useState(user?.phone || '');
-  const [address, setAddress] = useState(user?.address || '');
-  const [telegram, setTelegram] = useState(user?.telegram_username ? `@${user.telegram_username}` : '');
+  // Personal profile: the fields show the saved user, except while editing, when they show the draft
+  const [draft, setDraft] = useState<ProfileDraft | null>(null);
+  const isEditing = draft !== null;
+  const name = draft?.name ?? user?.name ?? '';
+  const phone = draft?.phone ?? user?.phone ?? '';
+  const address = draft?.address ?? user?.address ?? '';
+  const telegram = user?.telegram_username ? `@${user.telegram_username}` : '';
 
   // Store profile local state
-  const [storeInfo, setStoreInfo] = useState<any>(null);
+  const [storeInfo, setStoreInfo] = useState<OwnerStoreSettings | null>(null);
   const [storeLoading, setStoreLoading] = useState(isOwner);
 
-  const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showToast, setShowToast] = useState(false);
 
@@ -34,23 +43,13 @@ export default function Profile() {
   const [verifyingPhone, setVerifyingPhone] = useState<string | null>(null);
   const [phoneError, setPhoneError] = useState('');
 
-  // Sync state with Zustand user once loaded asynchronously, but ONLY when not actively editing
-  useEffect(() => {
-    if (user && !isEditing) {
-      setName(user.name || '');
-      setPhone(user.phone || '');
-      setAddress(user.address || '');
-      setTelegram(user.telegram_username ? `@${user.telegram_username}` : '');
-    }
-  }, [user, isEditing]);
-
   // Fetch store settings for Owner
   useEffect(() => {
     if (isOwner) {
       const fetchStoreSettings = async () => {
         try {
           setStoreLoading(true);
-          const res = await api.get('/owner/settings');
+          const res = await api.get<ApiResponse<OwnerStoreSettings>>('/owner/settings');
           const data = res.data?.data;
           if (data) {
             setStoreInfo(data);
@@ -78,7 +77,7 @@ export default function Profile() {
       // Update local Zustand store
       updateUser(fields);
 
-      setIsEditing(false);
+      setDraft(null);
       setShowToast(true);
       setTimeout(() => setShowToast(false), 3000);
     } catch (err) {
@@ -137,7 +136,7 @@ export default function Profile() {
           onClose={() => setVerifyingPhone(null)}
           onVerified={(fullPhone) => {
             setVerifyingPhone(null);
-            setPhone(fullPhone);
+            setDraft((current) => current && { ...current, phone: fullPhone });
             updateUser({ phone: fullPhone }); // the server already saved it when the code was verified
             handleSavePersonalProfile(null); // name / address
           }}
@@ -249,7 +248,7 @@ export default function Profile() {
             type="text"
             disabled={!isEditing}
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => setDraft((current) => current && { ...current, name: e.target.value })}
             className="w-full px-4 py-3 rounded-2xl bg-bg border border-hint/15 font-bold text-xs text-text-h outline-none focus:border-primary disabled:opacity-75"
           />
         </div>
@@ -264,7 +263,7 @@ export default function Profile() {
             disabled={!isEditing}
             placeholder="+998 (90) 123-45-67"
             value={phone}
-            onChange={(e) => { setPhone(e.target.value); setPhoneError(''); }}
+            onChange={(e) => { setDraft((current) => current && { ...current, phone: e.target.value }); setPhoneError(''); }}
             className="w-full px-4 py-3 rounded-2xl bg-bg border border-hint/15 font-bold text-xs text-text-h outline-none focus:border-primary disabled:opacity-75"
           />
           {phoneError ? (
@@ -286,7 +285,7 @@ export default function Profile() {
               disabled={!isEditing}
               placeholder={language === 'uz' ? 'Toshkent sh., Chilonzor tumani...' : 'Ташкент, Чиланзарский район...'}
               value={address}
-              onChange={(e) => setAddress(e.target.value)}
+              onChange={(e) => setDraft((current) => current && { ...current, address: e.target.value })}
               className="w-full px-4 py-3 rounded-2xl bg-bg border border-hint/15 font-bold text-xs text-text-h outline-none focus:border-primary disabled:opacity-75 h-20 resize-none leading-relaxed"
             />
           </div>
@@ -314,7 +313,7 @@ export default function Profile() {
           <div className="relative">
             <select
               value={language}
-              onChange={(e) => { hapticFeedback('light'); setLanguage(e.target.value as any); }}
+              onChange={(e) => { hapticFeedback('light'); if (isLanguage(e.target.value)) setLanguage(e.target.value); }}
               className="w-full px-4 py-3 rounded-2xl bg-bg border border-hint/15 font-bold text-xs text-text-h outline-none focus:border-primary appearance-none cursor-pointer"
             >
               <option value="uz">O'zbekcha (UZ)</option>
@@ -343,7 +342,7 @@ export default function Profile() {
             </button>
           ) : (
             <button
-              onClick={() => { hapticFeedback('light'); setIsEditing(true); }}
+              onClick={() => { hapticFeedback('light'); setDraft({ name, phone, address }); }}
               className="w-full bg-primary/10 border border-primary/20 text-primary font-extrabold text-xs py-3.5 rounded-2xl active:scale-95 transition-all"
             >
               {language === 'uz' ? 'Tahrirlash' : 'Редактировать'}

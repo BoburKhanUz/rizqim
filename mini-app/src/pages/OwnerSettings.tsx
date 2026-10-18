@@ -1,98 +1,202 @@
-import React, { useState, useEffect } from 'react';
+import { useState } from 'react';
+import type { ChangeEvent, FormEvent } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
-import { logApiError } from '../lib/apiError';
+import { getApiErrorMessage, getApiFieldError, logApiError } from '../lib/apiError';
 import { hapticFeedback } from '../lib/telegram';
 import { useLanguageStore } from '../store/languageStore';
-import { 
-  ArrowLeft, 
-  Store, 
-  Clock, 
-  CreditCard, 
-  Truck, 
-  Save, 
-  Loader2 
+import {
+  ArrowLeft,
+  Store,
+  Clock,
+  CreditCard,
+  Truck,
+  Save,
+  Loader2
 } from 'lucide-react';
+import type { ApiResponse, OwnerStoreSettings, PaymentProviderSettings, PaymentSettings } from '../types';
+
+// A provider of payment_settings: a settings object or (legacy data) a bare boolean. The API adds `available: false`
+// to a provider that is not integrated yet (Uzum, Paynet): it is shown but can't be switched on.
+type ProviderSetting = boolean | (PaymentProviderSettings & { available?: boolean }) | null | undefined;
+
+// Cash is on unless the store switched it off
+function isCashOn(setting: ProviderSetting): boolean {
+  if (setting === undefined || setting === null) return true;
+  return typeof setting === 'boolean' ? setting : setting.enabled !== false;
+}
+
+// An online provider is on only when the store switched it on
+function isOnlineOn(setting: ProviderSetting): boolean {
+  if (setting === undefined || setting === null) return false;
+  return typeof setting === 'boolean' ? setting : setting.enabled === true;
+}
+
+function isProviderAvailable(setting: ProviderSetting): boolean {
+  return typeof setting === 'object' && setting !== null ? setting.available !== false : true;
+}
+
+// Body of POST /owner/settings
+interface OwnerSettingsPayload {
+  logo: string | null;
+  banner: string | null;
+  description: string | null;
+  address: string | null;
+  location_url: string | null;
+  is_open: boolean;
+  min_order_amount: number;
+  payment_settings: {
+    delivery_fee: number;
+    delivery_enabled: boolean;
+    pickup_enabled: boolean;
+    working_hours: { open: string; close: string };
+    cash: { enabled: boolean };
+    click: { enabled: boolean };
+    payme: { enabled: boolean };
+    uzum: { enabled: boolean };
+    paynet: { enabled: boolean };
+  };
+}
+
+interface UploadedFile {
+  path: string;
+  url: string;
+}
+
+interface PaymentToggleProps {
+  title: string;
+  enabled: boolean;
+  onToggle: () => void;
+  // The provider is not integrated yet: the switch stays off and can't be touched
+  comingSoon?: boolean;
+}
+
+function PaymentToggle({ title, enabled, onToggle, comingSoon = false }: PaymentToggleProps) {
+  const isOn = enabled && !comingSoon;
+
+  return (
+    <div className={`flex items-center justify-between p-3 bg-bg/40 rounded-2xl border border-white/5 ${comingSoon ? 'opacity-60' : ''}`}>
+      <div className="flex items-center gap-2">
+        <h4 className="text-xs font-bold text-text-h">{title}</h4>
+        {comingSoon && (
+          <span className="text-[8px] font-black uppercase tracking-wider bg-amber-500/15 text-amber-600 px-2 py-0.5 rounded-full">
+            Tez orada
+          </span>
+        )}
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={isOn}
+        aria-label={title}
+        disabled={comingSoon}
+        onClick={() => { hapticFeedback('light'); onToggle(); }}
+        className={`w-10 h-5.5 rounded-full p-0.5 transition-colors duration-200 ${isOn ? 'bg-primary' : 'bg-hint/20'} ${comingSoon ? 'cursor-not-allowed' : ''}`}
+      >
+        <div className={`w-4.5 h-4.5 rounded-full bg-white transition-transform duration-200 ${isOn ? 'translate-x-4.5' : 'translate-x-0'}`} />
+      </button>
+    </div>
+  );
+}
 
 export default function OwnerSettings() {
   const navigate = useNavigate();
   const { language } = useLanguageStore();
+
+  // Fetch current store settings
+  const { data: storeInfo, isLoading, refetch } = useQuery({
+    queryKey: ['owner-settings'],
+    queryFn: async () => {
+      const res = await api.get<ApiResponse<OwnerStoreSettings>>('/owner/settings');
+      return res.data?.data || null;
+    }
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen bg-bg">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  // Without the stored settings the form would show (and could save) defaults over the real ones
+  if (!storeInfo) {
+    return (
+      <div className="p-6 flex flex-col items-center justify-center gap-3 min-h-screen bg-bg text-center">
+        <p className="text-sm font-bold text-text-h">
+          {language === 'uz' ? "Sozlamalarni yuklab bo'lmadi" : 'Не удалось загрузить настройки'}
+        </p>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => { hapticFeedback('light'); navigate(-1); }}
+            className="px-4 py-2.5 rounded-2xl bg-secondary text-text-h text-xs font-bold border border-white/5 active:scale-95 transition"
+          >
+            {language === 'uz' ? 'Orqaga' : 'Назад'}
+          </button>
+          <button
+            type="button"
+            onClick={() => { hapticFeedback('light'); refetch(); }}
+            className="px-4 py-2.5 rounded-2xl bg-primary text-white text-xs font-bold active:scale-95 transition"
+          >
+            {language === 'uz' ? 'Qayta urinish' : 'Повторить'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return <OwnerSettingsForm storeInfo={storeInfo} />;
+}
+
+// Mounted once the settings are loaded, so every field starts from the stored value
+function OwnerSettingsForm({ storeInfo }: { storeInfo: OwnerStoreSettings }) {
+  const navigate = useNavigate();
+  const { language } = useLanguageStore();
   const queryClient = useQueryClient();
 
-  const [logo, setLogo] = useState('');
-  const [banner, setBanner] = useState('');
-  const [description, setDescription] = useState('');
-  const [address, setAddress] = useState('');
-  const [locationUrl, setLocationUrl] = useState('');
-  const [isOpen, setIsOpen] = useState(true);
+  const paySettings: PaymentSettings = storeInfo.payment_settings ?? {};
+  const hours: { open?: string; close?: string } = paySettings.working_hours ?? {};
+  const uzumAvailable = isProviderAvailable(paySettings.uzum);
+  const paynetAvailable = isProviderAvailable(paySettings.paynet);
+
+  const [logo, setLogo] = useState(storeInfo.logo || '');
+  const [banner, setBanner] = useState(storeInfo.banner || '');
+  const [description, setDescription] = useState(storeInfo.description || '');
+  const [address, setAddress] = useState(storeInfo.address || '');
+  const [locationUrl, setLocationUrl] = useState(storeInfo.location_url || '');
+  const [isOpen, setIsOpen] = useState(storeInfo.is_open);
 
   // Upload loading states
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const [isUploadingBanner, setIsUploadingBanner] = useState(false);
 
   // Settings state
-  const [deliveryFee, setDeliveryFee] = useState('0');
-  const [minOrderAmount, setMinOrderAmount] = useState('0');
-  const [openTime, setOpenTime] = useState('09:00');
-  const [closeTime, setCloseTime] = useState('22:00');
+  const [deliveryFee, setDeliveryFee] = useState(paySettings.delivery_fee?.toString() || '0');
+  const [minOrderAmount, setMinOrderAmount] = useState(storeInfo.min_order_amount?.toString() || '0');
+  const [openTime, setOpenTime] = useState(hours.open || '09:00');
+  const [closeTime, setCloseTime] = useState(hours.close || '22:00');
 
-  // Gateways status
-  const [cashEnabled, setCashEnabled] = useState(true);
-  const [clickEnabled, setClickEnabled] = useState(false);
-  const [paymeEnabled, setPaymeEnabled] = useState(false);
-  const [uzumEnabled, setUzumEnabled] = useState(false);
-  const [paynetEnabled, setPaynetEnabled] = useState(false);
+  // Gateways status. Uzum and Paynet are not integrated yet: whatever was stored, they start (and stay) off.
+  const [cashEnabled, setCashEnabled] = useState(isCashOn(paySettings.cash));
+  const [clickEnabled, setClickEnabled] = useState(isOnlineOn(paySettings.click));
+  const [paymeEnabled, setPaymeEnabled] = useState(isOnlineOn(paySettings.payme));
+  const [uzumEnabled, setUzumEnabled] = useState(uzumAvailable && isOnlineOn(paySettings.uzum));
+  const [paynetEnabled, setPaynetEnabled] = useState(paynetAvailable && isOnlineOn(paySettings.paynet));
 
   // Delivery type toggles
-  const [deliveryEnabled, setDeliveryEnabled] = useState(true);
-  const [pickupEnabled, setPickupEnabled] = useState(true);
-
-  // Fetch current store settings
-  const { data: storeInfo, isLoading } = useQuery({
-    queryKey: ['owner-settings'],
-    queryFn: async () => {
-      const res = await api.get('/owner/settings');
-      return res.data?.data || null;
-    }
-  });
-
-  // Populate state when data loads
-  useEffect(() => {
-    if (storeInfo) {
-      setLogo(storeInfo.logo || '');
-      setBanner(storeInfo.banner || '');
-      setDescription(storeInfo.description || '');
-      setAddress(storeInfo.address || '');
-      setLocationUrl(storeInfo.location_url || '');
-      setIsOpen(storeInfo.is_open);
-      setMinOrderAmount(storeInfo.min_order_amount?.toString() || '0');
-
-      const paySettings = storeInfo.payment_settings || {};
-      setDeliveryFee(paySettings.delivery_fee?.toString() || '0');
-      
-      const hours = paySettings.working_hours || {};
-      setOpenTime(hours.open || '09:00');
-      setCloseTime(hours.close || '22:00');
-
-      setCashEnabled(paySettings.cash === true || paySettings.cash?.enabled !== false);
-      setClickEnabled(paySettings.click === true || paySettings.click?.enabled === true);
-      setPaymeEnabled(paySettings.payme === true || paySettings.payme?.enabled === true);
-      setUzumEnabled(paySettings.uzum === true || paySettings.uzum?.enabled === true);
-      setPaynetEnabled(paySettings.paynet === true || paySettings.paynet?.enabled === true);
-
-      setDeliveryEnabled(paySettings.delivery_enabled !== false);
-      setPickupEnabled(paySettings.pickup_enabled !== false);
-    }
-  }, [storeInfo]);
+  const [deliveryEnabled, setDeliveryEnabled] = useState(paySettings.delivery_enabled !== false);
+  const [pickupEnabled, setPickupEnabled] = useState(paySettings.pickup_enabled !== false);
 
   const isMethodAllowed = (method: string) => {
-    const allowed = storeInfo?.allowed_methods || ['cash', 'click', 'payme', 'uzum', 'paynet'];
+    const allowed = storeInfo.allowed_methods || ['cash', 'click', 'payme', 'uzum', 'paynet'];
     return allowed.includes(method);
   };
 
   // File upload handler
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'banner') => {
+  const handleFileUpload = async (e: ChangeEvent<HTMLInputElement>, type: 'logo' | 'banner') => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -107,7 +211,7 @@ export default function OwnerSettings() {
     }
 
     try {
-      const res = await api.post('/owner/settings/upload', formData, {
+      const res = await api.post<ApiResponse<UploadedFile>>('/owner/settings/upload', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -119,10 +223,10 @@ export default function OwnerSettings() {
         setBanner(data.path);
       }
       hapticFeedback('success');
-    } catch (err: any) {
+    } catch (err) {
       logApiError('Failed to upload file:', err);
       hapticFeedback('rigid');
-      alert(err.response?.data?.message || 'Fayl yuklashda xatolik yuz berdi.');
+      alert(getApiErrorMessage(err) || 'Fayl yuklashda xatolik yuz berdi.');
     } finally {
       if (type === 'logo') {
         setIsUploadingLogo(false);
@@ -148,12 +252,12 @@ export default function OwnerSettings() {
         const lat = position.coords.latitude;
         const lng = position.coords.longitude;
         const mapUrl = `https://yandex.com/maps/?pt=${lng},${lat}&z=16&l=map`;
-        
+
         setLocationUrl(mapUrl);
         if (!address) {
           setAddress(language === 'uz' ? 'GPS Joylashuv 📍' : 'GPS Локация 📍');
         }
-        
+
         hapticFeedback('success');
         setIsGettingLocation(false);
         alert(language === 'uz' ? 'Lokatsiya muvaffaqiyatli aniqlandi!' : 'Локация успешно определена!');
@@ -174,7 +278,7 @@ export default function OwnerSettings() {
 
   // Mutation to save settings
   const saveSettings = useMutation({
-    mutationFn: async (payload: any) => {
+    mutationFn: async (payload: OwnerSettingsPayload) => {
       const res = await api.post('/owner/settings', payload);
       return res.data;
     },
@@ -183,17 +287,18 @@ export default function OwnerSettings() {
       queryClient.invalidateQueries({ queryKey: ['owner-settings'] });
       alert(language === 'uz' ? 'Sozlamalar muvaffaqiyatli saqlandi!' : 'Настройки успешно сохранены!');
     },
-    onError: (err: any) => {
+    onError: (err: unknown) => {
       hapticFeedback('rigid');
-      alert(err.response?.data?.message || 'Xatolik yuz berdi.');
+      // 422 on payment_settings: a provider that can't be enabled (yet) was switched on
+      alert(getApiFieldError(err, 'payment_settings') || getApiErrorMessage(err) || 'Xatolik yuz berdi.');
     }
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     hapticFeedback('medium');
 
-    const payload = {
+    const payload: OwnerSettingsPayload = {
       logo: logo.trim() || null,
       banner: banner.trim() || null,
       description: description.trim() || null,
@@ -212,21 +317,14 @@ export default function OwnerSettings() {
         cash: { enabled: cashEnabled },
         click: { enabled: clickEnabled },
         payme: { enabled: paymeEnabled },
-        uzum: { enabled: uzumEnabled },
-        paynet: { enabled: paynetEnabled },
+        // Never switched on from here while the provider is not integrated (the server refuses it)
+        uzum: { enabled: uzumAvailable && uzumEnabled },
+        paynet: { enabled: paynetAvailable && paynetEnabled },
       }
     };
 
     saveSettings.mutate(payload);
   };
-
-  if (isLoading) {
-    return (
-      <div className="flex justify-center items-center min-h-screen bg-bg">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
-  }
 
   return (
     <div className="p-4 pb-28 flex flex-col gap-6 bg-gradient-to-br from-bg via-bg to-primary/5 min-h-screen text-text">
@@ -445,84 +543,20 @@ export default function OwnerSettings() {
           </div>
 
           <div className="flex flex-col gap-3">
-            {/* Cash */}
             {isMethodAllowed('cash') && (
-              <div className="flex items-center justify-between p-3 bg-bg/40 rounded-2xl border border-white/5">
-                <div>
-                  <h4 className="text-xs font-bold text-text-h">Naqd pul orqali (Cash)</h4>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => { hapticFeedback('light'); setCashEnabled(!cashEnabled); }}
-                  className={`w-10 h-5.5 rounded-full p-0.5 transition-colors duration-200 ${cashEnabled ? 'bg-primary' : 'bg-hint/20'}`}
-                >
-                  <div className={`w-4.5 h-4.5 rounded-full bg-white transition-transform duration-200 ${cashEnabled ? 'translate-x-4.5' : 'translate-x-0'}`} />
-                </button>
-              </div>
+              <PaymentToggle title="Naqd pul orqali (Cash)" enabled={cashEnabled} onToggle={() => setCashEnabled(!cashEnabled)} />
             )}
-
-            {/* Click */}
             {isMethodAllowed('click') && (
-              <div className="flex items-center justify-between p-3 bg-bg/40 rounded-2xl border border-white/5">
-                <div>
-                  <h4 className="text-xs font-bold text-text-h">CLICK Tizimi</h4>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => { hapticFeedback('light'); setClickEnabled(!clickEnabled); }}
-                  className={`w-10 h-5.5 rounded-full p-0.5 transition-colors duration-200 ${clickEnabled ? 'bg-primary' : 'bg-hint/20'}`}
-                >
-                  <div className={`w-4.5 h-4.5 rounded-full bg-white transition-transform duration-200 ${clickEnabled ? 'translate-x-4.5' : 'translate-x-0'}`} />
-                </button>
-              </div>
+              <PaymentToggle title="CLICK Tizimi" enabled={clickEnabled} onToggle={() => setClickEnabled(!clickEnabled)} />
             )}
-
-            {/* Payme */}
             {isMethodAllowed('payme') && (
-              <div className="flex items-center justify-between p-3 bg-bg/40 rounded-2xl border border-white/5">
-                <div>
-                  <h4 className="text-xs font-bold text-text-h">Payme Tizimi</h4>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => { hapticFeedback('light'); setPaymeEnabled(!paymeEnabled); }}
-                  className={`w-10 h-5.5 rounded-full p-0.5 transition-colors duration-200 ${paymeEnabled ? 'bg-primary' : 'bg-hint/20'}`}
-                >
-                  <div className={`w-4.5 h-4.5 rounded-full bg-white transition-transform duration-200 ${paymeEnabled ? 'translate-x-4.5' : 'translate-x-0'}`} />
-                </button>
-              </div>
+              <PaymentToggle title="Payme Tizimi" enabled={paymeEnabled} onToggle={() => setPaymeEnabled(!paymeEnabled)} />
             )}
-
-            {/* Uzum */}
             {isMethodAllowed('uzum') && (
-              <div className="flex items-center justify-between p-3 bg-bg/40 rounded-2xl border border-white/5">
-                <div>
-                  <h4 className="text-xs font-bold text-text-h">Uzum Bank</h4>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => { hapticFeedback('light'); setUzumEnabled(!uzumEnabled); }}
-                  className={`w-10 h-5.5 rounded-full p-0.5 transition-colors duration-200 ${uzumEnabled ? 'bg-primary' : 'bg-hint/20'}`}
-                >
-                  <div className={`w-4.5 h-4.5 rounded-full bg-white transition-transform duration-200 ${uzumEnabled ? 'translate-x-4.5' : 'translate-x-0'}`} />
-                </button>
-              </div>
+              <PaymentToggle title="Uzum Bank" enabled={uzumEnabled} onToggle={() => setUzumEnabled(!uzumEnabled)} comingSoon={!uzumAvailable} />
             )}
-
-            {/* Paynet */}
             {isMethodAllowed('paynet') && (
-              <div className="flex items-center justify-between p-3 bg-bg/40 rounded-2xl border border-white/5">
-                <div>
-                  <h4 className="text-xs font-bold text-text-h">Paynet</h4>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => { hapticFeedback('light'); setPaynetEnabled(!paynetEnabled); }}
-                  className={`w-10 h-5.5 rounded-full p-0.5 transition-colors duration-200 ${paynetEnabled ? 'bg-primary' : 'bg-hint/20'}`}
-                >
-                  <div className={`w-4.5 h-4.5 rounded-full bg-white transition-transform duration-200 ${paynetEnabled ? 'translate-x-4.5' : 'translate-x-0'}`} />
-                </button>
-              </div>
+              <PaymentToggle title="Paynet" enabled={paynetEnabled} onToggle={() => setPaynetEnabled(!paynetEnabled)} comingSoon={!paynetAvailable} />
             )}
           </div>
         </section>

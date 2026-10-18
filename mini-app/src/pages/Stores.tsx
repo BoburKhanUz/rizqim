@@ -5,19 +5,16 @@ import { hapticFeedback } from '../lib/telegram';
 import { ArrowLeft, Search, X, Star, Heart } from 'lucide-react';
 import api from '../services/api';
 import { logApiError } from '../lib/apiError';
+import { formatUzbekSum } from '../lib/format';
+import { getLocationParams } from '../lib/location';
+import type { ApiResponse, StoreListItem } from '../types';
 
 import { useAddressStore } from '../store/useAddressStore';
-
-function formatUzbekSum(value: number | string | undefined) {
-  if (value === undefined || value === null) return "0 so'm";
-  const numValue = Math.round(Number(value));
-  return numValue.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ") + " so'm";
-}
 
 export default function Stores() {
   const navigate = useNavigate();
   const { language } = useLanguageStore();
-  const [stores, setStores] = useState<any[]>([]);
+  const [stores, setStores] = useState<StoreListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [favoriteStores, setFavoriteStores] = useState<string[]>([]);
@@ -25,29 +22,25 @@ export default function Stores() {
   const activeAddress = addresses.find(a => a.id === selectedAddressId) || addresses[0];
 
   useEffect(() => {
+    let cancelled = false;
     const fetchStores = async () => {
       setLoading(true);
       try {
-        const params: any = {};
-        if (activeAddress) {
-          if (activeAddress.lat) params.lat = activeAddress.lat;
-          if (activeAddress.lng) params.lng = activeAddress.lng;
-          if (activeAddress.region_id) params.region_id = activeAddress.region_id;
-          if (activeAddress.district_id) params.district_id = activeAddress.district_id;
-        }
-
-        const res = await api.get('/stores', { params });
-        if (res.data.success) {
+        const res = await api.get<ApiResponse<StoreListItem[]>>('/stores', { params: getLocationParams(activeAddress) });
+        if (res.data.success && !cancelled) {
           setStores(res.data.data || []);
         }
       } catch (err) {
         logApiError('Failed to load stores:', err);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
     fetchStores();
-  }, [selectedAddressId, addresses]);
+    return () => {
+      cancelled = true;
+    };
+  }, [activeAddress]);
 
   const toggleFavoriteStore = (e: React.MouseEvent, uuid: string) => {
     e.stopPropagation();
@@ -133,8 +126,8 @@ export default function Stores() {
           <div className="grid grid-cols-1 gap-4 animate-fade-in">
             {filteredStores.map((store) => {
               const isFav = favoriteStores.includes(store.uuid);
-              const hasLogo = store.logo_url && store.logo_url.trim() !== "";
-              const initials = store.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase();
+              const logoUrl = store.logo_url && store.logo_url.trim() !== "" ? store.logo_url : null;
+              const initials = store.name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
 
               return (
                 <div 
@@ -151,9 +144,9 @@ export default function Stores() {
                   </button>
 
                   {/* Logo */}
-                  {hasLogo ? (
+                  {logoUrl ? (
                     <div className="w-20 h-20 bg-slate-50 rounded-2xl overflow-hidden shadow-inner border border-slate-100 shrink-0">
-                      <img src={store.logo_url} alt="" className="w-full h-full object-cover" />
+                      <img src={logoUrl} alt="" className="w-full h-full object-cover" />
                     </div>
                   ) : (
                     <div className="w-20 h-20 bg-amber-100 text-amber-700 rounded-2xl flex items-center justify-center font-black text-lg tracking-tight border border-amber-200 shrink-0">

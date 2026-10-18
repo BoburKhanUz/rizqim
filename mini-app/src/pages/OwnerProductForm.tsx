@@ -3,8 +3,16 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ChevronLeft, Save, Image as ImageIcon, Plus, Trash2, LayoutGrid, DollarSign } from 'lucide-react';
 import { hapticFeedback } from '../lib/telegram';
 import api from '../services/api';
-import { logApiError } from '../lib/apiError';
-import { FullScreenLoader } from '../App';
+import { getApiErrorMessage, logApiError } from '../lib/apiError';
+import { FullScreenLoader } from '../components/Feedback';
+import type { ApiResponse, CategoryOption, Product } from '../types';
+
+// A price row of the form. `id` is set for variants that already exist on the server.
+interface VariantDraft {
+  id: number | null;
+  name: string;
+  price: string;
+}
 
 export default function OwnerProductForm() {
   const { id } = useParams();
@@ -13,7 +21,7 @@ export default function OwnerProductForm() {
   
   const [loading, setLoading] = useState(isEditing);
   const [saving, setSaving] = useState(false);
-  const [categories, setCategories] = useState<any[]>([]);
+  const [categories, setCategories] = useState<CategoryOption[]>([]);
   
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -25,21 +33,21 @@ export default function OwnerProductForm() {
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [variants, setVariants] = useState<any[]>([
+  const [variants, setVariants] = useState<VariantDraft[]>([
     { id: null, name: '1-chi Porsiya', price: '' }
   ]);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const catRes = await api.get('/owner/categories');
+        const catRes = await api.get<ApiResponse<CategoryOption[]>>('/owner/categories');
         if (catRes.data.success) {
           setCategories(catRes.data.data);
         }
 
         if (isEditing) {
-          const prodRes = await api.get('/owner/products');
-          const product = prodRes.data.data.find((p: any) => p.id === Number(id));
+          const prodRes = await api.get<ApiResponse<Product[]>>('/owner/products');
+          const product = prodRes.data.data.find((p) => p.id === Number(id));
           if (product) {
             setName(product.name);
             setDescription(product.description || '');
@@ -47,9 +55,9 @@ export default function OwnerProductForm() {
             setIsActive(product.status === 'active');
             setImagePreview(product.image_url);
             if (product.variants && product.variants.length > 0) {
-              setVariants(product.variants.map((v: any) => ({
+              setVariants(product.variants.map((v) => ({
                 id: v.id,
-                name: v.name,
+                name: v.name ?? '',
                 price: v.price.toString()
               })));
             }
@@ -63,7 +71,7 @@ export default function OwnerProductForm() {
       }
     };
     fetchData();
-  }, [id]);
+  }, [id, isEditing]);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -91,10 +99,8 @@ export default function OwnerProductForm() {
     setVariants(variants.filter((_, i) => i !== index));
   };
 
-  const updateVariant = (index: number, field: string, value: string) => {
-    const newVariants = [...variants];
-    newVariants[index][field] = value;
-    setVariants(newVariants);
+  const updateVariant = (index: number, field: 'name' | 'price', value: string) => {
+    setVariants(variants.map((variant, i) => (i === index ? { ...variant, [field]: value } : variant)));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -135,9 +141,9 @@ export default function OwnerProductForm() {
       
       hapticFeedback('success');
       navigate('/admin/catalog');
-    } catch (err: any) {
+    } catch (err) {
       logApiError('Failed to save product:', err);
-      alert(err.response?.data?.message || 'Xatolik yuz berdi');
+      alert(getApiErrorMessage(err) || 'Xatolik yuz berdi');
       hapticFeedback('error');
     } finally {
       setSaving(false);

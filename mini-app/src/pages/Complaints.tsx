@@ -3,8 +3,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../services/api';
 import { hapticFeedback } from '../lib/telegram';
+import { getApiErrorMessage } from '../lib/apiError';
+import { fetchOrders } from '../hooks/useOrders';
 import { useLanguageStore } from '../store/languageStore';
 import { useAuthStore } from '../store/authStore';
+import type { ApiResponse, Complaint, ComplaintType, NewComplaint } from '../types';
 import { 
   ArrowLeft, 
   AlertTriangle, 
@@ -16,6 +19,17 @@ import {
   Loader2
 } from 'lucide-react';
 
+const COMPLAINT_TYPES: readonly ComplaintType[] = ['WRONG_ITEM', 'ORDER_NOT_RECEIVED', 'QUALITY_ISSUE', 'COURIER_ISSUE', 'PAYMENT_ISSUE', 'OTHER'];
+
+// The order the customer came from ("Shikoyat qilish" on an order passes it as router state)
+function getOrderIdFromState(state: unknown): string | undefined {
+  if (typeof state === 'object' && state !== null && 'orderId' in state) {
+    const orderId = state.orderId;
+    if (typeof orderId === 'number' || typeof orderId === 'string') return orderId.toString();
+  }
+  return undefined;
+}
+
 export default function Complaints() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -25,10 +39,10 @@ export default function Complaints() {
 
   // Retrieve initial orderId from location state or URL search parameters
   const searchParams = new URLSearchParams(location.search);
-  const initialOrderId = location.state?.orderId?.toString() || searchParams.get('orderId') || '';
+  const initialOrderId = getOrderIdFromState(location.state) || searchParams.get('orderId') || '';
 
   const [selectedOrderId, setSelectedOrderId] = useState<string>(initialOrderId);
-  const [complaintType, setComplaintType] = useState<string>('QUALITY_ISSUE');
+  const [complaintType, setComplaintType] = useState<ComplaintType>('QUALITY_ISSUE');
   const [description, setDescription] = useState<string>('');
   const [replyText, setReplyText] = useState<Record<number, string>>({});
 
@@ -36,7 +50,7 @@ export default function Complaints() {
   const { data: complaints = [], isLoading: loadingComplaints } = useQuery({
     queryKey: ['complaints'],
     queryFn: async () => {
-      const res = await api.get('/complaints');
+      const res = await api.get<ApiResponse<Complaint[]>>('/complaints');
       return res.data?.data || [];
     }
   });
@@ -44,10 +58,7 @@ export default function Complaints() {
   // Fetch recent orders for selection
   const { data: orders = [] } = useQuery({
     queryKey: ['orders'],
-    queryFn: async () => {
-      const res = await api.get('/orders');
-      return res.data?.data || [];
-    }
+    queryFn: fetchOrders
   });
 
   const userRole = user?.role || 'customer';
@@ -55,8 +66,8 @@ export default function Complaints() {
 
   // Mutation to submit complaint
   const submitComplaint = useMutation({
-    mutationFn: async (payload: any) => {
-      const res = await api.post('/complaints', payload);
+    mutationFn: async (payload: NewComplaint) => {
+      const res = await api.post<ApiResponse<Complaint>>('/complaints', payload);
       return res.data;
     },
     onSuccess: () => {
@@ -66,16 +77,16 @@ export default function Complaints() {
       queryClient.invalidateQueries({ queryKey: ['complaints'] });
       alert(language === 'uz' ? 'Shikoyat muvaffaqiyatli yuborildi!' : 'Жалоба успешно отправлена!');
     },
-    onError: (err: any) => {
+    onError: (err) => {
       hapticFeedback('rigid');
-      alert(err.response?.data?.message || 'Xatolik yuz berdi.');
+      alert(getApiErrorMessage(err) || 'Xatolik yuz berdi.');
     }
   });
 
   // Mutation to reply to complaint
   const replyComplaint = useMutation({
     mutationFn: async ({ id, reply }: { id: number, reply: string }) => {
-      const res = await api.post(`/complaints/${id}/reply`, { reply });
+      const res = await api.post<ApiResponse<Complaint>>(`/complaints/${id}/reply`, { reply });
       return res.data;
     },
     onSuccess: (_, variables) => {
@@ -84,16 +95,16 @@ export default function Complaints() {
       queryClient.invalidateQueries({ queryKey: ['complaints'] });
       alert(language === 'uz' ? 'Javob muvaffaqiyatli saqlandi!' : 'Ответ успешно сохранен!');
     },
-    onError: (err: any) => {
+    onError: (err) => {
       hapticFeedback('rigid');
-      alert(err.response?.data?.message || 'Xatolik yuz berdi.');
+      alert(getApiErrorMessage(err) || 'Xatolik yuz berdi.');
     }
   });
 
   // Mutation to escalate complaint
   const escalateComplaint = useMutation({
     mutationFn: async (id: number) => {
-      const res = await api.post(`/complaints/${id}/escalate`);
+      const res = await api.post<ApiResponse<Complaint>>(`/complaints/${id}/escalate`);
       return res.data;
     },
     onSuccess: () => {
@@ -101,9 +112,9 @@ export default function Complaints() {
       queryClient.invalidateQueries({ queryKey: ['complaints'] });
       alert(language === 'uz' ? 'Shikoyat SuperAdmin moderatoriga yuborildi!' : 'Жалоба отправлена модератору SuperAdmin!');
     },
-    onError: (err: any) => {
+    onError: (err) => {
       hapticFeedback('rigid');
-      alert(err.response?.data?.message || 'Xatolik yuz berdi.');
+      alert(getApiErrorMessage(err) || 'Xatolik yuz berdi.');
     }
   });
 
@@ -203,7 +214,7 @@ export default function Complaints() {
                 className="bg-slate-50 border border-slate-200 p-3 rounded-2xl text-xs font-semibold text-slate-700 outline-none focus:border-amber-500 transition"
               >
                 <option value="">-- Buyurtma tanlash --</option>
-                {orders.map((order: any) => (
+                {orders.map((order) => (
                   <option key={order.id} value={order.id}>
                     #{order.short_code || order.uuid.substring(0, 8)} ({order.total_price.toLocaleString()} UZS)
                   </option>
@@ -215,7 +226,7 @@ export default function Complaints() {
             <div className="flex flex-col gap-1.5">
               <label className="text-[10px] font-black text-slate-400 uppercase">Muammo turi</label>
               <div className="grid grid-cols-2 gap-2">
-                {['WRONG_ITEM', 'ORDER_NOT_RECEIVED', 'QUALITY_ISSUE', 'COURIER_ISSUE', 'PAYMENT_ISSUE', 'OTHER'].map((type) => (
+                {COMPLAINT_TYPES.map((type) => (
                   <button
                     key={type}
                     type="button"
@@ -280,7 +291,7 @@ export default function Complaints() {
           </div>
         ) : (
           <div className="flex flex-col gap-4">
-            {complaints.map((complaint: any) => (
+            {complaints.map((complaint) => (
               <div 
                 key={complaint.id} 
                 className={`p-5 rounded-3xl flex flex-col gap-3.5 ${cardClass}`}

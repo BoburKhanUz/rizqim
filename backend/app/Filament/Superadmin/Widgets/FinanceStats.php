@@ -18,7 +18,8 @@ class FinanceStats extends BaseWidget
         $totalGmv = $deliveredOrders->sum('total_price');
         $totalCommission = $deliveredOrders->sum('commission_amount');
 
-        $totalDebt = Store::where('balance', '<', 0)->sum('balance');
+        // Positive debt_balance is what a store owes the platform; a negative one is a prepayment, not debt
+        $totalDebt = Store::where('debt_balance', '>', 0)->sum('debt_balance');
         $totalPendingPayouts = Store::where('wallet_balance', '>', 0)->sum('wallet_balance');
 
         return [
@@ -32,7 +33,7 @@ class FinanceStats extends BaseWidget
                 ->descriptionIcon('heroicon-m-chart-bar')
                 ->color('primary'),
 
-            Stat::make('Restoranlar Qarzdorligi (Bizga)', number_format(abs($totalDebt), 0, ',', ' ') . ' UZS')
+            Stat::make('Restoranlar Qarzdorligi (Bizga)', number_format((float) $totalDebt, 0, ',', ' ') . ' UZS')
                 ->description('Restoranlarning platformaga komissiya qarzi')
                 ->descriptionIcon('heroicon-m-arrow-trending-up')
                 ->color('warning'),

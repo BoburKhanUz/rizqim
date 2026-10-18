@@ -15,7 +15,7 @@ class Store extends Model
     use Auditable;
     
     // Ledger balances change only through LedgerService (explicit forceFill), never via mass assignment.
-    protected $guarded = ['id', 'balance', 'wallet_balance'];
+    protected $guarded = ['id', 'debt_balance', 'wallet_balance'];
 
     protected $hidden = ['telegram_bot_token'];
 
@@ -26,7 +26,7 @@ class Store extends Model
      * Filament fills its forms from attributesToArray(), which honours $hidden; owner endpoints list them explicitly.
      */
     public const INTERNAL_ATTRIBUTES = [
-        'balance', 'wallet_balance', 'credit_limit', 'low_balance_threshold', 'min_payout_reserve',
+        'debt_balance', 'wallet_balance', 'credit_limit', 'low_balance_threshold', 'min_payout_reserve',
         'commission_rate', 'payment_account_type', 'settlement_type',
         'legal_name', 'tax_number', 'bank_account', 'moderation_note', 'telegram_admin_chat_id',
     ];
@@ -44,11 +44,11 @@ class Store extends Model
         }
 
         // Only decidable when the debt columns were selected
-        if (!array_key_exists('balance', $this->attributes) || !array_key_exists('credit_limit', $this->attributes)) {
+        if (!array_key_exists('debt_balance', $this->attributes) || !array_key_exists('credit_limit', $this->attributes)) {
             return false;
         }
 
-        return (float) $this->balance >= abs((float) $this->credit_limit);
+        return \App\Support\Money::of($this->debt_balance)->isGreaterThanOrEqualTo(\App\Support\Money::of($this->credit_limit)->abs());
     }
 
     /**
@@ -270,7 +270,11 @@ class Store extends Model
         return [
             'payment_settings' => 'array',
             'status' => \App\Enums\StoreStatus::class,
-            'min_payout_reserve' => 'float',
+            'debt_balance' => 'decimal:2',
+            'wallet_balance' => 'decimal:2',
+            'credit_limit' => 'decimal:2',
+            'min_payout_reserve' => 'decimal:2',
+            'min_order_amount' => 'decimal:2',
         ];
     }
     

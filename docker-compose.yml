@@ -1,3 +1,33 @@
+# Rizqim: postgres + redis + backend (nginx/php-fpm) + queue + scheduler + frontend (nginx).
+# Ishga tushirish va yangilash: docker compose up -d --build
+# Deploy qadamlari (migratsiya, app:check-production, telegram:set-webhook, queue:restart) backend/docker/entrypoint.sh da;
+# VPS varianti shu qadamlarni scripts/setup-server.sh va scripts/deploy.sh bilan bajaradi.
+
+# Backend, queue va scheduler bitta Dockerfile va bitta kod bazasidan quriladi; sozlamalar backend/.env dan (env_file) olinadi.
+x-backend: &backend
+  build:
+    context: ./backend
+  restart: unless-stopped
+  env_file:
+    - ./backend/.env
+  volumes:
+    - backend_storage:/var/www/html/storage/app
+
+# Docker tarmog'iga xos qiymatlar (environment env_file dan ustun): backend/.env dagi 127.0.0.1 o'rniga xizmat nomlari.
+# Kesh, navbat, sessiya va rate-limit drayverlari (CACHE_STORE, QUEUE_CONNECTION, SESSION_DRIVER) backend/.env da;
+# ular redis bo'lsa, shu REDIS_* qiymatlari ishlatiladi. REDIS_PASSWORD ildiz .env dan olinadi (redis xizmati bilan bir xil).
+x-backend-environment: &backend-environment
+  DB_CONNECTION: pgsql
+  DB_HOST: postgres
+  DB_PORT: 5432
+  DB_DATABASE: ${DB_DATABASE:-rizqimbot}
+  DB_USERNAME: ${DB_USERNAME:-rizqimbot}
+  DB_PASSWORD: ${DB_PASSWORD:-secret}
+  REDIS_CLIENT: phpredis
+  REDIS_HOST: redis
+  REDIS_PORT: 6379
+  REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+
 services:
   postgres:
     image: postgres:17-alpine
@@ -14,77 +44,75 @@ services:
       timeout: 5s
       retries: 10
 
+  # Kesh, navbat (queue), sessiya va rate-limit shu yerda. Tashqariga port ochilmagan (faqat compose tarmog'i).
+  # --appendonly: navbatdagi joblar Redis qayta ishga tushganda yo'qolmasin.
+  # maxmemory-policy ni allkeys-*/volatile-* qilmang: Redis navbat va sessiya kalitlarini ham o'chirib yuboradi.
+  # --requirepass "" parolsiz degani; REDIS_PASSWORD to'ldirilsa Redis va barcha backend xizmatlari shu parolni ishlatadi.
   redis:
     image: redis:7-alpine
     restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:-}"]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli $${REDIS_PASSWORD:+-a \"$$REDIS_PASSWORD\" --no-auth-warning} ping | grep -q PONG"]
       interval: 5s
       timeout: 5s
       retries: 10
 
-  backend: &backend
-    build:
-      context: ./backend
-    restart: unless-stopped
-    env_file:
-      - ./backend/.env
+  # Veb-konteyner: deploy qadamlarini shu bajaradi (RUN_MIGRATIONS=true), shuning uchun healthcheck migratsiyalar
+  # tugab nginx ishga tushgandan keyingina o'tadi; queue, scheduler va frontend shuni kutadi.
+  backend:
+    <<: *backend
     environment:
-      DB_CONNECTION: pgsql
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_DATABASE: ${DB_DATABASE:-rizqimbot}
-      DB_USERNAME: ${DB_USERNAME:-rizqimbot}
-      DB_PASSWORD: ${DB_PASSWORD:-secret}
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
+      <<: *backend-environment
       RUN_MIGRATIONS: "true"
-    volumes:
-      - backend_storage:/var/www/html/storage/app
+    ports:
+      - "${BACKEND_PORT:-8000}:80"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-    ports:
-      - "${BACKEND_PORT:-8000}:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/up || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 120s
 
+  # Navbat ishchisi QUEUE_CONNECTION ga ergashadi (redis; 'database' zaxira). VPS: rizqim-queue.service, flaglar bir xil.
   queue:
     <<: *backend
     environment:
-      DB_CONNECTION: pgsql
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_DATABASE: ${DB_DATABASE:-rizqimbot}
-      DB_USERNAME: ${DB_USERNAME:-rizqimbot}
-      DB_PASSWORD: ${DB_PASSWORD:-secret}
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
+      <<: *backend-environment
       RUN_MIGRATIONS: "false"
-    ports: []
     depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
       backend:
-        condition: service_started
+        condition: service_healthy
     command: ["php", "artisan", "queue:work", "--tries=3", "--max-time=3600"]
+    # SIGTERM'da ishchi joriy jobni tugatib chiqadi; eng uzun job (SendOrderReport) 120 s, shuning uchun standart 10 s emas
+    stop_grace_period: 150s
 
+  # To'lanmagan onlayn buyurtmalarni bekor qilish kabi rejalashtirilgan vazifalar uchun. VPS: cron (schedule:run).
   scheduler:
     <<: *backend
     environment:
-      DB_CONNECTION: pgsql
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_DATABASE: ${DB_DATABASE:-rizqimbot}
-      DB_USERNAME: ${DB_USERNAME:-rizqimbot}
-      DB_PASSWORD: ${DB_PASSWORD:-secret}
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
+      <<: *backend-environment
       RUN_MIGRATIONS: "false"
-    ports: []
     depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
       backend:
-        condition: service_started
+        condition: service_healthy
     command: ["php", "artisan", "schedule:work"]
 
   frontend:
@@ -95,7 +123,8 @@ services:
         VITE_API_URL: ${VITE_API_URL:-/api/v1}
     restart: unless-stopped
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     ports:
       - "${FRONTEND_PORT:-8080}:80"
 

@@ -76,5 +76,8 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('store-ratings', fn (Request $request) => Limit::perMinute(10)->by($byUser($request)));
 
         RateLimiter::for('complaints', fn (Request $request) => Limit::perMinute(5)->by($byUser($request)));
+
+        // Address lookups behind /geocode/*: one shared bucket per user; the provider itself allows ~1 request/s for everybody
+        RateLimiter::for('geocode', fn (Request $request) => Limit::perMinute(30)->by($byUser($request)));
     }
 }
