@@ -126,6 +126,7 @@ class NominatimGeocoder implements GeocoderInterface
      * @return T
      *
      * @throws GeocodingException when no slot frees up in time
+     * @throws ConnectionException from $request, passed through (the provider is unreachable)
      */
     private function withRequestSlot(Closure $request): mixed
     {

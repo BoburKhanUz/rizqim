@@ -22,7 +22,7 @@ class SendSettlementCompletedAlert implements ShouldQueue
 
         $msg = "💰 *Pulingiz o'tkazib berildi!*\n\n";
         $msg .= "Platforma hisobidan *" . number_format($event->amount, 0, '.', ' ') . " UZS* sizning hisobingizga muvaffaqiyatli o'tkazildi (Payout).\n";
-        $msg .= "Yangi qoldiq (Bizning qarzimiz): *" . number_format($store->wallet_balance, 0, '.', ' ') . " UZS*";
+        $msg .= "Yangi qoldiq (Bizning qarzimiz): *" . number_format((float) $store->wallet_balance, 0, '.', ' ') . " UZS*";
 
         $this->telegram->sendMessage($store->telegram_admin_chat_id, $msg, ['parse_mode' => 'Markdown']);
     }

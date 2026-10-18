@@ -14,7 +14,7 @@ use App\Models\PaymentProvider;
 use App\Services\Finance\LedgerService;
 use App\Support\Money;
 use Filament\Notifications\Notification;
-use Filament\Facades\Filament;
+use App\Filament\Support\StorePanelScope;
 
 class StoreFinance extends Page
 {
@@ -62,7 +62,7 @@ class StoreFinance extends Page
                         ->default('click'),
                 ])
                 ->action(function (array $data) {
-                    $store = Filament::getTenant();
+                    $store = StorePanelScope::store();
                     if (!$store) return;
 
                     $amount = Money::of($data['amount']);
@@ -107,7 +107,7 @@ class StoreFinance extends Page
                 ->modalDescription('Buyurtmalardan yig\'ilgan hamyon balansingizdan pul yechish uchun so\'rov yuboring.')
                 ->disabled(fn () => $this->isPayoutDisabled())
                 ->form(function () {
-                    $store = Filament::getTenant();
+                    $store = StorePanelScope::store();
                     $minReserve = $store ? (float) ($store->min_payout_reserve ?? 100000) : 100000;
                     $maxWithdrawal = $store ? app(LedgerService::class)->availableForPayout($store)->toFloat() : 0.0;
 
@@ -136,7 +136,7 @@ class StoreFinance extends Page
                     ];
                 })
                 ->action(function (array $data) {
-                    $store = Filament::getTenant();
+                    $store = StorePanelScope::store();
                     if (!$store) return;
 
                     // Same locked check as the API: wallet minus pending payouts minus the reserve.
@@ -169,7 +169,7 @@ class StoreFinance extends Page
 
     protected function isPayoutDisabled(): bool
     {
-        $store = Filament::getTenant();
+        $store = StorePanelScope::store();
         if (!$store) return true;
 
         // Below the 1,000 UZS minimum request there is nothing left to withdraw.

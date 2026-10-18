@@ -1,2 +1,79 @@
 parameters:
-	ignoreErrors: []
+	ignoreErrors:
+		-
+			message: '#^Parameter \#2 \$amount of method Illuminate\\Database\\Eloquent\\Builder\<App\\Models\\User\>\:\:decrement\(\) expects float\|int, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: 'app/Actions/Order/CreateOrderAction.php'
+
+		-
+			message: '#^While loop condition is always true\.$#'
+			identifier: while.alwaysTrue
+			count: 1
+			path: 'app/Console/Commands/TelegramPollCommand.php'
+
+		-
+			message: '#^Access to an undefined property App\\Filament\\Pages\\StoreSettings\:\:\$form\.$#'
+			identifier: property.notFound
+			count: 2
+			path: 'app/Filament/Pages/StoreSettings.php'
+
+		-
+			message: '#^Match expression does not handle remaining value\: string$#'
+			identifier: match.unhandled
+			count: 1
+			path: 'app/Filament/Resources/Employees/EmployeeResource.php'
+
+		-
+			message: '#^Match expression does not handle remaining value\: string$#'
+			identifier: match.unhandled
+			count: 1
+			path: 'app/Filament/Superadmin/Resources/GlobalUsers/GlobalUserResource.php'
+
+		-
+			message: '#^Parameter \#1 \$chart of method Filament\\Widgets\\StatsOverviewWidget\\Stat\:\:chart\(\) expects array\<float\>\|Illuminate\\Contracts\\Support\\Arrayable\|null, list\<int\<0, max\>\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: 'app/Filament/Widgets/AnalyticsStatsWidget.php'
+
+		-
+			message: '#^Parameter \#1 \$seconds of method Illuminate\\Contracts\\Cache\\Lock\:\:block\(\) expects int, float given\.$#'
+			identifier: argument.type
+			count: 1
+			path: 'app/Services/Geo/NominatimGeocoder.php'
+
+		-
+			message: '#^Ternary operator condition is always true\.$#'
+			identifier: ternary.alwaysTrue
+			count: 1
+			path: 'app/Services/Notifications/NotificationFeedService.php'
+
+		-
+			message: '#^Strict comparison using \=\=\= between ''delivery''\|''on_the_way'' and ''courier_assigned'' will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 3
+			path: 'app/Services/Notifications/TelegramNotificationService.php'
+
+		-
+			message: '#^Access to an undefined property App\\Models\\OrderItem\:\:\$qty\.$#'
+			identifier: property.notFound
+			count: 2
+			path: 'app/Services/Ops/InventoryVelocityService.php'
+
+		-
+			message: '#^Parameter \#3 \$callback of static method Illuminate\\Cache\\Repository\:\:remember\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: 'app/Services/Ops/InventoryVelocityService.php'
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Order\:\:\$count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: 'app/Services/Ops/PaymentInsightService.php'
+
+		-
+			message: '#^Using nullsafe method call on non\-nullable type Illuminate\\Console\\Command\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 3
+			path: 'database/seeders/SuperAdminSeeder.php'

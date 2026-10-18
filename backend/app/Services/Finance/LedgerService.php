@@ -257,7 +257,7 @@ class LedgerService
     {
         $store = $order->store;
         // Charge the snapshot taken at order time as-is (0 is valid); the rate is only a fallback for an in-memory order without the attribute.
-        $commissionAmount = $order->commission_amount !== null
+        $commissionAmount = isset($order->commission_amount)
             ? Money::of($order->commission_amount)
             : Money::of($order->total_price)->percent($store->commission_rate ?? 10);
 

@@ -16,11 +16,11 @@ return new class extends Migration
         });
 
         Schema::table('users', function (Blueprint $table) {
-            $table->foreignId('branch_id')->nullable()->constrained()->nullOnDelete()->after('store_id');
+            $table->foreignId('branch_id')->nullable()->after('store_id')->constrained()->nullOnDelete();
         });
 
         Schema::table('orders', function (Blueprint $table) {
-            $table->foreignId('manager_id')->nullable()->constrained('users')->nullOnDelete()->after('courier_id');
+            $table->foreignId('manager_id')->nullable()->after('courier_id')->constrained('users')->nullOnDelete();
         });
     }
 

@@ -189,7 +189,7 @@ class TelegramMessageHandler
             $employee->delete();
 
             if ($this->telegram->isConfigured()) {
-                $roleLabel = method_exists($alreadyExists->role, 'label') ? $alreadyExists->role->label() : $alreadyExists->role->value;
+                $roleLabel = $alreadyExists->role->label();
                 $this->telegram->sendMessage($chatId, "✅ *Rolingiz yangilandi!*\n\nSiz muvaffaqiyatli *{$roleLabel}* roliga o'tdingiz!\nDo'kon: " . ($alreadyExists->store->name ?? 'Noma\'lum'), [
                     'parse_mode' => 'Markdown',
                 ]);
@@ -204,7 +204,7 @@ class TelegramMessageHandler
         ]);
 
         if ($this->telegram->isConfigured()) {
-            $roleLabel = method_exists($employee->role, 'label') ? $employee->role->label() : $employee->role;
+            $roleLabel = $employee->role->label();
             $this->telegram->sendMessage($chatId, "✅ *Tabriklaymiz!*\n\nSiz muvaffaqiyatli *{$roleLabel}* sifatida ro'yxatdan o'tdingiz!\nDo'kon: " . ($employee->store->name ?? 'Noma\'lum'), [
                 'parse_mode' => 'Markdown',
             ]);

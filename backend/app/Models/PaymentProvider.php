@@ -4,6 +4,12 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
+/**
+ * Cast attributes, declared because Larastan does not read casts from the casts() method:
+ *
+ * @property bool $is_active
+ * @property array<string, mixed>|null $credentials
+ */
 class PaymentProvider extends Model
 {
     protected $fillable = [

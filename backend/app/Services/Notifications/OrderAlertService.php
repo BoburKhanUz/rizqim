@@ -40,7 +40,7 @@ class OrderAlertService
                     $text = "🔔 *Yangi buyurtma keldi!*\n\n"
                           . "🔢 *Buyurtma ID:* #{$order->short_code}\n"
                           . "📍 *Yetkazish turi:* {$typeText}\n"
-                          . "💰 *Jami Summa:* " . number_format($order->total_price, 0, '.', ' ') . " UZS\n\n"
+                          . "💰 *Jami Summa:* " . number_format((float) $order->total_price, 0, '.', ' ') . " UZS\n\n"
                           . "Ilovaga kirib qabul qiling.";
                     $this->send($manager->telegram_id, $text, $order->id, $manager->id, 'telegram_manager_new_order');
                 }
@@ -126,7 +126,7 @@ class OrderAlertService
                 $text = "🚚 *Yangi buyurtma biriktirildi!*\n\n"
                       . "🔢 *Buyurtma ID:* #{$order->short_code}\n"
                       . "📍 *Manzil:* {$displayAddress}\n"
-                      . "💰 *Jami summa:* " . number_format($order->total_price, 0, '.', ' ') . " UZS\n\n"
+                      . "💰 *Jami summa:* " . number_format((float) $order->total_price, 0, '.', ' ') . " UZS\n\n"
                       . "Ilovadan buyurtmani qabul qiling va yo'lga chiqing! 🚀";
 
                 $this->send($courier->telegram_id, $text, $order->id, $courier->id, 'telegram_courier_assigned', $keyboard);

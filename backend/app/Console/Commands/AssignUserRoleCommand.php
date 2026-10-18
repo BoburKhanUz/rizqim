@@ -157,7 +157,7 @@ class AssignUserRoleCommand extends Command
                 $account->id,
                 $account->telegram_id,
                 $account->name,
-                $account->role?->value,
+                $account->role->value,
                 $account->store_id ?? '-',
                 $account->branch_id ?? '-',
             ])->all()

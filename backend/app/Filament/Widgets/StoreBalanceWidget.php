@@ -4,7 +4,7 @@ namespace App\Filament\Widgets;
 
 use Filament\Widgets\StatsOverviewWidget as BaseWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
-use Filament\Facades\Filament;
+use App\Filament\Support\StorePanelScope;
 use App\Services\Finance\LedgerService;
 use App\Support\Money;
 
@@ -23,7 +23,7 @@ class StoreBalanceWidget extends BaseWidget
 
     protected function getStats(): array
     {
-        $store = Filament::getTenant();
+        $store = StorePanelScope::store();
         if (!$store) {
             return [];
         }

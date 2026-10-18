@@ -26,7 +26,7 @@ class CustomerRetentionWidget extends ChartWidget
         }
 
         // Count how many orders each user has made in this store
-        $userOrderCounts = Order::where('store_id', $tenant->id)
+        $userOrderCounts = Order::where('store_id', $tenant->getKey())
             ->select('user_id', DB::raw('count(*) as total'))
             ->groupBy('user_id')
             ->pluck('total');

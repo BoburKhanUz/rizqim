@@ -143,6 +143,8 @@ class OrderStatusService
      * Staff an order of this store may be handed to: couriers, managers and owners (who stand in for couriers);
      * a branch manager only picks from their branch, store-wide staff or the owner. Invited couriers and managers
      * count only once they joined; owners can always act from the admin panel.
+     *
+     * @return Builder<User>
      */
     public function assignableStaff(int $storeId, ?User $assigner): Builder
     {
@@ -235,7 +237,7 @@ class OrderStatusService
         OrderAssignment::create([
             'order_id' => $order->id,
             'courier_id' => $courier->id,
-            'assigned_by' => $actor?->id ?? $courier->id,
+            'assigned_by' => $actor->id ?? $courier->id,
             'assigned_branch_id' => $order->branch_id,
             'is_current' => true,
             'assigned_at' => now(),
@@ -270,10 +272,11 @@ class OrderStatusService
             ->where('status', PaymentStatus::PAID->value)
             ->lockForUpdate()
             ->first();
-        $amount = Money::of($payment?->amount ?? $order->total_price);
+        $amount = Money::of($payment->amount ?? $order->total_price);
 
         if ($amount->isPositive()) {
-            User::whereKey($order->user_id)->increment('balance', $amount->toString());
+            // A numeric string keeps the amount exact; Laravel accepts it although the stub says float|int
+            User::whereKey($order->user_id)->increment('balance', $amount->toString()); // @phpstan-ignore argument.type
         }
 
         $payment?->update([

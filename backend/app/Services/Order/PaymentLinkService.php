@@ -21,7 +21,7 @@ class PaymentLinkService
         $returnUrl = url('/admin'); // Redirect back to store after payment
 
         $store = $order->store;
-        $settings = $store?->payment_settings ?? [];
+        $settings = $store->payment_settings ?? [];
 
         // Store merchant credentials only for a STORE-owned order of a store that can collect this provider itself;
         // everything else is paid to the platform merchant whose key the webhooks verify.

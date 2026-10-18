@@ -231,7 +231,7 @@ class GlobalUserResource extends Resource
                                           // Clickable Link to Order details
                                           $html .= '<a href="' . $url . '" class="flex flex-col flex-1 group hover:underline decoration-primary-500">';
                                           $html .= '<div class="text-sm font-bold text-primary-600 dark:text-primary-400 group-hover:text-primary-500 leading-tight">Order #' . $order->short_code . '</div>';
-                                          $html .= '<div class="text-xs font-medium text-gray-500">' . $order->created_at->format('d M Y, H:i') . ' • ' . number_format($order->total_price, 0, ',', ' ') . ' UZS</div>';
+                                          $html .= '<div class="text-xs font-medium text-gray-500">' . $order->created_at->format('d M Y, H:i') . ' • ' . number_format((float) $order->total_price, 0, ',', ' ') . ' UZS</div>';
                                           $html .= '</a>';
                                           
                                           $html .= '</div>';

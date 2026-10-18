@@ -2,7 +2,6 @@
 
 namespace App\Http\Middleware;
 
-use App\Enums\UserRole;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -26,7 +25,7 @@ class EnsureUserHasRole
             ], 401);
         }
 
-        $role = $user->role instanceof UserRole ? $user->role->value : (string) $user->role;
+        $role = $user->role->value ?? ''; // empty for a user without a role: matches no route role
 
         if (!in_array($role, $roles, true)) {
             return response()->json([

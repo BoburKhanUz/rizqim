@@ -7,6 +7,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * An order's status history: one row per transition (from_status → status); the creation row has no from_status.
+ *
+ * Cast attributes, declared because Larastan does not read casts from the casts() method:
+ *
+ * @property \App\Enums\OrderStatus $status
+ * @property \App\Enums\OrderStatus|null $from_status
  */
 class OrderStatusHistory extends Model
 {

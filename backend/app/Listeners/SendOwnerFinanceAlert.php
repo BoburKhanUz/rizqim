@@ -22,7 +22,7 @@ class SendOwnerFinanceAlert implements ShouldQueue
 
         $msg = "⚠️ *Diqqat! Moliyaviy ogohlantirish*\n\n";
         $msg .= "Hurmatli hamkor, sizning qarzingiz belgilangan limitdan oshib ketdi:\n";
-        $msg .= "Joriy balans: *" . number_format($store->debt_balance, 0, '.', ' ') . " UZS*\n\n";
+        $msg .= "Joriy balans: *" . number_format((float) $store->debt_balance, 0, '.', ' ') . " UZS*\n\n";
         $msg .= "Faoliyatingiz to'xtatilmasligi uchun zudlik bilan hisobingizni to'ldirishingizni so'raymiz.";
 
         $this->telegram->sendMessage($store->telegram_admin_chat_id, $msg, ['parse_mode' => 'Markdown']);

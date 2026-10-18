@@ -42,6 +42,9 @@ class PromoCode extends Model
         return $this->hasMany(Order::class);
     }
 
+    /**
+     * @return HasMany<Order, $this>
+     */
     public function redemptions(): HasMany
     {
         return $this->orders()->whereNotIn('status', self::RELEASED_ORDER_STATUSES);

@@ -51,8 +51,7 @@ class OrderPolicy
 
         if ($user->role === UserRole::COURIER) {
             return $this->isAssignedCourier($user, $order)
-                && $order->status instanceof OrderStatus
-                && $order->status->isWithCourier()
+                && in_array($order->status, OrderStatus::withCourier(), true)
                 && in_array($to, [OrderStatus::ON_THE_WAY, OrderStatus::DELIVERY, OrderStatus::DELIVERED], true);
         }
 

@@ -18,6 +18,10 @@ use App\Traits\Auditable;
  * @property numeric-string $credit_limit
  * @property numeric-string $min_payout_reserve
  * @property numeric-string $min_order_amount
+ *
+ * Loaded with withCount('branches'):
+ *
+ * @property-read int|null $branches_count
  */
 class Store extends Model
 {

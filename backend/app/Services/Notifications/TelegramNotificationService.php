@@ -93,7 +93,7 @@ class TelegramNotificationService
         $message = "👤 <b>Yangi xodim qo'shildi!</b>\n\n" .
                    "Ismi: <b>" . htmlspecialchars($employee->name) . "</b>\n" .
                    "Roli: <b>" . htmlspecialchars(strtoupper($employee->role->value ?? $employee->role)) . "</b>\n" .
-                   "Filial: <b>" . htmlspecialchars($employee->branch?->name ?? 'Biriktirilmagan') . "</b>\n\n" .
+                   "Filial: <b>" . htmlspecialchars($employee->branch->name ?? 'Biriktirilmagan') . "</b>\n\n" .
                    "🔗 <b>Ushbu linkni xodimga yuboring:</b>\n" .
                    "{$inviteLink}\n\n" .
                    "<i>Xodim ushbu link ustiga bosib botga kirishi bilan tizimga ulanadi.</i>";
@@ -141,7 +141,7 @@ class TelegramNotificationService
             $customerMsg = $statusTexts[$statusValue] ?? "🔔 *Buyurtmangiz holati o'zgardi:* " . strtoupper($statusValue);
 
             if ($order->type !== 'delivery' && !in_array($statusValue, ['canceled', 'rejected', 'refunded'], true)) {
-                $cafeName = $order->branch?->name ?: ($order->store?->name ?? 'Kafe');
+                $cafeName = $order->branch?->name ?: ($order->store->name ?? 'Kafe');
                 $cafeAddress = $order->branch?->address ?: ($order->store?->address ?: 'Ko\'rsatilmagan');
                 // The branch's number, else the store's own, else a manager's/owner's
                 $cafePhone = $order->branch?->phone ?: $order->store?->phone;
@@ -231,7 +231,7 @@ class TelegramNotificationService
                     $message .= "🆔 *Buyurtma:* #{$order->short_code}\n";
                     $message .= "👤 *Mijoz:* " . ($order->user->name ?? 'Mijoz') . "\n";
                     $message .= "📞 *Telefon:* " . ($order->user->phone ?? 'Kiritilmagan') . "\n";
-                    $message .= "💰 *Jami summa:* " . number_format($order->total_price, 0, '.', ' ') . " UZS\n";
+                    $message .= "💰 *Jami summa:* " . number_format((float) $order->total_price, 0, '.', ' ') . " UZS\n";
                     
                     $paymentMethodText = match(strtolower($order->payment_method ?? 'cash')) {
                         'cash' => 'Naqd pul 💵',
@@ -324,7 +324,7 @@ class TelegramNotificationService
 
         $message = "{$statusHeader}\n\n";
         $message .= "👤 {$order->user->name}\n";
-        $message .= "💰 *" . number_format($order->total_price, 0, '.', ' ') . " UZS*\n";
+        $message .= "💰 *" . number_format((float) $order->total_price, 0, '.', ' ') . " UZS*\n";
         $message .= $order->type === 'delivery' ? "🚚 Yetkazib berish\n" : "🏪 Olib ketish\n";
         
         if ($order->type === 'delivery' && $order->delivery_address) {

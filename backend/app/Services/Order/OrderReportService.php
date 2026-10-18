@@ -104,8 +104,8 @@ class OrderReportService
         foreach ($orders as $order) {
             $row = [
                 "#" . $order->short_code,
-                $order->user?->name ?? 'Mijoz',
-                $order->user?->phone ?? '-',
+                $order->user->name ?? 'Mijoz',
+                $order->user->phone ?? '-',
                 $order->created_at->format('Y-m-d H:i')
             ];
 
@@ -137,7 +137,7 @@ class OrderReportService
             $row[] = number_format($order->delivery_price ?? 0, 0, '.', '');
             $row[] = number_format($order->total_price, 0, '.', '');
             $row[] = strtoupper($order->payment_method ?? 'CASH');
-            $row[] = $order->courier?->name ?? '-';
+            $row[] = $order->courier->name ?? '-';
             $row[] = strtoupper($order->status->value ?? $order->status);
 
             fputcsv($tempFile, $row);

@@ -45,7 +45,7 @@ class PromoCodeService
         }
 
         if ($subtotal !== null && Money::of($subtotal)->isLessThan($promo->min_order_amount)) {
-            $minFormatted = number_format($promo->min_order_amount, 0, '.', ' ');
+            $minFormatted = number_format((float) $promo->min_order_amount, 0, '.', ' ');
             throw new InvalidPromoCodeException("Ushbu promo-koddan foydalanish uchun minimal buyurtma summasi {$minFormatted} UZS bo'lishi kerak");
         }
 

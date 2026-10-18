@@ -121,7 +121,7 @@ class OrderController extends Controller
             return $this->error('Unauthorized.', [], 401);
         }
 
-        $userRole = is_object($user->role) ? $user->role->value : $user->role;
+        $userRole = $user->role->value ?? null; // null for an in-memory user created without a role
         if (!in_array($userRole, ['owner', 'manager', 'courier'])) {
             return $this->error('Unauthorized.', [], 403);
         }
@@ -164,7 +164,7 @@ class OrderController extends Controller
             return $this->error('Unauthorized.', [], 401);
         }
 
-        $userRole = is_object($user->role) ? $user->role->value : $user->role;
+        $userRole = $user->role->value ?? null; // null for an in-memory user created without a role
         if (!in_array($userRole, ['owner', 'manager']) || !$user->store_id) {
             return $this->error('Ruxsat etilmagan.', [], 403);
         }
@@ -179,7 +179,7 @@ class OrderController extends Controller
             return $this->error('Unauthorized.', [], 401);
         }
 
-        $userRole = is_object($user->role) ? $user->role->value : $user->role;
+        $userRole = $user->role->value ?? null; // null for an in-memory user created without a role
         if (!in_array($userRole, ['owner', 'manager'])) {
             return $this->error('Unauthorized.', [], 403);
         }
@@ -214,7 +214,7 @@ class OrderController extends Controller
             return $this->error('Unauthorized.', [], 401);
         }
 
-        $userRole = is_object($user->role) ? $user->role->value : $user->role;
+        $userRole = $user->role->value ?? null; // null for an in-memory user created without a role
         if (!in_array($userRole, ['owner', 'manager']) || !$user->store_id) {
             return $this->error('Ruxsat etilmagan.', [], 403);
         }

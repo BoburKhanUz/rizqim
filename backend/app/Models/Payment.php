@@ -6,6 +6,16 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use App\Enums\PaymentStatus;
 
+/**
+ * Cast attributes, declared because Larastan does not read casts from the casts() method:
+ *
+ * @property \App\Enums\PaymentStatus $status
+ * @property numeric-string $amount
+ * @property array<string, mixed>|null $payload
+ * @property \Illuminate\Support\Carbon|null $paid_at
+ * @property \Illuminate\Support\Carbon|null $cancelled_at
+ * @property \Illuminate\Support\Carbon|null $expired_at
+ */
 class Payment extends Model
 {
     use \App\Traits\HasPublicUuid;

@@ -49,7 +49,7 @@ class OrderResource extends Resource
 
                 Tables\Columns\TextColumn::make('user.name')
                     ->label('Customer')
-                    ->description(fn (Order $record) => $record->user?->phone ?? 'No phone')
+                    ->description(fn (Order $record) => $record->user->phone ?? 'No phone')
                     ->searchable()
                     ->sortable(),
 
@@ -242,8 +242,7 @@ class OrderResource extends Resource
 
     protected static function canMoveTo(Order $order, OrderStatus $to): bool
     {
-        return $order->status instanceof OrderStatus
-            && $order->status->canTransitionTo($to, $order->type)
+        return $order->status->canTransitionTo($to, $order->type)
             && (bool) auth()->user()?->can('changeStatus', [$order, $to]);
     }
 
@@ -320,8 +319,7 @@ class OrderResource extends Resource
                                     ->icon('heroicon-m-exclamation-triangle')
                                     ->color('danger')
                                     ->state(fn (Order $record) => "To'lov qaytarilmagan: " . number_format((float) $record->total_price, 0, '.', ' ') . " UZS ({$record->payment_method}) mijozga qo'lda qaytarilishi kerak.")
-                                    ->visible(fn (Order $record) => $record->status instanceof OrderStatus
-                                        && ($record->status->isCancellation() || $record->status === OrderStatus::REFUNDED)
+                                    ->visible(fn (Order $record) => ($record->status->isCancellation() || $record->status === OrderStatus::REFUNDED)
                                         && $record->payment_status === PaymentStatus::PAID),
                             ])->columnSpan(1),
                             
@@ -356,7 +354,7 @@ class OrderResource extends Resource
                                     $histories = $record->statusHistories()->orderBy('created_at', 'asc')->get();
                                     foreach ($histories as $index => $history) {
                                         $isLast = $index === $histories->count() - 1;
-                                        $statusObj = is_object($history->status) ? $history->status->value : $history->status;
+                                        $statusObj = $history->status->value;
                                         $statusLabel = match($statusObj) {
                                             'new' => 'Created',
                                             'accepted' => 'Accepted',

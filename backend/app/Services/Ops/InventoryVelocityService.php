@@ -79,7 +79,7 @@ class InventoryVelocityService
                 ->where('stock', '<', 10)
                 ->with('product')
                 ->get()
-                ->map(fn($v) => $v->product?->name ?? $v->name)
+                ->map(fn($v) => $v->product->name ?? $v->name)
                 ->filter()
                 ->unique()
                 ->take($limit)

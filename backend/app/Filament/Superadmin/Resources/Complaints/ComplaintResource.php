@@ -28,23 +28,23 @@ class ComplaintResource extends Resource
                     ->schema([
                         \Filament\Forms\Components\Placeholder::make('customer_name')
                             ->label('Foydalanuvchi')
-                            ->content(fn ($record) => $record?->user?->name ?? 'No User'),
+                            ->content(fn ($record) => $record->user->name ?? 'No User'),
                         \Filament\Forms\Components\Placeholder::make('order_code')
                             ->label('Buyurtma ID')
-                            ->content(fn ($record) => $record?->order?->short_code ?? 'No Order'),
+                            ->content(fn ($record) => $record->order->short_code ?? 'No Order'),
                         \Filament\Forms\Components\Placeholder::make('complaint_type')
                             ->label('E\'tiroz Turi')
-                            ->content(fn ($record) => $record?->type ?? 'Other'),
+                            ->content(fn ($record) => $record->type ?? 'Other'),
                         \Filament\Forms\Components\Placeholder::make('description')
                             ->label('Tavsif')
-                            ->content(fn ($record) => $record?->description ?? ''),
+                            ->content(fn ($record) => $record->description ?? ''),
                     ])->columns(2),
 
                 \Filament\Schemas\Components\Section::make('Menejer/Do\'kon Javobi')
                     ->schema([
                         \Filament\Forms\Components\Placeholder::make('owner_reply')
                             ->label('Do\'kon Javobi')
-                            ->content(fn ($record) => $record?->reply ?? 'Javob berilmagan'),
+                            ->content(fn ($record) => $record->reply ?? 'Javob berilmagan'),
                     ]),
 
                 \Filament\Schemas\Components\Section::make('SuperAdmin Hal Qilishi')

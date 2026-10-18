@@ -47,7 +47,7 @@ class TelegramAuthController extends Controller
             $store = Store::where('telegram_bot_username', $request->bot_username)
                 ->where('is_active', true)
                 ->first();
-            $botToken = $store?->telegram_bot_token ?? config('services.telegram.bot_token');
+            $botToken = $store->telegram_bot_token ?? config('services.telegram.bot_token');
 
             // The store owner holds this token and could sign initData for any Telegram id
             if ($store && filled($store->telegram_bot_token) && $store->telegram_bot_token !== config('services.telegram.bot_token')) {
@@ -82,10 +82,6 @@ class TelegramAuthController extends Controller
 
         if (!$store) {
             return $this->error('Store not found or bot not configured.', [], 404);
-        }
-
-        if (!$telegramUser) {
-            return $this->error('Invalid Telegram authentication data.', [], 401);
         }
 
         // 3. Find or Create User

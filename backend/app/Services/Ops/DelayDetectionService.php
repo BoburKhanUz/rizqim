@@ -33,7 +33,7 @@ class DelayDetectionService
      */
     public static function isOrderDelayed(Order $order): bool
     {
-        $statusStr = $order->status instanceof \BackedEnum ? $order->status->value : $order->status;
+        $statusStr = $order->status->value;
         
         if (in_array($statusStr, ['delivered', 'canceled'])) {
             return false;

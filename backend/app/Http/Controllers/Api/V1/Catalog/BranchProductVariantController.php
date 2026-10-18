@@ -21,7 +21,7 @@ class BranchProductVariantController extends Controller
             return $this->error('Unauthorized.', [], 401);
         }
 
-        $userRole = is_object($user->role) ? $user->role->value : $user->role;
+        $userRole = $user->role->value ?? null; // null for an in-memory user created without a role
         if (!in_array($userRole, ['owner', 'manager'])) {
             return $this->error('Unauthorized.', [], 403);
         }
@@ -49,7 +49,7 @@ class BranchProductVariantController extends Controller
         $overrides = \App\Models\BranchProductVariant::where('branch_id', $branchId)->get()->keyBy('variant_id');
 
         $result = $products->map(function ($product) use ($overrides) {
-            $variants = $product->variants->map(function ($variant) use ($product, $overrides) {
+            $variants = $product->variants->map(function ($variant) use ($overrides) {
                 $override = $overrides->get($variant->id);
 
                 return [
@@ -85,7 +85,7 @@ class BranchProductVariantController extends Controller
             return $this->error('Unauthorized.', [], 401);
         }
 
-        $userRole = is_object($user->role) ? $user->role->value : $user->role;
+        $userRole = $user->role->value ?? null; // null for an in-memory user created without a role
         if (!in_array($userRole, ['owner', 'manager'])) {
             return $this->error('Unauthorized.', [], 403);
         }

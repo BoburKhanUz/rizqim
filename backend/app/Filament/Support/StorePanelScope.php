@@ -4,6 +4,7 @@ namespace App\Filament\Support;
 
 use App\Enums\UserRole;
 use App\Models\Order;
+use App\Models\Store;
 use Filament\Facades\Filament;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -17,6 +18,16 @@ use Illuminate\Database\Eloquent\Builder;
  */
 class StorePanelScope
 {
+    /**
+     * The panel's tenant store, as a Store (Filament hands the tenant out as a plain Model); null outside a tenant.
+     */
+    public static function store(): ?Store
+    {
+        $tenant = Filament::getTenant();
+
+        return $tenant instanceof Store ? $tenant : null;
+    }
+
     /**
      * The tenant store (a super admin has no store of their own), else the signed-in staff member's store.
      */

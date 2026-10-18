@@ -128,7 +128,7 @@ class CreateGlobalStore extends CreateRecord
         return DB::transaction(function () use ($data) {
             $paymentSettings = \App\Models\Store::initialPaymentSettings(['cash', 'click', 'payme']);
 
-            $store = static::getModel()::create([
+            $store = \App\Models\Store::create([
                 'name' => $data['name'],
                 'phone' => $data['phone'] ?? null,
                 'commission_rate' => $data['commission_rate'],
@@ -175,6 +175,10 @@ class CreateGlobalStore extends CreateRecord
     protected function afterCreate(): void
     {
         $store = $this->record;
+        if (!$store instanceof \App\Models\Store) {
+            return;
+        }
+
         $owner = User::where('store_id', $store->id)->where('role', 'owner')->first();
         $branch = Branch::where('store_id', $store->id)->first();
         
