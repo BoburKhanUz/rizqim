@@ -12,6 +12,13 @@ cd backend
 echo "Composer paketlari o'rnatilmoqda..."
 composer install --optimize-autoloader --no-dev
 
+echo "Production xavfsizlik sozlamalari tekshirilmoqda (APP_ENV, APP_DEBUG, TELEGRAM_ALLOW_MOCK_AUTH, TELEGRAM_WEBHOOK_SECRET, super admin paroli)..."
+php artisan config:clear
+if ! php artisan app:check-production; then
+    echo "DEPLOY TO'XTATILDI: backend/.env xavfsiz emas. Yuqoridagi sozlamalarni tuzatib, qayta ishga tushiring."
+    exit 1
+fi
+
 echo "Ma'lumotlar bazasi migratsiyalari ishga tushirilmoqda..."
 php artisan migrate --force
 
@@ -20,6 +27,14 @@ php artisan optimize:clear
 php artisan config:cache
 php artisan route:cache
 php artisan view:cache
+
+# After optimize:clear, which also clears the app cache where the restart signal is stored
+echo "Navbat (queue) ishchilari yangi kod bilan qayta ishga tushirilmoqda..."
+php artisan queue:restart
+
+echo "Telegram webhook ro'yxatdan o'tkazilmoqda (secret_token bilan)..."
+php artisan telegram:set-webhook --if-configured \
+    || echo "OGOHLANTIRISH: Telegram webhook o'rnatilmadi — 'php artisan telegram:set-webhook' ni qo'lda ishga tushiring."
 
 cd ..
 
