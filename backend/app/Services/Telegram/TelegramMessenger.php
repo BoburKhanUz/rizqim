@@ -88,7 +88,11 @@ class TelegramMessenger
         }
 
         try {
-            count($jobs) > 1 ? Bus::chain($jobs)->dispatch() : Bus::dispatch($jobs[0]);
+            if (count($jobs) > 1) {
+                Bus::chain($jobs)->dispatch();
+            } else {
+                Bus::dispatch($jobs[0]);
+            }
         } catch (Throwable $e) {
             // A notification must never fail (or roll back) the action it reports
             Log::error("Failed to queue Telegram {$jobs[0]->method}: {$e->getMessage()}");

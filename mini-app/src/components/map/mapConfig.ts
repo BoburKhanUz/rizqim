@@ -2,7 +2,7 @@ import type { LatLng } from './types';
 
 const env = import.meta.env as Record<string, string | undefined>;
 
-// The public OpenStreetMap tile server is fine for development and light traffic only (see its tile usage policy).
+// The public OSM tile server is fine for development and light traffic only (see its tile usage policy).
 // For production set VITE_MAP_TILE_URL (and VITE_MAP_ATTRIBUTION) to a tile provider you have an account with,
 // or to your own tile server.
 const DEFAULT_TILE_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';

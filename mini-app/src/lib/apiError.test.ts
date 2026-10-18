@@ -1,5 +1,5 @@
-import { AxiosError, AxiosHeaders, type InternalAxiosRequestConfig } from 'axios';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { failedRequest, secretsIn } from '../test/httpErrors';
 import {
   getApiErrorMessage,
   getApiFieldError,
@@ -8,41 +8,21 @@ import {
   sanitizeError,
 } from './apiError';
 
-// Things that must never reach the console or the screen from a failed request
-const TOKEN = '12|AbCdEfGhIjKlMnOpQrStUvWxYz0123456789SECRET';
-const OTP = '482913';
-const PHONE = '+998901234567';
-const INIT_DATA = 'query_id=AAH&hash=deadbeefcafe';
-
-function failedRequest(status: number | undefined, body?: unknown, url = '/phone/verify-code'): AxiosError {
-  const config: InternalAxiosRequestConfig = {
-    url,
-    method: 'post',
-    headers: new AxiosHeaders({ Authorization: `Bearer ${TOKEN}` }),
-    data: JSON.stringify({ phone: PHONE, code: OTP, initData: INIT_DATA }),
-  };
-  const response =
-    status === undefined
-      ? undefined
-      : { data: body, status, statusText: String(status), headers: {}, config };
-  return new AxiosError(
-    status === undefined ? 'Network Error' : `Request failed with status code ${status}`,
-    status === undefined ? AxiosError.ERR_NETWORK : AxiosError.ERR_BAD_REQUEST,
-    config,
-    {},
-    response,
-  );
-}
-
 function expectNoSecrets(value: unknown) {
-  const text = JSON.stringify(value) ?? String(value);
-  for (const secret of [TOKEN, 'SECRET', OTP, PHONE, INIT_DATA, 'Authorization']) {
-    expect(text).not.toContain(secret);
-  }
+  expect(secretsIn(value)).toEqual([]);
 }
 
 afterEach(() => {
   vi.restoreAllMocks();
+});
+
+describe('the leak check itself', () => {
+  it('does see the secrets of a raw axios error, so a clean result below means something', () => {
+    const raw = failedRequest(422, { message: 'Kod xato.' });
+
+    expect(secretsIn(raw).length).toBeGreaterThan(0);
+    expect(secretsIn(raw)).toEqual(expect.arrayContaining(['Authorization', '482913', '+998901234567']));
+  });
 });
 
 describe('sanitizeError', () => {

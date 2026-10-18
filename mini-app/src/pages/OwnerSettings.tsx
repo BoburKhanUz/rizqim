@@ -80,7 +80,7 @@ function PaymentToggle({ title, enabled, onToggle, comingSoon = false }: Payment
       <div className="flex items-center gap-2">
         <h4 className="text-xs font-bold text-text-h">{title}</h4>
         {comingSoon && (
-          <span className="text-[8px] font-black uppercase tracking-wider bg-amber-500/15 text-amber-600 px-2 py-0.5 rounded-full">
+          <span className="text-[9px] font-black bg-amber-500/15 text-amber-600 px-2 py-0.5 rounded-full">
             Tez orada
           </span>
         )}

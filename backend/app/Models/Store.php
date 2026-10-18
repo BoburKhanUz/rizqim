@@ -76,14 +76,37 @@ class Store extends Model
     }
 
     /**
-     * Serialized stores (API responses, relations) never carry payment secrets; internal reads are unaffected.
+     * Payment methods not offered yet (config orders.unavailable_payment_methods): checkout refuses them and clients
+     * see them switched off, whatever a store saved for them (which is kept).
+     *
+     * @return list<string>
+     */
+    public static function unavailablePaymentMethods(): array
+    {
+        return array_values((array) config('orders.unavailable_payment_methods', []));
+    }
+
+    public static function isPaymentMethodAvailable(string $method): bool
+    {
+        return !in_array($method, static::unavailablePaymentMethods(), true);
+    }
+
+    /**
+     * Serialized stores (API responses, relations) never carry payment secrets, and show methods not offered yet as
+     * {enabled: false, available: false}; internal reads are unaffected.
      */
     public function toArray()
     {
         $array = array_diff_key(parent::toArray(), array_flip(self::INTERNAL_ATTRIBUTES));
 
-        if (is_array($array['payment_settings'] ?? null)) {
-            $array['payment_settings'] = static::withoutSecrets($array['payment_settings']);
+        if (array_key_exists('payment_settings', $array)) {
+            $settings = is_array($array['payment_settings']) ? static::withoutSecrets($array['payment_settings']) : [];
+
+            foreach (static::unavailablePaymentMethods() as $method) {
+                $settings[$method] = ['enabled' => false, 'available' => false];
+            }
+
+            $array['payment_settings'] = $settings;
         }
 
         return $array;
@@ -122,8 +145,9 @@ class Store extends Model
 
     /**
      * Merge incoming payment settings into the stored ones: keys a writer leaves out (e.g. form sections that were
-     * hidden) keep their stored value, nested sections merge the same way, lists are replaced whole, and a secret
-     * is only replaced by a new non-empty value (clients only ever see secrets removed).
+     * hidden) keep their stored value, nested sections merge the same way (a section sent empty also keeps a stored
+     * legacy scalar such as `uzum: true`), lists are replaced whole, and a secret is only replaced by a new non-empty
+     * value (clients only ever see secrets removed).
      */
     protected static function mergeSettings(array $stored, array $incoming): array
     {
@@ -138,6 +162,8 @@ class Store extends Model
             } elseif (is_array($value) && !array_is_list($value) && is_array($incoming[$key])
                 && ($incoming[$key] === [] || !array_is_list($incoming[$key]))) {
                 $incoming[$key] = static::mergeSettings($value, $incoming[$key]);
+            } elseif ($incoming[$key] === [] && !is_array($value)) {
+                $incoming[$key] = $value;
             }
         }
 
@@ -285,10 +311,14 @@ class Store extends Model
         
         // Fallback for old data structure
         if (isset($settings['allowed_methods']) && is_array($settings['allowed_methods'])) {
-            return $settings['allowed_methods'];
+            return array_values(array_filter($settings['allowed_methods'], fn ($method) => static::isPaymentMethodAvailable((string) $method)));
         }
         
         foreach (['cash', 'click', 'payme', 'uzum', 'paynet'] as $provider) {
+            if (!static::isPaymentMethodAvailable($provider)) {
+                continue;
+            }
+
             $isEnabled = false;
             if (isset($settings[$provider])) {
                 if (is_array($settings[$provider])) {
@@ -310,6 +340,10 @@ class Store extends Model
         $currentSettings = $this->payment_settings ?? [];
         
         foreach (['cash', 'click', 'payme', 'uzum', 'paynet'] as $provider) {
+            if (!static::isPaymentMethodAvailable($provider)) {
+                continue; // what the store saved for a method not offered yet is kept
+            }
+
             if (!isset($currentSettings[$provider]) || !is_array($currentSettings[$provider])) {
                 // If it was a boolean, convert/wrap it into an array
                 $oldValue = $currentSettings[$provider] ?? false;

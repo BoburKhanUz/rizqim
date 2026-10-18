@@ -16,4 +16,9 @@ return [
     // Paid before the store sees the order (cash is paid on handover, keshbek at checkout).
     'online_payment_methods' => ['click', 'payme', 'uzum', 'paynet'],
 
+    // Online methods with no payment webhook yet, so nothing could ever mark such an order paid: refused at checkout
+    // and shown as {enabled: false, available: false}; stores' saved settings for them are kept. They stay in the list
+    // above so unpaid orders placed with them earlier still expire.
+    'unavailable_payment_methods' => ['uzum', 'paynet'],
+
 ];

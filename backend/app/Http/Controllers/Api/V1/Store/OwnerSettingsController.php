@@ -8,6 +8,7 @@ use Illuminate\Http\JsonResponse;
 use App\Traits\ApiResponse;
 use App\Models\Store;
 use App\Enums\UserRole;
+use Illuminate\Validation\ValidationException;
 
 class OwnerSettingsController extends Controller
 {
@@ -30,6 +31,11 @@ class OwnerSettingsController extends Controller
             return $this->error('Do\'kon topilmadi.', [], 404);
         }
 
+        $paymentSettings = $this->settingsForOwner($store->payment_settings ?? []);
+        foreach (Store::unavailablePaymentMethods() as $method) {
+            $paymentSettings[$method] = ['enabled' => false, 'available' => false];
+        }
+
         return $this->success([
             'id' => $store->id,
             'name' => $store->name,
@@ -42,11 +48,14 @@ class OwnerSettingsController extends Controller
             'location_url' => $store->location_url,
             'is_open' => (bool) $store->is_open,
             'min_order_amount' => (float) $store->min_order_amount,
-            'payment_settings' => $this->settingsForOwner($store->payment_settings ?? []),
+            'payment_settings' => $paymentSettings,
             'payment_account_type' => $store->payment_account_type,
             'status' => $store->status->value ?? $store->status,
             'is_order_locked' => $store->is_order_locked,
-            'allowed_methods' => $store->payment_settings['allowed_methods'] ?? ['cash', 'click', 'payme', 'uzum', 'paynet'],
+            'allowed_methods' => array_values(array_filter(
+                (array) ($store->payment_settings['allowed_methods'] ?? ['cash', 'click', 'payme', 'uzum', 'paynet']),
+                fn ($method) => Store::isPaymentMethodAvailable((string) $method)
+            )),
         ]);
     }
 
@@ -88,11 +97,21 @@ class OwnerSettingsController extends Controller
         $currentSettings = $store->payment_settings ?? [];
         $newSettings = $request->payment_settings ?? [];
 
+        foreach (Store::unavailablePaymentMethods() as $method) {
+            $requested = $newSettings[$method] ?? null;
+            if ((bool) (is_array($requested) ? ($requested['enabled'] ?? false) : $requested)) {
+                throw ValidationException::withMessages([
+                    'payment_settings' => ucfirst($method) . " orqali to'lov hozircha mavjud emas, uni yoqib bo'lmaydi.",
+                ]);
+            }
+        }
+
         $currentSettings['delivery_fee'] = $newSettings['delivery_fee'] ?? ($currentSettings['delivery_fee'] ?? 0);
         $currentSettings['working_hours'] = $newSettings['working_hours'] ?? ($currentSettings['working_hours'] ?? []);
 
         foreach (['cash', 'click', 'payme', 'uzum', 'paynet'] as $provider) {
-            if (isset($newSettings[$provider])) {
+            // A method not offered yet keeps whatever the store saved for it
+            if (isset($newSettings[$provider]) && Store::isPaymentMethodAvailable($provider)) {
                 if (!isset($currentSettings[$provider]) || !is_array($currentSettings[$provider])) {
                     $currentSettings[$provider] = [];
                 }

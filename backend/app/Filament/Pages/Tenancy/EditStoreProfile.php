@@ -131,11 +131,11 @@ class EditStoreProfile extends EditTenantProfile
                                 // Uzum Fieldset
                                 \Filament\Schemas\Components\Fieldset::make('Uzum Bank')
                                     ->schema([
-                                        \Filament\Forms\Components\Toggle::make('payment_settings.uzum.enabled')
+                                        \App\Filament\Pages\StoreSettings::unlessUnavailable(\Filament\Forms\Components\Toggle::make('payment_settings.uzum.enabled')
                                             ->label('Uzum Bank orqali to\'lov faol')
                                             ->live()
                                             ->default(true)
-                                            ->columnSpanFull(),
+                                            ->columnSpanFull(), 'uzum'),
                                         TextInput::make('payment_settings.uzum.merchant_id')
                                             ->label('Uzum Merchant ID')
                                             ->visible(fn ($get, $record) => $record && $record->payment_account_type === 'own_account' && $get('payment_settings.uzum.enabled')),
@@ -145,17 +145,17 @@ class EditStoreProfile extends EditTenantProfile
                                             ->visible(fn ($get, $record) => $record && $record->payment_account_type === 'own_account' && $get('payment_settings.uzum.enabled')),
                                     ])
                                     ->columns(2)
-                                    ->visible(fn ($record) => !$record || in_array('uzum', $record->payment_settings['allowed_methods'] ?? ['cash', 'click', 'payme', 'uzum', 'paynet']))
+                                    ->visible(fn ($record) => !$record || !\App\Models\Store::isPaymentMethodAvailable('uzum') || in_array('uzum', $record->payment_settings['allowed_methods'] ?? ['cash', 'click', 'payme', 'uzum', 'paynet']))
                                     ->columnSpanFull(),
 
                                 // Paynet Fieldset
                                 \Filament\Schemas\Components\Fieldset::make('Paynet')
                                     ->schema([
-                                        \Filament\Forms\Components\Toggle::make('payment_settings.paynet.enabled')
+                                        \App\Filament\Pages\StoreSettings::unlessUnavailable(\Filament\Forms\Components\Toggle::make('payment_settings.paynet.enabled')
                                             ->label('Paynet orqali to\'lov faol')
                                             ->live()
                                             ->default(true)
-                                            ->columnSpanFull(),
+                                            ->columnSpanFull(), 'paynet'),
                                         TextInput::make('payment_settings.paynet.merchant_id')
                                             ->label('Paynet Merchant ID')
                                             ->visible(fn ($get, $record) => $record && $record->payment_account_type === 'own_account' && $get('payment_settings.paynet.enabled')),
@@ -165,7 +165,7 @@ class EditStoreProfile extends EditTenantProfile
                                             ->visible(fn ($get, $record) => $record && $record->payment_account_type === 'own_account' && $get('payment_settings.paynet.enabled')),
                                     ])
                                     ->columns(2)
-                                    ->visible(fn ($record) => !$record || in_array('paynet', $record->payment_settings['allowed_methods'] ?? ['cash', 'click', 'payme', 'uzum', 'paynet']))
+                                    ->visible(fn ($record) => !$record || !\App\Models\Store::isPaymentMethodAvailable('paynet') || in_array('paynet', $record->payment_settings['allowed_methods'] ?? ['cash', 'click', 'payme', 'uzum', 'paynet']))
                                     ->columnSpanFull(),
                             ]),
                     ]),

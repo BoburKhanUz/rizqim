@@ -126,8 +126,8 @@ class CreateGlobalStore extends CreateRecord
                 'cash' => true,
                 'click' => true,
                 'payme' => true,
-                'uzum' => true,
-                'paynet' => true,
+                'uzum' => \App\Models\Store::isPaymentMethodAvailable('uzum'),
+                'paynet' => \App\Models\Store::isPaymentMethodAvailable('paynet'),
             ];
 
             $store = static::getModel()::create([

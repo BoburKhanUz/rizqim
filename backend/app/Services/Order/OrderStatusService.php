@@ -10,7 +10,6 @@ use App\Events\OrderStatusUpdated;
 use App\Models\Order;
 use App\Models\OrderAssignment;
 use App\Models\OrderStatusHistory;
-use App\Models\OrderStatusLog;
 use App\Models\ProductVariant;
 use App\Models\User;
 use App\Services\Finance\LedgerService;
@@ -106,15 +105,9 @@ class OrderStatusService
             OrderStatusHistory::create([
                 'order_id' => $order->id,
                 'user_id' => $actor?->id,
+                'from_status' => $from->value,
                 'status' => $to->value,
                 'notes' => $notes ? implode(' | ', $notes) : null,
-            ]);
-
-            OrderStatusLog::create([
-                'order_id' => $order->id,
-                'from_status' => $from->value,
-                'to_status' => $to->value,
-                'user_id' => $actor?->id,
             ]);
 
             if ($to === OrderStatus::DELIVERED) {

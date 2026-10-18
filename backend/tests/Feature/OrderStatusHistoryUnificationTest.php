@@ -72,6 +72,21 @@ class OrderStatusHistoryUnificationTest extends TestCase
         $this->assertSame(0, OrderStatusLog::where('order_id', $order->id)->count());
     }
 
+    public function test_transitions_record_where_they_came_from_in_the_status_history_only(): void
+    {
+        $order = $this->makeOrder(OrderStatus::NEW);
+
+        $this->setStatus($order, $this->manager, 'accepted')->assertOk();
+        $this->setStatus($order, $this->manager, 'canceled')->assertOk();
+
+        $this->assertSame(
+            [['new', 'accepted', $this->manager->id], ['accepted', 'canceled', $this->manager->id]],
+            OrderStatusHistory::where('order_id', $order->id)->orderBy('id')->get()
+                ->map(fn ($history) => [$history->from_status->value, $history->status->value, $history->user_id])->all()
+        );
+        $this->assertSame(0, OrderStatusLog::count());
+    }
+
     public function test_the_orders_api_embeds_the_history_in_its_old_shape(): void
     {
         $order = $this->makeOrder(OrderStatus::NEW);

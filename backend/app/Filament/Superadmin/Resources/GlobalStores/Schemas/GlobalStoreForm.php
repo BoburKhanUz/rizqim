@@ -77,7 +77,10 @@ class GlobalStoreForm
                                         'uzum' => 'Uzum Bank',
                                         'paynet' => 'Paynet',
                                     ])
-                                    ->default(['cash', 'click', 'payme', 'uzum', 'paynet'])
+                                    // Not offered yet: locked, and Store keeps what was saved for them
+                                    ->disableOptionWhen(fn (string $value) => !\App\Models\Store::isPaymentMethodAvailable($value))
+                                    ->descriptions(fn () => array_fill_keys(\App\Models\Store::unavailablePaymentMethods(), 'Tez orada'))
+                                    ->default(fn () => array_values(array_filter(['cash', 'click', 'payme', 'uzum', 'paynet'], fn ($method) => \App\Models\Store::isPaymentMethodAvailable($method))))
                                     ->required()
                                     ->columnSpanFull(),
                             ])->columns(2),

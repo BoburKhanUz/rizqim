@@ -230,11 +230,11 @@ class StoreSettings extends Page implements HasForms
                                 // Uzum Fieldset
                                 \Filament\Schemas\Components\Fieldset::make('Uzum Bank')
                                     ->schema([
-                                        Toggle::make('payment_settings.uzum.enabled')
+                                        self::unlessUnavailable(Toggle::make('payment_settings.uzum.enabled')
                                             ->label('Uzum faol')
                                             ->live()
                                             ->default(true)
-                                            ->columnSpanFull(),
+                                            ->columnSpanFull(), 'uzum'),
                                         TextInput::make('payment_settings.uzum.merchant_id')
                                             ->label('Uzum Merchant ID')
                                             ->visible(fn ($get) => Filament::getTenant()?->payment_account_type === 'own_account' && $get('payment_settings.uzum.enabled')),
@@ -244,17 +244,17 @@ class StoreSettings extends Page implements HasForms
                                             ->visible(fn ($get) => Filament::getTenant()?->payment_account_type === 'own_account' && $get('payment_settings.uzum.enabled')),
                                     ])
                                     ->columns(2)
-                                     ->visible(fn () => in_array('uzum', Filament::getTenant()?->active_payment_methods ?? ['cash', 'click', 'payme', 'uzum', 'paynet']))
+                                     ->visible(fn () => !\App\Models\Store::isPaymentMethodAvailable('uzum') || in_array('uzum', Filament::getTenant()?->active_payment_methods ?? ['cash', 'click', 'payme', 'uzum', 'paynet']))
                                     ->columnSpanFull(),
 
                                 // Paynet Fieldset
                                 \Filament\Schemas\Components\Fieldset::make('Paynet')
                                     ->schema([
-                                        Toggle::make('payment_settings.paynet.enabled')
+                                        self::unlessUnavailable(Toggle::make('payment_settings.paynet.enabled')
                                             ->label('Paynet faol')
                                             ->live()
                                             ->default(true)
-                                            ->columnSpanFull(),
+                                            ->columnSpanFull(), 'paynet'),
                                         TextInput::make('payment_settings.paynet.merchant_id')
                                             ->label('Paynet Merchant ID')
                                             ->visible(fn ($get) => Filament::getTenant()?->payment_account_type === 'own_account' && $get('payment_settings.paynet.enabled')),
@@ -264,12 +264,25 @@ class StoreSettings extends Page implements HasForms
                                             ->visible(fn ($get) => Filament::getTenant()?->payment_account_type === 'own_account' && $get('payment_settings.paynet.enabled')),
                                     ])
                                     ->columns(2)
-                                     ->visible(fn () => in_array('paynet', Filament::getTenant()?->active_payment_methods ?? ['cash', 'click', 'payme', 'uzum', 'paynet']))
+                                     ->visible(fn () => !\App\Models\Store::isPaymentMethodAvailable('paynet') || in_array('paynet', Filament::getTenant()?->active_payment_methods ?? ['cash', 'click', 'payme', 'uzum', 'paynet']))
                                     ->columnSpanFull(),
                             ]),
                     ]),
             ])
             ->statePath('data');
+    }
+
+    /**
+     * A method not offered yet shows its toggle off and locked, and the toggle is never saved (its merchant fields stay
+     * hidden too), so what the store saved for that method is kept. Also used by the tenant profile page.
+     */
+    public static function unlessUnavailable(Toggle $toggle, string $method): Toggle
+    {
+        if (\App\Models\Store::isPaymentMethodAvailable($method)) {
+            return $toggle;
+        }
+
+        return $toggle->disabled()->dehydrated(false)->formatStateUsing(fn () => false)->helperText('Tez orada');
     }
 
     public function save(): void

@@ -31,6 +31,11 @@ class CreateOrderAction
      */
     public function execute($user, array $items, array $payload): Order
     {
+        // Nothing could ever mark such an order paid (no webhook for it yet)
+        if (!\App\Models\Store::isPaymentMethodAvailable((string) ($payload['payment_method'] ?? 'cash'))) {
+            throw ValidationException::withMessages(['payment_method' => "Bu to'lov usuli hozircha mavjud emas"]);
+        }
+
         return DB::transaction(function () use ($user, $items, $payload) {
             
             $storeId = $payload['store_id'];

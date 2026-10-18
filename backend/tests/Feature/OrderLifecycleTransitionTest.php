@@ -10,7 +10,6 @@ use App\Events\PaymentPaid;
 use App\Models\Order;
 use App\Models\OrderAssignment;
 use App\Models\OrderStatusHistory;
-use App\Models\OrderStatusLog;
 use App\Models\Payment;
 use App\Models\StoreTransaction;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -58,7 +57,7 @@ class OrderLifecycleTransitionTest extends TestCase
 
         $this->assertSame(
             ['new', 'accepted', 'preparing', 'ready', 'courier_assigned', 'on_the_way'],
-            OrderStatusLog::where('order_id', $order->id)->orderBy('id')->pluck('from_status')->all()
+            OrderStatusHistory::where('order_id', $order->id)->orderBy('id')->pluck('from_status')->map(fn ($status) => $status?->value)->all()
         );
         $history = OrderStatusHistory::where('order_id', $order->id)->where('status', 'courier_assigned')->first();
         $this->assertSame($this->manager->id, $history->user_id);
@@ -94,7 +93,7 @@ class OrderLifecycleTransitionTest extends TestCase
         $this->assertSame(OrderStatus::DELIVERED, $delivered->fresh()->status);
         $this->assertSame(OrderStatus::CANCELED, $canceled->fresh()->status);
         $this->assertSame(OrderStatus::PREPARING, $preparing->fresh()->status);
-        $this->assertSame(0, OrderStatusLog::count());
+        $this->assertSame(0, OrderStatusHistory::count());
         $this->assertSame(0, StoreTransaction::count());
     }
 
@@ -172,7 +171,7 @@ class OrderLifecycleTransitionTest extends TestCase
             ->assertOk()
             ->assertJsonPath('message', 'Buyurtma allaqachon shu holatda.');
 
-        $this->assertSame(1, OrderStatusLog::where('order_id', $order->id)->count());
+        $this->assertSame(1, OrderStatusHistory::where('order_id', $order->id)->count());
     }
 
     public function test_store_can_cancel_an_accepted_order_but_cannot_reject_it(): void
@@ -221,13 +220,13 @@ class OrderLifecycleTransitionTest extends TestCase
         event(new PaymentPaid($paymentFor($canceled)));
 
         $this->assertSame(OrderStatus::ACCEPTED, $paid->fresh()->status);
-        $log = OrderStatusLog::where('order_id', $paid->id)->sole();
-        $this->assertSame(['new', 'accepted', null], [$log->from_status, $log->to_status, $log->user_id]);
+        $history = OrderStatusHistory::where('order_id', $paid->id)->sole();
+        $this->assertSame([OrderStatus::NEW, OrderStatus::ACCEPTED, null], [$history->from_status, $history->status, $history->user_id]);
         $this->assertStringContainsString('Payment verified via Webhook (click)', OrderStatusHistory::where('order_id', $paid->id)->value('notes'));
 
         $this->assertSame(OrderStatus::CANCELED, $canceled->fresh()->status);
         $this->assertSame(PaymentStatus::PAID, $canceled->fresh()->payment_status);
-        $this->assertSame(0, OrderStatusLog::where('order_id', $canceled->id)->count());
+        $this->assertSame(0, OrderStatusHistory::where('order_id', $canceled->id)->count());
     }
 
     public function test_checkout_history_note_is_persisted(): void
