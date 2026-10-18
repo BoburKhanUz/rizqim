@@ -8,8 +8,13 @@ COPY . .
 
 ARG VITE_BOT_USERNAME=rizqimbot
 ARG VITE_API_URL=/api/v1
+# Bo'sh bo'lsa ilova OpenStreetMap'ning ochiq tile serverini ishlatadi (faqat ishlab chiqish va kam trafik uchun)
+ARG VITE_MAP_TILE_URL=
+ARG VITE_MAP_ATTRIBUTION=
 ENV VITE_BOT_USERNAME=$VITE_BOT_USERNAME
 ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_MAP_TILE_URL="$VITE_MAP_TILE_URL"
+ENV VITE_MAP_ATTRIBUTION="$VITE_MAP_ATTRIBUTION"
 
 RUN npm run build
 

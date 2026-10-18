@@ -107,7 +107,7 @@ class EmployeeResource extends Resource
                     ->badge(),
                 TextColumn::make('telegram_invite_token')
                     ->label('Taqlif Linki (Invite)')
-                    ->formatStateUsing(fn ($state) => $state ? "https://t.me/" . (config('services.telegram.bot_username') ?: env('TELEGRAM_BOT_USERNAME', 'rizqimbot')) . "?start=invite_" . $state : 'Bog\'langan')
+                    ->formatStateUsing(fn ($state) => $state ? "https://t.me/" . config('services.telegram.bot_username') . "?start=invite_" . $state : 'Bog\'langan')
                     ->copyable()
                     ->copyMessage('Link nusha olindi!')
                     ->icon('heroicon-m-link')
@@ -154,9 +154,9 @@ class EmployeeResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('telegram_invite_token')
                     ->label('Invite Link')
-                    ->getStateUsing(fn (\App\Models\User $record) => empty($record->telegram_invite_token) ? null : "https://t.me/" . (config('services.telegram.bot_username') ?: env('TELEGRAM_BOT_USERNAME', 'rizqimbot')) . "?start=invite_" . $record->telegram_invite_token)
+                    ->getStateUsing(fn (\App\Models\User $record) => empty($record->telegram_invite_token) ? null : "https://t.me/" . config('services.telegram.bot_username') . "?start=invite_" . $record->telegram_invite_token)
                     ->copyable()
-                    ->copyableState(fn (\App\Models\User $record) => "https://t.me/" . (config('services.telegram.bot_username') ?: env('TELEGRAM_BOT_USERNAME', 'rizqimbot')) . "?start=invite_" . $record->telegram_invite_token)
+                    ->copyableState(fn (\App\Models\User $record) => "https://t.me/" . config('services.telegram.bot_username') . "?start=invite_" . $record->telegram_invite_token)
                     ->copyMessage('Ssilka nusxalandi!')
                     ->icon('heroicon-m-clipboard-document-list')
                     ->iconColor('success')

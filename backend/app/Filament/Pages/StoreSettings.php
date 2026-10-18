@@ -132,7 +132,7 @@ class StoreSettings extends Page implements HasForms
                                     ->content(function () {
                                         $record = Filament::getTenant();
                                         if (!$record) return 'Restoran topilmadi.';
-                                        $botUsername = env('TELEGRAM_BOT_USERNAME', 'YourBotUsername');
+                                        $botUsername = config('services.telegram.bot_username');
                                         $link = "https://t.me/{$botUsername}?start=store_" . $record->uuid;
                                         return new \Illuminate\Support\HtmlString("
                                             <div class='flex flex-col gap-2'>

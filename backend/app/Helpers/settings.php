@@ -11,7 +11,7 @@ if (!function_exists('setting')) {
             if ($setting !== null && $setting->value !== null) {
                 return $setting->value;
             }
-            return env(strtoupper($key), $default);
+            return config("settings.{$key}") ?? $default;
         });
     }
 }

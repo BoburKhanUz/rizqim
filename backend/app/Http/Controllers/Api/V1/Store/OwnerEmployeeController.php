@@ -26,6 +26,7 @@ class OwnerEmployeeController extends Controller
 
         $employees = User::where('store_id', $user->store_id)
             ->whereIn('role', [UserRole::MANAGER, UserRole::COURIER])
+            ->with('branch:id,name')
             ->orderBy('created_at', 'desc')
             ->get();
 
@@ -81,7 +82,7 @@ class OwnerEmployeeController extends Controller
             \Illuminate\Support\Facades\Log::error("Failed to send employee invite to Telegram: " . $e->getMessage());
         }
 
-        $botUsername = $user->store->telegram_bot_username ?? env('TELEGRAM_BOT_USERNAME');
+        $botUsername = $user->store->telegram_bot_username ?? config('services.telegram.bot_username');
         $inviteLink = "https://t.me/{$botUsername}?start=invite_{$token}";
 
         return $this->success([

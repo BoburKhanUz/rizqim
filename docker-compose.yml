@@ -121,6 +121,8 @@ services:
       args:
         VITE_BOT_USERNAME: ${VITE_BOT_USERNAME:-rizqimbot}
         VITE_API_URL: ${VITE_API_URL:-/api/v1}
+        VITE_MAP_TILE_URL: ${VITE_MAP_TILE_URL:-}
+        VITE_MAP_ATTRIBUTION: ${VITE_MAP_ATTRIBUTION:-}
     restart: unless-stopped
     depends_on:
       backend:

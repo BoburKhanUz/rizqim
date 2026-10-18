@@ -93,7 +93,7 @@ class GlobalStoreForm
                                         if (!$record) {
                                             return 'Restoran yaratilgandan so\'ng ulanish linki paydo bo\'ladi.';
                                         }
-                                        $botUsername = env('TELEGRAM_BOT_USERNAME', 'YourBotUsername');
+                                        $botUsername = config('services.telegram.bot_username');
                                         $link = "https://t.me/{$botUsername}?start=store_" . $record->uuid;
                                         return new \Illuminate\Support\HtmlString("
                                             <div class='flex flex-col gap-2'>

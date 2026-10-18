@@ -173,7 +173,7 @@ class CreateGlobalStore extends CreateRecord
         $owner = User::where('store_id', $store->id)->where('role', 'owner')->first();
         $branch = Branch::where('store_id', $store->id)->first();
         
-        $botUsername = config('services.telegram.bot_username') ?: env('TELEGRAM_BOT_USERNAME', 'rizqimbot');
+        $botUsername = config('services.telegram.bot_username');
         $telegram = app(\App\Services\Telegram\TelegramMessenger::class);
         
         if ($owner && $telegram->isConfigured()) {

@@ -87,7 +87,7 @@ class TelegramNotificationService
             return;
         }
 
-        $botUsername = config('services.telegram.bot_username') ?: env('TELEGRAM_BOT_USERNAME', 'rizqimbot');
+        $botUsername = config('services.telegram.bot_username');
         $inviteLink = "https://t.me/{$botUsername}?start=invite_{$employee->telegram_invite_token}";
 
         $message = "👤 <b>Yangi xodim qo'shildi!</b>\n\n" .
