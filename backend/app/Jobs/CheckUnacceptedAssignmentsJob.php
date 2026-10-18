@@ -53,7 +53,15 @@ class CheckUnacceptedAssignmentsJob implements ShouldQueue
                   . "Kuryer buyurtmani 15 daqiqa ichida qabul qilib yo'lga chiqmadi. Iltimos, tekshiring! 🛵";
 
             foreach ($managers as $manager) {
-                if ($manager->telegram_id) {
+                // The job runs every minute: warn each manager once per assignment, not every minute until the courier leaves
+                $alreadyWarned = \App\Models\NotificationLog::where('order_id', $order->id)
+                    ->where('user_id', $manager->id)
+                    ->where('type', 'telegram_manager_courier_delay_warning')
+                    ->where('status', 'sent')
+                    ->where('sent_at', '>=', $assignment->assigned_at)
+                    ->exists();
+
+                if ($manager->telegram_id && !$alreadyWarned) {
                     try {
                         $response = Http::post("https://api.telegram.org/bot{$botToken}/sendMessage", [
                             'chat_id' => $manager->telegram_id,

@@ -31,11 +31,8 @@ class TelegramNotificationService
             $sentChatIds[] = $store->telegram_admin_chat_id;
         }
 
-        // 2. Query managers of the store who have a telegram_id
-        $managers = \App\Models\User::where('store_id', $store->id)
-            ->where('role', \App\Enums\UserRole::MANAGER->value)
-            ->whereNotNull('telegram_id')
-            ->get();
+        // 2. Managers who may act on this order (its branch's and store-wide ones), so no button answers "ruxsat yo'q"
+        $managers = $this->managersForOrder($order);
 
         if ($managers->isNotEmpty()) {
             // If managers are registered, send to them
@@ -59,6 +56,21 @@ class TelegramNotificationService
                 }
             }
         }
+    }
+
+    /**
+     * Managers with Telegram whom OrderPolicy lets act on the order: its branch's managers and store-wide managers.
+     */
+    protected function managersForOrder(Order $order): \Illuminate\Support\Collection
+    {
+        return \App\Models\User::where('store_id', $order->store_id)
+            ->where('role', \App\Enums\UserRole::MANAGER->value)
+            ->whereNotNull('telegram_id')
+            ->where(function ($query) use ($order) {
+                $query->whereNull('branch_id')
+                    ->when($order->branch_id, fn ($query) => $query->orWhere('branch_id', $order->branch_id));
+            })
+            ->get();
     }
 
     public function sendEmployeeInvite(\App\Models\User $employee, \App\Models\User $owner): void
@@ -152,11 +164,8 @@ class TelegramNotificationService
             if ($order->courier && $order->courier->telegram_id) {
                 $recipients[] = $order->courier;
             } else {
-                // Find managers with telegram_id
-                $managers = \App\Models\User::where('store_id', $order->store_id)
-                    ->where('role', \App\Enums\UserRole::MANAGER->value)
-                    ->whereNotNull('telegram_id')
-                    ->get();
+                // Find managers with telegram_id who may complete this order
+                $managers = $this->managersForOrder($order);
                     
                 if ($managers->isNotEmpty()) {
                     foreach ($managers as $manager) {

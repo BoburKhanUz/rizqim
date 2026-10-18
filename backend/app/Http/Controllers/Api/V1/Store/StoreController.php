@@ -81,13 +81,8 @@ class StoreController extends Controller
 
         $user = $request->user('sanctum') ?: $request->user();
         if ($user) {
-            $hasFailedCashPickup = \App\Models\Order::where('user_id', $user->id)
-                ->where('order_type', 'pickup')
-                ->where('payment_method', 'cash')
-                ->whereIn('status', ['canceled', 'rejected'])
-                ->exists();
-            
-            if ($hasFailedCashPickup) {
+            // Same rule checkout enforces, so cash is hidden exactly when an order would be refused
+            if (\App\Models\Order::cashPickupBanApplies($user->id)) {
                 $stores->each(function ($store) {
                     $settings = $store->payment_settings ?? [];
                     if (isset($settings['cash'])) {

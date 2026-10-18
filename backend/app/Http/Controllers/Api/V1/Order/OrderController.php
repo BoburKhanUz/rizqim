@@ -7,13 +7,20 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use App\Traits\ApiResponse;
 use App\Actions\Order\CreateOrderAction;
+use App\Enums\OrderStatus;
+use App\Models\Order;
+use App\Services\Order\OrderStatusService;
+use App\Services\Order\OrderTransitionException;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Str;
 
 class OrderController extends Controller
 {
     use ApiResponse;
 
     public function __construct(
-        protected CreateOrderAction $createOrderAction
+        protected CreateOrderAction $createOrderAction,
+        protected OrderStatusService $orderStatus
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -26,12 +33,9 @@ class OrderController extends Controller
         $userRole = is_object($user->role) ? $user->role->value : $user->role;
 
         if ($userRole === 'courier') {
+            // Only their own deliveries: unassigned orders carry customer contact details and couriers can't claim them
             $orders = \App\Models\Order::where('store_id', $user->store_id)
-                ->where('branch_id', $user->branch_id)
-                ->where(function($q) use ($user) {
-                    $q->where('courier_id', $user->id)
-                      ->orWhereNull('courier_id'); // See available orders to pickup
-                })
+                ->where('courier_id', $user->id)
                 ->with(['items.variant.product', 'user', 'branch'])
                 ->latest()
                 ->get();
@@ -42,7 +46,7 @@ class OrderController extends Controller
                 ->get();
         } elseif ($userRole === 'manager') {
             $orders = \App\Models\Order::where('store_id', $user->store_id)
-                ->where('branch_id', $user->branch_id)
+                ->when($user->branch_id, fn ($q) => $q->where('branch_id', $user->branch_id))
                 ->with(['items.variant.product.category', 'user', 'courier', 'manager', 'branch', 'statusHistories'])
                 ->latest()
                 ->get();
@@ -63,52 +67,28 @@ class OrderController extends Controller
             return $this->error('Unauthorized.', [], 401);
         }
 
-        $userRole = is_object($user->role) ? $user->role->value : $user->role;
-        if ($userRole !== 'courier') {
-            return $this->error('Unauthorized.', [], 403);
-        }
-
-        $order = \App\Models\Order::where('uuid', $uuid)
-            ->where('courier_id', $user->id)
-            ->first();
-
+        $order = $this->findVisibleOrder($user, $uuid);
         if (!$order) {
-            return $this->error('Order not found or not assigned to you.', [], 404);
+            return $this->error('Buyurtma topilmadi yoki sizga biriktirilmagan.', [], 404);
         }
 
-        $oldStatus = $order->status->value ?? $order->status;
-        $order->update([
-            'status' => \App\Enums\OrderStatus::DELIVERED->value,
-        ]);
-
-        \App\Models\OrderStatusHistory::create([
-            'order_id' => $order->id,
-            'user_id' => $user->id,
-            'status' => \App\Enums\OrderStatus::DELIVERED->value,
-            'note' => "Order completed/delivered by Courier: {$user->name}",
-        ]);
-
-        \App\Models\OrderStatusLog::create([
-            'order_id' => $order->id,
-            'from_status' => $oldStatus,
-            'to_status' => \App\Enums\OrderStatus::DELIVERED->value,
-            'user_id' => $user->id,
-            'changed_at' => now(),
-        ]);
-
-        $this->sendTelegramNotification($order, 'delivered');
-
-        if ($oldStatus !== \App\Enums\OrderStatus::DELIVERED->value) {
-            try {
-                app(\App\Services\Finance\LedgerService::class)->processOrderDelivered($order, $user->id);
-            } catch (\Exception $e) {
-                \Illuminate\Support\Facades\Log::error("Failed to process financials for order {$order->uuid}: " . $e->getMessage());
-            }
+        if (Gate::forUser($user)->denies('complete', $order)) {
+            return $this->error('Ruxsat etilmagan.', [], 403);
         }
 
-        event(new \App\Events\OrderStatusUpdated($order));
+        try {
+            $result = $this->orderStatus->transition($order, OrderStatus::DELIVERED, $user, [
+                'notes' => "Order completed/delivered by Courier: {$user->name}",
+            ]);
+        } catch (OrderTransitionException $e) {
+            return $this->error($e->getMessage(), [], $e->status);
+        }
 
-        return $this->success($order, 'Order delivered successfully.');
+        if ($result->changed) {
+            $this->sendTelegramNotification($result->order, 'delivered');
+        }
+
+        return $this->success($result->order, 'Order delivered successfully.');
     }
 
     public function store(Request $request): JsonResponse
@@ -119,19 +99,20 @@ class OrderController extends Controller
             'items.*.variant_id' => 'required|uuid',
             'items.*.quantity' => 'required|integer|min:1',
             'type' => 'required|string|in:delivery,pickup,dine_in',
-            'payment_method' => 'required|string',
+            'payment_method' => 'required|string|in:cash,click,payme,uzum,paynet,keshbek',
             'branch_id' => 'required_if:type,pickup|nullable|exists:branches,id',
             'address' => 'required_if:type,delivery|nullable|string',
             'latitude' => 'required_if:type,delivery|nullable|numeric',
             'longitude' => 'required_if:type,delivery|nullable|numeric',
             'notes' => 'nullable|string|max:500',
+            'promo_code' => 'nullable|string|max:50',
         ]);
 
         try {
             $order = $this->createOrderAction->execute(
                 $request->user(),
                 $request->items,
-                $request->only(['store_id', 'type', 'payment_method', 'address', 'latitude', 'longitude', 'branch_id', 'notes', 'discount'])
+                $request->only(['store_id', 'type', 'payment_method', 'address', 'latitude', 'longitude', 'branch_id', 'notes', 'promo_code'])
             );
 
             // Trigger notification here eventually (e.g. Telegram Admin Notification)
@@ -174,10 +155,13 @@ class OrderController extends Controller
 
             return $this->success([
                 'order_uuid' => $order->uuid,
+                'order_number' => $order->short_code,
                 'status' => $order->status->value,
                 'payment_url' => $paymentUrl,
             ], 'Order created successfully.', 201);
             
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            throw $e;
         } catch (\Exception $e) {
             return $this->error($e->getMessage(), [], 400);
         }
@@ -190,18 +174,23 @@ class OrderController extends Controller
     {
         $amount = (float) $order->total_price;
         $returnUrl = url('/admin'); // Redirect back to store after payment
-        
-        $settings = $order->store?->payment_settings ?? [];
+
+        $store = $order->store;
+        $settings = $store?->payment_settings ?? [];
+
+        // Store merchant credentials only for a STORE-owned order of a store that can collect this provider itself;
+        // everything else is paid to the platform merchant whose key the webhooks verify.
+        $useStore = $order->payment_owner !== 'PLATFORM' && (bool) $store?->collectsOwnPayments((string) $order->payment_method);
 
         if ($order->payment_method === 'click') {
-            $clickConfig = $settings['click'] ?? [];
+            $clickConfig = is_array($settings['click'] ?? null) ? $settings['click'] : [];
             if (isset($clickConfig['enabled']) && !$clickConfig['enabled']) {
                 return ''; // Disabled by store merchant
             }
 
-            $serviceId = $clickConfig['service_id'] ?? env('CLICK_SERVICE_ID', '32104');
-            $merchantId = $clickConfig['merchant_id'] ?? env('CLICK_MERCHANT_ID', '24185');
-            
+            $serviceId = $useStore ? $clickConfig['service_id'] : \App\Models\PaymentProvider::platformCredential('click', 'service_id');
+            $merchantId = $useStore ? $clickConfig['merchant_id'] : \App\Models\PaymentProvider::platformCredential('click', 'merchant_id');
+
             return "https://my.click.uz/services/pay" .
                    "?service_id={$serviceId}" .
                    "&merchant_id={$merchantId}" .
@@ -211,16 +200,16 @@ class OrderController extends Controller
         }
 
         if ($order->payment_method === 'payme') {
-            $paymeConfig = $settings['payme'] ?? [];
+            $paymeConfig = is_array($settings['payme'] ?? null) ? $settings['payme'] : [];
             if (isset($paymeConfig['enabled']) && !$paymeConfig['enabled']) {
                 return ''; // Disabled by store merchant
             }
 
-            $merchantId = $paymeConfig['merchant_id'] ?? env('PAYME_MERCHANT_ID', '65eb2b988f01b97b0a7c4912');
+            $merchantId = $useStore ? $paymeConfig['merchant_id'] : \App\Models\PaymentProvider::platformCredential('payme', 'merchant_id');
             // Payme expects amount in tiyin (1 UZS = 100 tiyin)
-            $tiyinAmount = $amount * 100;
+            $tiyinAmount = (int) round($amount * 100);
             $params = "m={$merchantId};ac.order_id={$order->uuid};a={$tiyinAmount};c=" . urlencode($returnUrl);
-            
+
             return "https://checkout.paycom.uz/" . base64_encode($params);
         }
 
@@ -276,109 +265,30 @@ class OrderController extends Controller
             'courier_id' => 'nullable|integer',
         ]);
 
-        $query = \App\Models\Order::where('uuid', $uuid)
-            ->where('store_id', $user->store_id);
-
-        if (in_array($userRole, ['manager', 'courier']) && $user->branch_id) {
-            $query->where('branch_id', $user->branch_id);
-        }
-
-        $order = $query->first();
-
+        $order = $this->findVisibleOrder($user, $uuid);
         if (!$order) {
-            return $this->error('Order not found or unauthorized branch.', [], 404);
+            return $this->error('Buyurtma topilmadi yoki sizning filialingizga tegishli emas.', [], 404);
         }
 
-        $oldStatus = $order->status->value ?? $order->status;
+        $status = OrderStatus::from($request->status);
 
-        // Prevent canceling/rejecting if it is already past the new stage
-        if (in_array($request->status, ['canceled', 'rejected'])) {
-            if ($oldStatus !== 'new') {
-                return $this->error('Buyurtma qabul qilinganidan keyin uni bekor qilib bo\'lmaydi.', [], 422);
-            }
+        try {
+            $result = $this->orderStatus->transition($order, $status, $user, [
+                'courier_id' => $request->input('courier_id'),
+                'notes' => "Order status updated via Manager App to: {$status->value} by {$user->name}",
+            ]);
+        } catch (OrderTransitionException $e) {
+            return $this->error($e->getMessage(), [], $e->status);
         }
 
-        $updateData = [
-            'status' => $request->status,
-        ];
-
-        if ($request->has('courier_id')) {
-            $updateData['courier_id'] = $request->courier_id;
+        if ($result->changed) {
+            $this->sendTelegramNotification($result->order, $status->value);
         }
 
-        // Auto-assign courier/owner if we are moving to delivery/courier_assigned but no courier is assigned
-        if (in_array($request->status, ['delivery', 'on_the_way', 'courier_assigned']) && !$order->courier_id && !isset($updateData['courier_id'])) {
-            $courier = \App\Models\User::where('store_id', $order->store_id)
-                ->where('role', \App\Enums\UserRole::COURIER->value)
-                ->where('branch_id', $order->branch_id)
-                ->first();
-                
-            if (!$courier) {
-                $courier = \App\Models\User::where('store_id', $order->store_id)
-                    ->where('role', \App\Enums\UserRole::COURIER->value)
-                    ->first();
-            }
-
-            if ($courier) {
-                $updateData['courier_id'] = $courier->id;
-            } else {
-                // Owner acts as fallback courier
-                $owner = \App\Models\User::where('store_id', $order->store_id)
-                    ->where('role', \App\Enums\UserRole::OWNER->value)
-                    ->first();
-                if ($owner) {
-                    $updateData['courier_id'] = $owner->id;
-                }
-            }
-
-            // Create assignment log
-            if (isset($updateData['courier_id'])) {
-                \App\Models\OrderAssignment::create([
-                    'order_id' => $order->id,
-                    'courier_id' => $updateData['courier_id'],
-                    'assigned_by' => $user->id,
-                    'assigned_branch_id' => $order->branch_id,
-                    'is_current' => true,
-                    'assigned_at' => now(),
-                ]);
-            }
-        }
-
-        $order->update($updateData);
-
-        \App\Models\OrderStatusHistory::create([
-            'order_id' => $order->id,
-            'user_id' => $user->id,
-            'status' => $request->status,
-            'note' => "Order status updated via Manager App to: {$request->status} by {$user->name}",
-        ]);
-
-        \App\Models\OrderStatusLog::create([
-            'order_id' => $order->id,
-            'from_status' => $oldStatus,
-            'to_status' => $request->status,
-            'user_id' => $user->id,
-            'changed_at' => now(),
-        ]);
-
-        $this->sendTelegramNotification($order, $request->status);
-
-        if ($oldStatus !== \App\Enums\OrderStatus::DELIVERED->value && $request->status === \App\Enums\OrderStatus::DELIVERED->value) {
-            try {
-                app(\App\Services\Finance\LedgerService::class)->processOrderDelivered($order, $user->id);
-            } catch (\Exception $e) {
-                \Illuminate\Support\Facades\Log::error("Failed to process financials for order {$order->uuid}: " . $e->getMessage());
-            }
-        }
-
-        // Trigger notifications for status change dynamically to both customer and courier via Event
-        if ($request->status === 'canceled' || $request->status === 'rejected') {
-            event(new \App\Events\OrderCancelled($order));
-        } else {
-            event(new \App\Events\OrderStatusUpdated($order));
-        }
-
-        return $this->success($order->load(['items.variant.product', 'user', 'courier']), 'Order status updated successfully.');
+        return $this->success(
+            $result->order->load(['items.variant.product', 'user', 'courier']),
+            $result->changed ? 'Order status updated successfully.' : 'Buyurtma allaqachon shu holatda.'
+        );
     }
 
     public function couriers(Request $request): JsonResponse
@@ -389,22 +299,14 @@ class OrderController extends Controller
         }
 
         $userRole = is_object($user->role) ? $user->role->value : $user->role;
-        
-        // Fetch all active employees of the store (couriers, managers, and owners)
-        $query = \App\Models\User::where('store_id', $user->store_id)
-            ->whereIn('role', [
-                \App\Enums\UserRole::COURIER->value,
-                \App\Enums\UserRole::MANAGER->value,
-                \App\Enums\UserRole::OWNER->value
-            ]);
+        if (!in_array($userRole, ['owner', 'manager']) || !$user->store_id) {
+            return $this->error('Ruxsat etilmagan.', [], 403);
+        }
 
-        if ($userRole === 'manager' && $user->branch_id) {
-            $query->where(function($q) use ($user) {
-                $q->where('branch_id', $user->branch_id)
-                  ->orWhereNull('branch_id')
-                  ->orWhere('role', \App\Enums\UserRole::OWNER->value);
-            });
-        } elseif ($request->has('branch_id')) {
+        // Exactly the employees assign-courier accepts (couriers, managers and owners of this store/branch)
+        $query = $this->orderStatus->assignableStaff((int) $user->store_id, $user);
+
+        if (($userRole !== 'manager' || !$user->branch_id) && $request->has('branch_id')) {
             $query->where(function($q) use ($request) {
                 $q->where('branch_id', $request->branch_id)
                   ->orWhereNull('branch_id')
@@ -445,88 +347,30 @@ class OrderController extends Controller
         }
 
         $request->validate([
-            'courier_id' => 'required|exists:users,id',
+            'courier_id' => 'required|integer',
         ]);
 
-        $query = \App\Models\Order::where('uuid', $uuid)
-            ->where('store_id', $user->store_id);
-
-        if ($userRole === 'manager' && $user->branch_id) {
-            $query->where('branch_id', $user->branch_id);
-        }
-
-        $order = $query->first();
-
+        $order = $this->findVisibleOrder($user, $uuid);
         if (!$order) {
-            return $this->error('Order not found or unauthorized branch.', [], 404);
+            return $this->error('Buyurtma topilmadi yoki sizning filialingizga tegishli emas.', [], 404);
         }
 
-        // Verify courier/employee belongs to store (and same branch if manager)
-        $courierQuery = \App\Models\User::where('store_id', $user->store_id)
-            ->whereIn('role', [
-                \App\Enums\UserRole::COURIER->value,
-                \App\Enums\UserRole::MANAGER->value,
-                \App\Enums\UserRole::OWNER->value
-            ])
-            ->where('id', $request->courier_id);
-
-        if ($userRole === 'manager' && $user->branch_id) {
-            $courierQuery->where(function($q) use ($user) {
-                $q->where('branch_id', $user->branch_id)
-                  ->orWhereNull('branch_id')
-                  ->orWhere('role', \App\Enums\UserRole::OWNER->value);
-            });
+        try {
+            $result = $this->orderStatus->transition($order, OrderStatus::COURIER_ASSIGNED, $user, [
+                'courier_id' => $request->input('courier_id'),
+                'notes' => "Courier assigned by {$user->name}",
+            ]);
+        } catch (OrderTransitionException $e) {
+            return $this->error($e->getMessage(), [], $e->status);
         }
 
-        $courier = $courierQuery->first();
-
-        if (!$courier) {
-            return $this->error('Courier not found or not in this branch.', [], 422);
-        }
-
-        $oldStatus = $order->status->value ?? $order->status;
-        $newStatus = \App\Enums\OrderStatus::COURIER_ASSIGNED->value;
-
-        // Deactivate existing assignments
-        \App\Models\OrderAssignment::where('order_id', $order->id)
-            ->update(['is_current' => false]);
-
-        // Create new assignment
-        \App\Models\OrderAssignment::create([
-            'order_id' => $order->id,
-            'courier_id' => $courier->id,
-            'assigned_by' => $user->id,
-            'assigned_branch_id' => $order->branch_id,
-            'is_current' => true,
-            'assigned_at' => now(),
-        ]);
-
-        // Update order
-        $order->update([
-            'courier_id' => $courier->id,
-            'status' => $newStatus,
-        ]);
-
-        // Status histories
-        \App\Models\OrderStatusHistory::create([
-            'order_id' => $order->id,
-            'user_id' => $user->id,
-            'status' => $newStatus,
-            'note' => "Courier assigned: {$courier->name} by {$user->name}",
-        ]);
-
-        \App\Models\OrderStatusLog::create([
-            'order_id' => $order->id,
-            'from_status' => $oldStatus,
-            'to_status' => $newStatus,
-            'user_id' => $user->id,
-            'changed_at' => now(),
-        ]);
+        $order = $result->order;
+        $courier = $result->assignedCourier;
 
         // Send targeted Telegram notification to this Courier
         try {
             $botToken = config('services.telegram.bot_token');
-            if ($botToken && $courier->telegram_id) {
+            if ($botToken && $courier?->telegram_id) {
                 list($displayAddress, $keyboard) = $this->getAddressAndKeyboard($order->delivery_address, $order->shipping_address);
 
                 $text = "🚚 *Yangi buyurtma biriktirildi!*\n\n"
@@ -538,12 +382,25 @@ class OrderController extends Controller
                 $this->triggerTelegramSend($botToken, $courier->telegram_id, $text, $order->id, $courier->id, 'telegram_courier_assigned', $keyboard);
             }
         } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error("Failed to send telegram notification to courier {$courier->id}: " . $e->getMessage());
+            \Illuminate\Support\Facades\Log::error("Failed to send telegram notification to courier {$courier?->id}: " . $e->getMessage());
         }
 
-        event(new \App\Events\OrderStatusUpdated($order));
-
         return $this->success($order->load(['items.variant.product', 'user', 'courier']), 'Courier assigned successfully.');
+    }
+
+    /**
+     * The order behind a uuid, or null when it doesn't exist or this user may not see it (OrderPolicy::view),
+     * so other stores'/branches'/couriers' orders look the same as missing ones.
+     */
+    protected function findVisibleOrder($user, string $uuid): ?Order
+    {
+        if (!Str::isUuid($uuid)) {
+            return null;
+        }
+
+        $order = Order::where('uuid', $uuid)->first();
+
+        return $order && Gate::forUser($user)->allows('view', $order) ? $order : null;
     }
 
     protected function sendTelegramNotification($order, string $status): void
@@ -703,10 +560,10 @@ class OrderController extends Controller
         }
 
         $userRole = is_object($user->role) ? $user->role->value : $user->role;
-        $store = \App\Models\Store::find($user->store_id);
-        if (!in_array($userRole, ['admin', 'manager'])) {
-            return $this->error('Unauthorized.', [], 403);
+        if (!in_array($userRole, ['owner', 'manager']) || !$user->store_id) {
+            return $this->error('Ruxsat etilmagan.', [], 403);
         }
+        $store = \App\Models\Store::find($user->store_id);
 
         $request->validate([
             'timeframe' => 'required|string|in:today,weekly,monthly,yearly,custom',
@@ -716,6 +573,7 @@ class OrderController extends Controller
 
         $timeframe = $request->timeframe;
         $query = \App\Models\Order::where('store_id', $user->store_id)
+            ->when($userRole === 'manager' && $user->branch_id, fn ($q) => $q->where('branch_id', $user->branch_id))
             ->with(['items.variant.product.category', 'user', 'courier']);
 
         if ($timeframe === 'today') {
