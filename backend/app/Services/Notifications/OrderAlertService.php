@@ -9,7 +9,8 @@ use App\Services\Telegram\TelegramMessenger;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Telegram alerts to staff about orders handled in the Mini App (new order, ready, courier assignment). Each one is
+ * Telegram alerts to staff about orders: new order and ready (sent by the Mini App's endpoints) and the courier's
+ * assignment (sent by the SendCourierAssignedAlert listener, whichever way the courier was assigned). Each one is
  * queued with its NotificationLog type, so the recipient's in-app notification feed shows it as well. The customer
  * hears about every transition from the OrderStatusUpdated/OrderCancelled listeners instead.
  */
@@ -115,7 +116,8 @@ class OrderAlertService
     }
 
     /**
-     * The courier (or stand-in) the order was just handed to.
+     * The courier (or stand-in) the order was just handed to; nothing without one or without their Telegram account.
+     * Only SendCourierAssignedAlert calls it, so each assignment is announced once.
      */
     public function courierAssigned(Order $order, ?User $courier): void
     {

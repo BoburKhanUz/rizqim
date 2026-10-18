@@ -49,12 +49,6 @@ parameters:
 			path: 'app/Services/Notifications/NotificationFeedService.php'
 
 		-
-			message: '#^Strict comparison using \=\=\= between ''delivery''\|''on_the_way'' and ''courier_assigned'' will always evaluate to false\.$#'
-			identifier: identical.alwaysFalse
-			count: 3
-			path: 'app/Services/Notifications/TelegramNotificationService.php'
-
-		-
 			message: '#^Access to an undefined property App\\Models\\OrderItem\:\:\$qty\.$#'
 			identifier: property.notFound
 			count: 2

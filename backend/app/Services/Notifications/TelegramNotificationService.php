@@ -180,7 +180,8 @@ class TelegramNotificationService
             );
         }
 
-        // 2. If the order is sent for delivery, notify courier (or fallback to managers/owners if no courier is assigned)
+        // 2. If the order is sent for delivery, notify courier (or fallback to managers/owners if no courier is assigned).
+        //    An assignment (courier_assigned) is announced to the courier by the SendCourierAssignedAlert listener.
         if ($statusValue === 'delivery' || $statusValue === 'on_the_way') {
             $recipients = [];
             
@@ -208,26 +209,18 @@ class TelegramNotificationService
             }
 
             if (!empty($recipients)) {
-                $courierAction = ($statusValue === 'courier_assigned') ? 'take' : 'complete';
-                $courierButtonText = ($statusValue === 'courier_assigned') ? '🚴 Yo\'lga chiqdim' : '✅ Yetkazildi / Topshirdim';
-
                 $token = \Illuminate\Support\Str::random(32);
                 \App\Models\TelegramAction::create([
                     'order_id' => $order->id,
-                    'action' => $courierAction,
+                    'action' => 'complete',
                     'token' => $token,
                     'expires_at' => now()->addHours(24),
                 ]);
 
                 foreach ($recipients as $recipient) {
                     $isFallback = !($order->courier && $order->courier->id === $recipient->id);
-                    if ($statusValue === 'courier_assigned') {
-                        $message = "🚴 *Sizga yangi buyurtma biriktirildi!* " . 
-                            ($isFallback ? "_(Kuryer yo'qligi sababli sizga yuborildi)_" : "") . "\n\n";
-                    } else {
-                        $message = "🚚 *Buyurtma yo'lda!* " . 
-                            ($isFallback ? "_(Kuryer yo'qligi sababli sizga yuborildi)_" : "") . "\n\n";
-                    }
+                    $message = "🚚 *Buyurtma yo'lda!* " .
+                        ($isFallback ? "_(Kuryer yo'qligi sababli sizga yuborildi)_" : "") . "\n\n";
                     $message .= "🆔 *Buyurtma:* #{$order->short_code}\n";
                     $message .= "👤 *Mijoz:* " . ($order->user->name ?? 'Mijoz') . "\n";
                     $message .= "📞 *Telefon:* " . ($order->user->phone ?? 'Kiritilmagan') . "\n";
@@ -277,7 +270,7 @@ class TelegramNotificationService
                     }
 
                     $buttons[] = [
-                        ['text' => $courierButtonText, 'callback_data' => $token]
+                        ['text' => '✅ Yetkazildi / Topshirdim', 'callback_data' => $token]
                     ];
 
                     $keyboard = ['inline_keyboard' => $buttons];

@@ -202,8 +202,7 @@ class OrderController extends Controller
             return $this->error($e->getMessage(), [], $e->status);
         }
 
-        $this->alerts->courierAssigned($result->order, $result->assignedCourier);
-
+        // The courier hears about it from the SendCourierAssignedAlert listener, as with every other way of assigning one
         return $this->success($result->order->load(['items.variant.product', 'user', 'courier']), 'Courier assigned successfully.');
     }
 
