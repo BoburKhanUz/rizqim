@@ -7,18 +7,26 @@ use App\Models\OrderItem;
 use App\Models\OrderStatusHistory;
 use App\Models\ProductVariant;
 use App\Models\Payment;
+use App\Models\User;
 use App\Enums\OrderStatus;
 use App\Enums\PaymentStatus;
 use App\Enums\OrderType;
+use App\Services\Promo\InvalidPromoCodeException;
+use App\Services\Promo\PromoCodeService;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Exception;
 
 class CreateOrderAction
 {
+    public function __construct(
+        protected PromoCodeService $promoCodes
+    ) {}
+
     /**
      * @param \App\Models\User $user
      * @param array $items Array of ['variant_id' => uuid, 'quantity' => int]
-     * @param array $payload Additional checkout data (type, address, notes, payment_method)
+     * @param array $payload Additional checkout data (type, address, notes, payment_method, promo_code)
      */
     public function execute($user, array $items, array $payload): Order
     {
@@ -28,10 +36,11 @@ class CreateOrderAction
             $store = \App\Models\Store::findOrFail($storeId);
 
             // 1. Store Status & Working Hours Validation
-            if ($store->status === \App\Enums\StoreStatus::PAYMENT_REQUIRED->value) {
+            $storeStatus = $store->status->value ?? $store->status;
+            if ($storeStatus === \App\Enums\StoreStatus::PAYMENT_REQUIRED->value) {
                 throw new Exception("Restoran vaqtincha to'lov qabul qilmayapti (Qarz limitidan oshgan).");
             }
-            if ($store->status === \App\Enums\StoreStatus::FINANCE_HOLD->value) {
+            if ($storeStatus === \App\Enums\StoreStatus::FINANCE_HOLD->value) {
                 throw new Exception("Restoran faoliyati moliyaviy tekshiruv tufayli to'xtatilgan.");
             }
             if ($store->balance >= abs($store->credit_limit)) {
@@ -68,13 +77,8 @@ class CreateOrderAction
                     throw new Exception("Restoran naqd to'lov qabul qilmaydi.");
                 }
 
-                // Check for past uncollected/canceled cash pickup orders
-                $hasFailedCashPickup = \App\Models\Order::where('user_id', $user->id)
-                    ->where('order_type', 'pickup')
-                    ->where('payment_method', 'cash')
-                    ->whereIn('status', ['canceled', 'rejected'])
-                    ->exists();
-                if ($hasFailedCashPickup) {
+                // Check for recent uncollected/customer-canceled cash pickup orders
+                if (Order::cashPickupBanApplies($user->id)) {
                     throw new Exception("Sizda olib ketish buyurtmasini bekor qilish holatlari aniqlanganligi sababli, naqd pulda buyurtma berish taqiqlangan. Iltimos, onlayn to'lov turlaridan foydalaning.");
                 }
             }
@@ -146,14 +150,27 @@ class CreateOrderAction
             $totalAmount = 0;
             $orderItemsData = [];
             
+            // The same variant may be sent on several lines; stock is checked against the combined quantity
+            $requestedQuantities = [];
             foreach ($items as $item) {
-                // Fetch variant securely by uuid and ensure it belongs to the active store
-                $variant = ProductVariant::with('product')
-                    ->where('uuid', $item['variant_id'])
-                    ->whereHas('product', function($q) use ($storeId) {
-                        $q->where('store_id', $storeId)->where('status', 'active');
-                    })
-                    ->first();
+                $uuid = strtolower((string) $item['variant_id']);
+                $requestedQuantities[$uuid] = ($requestedQuantities[$uuid] ?? 0) + (int) $item['quantity'];
+            }
+
+            // Fetch variants securely by uuid for the active store, locked in id order so concurrent orders can't oversell or deadlock
+            $variants = ProductVariant::with('product')
+                ->whereIn('uuid', array_keys($requestedQuantities))
+                ->where('is_active', true)
+                ->whereHas('product', function($q) use ($storeId) {
+                    $q->where('store_id', $storeId)->where('status', 'active');
+                })
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get()
+                ->keyBy(fn ($variant) => strtolower($variant->uuid));
+
+            foreach ($requestedQuantities as $uuid => $quantity) {
+                $variant = $variants->get($uuid);
                 
                 if (!$variant) {
                     throw new Exception("Product variant not found or unavailable.");
@@ -171,12 +188,11 @@ class CreateOrderAction
                     }
                 }
                 
-                if ($variant->stock < $item['quantity']) {
-                    throw new Exception("Not enough stock for {$variant->product->name}. Available: {$variant->stock}");
+                if ($variant->stock < $quantity) {
+                    throw $this->outOfStock($variant, (int) $variant->stock);
                 }
                 
                 $price = $variant->price;
-                $quantity = $item['quantity'];
                 $totalPrice = $price * $quantity;
                 
                 $totalAmount += $totalPrice;
@@ -209,10 +225,6 @@ class CreateOrderAction
                 $deliveryFee = (float) ($store->payment_settings['delivery_fee'] ?? 0);
             }
 
-            // Calculate marketplace commission based on store's commission_rate
-            $commissionRate = $store->commission_rate ?? 10;
-            $commissionAmount = ($totalAmount + $deliveryFee) * ($commissionRate / 100);
-
             // 2. Create Order
             $shortCode = 'ORD-' . strtoupper(\Illuminate\Support\Str::random(6));
             
@@ -220,22 +232,46 @@ class CreateOrderAction
             $paymentOwner = 'STORE';
             if ($paymentMethod === 'keshbek') {
                 $paymentOwner = 'PLATFORM';
-            } elseif ($paymentMethod !== 'cash' && $store->payment_account_type === 'platform_account') {
+            } elseif ($paymentMethod !== 'cash' && !$store->collectsOwnPayments($paymentMethod)) {
+                // Platform accounts, and own accounts without complete merchant credentials for this provider, are paid to
+                // the platform (URL + webhook key) and settled to the store's wallet, so the store never loses the money.
                 $paymentOwner = 'PLATFORM';
             }
 
-            $discount = (float) ($payload['discount'] ?? 0);
-            $totalPrice = $totalAmount - $discount + $deliveryFee;
-            if ($totalPrice < 0) {
-                $totalPrice = 0;
+            // Discount is computed only on the server, from a promo code locked for the rest of the transaction
+            $discount = 0.0;
+            $promoCodeId = null;
+            $promoCode = trim((string) ($payload['promo_code'] ?? ''));
+            if ($promoCode !== '') {
+                try {
+                    $promo = $this->promoCodes->find($promoCode, true);
+                    $discount = $this->promoCodes->discountFor($promo, (int) $storeId, (float) $totalAmount, $user->id);
+                } catch (InvalidPromoCodeException $e) {
+                    throw ValidationException::withMessages(['promo_code' => $e->getMessage()]);
+                }
+                $promoCodeId = $promo->id;
             }
+
+            $totalPrice = round(max(0, $totalAmount - $discount + $deliveryFee), 2);
+
+            // Same base and rounding the ledger settles on, so the stored snapshot is exactly what gets charged
+            $commissionRate = (float) ($store->commission_rate ?? 10);
+            $commissionAmount = round($totalPrice * $commissionRate / 100, 2);
 
             $paymentStatus = PaymentStatus::PENDING;
             if ($paymentMethod === 'keshbek') {
-                if ($user->balance < $totalPrice) {
-                    throw new Exception("Keshbek balansi yetarli emas (Mavjud: " . number_format($user->balance, 0, '.', ' ') . " ball, Kerak: " . number_format($totalPrice, 0, '.', ' ') . " UZS).");
+                // Re-read under lock: the authenticated user instance may hold a stale balance
+                $balance = (float) User::whereKey($user->id)->lockForUpdate()->value('balance');
+                $insufficientBalance = "Keshbek balansi yetarli emas (Mavjud: " . number_format($balance, 0, '.', ' ') . " ball, Kerak: " . number_format($totalPrice, 0, '.', ' ') . " UZS).";
+                if ($balance < $totalPrice) {
+                    throw new Exception($insufficientBalance);
                 }
-                $user->decrement('balance', $totalPrice);
+                $debited = User::whereKey($user->id)
+                    ->where('balance', '>=', $totalPrice)
+                    ->decrement('balance', $totalPrice);
+                if ($debited !== 1) {
+                    throw new Exception($insufficientBalance);
+                }
                 $paymentStatus = PaymentStatus::PAID;
             }
 
@@ -248,6 +284,7 @@ class CreateOrderAction
                 'subtotal' => $totalAmount,
                 'delivery_price' => $deliveryFee,
                 'discount' => $discount,
+                'promo_code_id' => $promoCodeId,
                 'commission_amount' => $commissionAmount,
                 'status' => OrderStatus::NEW,
                 'order_type' => $payload['type'],
@@ -283,8 +320,12 @@ class CreateOrderAction
                 ]);
                 
                 // Deduct stock
-                $variantModel = $data['variant_model'];
-                $variantModel->decrement('stock', $data['quantity']);
+                $deducted = ProductVariant::whereKey($data['product_variant_id'])
+                    ->where('stock', '>=', $data['quantity'])
+                    ->decrement('stock', $data['quantity']);
+                if ($deducted !== 1) {
+                    throw $this->outOfStock($data['variant_model']);
+                }
             }
 
             // 4. Create Status History
@@ -292,10 +333,11 @@ class CreateOrderAction
                 'order_id' => $order->id,
                 'user_id' => $user->id,
                 'status' => OrderStatus::NEW->value,
-                'note' => 'Order created via Mini App',
+                'notes' => 'Order created via Mini App',
             ]);
             
-            event(new \App\Events\OrderCreated($order));
+            // Listeners call Telegram synchronously; don't hold the stock/promo/balance row locks during that
+            DB::afterCommit(fn () => event(new \App\Events\OrderCreated($order)));
 
             // Create notification logs for the customer
             \App\Models\NotificationLog::create([
@@ -322,6 +364,16 @@ class CreateOrderAction
  
             return $order;
         });
+    }
+
+    private function outOfStock(ProductVariant $variant, ?int $available = null): ValidationException
+    {
+        $name = $variant->product->name . ($variant->name ? " ({$variant->name})" : '');
+        $availableText = $available !== null ? " (mavjud: " . max(0, $available) . " ta)" : '';
+
+        return ValidationException::withMessages([
+            'items' => "Uzr, '{$name}' mahsulotidan yetarli miqdorda qolmagan{$availableText}. Iltimos, savatni yangilang.",
+        ]);
     }
 
     /**

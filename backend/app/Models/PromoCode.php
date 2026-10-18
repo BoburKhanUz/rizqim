@@ -4,9 +4,15 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class PromoCode extends Model
 {
+    /**
+     * Orders in these statuses no longer count towards usage limits.
+     */
+    public const RELEASED_ORDER_STATUSES = ['canceled', 'rejected', 'refunded'];
+
     protected $guarded = ['id'];
 
     protected $casts = [
@@ -15,11 +21,24 @@ class PromoCode extends Model
         'value' => 'float',
         'min_order_amount' => 'float',
         'max_discount_amount' => 'float',
+        'store_id' => 'integer',
+        'usage_limit' => 'integer',
+        'per_user_limit' => 'integer',
     ];
 
     public function store(): BelongsTo
     {
         return $this->belongsTo(Store::class);
+    }
+
+    public function orders(): HasMany
+    {
+        return $this->hasMany(Order::class);
+    }
+
+    public function redemptions(): HasMany
+    {
+        return $this->orders()->whereNotIn('status', self::RELEASED_ORDER_STATUSES);
     }
 
     public function isValidForStore(?int $storeId): bool

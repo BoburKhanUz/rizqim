@@ -130,4 +130,42 @@ class Order extends Model
     {
         return $this->hasMany(Payment::class);
     }
+
+    public function promoCode(): BelongsTo
+    {
+        return $this->belongsTo(PromoCode::class);
+    }
+
+    /**
+     * Whether the customer has lost cash payment because of failed cash pickup orders (see config/orders.php).
+     * Only cancellations by the customer, or after the store accepted the order (not collected), count;
+     * `rejected` orders and store refusals of still-new orders do not.
+     */
+    public static function cashPickupBanApplies(int $userId): bool
+    {
+        $threshold = (int) config('orders.cash_pickup_ban.threshold', 1);
+        if ($threshold < 1) {
+            return false;
+        }
+
+        $windowDays = (int) config('orders.cash_pickup_ban.window_days', 30);
+
+        $failedCount = static::query()
+            ->where('user_id', $userId)
+            ->where('order_type', 'pickup')
+            ->where('payment_method', 'cash')
+            ->where('status', 'canceled')
+            ->when($windowDays > 0, fn ($query) => $query->where('created_at', '>=', now()->subDays($windowDays)))
+            ->where(function ($query) {
+                $query->whereHas('statusHistories', function ($history) {
+                    $history->where('order_status_histories.status', 'canceled')
+                        ->whereColumn('order_status_histories.user_id', 'orders.user_id');
+                })->orWhereHas('statusHistories', function ($history) {
+                    $history->whereNotIn('order_status_histories.status', ['new', 'canceled', 'rejected', 'refunded']);
+                });
+            })
+            ->count();
+
+        return $failedCount >= $threshold;
+    }
 }
