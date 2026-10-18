@@ -1,5 +1,16 @@
 // Typed fixtures shaped like the API's JSON. Each takes the fields a test cares about.
-import type { ApiUser, Order, OrderItem, Product, ProductVariant, Store } from '../types';
+import type {
+  ApiUser,
+  Employee,
+  LedgerTransaction,
+  Order,
+  OrderItem,
+  OwnerFinance,
+  PayoutRequest,
+  Product,
+  ProductVariant,
+  Store,
+} from '../types';
 
 const TIMESTAMP = '2026-10-18T09:00:00.000000Z';
 
@@ -152,6 +163,70 @@ export function makeOrder(overrides: Partial<Order> = {}): Order {
     created_at: TIMESTAMP,
     updated_at: TIMESTAMP,
     deleted_at: null,
+    ...overrides,
+  };
+}
+
+export function makeEmployee(overrides: Partial<Employee> = {}): Employee {
+  return {
+    ...makeUser(),
+    role: 'manager',
+    branch_id: 1,
+    branch: { id: 1, name: 'Chilonzor' },
+    ...overrides,
+  };
+}
+
+export function makeLedgerTransaction(overrides: Partial<LedgerTransaction> = {}): LedgerTransaction {
+  return {
+    id: 1,
+    store_id: 1,
+    type: 'commission',
+    amount: '15000.00',
+    balance_before: '150000.00',
+    balance_after: '165000.00',
+    reference_id: null,
+    order_id: null,
+    payment_id: null,
+    performed_by: null,
+    notes: null,
+    created_at: TIMESTAMP,
+    updated_at: TIMESTAMP,
+    ...overrides,
+  };
+}
+
+export function makePayoutRequest(overrides: Partial<PayoutRequest> = {}): PayoutRequest {
+  return {
+    id: 1,
+    store_id: 1,
+    amount: '250000.00',
+    card_number: '8600123456781234',
+    status: 'pending',
+    processed_by: null,
+    processed_at: null,
+    notes: null,
+    resolution_notes: null,
+    created_at: TIMESTAMP,
+    updated_at: TIMESTAMP,
+    ...overrides,
+  };
+}
+
+// GET /owner/finance: the balances are floats, the ledger and payout amounts are decimal strings
+export function makeFinance(overrides: Partial<OwnerFinance> = {}): OwnerFinance {
+  return {
+    debt_balance: 150000,
+    wallet_balance: 500000,
+    credit_limit: 1000000,
+    min_payout_reserve: 100000,
+    payment_account_type: 'platform_account',
+    commission_rate: 10,
+    status: 'active',
+    is_order_locked: false,
+    ledger_transactions: [],
+    wallet_transactions: [],
+    payout_requests: [],
     ...overrides,
   };
 }

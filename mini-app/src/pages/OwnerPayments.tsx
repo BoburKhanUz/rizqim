@@ -2,51 +2,25 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { DollarSign, ShieldAlert, Activity, TrendingDown, TrendingUp, Send, CheckCircle2, XCircle, Clock } from 'lucide-react';
 import { useLanguageStore } from '../store/languageStore';
-import { FullScreenLoader } from '../App';
+import { FullScreenLoader } from '../components/Feedback';
 import api from '../services/api';
 import { tg, hapticFeedback } from '../lib/telegram';
 import { getApiErrorMessage, getErrorMessage } from '../lib/apiError';
-import type { ApiResponse, Decimal } from '../types';
+import { parseAmount, sumAmounts, toAmount } from '../lib/money';
+import { POLL_INTERVAL_MS, pollingQueryOptions } from '../lib/polling';
+import type { Amount, ApiResponse, OwnerFinance, PayoutStatus, TopupInitiated } from '../types';
 
-// A row of the store's debt ledger (StoreTransaction): commission adds to the debt, a top-up reduces it,
-// a refunded order's reversal can do either.
-interface LedgerTransaction {
-  id: number;
-  type: 'commission' | 'topup' | 'refund' | 'adjustment' | string;
-  amount: Decimal;
-  balance_after: Decimal;
-  created_at: string;
-}
-
-interface PayoutRequestRow {
-  id: number;
-  amount: Decimal;
-  card_number: string;
-  status: 'pending' | 'completed' | 'rejected' | string;
-  created_at: string;
-}
-
-// GET /owner/finance. debt_balance is what the store owes the platform (negative: prepaid);
-// wallet_balance is what the platform owes the store.
-interface OwnerFinance {
-  debt_balance: number;
-  wallet_balance: number;
-  credit_limit: number;
-  min_payout_reserve: number;
-  payment_account_type: string;
-  commission_rate: number;
-  status: string;
-  is_order_locked: boolean;
-  ledger_transactions: LedgerTransaction[];
-  payout_requests: PayoutRequestRow[];
-}
-
-interface TopupInitiated {
-  topup_uuid: string;
-  payment_url: string;
-}
+// What the API falls back to when a store has no value of its own.
+const DEFAULT_MIN_PAYOUT_RESERVE = 100_000;
+const DEFAULT_COMMISSION_RATE = 10;
+// POST /owner/finance/top-up takes at least this (validation: min:1000).
+const MIN_TOPUP = 1000;
+const TOPUP_PRESETS = [50_000, 100_000, 250_000, 500_000];
 
 const errorText = (err: unknown) => getApiErrorMessage(err) || getErrorMessage(err) || '';
+
+// Money arrives as floats and decimal strings alike: read it through toAmount before it is formatted.
+const formatPrice = (price: Amount) => toAmount(price).toLocaleString() + ' UZS';
 
 export default function OwnerPayments() {
   const { language } = useLanguageStore();
@@ -89,14 +63,15 @@ export default function OwnerPayments() {
     }
   });
 
-  // 1. Fetch finance details
-  const { data: financeData, isLoading, error } = useQuery({
+  // 1. Fetch finance details. The balances move whenever an order is commissioned or a top-up lands, so the
+  // screen refreshes itself while it is visible (never in the background, backing off while the server fails).
+  const { data: financeData, isLoading } = useQuery({
     queryKey: ['ownerFinance'],
     queryFn: async () => {
       const res = await api.get<ApiResponse<OwnerFinance>>('/owner/finance');
       return res.data?.data || null;
     },
-    refetchInterval: 10000,
+    ...pollingQueryOptions(POLL_INTERVAL_MS.ownerFinance),
   });
 
   // 2. Mutation to request payout
@@ -125,32 +100,31 @@ export default function OwnerPayments() {
   });
 
   if (isLoading) return <FullScreenLoader message="Moliya ma'lumotlari yuklanmoqda..." />;
-  if (error || !financeData) return <div className="p-4 text-center text-red-500">Moliya ma'lumotlarini yuklashda xatolik yuz berdi.</div>;
+  // Only a first load that failed leaves nothing to show; a poll that fails later keeps the last balances on screen.
+  if (!financeData) return <div className="p-4 text-center text-red-500">Moliya ma'lumotlarini yuklashda xatolik yuz berdi.</div>;
 
   const {
-    debt_balance = 0,
-    wallet_balance = 0,
-    credit_limit = 0,
-    min_payout_reserve = 100000,
     payment_account_type = 'own_account',
-    commission_rate = 10,
     status = 'active',
     ledger_transactions = [],
     payout_requests = [],
   } = financeData;
+  const debtBalance = toAmount(financeData.debt_balance);
+  const walletBalance = toAmount(financeData.wallet_balance);
+  const creditLimit = toAmount(financeData.credit_limit);
+  const minPayoutReserve = parseAmount(financeData.min_payout_reserve) ?? DEFAULT_MIN_PAYOUT_RESERVE;
+  const commissionRate = parseAmount(financeData.commission_rate) ?? DEFAULT_COMMISSION_RATE;
 
   const hasPlatformWallet = payment_account_type === 'platform_account';
+  // What the top-up field holds as a number; null while it is empty or not a number
+  const topupValue = parseAmount(topupAmount);
 
   // Under Aggregator model:
-  // - debt_balance > 0 => Cafe owes Platform (Debt)
-  // - debt_balance < 0 => Cafe has prepaid (Advance)
-  const currentDebt = debt_balance > 0 ? debt_balance : 0;
-  const advancePayment = debt_balance < 0 ? Math.abs(debt_balance) : 0;
-  const availableCredit = Math.max(0, Math.abs(credit_limit) - debt_balance);
-
-  const formatPrice = (price: number) => {
-    return price.toLocaleString() + ' UZS';
-  };
+  // - debtBalance > 0 => Cafe owes Platform (Debt)
+  // - debtBalance < 0 => Cafe has prepaid (Advance)
+  const currentDebt = debtBalance > 0 ? debtBalance : 0;
+  const advancePayment = debtBalance < 0 ? Math.abs(debtBalance) : 0;
+  const availableCredit = Math.max(0, sumAmounts([Math.abs(creditLimit), -debtBalance]));
 
   const getStatusBadge = (storeStatus: string) => {
     switch (storeStatus) {
@@ -183,13 +157,13 @@ export default function OwnerPayments() {
 
   const handlePayoutSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const amtVal = parseFloat(amount);
-    if (!amount || amtVal <= 0) {
+    const payoutAmount = parseAmount(amount);
+    if (payoutAmount === null || payoutAmount <= 0) {
       setErrorMessage(language === 'uz' ? 'To\'g\'ri summani kiriting' : 'Введите корректную сумму');
       return;
     }
-    const minReserve = min_payout_reserve;
-    if (wallet_balance < minReserve) {
+    const minReserve = minPayoutReserve;
+    if (walletBalance < minReserve) {
       setErrorMessage(
         language === 'uz'
           ? `Mablag' yechish uchun hamyonda kamida ${formatPrice(minReserve)} qoldiq bo'lishi shart`
@@ -197,11 +171,12 @@ export default function OwnerPayments() {
       );
       return;
     }
-    if ((wallet_balance - amtVal) < minReserve) {
+    if (sumAmounts([walletBalance, -payoutAmount]) < minReserve) {
+      const maxPayout = sumAmounts([walletBalance, -minReserve]);
       setErrorMessage(
         language === 'uz'
-          ? `Yechib olingandan so'ng hamyonda kamida ${formatPrice(minReserve)} qolishi shart. Maksimal yechish summasi: ${formatPrice(wallet_balance - minReserve)}`
-          : `После вывода на балансе должно остаться не менее ${formatPrice(minReserve)}. Макс. сумма вывода: ${formatPrice(wallet_balance - minReserve)}`
+          ? `Yechib olingandan so'ng hamyonda kamida ${formatPrice(minReserve)} qolishi shart. Maksimal yechish summasi: ${formatPrice(maxPayout)}`
+          : `После вывода на балансе должно остаться не менее ${formatPrice(minReserve)}. Макс. сумма вывода: ${formatPrice(maxPayout)}`
       );
       return;
     }
@@ -213,7 +188,7 @@ export default function OwnerPayments() {
     }
 
     payoutMutation.mutate({
-      amount: parseFloat(amount),
+      amount: payoutAmount,
       card_number: cardNumber.replace(/\s/g, ''),
       notes: notes || undefined,
     });
@@ -236,7 +211,7 @@ export default function OwnerPayments() {
     }
   };
 
-  const getPayoutStatusIcon = (reqStatus: string) => {
+  const getPayoutStatusIcon = (reqStatus: PayoutStatus) => {
     switch (reqStatus) {
       case 'completed':
         return <CheckCircle2 className="w-4 h-4 text-emerald-500" />;
@@ -247,7 +222,7 @@ export default function OwnerPayments() {
     }
   };
 
-  const getPayoutStatusLabel = (reqStatus: string) => {
+  const getPayoutStatusLabel = (reqStatus: PayoutStatus) => {
     if (reqStatus === 'completed') {
       return language === 'uz' ? 'Bajarildi' : 'Выполнено';
     }
@@ -287,7 +262,7 @@ export default function OwnerPayments() {
             {formatPrice(currentDebt)}
           </span>
           <span className="text-[8px] text-hint font-medium">
-            {debt_balance > 0 ? (language === 'uz' ? 'To\'lanishi kerak' : 'Необходимо оплатить') : (language === 'uz' ? 'Qarz yo\'q' : 'Долга нет')}
+            {debtBalance > 0 ? (language === 'uz' ? 'To\'lanishi kerak' : 'Необходимо оплатить') : (language === 'uz' ? 'Qarz yo\'q' : 'Долга нет')}
           </span>
         </div>
 
@@ -322,11 +297,11 @@ export default function OwnerPayments() {
               {formatPrice(availableCredit)}
             </span>
             <span className="text-[9px] text-hint font-medium block">
-              {language === 'uz' ? `Maksimal qarz limiti: ${formatPrice(Math.abs(credit_limit))}` : `Максимальный лимит долга: ${formatPrice(Math.abs(credit_limit))}`}
+              {language === 'uz' ? `Maksimal qarz limiti: ${formatPrice(Math.abs(creditLimit))}` : `Максимальный лимит долга: ${formatPrice(Math.abs(creditLimit))}`}
             </span>
           </div>
           <div className="bg-primary/10 text-primary text-[10px] font-black px-2.5 py-1 rounded-xl border border-primary/20">
-            {commission_rate}% {language === 'uz' ? 'komissiya' : 'комиссия'}
+            {commissionRate}% {language === 'uz' ? 'komissiya' : 'комиссия'}
           </div>
         </div>
       </div>
@@ -351,7 +326,7 @@ export default function OwnerPayments() {
               </span>
             </div>
             <span className="text-2xl font-black text-emerald-500 block">
-              {formatPrice(wallet_balance)}
+              {formatPrice(walletBalance)}
             </span>
             <span className="text-[9px] text-hint font-medium block">
               {language === 'uz' ? 'Yechib olish mumkin bo\'lgan summa' : 'Сумма, доступная к выводу'}
@@ -361,7 +336,7 @@ export default function OwnerPayments() {
       )}
 
       {/* Warning Box */}
-      {debt_balance >= Math.abs(credit_limit) && (
+      {debtBalance >= Math.abs(creditLimit) && (
         <div className="bg-rose-500/10 border border-rose-500/20 rounded-2xl p-4 flex gap-3 items-start animate-pulse">
           <span className="text-xl shrink-0">⚠️</span>
           <div>
@@ -377,8 +352,8 @@ export default function OwnerPayments() {
         </div>
       )}
 
-      {/* Withdraw / Payout Form (Visible only if hasPlatformWallet & wallet_balance > 0) */}
-      {hasPlatformWallet && wallet_balance > 0 && (
+      {/* Withdraw / Payout Form (Visible only if hasPlatformWallet & walletBalance > 0) */}
+      {hasPlatformWallet && walletBalance > 0 && (
         <div className="bg-secondary p-5 rounded-3xl border border-hint/5 space-y-4">
           <div>
             <h2 className="text-sm font-black text-text-h uppercase tracking-wider">
@@ -397,7 +372,7 @@ export default function OwnerPayments() {
                   {language === 'uz' ? 'Summa (UZS)' : 'Сумма (UZS)'}
                 </label>
                 <span className="text-[9px] text-hint font-bold text-amber-500">
-                  {language === 'uz' ? `Min. qoldiq: ${formatPrice(min_payout_reserve)}` : `Мин. остаток: ${formatPrice(min_payout_reserve)}`}
+                  {language === 'uz' ? `Min. qoldiq: ${formatPrice(minPayoutReserve)}` : `Мин. остаток: ${formatPrice(minPayoutReserve)}`}
                 </span>
               </div>
               <input
@@ -479,7 +454,7 @@ export default function OwnerPayments() {
                   </div>
                   <div>
                     <span className="text-[11px] font-black text-text-h uppercase tracking-wide block">
-                      {formatPrice(Number(req.amount))}
+                      {formatPrice(req.amount)}
                     </span>
                     <span className="text-[9px] text-hint font-bold block mt-0.5">
                       Karta: {req.card_number.replace(/(\d{4})\d{8}(\d{4})/, '$1 **** **** $2')}
@@ -518,7 +493,7 @@ export default function OwnerPayments() {
         ) : (
           <div className="space-y-2.5">
             {ledger_transactions.map((tx) => {
-              const amountValue = Number(tx.amount);
+              const amountValue = toAmount(tx.amount);
               // In this ledger:
               // - positive amount (e.g. +15,000 UZS) represents commission deduction (owes us more)
               // - negative amount (e.g. -100,000 UZS) represents store topup/payment (owes us less)
@@ -548,7 +523,7 @@ export default function OwnerPayments() {
                       {isCommission ? '+' : '-'}{formatPrice(Math.abs(amountValue))}
                     </span>
                     <span className="text-[8px] text-hint font-bold block mt-0.5">
-                      {language === 'uz' ? 'Qarzdorlik: ' : 'Задолженность: '}{formatPrice(Number(tx.balance_after))}
+                      {language === 'uz' ? 'Qarzdorlik: ' : 'Задолженность: '}{formatPrice(tx.balance_after)}
                     </span>
                   </div>
                 </div>
@@ -591,16 +566,16 @@ export default function OwnerPayments() {
 
               {/* Quick choices */}
               <div className="grid grid-cols-4 gap-1.5">
-                {['50000', '100000', '250000', '500000'].map((amt) => (
+                {TOPUP_PRESETS.map((preset) => (
                   <button
-                    key={amt}
+                    key={preset}
                     type="button"
-                    onClick={() => { hapticFeedback('light'); setTopupAmount(amt); }}
+                    onClick={() => { hapticFeedback('light'); setTopupAmount(String(preset)); }}
                     className={`py-2 px-1 rounded-xl text-[9px] font-black border transition-all ${
-                      topupAmount === amt ? 'bg-primary text-white border-primary' : 'bg-bg text-text-h border-hint/10'
+                      topupValue === preset ? 'bg-primary text-white border-primary' : 'bg-bg text-text-h border-hint/10'
                     }`}
                   >
-                    {(parseInt(amt) / 1000) + 'k'}
+                    {(preset / 1000) + 'k'}
                   </button>
                 ))}
               </div>
@@ -640,13 +615,14 @@ export default function OwnerPayments() {
 
             <button
               onClick={() => {
+                if (topupValue === null || topupValue < MIN_TOPUP) return;
                 hapticFeedback('medium');
                 topupMutation.mutate({
-                  amount: parseFloat(topupAmount),
+                  amount: topupValue,
                   provider: topupProvider,
                 });
               }}
-              disabled={topupMutation.isPending || !topupAmount || parseFloat(topupAmount) < 1000}
+              disabled={topupMutation.isPending || topupValue === null || topupValue < MIN_TOPUP}
               className="w-full bg-primary hover:bg-primary/95 disabled:bg-primary/50 text-white rounded-2xl py-3.5 text-xs font-black shadow-lg shadow-primary/15 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
             >
               {topupMutation.isPending ? (

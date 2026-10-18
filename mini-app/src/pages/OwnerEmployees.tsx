@@ -9,6 +9,14 @@ import type { ApiResponse, Branch, Employee, EmployeeInvite } from '../types';
 
 const NO_BRANCHES: Branch[] = [];
 
+// ` • <branch>` after the role. "Filialsiz" is for an employee whose branch is null; a response that did not
+// load the branch (undefined) says nothing about it, so nothing is shown rather than a wrong "no branch".
+function branchSuffix(employee: Employee): string {
+  const name = employee.branch?.name;
+  if (name) return ` • ${name}`;
+  return employee.branch === null ? ' • Filialsiz' : '';
+}
+
 export default function OwnerEmployees() {
   const { store } = useAuthStore();
   const branches = store?.branches ?? NO_BRANCHES;
@@ -251,7 +259,7 @@ export default function OwnerEmployees() {
                   <h3 className="font-bold text-sm text-text-h truncate">{emp.name}</h3>
                   <p className="text-[10px] text-hint mt-0.5">
                     {emp.role === 'manager' ? 'Menejer' : 'Kuryer'}
-                    {emp.branch ? ` • ${emp.branch.name}` : ' • Filialsiz'}
+                    {branchSuffix(emp)}
                     {emp.telegram_invite_token ? ' • (Kutmoqda)' : ''}
                   </p>
                 </div>

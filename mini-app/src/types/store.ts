@@ -13,6 +13,10 @@ export type StoreStatus =
 // Mirrors App\Enums\BranchStatus.
 export type BranchStatus = 'active' | 'inactive' | 'temporarily_closed';
 
+// Mirrors App\Enums\PaymentAccountType: whose merchant account takes the store's online payments. On the
+// platform's account the money lands in the store's wallet and is paid out on request.
+export type PaymentAccountType = 'own_account' | 'platform_account';
+
 // Branch columns that the public store endpoints select (GET /stores, GET /catalog?store_id=...).
 export interface BranchSummary {
   id: number;
@@ -171,7 +175,7 @@ export interface OwnerStoreSettings {
   is_open: boolean;
   min_order_amount: number;
   payment_settings: PaymentSettings;
-  payment_account_type: string;
+  payment_account_type: PaymentAccountType;
   status: StoreStatus;
   is_order_locked: boolean;
   allowed_methods: string[];

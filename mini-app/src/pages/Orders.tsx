@@ -6,14 +6,19 @@ import { Link } from 'react-router-dom';
 import api from '../services/api';
 import { getApiErrorMessage, logApiError } from '../lib/apiError';
 import { toAmount } from '../lib/money';
+import { getOrderStatusLook } from '../lib/orderStatus';
 import type { OrderStatus, PaymentStatus } from '../types';
 import {
   ArrowLeft,
+  Ban,
   Clock,
   CheckCircle2,
   Utensils,
   Bike,
   CheckCircle,
+  PackageCheck,
+  UserCheck,
+  Undo2,
   XCircle,
   ChevronDown,
   ChevronUp,
@@ -32,11 +37,21 @@ const paymentStatusConfig: Record<PaymentStatus, { labelKey: `paymentStatus_${Pa
   refunded: { labelKey: 'paymentStatus_refunded', color: 'text-sky-500' },
 };
 
-interface StatusStyle {
-  bg: string;
-  labelKey: `status_${'new' | 'accepted' | 'preparing' | 'delivery' | 'delivered' | 'canceled'}`;
-  icon: ReactNode;
-}
+// The icon of each order status; the label and the colours are in lib/orderStatus.ts. A status the app does not
+// know has no icon (undefined renders nothing).
+const statusIcon: Record<OrderStatus, ReactNode> = {
+  new: <Clock className="w-3.5 h-3.5" />,
+  accepted: <CheckCircle2 className="w-3.5 h-3.5" />,
+  preparing: <Utensils className="w-3.5 h-3.5" />,
+  ready: <PackageCheck className="w-3.5 h-3.5" />,
+  courier_assigned: <UserCheck className="w-3.5 h-3.5" />,
+  on_the_way: <Bike className="w-3.5 h-3.5" />,
+  delivery: <Bike className="w-3.5 h-3.5" />,
+  delivered: <CheckCircle className="w-3.5 h-3.5" />,
+  canceled: <XCircle className="w-3.5 h-3.5" />,
+  rejected: <Ban className="w-3.5 h-3.5" />,
+  refunded: <Undo2 className="w-3.5 h-3.5" />,
+};
 
 // Premium Inline Skeleton Loader for modern premium feel
 const OrdersSkeleton = () => (
@@ -118,40 +133,6 @@ export default function Orders() {
     });
   };
 
-  // Statuses this screen has no look of its own for (ready, courier_assigned, ...) are shown like `new`
-  const statusConfig: Partial<Record<OrderStatus, StatusStyle>> & { new: StatusStyle } = {
-    new: {
-      bg: 'bg-amber-500/10 text-amber-500 border border-amber-500/20',
-      labelKey: 'status_new' as const,
-      icon: <Clock className="w-3.5 h-3.5" />,
-    },
-    accepted: {
-      bg: 'bg-blue-500/10 text-blue-500 border border-blue-500/20',
-      labelKey: 'status_accepted' as const,
-      icon: <CheckCircle2 className="w-3.5 h-3.5" />,
-    },
-    preparing: {
-      bg: 'bg-purple-500/10 text-purple-500 border border-purple-500/20 animate-pulse',
-      labelKey: 'status_preparing' as const,
-      icon: <Utensils className="w-3.5 h-3.5" />,
-    },
-    delivery: {
-      bg: 'bg-orange-500/10 text-orange-500 border border-orange-500/20',
-      labelKey: 'status_delivery' as const,
-      icon: <Bike className="w-3.5 h-3.5" />,
-    },
-    delivered: {
-      bg: 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20',
-      labelKey: 'status_delivered' as const,
-      icon: <CheckCircle className="w-3.5 h-3.5" />,
-    },
-    canceled: {
-      bg: 'bg-red-500/10 text-red-500 border border-red-500/20',
-      labelKey: 'status_canceled' as const,
-      icon: <XCircle className="w-3.5 h-3.5" />,
-    },
-  };
-
   return (
     <div className="p-4 flex flex-col gap-6 min-h-screen pb-28 bg-slate-50">
       {/* Header */}
@@ -202,7 +183,7 @@ export default function Orders() {
       ) : (
         <div className="flex flex-col gap-3.5">
           {orders.map(order => {
-            const config = statusConfig[order.status] ?? statusConfig.new;
+            const statusLook = getOrderStatusLook(order.status);
             const paymentConfig = paymentStatusConfig[order.payment_status]; // undefined for a status this app doesn't know yet
             const isExpanded = expandedOrderId === order.id;
 
@@ -225,9 +206,9 @@ export default function Orders() {
                   </div>
 
                   <div className="flex flex-col items-end gap-2.5">
-                    <span className={`text-[9px] px-3 py-1 rounded-full font-black flex items-center gap-1.5 ${config.bg}`}>
-                      {config.icon}
-                      <span>{t(config.labelKey)}</span>
+                    <span className={`text-[9px] px-3 py-1 rounded-full font-black flex items-center gap-1.5 ${statusLook.badge}`}>
+                      {statusIcon[order.status]}
+                      <span>{statusLook.labelKey ? t(statusLook.labelKey) : order.status}</span>
                     </span>
                     <span className="font-black text-xs text-amber-500">{toAmount(order.total_price).toLocaleString()} UZS</span>
                   </div>
