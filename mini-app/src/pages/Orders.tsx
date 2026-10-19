@@ -1,13 +1,18 @@
 import { useState, type ReactNode } from 'react';
-import { useOrders } from '../hooks/useOrders';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { NO_ORDERS, ORDERS_KEY, useOrderHistory, useOrders } from '../hooks/useOrders';
 import { useLanguageStore } from '../store/languageStore';
+import { useAuthStore } from '../store/authStore';
+import { CustomerCancelDialog } from '../components/CancelDialogs';
+import { LoadMoreOrders, TruncatedOrdersNotice } from '../components/OrderListParts';
+import { getCancelErrorMessage, getCustomerCancelReasonLabel, isCancellableByCustomer } from '../lib/cancelReasons';
 import { hapticFeedback } from '../lib/telegram';
 import { Link } from 'react-router-dom';
 import api from '../services/api';
 import { getApiErrorMessage, logApiError } from '../lib/apiError';
 import { toAmount } from '../lib/money';
 import { getOrderStatusLook } from '../lib/orderStatus';
-import type { OrderStatus, PaymentStatus } from '../types';
+import type { Order, OrderStatus, PaymentStatus } from '../types';
 import {
   ArrowLeft,
   Ban,
@@ -75,9 +80,55 @@ const OrdersSkeleton = () => (
 );
 
 export default function Orders() {
-  const { data: orders = [], isLoading, error } = useOrders();
   const { t, language } = useLanguageStore();
+  const queryClient = useQueryClient();
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null);
+
+  // The open orders (polled / pushed) and, below them, the finished ones a page at a time
+  const { data: active, isLoading: isLoadingActive, error } = useOrders();
+  const history = useOrderHistory('customer', { enabled: isAuthenticated });
+  const activeOrders = active?.orders ?? NO_ORDERS;
+  const historyOrders = history.orders;
+  const hasOrders = activeOrders.length > 0 || historyOrders.length > 0;
+  const isLoading = isLoadingActive || history.isLoading;
+  const failed = !!error || history.isError;
+
+  // Cancelling an order of one's own
+  const [cancelTarget, setCancelTarget] = useState<Order | null>(null);
+  const [cancelError, setCancelError] = useState<string | null>(null);
+  const cancelMutation = useMutation({
+    mutationFn: async ({ uuid, note }: { uuid: string; note: string }) => {
+      const response = await api.post(`/orders/${uuid}/cancel`, { reason: 'customer_request', ...(note ? { note } : {}) });
+      return response.data;
+    },
+    onSuccess: () => {
+      hapticFeedback('success');
+      setCancelTarget(null);
+      setCancelError(null);
+      void queryClient.invalidateQueries({ queryKey: ORDERS_KEY });
+    },
+    onError: (err) => {
+      logApiError('Failed to cancel order:', err);
+      hapticFeedback('error');
+      setCancelError(getCancelErrorMessage(err, language));
+      // The order may have moved on (accepted, paid) since the list was loaded: show what it is now
+      void queryClient.invalidateQueries({ queryKey: ORDERS_KEY });
+    },
+  });
+
+  const openCancelDialog = (order: Order) => {
+    hapticFeedback('light');
+    cancelMutation.reset();
+    setCancelError(null);
+    setCancelTarget(order);
+  };
+
+  const closeCancelDialog = () => {
+    if (cancelMutation.isPending) return;
+    setCancelTarget(null);
+    setCancelError(null);
+  };
 
   // Rating States
   const [showRatingModal, setShowRatingModal] = useState(false);
@@ -133,6 +184,160 @@ export default function Orders() {
     });
   };
 
+  const renderOrder = (order: Order) => {
+    const statusLook = getOrderStatusLook(order.status);
+    const paymentConfig = paymentStatusConfig[order.payment_status]; // undefined for a status this app doesn't know yet
+    const isExpanded = expandedOrderId === order.id;
+
+    return (
+      <div
+        key={order.id}
+        className="bg-white rounded-3xl p-4 border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.02)] transition-all duration-300"
+      >
+        {/* Header Summary */}
+        <div
+          onClick={() => toggleExpand(order.id)}
+          className="flex justify-between items-center cursor-pointer"
+        >
+          <div className="flex flex-col gap-1">
+            <span className="text-[10px] font-black text-slate-400">#{order.uuid.substring(0, 8).toUpperCase()}</span>
+            <span className="font-extrabold text-xs text-slate-800">{formatDate(order.created_at)}</span>
+            <span className="text-[10px] text-slate-400 uppercase font-bold flex items-center gap-1">
+              {order.type === 'delivery' ? '🛵 ' + t('delivery') : order.type === 'pickup' ? '🛍️ ' + t('pickup') : '🍽️ Dine-in'}
+            </span>
+          </div>
+
+          <div className="flex flex-col items-end gap-2.5">
+            <span className={`text-[9px] px-3 py-1 rounded-full font-black flex items-center gap-1.5 ${statusLook.badge}`}>
+              {statusIcon[order.status]}
+              <span>{statusLook.labelKey ? t(statusLook.labelKey) : order.status}</span>
+            </span>
+            <span className="font-black text-xs text-amber-500">{toAmount(order.total_price).toLocaleString()} UZS</span>
+          </div>
+        </div>
+
+        {/* Why a canceled or rejected order was */}
+        {(order.status === 'canceled' || order.status === 'rejected') && (order.cancel_reason || order.cancel_note) && (
+          <div className="mt-3 text-xs bg-red-50 text-red-600 p-3 rounded-2xl border border-red-100 flex flex-col gap-1">
+            <span className="font-black text-[10px] uppercase tracking-wider">
+              {language === 'uz' ? 'Bekor qilish sababi' : language === 'ru' ? 'Причина отмены' : 'Reason'}
+            </span>
+            {order.cancel_reason && (
+              <span className="font-bold">{getCustomerCancelReasonLabel(order.cancel_reason, language)}</span>
+            )}
+            {order.cancel_note && <span className="font-medium italic">"{order.cancel_note}"</span>}
+          </div>
+        )}
+
+        {/* Expanded Details */}
+        {isExpanded && (
+          <div className="mt-4 pt-4 border-t border-slate-100 flex flex-col gap-3.5 animate-fade-in">
+            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+              {language === 'uz' ? 'Tafsilotlar' : language === 'ru' ? 'Детали' : 'Details'}
+            </h4>
+
+            {/* Order Items */}
+            <div className="flex flex-col gap-2.5 bg-slate-50/50 p-3 rounded-2xl border border-slate-100">
+              {order.items?.map((item, idx) => (
+                <div key={idx} className="flex justify-between items-center text-xs">
+                  <div className="flex flex-col">
+                    <span className="font-bold text-slate-800">
+                      {item.product_name || 'Burger'}
+                    </span>
+                    {item.variant_name && (
+                      <span className="text-[10px] text-slate-400 font-medium">({item.variant_name})</span>
+                    )}
+                  </div>
+                  <span className="text-slate-400 text-[10px] font-extrabold">x{item.quantity}</span>
+                  <span className="font-extrabold text-slate-800">
+                    {(item.total_price ? toAmount(item.total_price) : toAmount(item.unit_price) * item.quantity).toLocaleString()} UZS
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {/* Delivery Address */}
+            {order.address && (
+              <div className="text-xs bg-slate-50/50 p-3.5 rounded-2xl border border-slate-100 flex gap-2.5 items-start">
+                <MapPin className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-black text-slate-400 text-[10px] block mb-0.5">{t('deliveryAddress')}:</span>
+                  <span className="text-slate-800 font-bold leading-relaxed">{order.address}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Payment Info */}
+            <div className="flex justify-between items-center text-xs px-1 text-slate-400 font-bold">
+              <span className="flex items-center gap-1.5">
+                <CreditCard className="w-3.5 h-3.5 text-amber-500" />
+                <span>{language === 'uz' ? 'To\'lov turi' : 'Способ оплаты'}:</span>
+              </span>
+              <span className="font-black text-slate-800 uppercase">{order.payment_method}</span>
+            </div>
+
+            <div className="flex justify-between items-center text-xs px-1 text-slate-400 font-bold">
+              <span className="flex items-center gap-1.5">
+                <CheckCircle className="w-3.5 h-3.5 text-amber-500" />
+                <span>{language === 'uz' ? 'To\'lov holati' : 'Статус оплаты'}:</span>
+              </span>
+              <span className={`font-black uppercase ${paymentConfig?.color ?? 'text-amber-500'}`}>
+                {paymentConfig ? t(paymentConfig.labelKey) : order.payment_status}
+              </span>
+            </div>
+
+            {/* Cook Notes */}
+            {order.notes && (
+              <div className="text-xs text-slate-400 italic bg-amber-500/5 p-3 rounded-2xl border border-amber-500/10 flex gap-2 items-start font-medium leading-relaxed">
+                <MessageSquare className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+                <span>💬 "{order.notes}"</span>
+              </div>
+            )}
+
+            {/* Buttons: Complaint & Rating */}
+            <div className="flex justify-between items-center pt-2 border-t border-slate-100">
+              <Link 
+                to={`/complaints?orderId=${order.id}`}
+                state={{ orderId: order.id }}
+                onClick={() => hapticFeedback('light')}
+                className="text-[10px] font-black text-rose-500 bg-rose-50 px-3.5 py-2 rounded-xl border border-rose-100 active:scale-95 transition"
+              >
+                ⚠️ {language === 'uz' ? 'Shikoyat qilish' : 'Подать жалобу'}
+              </Link>
+
+              {isCancellableByCustomer(order) && (
+                <button
+                  type="button"
+                  onClick={() => openCancelDialog(order)}
+                  className="text-[10px] font-black text-red-600 bg-red-50 px-3.5 py-2 rounded-xl border border-red-100 active:scale-95 transition"
+                >
+                  ✖ {language === 'uz' ? 'Bekor qilish' : language === 'ru' ? 'Отменить заказ' : 'Cancel order'}
+                </button>
+              )}
+
+              {order.status === 'delivered' && (
+                <button 
+                  onClick={() => handleOpenRatingModal(order.id, order.store_id)}
+                  className="text-[10px] font-black text-amber-600 bg-amber-50 px-3.5 py-2 rounded-xl border border-amber-100 active:scale-95 transition"
+                >
+                  ⭐ {language === 'uz' ? 'Baholash' : 'Оценить'}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Expand Chevron trigger */}
+        <div
+          onClick={() => toggleExpand(order.id)}
+          className="flex justify-center mt-2.5 border-t border-slate-100 pt-1.5 cursor-pointer text-slate-400 hover:text-slate-800 transition-colors"
+        >
+          {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="p-4 flex flex-col gap-6 min-h-screen pb-28 bg-slate-50">
       {/* Header */}
@@ -150,14 +355,14 @@ export default function Orders() {
         </div>
       </header>
 
-      {error && orders.length === 0 ? (
+      {failed && !hasOrders ? (
         <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-2xl text-center text-red-500 text-xs font-bold">
           {language === 'uz' ? 'Xatolik yuz berdi. Iltimos qayta urinib ko\'ring.' : 'Error loading history. Please try again.'}
         </div>
-      ) : (isLoading && orders.length === 0) ? (
+      ) : (isLoading && !hasOrders) ? (
         /* Butter-smooth Skeleton UI replaces harsh FullScreenLoader */
         <OrdersSkeleton />
-      ) : orders.length === 0 ? (
+      ) : !hasOrders ? (
         <div className="flex flex-col items-center justify-center gap-4 py-16 text-center">
           <div className="p-4 rounded-full bg-amber-500/10 text-amber-500">
             <PackageOpen className="w-12 h-12" />
@@ -181,139 +386,47 @@ export default function Orders() {
           </Link>
         </div>
       ) : (
-        <div className="flex flex-col gap-3.5">
-          {orders.map(order => {
-            const statusLook = getOrderStatusLook(order.status);
-            const paymentConfig = paymentStatusConfig[order.payment_status]; // undefined for a status this app doesn't know yet
-            const isExpanded = expandedOrderId === order.id;
+        <div className="flex flex-col gap-6">
+          {active?.truncated && <TruncatedOrdersNotice variant="customer" />}
 
-            return (
-              <div
-                key={order.id}
-                className="bg-white rounded-3xl p-4 border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.02)] transition-all duration-300"
-              >
-                {/* Header Summary */}
-                <div
-                  onClick={() => toggleExpand(order.id)}
-                  className="flex justify-between items-center cursor-pointer"
-                >
-                  <div className="flex flex-col gap-1">
-                    <span className="text-[10px] font-black text-slate-400">#{order.uuid.substring(0, 8).toUpperCase()}</span>
-                    <span className="font-extrabold text-xs text-slate-800">{formatDate(order.created_at)}</span>
-                    <span className="text-[10px] text-slate-400 uppercase font-bold flex items-center gap-1">
-                      {order.type === 'delivery' ? '🛵 ' + t('delivery') : order.type === 'pickup' ? '🛍️ ' + t('pickup') : '🍽️ Dine-in'}
-                    </span>
-                  </div>
+          {activeOrders.length > 0 && (
+            <section className="flex flex-col gap-3.5" aria-label={language === 'uz' ? 'Faol buyurtmalar' : language === 'ru' ? 'Активные заказы' : 'Active orders'}>
+              <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                {language === 'uz' ? 'Faol buyurtmalar' : language === 'ru' ? 'Активные заказы' : 'Active orders'}
+              </h2>
+              {activeOrders.map(renderOrder)}
+            </section>
+          )}
 
-                  <div className="flex flex-col items-end gap-2.5">
-                    <span className={`text-[9px] px-3 py-1 rounded-full font-black flex items-center gap-1.5 ${statusLook.badge}`}>
-                      {statusIcon[order.status]}
-                      <span>{statusLook.labelKey ? t(statusLook.labelKey) : order.status}</span>
-                    </span>
-                    <span className="font-black text-xs text-amber-500">{toAmount(order.total_price).toLocaleString()} UZS</span>
-                  </div>
-                </div>
+          {historyOrders.length > 0 && (
+            <section className="flex flex-col gap-3.5" aria-label={language === 'uz' ? 'Buyurtmalar tarixi' : language === 'ru' ? 'История заказов' : 'Order history'}>
+              <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                {language === 'uz' ? 'Tarix' : language === 'ru' ? 'История' : 'History'}
+              </h2>
+              {historyOrders.map(renderOrder)}
+            </section>
+          )}
 
-                {/* Expanded Details */}
-                {isExpanded && (
-                  <div className="mt-4 pt-4 border-t border-slate-100 flex flex-col gap-3.5 animate-fade-in">
-                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
-                      {language === 'uz' ? 'Tafsilotlar' : language === 'ru' ? 'Детали' : 'Details'}
-                    </h4>
-
-                    {/* Order Items */}
-                    <div className="flex flex-col gap-2.5 bg-slate-50/50 p-3 rounded-2xl border border-slate-100">
-                      {order.items?.map((item, idx) => (
-                        <div key={idx} className="flex justify-between items-center text-xs">
-                          <div className="flex flex-col">
-                            <span className="font-bold text-slate-800">
-                              {item.product_name || 'Burger'}
-                            </span>
-                            {item.variant_name && (
-                              <span className="text-[10px] text-slate-400 font-medium">({item.variant_name})</span>
-                            )}
-                          </div>
-                          <span className="text-slate-400 text-[10px] font-extrabold">x{item.quantity}</span>
-                          <span className="font-extrabold text-slate-800">
-                            {(item.total_price ? toAmount(item.total_price) : toAmount(item.unit_price) * item.quantity).toLocaleString()} UZS
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Delivery Address */}
-                    {order.address && (
-                      <div className="text-xs bg-slate-50/50 p-3.5 rounded-2xl border border-slate-100 flex gap-2.5 items-start">
-                        <MapPin className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-                        <div>
-                          <span className="font-black text-slate-400 text-[10px] block mb-0.5">{t('deliveryAddress')}:</span>
-                          <span className="text-slate-800 font-bold leading-relaxed">{order.address}</span>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Payment Info */}
-                    <div className="flex justify-between items-center text-xs px-1 text-slate-400 font-bold">
-                      <span className="flex items-center gap-1.5">
-                        <CreditCard className="w-3.5 h-3.5 text-amber-500" />
-                        <span>{language === 'uz' ? 'To\'lov turi' : 'Способ оплаты'}:</span>
-                      </span>
-                      <span className="font-black text-slate-800 uppercase">{order.payment_method}</span>
-                    </div>
-
-                    <div className="flex justify-between items-center text-xs px-1 text-slate-400 font-bold">
-                      <span className="flex items-center gap-1.5">
-                        <CheckCircle className="w-3.5 h-3.5 text-amber-500" />
-                        <span>{language === 'uz' ? 'To\'lov holati' : 'Статус оплаты'}:</span>
-                      </span>
-                      <span className={`font-black uppercase ${paymentConfig?.color ?? 'text-amber-500'}`}>
-                        {paymentConfig ? t(paymentConfig.labelKey) : order.payment_status}
-                      </span>
-                    </div>
-
-                    {/* Cook Notes */}
-                    {order.notes && (
-                      <div className="text-xs text-slate-400 italic bg-amber-500/5 p-3 rounded-2xl border border-amber-500/10 flex gap-2 items-start font-medium leading-relaxed">
-                        <MessageSquare className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
-                        <span>💬 "{order.notes}"</span>
-                      </div>
-                    )}
-
-                    {/* Buttons: Complaint & Rating */}
-                    <div className="flex justify-between items-center pt-2 border-t border-slate-100">
-                      <Link 
-                        to={`/complaints?orderId=${order.id}`}
-                        state={{ orderId: order.id }}
-                        onClick={() => hapticFeedback('light')}
-                        className="text-[10px] font-black text-rose-500 bg-rose-50 px-3.5 py-2 rounded-xl border border-rose-100 active:scale-95 transition"
-                      >
-                        ⚠️ {language === 'uz' ? 'Shikoyat qilish' : 'Подать жалобу'}
-                      </Link>
-
-                      {order.status === 'delivered' && (
-                        <button 
-                          onClick={() => handleOpenRatingModal(order.id, order.store_id)}
-                          className="text-[10px] font-black text-amber-600 bg-amber-50 px-3.5 py-2 rounded-xl border border-amber-100 active:scale-95 transition"
-                        >
-                          ⭐ {language === 'uz' ? 'Baholash' : 'Оценить'}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Expand Chevron trigger */}
-                <div
-                  onClick={() => toggleExpand(order.id)}
-                  className="flex justify-center mt-2.5 border-t border-slate-100 pt-1.5 cursor-pointer text-slate-400 hover:text-slate-800 transition-colors"
-                >
-                  {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                </div>
-              </div>
-            );
-          })}
+          <LoadMoreOrders
+            variant="customer"
+            hasNextPage={history.hasNextPage}
+            isFetchingNextPage={history.isFetchingNextPage}
+            isError={history.isFetchNextPageError}
+            loadedCount={historyOrders.length}
+            onLoadMore={() => void history.fetchNextPage()}
+          />
         </div>
       )}
+      {/* Cancel confirmation */}
+      {cancelTarget && (
+        <CustomerCancelDialog
+          isPending={cancelMutation.isPending}
+          error={cancelError}
+          onClose={closeCancelDialog}
+          onConfirm={(note) => cancelMutation.mutate({ uuid: cancelTarget.uuid, note })}
+        />
+      )}
+
       {/* Rating Modal */}
       {showRatingModal && (
         <div className="fixed inset-0 z-[110] bg-black/60 backdrop-blur-sm flex items-end justify-center animate-fade-in p-4">

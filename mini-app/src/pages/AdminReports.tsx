@@ -15,13 +15,11 @@ import api from '../services/api';
 import { getApiErrorMessage } from '../lib/apiError';
 import { isInTimeframe, type Timeframe } from '../lib/analytics';
 import { sumAmounts } from '../lib/money';
-import { POLL_INTERVAL_MS } from '../lib/polling';
-import { useStaffOrders } from '../hooks/useOrders';
-import type { ApiResponse, Order } from '../types';
+import { useOrdersForPeriod } from '../hooks/useOrdersForPeriod';
+import { PartialPeriodNotice, TruncatedOrdersNotice } from '../components/OrderListParts';
+import type { ApiResponse } from '../types';
 
 const TIMEFRAMES: readonly Timeframe[] = ['today', 'weekly', 'monthly', 'yearly', 'custom'];
-
-const NO_ORDERS: Order[] = [];
 
 // POST /reports/export
 interface ExportPayload {
@@ -42,9 +40,9 @@ export default function AdminReports() {
   // The message disappears after a few seconds; the timer must not outlive the screen
   useEffect(() => () => clearTimeout(clearMessageTimer.current), []);
 
-  // All orders of the store, refreshed in the background while the screen is visible
-  const { data, isLoading, error, dataUpdatedAt } = useStaffOrders('adminOrders', POLL_INTERVAL_MS.adminOrders);
-  const orders = data ?? NO_ORDERS;
+  // The store's open orders (refreshed in the background while the screen is visible) and the finished ones of the timeframe
+  const dateRange = useMemo(() => ({ start: startDate, end: endDate }), [startDate, endDate]);
+  const { orders, isLoading, error, dataUpdatedAt, truncated, capped } = useOrdersForPeriod(timeframe, timeframe === 'custom' ? dateRange : undefined);
 
   const handleExportReport = async () => {
     setIsExporting(true);
@@ -73,8 +71,7 @@ export default function AdminReports() {
 
   // Orders of the timeframe, measured from the time of the last refresh so the periods move on with the data
   const { filteredOrders, deliveredOrders, canceledOrders, totalRevenue } = useMemo(() => {
-    const range = { start: startDate, end: endDate };
-    const filtered = orders.filter((o) => isInTimeframe(o.updated_at, timeframe, dataUpdatedAt, range));
+    const filtered = orders.filter((o) => isInTimeframe(o.updated_at, timeframe, dataUpdatedAt, dateRange));
     const delivered = filtered.filter((o) => o.status === 'delivered');
     return {
       filteredOrders: filtered,
@@ -82,7 +79,7 @@ export default function AdminReports() {
       canceledOrders: filtered.filter((o) => o.status === 'canceled'),
       totalRevenue: sumAmounts(delivered.map((o) => o.total_price)),
     };
-  }, [orders, timeframe, startDate, endDate, dataUpdatedAt]);
+  }, [orders, timeframe, dateRange, dataUpdatedAt]);
 
   // A failed background refresh keeps showing the last numbers; the error screen is only for "nothing to show"
   if (error && orders.length === 0) return <ErrorFallback error="Failed to fetch reports data." />;
@@ -178,6 +175,9 @@ export default function AdminReports() {
           </div>
         </div>
       )}
+
+      {truncated && <TruncatedOrdersNotice />}
+      {capped && <PartialPeriodNotice />}
 
       {/* Hero Revenue Stats */}
       <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 p-6 rounded-3xl text-white flex flex-col gap-1 shadow-lg shadow-emerald-500/15 relative overflow-hidden">

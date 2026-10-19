@@ -1,9 +1,10 @@
 // Envelope of the JSON responses of this API (App\Traits\ApiResponse).
 // A few legacy endpoints answer `{ error: string }` for a 403 instead; those are read from the failed request.
-export interface ApiResponse<T> {
+export interface ApiResponse<T, M = undefined> {
   success: boolean;
   message?: string;
   data: T;
+  meta?: M; // listings that are scoped or paginated describe themselves here (GET /orders?scope=...)
 }
 
 // Body of a failed request, as far as the client reads it (Laravel validation errors are 422 `errors.<field>`).

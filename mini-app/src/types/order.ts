@@ -17,6 +17,16 @@ export type OrderStatus =
   | 'rejected'
   | 'refunded';
 
+// Mirrors App\Enums\CancelReason. payment_timeout is the system's own: staff cannot pick it.
+export type CancelReason =
+  | 'customer_request'
+  | 'no_show'
+  | 'out_of_stock'
+  | 'store_closed'
+  | 'courier_unavailable'
+  | 'payment_timeout'
+  | 'other';
+
 // Mirrors App\Enums\OrderType.
 export type OrderType = 'delivery' | 'pickup' | 'dine_in';
 
@@ -85,6 +95,8 @@ export interface Order {
   commission_amount: Decimal; // a `decimal:2` cast, like every money field of the order
   currency: string;
   notes: string | null;
+  cancel_reason: CancelReason | null; // set on canceled and rejected orders (older ones have none)
+  cancel_note: string | null;
   shipping_address: ShippingAddress | null;
   address: string | null; // appended: shipping_address.address
   created_at: string;
@@ -97,6 +109,23 @@ export interface Order {
   manager?: ApiUser | null;
   branch?: BranchSummary | null;
   status_histories?: OrderStatusHistory[];
+}
+
+// GET /orders?scope=active: the non-terminal orders, newest first. `truncated` when there are more than the cap.
+export interface ActiveOrdersMeta {
+  truncated: boolean;
+}
+
+// GET /orders?scope=history: one keyset-paginated page of the terminal orders; next_cursor is null on the last page.
+export interface HistoryOrdersMeta {
+  next_cursor: string | null;
+  per_page: number;
+}
+
+// POST /orders/{uuid}/cancel (customer) and the cancel/reject body of POST /orders/{uuid}/status (staff).
+export interface CancelOrderPayload {
+  reason: CancelReason;
+  note?: string;
 }
 
 // POST /orders

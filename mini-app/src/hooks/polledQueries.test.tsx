@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import api from '../services/api';
 import { useAuthStore } from '../store/authStore';
 import { makeOrder, makeStore, makeUser } from '../test/factories';
+import { ordersResponse } from '../test/ordersApi';
 import { failedRequest } from '../test/httpErrors';
 import { useNotifications } from './useNotifications';
 import { useOrders, useStaffOrders } from './useOrders';
@@ -28,8 +29,8 @@ const advance = (ms: number) => act(() => vi.advanceTimersByTimeAsync(ms));
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'] });
   client = new QueryClient();
-  get.mockImplementation((url) => {
-    if (url === '/orders') return Promise.resolve({ data: { success: true, data: [makeOrder({ id: 1 })] } });
+  get.mockImplementation((url, config) => {
+    if (url === '/orders') return Promise.resolve(ordersResponse([makeOrder({ id: 1, status: 'new' })], config));
     return Promise.resolve({ data: { success: true, data: { items: [], unread_count: 0, pagination: {} } } });
   });
   useAuthStore.getState().setAuth('token', makeUser(), makeStore(), false);
@@ -43,10 +44,10 @@ afterEach(() => {
 
 describe('useStaffOrders', () => {
   it('loads the orders and refreshes them at the dashboard\'s interval', async () => {
-    const { result } = renderHook(() => useStaffOrders('managerOrders', 8000), { wrapper });
+    const { result } = renderHook(() => useStaffOrders('manager', 8000), { wrapper });
     await advance(0);
 
-    expect(result.current.data?.map((o) => o.id)).toEqual([1]);
+    expect(result.current.data?.orders.map((o) => o.id)).toEqual([1]);
     expect(ordersCalls()).toBe(1);
 
     await advance(8000);
@@ -56,7 +57,7 @@ describe('useStaffOrders', () => {
   });
 
   it('stays quiet while the page is hidden and catches up when it is shown', async () => {
-    renderHook(() => useStaffOrders('courierOrders', 15_000), { wrapper });
+    renderHook(() => useStaffOrders('courier', 15_000), { wrapper });
     await advance(0);
 
     focusManager.setFocused(false);
@@ -71,8 +72,8 @@ describe('useStaffOrders', () => {
   it('keeps the last orders on screen through failed polls and polls less often meanwhile', async () => {
     // Read through a component, as a screen does: that is what has to keep showing the orders
     function Probe() {
-      const { data, isError } = useStaffOrders('adminOrders', 15_000);
-      return <p>{`orders:${data?.length ?? 'none'} error:${isError}`}</p>;
+      const { data, isError } = useStaffOrders('admin', 15_000);
+      return <p>{`orders:${data?.orders.length ?? 'none'} error:${isError}`}</p>;
     }
     render(<QueryClientProvider client={client}><Probe /></QueryClientProvider>);
     await advance(0);
@@ -87,7 +88,7 @@ describe('useStaffOrders', () => {
     expect(ordersCalls()).toBe(callsAfterFirstFailure);
 
     // The server comes back: the next poll succeeds and everything is normal again
-    get.mockImplementation(() => Promise.resolve({ data: { success: true, data: [makeOrder({ id: 1 }), makeOrder({ id: 2 })] } }));
+    get.mockImplementation((_url, config) => Promise.resolve(ordersResponse([makeOrder({ id: 1, status: 'new' }), makeOrder({ id: 2, status: 'new' })], config)));
     await advance(60_000);
     expect(screen.getByText('orders:2 error:false')).toBeInTheDocument();
 

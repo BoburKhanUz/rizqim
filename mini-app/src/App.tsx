@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, NavLink, useLocation, Navigate } from 're
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { initTelegramApp, hapticFeedback } from './lib/telegram';
 import { useTelegramAuth } from './hooks/useTelegramAuth';
+import { useRealtimeOrders } from './hooks/useRealtimeOrders';
 import { useCartStore } from './store/cartStore';
 import { useLanguageStore } from './store/languageStore';
 import { useAuthStore } from './store/authStore';
@@ -449,6 +450,7 @@ function AppContent() {
   const isCustomer = isCustomerRole(user?.role);
 
   usePrefetchCustomerPages(isCustomer && isAuthenticated);
+  useRealtimeOrders(); // order events over the socket, once signed in (a no-op without VITE_REVERB_APP_KEY)
 
   useEffect(() => {
     initTelegramApp();

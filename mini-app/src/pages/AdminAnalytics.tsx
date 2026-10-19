@@ -11,15 +11,12 @@ import {
   BarChart3
 } from 'lucide-react';
 import { computeOrderAnalytics } from '../lib/analytics';
-import { POLL_INTERVAL_MS } from '../lib/polling';
-import { useStaffOrders } from '../hooks/useOrders';
-import type { Order } from '../types';
+import { useOrdersForPeriod } from '../hooks/useOrdersForPeriod';
+import { PartialPeriodNotice, TruncatedOrdersNotice } from '../components/OrderListParts';
 
 type AnalyticsTimeframe = 'today' | 'weekly' | 'monthly' | 'yearly';
 
 const TIMEFRAMES: readonly AnalyticsTimeframe[] = ['today', 'weekly', 'monthly', 'yearly'];
-
-const NO_ORDERS: Order[] = [];
 
 // "--" until there is data; seconds below a minute, whole minutes above
 const formatPrepTime = (ms: number | null) => {
@@ -34,9 +31,8 @@ export default function AdminAnalytics() {
   const { language } = useLanguageStore();
   const [timeframe, setTimeframe] = useState<AnalyticsTimeframe>('today');
 
-  // All orders of the store, refreshed in the background while the screen is visible
-  const { data, isLoading, error, dataUpdatedAt } = useStaffOrders('adminOrders', POLL_INTERVAL_MS.adminOrders);
-  const orders = data ?? NO_ORDERS;
+  // The store's open orders (refreshed in the background while the screen is visible) and the finished ones of the timeframe
+  const { orders, isLoading, error, dataUpdatedAt, truncated, capped } = useOrdersForPeriod(timeframe);
 
   // "Now" is the time of the last refresh, so the periods move on together with the data
   const analytics = useMemo(
@@ -99,6 +95,9 @@ export default function AdminAnalytics() {
           </button>
         ))}
       </div>
+
+      {truncated && <TruncatedOrdersNotice />}
+      {capped && <PartialPeriodNotice />}
 
       {/* Hero Revenue Stats */}
       <div className="bg-gradient-to-br from-primary to-primary-hover p-6 rounded-3xl text-white flex flex-col gap-1 shadow-lg shadow-primary/15 relative overflow-hidden">

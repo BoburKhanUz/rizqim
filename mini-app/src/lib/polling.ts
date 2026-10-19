@@ -5,7 +5,8 @@
 //  - after failed polls the interval doubles (up to MAX_BACKOFF_MS) and returns to normal on the first success,
 //    so an outage or an overloaded server is not hammered every few seconds.
 //
-// WebSockets are meant to replace this later; until then these are the only intervals in the app.
+// While the realtime socket is connected (lib/realtime.ts) the order screens only poll as a safety net, every
+// REALTIME_POLL_INTERVAL_MS; when it is not they fall back to their own intervals below.
 
 // Base intervals of the polled screens, in milliseconds.
 export const POLL_INTERVAL_MS = {
@@ -17,7 +18,14 @@ export const POLL_INTERVAL_MS = {
   ownerFinance: 10_000,
 } as const;
 
+export const REALTIME_POLL_INTERVAL_MS = 60_000;
+
 export const MAX_BACKOFF_MS = 120_000;
+
+// The base interval of a polled screen: its own, or the slow safety-net one while events arrive over the socket.
+export function getPollInterval(baseMs: number, realtimeConnected: boolean): number {
+  return realtimeConnected ? Math.max(baseMs, REALTIME_POLL_INTERVAL_MS) : baseMs;
+}
 
 // base * 2^failures, never above `maxMs` (and never below `baseMs`, whatever the arguments).
 export function getBackoffInterval(baseMs: number, failures: number, maxMs: number = MAX_BACKOFF_MS): number {

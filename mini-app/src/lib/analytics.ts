@@ -33,6 +33,23 @@ export function isInTimeframe(timestamp: string, timeframe: Timeframe, now: numb
   }
 }
 
+// The start (epoch ms) of the timeframe as seen from `now`: what isInTimeframe() measures against, so a screen knows how
+// far back its orders have to be loaded. Null when the timeframe has no start (a custom one without a range).
+export function getTimeframeStart(timeframe: Timeframe, now: number, range?: DateRange): number | null {
+  switch (timeframe) {
+    case 'today':
+      return new Date(now).setHours(0, 0, 0, 0);
+    case 'weekly':
+      return now - 7 * DAY_MS;
+    case 'monthly':
+      return now - 30 * DAY_MS;
+    case 'yearly':
+      return now - 365 * DAY_MS;
+    case 'custom':
+      return range ? new Date(range.start).setHours(0, 0, 0, 0) : null;
+  }
+}
+
 export interface RankedEntry {
   name: string;
   count: number;

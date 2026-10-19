@@ -14,7 +14,10 @@ import { classifyPhoneChange } from '../lib/phone';
 import { getApiFieldError, logApiError } from '../lib/apiError';
 import { toAmount } from '../lib/money';
 import { normalizeUser } from '../lib/user';
-import type { Amount, ApiResponse, AuthPayload, Order } from '../types';
+import { fetchOrdersPage } from '../hooks/useOrders';
+import type { Amount, ApiResponse, AuthPayload } from '../types';
+
+const COMPLETED_ORDERS_PAGE_SIZE = 50; // the most the backend serves per page
 
 interface Region {
   id: number;
@@ -63,6 +66,7 @@ export default function CustomerProfile() {
   const [phoneError, setPhoneError] = useState("");
 
   const [completedOrdersCount, setCompletedOrdersCount] = useState(0);
+  const [hasMoreOrders, setHasMoreOrders] = useState(false); // older finished orders than the page that was counted
 
   // Region & District States
   const [regions, setRegions] = useState<Region[]>([]);
@@ -97,12 +101,10 @@ export default function CustomerProfile() {
       }
     }).catch(err => logApiError('Failed to load locations:', err));
 
-    // Fetch order history for badge calculation
-    api.get<ApiResponse<Order[]>>('/orders').then(res => {
-      if (res.data?.success) {
-        const delivered = res.data.data.filter(o => o.status === 'delivered');
-        setCompletedOrdersCount(delivered.length);
-      }
+    // Newest finished orders for the badge: one page, so a long history shows as "N+"
+    fetchOrdersPage(null, COMPLETED_ORDERS_PAGE_SIZE).then(page => {
+      setCompletedOrdersCount(page.orders.filter(o => o.status === 'delivered').length);
+      setHasMoreOrders(page.nextCursor !== null);
     }).catch(err => logApiError('Failed to load orders:', err));
   }, [updateUser, setSmsVerificationRequired]);
 
@@ -371,7 +373,7 @@ export default function CustomerProfile() {
         </div>
         <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.02)]">
           <span className="text-[9px] text-slate-400 font-black uppercase tracking-wider block">Buyurtmalarim</span>
-          <h4 className="text-base font-black text-slate-800 mt-1">{completedOrdersCount} ta buyurtma</h4>
+          <h4 className="text-base font-black text-slate-800 mt-1">{completedOrdersCount}{hasMoreOrders ? '+' : ''} ta buyurtma</h4>
         </div>
       </div>
 

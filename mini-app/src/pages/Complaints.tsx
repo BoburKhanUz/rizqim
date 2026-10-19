@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../services/api';
 import { hapticFeedback } from '../lib/telegram';
 import { getApiErrorMessage } from '../lib/apiError';
 import { toAmount } from '../lib/money';
-import { fetchOrders } from '../hooks/useOrders';
+import { mergeOrders, useOrderHistory, useOrders } from '../hooks/useOrders';
 import { useLanguageStore } from '../store/languageStore';
 import { useAuthStore } from '../store/authStore';
 import type { ApiResponse, Complaint, ComplaintType, NewComplaint } from '../types';
@@ -56,11 +56,10 @@ export default function Complaints() {
     }
   });
 
-  // Fetch recent orders for selection
-  const { data: orders = [] } = useQuery({
-    queryKey: ['orders'],
-    queryFn: fetchOrders
-  });
+  // Recent orders for selection: the open ones and the newest finished ones
+  const { data: activeOrders } = useOrders();
+  const { orders: finishedOrders } = useOrderHistory('customer');
+  const orders = useMemo(() => mergeOrders(activeOrders?.orders ?? [], finishedOrders), [activeOrders, finishedOrders]);
 
   const userRole = user?.role || 'customer';
   const isBusinessUser = userRole === 'owner' || userRole === 'manager';

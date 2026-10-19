@@ -3,10 +3,28 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   getBackoffInterval,
   getConsecutiveFailures,
+  getPollInterval,
   MAX_BACKOFF_MS,
   POLL_INTERVAL_MS,
   pollingQueryOptions,
+  REALTIME_POLL_INTERVAL_MS,
 } from './polling';
+
+describe('getPollInterval', () => {
+  it('is the screen\'s own interval without the socket', () => {
+    expect(getPollInterval(8000, false)).toBe(8000);
+  });
+
+  it('stretches to a minute while the socket is connected', () => {
+    expect(REALTIME_POLL_INTERVAL_MS).toBe(60_000);
+    expect(getPollInterval(8000, true)).toBe(60_000);
+    expect(getPollInterval(15_000, true)).toBe(60_000);
+  });
+
+  it('never makes a slower screen faster', () => {
+    expect(getPollInterval(120_000, true)).toBe(120_000);
+  });
+});
 
 describe('getBackoffInterval', () => {
   it('is the normal interval while nothing fails', () => {

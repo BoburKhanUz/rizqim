@@ -12,21 +12,34 @@ import {
   Activity
 } from 'lucide-react';
 import api from '../services/api';
-import { getApiErrorMessage, logApiError } from '../lib/apiError';
+import { getApiErrorMessage, getApiFieldError, logApiError } from '../lib/apiError';
 import { toAmount } from '../lib/money';
 import { POLL_INTERVAL_MS } from '../lib/polling';
-import { useStaffOrders } from '../hooks/useOrders';
-import type { ApiResponse, AssignableStaff, Order, OrderStatus } from '../types';
+import { NO_ORDERS, ORDERS_KEY, useOrderHistory, useStaffOrders } from '../hooks/useOrders';
+import { StaffCancelDialog } from '../components/CancelDialogs';
+import { LoadMoreOrders, TruncatedOrdersNotice } from '../components/OrderListParts';
+import { getStaffCancelReasonLabel } from '../lib/cancelReasons';
+import type { ApiResponse, AssignableStaff, CancelReason, Order, OrderStatus } from '../types';
 
 const ACTIVE_STATUSES: readonly OrderStatus[] = ['new', 'accepted', 'preparing', 'ready', 'courier_assigned', 'on_the_way', 'delivery'];
-const COMPLETED_STATUSES: readonly OrderStatus[] = ['delivered', 'canceled', 'rejected'];
 const WITH_COURIER_STATUSES: readonly OrderStatus[] = ['courier_assigned', 'on_the_way', 'delivery'];
+// Statuses a manager can still cancel from the kitchen (a new order is rejected instead)
+const CANCELABLE_STATUSES: readonly OrderStatus[] = ['accepted', 'preparing', 'ready'];
 
 interface StatusChange {
   orderUuid: string;
   status: OrderStatus;
   courierId?: number;
+  reason?: CancelReason; // required by the API for canceled and rejected
+  note?: string;
 }
+
+interface CancelRequest {
+  order: Order;
+  mode: 'cancel' | 'reject';
+}
+
+const isCancellation = (status: OrderStatus) => status === 'canceled' || status === 'rejected';
 
 export default function ManagerDashboard() {
   const { user } = useAuthStore();
@@ -34,9 +47,16 @@ export default function ManagerDashboard() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<'active' | 'completed'>('active');
   const [selectedCourierId, setSelectedCourierId] = useState<Record<string, number>>({});
+  const [cancelRequest, setCancelRequest] = useState<CancelRequest | null>(null);
+  const [cancelError, setCancelError] = useState<string | null>(null);
 
-  // 1. Fetch store orders: polled while the screen is visible (real-time kitchen updates)
-  const { data: orders = [], isLoading, error } = useStaffOrders('managerOrders', POLL_INTERVAL_MS.managerOrders);
+  // 1. Fetch the open store orders: polled while the screen is visible, pushed over the socket when it is up
+  const { data: activeData, isLoading, error } = useStaffOrders('manager', POLL_INTERVAL_MS.managerOrders);
+  const orders = activeData?.orders ?? NO_ORDERS;
+
+  // The finished orders (the archive tab) come a page at a time, once the tab is opened
+  const history = useOrderHistory('manager', { enabled: activeTab === 'completed' });
+  const completedOrders = history.orders;
 
   // 2. Fetch active couriers
   const { data: couriers = [] } = useQuery({
@@ -49,7 +69,7 @@ export default function ManagerDashboard() {
 
   // 3. Update order status mutation
   const updateStatusMutation = useMutation({
-    mutationFn: async ({ orderUuid, status, courierId }: StatusChange) => {
+    mutationFn: async ({ orderUuid, status, courierId, reason, note }: StatusChange) => {
       hapticFeedback('medium');
       if (status === 'courier_assigned') {
         const response = await api.post<ApiResponse<Order>>(`/orders/${orderUuid}/assign-courier`, {
@@ -58,27 +78,50 @@ export default function ManagerDashboard() {
         return response.data;
       } else {
         const response = await api.post<ApiResponse<Order>>(`/orders/${orderUuid}/status`, {
-          status
+          status,
+          ...(isCancellation(status) ? { reason, ...(note ? { note } : {}) } : {})
         });
         return response.data;
       }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['managerOrders'] });
+    onSuccess: (_data, variables) => {
+      // The order moves between the open list and the archive
+      queryClient.invalidateQueries({ queryKey: ORDERS_KEY });
       hapticFeedback('medium');
+      if (isCancellation(variables.status)) {
+        setCancelRequest(null);
+        setCancelError(null);
+      }
     },
-    onError: (err) => {
+    onError: (err, variables) => {
       logApiError('Failed to update status:', err);
-      alert(getApiErrorMessage(err) || (language === 'uz' ? 'Holatni yangilashda xatolik yuz berdi!' : 'Ошибка при обновлении статуса!'));
+      const message = getApiFieldError(err, 'reason') ?? getApiErrorMessage(err);
+      if (isCancellation(variables.status)) {
+        // Shown in the reason picker, which stays open
+        setCancelError(message ?? (language === 'uz' ? 'Bekor qilishda xatolik yuz berdi!' : 'Ошибка при отмене заказа!'));
+        return;
+      }
+      alert(message || (language === 'uz' ? 'Holatni yangilashda xatolik yuz berdi!' : 'Ошибка при обновлении статуса!'));
     }
   });
+
+  const openCancelDialog = (order: Order, mode: CancelRequest['mode']) => {
+    hapticFeedback('light');
+    updateStatusMutation.reset();
+    setCancelError(null);
+    setCancelRequest({ order, mode });
+  };
+
+  const closeCancelDialog = () => {
+    if (updateStatusMutation.isPending) return;
+    setCancelRequest(null);
+    setCancelError(null);
+  };
 
   // A failed background refresh keeps showing the last orders; the error screen is only for "nothing to show"
   if (error && orders.length === 0) return <ErrorFallback error="Failed to fetch store orders." />;
 
   const activeOrders = orders.filter((order) => ACTIVE_STATUSES.includes(order.status));
-
-  const completedOrders = orders.filter((order) => COMPLETED_STATUSES.includes(order.status));
 
   const formatPrice = (price: number) => {
     return price.toLocaleString() + ' UZS';
@@ -195,6 +238,8 @@ export default function ManagerDashboard() {
         </div>
       </div>
 
+      {activeData?.truncated && <TruncatedOrdersNotice />}
+
       {/* Tabs */}
       <div className="flex bg-secondary p-1 rounded-2xl border border-hint/5">
         <button
@@ -215,13 +260,13 @@ export default function ManagerDashboard() {
               : 'text-hint'
           }`}
         >
-          {language === 'uz' ? `Yakunlanganlar (${completedOrders.length})` : `Завершенные (${completedOrders.length})`}
+          {language === 'uz' ? 'Yakunlanganlar' : 'Завершенные'}{completedOrders.length > 0 ? ` (${completedOrders.length}${history.hasNextPage ? '+' : ''})` : ''}
         </button>
       </div>
 
       {/* Orders List */}
       <div className="flex flex-col gap-4">
-        {isLoading && orders.length === 0 ? (
+        {(activeTab === 'active' ? isLoading && orders.length === 0 : history.isLoading) ? (
           <div className="flex flex-col gap-4 animate-pulse">
             {[1, 2].map((n) => (
               <div key={n} className="bg-secondary p-5 rounded-3xl border border-hint/5 flex flex-col gap-3">
@@ -360,7 +405,7 @@ export default function ManagerDashboard() {
                           {language === 'uz' ? 'Qabul qilish ✅' : 'Принять ✅'}
                         </button>
                         <button
-                          onClick={() => updateStatusMutation.mutate({ orderUuid: order.uuid, status: 'rejected' })}
+                          onClick={() => openCancelDialog(order, 'reject')}
                           className="bg-red-500/10 border border-red-500/20 text-red-500 font-extrabold text-[11px] px-4 py-3 rounded-xl active:scale-95 transition-all"
                         >
                           {language === 'uz' ? 'Rad etish' : 'Отклонить'}
@@ -471,6 +516,15 @@ export default function ManagerDashboard() {
                         </button>
                       </div>
                     )}
+
+                    {CANCELABLE_STATUSES.includes(order.status) && (
+                      <button
+                        onClick={() => openCancelDialog(order, 'cancel')}
+                        className="w-full bg-red-500/10 border border-red-500/20 text-red-500 font-extrabold text-[11px] py-2.5 rounded-xl active:scale-95 transition-all"
+                      >
+                        {language === 'uz' ? 'Bekor qilish' : 'Отменить заказ'}
+                      </button>
+                    )}
                   </div>
                 </div>
               );
@@ -496,6 +550,7 @@ export default function ManagerDashboard() {
                     <span className="text-xs font-black text-text-h">#{order.short_code}</span>
                     <span className={`text-[9px] font-black px-2 py-0.5 rounded-md border uppercase flex items-center gap-1 ${
                       order.status === 'delivered' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/10' :
+                      order.status === 'refunded' ? 'bg-sky-500/10 text-sky-500 border-sky-500/10' :
                       'bg-red-500/10 text-red-500 border-red-500/10'
                     }`}>
                       {order.status === 'delivered' ? (
@@ -503,10 +558,17 @@ export default function ManagerDashboard() {
                           <CheckCircle className="w-3.5 h-3.5" />
                           {language === 'uz' ? 'Yetkazildi' : 'Доставлен'}
                         </>
+                      ) : order.status === 'refunded' ? (
+                        <>
+                          <XCircle className="w-3.5 h-3.5" />
+                          {language === 'uz' ? 'Qaytarildi' : 'Возвращен'}
+                        </>
                       ) : (
                         <>
                           <XCircle className="w-3.5 h-3.5" />
-                          {language === 'uz' ? 'Rad etildi/Bekor qilindi' : 'Отклонен/Отменен'}
+                          {order.status === 'rejected'
+                            ? (language === 'uz' ? 'Rad etildi' : 'Отклонен')
+                            : (language === 'uz' ? 'Bekor qilindi' : 'Отменен')}
                         </>
                       )}
                     </span>
@@ -515,6 +577,12 @@ export default function ManagerDashboard() {
                     <span>{order.user?.name}</span>
                     <span className="text-text-h">{formatPrice(toAmount(order.total_price))}</span>
                   </div>
+                  {(order.status === 'canceled' || order.status === 'rejected') && (order.cancel_reason || order.cancel_note) && (
+                    <div className="text-[10px] font-bold text-red-500 bg-red-500/5 border border-red-500/10 rounded-xl px-3 py-2 flex flex-col gap-0.5">
+                      {order.cancel_reason && <span>{getStaffCancelReasonLabel(order.cancel_reason, language)}</span>}
+                      {order.cancel_note && <span className="font-medium italic text-hint">"{order.cancel_note}"</span>}
+                    </div>
+                  )}
 
                   {/* Historic Timings */}
                   {timings && (
@@ -551,7 +619,34 @@ export default function ManagerDashboard() {
             })
           )
         )}
+        {activeTab === 'completed' && (
+          <LoadMoreOrders
+            hasNextPage={history.hasNextPage}
+            isFetchingNextPage={history.isFetchingNextPage}
+            isError={history.isFetchNextPageError}
+            loadedCount={completedOrders.length}
+            onLoadMore={() => void history.fetchNextPage()}
+          />
+        )}
       </div>
+
+      {cancelRequest && (
+        <StaffCancelDialog
+          order={cancelRequest.order}
+          mode={cancelRequest.mode}
+          isPending={updateStatusMutation.isPending}
+          error={cancelError}
+          onClose={closeCancelDialog}
+          onConfirm={({ reason, note }) =>
+            updateStatusMutation.mutate({
+              orderUuid: cancelRequest.order.uuid,
+              status: cancelRequest.mode === 'reject' ? 'rejected' : 'canceled',
+              reason,
+              note,
+            })
+          }
+        />
+      )}
     </div>
   );
 }

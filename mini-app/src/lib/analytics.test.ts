@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { makeOrder, makeOrderItem, makeUser } from '../test/factories';
-import { computeOrderAnalytics, isInTimeframe } from './analytics';
+import { computeOrderAnalytics, getTimeframeStart, isInTimeframe } from './analytics';
 import type { Order, OrderStatus } from '../types';
 
 // Wednesday 2026-10-14 15:00 local time. The tests build timestamps relative to it, so they hold in any time zone.
@@ -8,6 +8,22 @@ const NOW = new Date(2026, 9, 14, 15, 0, 0).getTime();
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
 const ago = (ms: number) => new Date(NOW - ms).toISOString();
+
+describe('getTimeframeStart', () => {
+  it('matches what isInTimeframe counts as inside', () => {
+    const range = { start: '2026-10-01', end: '2026-10-05' };
+    for (const timeframe of ['today', 'weekly', 'monthly', 'yearly', 'custom'] as const) {
+      const start = getTimeframeStart(timeframe, NOW, range);
+      expect(start, timeframe).not.toBeNull();
+      expect(isInTimeframe(new Date(start as number).toISOString(), timeframe, NOW, range), `${timeframe}: the start itself`).toBe(true);
+      expect(isInTimeframe(new Date((start as number) - 1).toISOString(), timeframe, NOW, range), `${timeframe}: just before`).toBe(false);
+    }
+  });
+
+  it('has no start for a custom timeframe without dates', () => {
+    expect(getTimeframeStart('custom', NOW)).toBeNull();
+  });
+});
 
 describe('isInTimeframe', () => {
   it('"today" is the calendar day of now, not the last 24 hours', () => {

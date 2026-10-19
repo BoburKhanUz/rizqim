@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLanguageStore } from '../store/languageStore';
 import { useAuthStore } from '../store/authStore';
@@ -9,7 +9,8 @@ import api from '../services/api';
 import { getApiErrorMessage, logApiError } from '../lib/apiError';
 import { sumAmounts, toAmount } from '../lib/money';
 import { POLL_INTERVAL_MS } from '../lib/polling';
-import { useStaffOrders } from '../hooks/useOrders';
+import { NO_ORDERS, ORDERS_KEY, useOrderHistory, useStaffOrders } from '../hooks/useOrders';
+import { TruncatedOrdersNotice } from '../components/OrderListParts';
 import type { ApiResponse, Order, OrderStatus } from '../types';
 
 const ACTIVE_STATUSES: readonly OrderStatus[] = ['courier_assigned', 'on_the_way', 'delivery'];
@@ -20,8 +21,13 @@ export default function CourierDashboard() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<'active' | 'completed'>('active');
 
-  // Courier assigned orders: polled while the screen is visible (active deliveries change quickly)
-  const { data: allOrders = [], isLoading, error } = useStaffOrders('courierOrders', POLL_INTERVAL_MS.courierOrders);
+  // Courier assigned orders: polled while the screen is visible (active deliveries change quickly) and pushed over the socket
+  const { data: activeData, isLoading, error } = useStaffOrders('courier', POLL_INTERVAL_MS.courierOrders);
+  const allOrders = activeData?.orders ?? NO_ORDERS;
+
+  // What was delivered today: the finished orders, loaded back to the start of the day
+  const startOfToday = useMemo(() => new Date().setHours(0, 0, 0, 0), []);
+  const history = useOrderHistory('courier', { since: startOfToday, pageSize: 50 });
 
   // Complete order mutation
   const completeMutation = useMutation({
@@ -31,7 +37,7 @@ export default function CourierDashboard() {
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['courierOrders'] });
+      queryClient.invalidateQueries({ queryKey: ORDERS_KEY });
       hapticFeedback('medium');
     },
     onError: (err) => {
@@ -50,7 +56,7 @@ export default function CourierDashboard() {
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['courierOrders'] });
+      queryClient.invalidateQueries({ queryKey: ORDERS_KEY });
       hapticFeedback('medium');
     },
     onError: (err) => {
@@ -65,7 +71,9 @@ export default function CourierDashboard() {
   // Filter active and completed orders
   const activeOrders = allOrders.filter((order) => ACTIVE_STATUSES.includes(order.status));
   
-  const completedOrders = allOrders.filter((order) => order.status === 'delivered');
+  const completedOrders = history.orders.filter(
+    (order) => order.status === 'delivered' && new Date(order.updated_at).getTime() >= startOfToday,
+  );
 
   // Compute statistics
   const todayTotalEarnings = sumAmounts(completedOrders.map((order) => order.delivery_price));
@@ -149,6 +157,8 @@ export default function CourierDashboard() {
         </div>
       </div>
 
+      {activeData?.truncated && <TruncatedOrdersNotice />}
+
       {/* Tabs Switcher */}
       <div className="flex bg-secondary p-1 rounded-2xl border border-hint/5">
         <button
@@ -175,7 +185,7 @@ export default function CourierDashboard() {
 
       {/* Orders List Container */}
       <div className="flex flex-col gap-4">
-        {isLoading && allOrders.length === 0 ? (
+        {(activeTab === 'active' ? isLoading && allOrders.length === 0 : history.isLoading) ? (
           <div className="flex flex-col gap-4 animate-pulse">
             {[1, 2].map((n) => (
               <div key={n} className="bg-secondary p-5 rounded-3xl border border-hint/5 flex flex-col gap-3">

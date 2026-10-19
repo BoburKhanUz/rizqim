@@ -158,6 +158,8 @@ export function makeOrder(overrides: Partial<Order> = {}): Order {
     commission_amount: '0.00',
     currency: 'UZS',
     notes: null,
+    cancel_reason: null,
+    cancel_note: null,
     shipping_address: null,
     address: null,
     created_at: TIMESTAMP,
