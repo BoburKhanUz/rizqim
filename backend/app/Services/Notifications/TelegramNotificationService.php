@@ -320,24 +320,26 @@ class TelegramNotificationService
         $message .= "💰 *" . number_format((float) $order->total_price, 0, '.', ' ') . " UZS*\n";
         $message .= $order->type === 'delivery' ? "🚚 Yetkazib berish\n" : "🏪 Olib ketish\n";
         
-        if ($order->type === 'delivery' && $order->delivery_address) {
-            $addressText = $order->delivery_address;
+        // The address line; a pin without an address text (GPS only) still shows as one
+        if ($order->type === 'delivery') {
+            $addressText = (string) $order->delivery_address;
             $lat = $order->shipping_address['latitude'] ?? null;
             $lng = $order->shipping_address['longitude'] ?? null;
+            $displayAddress = null;
 
             if ($lat && $lng) {
-                $url = "https://yandex.com/maps/?pt={$lng},{$lat}&z=16&l=map";
-                $displayAddress = $addressText ?: "GPS lokatsiya";
+                $displayAddress = $addressText !== '' ? $addressText : "GPS lokatsiya";
             } elseif (preg_match('/(https?:\/\/[^\s]+)/', $addressText, $matches)) {
-                $url = $matches[1];
-                $cleanAddress = trim(str_replace(['📍 Lokatsiya:', 'Lokatsiya:', $url], '', $addressText));
+                $cleanAddress = trim(str_replace(['📍 Lokatsiya:', 'Lokatsiya:', $matches[1]], '', $addressText));
                 $cleanAddress = trim(preg_replace('/\s+/', ' ', $cleanAddress));
                 $displayAddress = $cleanAddress ?: "GPS lokatsiya";
-            } else {
-                $url = "https://yandex.com/maps/?text=" . urlencode($addressText);
+            } elseif ($addressText !== '') {
                 $displayAddress = $addressText;
             }
-            $message .= "📍 {$displayAddress}\n";
+
+            if ($displayAddress !== null) {
+                $message .= "📍 {$displayAddress}\n";
+            }
         }
         
         if ($order->notes) {
@@ -439,13 +441,19 @@ class TelegramNotificationService
         return [$message, $keyboard];
     }
 
+    /**
+     * "Returned" only once the money is back: Payme refunded it (refunded_by_provider) or it went to the keshbek
+     * balance, both leaving the payment refunded. Cash, and a card payment flagged for a manual refund, are still to
+     * be returned.
+     */
     protected function refundText(Order $order): string
     {
         $amount = (float) $order->total_price;
+        $returned = $order->payment_method !== 'cash' && $order->payment_status === \App\Enums\PaymentStatus::REFUNDED;
 
-        return "💸 *Buyurtmangiz bo'yicha pul qaytarildi*\n🆔 ID: #{$order->short_code}"
+        return "💸 *Buyurtmangiz bo'yicha pul " . ($returned ? 'qaytarildi' : 'qaytariladi') . "*\n🆔 ID: #{$order->short_code}"
             . ($amount > 0 ? "\n💰 Summa: *" . number_format($amount, 0, '.', ' ') . " UZS*" : '')
-            . ($order->payment_method === 'keshbek' ? "\n👛 Mablag' keshbek balansingizga qaytarildi." : '');
+            . ($returned && $order->payment_method === 'keshbek' ? "\n👛 Mablag' keshbek balansingizga qaytarildi." : '');
     }
 
     protected function sendMessage(string $chatId, string $text, array $replyMarkup = [], string $parseMode = 'Markdown'): void

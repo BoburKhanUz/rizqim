@@ -3,6 +3,7 @@
 namespace App\Services\Geo;
 
 use Closure;
+use Illuminate\Cache\Lock;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
@@ -135,12 +136,17 @@ class NominatimGeocoder implements GeocoderInterface
             return $request();
         }
 
+        // Polled every 100 ms for at most lock_wait (default 0.5 s): a busy slot fails fast instead of tying up a PHP
+        // worker; the client is told to retry once the request ahead (pause plus request) should be done
         $lock = Cache::lock(self::LOCK_KEY, self::LOCK_SECONDS);
+        if ($lock instanceof Lock) {
+            $lock->betweenBlockedAttemptsSleepFor(100);
+        }
 
         try {
-            $lock->block((float) $this->setting('lock_wait', 3.0));
+            $lock->block((float) $this->setting('lock_wait', 0.5));
         } catch (LockTimeoutException $e) {
-            throw new GeocodingException('Nominatim is busy: no free request slot.', 0, $e);
+            throw new GeocodingException('Nominatim is busy: no free request slot.', 0, $e, (int) ceil($interval) + 1);
         }
 
         try {

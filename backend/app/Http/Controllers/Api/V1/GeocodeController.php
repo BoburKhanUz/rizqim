@@ -69,6 +69,9 @@ class GeocodeController extends Controller
         // Only the reason: the request carries the customer's location
         Log::warning('Geocoding failed: ' . $e->getMessage(), ['provider' => config('services.geocoding.provider')]);
 
-        return $this->error("Manzil xizmati hozir javob bermayapti. Birozdan so'ng qayta urinib ko'ring yoki manzilni qo'lda kiriting.", [], 503);
+        $response = $this->error("Manzil xizmati hozir javob bermayapti. Birozdan so'ng qayta urinib ko'ring yoki manzilni qo'lda kiriting.", [], 503);
+
+        // Known when the provider was only busy with another request: the slot frees up within seconds
+        return $e->retryAfter !== null ? $response->header('Retry-After', (string) $e->retryAfter) : $response;
     }
 }

@@ -90,6 +90,7 @@ Namuna: [.env.example](.env.example). "Standart" ustunida `.env.example` qiymati
 | `TELEGRAM_WEBHOOK_SECRET` | bo'sh | majburiy; faqat `A-Z a-z 0-9 _ -`, 1–256 belgi; webhook shu sarlavha bilan himoyalangan |
 | `TELEGRAM_WEBHOOK_URL` | bo'sh | bo'sh bo'lsa `APP_URL` + `/api/v1/telegram/webhook`; HTTPS bo'lishi shart |
 | `TELEGRAM_ALLOW_MOCK_AUTH` | `false` | imzosiz `mock_` initData; faqat `APP_ENV=local` bilan ishlaydi, productionda doim `false` |
+| `TELEGRAM_SUPERADMIN_CHAT_ID` | bo'sh | ixtiyoriy; settlement xatolari haqidagi ogohlantirishlar shu chatga yuboriladi |
 
 **Kirish va xavfsizlik**
 
@@ -107,6 +108,8 @@ Namuna: [.env.example](.env.example). "Standart" ustunida `.env.example` qiymati
 | `CLICK_SECRET_KEY`, `PAYME_SECRET_KEY` | bo'sh | platforma merchant kalitlari; bo'sh bo'lsa webhooklar rad etadi |
 | `CLICK_SERVICE_ID`, `CLICK_MERCHANT_ID`, `PAYME_MERCHANT_ID` | namunaviy qiymatlar `config/services.php` da | o'zingiznikiga almashtiring. Superadmin > To'lov Tizimlari (`payment_providers`, shifrlangan) qiymati bo'sh bo'lmasa env'dan ustun |
 | `ORDERS_UNPAID_ONLINE_TTL_MINUTES` | `30` | to'lanmagan onlayn buyurtma shuncha daqiqadan keyin bekor qilinadi, `0` — o'chirilgan (scheduler kerak) |
+| `ORDERS_SETTLEMENT_RETRY_MAX_ATTEMPTS` | `12` | xato bergan settlement'ni `RetryFailedSettlementsJob` necha marta qayta urinadi; keyin `orders:retry-settlements` bilan qo'lda |
+| `ORDERS_REPORTS_QUEUE` | `reports` | hisobot eksporti navbati; shu navbatni tinglaydigan worker bo'lmasa eksportlar navbatda qoladi |
 | `ORDERS_CASH_PICKUP_BAN_WINDOW_DAYS` | `30` | naqd + olib ketish taqiqi oynasi (kun), `0` — muddatsiz (`.env.example` da yo'q) |
 | `ORDERS_CASH_PICKUP_BAN_THRESHOLD` | `1` | taqiq uchun bekor qilingan buyurtmalar soni, `0` — taqiq o'chirilgan (`.env.example` da yo'q) |
 | `GEOCODING_PROVIDER` | `nominatim` | hozircha faqat `nominatim` |

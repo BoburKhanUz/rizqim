@@ -9,8 +9,9 @@ use App\Models\Order;
 use App\Models\Store;
 use App\Models\User;
 use Carbon\Carbon;
+use App\Support\Money;
 use Carbon\CarbonInterface;
-use Illuminate\Support\Collection;
+use Illuminate\Database\Eloquent\Builder;
 
 /**
  * The orders CSV report an owner/manager gets in Telegram. The request only queues it (SendOrderReport); the
@@ -18,6 +19,9 @@ use Illuminate\Support\Collection;
  */
 class OrderReportService
 {
+    // Orders (with their items, products and people) held in memory at once while the CSV is written
+    private const CHUNK = 200;
+
     /**
      * Where the report goes: the user's own chat, else the store's admin chat.
      */
@@ -31,6 +35,7 @@ class OrderReportService
      */
     public function queue(User $user, int|string $chatId, array $input): void
     {
+        // On its own queue (config orders.reports.queue, see SendOrderReport), so a long report never holds up Telegram alerts
         SendOrderReport::dispatch(
             (int) $user->store_id,
             $user->role === UserRole::MANAGER && $user->branch_id ? (int) $user->branch_id : null,
@@ -43,14 +48,15 @@ class OrderReportService
     }
 
     /**
-     * The store's (a branch's) orders updated within the timeframe, newest first. A custom timeframe without both
-     * dates covers every order.
+     * The store's (a branch's) orders updated within the timeframe. A custom timeframe needs both dates (the export
+     * endpoint requires them); without them it covers every order.
+     *
+     * @return Builder<Order>
      */
-    public function orders(int $storeId, ?int $branchId, string $timeframe, ?string $startDate, ?string $endDate, CarbonInterface $asOf): Collection
+    public function query(int $storeId, ?int $branchId, string $timeframe, ?string $startDate, ?string $endDate, CarbonInterface $asOf): Builder
     {
         $query = Order::where('store_id', $storeId)
-            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
-            ->with(['items.variant.product.category', 'user', 'courier']);
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId));
 
         if ($timeframe === 'today') {
             $query->whereDate('updated_at', $asOf->toDateString());
@@ -66,16 +72,51 @@ class OrderReportService
             $query->whereBetween('updated_at', [$start, $end]);
         }
 
-        return $query->latest()->get();
+        return $query;
+    }
+
+    /**
+     * The report: the CSV, newest order first, written to a temporary stream (kept on disk past a few MB) a chunk of
+     * orders at a time, so a long period never sits in memory at once; and the caption with its totals.
+     *
+     * @return array{csv: resource, caption: string}
+     */
+    public function build(int $storeId, ?int $branchId, string $timeframe, ?string $startDate, ?string $endDate, CarbonInterface $asOf): array
+    {
+        $csv = fopen('php://temp/maxmemory:' . (4 * 1024 * 1024), 'w+b');
+        $totals = ['delivered' => 0, 'canceled' => 0, 'revenue' => Money::zero()];
+
+        $orders = $this->query($storeId, $branchId, $timeframe, $startDate, $endDate, $asOf)
+            ->with(['items.variant.product.category', 'user', 'courier'])
+            ->lazyByIdDesc(self::CHUNK);
+
+        $this->writeCsv($csv, $orders, function (Order $order) use (&$totals) {
+            $status = $order->status->value;
+            if ($status === 'delivered') {
+                $totals['delivered']++;
+                $totals['revenue'] = $totals['revenue']->plus(Money::of($order->total_price));
+            } elseif ($status === 'canceled') {
+                $totals['canceled']++;
+            }
+        });
+        rewind($csv);
+
+        return [
+            'csv' => $csv,
+            'caption' => $this->caption(Store::find($storeId)?->name, $timeframe, $startDate, $endDate, $totals),
+        ];
     }
 
     /**
      * One row per order with a column of items per category; UTF-8 BOM so Excel reads Uzbek/Russian text.
+     *
+     * @param resource $file
+     * @param iterable<Order> $orders
+     * @param callable(Order): void $each called with every order written
      */
-    public function csv(Collection $orders): string
+    public function writeCsv($file, iterable $orders, callable $each): void
     {
-        $tempFile = fopen('php://temp', 'r+');
-        fprintf($tempFile, chr(0xEF).chr(0xBB).chr(0xBF)); // UTF-8 BOM
+        fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF)); // UTF-8 BOM
 
         $categories = Category::all();
 
@@ -99,7 +140,7 @@ class OrderReportService
         $headers[] = 'Kuryer';
         $headers[] = 'Status';
 
-        fputcsv($tempFile, $headers);
+        fputcsv($file, $headers);
 
         foreach ($orders as $order) {
             $row = [
@@ -127,48 +168,40 @@ class OrderReportService
 
                     if (strtolower($itemCategoryName) === strtolower($category->name)) {
                         $variantSuffix = $item->variant_name ? " ({$item->variant_name})" : "";
-                        $categoryItems[] = "{$item->quantity}x {$item->product_name}{$variantSuffix} (" . number_format($item->total_price, 0, '.', '') . " UZS)";
+                        $categoryItems[] = "{$item->quantity}x {$item->product_name}{$variantSuffix} (" . number_format(Money::of($item->total_price)->toFloat(), 0, '.', '') . " UZS)";
                     }
                 }
                 $row[] = implode("\n", $categoryItems);
             }
 
             // Append tail items
-            $row[] = number_format($order->delivery_price ?? 0, 0, '.', '');
-            $row[] = number_format($order->total_price, 0, '.', '');
+            $row[] = number_format(Money::of($order->delivery_price ?? 0)->toFloat(), 0, '.', '');
+            $row[] = number_format(Money::of($order->total_price)->toFloat(), 0, '.', '');
             $row[] = strtoupper($order->payment_method ?? 'CASH');
             $row[] = $order->courier->name ?? '-';
             $row[] = strtoupper($order->status->value ?? $order->status);
 
-            fputcsv($tempFile, $row);
+            fputcsv($file, $row);
+            $each($order);
         }
-
-        rewind($tempFile);
-        $csvContent = stream_get_contents($tempFile);
-        fclose($tempFile);
-
-        return $csvContent;
     }
 
     /**
      * Revenue of the delivered orders and the delivered/cancelled counts, as the document's caption.
+     *
+     * @param array{delivered: int, canceled: int, revenue: Money} $totals
      */
-    public function caption(?string $storeName, string $timeframe, ?string $startDate, ?string $endDate, Collection $orders): string
+    public function caption(?string $storeName, string $timeframe, ?string $startDate, ?string $endDate, array $totals): string
     {
-        $deliveredOrders = $orders->filter(fn($o) => ($o->status->value ?? $o->status) === 'delivered');
-        $canceledOrders = $orders->filter(fn($o) => ($o->status->value ?? $o->status) === 'canceled');
-
-        $totalRevenue = $deliveredOrders->reduce(fn($sum, $o) => $sum + (float) $o->total_price, 0);
-
         $timeframeLabel = $timeframe === 'custom'
             ? $startDate . " dan " . $endDate . " gacha"
             : strtoupper($timeframe);
 
         return "📊 *" . ($storeName ?? 'Restoran') . " - Hisoboti*\n\n"
             . "📅 *Davr:* {$timeframeLabel}\n"
-            . "💰 *Jami tushum:* " . number_format($totalRevenue, 0, '.', ' ') . " UZS\n"
-            . "✅ *Muvaffaqiyatli:* " . count($deliveredOrders) . " ta\n"
-            . "❌ *Bekor qilingan:* " . count($canceledOrders) . " ta\n\n"
+            . "💰 *Jami tushum:* " . number_format($totals['revenue']->toFloat(), 0, '.', ' ') . " UZS\n"
+            . "✅ *Muvaffaqiyatli:* {$totals['delivered']} ta\n"
+            . "❌ *Bekor qilingan:* {$totals['canceled']} ta\n\n"
             . "📁 _Barcha ma'lumotlar XLSX (Excel) formatidagi jadvalda biriktirildi._";
     }
 

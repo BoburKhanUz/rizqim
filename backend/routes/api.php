@@ -75,7 +75,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/orders/{uuid}/status', [\App\Http\Controllers\Api\V1\Order\OrderController::class, 'updateStatus']);
         Route::post('/orders/{uuid}/assign-courier', [\App\Http\Controllers\Api\V1\Order\OrderController::class, 'assignCourier']);
         Route::get('/couriers', [\App\Http\Controllers\Api\V1\Order\OrderController::class, 'couriers']);
-        Route::post('/reports/export', [\App\Http\Controllers\Api\V1\Order\OrderController::class, 'exportReport']);
+        Route::post('/reports/export', [\App\Http\Controllers\Api\V1\Order\OrderController::class, 'exportReport'])->middleware('throttle:report-export');
         Route::post('/promo/validate', [\App\Http\Controllers\Api\V1\PromoCodeController::class, 'validateCode'])->middleware('throttle:promo');
 
         // Complaints Routes

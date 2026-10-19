@@ -218,10 +218,29 @@ class OrderController extends Controller
             return $this->error('Ruxsat etilmagan.', [], 403);
         }
 
+        // A custom period needs both dates and is capped, so no export reads the store's whole history
+        $maxDays = (int) config('orders.reports.max_custom_days', 93);
         $request->validate([
             'timeframe' => 'required|string|in:today,weekly,monthly,yearly,custom',
-            'start_date' => 'nullable|date',
-            'end_date' => 'nullable|date',
+            'start_date' => 'nullable|required_if:timeframe,custom|date',
+            'end_date' => [
+                'nullable', 'required_if:timeframe,custom', 'date', 'after_or_equal:start_date',
+                function (string $attribute, mixed $value, \Closure $fail) use ($request, $maxDays) {
+                    $start = $request->input('start_date');
+                    if ($request->input('timeframe') !== 'custom' || !is_string($start) || strtotime($start) === false || !is_string($value)) {
+                        return;
+                    }
+                    if (\Carbon\Carbon::parse($start)->startOfDay()->diffInDays(\Carbon\Carbon::parse($value)->startOfDay()) + 1 > $maxDays) {
+                        $fail("Hisobot davri ko'pi bilan {$maxDays} kun bo'lishi mumkin.");
+                    }
+                },
+            ],
+        ], [
+            'start_date.required_if' => 'Hisobot davrining boshlanish sanasini kiriting.',
+            'end_date.required_if' => 'Hisobot davrining tugash sanasini kiriting.',
+            'start_date.date' => "Boshlanish sanasi noto'g'ri.",
+            'end_date.date' => "Tugash sanasi noto'g'ri.",
+            'end_date.after_or_equal' => "Tugash sanasi boshlanish sanasidan oldin bo'lishi mumkin emas.",
         ]);
 
         if (!$telegram->isConfigured()) {

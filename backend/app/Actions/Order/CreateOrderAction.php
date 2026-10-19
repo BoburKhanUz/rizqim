@@ -300,8 +300,8 @@ class CreateOrderAction
                 'payment_status' => $paymentStatus,
                 'shipping_address' => [
                     'address' => $customerAddress,
-                    'latitude' => $payload['type'] === 'pickup' ? ($branch?->latitude ?? null) : ($payload['latitude'] ?? null),
-                    'longitude' => $payload['type'] === 'pickup' ? ($branch?->longitude ?? null) : ($payload['longitude'] ?? null),
+                    'latitude' => $payload['type'] === 'pickup' ? ($branch->latitude ?? null) : ($payload['latitude'] ?? null),
+                    'longitude' => $payload['type'] === 'pickup' ? ($branch->longitude ?? null) : ($payload['longitude'] ?? null),
                 ],
                 'notes' => $payload['notes'] ?? null,
             ]);

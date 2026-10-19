@@ -93,7 +93,8 @@ class CustomerOrderAlertTest extends TestCase
             ],
             'refunded by the platform' => [
                 fn () => app(OrderStatusService::class)->refund($order, null, 'Sifatsiz mahsulot'),
-                "Buyurtmangiz bo'yicha pul qaytarildi*\n🆔 ID: #{$order->short_code}\n💰 Summa: *50 000 UZS*",
+                // Cash: the store still has to give it back
+                "Buyurtmangiz bo'yicha pul qaytariladi*\n🆔 ID: #{$order->short_code}\n💰 Summa: *50 000 UZS*",
             ],
         ];
 
@@ -140,20 +141,38 @@ class CustomerOrderAlertTest extends TestCase
         $this->assertSame(['telegram_customer_accepted'], $feed($paid));
     }
 
-    public function test_a_refund_names_the_amount_and_where_keshbek_went(): void
+    public function test_a_refund_says_returned_only_once_the_money_is_back_and_names_the_amount_and_where_keshbek_went(): void
     {
-        $keshbek = $this->makeOrder(OrderStatus::REFUNDED, ['order_type' => 'pickup', 'payment_method' => 'keshbek', 'total_price' => 42500]);
-        $cash = $this->makeOrder(OrderStatus::REFUNDED, ['payment_method' => 'cash', 'total_price' => 0]);
+        $refunded = fn (array $attributes) => $this->makeOrder(OrderStatus::REFUNDED, $attributes);
+        $orders = [
+            'keshbek' => $refunded(['order_type' => 'pickup', 'payment_method' => 'keshbek', 'payment_status' => 'refunded', 'total_price' => 42500]),
+            'payme refunded by payme' => $refunded(['payment_method' => 'payme', 'payment_status' => 'refunded']),
+            'click awaiting a manual refund' => $refunded(['payment_method' => 'click', 'payment_status' => 'paid']),
+            'cash' => $refunded(['payment_method' => 'cash', 'payment_status' => 'paid', 'total_price' => 0]),
+        ];
 
-        app(TelegramNotificationService::class)->sendOrderStatusChanged($keshbek);
-        app(TelegramNotificationService::class)->sendOrderStatusChanged($cash);
+        foreach ($orders as $order) {
+            app(TelegramNotificationService::class)->sendOrderStatusChanged($order);
+        }
 
-        [$keshbekText, $cashText] = $this->customerMessages();
-        $this->assertSame(
-            "💸 *Buyurtmangiz bo'yicha pul qaytarildi*\n🆔 ID: #{$keshbek->short_code}\n💰 Summa: *42 500 UZS*\n👛 Mablag' keshbek balansingizga qaytarildi.",
-            $keshbekText
-        );
-        $this->assertSame("💸 *Buyurtmangiz bo'yicha pul qaytarildi*\n🆔 ID: #{$cash->short_code}", $cashText);
+        $code = fn (string $label) => $orders[$label]->short_code;
+        $this->assertSame([
+            "💸 *Buyurtmangiz bo'yicha pul qaytarildi*\n🆔 ID: #{$code('keshbek')}\n💰 Summa: *42 500 UZS*\n👛 Mablag' keshbek balansingizga qaytarildi.",
+            "💸 *Buyurtmangiz bo'yicha pul qaytarildi*\n🆔 ID: #{$code('payme refunded by payme')}\n💰 Summa: *50 000 UZS*",
+            "💸 *Buyurtmangiz bo'yicha pul qaytariladi*\n🆔 ID: #{$code('click awaiting a manual refund')}\n💰 Summa: *50 000 UZS*",
+            "💸 *Buyurtmangiz bo'yicha pul qaytariladi*\n🆔 ID: #{$code('cash')}",
+        ], array_values($this->customerMessages()));
         $this->assertSame(0, NotificationLog::count());
+    }
+
+    public function test_the_admin_refund_of_a_paid_click_order_tells_the_customer_it_will_be_returned(): void
+    {
+        $order = $this->makeOrder(OrderStatus::DELIVERED, ['payment_method' => 'click', 'payment_status' => 'paid']);
+        Payment::create(['order_id' => $order->id, 'provider' => 'click', 'amount' => 50000, 'status' => PaymentStatus::PAID, 'paid_at' => now()]);
+
+        app(OrderStatusService::class)->refund($order, null, 'Sifatsiz mahsulot');
+
+        $this->assertTrue($order->payments()->sole()->payload['manual_refund_required']);
+        $this->assertStringStartsWith("💸 *Buyurtmangiz bo'yicha pul qaytariladi*", collect($this->customerMessages())->last());
     }
 }

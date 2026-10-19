@@ -88,6 +88,8 @@ class OwnerSettingsController extends Controller
             'min_order_amount' => 'nullable|numeric|min:0',
             'payment_settings' => 'required|array',
             'payment_settings.delivery_fee' => 'nullable|numeric|min:0',
+            'payment_settings.delivery_enabled' => 'nullable|boolean',
+            'payment_settings.pickup_enabled' => 'nullable|boolean',
             'payment_settings.working_hours' => 'nullable|array',
             'payment_settings.working_hours.open' => 'nullable|string',
             'payment_settings.working_hours.close' => 'nullable|string',
@@ -110,6 +112,13 @@ class OwnerSettingsController extends Controller
 
         $currentSettings['delivery_fee'] = $newSettings['delivery_fee'] ?? ($currentSettings['delivery_fee'] ?? 0);
         $currentSettings['working_hours'] = $newSettings['working_hours'] ?? ($currentSettings['working_hours'] ?? []);
+
+        // Whether checkout offers delivery / pickup (CreateOrderAction); a client that leaves a switch out keeps it
+        foreach (['delivery_enabled', 'pickup_enabled'] as $switch) {
+            if (isset($newSettings[$switch])) {
+                $currentSettings[$switch] = (bool) $newSettings[$switch];
+            }
+        }
 
         foreach (['cash', 'click', 'payme', 'uzum', 'paynet'] as $provider) {
             // A method not offered yet keeps whatever the store saved for it
@@ -141,31 +150,8 @@ class OwnerSettingsController extends Controller
             'payment_settings' => $currentSettings,
         ] + ($request->has('phone') ? ['phone' => $request->phone] : [])); // a client that never sends phone keeps it
 
-        // Parse coordinates and update main branch
-        $latitude = null;
-        $longitude = null;
-        $locationUrl = $request->location_url;
-
-        if ($locationUrl) {
-            // Try to match Yandex pt format: pt=lng,lat
-            if (preg_match('/pt=([0-9\.]+),([0-9\.]+)/', $locationUrl, $matches)) {
-                $longitude = (float) $matches[1];
-                $latitude = (float) $matches[2];
-            }
-            // Try to match LL format: ll=lng,lat
-            elseif (preg_match('/ll=([0-9\.]+),([0-9\.]+)/', $locationUrl, $matches)) {
-                $longitude = (float) $matches[1];
-                $latitude = (float) $matches[2];
-            }
-            // Try to match standard lat,lng coordinates in Google/Yandex Maps URL: q=lat,lng or place/lat,lng
-            elseif (preg_match('/[q@place\/]([0-9\.]+),([0-9\.]+)/', $locationUrl, $matches)) {
-                $latitude = (float) $matches[1];
-                $longitude = (float) $matches[2];
-            }
-        }
-
-        // Find or create default branch to sync address/location
-        $branch = $store->branches()->first();
+        // The main (first) branch follows the store's address, and its location when the link holds one
+        $branch = $store->branches()->oldest('id')->first();
         if (!$branch) {
             $branch = $store->branches()->create([
                 'name' => 'Asosiy filial',
@@ -173,18 +159,48 @@ class OwnerSettingsController extends Controller
             ]);
         }
 
-        $branchUpdate = [
-            'address' => $request->address,
-        ];
+        $branchUpdate = ['address' => $request->address];
 
-        if ($latitude !== null && $longitude !== null) {
-            $branchUpdate['latitude'] = $latitude;
-            $branchUpdate['longitude'] = $longitude;
+        $point = $this->coordinatesFrom($request->location_url);
+        if ($point !== null) {
+            $branchUpdate['latitude'] = $point['lat'];
+            $branchUpdate['longitude'] = $point['lng'];
         }
 
         $branch->update($branchUpdate);
 
         return $this->success($store, 'Do\'kon sozlamalari muvaffaqiyatli yangilandi.');
+    }
+
+    /**
+     * The point a map link shows: Yandex's pt= / ll= (longitude first), or Google's q= / query= / @ / place/ (latitude
+     * first). Null when the link holds no real coordinates (nothing matched, or a value out of range), so the branch
+     * keeps the location it has rather than getting a made-up one.
+     *
+     * @return array{lat: float, lng: float}|null
+     */
+    private function coordinatesFrom(?string $url): ?array
+    {
+        if (!$url) {
+            return null;
+        }
+
+        $url = rawurldecode($url); // shared Yandex links write the comma as %2C
+        $pair = '(-?\d{1,3}(?:\.\d+)?),\s*(-?\d{1,3}(?:\.\d+)?)';
+
+        if (preg_match("~[?&](?:pt|ll)={$pair}~", $url, $matches)) {
+            [$lng, $lat] = [(float) $matches[1], (float) $matches[2]];
+        } elseif (preg_match("~(?:[?&](?:q|query)=|@|/place/){$pair}~", $url, $matches)) {
+            [$lat, $lng] = [(float) $matches[1], (float) $matches[2]];
+        } else {
+            return null;
+        }
+
+        if (abs($lat) > 90 || abs($lng) > 180) {
+            return null;
+        }
+
+        return ['lat' => $lat, 'lng' => $lng];
     }
 
     /**

@@ -30,7 +30,7 @@ class GeocodeNominatimThrottleTest extends TestCase
         config([
             'services.nominatim.base_url' => self::NOMINATIM,
             'services.nominatim.min_interval' => 1,
-            'services.nominatim.lock_wait' => 3,
+            'services.nominatim.lock_wait' => 0.5,
         ]);
 
         Http::preventStrayRequests();
@@ -155,10 +155,11 @@ class GeocodeNominatimThrottleTest extends TestCase
         }
 
         Http::assertNothingSent();
-        // It queued for about the configured 3 seconds (the lock polls every 250 ms), no longer
+        // It waited for at most the configured half second (the lock polls every 100 ms), not seconds
         $waitedMilliseconds = Carbon::parse('2026-10-18 10:00:00')->diffInMilliseconds(Carbon::now(), true);
-        $this->assertGreaterThanOrEqual(2500, $waitedMilliseconds);
-        $this->assertLessThanOrEqual(3000, $waitedMilliseconds);
+        $this->assertGreaterThanOrEqual(300, $waitedMilliseconds);
+        $this->assertLessThanOrEqual(500, $waitedMilliseconds);
+        $this->assertSame(2, $e->retryAfter);
     }
 
     public function test_the_api_answers_503_when_the_provider_is_busy(): void
@@ -170,9 +171,17 @@ class GeocodeNominatimThrottleTest extends TestCase
         $this->actingAs($user, 'sanctum')
             ->getJson('/api/v1/geocode/reverse?lat=41.2995&lng=69.2401')
             ->assertStatus(503)
+            ->assertHeader('Retry-After', '2')
             ->assertJsonPath('success', false);
 
         Http::assertNothingSent();
+    }
+
+    public function test_the_shipped_config_fails_fast(): void
+    {
+        $shipped = require config_path('services.php');
+
+        $this->assertLessThanOrEqual(0.5, $shipped['nominatim']['lock_wait']);
     }
 
     public function test_a_self_hosted_instance_can_switch_the_pause_and_the_queue_off(): void

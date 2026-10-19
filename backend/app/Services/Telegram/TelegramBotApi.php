@@ -25,7 +25,8 @@ class TelegramBotApi
     }
 
     /**
-     * @param array{name: string, contents: string, filename: string}|null $attachment multipart file (sendDocument)
+     * @param array{name: string, contents: string|resource, filename: string}|null $attachment multipart file (sendDocument),
+     *     its contents a string or a stream read as it is sent
      *
      * @throws ConnectionException
      */
