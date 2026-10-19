@@ -391,11 +391,10 @@ const queryClient = new QueryClient({
 
 function FloatingCartBar() {
   const location = useLocation();
-  const getSubtotal = useCartStore((state) => state.getSubtotal);
-  const getTotalItems = useCartStore((state) => state.getTotalItems);
-
-  const totalItems = getTotalItems();
-  const totalAmount = getSubtotal();
+  // Select the computed values, not the getter functions: a getter's reference never changes, so the bar would not
+  // re-render when items are added
+  const totalItems = useCartStore((state) => state.getTotalItems());
+  const totalAmount = useCartStore((state) => state.getSubtotal());
 
   const hidePaths = ['/cart', '/success', '/orders', '/profile', '/complaints', '/notifications'];
   const shouldHide = hidePaths.some(p => location.pathname.startsWith(p)) || 

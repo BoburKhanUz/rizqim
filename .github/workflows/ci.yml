@@ -146,3 +146,43 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  e2e:
+    name: Mini App e2e (Playwright)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mini-app
+    env:
+      # Only the manual test-browser.js script uses puppeteer; CI never needs its Chrome download
+      PUPPETEER_SKIP_DOWNLOAD: 'true'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mini-app/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Playwright's own Chromium; the API is mocked in the browser, so no backend is started
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: E2E tests
+        run: npm run test:e2e
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            mini-app/playwright-report
+            mini-app/test-results
+          retention-days: 7

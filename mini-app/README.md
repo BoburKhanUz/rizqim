@@ -37,6 +37,7 @@ Build vaqtida bundle ichiga yoziladi; o'zgartirgandan keyin qayta build qiling. 
 | `npm run preview` | `dist/` ni lokal ko'rish |
 | `npm run lint` | `eslint .` (typescript-eslint, react-hooks, react-refresh) |
 | `npm test` | `vitest run` (bir martalik); `npm run test:watch` — kuzatuv rejimi |
+| `npm run test:e2e` | Playwright brauzer testlari (`e2e/`), backend kerak emas — pastdagi "E2E testlar" bo'limiga qarang |
 
 `test-browser.js` — qo'lda ishga tushiriladigan puppeteer skripti (`node test-browser.js`, dev server `localhost:5173` da ishlab turishi kerak): sahifani ochib brauzer konsoli va so'rov xatolarini chiqaradi. CI, Docker build va `scripts/deploy.sh` uni ishlatmaydi va `npm ci` ni `PUPPETEER_SKIP_DOWNLOAD` bilan yuritadi (Chrome yuklanmaydi). Lokalda ham kerak bo'lmasa: `PUPPETEER_SKIP_DOWNLOAD=1 npm ci`; skriptni ishga tushirish uchun Chrome'ni `npx puppeteer browsers install chrome` bilan o'rnating.
 
@@ -79,7 +80,22 @@ Ro'yxatlar so'rov (polling) bilan yangilanadi (`lib/polling.ts`): mijoz buyurtma
 - Vitest 5 + jsdom + Testing Library (`vitest.config.ts`: `src/**/*.test.{ts,tsx}`, `css: false`, har testdan oldin mock/spy/stub'lar tiklanadi). Testlar kodning yonida (`foo.ts` — `foo.test.ts`).
 - `src/test/setup.ts`: jest-dom matcherlari, har testdan keyin `cleanup()` va `localStorage.clear()`. `factories.ts` — API JSON shaklidagi tipli fixture'lar (`makeUser`, `makeStore`, `makeOrder`, ...). `httpErrors.ts` — haqiqiy axios xatosini yasaydi va konsolga/ekranga token, OTP, telefon, `initData` chiqib ketmasligini tekshirish uchun.
 - Tarmoq haqiqiy ishlatilmaydi: `services/api.test.ts` o'z axios adapterini beradi va modulni har testda yangidan yuklaydi (qayta autentifikatsiya holati modul darajasida turgani uchun); polling va taymerlar soxta vaqt bilan tekshiriladi; sahifa testlari (`pages/*.test.tsx`) API'ni mock qiladi.
-- CI (`.github/workflows/ci.yml`, `mini-app/` papkasida, Node 22): `npm ci`, `npx eslint .`, `npm test`, `npm run build`.
+- CI (`.github/workflows/ci.yml`, `mini-app/` papkasida, Node 22): `frontend` job — `npm ci`, `npx eslint .`, `npm test`, `npm run build`; alohida `e2e` job — `npx playwright install --with-deps chromium`, `npm run test:e2e`.
+
+## E2E testlar
+
+Playwright (`@playwright/test`, faqat Chromium, 390x844 mobil ko'rinish) production build'ni brauzerda ochib asosiy oqimlarni tekshiradi: mijoz buyurtma beradi va bekor qiladi, buyurtmalar tarixini sahifalab yuklaydi, menejer buyurtmani sabab bilan rad etadi, kuryer yetkazadi, eskirgan token qayta autentifikatsiya qilinadi. Backend ham, Telegram ham kerak emas: `e2e/fixtures.ts` `/api/v1` ga ketadigan barcha so'rovlarni ushlab, xotiradagi soxta API (`e2e/fakeApi.ts`, javoblar `src/types` shaklida) bilan javob beradi; Telegram ishga tushirish parametrlari (`initData`) ham fixture'da beriladi. Soxta API bilmaydigan endpoint chaqirilsa yoki sahifada tutilmagan xato chiqsa, test yiqiladi.
+
+```bash
+npx playwright install chromium     # bir marta; CI'da: npx playwright install --with-deps chromium
+npm run test:e2e                    # `npm run build` + `npm run preview` (127.0.0.1:4173) ni o'zi ishga tushiradi
+```
+
+- Brauzer boshqa joyda turgan bo'lsa (Playwright o'zinikini yuklay olmasa), Chromium fayliga yo'lni bering: `PW_CHROMIUM_PATH=/yo'l/chrome npm run test:e2e`. Port o'zgartirish: `E2E_PORT`.
+- Build `VITE_API_URL=/api/v1` va bo'sh `VITE_REVERB_APP_KEY` bilan olinadi (real-time o'chiq, ekranlar so'rov bilan yangilanadi). Xato bo'lsa hisobot `playwright-report/`, iz (trace) `test-results/` da; CI ularni artifact sifatida yuklaydi.
+- Yangi test: kerakli ma'lumotni `api.addOrder(...)` / `api.signInAs('manager')` bilan tayyorlang, `page.goto(...)` qiling, so'rovlarni `api.callsTo('POST', '/orders')` orqali tekshiring. Locator'lar rol va matn bo'yicha, kutish uchun `expect` ning o'zi (sleep yo'q).
+- Vitest `e2e/` ni olmaydi (`include: src/**/*.test.{ts,tsx}`); `tsc -b` (`tsconfig.e2e.json`) va `eslint .` esa ularni tekshiradi.
+- Qamrab olinmagan: xaritada nuqta tanlash va geokodlash (Leaflet); yetkazib berish testi oldindan saqlangan manzildan foydalanadi.
 
 ## Docker image
 
