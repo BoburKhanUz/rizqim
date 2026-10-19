@@ -22,6 +22,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property \Illuminate\Support\Carbon|null $settlement_failed_at
  * @property int $settlement_attempts
  * @property \App\Enums\CancelReason|null $cancel_reason
+ * @property string|null $cancel_note
+ * @property int|null $cancelled_by
  */
 class Order extends Model
 {

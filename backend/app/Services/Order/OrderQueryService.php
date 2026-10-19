@@ -47,10 +47,10 @@ class OrderQueryService
     public function activeFor(User $user, int $cap = self::ACTIVE_CAP): array
     {
         // Listed as IN (non-terminal statuses), not NOT IN (terminal), so the (…, status, created_at) indexes apply
-        $active = array_values(array_filter(
+        $active = array_filter(
             OrderStatus::cases(),
             fn (OrderStatus $status) => !in_array($status, self::TERMINAL_STATUSES, true),
-        ));
+        );
 
         $orders = $this->scopedTo($user)
             ->whereIn('orders.status', array_map(fn (OrderStatus $status) => $status->value, $active))

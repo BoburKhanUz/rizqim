@@ -32,12 +32,12 @@ final class SentryScrubber
     /** A key equal to one of these is masked (too short or too common to match as a fragment). */
     private const KEY_EXACT = ['code', 'pan', 'key', 'hash', 'sign', 'auth', 'pin', 'expiry', 'exp'];
 
-    public static function beforeSend(Event $event, ?EventHint $hint = null): ?Event
+    public static function beforeSend(Event $event, ?EventHint $hint = null): Event
     {
         return self::scrubEvent($event);
     }
 
-    public static function beforeSendTransaction(Event $event, ?EventHint $hint = null): ?Event
+    public static function beforeSendTransaction(Event $event, ?EventHint $hint = null): Event
     {
         $event = self::scrubEvent($event);
 
@@ -51,7 +51,7 @@ final class SentryScrubber
         return $event;
     }
 
-    public static function beforeBreadcrumb(Breadcrumb $breadcrumb): ?Breadcrumb
+    public static function beforeBreadcrumb(Breadcrumb $breadcrumb): Breadcrumb
     {
         if ($breadcrumb->getMessage() !== null) {
             $breadcrumb = $breadcrumb->withMessage(self::scrubString($breadcrumb->getMessage()));
@@ -70,9 +70,7 @@ final class SentryScrubber
         $event->setExtra(self::scrubArray($event->getExtra()));
 
         foreach ($event->getContexts() as $name => $context) {
-            if (is_array($context)) {
-                $event->setContext((string) $name, self::scrubArray($context));
-            }
+            $event->setContext((string) $name, self::scrubArray($context));
         }
 
         $tags = [];
@@ -84,7 +82,7 @@ final class SentryScrubber
         if ($event->getMessage() !== null) {
             $event->setMessage(
                 self::scrubString($event->getMessage()),
-                array_map(fn ($param) => is_string($param) ? self::scrubString($param) : $param, $event->getMessageParams()),
+                array_map(fn (string $param) => self::scrubString($param), $event->getMessageParams()),
                 $event->getMessageFormatted() !== null ? self::scrubString($event->getMessageFormatted()) : null,
             );
         }
