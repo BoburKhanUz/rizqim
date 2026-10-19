@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Orders;
 use App\Filament\Resources\Orders\Pages;
 use App\Filament\Support\StorePanelScope;
 use App\Models\Order;
+use App\Enums\CancelReason;
 use App\Enums\OrderStatus;
 use App\Enums\PaymentStatus;
 use App\Services\Order\OrderStatusService;
@@ -213,14 +214,32 @@ class OrderResource extends Resource
                             ->send();
                     }),
 
+                // Cancelling (or rejecting a new order) needs a reason, as everywhere else
                 Action::make('cancel')
                     ->hiddenLabel()
                     ->tooltip('Cancel')
                     ->color('danger')
                     ->icon('heroicon-m-x-circle')
-                    ->requiresConfirmation()
+                    ->modalHeading('Buyurtmani bekor qilish')
+                    ->form(static::cancelReasonForm())
                     ->visible(fn (Order $record) => static::canMoveTo($record, OrderStatus::CANCELED))
-                    ->action(fn (Order $record) => static::updateStatus($record, OrderStatus::CANCELED)),
+                    ->action(fn (Order $record, array $data) => static::updateStatus($record, OrderStatus::CANCELED, [
+                        'cancel_reason' => $data['reason'] ?? null,
+                        'cancel_note' => $data['note'] ?? null,
+                    ])),
+
+                Action::make('reject')
+                    ->hiddenLabel()
+                    ->tooltip('Reject')
+                    ->color('danger')
+                    ->icon('heroicon-m-no-symbol')
+                    ->modalHeading('Buyurtmani rad etish')
+                    ->form(static::cancelReasonForm())
+                    ->visible(fn (Order $record) => static::canMoveTo($record, OrderStatus::REJECTED))
+                    ->action(fn (Order $record, array $data) => static::updateStatus($record, OrderStatus::REJECTED, [
+                        'cancel_reason' => $data['reason'] ?? null,
+                        'cancel_note' => $data['note'] ?? null,
+                    ])),
 
                 // Delivered -> refunded: super_admin only (OrderPolicy)
                 Action::make('refund')
@@ -238,6 +257,22 @@ class OrderResource extends Resource
                     ])
                     ->action(fn (Order $record, array $data) => static::refund($record, $data['reason'])),
             ]);
+    }
+
+    /**
+     * @return array<\Filament\Forms\Components\Field>
+     */
+    protected static function cancelReasonForm(): array
+    {
+        return [
+            Forms\Components\Select::make('reason')
+                ->label('Sabab')
+                ->options(CancelReason::staffOptions())
+                ->required(),
+            Forms\Components\Textarea::make('note')
+                ->label('Izoh')
+                ->maxLength(500),
+        ];
     }
 
     protected static function canMoveTo(Order $order, OrderStatus $to): bool
@@ -313,6 +348,13 @@ class OrderResource extends Resource
                                     ->label('Courier')
                                     ->icon('heroicon-m-truck')
                                     ->placeholder('No courier assigned yet 🛵'),
+                                \Filament\Infolists\Components\TextEntry::make('cancel_reason')
+                                    ->label('Bekor qilish sababi')
+                                    ->icon('heroicon-m-no-symbol')
+                                    ->color('danger')
+                                    ->formatStateUsing(fn ($state, Order $record) => $record->cancel_reason?->label()
+                                        . ($record->cancel_note ? " — {$record->cancel_note}" : ''))
+                                    ->visible(fn (Order $record) => $record->status->isCancellation() && $record->cancel_reason !== null),
                                 // Cancelled or refunded after Click/Payme (or cash) took the money: the payment stays "paid" until refunded by hand
                                 \Filament\Infolists\Components\TextEntry::make('manual_refund')
                                     ->hiddenLabel()

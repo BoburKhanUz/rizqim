@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\CancelReason;
 use App\Enums\OrderStatus;
 use App\Enums\UserRole;
 use App\Models\Order;
@@ -101,11 +102,17 @@ class OrderLifecycleTelegramTest extends TestCase
         $this->makeStaff(UserRole::MANAGER, null, $otherStore, ['telegram_id' => '6002']);
         $this->press($token, '6002')->assertJsonPath('status', 'forbidden');
 
+        // ...and the reason buttons behind it are refused the same way
+        $this->press("{$token}:out_of_stock", '9999', '-100500')->assertJsonPath('status', 'forbidden');
+        $this->press("{$token}:out_of_stock", '6002')->assertJsonPath('status', 'forbidden');
+
         $this->assertSame(OrderStatus::NEW, $order->fresh()->status);
         $this->assertNull(TelegramAction::where('token', $token)->value('used_at'));
 
-        $this->press($token, '5001')->assertJsonPath('status', 'success');
+        $this->press($token, '5001')->assertJsonPath('status', 'choose_reason');
+        $this->press("{$token}:out_of_stock", '5001')->assertJsonPath('status', 'success');
         $this->assertSame(OrderStatus::CANCELED, $order->fresh()->status);
+        $this->assertSame(CancelReason::OUT_OF_STOCK, $order->fresh()->cancel_reason);
     }
 
     public function test_cancel_button_pressed_twice_restores_stock_once(): void
@@ -114,9 +121,12 @@ class OrderLifecycleTelegramTest extends TestCase
         $first = $this->button($order, 'cancel');
         $second = $this->button($order, 'cancel'); // same card sent to the admin chat and to a manager
 
-        $this->press($first, '5001')->assertJsonPath('status', 'success');
+        $this->press($first, '5001')->assertJsonPath('status', 'choose_reason');
+        $this->press("{$first}:store_closed", '5001')->assertJsonPath('status', 'success');
+        $this->press("{$first}:store_closed", '5001')->assertJsonPath('status', 'error');
         $this->press($first, '5001')->assertJsonPath('status', 'error');
         $this->press($second, '5003')->assertJsonPath('status', 'no_change');
+        $this->press("{$second}:out_of_stock", '5003')->assertJsonPath('status', 'no_change');
 
         $this->assertSame(OrderStatus::CANCELED, $order->fresh()->status);
         $this->assertSame(10, (int) $this->variant->fresh()->stock);
@@ -127,10 +137,110 @@ class OrderLifecycleTelegramTest extends TestCase
         $order = $this->makeOrder(OrderStatus::NEW);
         $reject = $this->button($order, 'cancel');
 
+        $this->press($reject, '5001')->assertJsonPath('status', 'choose_reason');
         $this->setStatus($order, $this->manager, 'accepted')->assertOk();
         $this->press($reject, '5001')->assertJsonPath('status', 'cannot_cancel');
+        $this->press("{$reject}:out_of_stock", '5001')->assertJsonPath('status', 'cannot_cancel');
 
         $this->assertSame(OrderStatus::ACCEPTED, $order->fresh()->status);
+        $this->assertNull($order->fresh()->cancel_reason);
+    }
+
+    /**
+     * The reason buttons Telegram was asked to show on the card (editMessageReplyMarkup), as text => callback_data.
+     *
+     * @return array<string, string>
+     */
+    protected function shownReasonButtons(): array
+    {
+        $request = Http::recorded()->map(fn ($pair) => $pair[0])
+            ->filter(fn ($request) => str_ends_with($request->url(), '/editMessageReplyMarkup'))
+            ->last();
+        $this->assertNotNull($request, 'No reason keyboard was shown');
+
+        $buttons = [];
+        foreach (json_decode($request['reply_markup'], true)['inline_keyboard'] as $row) {
+            foreach ($row as $button) {
+                $buttons[$button['text']] = $button['callback_data'];
+            }
+        }
+
+        return $buttons;
+    }
+
+    public function test_reject_button_shows_the_reasons_within_telegrams_callback_limit_and_changes_nothing(): void
+    {
+        $order = $this->makeOrder(OrderStatus::NEW);
+        $token = $this->button($order, 'cancel');
+
+        $this->press($token, '5001')->assertJsonPath('status', 'choose_reason');
+
+        $buttons = $this->shownReasonButtons();
+        foreach ($buttons as $data) {
+            $this->assertLessThanOrEqual(64, strlen($data));
+            $this->assertStringStartsWith("{$token}:", $data);
+        }
+        $reasons = array_map(fn ($data) => substr($data, 33), array_values($buttons));
+        // A new delivery order: no "customer never came", and never the system's payment timeout
+        $this->assertEqualsCanonicalizing(['customer_request', 'out_of_stock', 'store_closed', 'courier_unavailable', 'other', 'back'], $reasons);
+        $this->assertSame("{$token}:courier_unavailable", $buttons["Kuryer yo'q"]);
+
+        $this->assertSame(OrderStatus::NEW, $order->fresh()->status);
+        $this->assertNull(TelegramAction::where('token', $token)->value('used_at'));
+
+        // A pickup order is never offered "no courier"
+        $pickup = $this->makeOrder(OrderStatus::NEW, ['order_type' => 'pickup']);
+        $this->press($this->button($pickup, 'cancel'), '5001')->assertJsonPath('status', 'choose_reason');
+        $this->assertNotContains("Kuryer yo'q", array_keys($this->shownReasonButtons()));
+    }
+
+    public function test_reason_buttons_only_accept_the_offered_reasons(): void
+    {
+        $order = $this->makeOrder(OrderStatus::NEW, ['order_type' => 'pickup']);
+        $token = $this->button($order, 'cancel');
+
+        foreach (['payment_timeout', 'no_show', 'courier_unavailable', 'bogus', ''] as $reason) {
+            $this->press("{$token}:{$reason}", '5001')->assertJsonPath('status', 'invalid_reason');
+        }
+        // A reason appended to another button's token, or to an unknown one
+        $this->press($this->button($order, 'accept') . ':out_of_stock', '5001')->assertJsonPath('status', 'error');
+        $this->press(Str::random(32) . ':out_of_stock', '5001')->assertJsonPath('status', 'error');
+
+        $this->assertSame(OrderStatus::NEW, $order->fresh()->status);
+        $this->assertNull(TelegramAction::where('token', $token)->value('used_at'));
+
+        // "Orqaga" brings the card back untouched
+        $this->press("{$token}:back", '5001')->assertJsonPath('status', 'back');
+        Http::assertSent(fn ($request) => str_ends_with($request->url(), '/editMessageText') && str_contains($request['text'], "#{$order->short_code}"));
+        $this->assertSame(OrderStatus::NEW, $order->fresh()->status);
+    }
+
+    public function test_cancel_after_acceptance_offers_no_show_and_records_who_cancelled(): void
+    {
+        $order = $this->checkout($this->customer, 2);
+        $this->setStatus($order, $this->manager, 'accepted')->assertOk();
+        $this->setStatus($order, $this->manager, 'preparing')->assertOk();
+
+        // The card of a preparing pickup order carries the "Bekor qilish" button
+        [, $keyboard] = app(TelegramNotificationService::class)->buildMessageAndKeyboard($order->fresh());
+        $abort = collect($keyboard['inline_keyboard'])->flatten(1)->firstWhere('text', '❌ Bekor qilish');
+        $this->assertSame('abort', TelegramAction::where('token', $abort['callback_data'])->value('action'));
+
+        $this->press($abort['callback_data'], '5001')->assertJsonPath('status', 'choose_reason');
+        $this->assertSame("{$abort['callback_data']}:no_show", $this->shownReasonButtons()['Mijoz kelmadi']);
+
+        $this->press("{$abort['callback_data']}:no_show", '5001')->assertJsonPath('status', 'success');
+
+        $order->refresh();
+        $this->assertSame(OrderStatus::CANCELED, $order->status);
+        $this->assertSame(CancelReason::NO_SHOW, $order->cancel_reason);
+        $this->assertSame($this->manager->id, $order->cancelled_by);
+        $this->assertSame(10, (int) $this->variant->fresh()->stock);
+        $this->assertTrue(Order::cashPickupBanApplies($this->customer->id));
+
+        // The refreshed card names the reason
+        Http::assertSent(fn ($request) => str_ends_with($request->url(), '/editMessageText')
+            && str_contains($request['text'], 'Bekor qilindi') && str_contains($request['text'], 'Mijoz kelmadi'));
     }
 
     public function test_courier_buttons_work_only_for_their_own_delivery(): void

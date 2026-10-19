@@ -72,6 +72,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/notifications/read', [\App\Http\Controllers\Api\V1\Order\OrderController::class, 'markNotificationsRead']);
         Route::post('/orders', [\App\Http\Controllers\Api\V1\Order\OrderController::class, 'store'])->middleware('throttle:orders');
         Route::post('/orders/{uuid}/complete', [\App\Http\Controllers\Api\V1\Order\OrderController::class, 'complete']);
+        Route::post('/orders/{uuid}/cancel', [\App\Http\Controllers\Api\V1\Order\OrderController::class, 'cancel'])->middleware('throttle:order-cancel');
         Route::post('/orders/{uuid}/status', [\App\Http\Controllers\Api\V1\Order\OrderController::class, 'updateStatus']);
         Route::post('/orders/{uuid}/assign-courier', [\App\Http\Controllers\Api\V1\Order\OrderController::class, 'assignCourier']);
         Route::get('/couriers', [\App\Http\Controllers\Api\V1\Order\OrderController::class, 'couriers']);

@@ -2,6 +2,7 @@
 
 namespace App\Services\Order;
 
+use App\Enums\CancelReason;
 use App\Enums\OrderStatus;
 use App\Enums\PaymentStatus;
 use App\Enums\UserRole;
@@ -32,7 +33,11 @@ class OrderStatusService
      *  - courier_id: courier to (re)assign when the order goes to a courier (validated like assign-courier);
      *  - from: statuses the caller's action was offered in (e.g. a Telegram button); the order must still be in one;
      *  - notes: status history note;
-     *  - refunded_by_provider: a refund the payment provider already made (nothing is flagged for a manual refund).
+     *  - refunded_by_provider: a refund the payment provider already made (nothing is flagged for a manual refund);
+     *  - cancel_reason (CancelReason|string), required for canceled/rejected: staff pick any but payment_timeout,
+     *    which is the system's (null actor) own; cancel_note: optional free text (max 500);
+     *  - customer: the actor cancels their own order (POST /orders/{uuid}/cancel): refused with 422 unless it is still
+     *    new and unpaid, and only for customer_request.
      * Requesting the current status is a no-op (changed = false), so retries never repeat side effects.
      * A null actor is the system and skips the permission checks.
      *
@@ -44,6 +49,11 @@ class OrderStatusService
             $order = Order::whereKey($order->getKey())->lockForUpdate()->firstOrFail();
             $from = $order->status;
             $courierId = isset($options['courier_id']) ? (int) $options['courier_id'] : null;
+
+            // Checked under the lock, so a store accepting (or a payment landing) a moment earlier wins with a 422
+            if (!empty($options['customer']) && !$order->isCancellableByCustomer()) {
+                throw OrderTransitionException::notCancellableByCustomer();
+            }
 
             if ($from === $to && ($courierId === null || $courierId === (int) $order->courier_id)) {
                 if ($actor && Gate::forUser($actor)->denies('view', $order)) {
@@ -67,18 +77,24 @@ class OrderStatusService
                 throw OrderTransitionException::illegal($from, $to);
             }
 
+            $cancellation = $to->isCancellation() ? $this->cancellation($actor, $options) : [];
+
             $courier = $this->resolveCourier($order, $to, $actor, $courierId);
 
             $order->update(array_filter([
                 'status' => $to->value,
                 'courier_id' => $courier?->id,
-            ]));
+            ]) + $cancellation);
 
             if ($courier) {
                 $this->recordAssignment($order, $courier, $actor);
             }
 
             $notes = array_filter([$options['notes'] ?? null, $courier ? "Kuryer: {$courier->name}" : null]);
+            if ($cancellation) {
+                $notes[] = 'Sabab: ' . CancelReason::from($cancellation['cancel_reason'])->label()
+                    . ($cancellation['cancel_note'] !== null ? " ({$cancellation['cancel_note']})" : '');
+            }
             $manualRefund = false;
 
             if ($to->isCancellation()) {
@@ -203,6 +219,38 @@ class OrderStatusService
         return $query->whereNull('telegram_invite_token')
             ->whereNotNull('telegram_id')
             ->where('telegram_id', 'not like', 'temp\\_%');
+    }
+
+    /**
+     * The cancel_reason/cancel_note/cancelled_by columns of a cancellation, after checking the reason may be given.
+     *
+     * @return array{cancel_reason: string, cancel_note: ?string, cancelled_by: ?int}
+     */
+    protected function cancellation(?User $actor, array $options): array
+    {
+        $reason = $options['cancel_reason'] ?? null;
+        $reason = $reason instanceof CancelReason ? $reason : CancelReason::tryFrom((string) $reason);
+
+        if (!$reason) {
+            throw OrderTransitionException::reasonRequired();
+        }
+
+        $allowed = match (true) {
+            !empty($options['customer']) => $reason === CancelReason::CUSTOMER_REQUEST,
+            $actor !== null => $reason !== CancelReason::PAYMENT_TIMEOUT,
+            default => true,
+        };
+        if (!$allowed) {
+            throw OrderTransitionException::reasonNotAllowed();
+        }
+
+        $note = trim((string) ($options['cancel_note'] ?? ''));
+
+        return [
+            'cancel_reason' => $reason->value,
+            'cancel_note' => $note === '' ? null : mb_substr($note, 0, 500),
+            'cancelled_by' => $actor?->id,
+        ];
     }
 
     protected function resolveCourier(Order $order, OrderStatus $to, ?User $actor, ?int $courierId): ?User

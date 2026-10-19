@@ -2,6 +2,7 @@
 
 namespace App\Services\Notifications;
 
+use App\Enums\CancelReason;
 use App\Models\Order;
 use App\Services\Telegram\TelegramMessenger;
 
@@ -29,38 +30,10 @@ class TelegramNotificationService
 
         list($message, $keyboard) = $this->buildMessageAndKeyboard($order);
 
-        $sentChatIds = [];
-
-        // 1. Send to store admin chat if set
-        if ($store->telegram_admin_chat_id) {
-            $this->sendMessage($store->telegram_admin_chat_id, $message, $keyboard);
-            $sentChatIds[] = $store->telegram_admin_chat_id;
-        }
-
-        // 2. Managers who may act on this order (its branch's and store-wide ones), so no button answers "ruxsat yo'q"
-        $managers = $this->managersForOrder($order);
-
-        if ($managers->isNotEmpty()) {
-            // If managers are registered, send to them
-            foreach ($managers as $manager) {
-                if (!in_array($manager->telegram_id, $sentChatIds)) {
-                    $this->sendMessage($manager->telegram_id, $message, $keyboard);
-                    $sentChatIds[] = $manager->telegram_id;
-                }
-            }
-        } else {
-            // Otherwise, send to owners
-            $owners = \App\Models\User::where('store_id', $store->id)
-                ->where('role', \App\Enums\UserRole::OWNER->value)
-                ->whereNotNull('telegram_id')
-                ->get();
-
-            foreach ($owners as $owner) {
-                if (!in_array($owner->telegram_id, $sentChatIds)) {
-                    $this->sendMessage($owner->telegram_id, $message, $keyboard);
-                    $sentChatIds[] = $owner->telegram_id;
-                }
-            }
+        // The store's order chat, and the managers who may act on the order (else its owners), so no button answers
+        // "ruxsat yo'q"
+        foreach ($this->orderCardChatIds($order) as $chatId) {
+            $this->sendMessage($chatId, $message, $keyboard);
         }
     }
 
@@ -108,7 +81,7 @@ class TelegramNotificationService
 
         // 1. Notify Customer about status change if they have a telegram_id (the only customer alert of a transition)
         if ($order->user && $order->user->telegram_id) {
-            $canceledText = "❌ *Buyurtmangiz bekor qilindi.*\n🆔 ID: #{$order->short_code}\n😔 Agar xatolik bo'lgan bo'lsa, iltimos biz bilan bog'laning.";
+            $canceledText = $this->cancelledText($order);
 
             if ($order->type !== 'delivery') {
                 $statusTexts = [
@@ -312,6 +285,7 @@ class TelegramNotificationService
             'on_the_way' => "🚚 *Yo'lga chiqdi #{$order->short_code}*",
             'delivered' => "🎉 *Yetkazildi #{$order->short_code}*",
             'canceled' => "❌ *Bekor qilindi #{$order->short_code}*",
+            'rejected' => "❌ *Rad etildi #{$order->short_code}*",
             default => "*Buyurtma #{$order->short_code}*",
         };
 
@@ -354,6 +328,11 @@ class TelegramNotificationService
         }
         
         $message .= "\n⏰ " . $order->created_at->format('H:i');
+
+        if ($order->status->isCancellation() && $order->cancel_reason) {
+            $message .= "\n🚫 *Sabab:* {$order->cancel_reason->label()}"
+                . ($order->cancel_note ? "\n💬 " . $this->escapeMarkdown($order->cancel_note) : '');
+        }
         
         if ($actorName) {
             $message .= "\n\n👤 *Last Action by:* {$actorName}";
@@ -384,6 +363,10 @@ class TelegramNotificationService
                 $buttons[] = [
                     ['text' => '🍳 Tayyorlashni boshlash', 'callback_data' => $createToken('prepare')]
                 ];
+                // "Bekor qilish" after acceptance (e.g. a pickup the customer never collects): asks for the reason first
+                $buttons[] = [
+                    ['text' => '❌ Bekor qilish', 'callback_data' => $createToken('abort')]
+                ];
                 break;
             case 'preparing':
                 if ($order->type === 'delivery') {
@@ -395,6 +378,9 @@ class TelegramNotificationService
                         ['text' => '✅ Olib ketishga tayyor', 'callback_data' => $createToken('complete')]
                     ];
                 }
+                $buttons[] = [
+                    ['text' => '❌ Bekor qilish', 'callback_data' => $createToken('abort')]
+                ];
                 break;
             case 'courier_assigned':
                 $buttons[] = [
@@ -439,6 +425,97 @@ class TelegramNotificationService
         $keyboard = ['inline_keyboard' => $buttons];
 
         return [$message, $keyboard];
+    }
+
+    /**
+     * The reasons to pick from after "Rad etish"/"Bekor qilish" was pressed, two per row, and a way back to the card.
+     * Each button's callback data is the pressed button's own token plus ":<reason>" (at most 32 + 1 + 19 bytes,
+     * within Telegram's 64), so the choice is checked and authorised exactly like the button itself.
+     *
+     * @param list<CancelReason> $reasons
+     */
+    public function cancelReasonKeyboard(string $token, array $reasons): array
+    {
+        $buttons = array_map(fn (CancelReason $reason) => [
+            'text' => $reason->label(),
+            'callback_data' => "{$token}:{$reason->value}",
+        ], $reasons);
+
+        $rows = array_chunk($buttons, 2);
+        $rows[] = [['text' => '⬅️ Orqaga', 'callback_data' => "{$token}:back"]];
+
+        return ['inline_keyboard' => $rows];
+    }
+
+    /**
+     * Staff on whom a new order's card lands: the store's order chat, and the managers who may act on it (else its
+     * owners). Telegram chat ids, without repeats.
+     *
+     * @return list<string>
+     */
+    public function orderCardChatIds(Order $order): array
+    {
+        $store = $order->store;
+        if (!$store) {
+            return [];
+        }
+
+        $chatIds = $store->telegram_admin_chat_id ? [(string) $store->telegram_admin_chat_id] : [];
+
+        $staff = $this->managersForOrder($order);
+        if ($staff->isEmpty()) {
+            $staff = \App\Models\User::where('store_id', $store->id)
+                ->where('role', \App\Enums\UserRole::OWNER->value)
+                ->whereNotNull('telegram_id')
+                ->get();
+        }
+
+        foreach ($staff as $user) {
+            $chatIds[] = (string) $user->telegram_id;
+        }
+
+        return array_values(array_unique($chatIds));
+    }
+
+    /**
+     * Tells the staff who got the new order's card that the customer cancelled it themselves.
+     */
+    public function sendCustomerCancelled(Order $order): void
+    {
+        if (!$this->telegram->isConfigured()) {
+            return;
+        }
+
+        $message = "❌ *Mijoz buyurtmani bekor qildi #{$order->short_code}*\n\n"
+            . "👤 " . $this->escapeMarkdown((string) ($order->user->name ?? 'Mijoz')) . "\n"
+            . "💰 *" . number_format((float) $order->total_price, 0, '.', ' ') . " UZS*\n"
+            . "🚫 *Sabab:* " . ($order->cancel_reason?->label() ?? CancelReason::CUSTOMER_REQUEST->label())
+            . ($order->cancel_note ? "\n💬 " . $this->escapeMarkdown($order->cancel_note) : '');
+
+        foreach ($this->orderCardChatIds($order) as $chatId) {
+            $this->sendMessage($chatId, $message);
+        }
+    }
+
+    /**
+     * The customer's cancellation message, with the reason (and the store's note) when one was recorded.
+     */
+    protected function cancelledText(Order $order): string
+    {
+        $reason = $order->cancel_reason;
+
+        return "❌ *Buyurtmangiz bekor qilindi.*\n🆔 ID: #{$order->short_code}"
+            . ($reason ? "\n📝 *Sabab:* {$reason->customerLabel()}" : '')
+            . ($order->cancel_note && $reason !== CancelReason::CUSTOMER_REQUEST ? "\n💬 " . $this->escapeMarkdown($order->cancel_note) : '')
+            . ($reason === CancelReason::CUSTOMER_REQUEST ? '' : "\n😔 Agar xatolik bo'lgan bo'lsa, iltimos biz bilan bog'laning.");
+    }
+
+    /**
+     * Free text inside a (legacy) Markdown message: its markup characters are escaped so it cannot break the message.
+     */
+    protected function escapeMarkdown(string $text): string
+    {
+        return str_replace(['_', '*', '`', '['], ['\\_', '\\*', '\\`', '\\['], $text);
     }
 
     /**

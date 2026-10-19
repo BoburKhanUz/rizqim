@@ -47,4 +47,22 @@ class OrderTransitionException extends RuntimeException
     {
         return new self("Kuryer faqat buyurtma yetkazib berishga topshirilganda biriktiriladi.", 422, 'courier');
     }
+
+    public static function reasonRequired(): self
+    {
+        return new self("Bekor qilish sababini tanlang.", 422, 'reason');
+    }
+
+    public static function reasonNotAllowed(): self
+    {
+        return new self("Bu sababni tanlab bo'lmaydi.", 422, 'reason');
+    }
+
+    /**
+     * The customer's own cancel: the store already took the order, or it is paid.
+     */
+    public static function notCancellableByCustomer(): self
+    {
+        return new self("Buyurtmani endi bekor qilib bo'lmaydi: u allaqachon qabul qilingan yoki to'langan.", 422, 'not_cancellable');
+    }
 }

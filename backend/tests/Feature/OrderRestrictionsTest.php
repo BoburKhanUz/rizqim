@@ -131,9 +131,9 @@ class OrderRestrictionsTest extends TestCase
         $this->assertStringContainsString("olib ketish", $response->json('message'));
     }
 
-    protected function createFailedCashPickup(string $status, array $historyStatuses, ?int $cancelledBy = null, ?\DateTimeInterface $createdAt = null): Order
+    protected function createFailedCashPickup(string $status, array $historyStatuses, ?string $reason, ?\DateTimeInterface $createdAt = null, array $attributes = []): Order
     {
-        $order = Order::create([
+        $order = Order::create(array_merge([
             'store_id' => $this->store->id,
             'branch_id' => $this->branch->id,
             'user_id' => $this->customer->id,
@@ -142,12 +142,12 @@ class OrderRestrictionsTest extends TestCase
             'payment_method' => 'cash',
             'total_price' => 50000,
             'commission_amount' => 5000,
-        ]);
+            'cancel_reason' => $reason,
+        ], $attributes));
 
         foreach ($historyStatuses as $historyStatus) {
             OrderStatusHistory::create([
                 'order_id' => $order->id,
-                'user_id' => in_array($historyStatus, ['canceled', 'rejected']) ? $cancelledBy : null,
                 'status' => $historyStatus,
             ]);
         }
@@ -176,10 +176,10 @@ class OrderRestrictionsTest extends TestCase
             ]);
     }
 
-    public function test_cannot_use_cash_if_blocked_by_past_failed_pickup_orders(): void
+    public function test_cannot_use_cash_after_not_collecting_a_pickup_order(): void
     {
-        // Accepted and prepared by the store, then cancelled because it was never collected
-        $this->createFailedCashPickup('canceled', ['new', 'accepted', 'ready', 'canceled']);
+        // Accepted and prepared by the store, then cancelled because the customer never came
+        $this->createFailedCashPickup('canceled', ['new', 'accepted', 'ready', 'canceled'], 'no_show');
 
         $response = $this->postCashPickupOrder();
 
@@ -187,36 +187,44 @@ class OrderRestrictionsTest extends TestCase
         $this->assertStringContainsString("bekor qilish", $response->json('message'));
     }
 
-    public function test_cannot_use_cash_after_cancelling_own_pickup_order(): void
+    public function test_customer_cancelling_a_new_order_does_not_ban_cash(): void
     {
-        $this->createFailedCashPickup('canceled', ['new', 'canceled'], $this->customer->id);
+        $this->createFailedCashPickup('canceled', ['new', 'canceled'], 'customer_request', null, ['cancelled_by' => $this->customer->id]);
 
-        $response = $this->postCashPickupOrder();
-
-        $response->assertStatus(400);
-        $this->assertStringContainsString("bekor qilish", $response->json('message'));
+        $this->postCashPickupOrder()->assertStatus(201);
     }
 
-    public function test_store_rejected_pickup_order_does_not_ban_cash(): void
+    public function test_store_side_reasons_do_not_ban_cash(): void
     {
-        $staff = User::create([
-            'name' => 'Manager',
-            'phone' => '+998907654321',
-            'password' => bcrypt('password'),
-            'store_id' => $this->store->id,
-            'role' => 'manager',
-        ]);
+        $this->createFailedCashPickup('rejected', ['new', 'rejected'], 'out_of_stock');
+        $this->createFailedCashPickup('canceled', ['new', 'canceled'], 'store_closed');
+        $this->createFailedCashPickup('canceled', ['new', 'accepted', 'ready', 'canceled'], 'out_of_stock');
+        $this->createFailedCashPickup('canceled', ['new', 'accepted', 'canceled'], 'other');
+        $this->createFailedCashPickup('canceled', ['new', 'accepted', 'canceled'], 'customer_request');
 
-        $this->createFailedCashPickup('rejected', ['new', 'rejected'], $staff->id);
-        // Telegram "Rad etish" button records a store refusal as `canceled` while the order is still new
-        $this->createFailedCashPickup('canceled', ['new', 'canceled'], $staff->id);
+        $this->postCashPickupOrder()->assertStatus(201);
+    }
+
+    public function test_cancellations_from_before_reasons_were_recorded_do_not_ban_cash(): void
+    {
+        // Not backfilled: a null reason never counts, whoever cancelled and however far the order got
+        $this->createFailedCashPickup('canceled', ['new', 'accepted', 'ready', 'canceled'], null);
+        $this->createFailedCashPickup('canceled', ['new', 'canceled'], null);
+
+        $this->postCashPickupOrder()->assertStatus(201);
+    }
+
+    public function test_only_cash_pickup_no_shows_count(): void
+    {
+        $this->createFailedCashPickup('canceled', ['new', 'accepted', 'canceled'], 'no_show', null, ['order_type' => 'delivery']);
+        $this->createFailedCashPickup('canceled', ['new', 'accepted', 'canceled'], 'no_show', null, ['payment_method' => 'click']);
 
         $this->postCashPickupOrder()->assertStatus(201);
     }
 
     public function test_cancellation_older_than_window_does_not_ban_cash(): void
     {
-        $this->createFailedCashPickup('canceled', ['new', 'accepted', 'ready', 'canceled'], null, now()->subDays(31));
+        $this->createFailedCashPickup('canceled', ['new', 'accepted', 'ready', 'canceled'], 'no_show', now()->subDays(31));
 
         $this->postCashPickupOrder()->assertStatus(201);
     }
@@ -224,13 +232,16 @@ class OrderRestrictionsTest extends TestCase
     public function test_cash_ban_threshold_is_configurable(): void
     {
         config(['orders.cash_pickup_ban.threshold' => 2]);
-        $this->createFailedCashPickup('canceled', ['new', 'accepted', 'ready', 'canceled']);
+        $this->createFailedCashPickup('canceled', ['new', 'accepted', 'ready', 'canceled'], 'no_show');
 
         $this->postCashPickupOrder()->assertStatus(201);
 
-        $this->createFailedCashPickup('canceled', ['new', 'accepted', 'ready', 'canceled']);
+        $this->createFailedCashPickup('canceled', ['new', 'accepted', 'ready', 'canceled'], 'no_show');
 
         $this->postCashPickupOrder()->assertStatus(400);
+
+        config(['orders.cash_pickup_ban.threshold' => 0]);
+        $this->postCashPickupOrder()->assertStatus(201);
     }
 
     public function test_can_order_with_cash_if_no_failed_pickup_orders(): void

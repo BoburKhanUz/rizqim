@@ -2,8 +2,10 @@
 
 return [
 
-    // Cash payment is blocked once `threshold` cash pickup orders within `window_days` (0 = no limit) were
-    // cancelled by the customer or after the store accepted them. Store refusals never count; threshold 0 disables.
+    // Cash payment is blocked once `threshold` cash pickup orders within `window_days` (0 = no limit) were cancelled
+    // with the reason `no_show` (the customer never came). Store-side reasons and the customer's own cancellation of a
+    // new order never count, nor do cancellations from before reasons were recorded (null reason, not backfilled).
+    // Threshold 0 disables.
     'cash_pickup_ban' => [
         'window_days' => (int) env('ORDERS_CASH_PICKUP_BAN_WINDOW_DAYS', 30),
         'threshold' => (int) env('ORDERS_CASH_PICKUP_BAN_THRESHOLD', 1),

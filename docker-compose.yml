@@ -1,5 +1,6 @@
 # Rizqim: postgres + redis + backend (nginx/php-fpm) + queue + queue-reports + scheduler + frontend (nginx).
 # Ishga tushirish va yangilash: docker compose up -d --build
+# Monitoring: GET /health (JSON), loglar JSON/stderr'da, zaxira `backup` xizmatida: docs/OPERATIONS.md.
 # Deploy qadamlari (migratsiya, app:check-production, telegram:set-webhook, queue:restart) backend/docker/entrypoint.sh da;
 # artisan va navbat/scheduler jarayonlari www-data nomidan ishlaydi (entrypoint su-exec bilan tushiradi).
 # Ops buyruqlari: docker compose exec -u www-data backend php artisan ... (exec standart bo'yicha root: root yaratgan
@@ -95,8 +96,11 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    # /health (GET, JSON): bazaga va Redis'ga haqiqatan ulanishni tekshiradi, shuning uchun /up (faqat "ilova ishga tushdi")
+    # dan aniqroq. Ular ishlamasa 503 qaytaradi (wget xato kodi bilan chiqadi). Scheduler yoki navbat muammosi 200 (degraded)
+    # beradi, shuning uchun u backend'ni nosog'lom qilmaydi (scheduler/queue shu healthcheck'ni kutadi). docs/OPERATIONS.md
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/up || exit 1"]
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 6
@@ -130,6 +134,14 @@ services:
       backend:
         condition: service_healthy
     command: ["php", "artisan", "schedule:work"]
+    # Har daqiqada kesh'ga yoziladigan yurak urishi (health-heartbeat) 3 daqiqadan eskirsa yoki yo'q bo'lsa nosog'lom.
+    # Healthcheck root nomidan ishlaydi: artisan www-data nomidan chaqiriladi (aks holda storage/logs root'niki bo'lib qoladi).
+    healthcheck:
+      test: ["CMD-SHELL", "su-exec www-data php artisan health:scheduler || exit 1"]
+      interval: 60s
+      timeout: 20s
+      retries: 3
+      start_period: 180s
 
   frontend:
     build:
@@ -139,12 +151,49 @@ services:
         VITE_API_URL: ${VITE_API_URL:-/api/v1}
         VITE_MAP_TILE_URL: ${VITE_MAP_TILE_URL:-}
         VITE_MAP_ATTRIBUTION: ${VITE_MAP_ATTRIBUTION:-}
+        VITE_SENTRY_DSN: ${VITE_SENTRY_DSN:-}
+        VITE_SENTRY_ENVIRONMENT: ${VITE_SENTRY_ENVIRONMENT:-production}
+        VITE_SENTRY_RELEASE: ${VITE_SENTRY_RELEASE:-}
+        VITE_SENTRY_TRACES_SAMPLE_RATE: ${VITE_SENTRY_TRACES_SAMPLE_RATE:-0}
     restart: unless-stopped
     depends_on:
       backend:
         condition: service_healthy
     ports:
       - "${FRONTEND_PORT:-8080}:80"
+    # Mini App nginx orqali backend'gacha butun zanjir (nginx -> /api/ proksi -> backend -> baza/Redis) ishlayaptimi
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/api/v1/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # PostgreSQL zaxirasi: har kuni BACKUP_TIME (UTC) da pg_dump (custom format) -> BACKUP_HOST_DIR (standart ./backups),
+  # BACKUP_RETENTION_DAYS kundan eskilari o'chiriladi. Ishga tushganda ham bitta zaxira oladi. Tashqi nusxa: BACKUP_OFFSITE_CMD
+  # (ildizdagi .env.example). Tiklash: docker compose exec -it backup restore.sh /backups/<fayl>.dump <baza>. docs/OPERATIONS.md
+  # Obraz postgres bilan bir xil versiya: pg_dump server versiyasidan eski bo'lmasligi shart.
+  backup:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGPORT: 5432
+      PGUSER: ${DB_USERNAME:-rizqimbot}
+      PGPASSWORD: ${DB_PASSWORD:-secret}
+      PGDATABASE: ${DB_DATABASE:-rizqimbot}
+      BACKUP_DIR: /backups
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+      BACKUP_TIME: ${BACKUP_TIME:-03:00}
+      BACKUP_OFFSITE_CMD: ${BACKUP_OFFSITE_CMD:-}
+    volumes:
+      - ${BACKUP_HOST_DIR:-./backups}:/backups
+      - ./scripts/backup.sh:/usr/local/bin/backup.sh:ro
+      - ./scripts/restore.sh:/usr/local/bin/restore.sh:ro
+    command: ["sh", "/usr/local/bin/backup.sh", "--daemon"]
 
 volumes:
   postgres_data:

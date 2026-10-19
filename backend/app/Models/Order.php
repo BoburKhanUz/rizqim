@@ -21,6 +21,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property numeric-string $commission_amount
  * @property \Illuminate\Support\Carbon|null $settlement_failed_at
  * @property int $settlement_attempts
+ * @property \App\Enums\CancelReason|null $cancel_reason
  */
 class Order extends Model
 {
@@ -62,6 +63,8 @@ class Order extends Model
             // A delivered order whose ledger booking failed and is retried (SettlementRecoveryService)
             'settlement_failed_at' => 'datetime',
             'settlement_attempts' => 'integer',
+            // Why the order was cancelled or rejected; null on older cancellations (App\Enums\CancelReason)
+            'cancel_reason' => \App\Enums\CancelReason::class,
         ];
     }
 
@@ -154,9 +157,28 @@ class Order extends Model
     }
 
     /**
+     * @return BelongsTo<User, $this>
+     */
+    public function cancelledBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cancelled_by');
+    }
+
+    /**
+     * Whether the customer may still cancel the order themselves (POST /orders/{uuid}/cancel): only while it is new
+     * and nothing was paid for it (cash, or an online payment still pending). Keshbek is paid at checkout.
+     */
+    public function isCancellableByCustomer(): bool
+    {
+        return $this->status === \App\Enums\OrderStatus::NEW
+            && !in_array($this->payment_status, [\App\Enums\PaymentStatus::PAID, \App\Enums\PaymentStatus::REFUNDED], true);
+    }
+
+    /**
      * Whether the customer has lost cash payment because of failed cash pickup orders (see config/orders.php).
-     * Only cancellations by the customer, or after the store accepted the order (not collected), count;
-     * `rejected` orders and store refusals of still-new orders do not.
+     * Only pickup orders the store cancelled because the customer never came (cancel_reason no_show) count: store-side
+     * reasons and the customer's own cancellation of a still-new order do not. Cancellations from before reasons were
+     * recorded have no reason and never count (they were not backfilled).
      */
     public static function cashPickupBanApplies(int $userId): bool
     {
@@ -171,16 +193,9 @@ class Order extends Model
             ->where('user_id', $userId)
             ->where('order_type', 'pickup')
             ->where('payment_method', 'cash')
-            ->where('status', 'canceled')
+            ->where('status', \App\Enums\OrderStatus::CANCELED->value)
+            ->where('cancel_reason', \App\Enums\CancelReason::NO_SHOW->value)
             ->when($windowDays > 0, fn ($query) => $query->where('created_at', '>=', now()->subDays($windowDays)))
-            ->where(function ($query) {
-                $query->whereHas('statusHistories', function ($history) {
-                    $history->where('order_status_histories.status', 'canceled')
-                        ->whereColumn('order_status_histories.user_id', 'orders.user_id');
-                })->orWhereHas('statusHistories', function ($history) {
-                    $history->whereNotIn('order_status_histories.status', ['new', 'canceled', 'rejected', 'refunded']);
-                });
-            })
             ->count();
 
         return $failedCount >= $threshold;

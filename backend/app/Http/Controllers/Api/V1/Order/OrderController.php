@@ -7,7 +7,9 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use App\Traits\ApiResponse;
 use App\Actions\Order\CreateOrderAction;
+use App\Enums\CancelReason;
 use App\Enums\OrderStatus;
+use App\Models\Order;
 use App\Services\Notifications\NotificationFeedService;
 use App\Services\Notifications\OrderAlertService;
 use App\Services\Order\CourierListService;
@@ -16,8 +18,11 @@ use App\Services\Order\OrderReportService;
 use App\Services\Order\OrderStatusService;
 use App\Services\Order\OrderTransitionException;
 use App\Services\Order\PaymentLinkService;
+use App\Services\Notifications\TelegramNotificationService;
 use App\Services\Telegram\TelegramMessenger;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 class OrderController extends Controller
 {
@@ -38,7 +43,58 @@ class OrderController extends Controller
             return $this->error('Unauthorized.', [], 401);
         }
 
-        return $this->success($this->orders->visibleTo($user));
+        $scope = $request->query('scope');
+
+        // Without a scope: the full, unpaginated list that app versions from before scopes still expect
+        if ($scope === null) {
+            return $this->success($this->orders->visibleTo($user));
+        }
+
+        $invalid = fn (string $field, string $message) => response()->json([
+            'success' => false,
+            'message' => $message,
+            'data' => [],
+            'errors' => [$field => [$message]],
+        ], 422);
+
+        if ($scope === 'active') {
+            $active = $this->orders->activeFor($user);
+
+            return response()->json([
+                'success' => true,
+                'message' => '',
+                'data' => $active['orders'],
+                'meta' => ['truncated' => $active['truncated']],
+            ]);
+        }
+
+        if ($scope !== 'history') {
+            return $invalid('scope', "Noto'g'ri scope qiymati. Ruxsat etilgan qiymatlar: active, history.");
+        }
+
+        $perPage = $request->query('per_page') ?? (string) OrderQueryService::HISTORY_DEFAULT_PER_PAGE;
+        if (!is_string($perPage) || !ctype_digit($perPage) || (int) $perPage < 1) {
+            return $invalid('per_page', "per_page musbat butun son bo'lishi kerak.");
+        }
+        $perPage = min((int) $perPage, OrderQueryService::HISTORY_MAX_PER_PAGE);
+
+        $after = null;
+        $cursor = $request->query('cursor');
+        if ($cursor !== null) {
+            $after = is_string($cursor) ? $this->orders->decodeCursor($cursor) : null;
+            if ($after === null) {
+                return $invalid('cursor', "Noto'g'ri yoki eskirgan cursor. Ro'yxatni boshidan yuklang.");
+            }
+        }
+
+        $history = $this->orders->historyFor($user, $perPage, $after);
+
+        return response()->json([
+            'success' => true,
+            'message' => '',
+            'data' => $history['orders'],
+            'meta' => ['next_cursor' => $history['next_cursor'], 'per_page' => $perPage],
+        ]);
     }
 
     public function complete(Request $request, string $uuid): JsonResponse
@@ -126,9 +182,16 @@ class OrderController extends Controller
             return $this->error('Unauthorized.', [], 403);
         }
 
+        // Cancelling or rejecting needs a reason (App\Enums\CancelReason, payment_timeout being the system's own)
         $request->validate([
             'status' => 'required|string|in:accepted,preparing,ready,courier_assigned,on_the_way,delivery,delivered,canceled,rejected',
             'courier_id' => 'nullable|integer',
+            'reason' => ['nullable', 'required_if:status,canceled,rejected', 'string', Rule::in(CancelReason::staffValues())],
+            'note' => 'nullable|string|max:500',
+        ], [
+            'reason.required_if' => 'Bekor qilish sababini tanlang.',
+            'reason.in' => "Bekor qilish sababi noto'g'ri.",
+            'note.max' => "Izoh ko'pi bilan 500 belgi bo'lishi mumkin.",
         ]);
 
         $order = $this->orders->findVisible($user, $uuid);
@@ -141,6 +204,8 @@ class OrderController extends Controller
         try {
             $result = $this->orderStatus->transition($order, $status, $user, [
                 'courier_id' => $request->input('courier_id'),
+                'cancel_reason' => $status->isCancellation() ? $request->input('reason') : null,
+                'cancel_note' => $status->isCancellation() ? $request->input('note') : null,
                 'notes' => "Order status updated via Manager App to: {$status->value} by {$user->name}",
             ]);
         } catch (OrderTransitionException $e) {
@@ -155,6 +220,54 @@ class OrderController extends Controller
             $result->order->load(['items.variant.product', 'user', 'courier']),
             $result->changed ? 'Order status updated successfully.' : 'Buyurtma allaqachon shu holatda.'
         );
+    }
+
+    /**
+     * The customer cancels their own order: only while it is new and unpaid (Order::isCancellableByCustomer), always
+     * with the reason customer_request. Stock, promo use and the like come back as with any cancellation; a payment
+     * arriving afterwards is refused by the payment webhooks. Returns the order as GET /orders lists it.
+     */
+    public function cancel(Request $request, string $uuid, TelegramNotificationService $telegram): JsonResponse
+    {
+        $user = $request->user();
+        if (!$user) {
+            return $this->error('Unauthorized.', [], 401);
+        }
+
+        $request->validate([
+            'reason' => ['nullable', 'string', Rule::in([CancelReason::CUSTOMER_REQUEST->value])],
+            'note' => 'nullable|string|max:500',
+        ], [
+            'reason.in' => "Bekor qilish sababi noto'g'ri.",
+            'note.max' => "Izoh ko'pi bilan 500 belgi bo'lishi mumkin.",
+        ]);
+
+        $order = Str::isUuid($uuid) ? Order::where('uuid', $uuid)->first() : null;
+        if (!$order) {
+            return $this->error('Buyurtma topilmadi.', [], 404);
+        }
+
+        if ((int) $order->user_id !== (int) $user->id) {
+            return $this->error("Faqat o'zingizning buyurtmangizni bekor qila olasiz.", [], 403);
+        }
+
+        try {
+            $result = $this->orderStatus->transition($order, OrderStatus::CANCELED, $user, [
+                'customer' => true,
+                'cancel_reason' => CancelReason::CUSTOMER_REQUEST,
+                'cancel_note' => $request->input('note'),
+                'notes' => 'Mijoz buyurtmani bekor qildi',
+            ]);
+        } catch (OrderTransitionException $e) {
+            return $this->error($e->getMessage(), [], $e->status);
+        }
+
+        if ($result->changed) {
+            // The customer hears from the OrderCancelled listener; the staff who got the order's card hear from here
+            $telegram->sendCustomerCancelled($result->order);
+        }
+
+        return $this->success($result->order->load(['items.variant.product']), 'Buyurtma bekor qilindi.');
     }
 
     public function couriers(Request $request, CourierListService $couriers): JsonResponse

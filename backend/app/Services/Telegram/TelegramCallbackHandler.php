@@ -2,6 +2,7 @@
 
 namespace App\Services\Telegram;
 
+use App\Enums\CancelReason;
 use App\Enums\OrderStatus;
 use App\Enums\UserRole;
 use App\Models\Order;
@@ -10,10 +11,15 @@ use App\Models\User;
 use App\Services\Notifications\TelegramNotificationService;
 use App\Services\Order\OrderStatusService;
 use App\Services\Order\OrderTransitionException;
+use Illuminate\Support\Facades\Gate;
 
 /**
  * Presses of the one-time action buttons on order cards (TelegramAction tokens). Returns the webhook's answer;
  * the callback answer and the refreshed card are queued.
+ *
+ * A cancel button ("Rad etish" on a new order, "Bekor qilish" after acceptance) first swaps the card's keyboard for
+ * the cancel reasons; each reason button carries the same token plus ":<reason>" (":back" returns to the card), so
+ * it passes the very same token, expiry and staff checks before the order is cancelled with that reason.
  */
 class TelegramCallbackHandler
 {
@@ -36,8 +42,9 @@ class TelegramCallbackHandler
         $chatId = $message['chat']['id'] ?? null;
         $messageId = $message['message_id'] ?? null;
 
-        // Parse callback action using TelegramAction token
-        $telegramAction = TelegramAction::where('token', $callbackData)->first();
+        // A TelegramAction token, optionally followed by ":<choice>" (a cancel reason, or "back")
+        [$token, $choice] = array_pad(explode(':', (string) $callbackData, 2), 2, null);
+        $telegramAction = $token !== '' ? TelegramAction::where('token', $token)->first() : null;
 
         if (!$telegramAction) {
             $this->telegram->answerCallbackQuery($callbackQuery['id'], 'Invalid or expired action!', true);
@@ -67,12 +74,17 @@ class TelegramCallbackHandler
             'deliver' => OrderStatus::COURIER_ASSIGNED,
             'take' => OrderStatus::ON_THE_WAY,
             'complete' => OrderStatus::DELIVERED,
-            'cancel' => OrderStatus::CANCELED,
+            'cancel', 'abort' => OrderStatus::CANCELED,
             default => null,
         };
 
         if (!$newStatus) {
             return ['status' => 'unhandled_action'];
+        }
+
+        if ($choice !== null && $newStatus !== OrderStatus::CANCELED) {
+            $this->telegram->answerCallbackQuery($callbackQuery['id'], 'Invalid or expired action!', true);
+            return ['status' => 'error', 'message' => 'Invalid token'];
         }
 
         // The button only proves the message reached some chat: the presser must be staff allowed to make this change
@@ -82,10 +94,32 @@ class TelegramCallbackHandler
             return ['status' => 'forbidden'];
         }
 
+        // "Rad etish" is offered on new orders only: an old button must not cancel an accepted order
+        $from = match ($telegramAction->action) {
+            'cancel' => [OrderStatus::NEW],
+            'abort' => [OrderStatus::ACCEPTED, OrderStatus::PREPARING, OrderStatus::READY],
+            default => null,
+        };
+        $reason = null;
+
+        if ($newStatus === OrderStatus::CANCELED) {
+            $reasons = $this->reasonsFor($order, $telegramAction->action);
+
+            if ($choice === null || $choice === 'back') {
+                return $this->showReasons($callbackQuery, $telegramAction, $order, $actor, $from, $reasons, $choice === 'back', $chatId, $messageId);
+            }
+
+            $reason = CancelReason::tryFrom($choice);
+            if (!$reason || !in_array($reason, $reasons, true)) {
+                $this->telegram->answerCallbackQuery($callbackQuery['id'], "Bu sababni tanlab bo'lmaydi!", true);
+                return ['status' => 'invalid_reason'];
+            }
+        }
+
         try {
             $result = $this->orderStatus->transition($order, $newStatus, $actor, [
-                // "Rad etish" is offered on new orders only: an old button must not cancel an accepted order
-                'from' => $newStatus === OrderStatus::CANCELED ? [OrderStatus::NEW] : null,
+                'from' => $from,
+                'cancel_reason' => $reason,
                 'notes' => "Status updated via Telegram Webhook by: {$actorName}",
             ]);
         } catch (OrderTransitionException $e) {
@@ -95,7 +129,7 @@ class TelegramCallbackHandler
             }
 
             if ($newStatus === OrderStatus::CANCELED) {
-                $this->telegram->answerCallbackQuery($callbackQuery['id'], "Buyurtma qabul qilinganidan keyin uni bekor qilib bo'lmaydi!");
+                $this->telegram->answerCallbackQuery($callbackQuery['id'], $this->cannotCancelText($telegramAction->action));
                 return ['status' => 'cannot_cancel'];
             }
 
@@ -119,6 +153,68 @@ class TelegramCallbackHandler
         $this->telegram->answerCallbackQuery($callbackQuery['id'], "Buyurtma holati: {$statusLabel}!");
 
         return ['status' => 'success'];
+    }
+
+    /**
+     * First press of a cancel button: the card's keyboard becomes the reasons (nothing changes yet). With $back, the
+     * reasons go away and the card's own buttons come back. Refused like the cancel itself would be.
+     *
+     * @param list<OrderStatus>|null $from
+     * @param list<CancelReason> $reasons
+     */
+    protected function showReasons(array $callbackQuery, TelegramAction $telegramAction, Order $order, User $actor, ?array $from, array $reasons, bool $back, mixed $chatId, mixed $messageId): array
+    {
+        if (Gate::forUser($actor)->denies('changeStatus', [$order, OrderStatus::CANCELED])) {
+            $this->telegram->answerCallbackQuery($callbackQuery['id'], "Sizda bu buyurtma bo'yicha amal bajarishga ruxsat yo'q!", true);
+            return ['status' => 'forbidden'];
+        }
+
+        if ($back) {
+            if ($chatId && $messageId) {
+                $this->telegramService->updateOrderTelegramMessage($order, null, (string) $messageId, (string) $chatId);
+            }
+            $this->telegram->answerCallbackQuery($callbackQuery['id'], 'Bekor qilinmadi.');
+            return ['status' => 'back'];
+        }
+
+        if ($order->status->isCancellation()) {
+            $this->telegram->answerCallbackQuery($callbackQuery['id'], "Buyurtma allaqachon bu holatda!");
+            return ['status' => 'no_change'];
+        }
+
+        if ($from !== null && !in_array($order->status, $from, true)) {
+            $this->telegram->answerCallbackQuery($callbackQuery['id'], $this->cannotCancelText($telegramAction->action));
+            return ['status' => 'cannot_cancel'];
+        }
+
+        if ($chatId && $messageId) {
+            $this->telegram->editMessageReplyMarkup($chatId, $messageId, $this->telegramService->cancelReasonKeyboard($telegramAction->token, $reasons));
+        }
+        $this->telegram->answerCallbackQuery($callbackQuery['id'], 'Bekor qilish sababini tanlang.');
+
+        return ['status' => 'choose_reason'];
+    }
+
+    /**
+     * Reasons offered for a cancel button: "no show" only once the store accepted the order (the "abort" button),
+     * "no courier" only for delivery orders. payment_timeout is the system's own.
+     *
+     * @return list<CancelReason>
+     */
+    protected function reasonsFor(Order $order, string $action): array
+    {
+        return array_values(array_filter(CancelReason::staffCases(), fn (CancelReason $reason) => match ($reason) {
+            CancelReason::NO_SHOW => $action === 'abort',
+            CancelReason::COURIER_UNAVAILABLE => $order->type === 'delivery',
+            default => true,
+        }));
+    }
+
+    protected function cannotCancelText(string $action): string
+    {
+        return $action === 'cancel'
+            ? "Buyurtma qabul qilinganidan keyin uni bekor qilib bo'lmaydi!"
+            : "Buyurtmani bu holatda bekor qilib bo'lmaydi!";
     }
 
     /**

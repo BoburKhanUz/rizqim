@@ -168,9 +168,16 @@ trait OrderLifecycleFixtures
         );
     }
 
+    /**
+     * A cancellation or rejection is sent with the reason `other` unless $extra names one (null to send none).
+     */
     protected function setStatus(Order $order, User $actor, string $status, array $extra = [])
     {
+        if (in_array($status, ['canceled', 'rejected'], true) && !array_key_exists('reason', $extra)) {
+            $extra['reason'] = 'other';
+        }
+
         return $this->actingAs($actor, 'sanctum')
-            ->postJson("/api/v1/orders/{$order->uuid}/status", ['status' => $status] + $extra);
+            ->postJson("/api/v1/orders/{$order->uuid}/status", ['status' => $status] + array_filter($extra, fn ($value) => $value !== null));
     }
 }

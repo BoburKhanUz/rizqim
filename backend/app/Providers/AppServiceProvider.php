@@ -77,6 +77,9 @@ class AppServiceProvider extends ServiceProvider
 
         RateLimiter::for('complaints', fn (Request $request) => Limit::perMinute(5)->by($byUser($request)));
 
+        // A customer cancelling their own order (POST /orders/{uuid}/cancel)
+        RateLimiter::for('order-cancel', fn (Request $request) => Limit::perMinute(5)->by($byUser($request)));
+
         // Report exports: each one is a heavy worker job (a whole period's orders as a CSV)
         RateLimiter::for('report-export', fn (Request $request) => [
             Limit::perMinute(3)->by('minute:' . $byUser($request)),

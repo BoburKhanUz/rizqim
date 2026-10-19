@@ -41,12 +41,17 @@ class OrderPolicy
 
     /**
      * Owners/managers run the whole lifecycle of their store's (branch's) orders; a courier only moves
-     * the order assigned to them through the delivery phase. Refunds are super_admin only (before()).
+     * the order assigned to them through the delivery phase; the customer may only cancel their own order while it is
+     * new and unpaid (Order::isCancellableByCustomer). Refunds are super_admin only (before()).
      */
     public function changeStatus(User $user, Order $order, OrderStatus $to): bool
     {
         if ($to === OrderStatus::REFUNDED) {
             return false;
+        }
+
+        if ($this->isOwnCancellableOrder($user, $order, $to)) {
+            return true;
         }
 
         if ($user->role === UserRole::COURIER) {
@@ -100,6 +105,13 @@ class OrderPolicy
         return $user->role === UserRole::OWNER
             || !$user->branch_id
             || (int) $user->branch_id === (int) $order->branch_id;
+    }
+
+    protected function isOwnCancellableOrder(User $user, Order $order, OrderStatus $to): bool
+    {
+        return $to === OrderStatus::CANCELED
+            && (int) $order->user_id === (int) $user->id
+            && $order->isCancellableByCustomer();
     }
 
     protected function isAssignedCourier(User $user, Order $order): bool

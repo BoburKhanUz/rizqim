@@ -78,8 +78,8 @@ class OrderLifecycleCancellationTest extends TestCase
         $service = app(OrderStatusService::class);
 
         // Two stale copies of the same order (two tabs / a retried job) both ask for the cancellation
-        $first = $service->transition($order, OrderStatus::CANCELED, $this->owner);
-        $second = $service->transition($order, OrderStatus::CANCELED, $this->owner);
+        $first = $service->transition($order, OrderStatus::CANCELED, $this->owner, ['cancel_reason' => 'out_of_stock']);
+        $second = $service->transition($order, OrderStatus::CANCELED, $this->owner, ['cancel_reason' => 'out_of_stock']);
 
         $this->assertTrue($first->changed);
         $this->assertFalse($second->changed);

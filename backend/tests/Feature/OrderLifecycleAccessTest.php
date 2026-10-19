@@ -116,17 +116,17 @@ class OrderLifecycleAccessTest extends TestCase
             ->getJson("/api/v1/catalog?store_id={$this->store->uuid}")->assertOk()->json('data.store.payment_settings.cash.enabled');
 
         // Refused by the store while still new: not the customer's fault, cash stays available (old UI hid it forever)
-        $refused = $this->makeOrder(OrderStatus::REJECTED, ['order_type' => 'pickup']);
+        $refused = $this->makeOrder(OrderStatus::REJECTED, ['order_type' => 'pickup', 'cancel_reason' => 'out_of_stock']);
         OrderStatusHistory::create(['order_id' => $refused->id, 'user_id' => $this->manager->id, 'status' => 'rejected']);
 
         $this->assertTrue($storeEnablesCash($this->customer));
         $this->assertTrue($catalogEnablesCash($this->customer));
         $this->checkout($this->customer, 1);
 
-        // Cancelled by the customer: cash is banned, in the UI and at checkout alike
+        // Never collected (cancelled as a no-show): cash is banned, in the UI and at checkout alike
         $banned = $this->makeCustomer();
-        $cancelled = $this->makeOrder(OrderStatus::CANCELED, ['order_type' => 'pickup', 'user_id' => $banned->id]);
-        OrderStatusHistory::create(['order_id' => $cancelled->id, 'user_id' => $banned->id, 'status' => 'canceled']);
+        $cancelled = $this->makeOrder(OrderStatus::CANCELED, ['order_type' => 'pickup', 'user_id' => $banned->id, 'cancel_reason' => 'no_show']);
+        OrderStatusHistory::create(['order_id' => $cancelled->id, 'user_id' => $this->manager->id, 'status' => 'canceled']);
 
         $this->assertFalse($storeEnablesCash($banned));
         $this->assertFalse($catalogEnablesCash($banned));

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\CancelReason;
 use App\Enums\OrderStatus;
 use App\Enums\PaymentStatus;
 use App\Enums\StoreTransactionType;
@@ -85,7 +86,7 @@ class OrderLifecycleFilamentTest extends TestCase
         $this->signIn($this->owner);
 
         Livewire::test(ListOrders::class)
-            ->callTableAction('cancel', $canceled)
+            ->callTableAction('cancel', $canceled, data: ['reason' => 'out_of_stock'])
             ->callTableAction('deliver', $dispatched);
 
         $this->assertSame(OrderStatus::CANCELED, $canceled->fresh()->status);
@@ -103,8 +104,8 @@ class OrderLifecycleFilamentTest extends TestCase
         $this->signIn($this->owner);
 
         Livewire::test(ListOrders::class)
-            ->callTableAction('cancel', $order)
-            ->callTableAction('cancel', $untouched)
+            ->callTableAction('cancel', $order, data: ['reason' => 'store_closed'])
+            ->callTableAction('cancel', $untouched, data: ['reason' => 'store_closed'])
             ->assertNotified("Buyurtma holati: Bekor qilindi");
 
         Livewire::test(ViewOrder::class, ['record' => $order->getRouteKey()])
@@ -113,6 +114,37 @@ class OrderLifecycleFilamentTest extends TestCase
             ->assertDontSee("mijozga qo'lda qaytarilishi kerak");
 
         $this->assertSame(PaymentStatus::PAID, $order->fresh()->payment_status);
+    }
+
+    public function test_admin_panel_cancel_and_reject_require_a_reason_and_record_it(): void
+    {
+        $canceled = $this->makeOrder(OrderStatus::PREPARING, ['order_type' => 'pickup']);
+        $rejected = $this->makeOrder(OrderStatus::NEW);
+        $this->signIn($this->owner);
+
+        Livewire::test(ListOrders::class)
+            ->callTableAction('cancel', $canceled, data: ['reason' => null])
+            ->assertHasTableActionErrors(['reason' => 'required']);
+        $this->assertSame(OrderStatus::PREPARING, $canceled->fresh()->status);
+
+        Livewire::test(ListOrders::class)
+            ->assertTableActionHidden('reject', $canceled)
+            ->callTableAction('cancel', $canceled, data: ['reason' => 'no_show', 'note' => 'Kelmadi'])
+            ->callTableAction('reject', $rejected, data: ['reason' => 'out_of_stock']);
+
+        $canceled->refresh();
+        $this->assertSame(OrderStatus::CANCELED, $canceled->status);
+        $this->assertSame(CancelReason::NO_SHOW, $canceled->cancel_reason);
+        $this->assertSame('Kelmadi', $canceled->cancel_note);
+        $this->assertSame($this->owner->id, $canceled->cancelled_by);
+
+        $rejected->refresh();
+        $this->assertSame(OrderStatus::REJECTED, $rejected->status);
+        $this->assertSame(CancelReason::OUT_OF_STOCK, $rejected->cancel_reason);
+        $this->assertNull($rejected->cancel_note);
+
+        Livewire::test(ViewOrder::class, ['record' => $canceled->getRouteKey()])
+            ->assertSee('Mijoz kelmadi');
     }
 
     public function test_branch_manager_cannot_act_on_another_branchs_order_in_the_panel(): void

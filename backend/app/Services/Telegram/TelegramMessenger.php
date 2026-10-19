@@ -53,6 +53,18 @@ class TelegramMessenger
     }
 
     /**
+     * Swaps only the inline keyboard of a sent message (e.g. an order card's buttons for the cancel reasons).
+     */
+    public function editMessageReplyMarkup(int|string $chatId, int|string $messageId, array $replyMarkup): void
+    {
+        $this->queue(new SendTelegramRequest('editMessageReplyMarkup', [
+            'chat_id' => $chatId,
+            'message_id' => $messageId,
+            'reply_markup' => json_encode($replyMarkup),
+        ]));
+    }
+
+    /**
      * An inline button that opens the Mini App (TELEGRAM_WEBAPP_URL, at $path inside it), or null while that URL is not
      * set: the button is then left out, never pointed at some fallback site. app:check-production requires the URL.
      *

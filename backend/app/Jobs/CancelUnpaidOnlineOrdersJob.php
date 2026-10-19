@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Enums\CancelReason;
 use App\Enums\OrderStatus;
 use App\Enums\PaymentStatus;
 use App\Models\Order;
@@ -51,6 +52,7 @@ class CancelUnpaidOnlineOrdersJob
                 // The customer's alert (Telegram and in-app feed) goes out with the OrderCancelled event
                 $orderStatus->transition($locked, OrderStatus::CANCELED, null, [
                     'from' => [OrderStatus::NEW],
+                    'cancel_reason' => CancelReason::PAYMENT_TIMEOUT,
                     'notes' => "To'lov {$ttl} daqiqa ichida amalga oshirilmadi, buyurtma avtomatik bekor qilindi.",
                 ]);
             });
