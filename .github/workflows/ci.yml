@@ -79,8 +79,6 @@ jobs:
   backend-static-analysis:
     name: Backend static analysis (PHPStan)
     runs-on: ubuntu-latest
-    # Advisory until the first baseline exists (vendor/bin/phpstan analyse --generate-baseline); then drop this line to make it blocking
-    continue-on-error: true
     defaults:
       run:
         working-directory: backend
