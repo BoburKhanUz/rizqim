@@ -67,6 +67,16 @@ if ! sudo systemctl is-active --quiet redis-server; then
     exit 1
 fi
 
+echo "PHP-FPM fayl yuklash chegaralari sozlanmoqda (backend/docker/php.ini bilan bir xil qiymatlar)..."
+# PHP standarti (2M / 8M) 2 MB dan katta rasmlarni rad etadi. Mini App nginx'i uchun client_max_body_size 10m, backend
+# nginx'i uchun 16m (= post_max_size) qo'ying: docs/DEPLOY.md, 4-bo'lim. 99- prefiksi faylni oxirida yuklaydi.
+sudo tee "/etc/php/${PHP_VERSION}/fpm/conf.d/99-rizqim.ini" > /dev/null <<'EOF_INI'
+; scripts/setup-server.sh yozgan; backend/docker/php.ini bilan bir xil bo'lsin
+upload_max_filesize = 12M
+post_max_size = 16M
+EOF_INI
+sudo systemctl restart "php${PHP_VERSION}-fpm"
+
 echo "Composer o'rnatilmoqda..."
 curl -sS https://getcomposer.org/installer | "$PHP_BIN"
 sudo mv composer.phar /usr/local/bin/composer
@@ -94,11 +104,16 @@ echo "* * * * * ${APP_USER} cd ${APP_DIR}/backend && ${PHP_BIN} artisan schedule
     | sudo tee /etc/cron.d/rizqim-scheduler > /dev/null
 sudo chmod 644 /etc/cron.d/rizqim-scheduler
 
-echo "Navbat ishchisi (queue:work) systemd xizmati sifatida sozlanmoqda..."
-# queue:work QUEUE_CONNECTION ga ergashadi (backend/.env: redis; database zaxira). Flaglar docker-compose.yml dagi queue xizmati bilan bir xil.
-sudo tee /etc/systemd/system/rizqim-queue.service > /dev/null <<EOF
+echo "Navbat ishchilari (queue:work) systemd xizmatlari sifatida sozlanmoqda..."
+# queue:work QUEUE_CONNECTION ga ergashadi (backend/.env: redis; database zaxira). Flaglar docker-compose.yml dagi
+# queue va queue-reports xizmatlari bilan bir xil. Ikki ishchi: `default` (Telegram xabarlari va h.k.) va `reports`
+# (og'ir CSV hisobotlar, SendOrderReport): hisobot Telegram xabarlari ortidan navbat kutib qolmasin va xotira
+# cheklovi alohida bo'lsin. deploy.sh dagi queue:restart ikkalasini ham yangilaydi.
+# $1 xizmat nomi, $2 tavsif, $3 php argumentlari va artisan flaglari
+write_queue_unit() {
+    sudo tee "/etc/systemd/system/$1.service" > /dev/null <<EOF
 [Unit]
-Description=Rizqim Laravel queue worker
+Description=$2
 After=network.target postgresql.service redis-server.service
 Wants=redis-server.service
 
@@ -106,7 +121,7 @@ Wants=redis-server.service
 User=${APP_USER}
 Group=${APP_USER}
 WorkingDirectory=${APP_DIR}/backend
-ExecStart=${PHP_BIN} artisan queue:work --tries=3 --max-time=3600
+ExecStart=${PHP_BIN} $3
 # --max-time and queue:restart (deploy.sh) make the worker exit; systemd starts it again with fresh code
 Restart=always
 RestartSec=5
@@ -116,8 +131,17 @@ TimeoutStopSec=150
 [Install]
 WantedBy=multi-user.target
 EOF
+}
+
+write_queue_unit rizqim-queue "Rizqim Laravel queue worker (default)" \
+    "artisan queue:work --queue=default --tries=3 --max-time=3600"
+# --memory=512 yumshoq chegara (job tugagach ishchi chiqadi), -d memory_limit=768M qattiq chegara
+write_queue_unit rizqim-queue-reports "Rizqim Laravel queue worker (reports)" \
+    "-d memory_limit=768M artisan queue:work --queue=reports --memory=512 --timeout=150 --tries=1 --max-time=3600"
 sudo systemctl daemon-reload
-sudo systemctl enable --now rizqim-queue.service
+sudo systemctl enable rizqim-queue.service rizqim-queue-reports.service
+# restart (start emas): ishlab turgan ishchi yangi flaglar bilan qayta ishga tushsin
+sudo systemctl restart rizqim-queue.service rizqim-queue-reports.service
 
 echo "O'rnatish yakunlandi!"
 echo "Iltimos, Nginx konfiguratsiya fayllarini (/etc/nginx/sites-available/) joylashtiring va PostgreSQL da kerakli DB hamda foydalanuvchini yarating."

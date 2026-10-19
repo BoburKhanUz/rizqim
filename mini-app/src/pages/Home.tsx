@@ -3,6 +3,7 @@ import { useCartStore, type PendingCartItem } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
 import { useAddressStore } from '../store/useAddressStore';
 import { hapticFeedback } from '../lib/telegram';
+import { useCanAddToCart } from '../hooks/useCanAddToCart';
 import { ErrorFallback } from '../components/Feedback';
 import api from '../services/api';
 import { Search, X, MapPin, Heart, Star, Plus, Bell } from 'lucide-react';
@@ -76,9 +77,12 @@ export default function Home() {
     );
   };
 
-  // Puts one unit into the cart; another store's items in the cart ask the customer first
+  const canAddVariant = useCanAddToCart();
+
+  // Puts one unit into the cart (unless the stock rule blocks it); another store's items in the cart ask the customer first
   const addToCart = (product: Product, variant: ProductVariant | undefined) => {
     const cartItem = buildCartItem(product, variant);
+    if (!canAddVariant(variant, cartItem.id)) return;
     const storeInfo = getStoreInfo(product.store);
 
     const isSuccess = addItem(cartItem, storeInfo);
@@ -435,6 +439,7 @@ export default function Home() {
                 <div className="flex items-center justify-between mt-3.5 pt-2 border-t border-slate-50">
                   <span className="text-[11px] font-black text-slate-800">{formatUzbekSum(getProductBasePrice(product))}</span>
                   <button 
+                    aria-label="Savatga qo'shish"
                     onClick={(e) => handleAddToCart(e, product)} 
                     className="bg-amber-50 hover:bg-amber-100 text-amber-600 p-2 rounded-full border border-amber-100 hover:border-amber-200 transition-all duration-200 active:scale-90"
                   >

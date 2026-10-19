@@ -45,7 +45,7 @@ export interface OrderAnalytics {
   cashRevenue: number;
   onlineRevenue: number;
   averagePrepMs: number | null; // accepted -> preparing
-  averageDeliveryMs: number | null; // delivery (or preparing) -> delivered
+  averageDeliveryMs: number | null; // en route (on_the_way or delivery; else preparing) -> delivered
   topProducts: RankedEntry[];
   topCouriers: RankedEntry[];
 }
@@ -57,6 +57,13 @@ function statusTimes(order: Order): Partial<Record<OrderStatus, number>> {
     times[history.status] = new Date(history.created_at).getTime();
   }
   return times;
+}
+
+// When the order first went out with the courier. on_the_way (what couriers set) and delivery (the legacy name) are
+// two names for the same stage.
+function enRouteTime(times: Partial<Record<OrderStatus, number>>): number | undefined {
+  const reached = [times.on_the_way, times.delivery].filter((time): time is number => time !== undefined && Number.isFinite(time));
+  return reached.length > 0 ? Math.min(...reached) : undefined;
 }
 
 function average(values: number[]): number | null {
@@ -89,7 +96,7 @@ export function computeOrderAnalytics(orders: Order[], timeframe: Timeframe, now
     const preparing = times.preparing;
     if (accepted && preparing) prepDurations.push(preparing - accepted);
 
-    const dispatched = times.delivery || times.preparing;
+    const dispatched = enRouteTime(times) || times.preparing;
     const delivered = times.delivered;
     if (dispatched && delivered) deliveryDurations.push(delivered - dispatched);
   }

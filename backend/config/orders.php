@@ -21,4 +21,17 @@ return [
     // above so unpaid orders placed with them earlier still expire.
     'unavailable_payment_methods' => ['uzum', 'paynet'],
 
+    // A delivered order whose ledger booking (commission, settlement, referral reward) failed is booked again every
+    // 10 minutes (App\Jobs\RetryFailedSettlementsJob) until it succeeds or this many bookings failed, the delivery's own
+    // included; then it is left for a superadmin, with a louder alert.
+    'settlement_retry_max_attempts' => (int) env('ORDERS_SETTLEMENT_RETRY_MAX_ATTEMPTS', 12),
+
+    'reports' => [
+        // Queue the CSV report exports (App\Jobs\SendOrderReport) go to, served by a worker of their own so a long
+        // report never holds up Telegram alerts on the default queue
+        'queue' => env('ORDERS_REPORTS_QUEUE', 'reports'),
+        // Longest custom period (days, both ends included) a report may cover
+        'max_custom_days' => 93,
+    ],
+
 ];

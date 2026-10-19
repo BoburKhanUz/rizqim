@@ -13,6 +13,7 @@ use App\Models\OrderStatusHistory;
 use App\Models\ProductVariant;
 use App\Models\User;
 use App\Services\Finance\LedgerService;
+use App\Services\Finance\SettlementRecoveryService;
 use App\Support\Money;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
@@ -22,7 +23,8 @@ use Illuminate\Support\Facades\Log;
 class OrderStatusService
 {
     public function __construct(
-        protected LedgerService $ledger
+        protected LedgerService $ledger,
+        protected SettlementRecoveryService $settlements
     ) {}
 
     /**
@@ -111,7 +113,8 @@ class OrderStatusService
             ]);
 
             if ($to === OrderStatus::DELIVERED) {
-                $this->settle($order, $actor);
+                // In a savepoint: a failed booking is marked on the order, alerted and retried, never fails the delivery
+                $this->settlements->book($order, $actor?->id);
             }
 
             // Both events dispatch after commit (ShouldDispatchAfterCommit)
@@ -338,14 +341,5 @@ class OrderStatusService
         ]);
 
         return $parts ? 'Moliya: ' . implode(', ', $parts) . '.' : null;
-    }
-
-    protected function settle(Order $order, ?User $actor): void
-    {
-        try {
-            $this->ledger->processOrderDelivered($order, $actor?->id);
-        } catch (\Throwable $e) {
-            Log::error("Failed to process financials for order {$order->uuid}: " . $e->getMessage());
-        }
     }
 }

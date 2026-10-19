@@ -122,6 +122,26 @@ describe('computeOrderAnalytics', () => {
     expect(result.averageDeliveryMs).toBe(25 * 60 * 1000);
   });
 
+  it('counts on_the_way (what couriers set) and delivery (legacy) alike as the start of the delivery', () => {
+    const at = (minutesAgo: number) => ago(minutesAgo * 60 * 1000);
+    const history = (status: OrderStatus, minutesAgo: number) => ({
+      id: 0, order_id: 1, user_id: null, status, notes: null, created_at: at(minutesAgo), updated_at: at(minutesAgo),
+    });
+    const timeline = (enRoute: OrderStatus) => [history('preparing', 60), history(enRoute, 40), history('delivered', 30)];
+
+    // 10 minutes en route; measured from "preparing" it would be 30
+    for (const enRoute of ['on_the_way', 'delivery'] as const) {
+      const result = computeOrderAnalytics([order('delivered', { id: 1, status_histories: timeline(enRoute) })], 'today', NOW);
+      expect(result.averageDeliveryMs, enRoute).toBe(10 * 60 * 1000);
+    }
+
+    const mixed = computeOrderAnalytics([
+      order('delivered', { id: 1, status_histories: timeline('on_the_way') }),
+      order('delivered', { id: 2, status_histories: timeline('delivery') }),
+    ], 'today', NOW);
+    expect(mixed.averageDeliveryMs).toBe(10 * 60 * 1000);
+  });
+
   it('ranks the three best-selling products and couriers of delivered orders', () => {
     const items = (...entries: [string, number][]) => entries.map(([product_name, quantity], i) => makeOrderItem({ id: i, product_name, quantity }));
     const ali = makeUser({ id: 10, name: 'Ali' });

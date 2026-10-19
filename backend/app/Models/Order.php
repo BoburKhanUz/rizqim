@@ -19,6 +19,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property numeric-string $discount
  * @property numeric-string $total_price
  * @property numeric-string $commission_amount
+ * @property \Illuminate\Support\Carbon|null $settlement_failed_at
+ * @property int $settlement_attempts
  */
 class Order extends Model
 {
@@ -57,6 +59,9 @@ class Order extends Model
             'discount' => 'decimal:2',
             'total_price' => 'decimal:2',
             'commission_amount' => 'decimal:2',
+            // A delivered order whose ledger booking failed and is retried (SettlementRecoveryService)
+            'settlement_failed_at' => 'datetime',
+            'settlement_attempts' => 'integer',
         ];
     }
 

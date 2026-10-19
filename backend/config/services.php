@@ -23,6 +23,8 @@ return [
         'webhook_secret' => env('TELEGRAM_WEBHOOK_SECRET'),
         'bot_username' => env('TELEGRAM_BOT_USERNAME'),
         'webapp_url' => env('TELEGRAM_WEBAPP_URL'),
+        // Platform alerts for superadmins (e.g. a delivered order whose ledger booking failed); none when unset
+        'superadmin_chat_id' => env('TELEGRAM_SUPERADMIN_CHAT_ID'),
     ],
 
     'resend' => [
@@ -72,8 +74,9 @@ return [
         'timeout' => 5,
         // The public instance allows 1 request per second for the whole platform. 0 turns the pause off (self-hosted Nominatim only)
         'min_interval' => (float) env('NOMINATIM_MIN_INTERVAL', 1),
-        // Seconds a request may queue for its turn before the API answers 503
-        'lock_wait' => 3,
+        // Seconds a request may wait for the request slot before the API answers 503 (with Retry-After): short, so a
+        // queue of cache misses never ties up PHP workers
+        'lock_wait' => 0.5,
     ],
 
 ];
