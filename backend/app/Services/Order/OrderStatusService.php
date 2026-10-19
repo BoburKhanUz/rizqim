@@ -6,6 +6,8 @@ use App\Enums\CancelReason;
 use App\Enums\OrderStatus;
 use App\Enums\PaymentStatus;
 use App\Enums\UserRole;
+use App\Events\Broadcast\OrderAssignedBroadcast;
+use App\Events\Broadcast\OrderStatusChangedBroadcast;
 use App\Events\OrderCancelled;
 use App\Events\OrderStatusUpdated;
 use App\Models\Order;
@@ -48,6 +50,7 @@ class OrderStatusService
         return DB::transaction(function () use ($order, $to, $actor, $options) {
             $order = Order::whereKey($order->getKey())->lockForUpdate()->firstOrFail();
             $from = $order->status;
+            $previousCourierId = $order->courier_id !== null ? (int) $order->courier_id : null;
             $courierId = isset($options['courier_id']) ? (int) $options['courier_id'] : null;
 
             // Checked under the lock, so a store accepting (or a payment landing) a moment earlier wins with a 422
@@ -135,6 +138,11 @@ class OrderStatusService
 
             // Both events dispatch after commit (ShouldDispatchAfterCommit)
             event($to->isCancellation() ? new OrderCancelled($order) : new OrderStatusUpdated($order));
+            // Real-time hints for the Mini App (Reverb; queued, after commit, ids and status only)
+            event(new OrderStatusChangedBroadcast($order, $previousCourierId));
+            if ($courier) {
+                event(new OrderAssignedBroadcast($order));
+            }
 
             return new OrderTransitionResult($order, $from, true, $courier, $manualRefund);
         });

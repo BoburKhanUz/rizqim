@@ -344,7 +344,11 @@ class CreateOrderAction
             ]);
             
             // After commit: a rolled-back order is never announced, nor its Telegram cards built under the row locks
-            DB::afterCommit(fn () => event(new \App\Events\OrderCreated($order)));
+            DB::afterCommit(function () use ($order) {
+                event(new \App\Events\OrderCreated($order));
+                // Real-time hint for the store's staff (Reverb; queued, ids and status only)
+                event(new \App\Events\Broadcast\OrderCreatedBroadcast($order));
+            });
 
             // Create notification logs for the customer
             \App\Models\NotificationLog::create([

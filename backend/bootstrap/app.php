@@ -19,6 +19,12 @@ return Application::configure(basePath: dirname(__DIR__))
             Route::group([], base_path('routes/health.php'));
         },
     )
+    // Real-time updates (Laravel Reverb): POST /api/broadcasting/auth signs private channel subscriptions for a Sanctum
+    // Bearer token; who may join which channel is in routes/channels.php
+    ->withBroadcasting(__DIR__.'/../routes/channels.php', [
+        'prefix' => 'api',
+        'middleware' => ['auth:sanctum'],
+    ])
     ->withSchedule(function (Schedule $schedule) {
         $schedule->job(new \App\Jobs\CheckUnacceptedAssignmentsJob)->everyMinute();
         $schedule->command('sanctum:prune-expired --hours=24')->daily();

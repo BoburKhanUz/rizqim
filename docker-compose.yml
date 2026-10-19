@@ -1,4 +1,4 @@
-# Rizqim: postgres + redis + backend (nginx/php-fpm) + queue + queue-reports + scheduler + frontend (nginx).
+# Rizqim: postgres + redis + backend (nginx/php-fpm) + queue + queue-reports + scheduler + reverb (WebSocket) + frontend (nginx).
 # Ishga tushirish va yangilash: docker compose up -d --build
 # Monitoring: GET /health (JSON), loglar JSON/stderr'da, zaxira `backup` xizmatida: docs/OPERATIONS.md.
 # Deploy qadamlari (migratsiya, app:check-production, telegram:set-webhook, queue:restart) backend/docker/entrypoint.sh da;
@@ -31,6 +31,19 @@ x-backend-environment: &backend-environment
   REDIS_HOST: redis
   REDIS_PORT: 6379
   REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+  # Real-time updates (Laravel Reverb, `reverb` xizmati). Kalitlar ildiz .env dan (frontend build ham shu REVERB_APP_KEY
+  # ni oladi), shuning uchun backend/.env dagi REVERB_APP_* va BROADCAST_CONNECTION Docker'da e'tiborga olinmaydi.
+  # Backend Reverb'ga compose tarmog'i ichida HTTP orqali (reverb:8080) yozadi; brauzerlar esa Mini App origin'i orqali
+  # (frontend nginx /app/ va /apps/ ni reverb:8080 ga proksi qiladi). BROADCAST_CONNECTION=null (yoki log) real-time'ni
+  # o'chiradi, qolgan hammasi odatdagidek ishlaydi (Mini App so'rov bilan yangilaydi). docs/DEPLOY.md, docs/OPERATIONS.md
+  BROADCAST_CONNECTION: ${BROADCAST_CONNECTION:-reverb}
+  REVERB_APP_ID: ${REVERB_APP_ID:-}
+  REVERB_APP_KEY: ${REVERB_APP_KEY:-}
+  REVERB_APP_SECRET: ${REVERB_APP_SECRET:-}
+  REVERB_HOST: reverb
+  REVERB_PORT: 8080
+  REVERB_SCHEME: http
+  REVERB_ALLOWED_ORIGINS: ${REVERB_ALLOWED_ORIGINS:-*}
 
 # Ikkala navbat ishchisi uchun umumiy qism: backend sog'lom bo'lgach (migratsiyalar tugagach) ishga tushadi.
 # SIGTERM'da ishchi joriy jobni tugatib chiqadi; eng uzun job (SendOrderReport) 120 s, shuning uchun standart 10 s emas.
@@ -143,6 +156,33 @@ services:
       retries: 3
       start_period: 180s
 
+  # WebSocket server (Laravel Reverb): buyurtma holatlari Mini App'ga real vaqtda (routes/channels.php dagi private
+  # kanallar, POST /api/broadcasting/auth). Tashqariga port ochilmagan: brauzer frontend nginx orqali (/app/, /apps/)
+  # ulanadi, backend/queue esa compose tarmog'ida reverb:8080 ga yozadi. Eventlar navbat orqali yuboriladi (`queue`).
+  # Yangi kod `docker compose up -d --build` da qayta yaratish bilan keladi. VPS varianti: docs/DEPLOY.md.
+  reverb:
+    <<: *backend
+    environment:
+      <<: *backend-environment
+      RUN_MIGRATIONS: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    command: ["php", "artisan", "reverb:start", "--host=0.0.0.0", "--port=8080"]
+    expose:
+      - "8080"
+    # Reverb'ning o'z GET /up yo'li (server ishlayapti va so'rovlarga javob beryapti)
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/up || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
   frontend:
     build:
       context: ./mini-app
@@ -155,6 +195,12 @@ services:
         VITE_SENTRY_ENVIRONMENT: ${VITE_SENTRY_ENVIRONMENT:-production}
         VITE_SENTRY_RELEASE: ${VITE_SENTRY_RELEASE:-}
         VITE_SENTRY_TRACES_SAMPLE_RATE: ${VITE_SENTRY_TRACES_SAMPLE_RATE:-0}
+        # Reverb (WebSocket) ulanishi: kalit backend bilan bir xil (ildiz .env dagi REVERB_APP_KEY). Bo'sh host =
+        # Mini App ochilgan domen (window.location.hostname); port/scheme tashqi HTTPS proksi bo'yicha (443/https)
+        VITE_REVERB_APP_KEY: ${VITE_REVERB_APP_KEY:-${REVERB_APP_KEY:-}}
+        VITE_REVERB_HOST: ${VITE_REVERB_HOST:-}
+        VITE_REVERB_PORT: ${VITE_REVERB_PORT:-443}
+        VITE_REVERB_SCHEME: ${VITE_REVERB_SCHEME:-https}
     restart: unless-stopped
     depends_on:
       backend:
