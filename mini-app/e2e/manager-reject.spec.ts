@@ -15,9 +15,10 @@ test('manager rejects a new order with a reason', async ({ page, api }) => {
   const dialog = page.getByRole('dialog', { name: /Buyurtmani rad etish/ })
   const confirm = dialog.getByRole('button', { name: 'Rad etish', exact: true })
   await expect(confirm).toBeDisabled() // a reason is required
-  // "Mijoz kelmadi" only makes sense for a pickup order that was accepted
+  // "Mijoz kelmadi" only makes sense for a pickup order that was accepted, "Kuryer yo'q" only for a delivery order
   await expect(dialog.getByRole('radio', { name: 'Mijoz kelmadi' })).toHaveCount(0)
-  await expect(dialog.getByRole('radio')).toHaveCount(5)
+  await expect(dialog.getByRole('radio', { name: "Kuryer yo'q" })).toHaveCount(0)
+  await expect(dialog.getByRole('radio')).toHaveCount(4)
 
   await dialog.getByRole('radio', { name: 'Mahsulot qolmagan' }).check()
   await dialog.getByLabel('Izoh (ixtiyoriy)').fill('Lavash tugadi')

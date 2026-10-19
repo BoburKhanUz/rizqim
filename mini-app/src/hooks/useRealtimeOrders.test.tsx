@@ -7,8 +7,10 @@ import { useAuthStore } from '../store/authStore';
 import { useRealtimeStore } from '../store/realtimeStore';
 import { echoFailure, echoInstances } from '../test/fakeEcho';
 import { makeOrder, makeStore, makeUser } from '../test/factories';
-import { serveOrdersApi } from '../test/ordersApi';
-import { useOrders } from './useOrders';
+import { ordersResponse, serveOrdersApi } from '../test/ordersApi';
+import type { Order } from '../types';
+import { useOrderHistory, useOrders } from './useOrders';
+import { useOrdersForPeriod } from './useOrdersForPeriod';
 import { useRealtimeOrders } from './useRealtimeOrders';
 
 // The hook that turns the server's order events into refetches, on a fake socket
@@ -19,7 +21,9 @@ vi.mock('../lib/telegram', () => ({ hapticFeedback: vi.fn(), tg: { initDataUnsaf
 vi.mock('../services/api', () => ({ default: { get: vi.fn() } }));
 
 const get = vi.mocked(api.get);
-const activeCalls = () => get.mock.calls.filter(([url, config]) => url === '/orders' && (config?.params as { scope?: string })?.scope === 'active').length;
+const callsWith = (scope: string) => get.mock.calls.filter(([url, config]) => url === '/orders' && (config?.params as { scope?: string })?.scope === scope);
+const activeCalls = () => callsWith('active').length;
+const historyCalls = () => callsWith('history').length;
 
 let client: QueryClient;
 
@@ -236,20 +240,65 @@ describe('useRealtimeOrders: events', () => {
     expect(activeCalls()).toBe(before + 1);
   });
 
-  it('invalidates just the open orders for a new order, everything for a change', async () => {
-    await mountWithOrders();
-    const invalidate = vi.spyOn(client, 'invalidateQueries');
-
-    act(() => latestEcho().emit('.order.created', { order }));
-    await settle(400);
-    expect(invalidate).toHaveBeenLastCalledWith({ queryKey: ['orders', 'active'] });
+  it('refetches only the open orders: not the history, while no order finished', async () => {
+    signIn();
+    renderHook(
+      () => {
+        useRealtimeOrders();
+        useOrders();
+        return useOrderHistory('customer');
+      },
+      { wrapper },
+    );
+    await settle();
+    act(() => latestEcho().connectAndSubscribe());
+    await settle();
+    const [active, history] = [activeCalls(), historyCalls()];
 
     act(() => latestEcho().emit('.order.status_changed', { order }));
     await settle(400);
-    expect(invalidate).toHaveBeenLastCalledWith({ queryKey: ['orders'] });
+
+    expect(activeCalls()).toBe(active + 1);
+    expect(historyCalls()).toBe(history);
   });
 
-  it('refetches everything after the socket came back, since events may have been missed', async () => {
+  it('refetches the history once an order finished and left the open ones', async () => {
+    signIn();
+    let served = [makeOrder({ id: 1, status: 'on_the_way' })];
+    get.mockImplementation((_url, config) => Promise.resolve(ordersResponse(served, config)));
+    renderHook(
+      () => {
+        useRealtimeOrders();
+        useOrders();
+        return useOrderHistory('customer');
+      },
+      { wrapper },
+    );
+    await settle();
+    act(() => latestEcho().connectAndSubscribe());
+    await settle();
+    const history = historyCalls();
+
+    served = [makeOrder({ id: 1, status: 'delivered' })];
+    act(() => latestEcho().emit('.order.status_changed', { order: { ...order, status: 'delivered' } }));
+    await settle(400);
+
+    expect(historyCalls()).toBe(history + 1);
+  });
+
+  it('does not let a steady stream of events put the refetch off', async () => {
+    await mountWithOrders();
+    const before = activeCalls();
+
+    for (let i = 0; i < 20; i++) {
+      act(() => latestEcho().emit('.order.status_changed', { order }));
+      await settle(100);
+    }
+
+    expect(activeCalls()).toBeGreaterThanOrEqual(before + 6); // about one per 300 ms
+  });
+
+  it('refetches the open orders and the histories after the socket came back, since events may have been missed', async () => {
     await mountWithOrders();
     const invalidate = vi.spyOn(client, 'invalidateQueries');
 
@@ -257,7 +306,79 @@ describe('useRealtimeOrders: events', () => {
     act(() => latestEcho().connectAndSubscribe());
     await settle(400);
 
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['orders'] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['orders', 'active'] }, { cancelRefetch: false });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['orders', 'history'] }, { cancelRefetch: false });
+    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ['orders'] });
+  });
+});
+
+describe('the analytics screen next to the socket', () => {
+  // The owner's open orders and a period of 15 full pages of finished ones; every request takes 50 ms
+  let served: Order[];
+  const today = new Date(2026, 9, 14, 12, 0, 0).toISOString();
+
+  async function mountAnalytics() {
+    vi.setSystemTime(new Date(2026, 9, 14, 15, 0, 0));
+    signIn({ role: 'owner', store_id: 5 });
+    const open = Array.from({ length: 10 }, (_, i) => makeOrder({ id: 10_000 + i, uuid: `open-${i}`, status: 'preparing', created_at: today }));
+    const done = Array.from({ length: 16 * 50 }, (_, i) => makeOrder({ id: i + 1, uuid: `done-${i}`, status: 'delivered', created_at: today, updated_at: today }));
+    served = [...open, ...done];
+    get.mockImplementation((_url, config) => new Promise((resolve) => setTimeout(() => resolve(ordersResponse(served, config)), 50)));
+
+    const view = renderHook(
+      () => {
+        useRealtimeOrders();
+        return useOrdersForPeriod('yearly');
+      },
+      { wrapper },
+    );
+    await settle(5000);
+    act(() => latestEcho().connectAndSubscribe());
+    await settle(5000);
+    get.mockClear();
+    return view;
+  }
+
+  const finish = (i: number) => {
+    served = served.map((o) => (o.uuid === `open-${i}` ? { ...o, status: 'delivered' } : o));
+  };
+
+  it('costs one request per event, never the pages of the period', async () => {
+    await mountAnalytics();
+
+    for (let i = 0; i < 10; i++) {
+      act(() => latestEcho().emit('.order.status_changed', { order }));
+      await settle(300);
+    }
+    await settle(5000);
+
+    expect(activeCalls()).toBe(10);
+    expect(historyCalls()).toBe(0);
+  });
+
+  it('shows an order that finished at once, from the newest page alone', async () => {
+    const { result } = await mountAnalytics();
+
+    for (let i = 0; i < 10; i++) {
+      finish(i);
+      act(() => latestEcho().emit('.order.status_changed', { order }));
+      await settle(300);
+    }
+    await settle(5000);
+
+    expect(historyCalls()).toBeLessThanOrEqual(10); // the newest page, at most once per finished order
+    expect(callsWith('history').every(([, config]) => (config?.params as { cursor?: string }).cursor === undefined)).toBe(true);
+    const finished = result.current.orders.filter((o) => o.uuid.startsWith('open-'));
+    expect(finished).toHaveLength(10);
+    expect(finished.every((o) => o.status === 'delivered')).toBe(true);
+  });
+
+  it('refreshes the pages of the period every few minutes instead', async () => {
+    await mountAnalytics();
+
+    await settle(5 * 60_000);
+
+    expect(callsWith('history').filter(([, config]) => (config?.params as { per_page?: number }).per_page === 50)).toHaveLength(15);
   });
 });
 

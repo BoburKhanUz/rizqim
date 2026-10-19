@@ -319,23 +319,30 @@ describe('ManagerDashboard: cancelling and rejecting', () => {
     expect(post).toHaveBeenCalledWith('/orders/uuid-1/status', { status: 'rejected', reason: 'store_closed' });
   });
 
-  it('offers "Mijoz kelmadi" for an accepted or preparing pickup order, and for no other', async () => {
+  it('offers "Mijoz kelmadi" only for a pickup order and "Kuryer yo\'q" only for a delivery order', async () => {
     serveOrders([
       makeOrder({ id: 1, uuid: 'p-acc', short_code: 'P1', status: 'accepted', order_type: 'pickup' }),
-      makeOrder({ id: 2, uuid: 'd-acc', short_code: 'D1', status: 'accepted', order_type: 'delivery' }),
+      makeOrder({ id: 2, uuid: 'p-rdy', short_code: 'P2', status: 'ready', order_type: 'pickup' }),
+      makeOrder({ id: 3, uuid: 'd-acc', short_code: 'D1', status: 'accepted', order_type: 'delivery' }),
     ]);
     renderWithClient(<ManagerDashboard />);
     await settle();
 
-    const cancelButtons = screen.getAllByRole('button', { name: 'Bekor qilish' });
-    expect(cancelButtons).toHaveLength(2);
+    expect(screen.getAllByRole('button', { name: 'Bekor qilish' })).toHaveLength(3);
+    const reasonsOfNth = (n: number) => {
+      fireEvent.click(screen.getAllByRole('button', { name: 'Bekor qilish' })[n]); // newest first, as listed
+      const labels = reasonLabels();
+      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Yopish' }));
+      return labels;
+    };
 
-    fireEvent.click(cancelButtons[0]); // newest first, as listed: the pickup order
-    expect(reasonLabels()).toContain('Mijoz kelmadi');
-    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Yopish' }));
-
-    fireEvent.click(screen.getAllByRole('button', { name: 'Bekor qilish' })[1]);
-    expect(reasonLabels()).not.toContain('Mijoz kelmadi');
+    for (const pickup of [reasonsOfNth(0), reasonsOfNth(1)]) {
+      expect(pickup).toContain('Mijoz kelmadi');
+      expect(pickup).not.toContain("Kuryer yo'q");
+    }
+    const delivery = reasonsOfNth(2);
+    expect(delivery).not.toContain('Mijoz kelmadi');
+    expect(delivery).toContain("Kuryer yo'q");
   });
 
   it('cancels an accepted order with status canceled and a reason', async () => {
@@ -400,6 +407,20 @@ describe('CourierDashboard: today\'s deliveries', () => {
     expect(screen.getByText(/^2 ta$/)).toBeInTheDocument();
   });
 
+  it('starts a new day at midnight on a screen left open', async () => {
+    vi.setSystemTime(new Date(2026, 9, 14, 23, 50, 0));
+    const lateLastNight = new Date(2026, 9, 14, 23, 0, 0).toISOString();
+    serveOrders([makeOrder({ id: 1, status: 'delivered', delivery_price: '5000.00', created_at: lateLastNight, updated_at: lateLastNight })]);
+
+    renderWithClient(<CourierDashboard />);
+    await settle();
+    expect(screen.getByText(/^1 ta$/)).toBeInTheDocument();
+
+    await settle(20 * 60_000); // polls carry on past midnight
+
+    expect(screen.getByText(/^0 ta$/)).toBeInTheDocument();
+  });
+
   it('keeps loading older pages until it is past the start of today', async () => {
     const at = (day: number, hour: number) => new Date(2026, 9, day, hour, 0, 0).toISOString();
     // 120 finished orders, the first 60 delivered today
@@ -442,7 +463,28 @@ describe('AdminReports: finished orders of the period', () => {
     renderWithClient(<AdminReports />);
     await settle(100);
 
-    expect(callsOf('history')).toHaveLength(15);
+    // 15 pages of the period, and the newest page once more on its own (the part that is refetched when an order finishes)
+    expect(callsOf('history').filter(([, config]) => (config?.params as { per_page?: number }).per_page === 50)).toHaveLength(15);
+    expect(callsOf('history')).toHaveLength(16);
+    expect(screen.getByText(/to'liq yuklanmadi/)).toBeInTheDocument();
+  });
+
+  it('says so too when loading the period stopped on an error before its start', async () => {
+    // A month of orders, ten a day: the first page reaches back to the 10th, enough for today but not for the month
+    const day = (d: number) => new Date(2026, 9, d, 12, 0, 0).toISOString();
+    const orders = Array.from({ length: 150 }, (_, i) => makeOrder({ id: i + 1, status: 'delivered', created_at: day(14 - Math.floor(i / 10)), updated_at: day(14 - Math.floor(i / 10)) }));
+    get.mockImplementation((_url, config) => {
+      const params = (config?.params ?? {}) as { scope?: string; cursor?: string };
+      if (params.scope === 'history' && params.cursor) return Promise.reject(failedRequest(500, {}, '/orders'));
+      return Promise.resolve(ordersResponse(orders, config));
+    });
+    renderWithClient(<AdminReports />);
+    await settle(100);
+    expect(screen.queryByText(/to'liq yuklanmadi/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /^Oy$/ }));
+    await settle(5000);
+
     expect(screen.getByText(/to'liq yuklanmadi/)).toBeInTheDocument();
   });
 });

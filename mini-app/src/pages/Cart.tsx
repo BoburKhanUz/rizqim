@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import { logApiError } from '../lib/apiError';
 import { useCartStore } from '../store/cartStore';
@@ -17,6 +18,7 @@ import type { CartOrderType, CartPaymentMethod } from '../lib/checkout';
 import { formatUzbekSum } from '../lib/format';
 import { parseAmount } from '../lib/money';
 import { buildCartItem, getProductBasePrice, getStoreInfo, parsePrice } from '../lib/catalog';
+import { ORDERS_KEY } from '../hooks/useOrders';
 import AddressLocationField from '../features/address/AddressLocationField';
 import { isOnAnyBranch, toLatLng } from '../features/address/coordinates';
 import type { AddressLocationValue, LatLng } from '../features/address/types';
@@ -72,6 +74,7 @@ function getOrderDisplayNumber(order: OrderResponseData): string {
 
 export default function Cart() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { user } = useAuthStore();
   const { items, storeName, storeAddress, updateQuantity, removeItem, clearCart, getSubtotal, addItem } = useCartStore();
   const { addresses, selectedAddressId, setSelectedAddressId, addAddress, updateAddress } = useAddressStore();
@@ -432,6 +435,9 @@ export default function Cart() {
       if (res.data.success) {
         const orderData = res.data.data ?? {};
         setSuccessOrderNumber(getOrderDisplayNumber(orderData));
+        // The customer's own channel brings no event for an order they placed: without this, a cached list of their
+        // orders (refreshed slowly while the socket is up) could miss the new one when they go to look at it
+        void queryClient.invalidateQueries({ queryKey: ORDERS_KEY });
 
         // Handle redirect to click/payme URL if present
         const paymentUrl = orderData.payment_url;

@@ -4,11 +4,12 @@ import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import api from '../services/api';
 import { useAuthStore } from '../store/authStore';
+import { useRealtimeStore } from '../store/realtimeStore';
 import { makeOrder, makeStore, makeUser } from '../test/factories';
 import { failedRequest } from '../test/httpErrors';
 import { ordersResponse, serveOrdersApi } from '../test/ordersApi';
 import type { Order } from '../types';
-import { fetchActiveOrders, fetchOrdersPage, mergeOrders, useOrderHistory, useOrders } from './useOrders';
+import { ORDERS_KEY, fetchActiveOrders, fetchOrdersPage, mergeOrders, refetchOrders, useOrderHistory, useOrders } from './useOrders';
 import { useOrdersForPeriod } from './useOrdersForPeriod';
 
 vi.mock('../lib/telegram', () => ({ hapticFeedback: vi.fn(), tg: { initDataUnsafe: {} } }));
@@ -44,6 +45,7 @@ beforeEach(() => {
 
 afterEach(() => {
   client.clear();
+  useRealtimeStore.setState({ connected: false });
   vi.useRealTimers();
 });
 
@@ -113,6 +115,21 @@ describe('useOrders', () => {
     await settle(10_000);
 
     expect(callsWith('history')).toHaveLength(2);
+  });
+
+  it('polls slowly while the socket is up, yet refetches a screen opened again after its own interval', async () => {
+    useRealtimeStore.setState({ connected: true });
+    get.mockImplementation(serveOrdersApi([makeOrder({ id: 1, status: 'new' })]));
+
+    renderHook(() => useOrders(), { wrapper });
+    await settle();
+    await settle(11_000);
+    expect(callsWith('active')).toHaveLength(1); // no poll yet: the socket brings the changes
+
+    renderHook(() => useOrders(), { wrapper }); // e.g. the orders screen after placing an order
+    await settle();
+
+    expect(callsWith('active')).toHaveLength(2);
   });
 
   it('leaves the history alone while the open orders only change', async () => {
@@ -207,6 +224,21 @@ describe('useOrderHistory', () => {
     expect(result.current.capped).toBe(true);
   });
 
+  it('says the period is partial when loading stopped on an error before reaching `since`', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const orders = finished(30);
+    get.mockImplementation((_url, config) =>
+      (config?.params as { cursor?: string })?.cursor ? Promise.reject(failedRequest(500, {}, '/orders')) : Promise.resolve(ordersResponse(orders, config)),
+    );
+
+    const { result } = renderHook(() => useOrderHistory('admin', { pageSize: 5, since: new Date(2020, 0, 1).getTime() }), { wrapper });
+    await settle(10_000);
+
+    expect(result.current.isError).toBe(true);
+    expect(result.current.orders).toHaveLength(5);
+    expect(result.current.capped).toBe(true);
+  });
+
   it('does not keep loading after a failure', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     get.mockRejectedValue(failedRequest(500, {}, '/orders'));
@@ -215,6 +247,82 @@ describe('useOrderHistory', () => {
     await settle(60_000);
 
     expect(callsWith('history').length).toBeLessThanOrEqual(2); // the request and its one retry
+  });
+});
+
+describe('useOrderHistory: refetches while pages load', () => {
+  // `n` finished orders whose short_code tells which version of the server data they come from (the one current when
+  // the request was made); every request takes 100 ms
+  let version = 1;
+  const serveSlowly = (n: number) => {
+    version = 1;
+    get.mockImplementation((_url, config) => {
+      const orders = finished(n).map((order) => ({ ...order, short_code: `v${version}` }));
+      return new Promise((resolve) => setTimeout(() => resolve(ordersResponse(orders, config)), 100));
+    });
+  };
+
+  it('does not cancel a refetch of the loaded pages to load the next one', async () => {
+    serveSlowly(30);
+    const { result } = renderHook(() => useOrderHistory('admin', { pageSize: 5, since: new Date(2020, 0, 1).getTime() }), { wrapper });
+    await settle(350); // three pages in, the fourth on its way
+
+    // The data changes and something refetches the orders (as a mutation does), cancelling the page on its way
+    version = 2;
+    await act(async () => {
+      void client.invalidateQueries({ queryKey: ORDERS_KEY });
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+
+    expect(result.current.orders).toHaveLength(30);
+    expect(new Set(result.current.orders.map((order) => order.short_code))).toEqual(new Set(['v2']));
+  });
+
+  it('waits for a refetch under way when asked for the next page', async () => {
+    serveSlowly(45);
+    const { result } = renderHook(() => useOrderHistory('customer'), { wrapper });
+    await settle(100);
+
+    version = 2;
+    await act(async () => {
+      void client.refetchQueries({ queryKey: ORDERS_KEY });
+      await vi.advanceTimersByTimeAsync(50);
+      void result.current.fetchNextPage(); // "Ko'proq yuklash" in the middle of it
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+
+    expect(new Set(result.current.orders.map((order) => order.short_code))).toEqual(new Set(['v2'])); // the refetch went through
+  });
+});
+
+describe('refetchOrders', () => {
+  it('does not restart a refetch under way, and refetches once more after it for all the calls made meanwhile', async () => {
+    get.mockImplementation((_url, config) => new Promise((resolve) => setTimeout(() => resolve(ordersResponse([], config)), 100)));
+    renderHook(() => useOrders(), { wrapper });
+    await settle(100);
+    expect(callsWith('active')).toHaveLength(1);
+
+    await act(async () => {
+      void client.refetchQueries({ queryKey: ORDERS_KEY }); // a poll, say
+      await vi.advanceTimersByTimeAsync(10);
+      for (let i = 0; i < 3; i++) {
+        void refetchOrders(client, ORDERS_KEY);
+        await vi.advanceTimersByTimeAsync(20);
+      }
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+
+    expect(callsWith('active')).toHaveLength(3); // the first load, the poll (not restarted) and one more after it
+  });
+
+  it('refetches at once when nothing is under way', async () => {
+    get.mockImplementation(serveOrdersApi([]));
+    renderHook(() => useOrders(), { wrapper });
+    await settle();
+
+    await act(() => refetchOrders(client, ORDERS_KEY));
+
+    expect(callsWith('active')).toHaveLength(2);
   });
 });
 

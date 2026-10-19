@@ -623,6 +623,7 @@ export default function ManagerDashboard() {
           <LoadMoreOrders
             hasNextPage={history.hasNextPage}
             isFetchingNextPage={history.isFetchingNextPage}
+            isFetching={history.isFetching}
             isError={history.isFetchNextPageError}
             loadedCount={completedOrders.length}
             onLoadMore={() => void history.fetchNextPage()}

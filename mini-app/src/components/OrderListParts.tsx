@@ -49,6 +49,7 @@ export function PartialPeriodNotice() {
 interface LoadMoreProps {
   hasNextPage: boolean;
   isFetchingNextPage: boolean;
+  isFetching?: boolean; // the loaded pages are being refetched: the next one waits for that
   isError: boolean; // loading the next page failed: no automatic retry, the button retries
   loadedCount: number; // changes whenever a page arrives, so the sentinel is watched again
   onLoadMore: () => void;
@@ -56,7 +57,7 @@ interface LoadMoreProps {
 }
 
 // The end of a paginated list: "Ko'proq yuklash" loads the next page, and so does scrolling it into view.
-export function LoadMoreOrders({ hasNextPage, isFetchingNextPage, isError, loadedCount, onLoadMore, variant = 'staff' }: LoadMoreProps) {
+export function LoadMoreOrders({ hasNextPage, isFetchingNextPage, isFetching = false, isError, loadedCount, onLoadMore, variant = 'staff' }: LoadMoreProps) {
   const language = useLanguageStore((state) => state.language);
   const sentinel = useRef<HTMLDivElement>(null);
   const latestLoadMore = useRef(onLoadMore);
@@ -65,7 +66,7 @@ export function LoadMoreOrders({ hasNextPage, isFetchingNextPage, isError, loade
     latestLoadMore.current = onLoadMore;
   });
 
-  const canAutoLoad = hasNextPage && !isFetchingNextPage && !isError;
+  const canAutoLoad = hasNextPage && !isFetching && !isFetchingNextPage && !isError;
   useEffect(() => {
     const element = sentinel.current;
     if (!canAutoLoad || !element || typeof IntersectionObserver === 'undefined') return;
@@ -96,7 +97,7 @@ export function LoadMoreOrders({ hasNextPage, isFetchingNextPage, isError, loade
       <button
         type="button"
         onClick={onLoadMore}
-        disabled={isFetchingNextPage}
+        disabled={isFetching || isFetchingNextPage}
         className={`${BUTTON_STYLE[variant]} rounded-2xl px-5 py-3 text-xs font-black active:scale-95 transition disabled:opacity-60`}
       >
         {isFetchingNextPage

@@ -1,6 +1,6 @@
 import { isAxiosError } from 'axios';
 import { getApiErrorMessage, getApiFieldError } from './apiError';
-import type { CancelReason, Order } from '../types';
+import type { CancelReason, Order, OrderStatus } from '../types';
 
 type Lang = 'uz' | 'ru' | 'en';
 
@@ -51,11 +51,17 @@ export const getStaffCancelReasonLabel = (reason: string, language: string): str
 
 export const getCustomerCancelReasonLabel = (reason: string, language: string): string => lookup(CUSTOMER_LABELS, reason, language);
 
-// The reasons a member of staff may give for cancelling `order`. no_show only makes sense for a pickup order the
-// store already accepted (or is preparing) that the customer never came for.
+const NO_SHOW_STATUSES: readonly OrderStatus[] = ['accepted', 'preparing', 'ready'];
+
+// The reasons a member of staff may give for cancelling `order`, as the bot offers them (and the API accepts them):
+// no_show only for a pickup order the store accepted, is preparing or has ready that the customer never came for, and
+// courier_unavailable only for a delivery order.
 export function getStaffCancelReasons(order: Pick<Order, 'status' | 'order_type'>): CancelReason[] {
-  const canBeNoShow = order.order_type === 'pickup' && (order.status === 'accepted' || order.status === 'preparing');
-  return STAFF_CANCEL_REASONS.filter((reason) => reason !== 'no_show' || canBeNoShow);
+  const canBeNoShow = order.order_type === 'pickup' && NO_SHOW_STATUSES.includes(order.status);
+  const needsCourier = order.order_type === 'delivery';
+  return STAFF_CANCEL_REASONS.filter(
+    (reason) => (reason !== 'no_show' || canBeNoShow) && (reason !== 'courier_unavailable' || needsCourier),
+  );
 }
 
 // Whether the customer may cancel the order themselves (Order::isCancellableByCustomer): while it is new and nothing

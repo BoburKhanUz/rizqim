@@ -411,6 +411,7 @@ export default function Orders() {
             variant="customer"
             hasNextPage={history.hasNextPage}
             isFetchingNextPage={history.isFetchingNextPage}
+            isFetching={history.isFetching}
             isError={history.isFetchNextPageError}
             loadedCount={historyOrders.length}
             onLoadMore={() => void history.fetchNextPage()}

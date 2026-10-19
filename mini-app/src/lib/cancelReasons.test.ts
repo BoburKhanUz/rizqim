@@ -53,28 +53,29 @@ describe('getStaffCancelReasons', () => {
     expect(reasonsOf('new', 'delivery')).not.toContain('payment_timeout');
   });
 
-  it.each(['accepted', 'preparing'])('offers no_show for a %s pickup order', (status) => {
+  it.each(['accepted', 'preparing', 'ready'])('offers no_show for a %s pickup order', (status) => {
     expect(reasonsOf(status, 'pickup')).toContain('no_show');
   });
 
   it.each([
     ['new', 'pickup'],
-    ['ready', 'pickup'],
+    ['courier_assigned', 'pickup'],
     ['accepted', 'delivery'],
+    ['ready', 'delivery'],
     ['preparing', 'dine_in'],
   ])('offers no_show for nothing else: %s %s', (status, type) => {
     expect(reasonsOf(status, type)).not.toContain('no_show');
   });
 
+  it('offers courier_unavailable only for a delivery order', () => {
+    expect(reasonsOf('accepted', 'delivery')).toContain('courier_unavailable');
+    expect(reasonsOf('accepted', 'pickup')).not.toContain('courier_unavailable');
+    expect(reasonsOf('accepted', 'dine_in')).not.toContain('courier_unavailable');
+  });
+
   it('keeps the other reasons in their order', () => {
-    expect(reasonsOf('accepted', 'pickup')).toEqual([
-      'customer_request',
-      'no_show',
-      'out_of_stock',
-      'store_closed',
-      'courier_unavailable',
-      'other',
-    ]);
+    expect(reasonsOf('accepted', 'pickup')).toEqual(['customer_request', 'no_show', 'out_of_stock', 'store_closed', 'other']);
+    expect(reasonsOf('ready', 'delivery')).toEqual(['customer_request', 'out_of_stock', 'store_closed', 'courier_unavailable', 'other']);
   });
 });
 

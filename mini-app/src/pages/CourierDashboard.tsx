@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLanguageStore } from '../store/languageStore';
 import { useAuthStore } from '../store/authStore';
@@ -22,11 +22,13 @@ export default function CourierDashboard() {
   const [activeTab, setActiveTab] = useState<'active' | 'completed'>('active');
 
   // Courier assigned orders: polled while the screen is visible (active deliveries change quickly) and pushed over the socket
-  const { data: activeData, isLoading, error } = useStaffOrders('courier', POLL_INTERVAL_MS.courierOrders);
+  const { data: activeData, isLoading, error, dataUpdatedAt } = useStaffOrders('courier', POLL_INTERVAL_MS.courierOrders);
   const allOrders = activeData?.orders ?? NO_ORDERS;
 
-  // What was delivered today: the finished orders, loaded back to the start of the day
-  const startOfToday = useMemo(() => new Date().setHours(0, 0, 0, 0), []);
+  // What was delivered today: the finished orders, loaded back to the start of the day. "Today" is the day of the last
+  // refresh, so a screen left open over midnight starts the new day with the next poll
+  const [openedAt] = useState(() => Date.now());
+  const startOfToday = new Date(Math.max(dataUpdatedAt, openedAt)).setHours(0, 0, 0, 0);
   const history = useOrderHistory('courier', { since: startOfToday, pageSize: 50 });
 
   // Complete order mutation

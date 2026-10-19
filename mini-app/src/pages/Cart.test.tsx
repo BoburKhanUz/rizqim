@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -5,7 +6,7 @@ import api from '../services/api';
 import { useAddressStore } from '../store/useAddressStore';
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
-import { makeStore, makeUser } from '../test/factories';
+import { makeOrder, makeStore, makeUser } from '../test/factories';
 import type { BranchSummary, PaymentSettings, StoreListItem } from '../types';
 import Cart from './Cart';
 
@@ -45,12 +46,16 @@ function serveStore(store: StoreListItem) {
 // Lets the (fake) network answer and React render what it brought
 const flush = () => act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
 
+let queryClient: QueryClient;
+
 async function renderCart(paymentSettings: unknown) {
   serveStore(storeWith(paymentSettings));
   render(
-    <MemoryRouter>
-      <Cart />
-    </MemoryRouter>,
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter>
+        <Cart />
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
   await flush();
 }
@@ -65,6 +70,7 @@ const DELIVERY = /^🛵 Yetkazib berish/;
 const PICKUP = /^🏃 Olib ketish/;
 
 beforeEach(() => {
+  queryClient = new QueryClient();
   vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
   vi.spyOn(window, 'alert').mockImplementation(() => {});
 
@@ -234,5 +240,31 @@ describe('Cart: delivery and pickup follow the store switches the server enforce
 
     fireEvent.click(orderButton());
     expect(post).not.toHaveBeenCalled();
+  });
+});
+
+describe('Cart: placing the order', () => {
+  it('marks the cached orders stale, so the orders screen shows the new one at once', async () => {
+    queryClient.setQueryData(['orders', 'active', 'customer'], { orders: [makeOrder({ id: 1, status: 'new' })], truncated: false });
+    await renderCart(null);
+    expect(queryClient.getQueryState(['orders', 'active', 'customer'])?.isInvalidated).toBe(false);
+
+    fireEvent.click(orderButton());
+    await flush();
+
+    expect(post).toHaveBeenCalledTimes(1);
+    expect(queryClient.getQueryState(['orders', 'active', 'customer'])?.isInvalidated).toBe(true);
+  });
+
+  it('leaves them alone when the order was refused', async () => {
+    queryClient.setQueryData(['orders', 'active', 'customer'], { orders: [], truncated: false });
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    post.mockRejectedValueOnce(new Error('network'));
+    await renderCart(null);
+
+    fireEvent.click(orderButton());
+    await flush();
+
+    expect(queryClient.getQueryState(['orders', 'active', 'customer'])?.isInvalidated).toBe(false);
   });
 });

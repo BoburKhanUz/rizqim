@@ -36,6 +36,9 @@ const FINISHED: readonly OrderStatus[] = ['delivered', 'canceled', 'rejected', '
 // Reasons a member of staff may give (App\Enums\CancelReason::staffCases)
 const STAFF_REASONS: readonly CancelReason[] = ['customer_request', 'no_show', 'out_of_stock', 'store_closed', 'courier_unavailable', 'other']
 
+// A pickup order can be canceled as a no-show only in these statuses
+const NO_SHOW_STATUSES: readonly OrderStatus[] = ['accepted', 'preparing', 'ready']
+
 // Where each status can go next when staff change it by hand (POST /orders/{uuid}/status)
 const NEXT_STATUSES: Partial<Record<OrderStatus, readonly OrderStatus[]>> = {
   new: ['accepted', 'rejected'],
@@ -334,6 +337,9 @@ export class FakeApi {
       const reason = body.reason as CancelReason | undefined
       if (!reason || !STAFF_REASONS.includes(reason)) {
         return fail(422, 'The given data was invalid.', { reason: ['Bekor qilish sababini tanlang.'] })
+      }
+      if (reason === 'no_show' && !(order.order_type === 'pickup' && NO_SHOW_STATUSES.includes(order.status))) {
+        return fail(422, 'The given data was invalid.', { reason: ['Bu sabab faqat olib ketiladigan buyurtma uchun.'] })
       }
       this.touch(order, next, { cancel_reason: reason, cancel_note: typeof body.note === 'string' ? body.note : null })
     } else {

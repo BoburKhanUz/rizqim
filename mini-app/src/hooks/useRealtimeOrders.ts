@@ -1,19 +1,22 @@
 import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { getOrderChannelName, getRealtimeConfig, openOrderChannel, type OrderEvent } from '../lib/realtime';
+import { getOrderChannelName, getRealtimeConfig, openOrderChannel } from '../lib/realtime';
 import { logApiError } from '../lib/apiError';
 import { useAuthStore } from '../store/authStore';
 import { useRealtimeStore } from '../store/realtimeStore';
-import { ORDERS_KEY, ordersKeys } from './useOrders';
+import { ordersKeys, refetchOrders } from './useOrders';
 
-// Events of one burst (a status change usually comes with an assignment) cause one refetch.
-const REFETCH_DEBOUNCE_MS = 300;
+// Events of one burst (a status change usually comes with an assignment) cause one refetch: the first one waits this
+// long for the others. Not reset by each event, so a steady stream of them still refetches every REFETCH_DELAY_MS.
+const REFETCH_DELAY_MS = 300;
 
 // Keeps the order queries fresh from the server's events while the user is signed in:
 //  - connects after sign-in, to the one private channel of the user's role, and disconnects on logout or unmount;
-//  - any order event refetches the order queries that are on screen (a new order only the lists of open orders);
+//  - any order event refetches the lists of open orders that are on screen. Not the finished ones: an order that
+//    finished drops out of its open list, which then refetches the history of its screen (useActiveOrders), and the
+//    analytics screens refresh their many pages on a timer (useOrdersForPeriod), so an event costs a request or two;
 //  - while the socket is up the screens poll slowly (useRealtimeStore.connected); when it drops they poll as before,
-//    and after a reconnect everything is refetched once, since events may have been missed.
+//    and after a reconnect the histories on screen are refetched as well, since events may have been missed.
 // Without VITE_REVERB_APP_KEY, or when the connection cannot be made, nothing changes: the screens just poll.
 export function useRealtimeOrders(): void {
   const queryClient = useQueryClient();
@@ -36,20 +39,21 @@ export function useRealtimeOrders(): void {
     let disposed = false;
     let session: { close: () => void } | undefined;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    let wantsEverything = false;
+    let withHistory = false;
 
-    const refetch = (everything: boolean) => {
-      wantsEverything ||= everything;
-      clearTimeout(timer);
+    const refetch = (history: boolean) => {
+      withHistory ||= history;
+      if (timer !== undefined) return;
       timer = setTimeout(() => {
-        const key = wantsEverything ? ORDERS_KEY : ordersKeys.allActive;
-        wantsEverything = false;
-        void queryClient.invalidateQueries({ queryKey: key });
-      }, REFETCH_DEBOUNCE_MS);
+        timer = undefined;
+        void refetchOrders(queryClient, ordersKeys.allActive);
+        if (withHistory) void refetchOrders(queryClient, ordersKeys.allHistory);
+        withHistory = false;
+      }, REFETCH_DELAY_MS);
     };
 
     openOrderChannel(config, channelName, () => useAuthStore.getState().token, {
-      onEvent: (event: OrderEvent) => refetch(event.name !== 'order.created'),
+      onEvent: () => refetch(false),
       onConnectionChange: (connected) => {
         if (!disposed) setConnected(connected);
       },
