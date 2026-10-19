@@ -97,7 +97,7 @@ final class SentryScrubber
         $event->setExceptions($exceptions);
 
         $event->setBreadcrumb(array_map(
-            fn (Breadcrumb $breadcrumb) => self::beforeBreadcrumb($breadcrumb) ?? $breadcrumb,
+            fn (Breadcrumb $breadcrumb) => self::beforeBreadcrumb($breadcrumb),
             $event->getBreadcrumbs(),
         ));
 
