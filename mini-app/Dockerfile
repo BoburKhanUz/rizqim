@@ -3,7 +3,8 @@ FROM node:22-alpine AS build
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN npm ci
+# puppeteer (devDependency of the manual test-browser.js script only) would download Chrome during install
+RUN PUPPETEER_SKIP_DOWNLOAD=1 npm ci
 
 COPY . .
 

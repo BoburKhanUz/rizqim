@@ -1,0 +1,238 @@
+import { act, fireEvent, render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import api from '../services/api';
+import { useAddressStore } from '../store/useAddressStore';
+import { useAuthStore } from '../store/authStore';
+import { useCartStore } from '../store/cartStore';
+import { makeStore, makeUser } from '../test/factories';
+import type { BranchSummary, PaymentSettings, StoreListItem } from '../types';
+import Cart from './Cart';
+
+// The cart on a fake API: which payment methods and ways of getting the order it offers must follow what the server
+// accepts at checkout (CreateOrderAction), so that a customer is never offered a choice the order is refused for.
+
+vi.mock('../lib/telegram', () => ({ hapticFeedback: vi.fn(), tg: { initDataUnsafe: {} } }));
+vi.mock('../services/api', () => ({ default: { get: vi.fn(), post: vi.fn() } }));
+
+const get = vi.mocked(api.get);
+const post = vi.mocked(api.post);
+
+const BRANCH: BranchSummary = {
+  id: 5,
+  store_id: 1,
+  name: 'Asosiy filial',
+  latitude: 41.31,
+  longitude: 69.28,
+  radius_km: 10,
+  address: 'Amir Temur ko\'chasi 1',
+  phone: null,
+};
+
+// What GET /stores sends for the store of the cart. `payment_settings` is the JSON column, whatever shape it holds.
+function storeWith(paymentSettings: unknown): StoreListItem {
+  return { ...makeStore({ id: 1, payment_settings: paymentSettings as PaymentSettings | null, delivery_fee: 10000 }), branches: [BRANCH] };
+}
+
+function serveStore(store: StoreListItem) {
+  get.mockImplementation((url) => {
+    if (url === '/stores') return Promise.resolve({ data: { success: true, data: [store] } });
+    if (url.startsWith('/catalog')) return Promise.resolve({ data: { success: true, data: { products: [] } } });
+    return Promise.reject(new Error(`unexpected GET ${url}`));
+  });
+}
+
+// Lets the (fake) network answer and React render what it brought
+const flush = () => act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+
+async function renderCart(paymentSettings: unknown) {
+  serveStore(storeWith(paymentSettings));
+  render(
+    <MemoryRouter>
+      <Cart />
+    </MemoryRouter>,
+  );
+  await flush();
+}
+
+const tab = (name: RegExp) => screen.getByRole('button', { name });
+const paymentTile = (name: RegExp) => screen.getByRole('button', { name });
+const queryPaymentTile = (name: RegExp) => screen.queryByRole('button', { name });
+const orderButton = () => screen.getByRole('button', { name: /^Buyurtma berish/ }) as HTMLButtonElement;
+const isSelected = (element: HTMLElement) => element.getAttribute('aria-pressed') === 'true';
+
+const DELIVERY = /^🛵 Yetkazib berish/;
+const PICKUP = /^🏃 Olib ketish/;
+
+beforeEach(() => {
+  vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
+  vi.spyOn(window, 'alert').mockImplementation(() => {});
+
+  useAuthStore.getState().setAuth('token', makeUser({ balance: '0.00' }), makeStore(), false);
+  useCartStore.setState({
+    items: [{ id: '1-lavash', productId: 1, variantId: 'lavash', storeId: '1', name: 'Lavash (Standart)', price: 25000, quantity: 1 }],
+    storeName: 'Evos',
+    storeAddress: 'Asosiy filial',
+  });
+  useAddressStore.setState({
+    addresses: [{ id: 1, title: 'Uy', address: 'Chilonzor 12', lat: 41.27, lng: 69.21, is_default: true }],
+    selectedAddressId: 1,
+  });
+  post.mockResolvedValue({ data: { success: true, data: { order_number: 'A100' } } });
+});
+
+describe('Cart: payment methods follow the store settings the server enforces', () => {
+  it.each([
+    ['null (the store never saved any)', null],
+    ['empty', {}],
+    ['cash only', { cash: { enabled: true } }],
+    ['without Click and Payme (older stores)', { delivery_fee: 10000, working_hours: { open: '09:00', close: '22:00' } }],
+  ])('offers cash alone when the payment settings are %s: Click and Payme missing means off', async (_label, settings) => {
+    await renderCart(settings);
+
+    expect(queryPaymentTile(/click/i)).not.toBeInTheDocument();
+    expect(queryPaymentTile(/payme/i)).not.toBeInTheDocument();
+    expect(isSelected(paymentTile(/naqd/i))).toBe(true);
+
+    fireEvent.click(orderButton());
+    await flush();
+
+    expect(post).toHaveBeenCalledTimes(1);
+    expect(post.mock.calls[0][1]).toMatchObject({ payment_method: 'cash', type: 'delivery' });
+  });
+
+  it('does not preselect Click when the store has it switched off, whatever else it takes', async () => {
+    await renderCart({ cash: { enabled: true }, click: { enabled: false, merchant_id: '1' }, payme: { enabled: true } });
+
+    expect(queryPaymentTile(/click/i)).not.toBeInTheDocument();
+    expect(isSelected(paymentTile(/naqd/i))).toBe(true);
+    expect(isSelected(paymentTile(/payme/i))).toBe(false);
+  });
+
+  it('offers Click and Payme once the store switched them on, with Click preselected and the customer free to change it', async () => {
+    await renderCart({ cash: { enabled: true }, click: { enabled: true }, payme: { enabled: true } });
+
+    expect(isSelected(paymentTile(/click/i))).toBe(true);
+    expect(isSelected(paymentTile(/naqd/i))).toBe(false);
+
+    fireEvent.click(paymentTile(/payme/i));
+    expect(isSelected(paymentTile(/payme/i))).toBe(true);
+    expect(isSelected(paymentTile(/click/i))).toBe(false);
+
+    fireEvent.click(orderButton());
+    await flush();
+
+    expect(post.mock.calls[0][1]).toMatchObject({ payment_method: 'payme' });
+  });
+
+  it('does not offer cash to a store that switched it off, and pays with what is left', async () => {
+    await renderCart({ cash: { enabled: false }, click: { enabled: true } });
+
+    expect(queryPaymentTile(/naqd/i)).not.toBeInTheDocument();
+    expect(isSelected(paymentTile(/click/i))).toBe(true);
+  });
+
+  it('moves to the first method on offer when the one the customer picked is switched off meanwhile', async () => {
+    await renderCart({ cash: { enabled: true }, click: { enabled: true }, payme: { enabled: true } });
+    fireEvent.click(paymentTile(/payme/i));
+    expect(isSelected(paymentTile(/payme/i))).toBe(true);
+
+    // The store switches Payme off; the cart reloads the store when its items change
+    serveStore(storeWith({ cash: { enabled: true }, click: { enabled: true }, payme: { enabled: false } }));
+    act(() => useCartStore.getState().updateQuantity('1-lavash', 2));
+    await flush();
+
+    expect(queryPaymentTile(/payme/i)).not.toBeInTheDocument();
+    expect(isSelected(paymentTile(/naqd/i))).toBe(true);
+
+    fireEvent.click(orderButton());
+    await flush();
+
+    expect(post.mock.calls[0][1]).toMatchObject({ payment_method: 'cash' });
+  });
+
+  it('blocks the order, with a reason, when the store takes no payment at all', async () => {
+    await renderCart({ cash: { enabled: false }, click: { enabled: false }, payme: { enabled: false } });
+
+    expect(screen.getByText("Do'kon hozircha to'lov qabul qilmayapti. Keyinroq urinib ko'ring.")).toBeInTheDocument();
+    expect(orderButton()).toBeDisabled();
+
+    fireEvent.click(orderButton());
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  it('offers cashback next to the store methods, but only lets it pay for an order it covers', async () => {
+    useAuthStore.getState().setAuth('token', makeUser({ balance: '12000.00' }), makeStore(), false);
+    await renderCart({ cash: { enabled: true } });
+
+    const keshbek = paymentTile(/keshbek/i) as HTMLButtonElement;
+    expect(keshbek).toBeDisabled(); // 25 000 + 10 000 delivery is more than the 12 000 balance
+    expect(isSelected(paymentTile(/naqd/i))).toBe(true);
+  });
+});
+
+describe('Cart: delivery and pickup follow the store switches the server enforces', () => {
+  it('offers both for a store that never switched either off', async () => {
+    await renderCart({ cash: { enabled: true } });
+
+    expect(tab(DELIVERY)).toBeEnabled();
+    expect(tab(PICKUP)).toBeEnabled();
+    expect(isSelected(tab(DELIVERY))).toBe(true);
+  });
+
+  it('does not offer delivery when the store switched it off: pickup is selected and the order is a pickup order', async () => {
+    await renderCart({ cash: { enabled: true }, delivery_enabled: false, pickup_enabled: true });
+
+    expect(tab(DELIVERY)).toBeDisabled();
+    expect(tab(PICKUP)).toBeEnabled();
+    expect(isSelected(tab(PICKUP))).toBe(true);
+    expect(screen.queryByText('Yetkazib berish manzili')).not.toBeInTheDocument();
+
+    expect(orderButton()).toBeEnabled();
+    fireEvent.click(orderButton());
+    await flush();
+
+    expect(post.mock.calls[0][1]).toMatchObject({ type: 'pickup', branch_id: BRANCH.id, address: null, latitude: null, longitude: null });
+  });
+
+  it('does not offer pickup when the store switched it off, and the customer cannot switch to it', async () => {
+    await renderCart({ cash: { enabled: true }, delivery_enabled: true, pickup_enabled: false });
+
+    expect(tab(PICKUP)).toBeDisabled();
+    expect(isSelected(tab(DELIVERY))).toBe(true);
+
+    fireEvent.click(tab(PICKUP));
+    expect(isSelected(tab(DELIVERY))).toBe(true);
+    expect(screen.getByText('Yetkazib berish manzili')).toBeInTheDocument();
+
+    fireEvent.click(orderButton());
+    await flush();
+
+    expect(post.mock.calls[0][1]).toMatchObject({ type: 'delivery', address: 'Chilonzor 12' });
+  });
+
+  it('moves a customer who had picked pickup to delivery when the store stops taking pickup', async () => {
+    await renderCart({ cash: { enabled: true } });
+    fireEvent.click(tab(PICKUP));
+    expect(isSelected(tab(PICKUP))).toBe(true);
+
+    serveStore(storeWith({ cash: { enabled: true }, pickup_enabled: false }));
+    act(() => useCartStore.getState().updateQuantity('1-lavash', 2));
+    await flush();
+
+    expect(tab(PICKUP)).toBeDisabled();
+    expect(isSelected(tab(DELIVERY))).toBe(true);
+  });
+
+  it('blocks the order, with a reason, when the store takes neither', async () => {
+    await renderCart({ cash: { enabled: true }, delivery_enabled: false, pickup_enabled: false });
+
+    expect(tab(DELIVERY)).toBeDisabled();
+    expect(tab(PICKUP)).toBeDisabled();
+    expect(screen.getAllByText(/Do'kon hozircha yetkazib berishni ham, olib ketishni ham qabul qilmayapti/)).not.toHaveLength(0);
+    expect(orderButton()).toBeDisabled();
+
+    fireEvent.click(orderButton());
+    expect(post).not.toHaveBeenCalled();
+  });
+});

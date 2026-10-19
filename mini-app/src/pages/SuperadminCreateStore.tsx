@@ -1,37 +1,36 @@
-import React, { useCallback, useState, useEffect, useRef } from 'react';
-import { ChevronLeft, Save, MapPin, Building2, User as UserIcon, Navigation } from 'lucide-react';
+import React, { useCallback, useState, useEffect } from 'react';
+import { ChevronLeft, Save, MapPin, Building2, User as UserIcon } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { hapticFeedback } from '../lib/telegram';
 import api from '../services/api';
 import { logApiError } from '../lib/apiError';
-import type { YandexMap, YandexPlacemark } from '../types/ymaps';
+import AddressLocationField from '../features/address/AddressLocationField';
+import { toLatLng } from '../features/address/coordinates';
+import type { AddressLocationValue } from '../features/address/types';
 import type { ApiResponse, CreatedStore, CreateStorePayload, District, Locations, Region } from '../types';
 
-// Tashkent
-const DEFAULT_CENTER: [number, number] = [41.311081, 69.240562];
-
-// The text inputs of the form (their `name` is the field they edit)
+// The text inputs of the form (their `name` is the field they edit). The branch's address is part of the location field.
 const TEXT_FIELDS = [
   'name', 'phone', 'commission_rate', 'owner_name', 'owner_phone',
-  'branch_region_id', 'branch_district_id', 'branch_address', 'branch_phone',
+  'branch_region_id', 'branch_district_id', 'branch_phone',
 ] as const;
 type TextField = (typeof TEXT_FIELDS)[number];
 const isTextField = (name: string): name is TextField => (TEXT_FIELDS as readonly string[]).includes(name);
 
-const toCoordinate = (value: number) => parseFloat(value.toFixed(6));
+// The form before it is sent: the branch's address and point come from the location field, whose pin stays empty until
+// the superadmin has placed it (a store is routed to by its coordinates, so none are ever made up)
+type StoreDraft = Omit<CreateStorePayload, 'branch_address' | 'branch_lat' | 'branch_lng'>;
+
+const EMPTY_LOCATION: AddressLocationValue = { address: '', lat: null, lng: null };
 
 export default function SuperadminCreateStore() {
   const navigate = useNavigate();
-  const mapRef = useRef<HTMLDivElement>(null);
-  const ymapsMapRef = useRef<YandexMap | null>(null);
-  const placemarkRef = useRef<YandexPlacemark | null>(null);
-  
+
   const [loading, setLoading] = useState(false);
-  const [isLocating, setIsLocating] = useState(false);
   const [regions, setRegions] = useState<Region[]>([]);
   const [districts, setDistricts] = useState<District[]>([]);
-  
-  const [formData, setFormData] = useState<CreateStorePayload>({
+
+  const [formData, setFormData] = useState<StoreDraft>({
     name: '',
     phone: '',
     commission_rate: 5,
@@ -39,143 +38,24 @@ export default function SuperadminCreateStore() {
     owner_phone: '',
     branch_region_id: '',
     branch_district_id: '',
-    branch_address: '',
     branch_phone: '',
-    branch_lat: DEFAULT_CENTER[0],
-    branch_lng: DEFAULT_CENTER[1],
     branch_radius: 5,
     branch_open_time: '09:00',
     branch_close_time: '23:00'
   });
 
-  // Helper to reverse geocode and set address
-  const fetchAddressFromCoords = useCallback((lat: number, lng: number) => {
-    const ymaps = window.ymaps;
-    if (ymaps && ymaps.geocode) {
-      ymaps.geocode([lat, lng]).then((res) => {
-        const firstGeoObject = res.geoObjects.get(0);
-        if (firstGeoObject) {
-          // getAddressLine() gets the formatted address string
-          const address = firstGeoObject.getAddressLine();
-          // Often returns Country, City, Street. We can just set it as is.
-          setFormData(prev => ({
-            ...prev,
-            branch_address: address
-          }));
-        }
-      }).catch((err: unknown) => logApiError('Failed to resolve address:', err));
-    }
+  const [branchLocation, setBranchLocation] = useState<AddressLocationValue>(EMPTY_LOCATION);
+  const patchBranchLocation = useCallback((patch: Partial<AddressLocationValue>) => {
+    setBranchLocation((prev) => ({ ...prev, ...patch }));
   }, []);
-
-  // Simplified Map Integration (Yandex Maps)
-  useEffect(() => {
-    const initYmaps = () => {
-      const ymaps = window.ymaps;
-      if (!ymaps || !mapRef.current) return;
-      ymaps.ready(() => {
-        if (!mapRef.current) return;
-        
-        const map = new ymaps.Map(mapRef.current, {
-          center: DEFAULT_CENTER,
-          zoom: 12,
-          controls: ['zoomControl']
-        });
-        ymapsMapRef.current = map;
-
-        const placemark = new ymaps.Placemark(DEFAULT_CENTER, {}, {
-          preset: 'islands#redDotIcon',
-          draggable: true
-        });
-        placemarkRef.current = placemark;
-
-        map.geoObjects.add(placemark);
-
-        // Update coordinates on drag end
-        placemark.events.add('dragend', () => {
-          const coords = placemark.geometry.getCoordinates();
-          const lat = toCoordinate(coords[0]);
-          const lng = toCoordinate(coords[1]);
-          setFormData(prev => ({
-            ...prev,
-            branch_lat: lat,
-            branch_lng: lng
-          }));
-          fetchAddressFromCoords(lat, lng);
-        });
-
-        // Update coordinates on map click
-        map.events.add('click', (e) => {
-          const coords = e.get('coords');
-          const lat = toCoordinate(coords[0]);
-          const lng = toCoordinate(coords[1]);
-          placemark.geometry.setCoordinates(coords);
-          setFormData(prev => ({
-            ...prev,
-            branch_lat: lat,
-            branch_lng: lng
-          }));
-          fetchAddressFromCoords(lat, lng);
-        });
-      });
-    };
-
-    if (!document.getElementById('yandex-maps-js')) {
-      const script = document.createElement('script');
-      script.id = 'yandex-maps-js';
-      script.src = 'https://api-maps.yandex.ru/2.1/?lang=uz_UZ&apikey=';
-      document.head.appendChild(script);
-      script.onload = initYmaps;
-    } else if (window.ymaps) {
-      initYmaps();
-    }
-
-    return () => {
-      if (ymapsMapRef.current) ymapsMapRef.current.destroy();
-    };
-  }, [fetchAddressFromCoords]);
+  // Set by a submit without a pin; it goes away by itself once there is one
+  const [showPinError, setShowPinError] = useState(false);
+  const branchPoint = toLatLng(branchLocation.lat, branchLocation.lng);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     if (!isTextField(name)) return;
     setFormData((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleFindLocation = () => {
-    hapticFeedback('light');
-    if (!navigator.geolocation) {
-      alert("Geolokatsiya qo'llab-quvvatlanmaydi");
-      return;
-    }
-    
-    setIsLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setIsLocating(false);
-        const { latitude, longitude } = position.coords;
-        const lat = toCoordinate(latitude);
-        const lng = toCoordinate(longitude);
-        
-        setFormData(prev => ({
-          ...prev,
-          branch_lat: lat,
-          branch_lng: lng
-        }));
-        
-        if (ymapsMapRef.current && placemarkRef.current) {
-          ymapsMapRef.current.setCenter([lat, lng], 15);
-          placemarkRef.current.geometry.setCoordinates([lat, lng]);
-        }
-        
-        fetchAddressFromCoords(lat, lng);
-        hapticFeedback('success');
-      },
-      () => {
-        setIsLocating(false);
-        hapticFeedback('error');
-        alert("Lokatsiyani aniqlashda xatolik yuz berdi. Iltimos ruxsat bering.");
-      },
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
   };
 
   useEffect(() => {
@@ -206,18 +86,29 @@ export default function SuperadminCreateStore() {
     hapticFeedback('medium');
     
     // Basic validation
-    if (!formData.name || !formData.owner_name || !branchRegionId) {
+    if (!formData.name || !formData.owner_name || !branchRegionId || branchLocation.address.trim() === '') {
       alert("Iltimos barcha majburiy maydonlarni to'ldiring.");
+      return;
+    }
+    // Orders are routed to the branch by its coordinates: it is not created at a place nobody picked
+    if (branchPoint === null) {
+      hapticFeedback('error');
+      setShowPinError(true);
+      alert("Restoran joylashuvi xaritada belgilanmagan. Iltimos, xaritada pinni qo'ying yoki \"Joylashuvimni aniqlash\" tugmasini bosing.");
       return;
     }
 
     try {
       setLoading(true);
-      const res = await api.post<ApiResponse<CreatedStore>>('/superadmin/stores', {
+      const payload: CreateStorePayload = {
         ...formData,
         branch_region_id: branchRegionId,
         branch_district_id: branchDistrictId,
-      });
+        branch_address: branchLocation.address.trim(),
+        branch_lat: branchPoint.lat,
+        branch_lng: branchPoint.lng,
+      };
+      const res = await api.post<ApiResponse<CreatedStore>>('/superadmin/stores', payload);
       if (res.data.success) {
         hapticFeedback('success');
         alert('Restoran muvaffaqiyatli yaratildi!\n\nLink: ' + res.data.data.invite_link);
@@ -366,43 +257,17 @@ export default function SuperadminCreateStore() {
             </div>
           </div>
 
+          {/* Address and map pin: find yourself, look an address up, or drop the pin; the pin is what the branch is routed by */}
           <div>
-            <label className="text-xs font-bold text-hint mb-1.5 block">Aniq manzil *</label>
-            <input 
-              name="branch_address" 
-              value={formData.branch_address} 
-              onChange={handleChange} 
-              className="w-full bg-bg border border-hint/20 rounded-xl px-4 py-3 text-sm focus:border-green-500 outline-none" 
-              placeholder="Amir Temur ko'chasi, 15-uy" 
-              required
-            />
-          </div>
-
-          {/* Map Picker */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs font-bold text-hint block">Xaritadan belgilang *</label>
-              <button 
-                type="button" 
-                onClick={handleFindLocation}
-                disabled={isLocating}
-                className="text-[10px] bg-green-500/10 text-green-500 px-3 py-1.5 rounded-full font-bold flex items-center gap-1 active:scale-95 transition-transform"
-              >
-                {isLocating ? (
-                  <span className="w-3 h-3 border-2 border-green-500 border-t-transparent rounded-full animate-spin"></span>
-                ) : (
-                  <Navigation className="w-3 h-3" />
-                )}
-                Joriy joylashuv
-              </button>
-            </div>
-            <div ref={mapRef} className="w-full h-[250px] bg-bg rounded-xl border border-hint/20 overflow-hidden relative z-0">
-              {/* Map loads here */}
-            </div>
-            <div className="flex gap-2 mt-2">
-              <input readOnly value={formData.branch_lat} className="flex-1 bg-transparent border-none text-[10px] text-hint font-mono outline-none" />
-              <input readOnly value={formData.branch_lng} className="flex-1 bg-transparent border-none text-[10px] text-hint font-mono outline-none" />
-            </div>
+            <label className="text-xs font-bold text-hint mb-1.5 block">Aniq manzil va joylashuv (xarita) *</label>
+            <AddressLocationField value={branchLocation} onChange={patchBranchLocation} required />
+            {branchPoint ? (
+              <p className="mt-2 text-[10px] text-hint font-mono">{branchPoint.lat}, {branchPoint.lng}</p>
+            ) : showPinError && (
+              <p role="alert" className="mt-2 text-[11px] font-bold text-rose-500">
+                Restoran joylashuvini xaritada belgilang: bu joylashuvsiz restoran yaratilmaydi.
+              </p>
+            )}
           </div>
 
         </div>

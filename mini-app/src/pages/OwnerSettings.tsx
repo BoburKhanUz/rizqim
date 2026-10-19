@@ -576,6 +576,9 @@ function OwnerSettingsForm({ storeInfo }: { storeInfo: OwnerStoreSettings }) {
               </div>
               <button
                 type="button"
+                role="switch"
+                aria-checked={deliveryEnabled}
+                aria-label="Yetkazib berish (Delivery)"
                 onClick={() => { hapticFeedback('light'); setDeliveryEnabled(!deliveryEnabled); }}
                 className={`w-12 h-6 rounded-full p-1 transition-colors duration-200 ${deliveryEnabled ? 'bg-primary' : 'bg-hint/20'}`}
               >
@@ -590,6 +593,9 @@ function OwnerSettingsForm({ storeInfo }: { storeInfo: OwnerStoreSettings }) {
               </div>
               <button
                 type="button"
+                role="switch"
+                aria-checked={pickupEnabled}
+                aria-label="Olib ketish (Takeaway/Pickup)"
                 onClick={() => { hapticFeedback('light'); setPickupEnabled(!pickupEnabled); }}
                 className={`w-12 h-6 rounded-full p-1 transition-colors duration-200 ${pickupEnabled ? 'bg-primary' : 'bg-hint/20'}`}
               >

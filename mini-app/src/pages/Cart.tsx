@@ -12,13 +12,15 @@ import VariantSelectorModal from '../components/VariantSelectorModal';
 import { useAuthStore } from '../store/authStore';
 import { getAddBlockedMessage, getVariantStock, isProductSoldOut } from '../lib/stock';
 import type { StockVariant } from '../lib/stock';
+import { getAllowedPaymentMethods, getAvailableOrderTypes, pickOrderType, pickPaymentMethod } from '../lib/checkout';
+import type { CartOrderType, CartPaymentMethod } from '../lib/checkout';
 import { formatUzbekSum } from '../lib/format';
 import { parseAmount } from '../lib/money';
 import { buildCartItem, getProductBasePrice, getStoreInfo, parsePrice } from '../lib/catalog';
 import AddressLocationField from '../features/address/AddressLocationField';
 import { isOnAnyBranch, toLatLng } from '../features/address/coordinates';
 import type { AddressLocationValue, LatLng } from '../features/address/types';
-import type { ApiErrorBody, ApiResponse, BranchSummary, PaymentProviderSettings, PaymentSettings, Product, PromoValidation, StoreCatalog, StoreListItem } from '../types';
+import type { ApiErrorBody, ApiResponse, BranchSummary, Product, PromoValidation, StoreCatalog, StoreListItem } from '../types';
 
 interface AppliedPromo {
   // The code string is what we send as `promo_code` when placing the order
@@ -38,9 +40,10 @@ interface OrderResponseData {
   payment_url?: string | null;
 }
 
-// The payment methods the cart offers. Uzum and Paynet are not integrated yet, so they are never offered here,
-// whatever a store's payment settings say.
-type CartPaymentMethod = 'naqd' | 'click' | 'payme' | 'keshbek';
+const ORDER_TYPE_TABS: ReadonlyArray<{ type: CartOrderType; label: string }> = [
+  { type: 'delivery', label: '🛵 Yetkazib berish' },
+  { type: 'pickup', label: '🏃 Olib ketish' },
+];
 
 // The address form of the cart: the location (text + pin) plus the few extra fields it asks for
 interface AddressDraft extends AddressLocationValue {
@@ -67,30 +70,6 @@ function getOrderDisplayNumber(order: OrderResponseData): string {
   return uuid ? uuid.substring(0, 8) : '';
 }
 
-// A provider of a store's payment_settings is a settings object, or (legacy data) a bare boolean.
-// Cash is on unless the store switched it off; an online provider has to be switched on explicitly once it is configured.
-function isCashEnabled(setting: boolean | PaymentProviderSettings | null | undefined): boolean {
-  if (setting === undefined || setting === null) return true;
-  return typeof setting === 'boolean' ? setting : setting.enabled !== false;
-}
-
-function isOnlineProviderEnabled(setting: boolean | PaymentProviderSettings | null | undefined): boolean {
-  if (setting === undefined || setting === null) return true;
-  return typeof setting === 'boolean' ? setting : setting.enabled === true;
-}
-
-function getAllowedPaymentMethods(settings: PaymentSettings | null | undefined, balance: number | undefined): CartPaymentMethod[] {
-  const allowed = settings?.allowed_methods || ['cash', 'click', 'payme'];
-  const methods: CartPaymentMethod[] = [];
-
-  if ((allowed.includes('cash') || allowed.includes('naqd')) && isCashEnabled(settings?.cash)) methods.push('naqd');
-  if (allowed.includes('click') && isOnlineProviderEnabled(settings?.click)) methods.push('click');
-  if (allowed.includes('payme') && isOnlineProviderEnabled(settings?.payme)) methods.push('payme');
-  if (balance !== undefined && balance > 0) methods.push('keshbek');
-
-  return methods.length > 0 ? methods : ['naqd'];
-}
-
 export default function Cart() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
@@ -99,7 +78,8 @@ export default function Cart() {
   const balance = user?.balance;
 
   const [deliveryNote, setDeliveryNote] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<CartPaymentMethod>('click');
+  // The customer's own pick; null until they pick one (the method actually used is effectivePaymentMethod)
+  const [chosenPaymentMethod, setChosenPaymentMethod] = useState<CartPaymentMethod | null>(null);
   const [promoCodeInput, setPromoCodeInput] = useState('');
   const [activePromo, setActivePromo] = useState<AppliedPromo | null>(null);
   const [promoError, setPromoError] = useState('');
@@ -108,7 +88,8 @@ export default function Cart() {
   const [catalog, setCatalog] = useState<{ storeId: string; products: Product[] } | null>(null);
   const [selectedProductForVariant, setSelectedProductForVariant] = useState<Product | null>(null);
 
-  const [deliveryMethod, setDeliveryMethod] = useState<'delivery' | 'pickup'>('delivery');
+  // The customer's own pick (the way actually used is deliveryMethod, which only ever is one the store takes)
+  const [chosenOrderType, setChosenOrderType] = useState<CartOrderType>('delivery');
   const [storeBranches, setStoreBranches] = useState<BranchSummary[]>([]);
   // Every branch of every store: a saved address sitting exactly on one of them is a leftover of the old cart
   // copying the restaurant's coordinates into hand-typed addresses (see isOnAnyBranch)
@@ -165,11 +146,16 @@ export default function Cart() {
     }
   }, [items]);
 
-  // Calculate dynamic allowed payment methods based on store's admin settings
-  const availablePaymentMethods = useMemo<CartPaymentMethod[]>(() => {
-    if (!storeDetail) return ['click', 'payme', 'naqd'];
-    return getAllowedPaymentMethods(storeDetail.payment_settings, balance);
-  }, [storeDetail, balance]);
+  // What the store takes at checkout, by the rules of the server. Until the store has loaded its settings are read as
+  // "nothing set up" (cash, delivery and pickup), which is what the server assumes for a store without settings.
+  const availablePaymentMethods = useMemo<CartPaymentMethod[]>(
+    () => getAllowedPaymentMethods(storeDetail?.payment_settings, balance),
+    [storeDetail, balance]
+  );
+  const availableOrderTypes = useMemo<CartOrderType[]>(
+    () => getAvailableOrderTypes(storeDetail?.payment_settings),
+    [storeDetail]
+  );
 
   // Fetch store catalog for upsell recommendations
   useEffect(() => {
@@ -350,6 +336,9 @@ export default function Cart() {
     return Math.min(Math.max(discount, 0), subtotal);
   }, [activePromo, subtotal]);
 
+  // How the order is placed: the customer's pick while the store takes it, else the other way. Null when the store
+  // takes neither, and then no order can be placed.
+  const deliveryMethod = pickOrderType(availableOrderTypes, chosenOrderType);
   const deliveryFee = deliveryMethod === 'delivery' ? storeDeliveryFee : 0;
   const total = Math.max(0, subtotal - discountAmount + deliveryFee);
   const minOrderLimit = storeDetail?.min_order !== undefined && storeDetail?.min_order !== null ? storeDetail.min_order : 0;
@@ -362,18 +351,17 @@ export default function Cart() {
   const mapFallbackCenter = toLatLng(selectedBranch?.latitude, selectedBranch?.longitude);
 
   // Cashback pays for the whole order or not at all; a choice that is no longer possible (store settings changed,
-  // cart grew past the balance) quietly becomes the first method that is
+  // cart grew past the balance) quietly becomes the first method that is. Null when nothing can be paid with.
   const isKeshbekAffordable = balance !== undefined && balance >= total;
-  const effectivePaymentMethod: CartPaymentMethod =
-    availablePaymentMethods.find(m => m === paymentMethod && (m !== 'keshbek' || isKeshbekAffordable))
-    ?? availablePaymentMethods.find(m => m !== 'keshbek' || isKeshbekAffordable)
-    ?? 'naqd';
+  const effectivePaymentMethod = pickPaymentMethod(availablePaymentMethods, chosenPaymentMethod, isKeshbekAffordable);
 
   // Delivery orders are routed to a branch (and priced) by their coordinates, so we need real ones.
   const selectedAddress = addresses.find(a => a.id === selectedAddressId);
   const deliveryPoint = selectedAddress ? getAddressPoint(selectedAddress) : null;
   const hasDeliveryLocation = deliveryPoint !== null;
-  const isOrderDisabled = isOrdering || isMinOrderNotMet || isStoreLocked || (deliveryMethod === 'delivery' && !hasDeliveryLocation);
+  const isOrderDisabled = isOrdering || isMinOrderNotMet || isStoreLocked
+    || deliveryMethod === null || effectivePaymentMethod === null
+    || (deliveryMethod === 'delivery' && !hasDeliveryLocation);
 
   const handlePlaceOrder = async () => {
     if (items.length === 0) return;
@@ -384,6 +372,17 @@ export default function Cart() {
     }
     if (isMinOrderNotMet) {
       alert(`Minimal buyurtma summasi ${formatUzbekSum(minOrderLimit)}. Iltimos, yana taom qo'shing.`);
+      return;
+    }
+    // The server refuses an order its store does not take this way or with this payment
+    if (deliveryMethod === null) {
+      hapticFeedback('error');
+      alert("Do'kon hozircha yetkazib berishni ham, olib ketishni ham qabul qilmayapti. Keyinroq urinib ko'ring.");
+      return;
+    }
+    if (effectivePaymentMethod === null) {
+      hapticFeedback('error');
+      alert("Do'kon hozircha to'lov qabul qilmayapti yoki keshbek balansi yetarli emas. Keyinroq urinib ko'ring.");
       return;
     }
     hapticFeedback('success');
@@ -566,24 +565,37 @@ export default function Cart() {
           </div>
         )}
 
-        {/* Delivery Method Selector */}
-        <div className="bg-white p-2 rounded-2xl border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.02)] flex gap-1">
-          <button 
-            onClick={() => { hapticFeedback('light'); setDeliveryMethod('delivery'); }}
-            className={`flex-1 py-2.5 text-xs font-black rounded-xl transition ${deliveryMethod === 'delivery' ? 'bg-amber-500 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}
-          >
-            🛵 Yetkazib berish
-          </button>
-          <button 
-            onClick={() => { hapticFeedback('light'); setDeliveryMethod('pickup'); }}
-            className={`flex-1 py-2.5 text-xs font-black rounded-xl transition ${deliveryMethod === 'pickup' ? 'bg-amber-500 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}
-          >
-            🏃 Olib ketish
-          </button>
+        {/* Delivery Method Selector: a way the store switched off stays in sight, but can't be picked */}
+        <div role="group" aria-label="Buyurtma turi" className="bg-white p-2 rounded-2xl border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.02)] flex gap-1">
+          {ORDER_TYPE_TABS.map(({ type, label }) => {
+            const isOffered = availableOrderTypes.includes(type);
+            return (
+              <button
+                key={type}
+                type="button"
+                disabled={!isOffered}
+                aria-pressed={deliveryMethod === type}
+                onClick={() => { hapticFeedback('light'); setChosenOrderType(type); }}
+                className={`flex-1 py-2.5 text-xs font-black rounded-xl transition ${
+                  !isOffered ? 'text-slate-300 cursor-not-allowed'
+                    : deliveryMethod === type ? 'bg-amber-500 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50'
+                }`}
+              >
+                {label}
+                {!isOffered && <span className="block text-[9px] font-bold mt-0.5">Vaqtincha mavjud emas</span>}
+              </button>
+            );
+          })}
         </div>
+        {deliveryMethod === null && (
+          <div role="alert" className="bg-rose-50 border border-rose-100 p-3.5 rounded-2xl text-[10px] font-bold text-rose-600 flex items-start gap-2.5">
+            <span className="text-sm">⚠️</span>
+            <p>Do'kon hozircha yetkazib berishni ham, olib ketishni ham qabul qilmayapti. Savat saqlanadi, keyinroq urinib ko'ring.</p>
+          </div>
+        )}
 
-      {/* Checkout Address Block (Only for delivery) */}
-      {deliveryMethod === 'delivery' ? (
+      {/* Checkout Address Block (Only for delivery); nothing while the store takes no order at all */}
+      {deliveryMethod === null ? null : deliveryMethod === 'delivery' ? (
       <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.02)] space-y-3">
         <h3 className="text-[9px] font-black uppercase tracking-widest text-slate-400">Yetkazib berish manzili</h3>
         
@@ -861,7 +873,7 @@ export default function Cart() {
       {/* Payment Picker Selection */}
       <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.02)] space-y-3">
         <h3 className="text-[9px] font-black uppercase tracking-widest text-slate-400">To'lov Turi</h3>
-        <div className="grid grid-cols-3 gap-2">
+        <div role="group" aria-label="To'lov turi" className="grid grid-cols-3 gap-2">
           {availablePaymentMethods.map((method) => {
             const icon = method === 'click' ? '🔵' : method === 'payme' ? '🟢' : method === 'keshbek' ? '✨' : '💵';
             const label = method === 'naqd' ? 'Naqd' : method === 'keshbek' ? 'Keshbek' : method.toUpperCase();
@@ -869,10 +881,12 @@ export default function Cart() {
             return (
               <button
                 key={method}
+                type="button"
                 disabled={isDisabled}
+                aria-pressed={effectivePaymentMethod === method}
                 onClick={() => {
                   hapticFeedback('light');
-                  setPaymentMethod(method);
+                  setChosenPaymentMethod(method);
                 }}
                 className={`py-3 px-1 rounded-2xl border text-[10px] font-black flex flex-col items-center justify-center gap-1 transition active:scale-95 duration-200 ${
                   isDisabled ? 'opacity-40 cursor-not-allowed border-slate-100 bg-slate-50 text-slate-400' :
@@ -888,6 +902,13 @@ export default function Cart() {
             );
           })}
         </div>
+        {effectivePaymentMethod === null && (
+          <p role="alert" className="text-[10px] text-rose-500 font-bold">
+            {availablePaymentMethods.length === 0
+              ? "Do'kon hozircha to'lov qabul qilmayapti. Keyinroq urinib ko'ring."
+              : "Keshbek balansi buyurtma summasiga yetmaydi, do'kon esa boshqa to'lov usullarini qabul qilmayapti."}
+          </p>
+        )}
       </div>
 
       {/* Customizable Driver delivery instruction note */}
@@ -951,6 +972,12 @@ export default function Cart() {
             <>Buyurtma berish - {formatUzbekSum(total)}</>
           )}
         </button>
+        {deliveryMethod === null && (
+          <p className="text-[10px] text-center text-rose-500 font-bold mt-2">Do'kon hozircha buyurtma qabul qilmayapti</p>
+        )}
+        {deliveryMethod !== null && effectivePaymentMethod === null && (
+          <p className="text-[10px] text-center text-rose-500 font-bold mt-2">Buyurtma berish uchun mavjud to'lov usuli yo'q</p>
+        )}
         {(deliveryMethod === 'delivery' && !selectedAddress) && (
           <p className="text-[10px] text-center text-rose-500 font-bold mt-2">Iltimos, yetkazib berish manzilini tanlang</p>
         )}

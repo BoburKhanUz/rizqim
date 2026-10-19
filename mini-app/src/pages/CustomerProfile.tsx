@@ -13,7 +13,8 @@ import type { AddressLocationValue } from '../features/address/types';
 import { classifyPhoneChange } from '../lib/phone';
 import { getApiFieldError, logApiError } from '../lib/apiError';
 import { toAmount } from '../lib/money';
-import type { Amount, ApiResponse, Order } from '../types';
+import { normalizeUser } from '../lib/user';
+import type { Amount, ApiResponse, AuthPayload, Order } from '../types';
 
 interface Region {
   id: number;
@@ -80,9 +81,10 @@ export default function CustomerProfile() {
   // Fetch fresh user details, locations, and orders count on mount
   useEffect(() => {
     // Fresh user load
-    api.get('/user').then(res => {
+    api.get<ApiResponse<AuthPayload>>('/user').then(res => {
       if (res.data?.success && res.data.data?.user) {
-        updateUser(res.data.data.user);
+        // The API sends the balance as a decimal string: the store keeps it as a number
+        updateUser(normalizeUser(res.data.data.user));
         setSmsVerificationRequired(!!res.data.data.sms_verification_required);
       }
     }).catch(err => logApiError('Failed to refresh user:', err));

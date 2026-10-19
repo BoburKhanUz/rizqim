@@ -16,6 +16,8 @@ export class GeolocationError extends Error {
 
 // Telegram's LocationManager (Bot API 8.0+), as far as it is used here
 interface TelegramLocationManager {
+  // Once true, init() returns at once and never calls its callback again
+  isInited: boolean;
   isLocationAvailable: boolean;
   init(callback?: (isInitialized: boolean) => unknown): unknown;
   getLocation(callback: (data: { latitude: number; longitude: number } | null) => unknown): unknown;
@@ -42,13 +44,20 @@ function fromTelegram(): Promise<LatLng | null> {
   }
 
   return new Promise((resolve, reject) => {
-    const timer = window.setTimeout(() => resolve(null), TELEGRAM_TIMEOUT_MS);
+    // Once settled (answered, or given up on after the timeout) a late answer of Telegram must not start a new request
+    let settled = false;
+    const timer = window.setTimeout(() => {
+      settled = true;
+      resolve(null);
+    }, TELEGRAM_TIMEOUT_MS);
     const settle = (action: () => void) => {
+      settled = true;
       window.clearTimeout(timer);
       action();
     };
 
-    manager.init(() => {
+    const locate = () => {
+      if (settled) return;
       if (!manager.isLocationAvailable) {
         settle(() => resolve(null));
         return;
@@ -56,7 +65,12 @@ function fromTelegram(): Promise<LatLng | null> {
       manager.getLocation((data) => {
         settle(() => (data ? resolve({ lat: data.latitude, lng: data.longitude }) : reject(new GeolocationError('denied'))));
       });
-    });
+    };
+
+    // init() only calls back the first time. Once the manager is initialised it returns without calling back at all,
+    // so waiting for it would hang every later locate until the timeout.
+    if (manager.isInited) locate();
+    else manager.init(locate);
   });
 }
 

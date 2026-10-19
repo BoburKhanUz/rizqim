@@ -8,17 +8,35 @@ import { GeolocationError, getCurrentPosition } from './geolocation';
 import type { GeolocationFailure } from './geolocation';
 
 interface LocationManagerMock {
-  isLocationAvailable: boolean;
+  readonly isInited: boolean;
+  readonly isLocationAvailable: boolean;
   init: ReturnType<typeof vi.fn>;
   getLocation: ReturnType<typeof vi.fn>;
 }
 
-// A LocationManager that answers like Telegram's: init() calls back, getLocation() calls back with `location`
+// A LocationManager that behaves like the one of Telegram's SDK (telegram-web-apps.js):
+// - init() calls back only the first time. Once initialised it returns at once and never calls back again.
+// - isLocationAvailable is only true after init, and getLocation() throws before it or without location services.
+// - getLocation() calls back with `location` (null when the customer refused).
 function locationManager(location: { latitude: number; longitude: number } | null, available = true): LocationManagerMock {
+  let inited = false;
   return {
-    isLocationAvailable: available,
-    init: vi.fn((callback?: (isInitialized: boolean) => void) => callback?.(true)),
-    getLocation: vi.fn((callback: (data: typeof location) => void) => callback(location)),
+    get isInited() {
+      return inited;
+    },
+    get isLocationAvailable() {
+      return inited && available;
+    },
+    init: vi.fn((callback?: () => void) => {
+      if (inited) return;
+      inited = true;
+      callback?.();
+    }),
+    getLocation: vi.fn((callback: (data: typeof location) => void) => {
+      if (!inited) throw new Error('WebAppLocationManagerNotInited');
+      if (!available) throw new Error('WebAppLocationManagerLocationNotAvailable');
+      callback(location);
+    }),
   };
 }
 
@@ -91,7 +109,7 @@ describe('inside Telegram (Bot API 8.0+)', () => {
 
   it('falls back to the browser when Telegram never answers', async () => {
     vi.useFakeTimers();
-    const silent: LocationManagerMock = { isLocationAvailable: true, init: vi.fn(), getLocation: vi.fn() };
+    const silent: LocationManagerMock = { isInited: false, isLocationAvailable: true, init: vi.fn(), getLocation: vi.fn() };
     useTelegram('8.0', silent);
     browserLocation({ latitude: 41.2, longitude: 69.1 });
 
@@ -99,6 +117,61 @@ describe('inside Telegram (Bot API 8.0+)', () => {
     await vi.advanceTimersByTimeAsync(15000);
 
     await expect(position).resolves.toEqual({ lat: 41.2, lng: 69.1 });
+  });
+
+  it('answers every locate after the first one at once: an initialised manager never calls init() back', async () => {
+    vi.useFakeTimers();
+    const manager = locationManager({ latitude: 41.3275, longitude: 69.2818 });
+    useTelegram('8.0', manager);
+    const browser = browserLocation({ latitude: 1, longitude: 1 });
+
+    await expect(getCurrentPosition()).resolves.toEqual({ lat: 41.3275, lng: 69.2818 });
+
+    // The second tap on "locate" must not wait for the 15 s timeout of an init callback that never comes
+    for (let tap = 2; tap <= 3; tap++) {
+      const position = getCurrentPosition();
+      let answered = false;
+      void position.then(() => { answered = true; }, () => { answered = true; });
+      await vi.advanceTimersByTimeAsync(0); // no virtual time passes: only what is already settled
+
+      expect(answered, `tap ${tap} was answered without waiting`).toBe(true);
+      await expect(position).resolves.toEqual({ lat: 41.3275, lng: 69.2818 });
+    }
+
+    expect(manager.init).toHaveBeenCalledTimes(1);
+    expect(manager.getLocation).toHaveBeenCalledTimes(3);
+    expect(browser).not.toHaveBeenCalled();
+  });
+
+  it('reports "denied" on a later locate too, from the already initialised manager', async () => {
+    vi.useFakeTimers();
+    useTelegram('8.0', locationManager(null));
+    const browser = browserLocation({ latitude: 1, longitude: 1 });
+
+    expect(await failureOf(getCurrentPosition())).toBe('denied');
+    expect(await failureOf(getCurrentPosition())).toBe('denied');
+    expect(browser).not.toHaveBeenCalled();
+  });
+
+  it('does not ask Telegram for a location once the browser has taken over', async () => {
+    vi.useFakeTimers();
+    let finishInit: (() => void) | undefined;
+    const slow: LocationManagerMock = {
+      isInited: false,
+      isLocationAvailable: true,
+      init: vi.fn((callback?: () => void) => { finishInit = callback; }),
+      getLocation: vi.fn(),
+    };
+    useTelegram('8.0', slow);
+    browserLocation({ latitude: 41.2, longitude: 69.1 });
+
+    const position = getCurrentPosition();
+    await vi.advanceTimersByTimeAsync(15000);
+    await expect(position).resolves.toEqual({ lat: 41.2, lng: 69.1 });
+
+    finishInit?.(); // Telegram finally answers, too late to matter
+
+    expect(slow.getLocation).not.toHaveBeenCalled();
   });
 });
 

@@ -59,10 +59,12 @@ function KeepSized() {
   return null;
 }
 
-// A plain link would navigate the Mini App's own WebView away from the app
+// A plain link would navigate the Mini App's own WebView away from the app. Only the attribution has links that go
+// anywhere: every other <a> in the map is Leaflet's own (the zoom +/- buttons are <a href="#">) and must be left alone.
 function openAttributionLink(event: ReactMouseEvent<HTMLDivElement>) {
-  const link = (event.target as HTMLElement).closest('a');
-  if (!link) return;
+  if (!(event.target instanceof Element)) return;
+  const link = event.target.closest('a');
+  if (!link || !link.closest('.leaflet-control-attribution')) return;
   event.preventDefault();
   if (typeof tg.openLink === 'function') {
     tg.openLink(link.href);
