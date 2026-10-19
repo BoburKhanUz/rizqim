@@ -19,7 +19,7 @@ Bu hujjat qabul qilingan qarorlar, papkalar tuzilmasi va bosqichlarni saqlaydi. 
 | Kuryerlar | Aralash: restoranning o'z kuryerlari va Rizqim kuryer parki, bitta ilovada |
 | Biznes model | Ikkalasi ham: POS obunasi (terminal/oy) va onlayn buyurtmadan komissiya; tarif har hamkor uchun tanlanadi |
 | Deploy | Faqat Docker |
-| Fiskal chek | **Shoshilinch, ochiq.** VM 393-son qarori (20.07.2026) umumiy ovqatlanishda soliq tizimlari bilan integratsiya qilinmagan hisob va buyurtma dasturlarini taqiqlaydi; kuchga kirish sanasi buxgalter/yurist bilan aniqlanmoqda. Yo'llar: Rizqim o'zi virtual kassa sifatida ro'yxatdan o'tadi yoki reyestrdagi provayderga yozma tasdiq bilan ulanadi; onlayn to'lovlarda chekni Payme/Click chiqaradi |
+| Fiskal chek | POS'ning birinchi versiyasi fiskalsiz: fiskal chekni restoranning o'z kassa terminali alohida chiqaradi, POS unga bog'lanmaydi (egasi qarori). Kodda fiskal ulanish uchun alohida modul joyi qoldiriladi. Xavf: VM 393-son qarori umumiy ovqatlanishda integratsiyasiz buyurtma dasturlarini taqiqlaydi (kuchga kirish sanasi aniqlanmagan) — real restoranlarga sotishdan oldin yuridik javob olinadi |
 
 ## Asosiy arxitektura tamoyili: bitta buyurtma, barcha kanallar
 
