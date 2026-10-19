@@ -130,8 +130,10 @@ class OrderQueryService
 
         foreach (['Y-m-d H:i:s', 'Y-m-d H:i:s.u'] as $format) {
             $date = \DateTimeImmutable::createFromFormat('!' . $format, $data['t']);
-            // Rejects overflowing dates (2026-13-45) that PHP would roll over but PostgreSQL refuses
-            if ($date !== false && $date->format($format) === $data['t']) {
+            // Rejects overflowing dates (2026-13-45) that PHP would roll over but PostgreSQL refuses, and years no order
+            // can have (PostgreSQL refuses year 0000)
+            $year = $date !== false ? (int) $date->format('Y') : 0;
+            if ($date !== false && $date->format($format) === $data['t'] && $year >= 1970 && $year <= 9999) {
                 return ['created_at' => $data['t'], 'id' => $data['i']];
             }
         }

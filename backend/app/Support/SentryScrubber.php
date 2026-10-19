@@ -11,9 +11,9 @@ use Sentry\UserDataBag;
 /**
  * Removes personal data and secrets from everything Sentry is about to send (config/sentry.php: before_send,
  * before_send_transaction, before_breadcrumb). Two passes: by KEY (Authorization header, initData, OTP code, phone,
- * payment keys, card number, tokens...) and by VALUE (Bearer/Sanctum tokens, Telegram initData strings, Uzbek and
- * international phone numbers, card numbers that pass the Luhn check) so a secret that ended up inside an
- * exception message or a SQL string is masked as well.
+ * payment keys, card number, tokens...) and by VALUE (Bearer/Sanctum tokens, Telegram bot tokens in Bot API URLs,
+ * Telegram initData strings, Uzbek and international phone numbers, card numbers that pass the Luhn check) so a
+ * secret that ended up inside an exception message or a SQL string is masked as well.
  *
  * Static methods only: config/sentry.php stores [SentryScrubber::class, '...'] callables, which survive
  * `php artisan config:cache` (closures do not).
@@ -155,6 +155,10 @@ final class SentryScrubber
                 $value,
             );
         }
+
+        // Telegram Bot API URLs carry the bot token in the path: https://api.telegram.org/bot<id>:<secret>/sendMessage
+        // (http_client breadcrumbs and spans, "cURL error 28 ... for <url>" exception messages)
+        $value = (string) preg_replace('~/bot\d+(?::|%3A)[A-Za-z0-9_-]{20,}~i', '/bot'.self::MASK, $value);
 
         // Authorization header values and Sanctum personal access tokens (id|40 random chars)
         $value = (string) preg_replace('/\b(Bearer|Basic)\s+[A-Za-z0-9._~+\/=-]{8,}/i', '$1 '.self::MASK, $value);

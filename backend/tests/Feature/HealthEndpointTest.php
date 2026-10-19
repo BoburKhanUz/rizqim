@@ -3,10 +3,13 @@
 namespace Tests\Feature;
 
 use App\Support\HealthReport;
+use Illuminate\Cache\RateLimiter;
+use Illuminate\Contracts\Cache\Store;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Redis;
+use Mockery;
 use RuntimeException;
 use Tests\TestCase;
 
@@ -148,13 +151,23 @@ class HealthEndpointTest extends TestCase
         $this->assertSame(2, $connection->pings);
     }
 
-    public function test_health_is_rate_limited_per_ip(): void
+    public function test_a_redis_outage_is_reported_even_though_the_cache_is_down_too(): void
     {
-        for ($i = 0; $i < 60; $i++) {
-            $this->getJson('/health')->assertSuccessful();
-        }
+        // Redis down takes the cache store (rate limiter, heartbeat) with it, not only the ping
+        $store = Mockery::mock(Store::class);
+        $store->shouldReceive('get', 'many', 'put', 'add', 'increment', 'forget', 'forever')->andThrow(new RuntimeException('Connection refused'));
+        Cache::extend('down', fn () => Cache::repository($store));
+        config(['cache.stores.down' => ['driver' => 'down'], 'cache.default' => 'down', 'queue.default' => 'redis']);
+        $this->app->instance(RateLimiter::class, new RateLimiter(Cache::store('down')));
+        Redis::shouldReceive('connection')->andThrow(new RuntimeException('Connection refused'));
 
-        $this->getJson('/health')->assertStatus(429);
+        foreach (['/health', '/api/v1/health'] as $uri) {
+            $this->getJson($uri)
+                ->assertStatus(503)
+                ->assertJsonPath('status', 'fail')
+                ->assertJsonPath('checks.redis.status', 'fail')
+                ->assertJsonPath('checks.scheduler.status', 'missing');
+        }
     }
 
     public function test_scheduler_writes_a_heartbeat_every_minute(): void

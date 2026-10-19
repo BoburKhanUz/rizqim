@@ -29,7 +29,7 @@ php artisan db:seed                            # DatabaseSeeder = faqat SettingS
 php artisan storage:link                       # yuklangan rasmlar uchun (public disk)
 
 php artisan serve          # http://127.0.0.1:8000 (Mini App dev serveri /api ni shu yerga proksilaydi)
-php artisan queue:work --queue=default,reports   # alohida terminalda: Telegram xabarlari (default) va hisobotlar (reports); productionda ikkita alohida ishchi
+php artisan queue:work --queue=default,broadcasts,reports   # alohida terminalda: Telegram xabarlari (default), real-time eventlar (broadcasts) va hisobotlar (reports); productionda ikkita alohida ishchi
 php artisan schedule:work  # alohida terminalda: to'lanmagan buyurtmalarni bekor qilish va h.k.
 ```
 
@@ -129,7 +129,7 @@ Namuna: [.env.example](.env.example). "Standart" ustunida `.env.example` qiymati
 | `app:check-production` | Xavfli sozlamalarda `exit 1`: `APP_ENV` `production` emas, `APP_DEBUG=true`, `APP_KEY` bo'sh (production kalitni o'zi yaratmaydi), `TELEGRAM_ALLOW_MOCK_AUTH=true`, `TELEGRAM_WEBHOOK_SECRET` bo'sh yoki noto'g'ri belgili, `TELEGRAM_WEBAPP_URL` bo'sh yoki `https://` bilan boshlanmaydi, super adminda standart parol `12345678`. Do'konsiz xodim hisoblari haqida faqat ogohlantiradi. Click/Payme kalitlari, Redis va CORS tekshirilmaydi. Docker entrypoint ishga tushiradi |
 | `telegram:set-webhook [--url=] [--if-configured]` | Webhookni `secret_token` va `allowed_updates` (`message`, `callback_query`) bilan ro'yxatdan o'tkazadi. URL tartibi: `--url`, `TELEGRAM_WEBHOOK_URL`, `APP_URL`; HTTPS shart. `--if-configured`: token yo'q bo'lsa jim chiqadi |
 | `telegram:poll` | Lokal long polling: botning webhookini o'chiradi va yangilanishlarni `http://127.0.0.1:8000/api/v1/telegram/webhook` ga secret bilan yuboradi (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET` kerak). Productionda ishlatmang |
-| `queue:work --queue=default --tries=3 --max-time=3600` | Asosiy navbat ishchisi (Docker'dagi `queue` xizmati shu flaglar bilan) |
+| `queue:work --queue=default,broadcasts --tries=3 --max-time=3600` | Asosiy navbat ishchisi (Docker'dagi `queue` xizmati shu flaglar bilan). `broadcasts`: Reverb eventlari (`app/Events/Broadcast`, bir urinish), `default` dan keyin olinadi |
 | `queue:work --queue=reports --memory=512 --timeout=150 --tries=1 --max-time=3600` | `reports` navbati ishchisi (Docker'da `queue-reports` xizmati; PHP `memory_limit=768M` bilan). `SendOrderReport` shu navbatga qo'yiladi |
 | `schedule:work` / `schedule:run` | Scheduler: lokal/Docker'da `schedule:work` |
 | `queue:restart`, `queue:failed`, `queue:retry all` | Deploydan keyin ishchilarni yangilash (ikkala ishchini ham); muvaffaqiyatsiz joblarni ko'rish va qayta urinish |

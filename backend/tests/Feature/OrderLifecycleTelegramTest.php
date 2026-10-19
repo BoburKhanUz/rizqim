@@ -243,6 +243,18 @@ class OrderLifecycleTelegramTest extends TestCase
             && str_contains($request['text'], 'Bekor qilindi') && str_contains($request['text'], 'Mijoz kelmadi'));
     }
 
+    public function test_cancelling_an_accepted_delivery_order_never_offers_no_show(): void
+    {
+        $order = $this->makeOrder(OrderStatus::PREPARING, ['order_type' => 'delivery']);
+        $token = $this->button($order, 'abort');
+
+        $this->press($token, '5001')->assertJsonPath('status', 'choose_reason');
+        $this->assertNotContains('Mijoz kelmadi', array_keys($this->shownReasonButtons()));
+
+        $this->press("{$token}:no_show", '5001')->assertJsonPath('status', 'invalid_reason');
+        $this->assertSame(OrderStatus::PREPARING, $order->fresh()->status);
+    }
+
     public function test_courier_buttons_work_only_for_their_own_delivery(): void
     {
         $order = $this->makeOrder(OrderStatus::COURIER_ASSIGNED, ['courier_id' => $this->courier->id]);

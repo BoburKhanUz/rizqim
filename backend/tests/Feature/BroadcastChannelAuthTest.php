@@ -181,4 +181,15 @@ class BroadcastChannelAuthTest extends TestCase
             ->postJson('/api/broadcasting/auth', ['socket_id' => '1234.5678', 'channel_name' => "store.{$this->store->id}"])
             ->assertForbidden();
     }
+
+    public function test_channel_auth_is_throttled_per_user(): void
+    {
+        for ($i = 0; $i < 60; $i++) {
+            $this->join($this->customer, "user.{$this->customer->id}")->assertOk();
+        }
+
+        $this->join($this->customer, "user.{$this->customer->id}")->assertStatus(429)->assertJsonPath('success', false);
+        // Another user has a bucket of their own
+        $this->assertCanJoin($this->otherCustomer, "user.{$this->otherCustomer->id}");
+    }
 }

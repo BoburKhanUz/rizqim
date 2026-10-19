@@ -37,9 +37,10 @@ class OrderStatusService
      *  - notes: status history note;
      *  - refunded_by_provider: a refund the payment provider already made (nothing is flagged for a manual refund);
      *  - cancel_reason (CancelReason|string), required for canceled/rejected: staff pick any but payment_timeout,
-     *    which is the system's (null actor) own; cancel_note: optional free text (max 500);
+     *    which is the system's (null actor) own, and no_show only for a pickup order already accepted
+     *    (CancelReason::appliesTo); cancel_note: optional free text (max 500);
      *  - customer: the actor cancels their own order (POST /orders/{uuid}/cancel): refused with 422 unless it is still
-     *    new and unpaid, and only for customer_request.
+     *    new and unpaid (or already cancelled by them: a retried cancel is the no-op), and only for customer_request.
      * Requesting the current status is a no-op (changed = false), so retries never repeat side effects.
      * A null actor is the system and skips the permission checks.
      *
@@ -53,9 +54,16 @@ class OrderStatusService
             $previousCourierId = $order->courier_id !== null ? (int) $order->courier_id : null;
             $courierId = isset($options['courier_id']) ? (int) $options['courier_id'] : null;
 
-            // Checked under the lock, so a store accepting (or a payment landing) a moment earlier wins with a 422
-            if (!empty($options['customer']) && !$order->isCancellableByCustomer()) {
-                throw OrderTransitionException::notCancellableByCustomer();
+            // Checked under the lock, so a store accepting (or a payment landing) a moment earlier wins with a 422. A
+            // retry of this customer's own successful cancel (a lost response) falls through to the no-op below
+            if (!empty($options['customer'])) {
+                if (!$order->isCancellableByCustomer() && !$this->cancelledByCustomer($order, $actor)) {
+                    throw OrderTransitionException::notCancellableByCustomer();
+                }
+                // Before OrderPolicy, which lets the customer cancel for customer_request only (a 403 otherwise)
+                if ($this->requestedReason($options) !== CancelReason::CUSTOMER_REQUEST) {
+                    throw OrderTransitionException::reasonNotAllowed();
+                }
             }
 
             if ($from === $to && ($courierId === null || $courierId === (int) $order->courier_id)) {
@@ -66,7 +74,7 @@ class OrderStatusService
                 return new OrderTransitionResult($order, $from, false);
             }
 
-            if ($actor && Gate::forUser($actor)->denies('changeStatus', [$order, $to])) {
+            if ($actor && Gate::forUser($actor)->denies('changeStatus', [$order, $to, $this->requestedReason($options)])) {
                 throw OrderTransitionException::forbidden();
             }
 
@@ -80,7 +88,7 @@ class OrderStatusService
                 throw OrderTransitionException::illegal($from, $to);
             }
 
-            $cancellation = $to->isCancellation() ? $this->cancellation($actor, $options) : [];
+            $cancellation = $to->isCancellation() ? $this->cancellation($order, $from, $actor, $options) : [];
 
             $courier = $this->resolveCourier($order, $to, $actor, $courierId);
 
@@ -230,14 +238,34 @@ class OrderStatusService
     }
 
     /**
+     * The cancel_reason option as a CancelReason, null when missing or unknown.
+     */
+    protected function requestedReason(array $options): ?CancelReason
+    {
+        $reason = $options['cancel_reason'] ?? null;
+
+        return $reason instanceof CancelReason ? $reason : CancelReason::tryFrom((string) $reason);
+    }
+
+    /**
+     * Whether the order is already cancelled by this customer themselves (customer_request, cancelled_by them).
+     */
+    protected function cancelledByCustomer(Order $order, ?User $actor): bool
+    {
+        return $actor !== null
+            && $order->status === OrderStatus::CANCELED
+            && $order->cancel_reason === CancelReason::CUSTOMER_REQUEST
+            && (int) $order->cancelled_by === (int) $actor->id;
+    }
+
+    /**
      * The cancel_reason/cancel_note/cancelled_by columns of a cancellation, after checking the reason may be given.
      *
      * @return array{cancel_reason: string, cancel_note: ?string, cancelled_by: ?int}
      */
-    protected function cancellation(?User $actor, array $options): array
+    protected function cancellation(Order $order, OrderStatus $from, ?User $actor, array $options): array
     {
-        $reason = $options['cancel_reason'] ?? null;
-        $reason = $reason instanceof CancelReason ? $reason : CancelReason::tryFrom((string) $reason);
+        $reason = $this->requestedReason($options);
 
         if (!$reason) {
             throw OrderTransitionException::reasonRequired();
@@ -250,6 +278,9 @@ class OrderStatusService
         };
         if (!$allowed) {
             throw OrderTransitionException::reasonNotAllowed();
+        }
+        if (!$reason->appliesTo($order->order_type, $from)) {
+            throw OrderTransitionException::noShowNotApplicable();
         }
 
         $note = trim((string) ($options['cancel_note'] ?? ''));

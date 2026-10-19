@@ -23,6 +23,7 @@ use App\Services\Telegram\TelegramMessenger;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class OrderController extends Controller
 {
@@ -209,6 +210,11 @@ class OrderController extends Controller
                 'notes' => "Order status updated via Manager App to: {$status->value} by {$user->name}",
             ]);
         } catch (OrderTransitionException $e) {
+            // A reason the order does not allow (no_show before the store accepted it) is a 422 on the reason field
+            if ($e->reason === 'reason') {
+                throw ValidationException::withMessages(['reason' => $e->getMessage()]);
+            }
+
             return $this->error($e->getMessage(), [], $e->status);
         }
 

@@ -86,6 +86,9 @@ class AppServiceProvider extends ServiceProvider
             Limit::perDay(20)->by('day:' . $byUser($request)),
         ]);
 
+        // POST /api/broadcasting/auth signs one private channel per call: a few per (re)connect of the Mini App
+        RateLimiter::for('broadcast-auth', fn (Request $request) => Limit::perMinute(60)->by($byUser($request)));
+
         // Address lookups behind /geocode/*: one shared bucket per user; the provider itself allows ~1 request/s for everybody
         RateLimiter::for('geocode', fn (Request $request) => Limit::perMinute(30)->by($byUser($request)));
     }

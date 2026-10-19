@@ -11,11 +11,13 @@ use App\Enums\UserRole;
 use App\Models\Order;
 use App\Services\Order\OrderStatusService;
 use Illuminate\Broadcasting\BroadcastEvent;
+use Illuminate\Broadcasting\BroadcastException;
 use Illuminate\Broadcasting\Broadcasters\Broadcaster;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Queue;
 use RuntimeException;
 use Tests\TestCase;
@@ -256,6 +258,41 @@ class BroadcastOrderEventsTest extends TestCase
 
         $names = Queue::pushed(BroadcastEvent::class)->map(fn (BroadcastEvent $job) => $job->event->broadcastAs())->sort()->values()->all();
         $this->assertSame(['order.assigned', 'order.status_changed'], $names);
+        // Their own queue, tried once: an outage never piles retries in front of the Telegram jobs on `default`
+        Queue::assertPushedOn(OrderBroadcast::QUEUE, BroadcastEvent::class);
+        Queue::assertPushed(BroadcastEvent::class, fn (BroadcastEvent $job) => $job->tries === 1);
+    }
+
+    public function test_an_unreachable_reverb_never_fails_the_committed_request(): void
+    {
+        Exceptions::fake();
+        // What the Pusher client throws when Reverb is down; on a sync queue the send runs inside the request
+        Broadcast::extend('down', fn () => new class extends Broadcaster {
+            public function auth($request) {}
+
+            public function validAuthenticationResponse($request, $result) {}
+
+            public function broadcast(array $channels, $event, array $payload = []): void
+            {
+                throw new BroadcastException('Pusher error: cURL error 7: Failed to connect to reverb port 8080.');
+            }
+        });
+        config(['broadcasting.connections.down' => ['driver' => 'down'], 'broadcasting.default' => 'down']);
+
+        $response = $this->actingAs($this->customer, 'sanctum')->postJson('/api/v1/orders', [
+            'store_id' => $this->store->id,
+            'branch_id' => $this->branch->id,
+            'type' => 'pickup',
+            'payment_method' => 'cash',
+            'items' => [['variant_id' => $this->variant->uuid, 'quantity' => 1]],
+        ]);
+
+        $response->assertCreated();
+        $order = Order::sole();
+
+        $this->setStatus($order, $this->manager, 'accepted')->assertOk();
+        $this->assertSame(OrderStatus::ACCEPTED, $order->refresh()->status);
+        Exceptions::assertReported(BroadcastException::class);
     }
 
     public function test_the_broadcaster_receives_the_exact_wire_payload(): void

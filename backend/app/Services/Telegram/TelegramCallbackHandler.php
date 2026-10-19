@@ -196,15 +196,15 @@ class TelegramCallbackHandler
     }
 
     /**
-     * Reasons offered for a cancel button: "no show" only once the store accepted the order (the "abort" button),
-     * "no courier" only for delivery orders. payment_timeout is the system's own.
+     * Reasons offered for a cancel button: "no show" only once the store accepted a pickup order (the "abort" button,
+     * CancelReason::appliesTo), "no courier" only for delivery orders. payment_timeout is the system's own.
      *
      * @return list<CancelReason>
      */
     protected function reasonsFor(Order $order, string $action): array
     {
         return array_values(array_filter(CancelReason::staffCases(), fn (CancelReason $reason) => match ($reason) {
-            CancelReason::NO_SHOW => $action === 'abort',
+            CancelReason::NO_SHOW => $action === 'abort' && $reason->appliesTo($order->order_type, $order->status),
             CancelReason::COURIER_UNAVAILABLE => $order->type === 'delivery',
             default => true,
         }));

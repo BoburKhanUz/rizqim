@@ -147,6 +147,25 @@ class OrderLifecycleFilamentTest extends TestCase
             ->assertSee('Mijoz kelmadi');
     }
 
+    public function test_admin_panel_offers_no_show_only_for_an_accepted_pickup_order(): void
+    {
+        $new = $this->makeOrder(OrderStatus::NEW, ['order_type' => 'pickup']);
+        $delivery = $this->makeOrder(OrderStatus::PREPARING, ['order_type' => 'delivery']);
+        $this->signIn($this->owner);
+
+        foreach (['cancel' => $new, 'reject' => $new] as $action => $order) {
+            Livewire::test(ListOrders::class)
+                ->callTableAction($action, $order, data: ['reason' => 'no_show'])
+                ->assertHasTableActionErrors(['reason']);
+        }
+        Livewire::test(ListOrders::class)
+            ->callTableAction('cancel', $delivery, data: ['reason' => 'no_show'])
+            ->assertHasTableActionErrors(['reason']);
+
+        $this->assertSame(OrderStatus::NEW, $new->fresh()->status);
+        $this->assertSame(OrderStatus::PREPARING, $delivery->fresh()->status);
+    }
+
     public function test_branch_manager_cannot_act_on_another_branchs_order_in_the_panel(): void
     {
         $order = $this->makeOrder(OrderStatus::NEW, ['branch_id' => $this->otherBranch->id]);

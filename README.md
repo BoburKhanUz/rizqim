@@ -29,7 +29,7 @@ backend      --- geokodlash proksisi ------> Nominatim   (Mini App unga o'zi mur
 
 `queue worker` va `scheduler` backend bilan bir kod bazasidan ishlaydi. Navbat ikki ishchiga bo'lingan: `default` (Telegram xabarlari, listenerlar) va `reports` (og'ir CSV hisobotlar, `SendOrderReport`), shunda hisobot xabarlar ortidan navbat kutib qolmaydi.
 
-`docker-compose.yml` yettita xizmat ishga tushiradi: `postgres` (17), `redis` (7, AOF), `backend` (migratsiyalarni ham shu bajaradi), `queue` (`queue:work --queue=default`), `queue-reports` (`queue:work --queue=reports`), `scheduler` (`schedule:work`), `frontend` (Mini App statikasi hamda `/api/` va `/storage/` proksisi; `backend` manzilini Docker DNS orqali har so'rovda aniqlaydi). Admin panellar (`/admin`, `/superadmin`) backend portida (standart 8000), Mini App frontend portida (standart 8080) ochiladi.
+`docker-compose.yml` yettita xizmat ishga tushiradi: `postgres` (17), `redis` (7, AOF), `backend` (migratsiyalarni ham shu bajaradi), `queue` (`queue:work --queue=default,broadcasts`), `queue-reports` (`queue:work --queue=reports`), `scheduler` (`schedule:work`), `frontend` (Mini App statikasi hamda `/api/` va `/storage/` proksisi; `backend` manzilini Docker DNS orqali har so'rovda aniqlaydi). Admin panellar (`/admin`, `/superadmin`) backend portida (standart 8000), Mini App frontend portida (standart 8080) ochiladi.
 
 ## Rollar
 

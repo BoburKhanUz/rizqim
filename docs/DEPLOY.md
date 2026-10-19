@@ -43,11 +43,11 @@ Hammasining ma'nosi va standarti: [backend/README.md](../backend/README.md), [mi
 | `CORS_ALLOWED_ORIGINS` | faqat Mini App API'ga boshqa domendan murojaat qilsa |
 | `LOG_LEVEL` | `warning` tavsiya etiladi: Click, Payme va Telegram webhook payload'lari `info` darajasida to'liq logga yoziladi (shaxsiy ma'lumot bo'lishi mumkin) |
 
-**Ildizdagi `.env`** (compose o'qiydi): `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD` (postgres ham, backend ham shundan oladi va `backend/.env` dagilarni bekor qiladi), `REDIS_PASSWORD` (`$` belgisiz), `BACKEND_PORT` (8000), `FRONTEND_PORT` (8080), `VITE_BOT_USERNAME`, `VITE_API_URL`, `VITE_MAP_TILE_URL`, `VITE_MAP_ATTRIBUTION`, real-time uchun `BROADCAST_CONNECTION` (`reverb`), `REVERB_APP_ID`, `REVERB_APP_KEY`, `REVERB_APP_SECRET`, `REVERB_ALLOWED_ORIGINS` va `VITE_REVERB_*` (9-bo'lim; bular `backend/.env` dagilarni bekor qiladi). Ildizdagi `.env.example` ning pastki qismidagi `APP_ENV`, `CACHE_STORE`, `SUPERADMIN_*` kabi qatorlar faqat eslatma: konteyner ularni `backend/.env` dan o'qiydi, ildizdagi `.env` dan emas.
+**Ildizdagi `.env`** (compose o'qiydi): `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD` (postgres ham, backend ham shundan oladi va `backend/.env` dagilarni bekor qiladi), `REDIS_PASSWORD` (`$` belgisiz), `BACKEND_PORT` (8000), `FRONTEND_PORT` (8080), `VITE_BOT_USERNAME`, `VITE_API_URL`, `VITE_MAP_TILE_URL`, `VITE_MAP_ATTRIBUTION`, real-time uchun `BROADCAST_CONNECTION` (standart `null`; kalitlar bilan `reverb`), `REVERB_APP_ID`, `REVERB_APP_KEY`, `REVERB_APP_SECRET`, `REVERB_ALLOWED_ORIGINS` va `VITE_REVERB_*` (9-bo'lim; bular `backend/.env` dagilarni bekor qiladi). Ildizdagi `.env.example` ning pastki qismidagi `APP_ENV`, `CACHE_STORE`, `SUPERADMIN_*` kabi qatorlar faqat eslatma: konteyner ularni `backend/.env` dan o'qiydi, ildizdagi `.env` dan emas.
 
 ## 3. Ishga tushirish
 
-Xizmatlar: `postgres` (17), `redis` (7, AOF, parol ixtiyoriy), `backend` (nginx + php-fpm, deploy qadamlarini shu bajaradi), `queue` (`--queue=default`: Telegram xabarlari va h.k.), `queue-reports` (`--queue=reports`: og'ir CSV hisobotlar, `SendOrderReport`), `scheduler`, `reverb` (WebSocket, 9-bo'lim), `frontend` (nginx). `queue`, `queue-reports`, `scheduler`, `reverb` va `frontend` `backend` healthcheck'i (`/up`) o'tgunicha kutadi.
+Xizmatlar: `postgres` (17), `redis` (7, AOF, parol ixtiyoriy), `backend` (nginx + php-fpm, deploy qadamlarini shu bajaradi), `queue` (`--queue=default,broadcasts`: Telegram xabarlari va h.k., so'ng Reverb eventlari), `queue-reports` (`--queue=reports`: og'ir CSV hisobotlar, `SendOrderReport`), `scheduler`, `reverb` (WebSocket, 9-bo'lim), `frontend` (nginx). `queue`, `queue-reports`, `scheduler`, `reverb` va `frontend` `backend` healthcheck'i (`/up`) o'tgunicha kutadi.
 
 ```bash
 git clone <repo-url> rizqim && cd rizqim
@@ -113,7 +113,7 @@ php artisan db:seed --force                             # ixtiyoriy: SettingSeed
 | Xarita va geokodlash | Ochiq Nominatim/OSM tile serverlari faqat ishlab chiqish va kam trafik uchun: `NOMINATIM_BASE_URL`, `NOMINATIM_EMAIL`, `VITE_MAP_TILE_URL`, `VITE_MAP_ATTRIBUTION` |
 | SMS | `SettingSeeder` yozgan `settings` qatorlari `SMS_DRIVER`/`ESKIZ_*` env'dan ustun: SMS'ni Superadmin > Tizim Sozlamalari'dan yoqing |
 | Zaxira nusxa | Postgres (`pg_dump`) va yuklangan rasmlar (`backend_storage` volume); tartibi: `docs/OPERATIONS.md`, 4-bo'lim |
-| Real-time (Reverb) | `REVERB_APP_ID`/`KEY`/`SECRET` to'ldirilgan (ildiz `.env`), `docker compose ps` da `reverb` healthy, Mini App build'ida `VITE_REVERB_APP_KEY` = `REVERB_APP_KEY`. Tashqi proksi `/app/` uchun WebSocket upgrade'ni o'tkazishi shart (9-bo'lim). `app:check-production` bularni **tekshirmaydi**: kalitlar bo'sh bo'lsa faqat real-time ishlamaydi (Mini App so'rov bilan yangilanadi), broadcast joblari `failed_jobs` ga tushadi |
+| Real-time (Reverb) | `BROADCAST_CONNECTION=reverb` va `REVERB_APP_ID`/`KEY`/`SECRET` to'ldirilgan (ildiz `.env`), `REVERB_ALLOWED_ORIGINS` = Mini App hosti, `docker compose ps` da `reverb` healthy, Mini App build'ida `VITE_REVERB_APP_KEY` = `REVERB_APP_KEY`. Tashqi proksi `/app/` uchun WebSocket upgrade'ni o'tkazishi shart (9-bo'lim). `app:check-production` `reverb` + bo'sh kalitni rad etadi, `REVERB_ALLOWED_ORIGINS=*` da ogohlantiradi |
 | `LocationSeeder`, `PaymentProviderSeeder` | Ikkalasi ham qayta ishga tushirish uchun xavfsiz: faqat yetishmaydigan qatorlarni qo'shadi, hech narsani o'chirmaydi va kiritilgan kalitlar hamda yoqilgan/o'chirilgan holatni saqlaydi |
 
 ## 7. Yangilash, zaxira va orqaga qaytarish
@@ -154,11 +154,11 @@ Kodni qaytarish: eski commit'ni checkout qilib `docker compose up -d --build` (y
 
 ## 9. Real-time: Laravel Reverb (WebSocket)
 
-Buyurtma yaratilganda, holati o'zgarganda va kuryer biriktirilganda Mini App sahifani yangilamasdan bilib oladi. Reverb o'chiq yoki ishlamay qolsa hech narsa buzilmaydi: Mini App so'rov (polling) bilan yangilanishda davom etadi.
+Buyurtma yaratilganda, holati o'zgarganda va kuryer biriktirilganda Mini App sahifani yangilamasdan bilib oladi. Reverb o'chiq yoki ishlamay qolsa hech narsa buzilmaydi: buyurtma yaratish va holat o'zgartirish so'rovlari muvaffaqiyatli tugaydi (yuborilmagan event faqat Sentry/logga yoziladi), Mini App so'rov (polling) bilan yangilanishda davom etadi.
 
-**Zanjir.** `OrderStatusService` / `CreateOrderAction` → event (tranzaksiya commit bo'lgandan keyin, `queue` navbati orqali) → backend Reverb'ning HTTP API'siga yozadi (`REVERB_HOST:REVERB_PORT`, Docker'da `http://reverb:8080`) → Reverb private kanal obunachilariga WebSocket orqali yuboradi. Brauzer Mini App'ning o'z origin'iga ulanadi: `wss://<domen>/app/<REVERB_APP_KEY>`; `mini-app/docker/nginx.conf` `/app/` (WebSocket, `Upgrade`/`Connection` sarlavhalari, 1 soatlik timeout) va `/apps/` (Reverb HTTP API, imzo bilan himoyalangan) ni `reverb:8080` ga uzatadi.
+**Zanjir.** `OrderStatusService` / `CreateOrderAction` → event (tranzaksiya commit bo'lgandan keyin, `queue` ishchisining `broadcasts` navbati orqali, bir urinish) → backend Reverb'ning HTTP API'siga yozadi (`REVERB_HOST:REVERB_PORT`, Docker'da `http://reverb:8080`) → Reverb private kanal obunachilariga WebSocket orqali yuboradi. Brauzer Mini App'ning o'z origin'iga ulanadi: `wss://<domen>/app/<REVERB_APP_KEY>`; `mini-app/docker/nginx.conf` faqat `/app/` ni (WebSocket, `Upgrade`/`Connection` sarlavhalari, 1 soatlik timeout) `reverb:8080` ga uzatadi. Reverb'ning HTTP API'si (`/apps/`) internetga ochilmagan: unga faqat backend ichki tarmoq orqali yozadi.
 
-**Kanallar va ruxsat** (`backend/routes/channels.php`, OrderPolicy bilan bir xil doira). Obuna `POST /api/broadcasting/auth` (`Authorization: Bearer <Sanctum token>`) bilan imzolanadi; mehmonga `401`, ruxsatsizga `403`:
+**Kanallar va ruxsat** (`backend/routes/channels.php`, OrderPolicy bilan bir xil doira). Obuna `POST /api/broadcasting/auth` (`Authorization: Bearer <Sanctum token>`) bilan imzolanadi (foydalanuvchiga daqiqada 60 ta, ortig'i `429`); mehmonga `401`, ruxsatsizga `403`:
 
 | Kanal | Kim qo'shila oladi |
 |---|---|
@@ -177,7 +177,7 @@ Do'konsiz xodimlar va super admin hech qaysi do'kon kanaliga qo'shilmaydi.
 | `order.status_changed` | store, branch, user (mijoz), courier (bo'lsa; kuryer almashtirilganda oldingisi ham) |
 | `order.assigned` | courier, store, branch |
 
-**Sozlash.** Ildiz `.env` da kalitlarni bir marta yarating va `docker compose up -d --build` qiling (frontend build `VITE_REVERB_APP_KEY` ni shu `REVERB_APP_KEY` dan oladi):
+**Sozlash.** Standart `BROADCAST_CONNECTION=null` (real-time o'chiq): bo'sh kalitlar bilan private kanal imzosi bo'sh secret'li HMAC bo'ladi va uni istalgan kishi soxtalashtirib, istalgan do'kon/kuryer/mijoz kanalini tinglay oladi. Shuning uchun `reverb` faqat kalitlar bilan yoqiladi: `BROADCAST_CONNECTION=reverb` va kalitlardan biri bo'sh bo'lsa `app:check-production` konteynerni ishga tushirmaydi. Ildiz `.env` da kalitlarni bir marta yarating, `BROADCAST_CONNECTION=reverb` qiling va `docker compose up -d --build` qiling (frontend build `VITE_REVERB_APP_KEY` ni shu `REVERB_APP_KEY` dan oladi):
 
 ```bash
 echo "REVERB_APP_ID=$(openssl rand -hex 4)"
@@ -185,10 +185,10 @@ echo "REVERB_APP_KEY=$(openssl rand -hex 16)"
 echo "REVERB_APP_SECRET=$(openssl rand -hex 32)"   # faqat serverda; Mini App'ga hech qachon kirmaydi
 ```
 
-`reverb` xizmati (`php artisan reverb:start --host=0.0.0.0 --port=8080`) tashqariga port ochmaydi; healthcheck Reverb'ning `GET /up` yo'li. `REVERB_HOST=reverb`, `REVERB_PORT=8080`, `REVERB_SCHEME=http` ni compose backend/queue/scheduler'ga o'zi beradi. Mini App build argumentlari: `VITE_REVERB_APP_KEY` (bo'sh bo'lsa `REVERB_APP_KEY`), `VITE_REVERB_HOST` (bo'sh = `window.location.hostname`), `VITE_REVERB_PORT` (`443`), `VITE_REVERB_SCHEME` (`https`) — brauzer ko'radigan tashqi HTTPS manzil. `REVERB_ALLOWED_ORIGINS` ga Mini App hostini yozish mumkin (masalan `mini.example.uz`; standart `*`, kanallar baribir imzolanadi). Kalitni almashtirsangiz backend ham, frontend ham qayta build/yaratilishi kerak.
+`reverb` xizmati (`php artisan reverb:start --host=0.0.0.0 --port=8080`) tashqariga port ochmaydi; healthcheck Reverb'ning `GET /up` yo'li. `REVERB_HOST=reverb`, `REVERB_PORT=8080`, `REVERB_SCHEME=http` ni compose backend/queue/scheduler'ga o'zi beradi. Mini App build argumentlari: `VITE_REVERB_APP_KEY` (bo'sh bo'lsa `REVERB_APP_KEY`), `VITE_REVERB_HOST` (bo'sh = `window.location.hostname`), `VITE_REVERB_PORT` (`443`), `VITE_REVERB_SCHEME` (`https`) — brauzer ko'radigan tashqi HTTPS manzil. `REVERB_ALLOWED_ORIGINS` ga Mini App hostini yozing (masalan `mini.example.uz`; standart `*` — kanallar baribir imzolanadi, lekin `app:check-production` ogohlantiradi). Kalitni almashtirsangiz backend ham, frontend ham qayta build/yaratilishi kerak.
 
 **Tashqi TLS proksi.** Compose oldidagi nginx/Caddy/Cloudflare `/app/` uchun WebSocket upgrade'ni o'tkazishi va bo'sh ulanishni kamida 120 s ushlab turishi kerak (Reverb har 60 s ping yuboradi). nginx misoli: `proxy_http_version 1.1; proxy_set_header Upgrade $http_upgrade; proxy_set_header Connection "upgrade"; proxy_read_timeout 3600s;`.
 
 **O'chirish.** `BROADCAST_CONNECTION=null` (yoki `log`, eventlar logga yoziladi) — ildiz `.env` da, so'ng `docker compose up -d --force-recreate backend queue queue-reports scheduler`. Mini App `VITE_REVERB_APP_KEY` bo'sh build qilinsa ulanishga urinmaydi ham.
 
-**Tekshirish.** `docker compose ps reverb` (healthy); `docker compose exec reverb wget -qO- http://127.0.0.1:8080/up`; brauzerning DevTools > Network > WS da `wss://<domen>/app/<key>` `101` va `pusher:connection_established`; buyurtma holatini o'zgartirib `order.status_changed` kelishini ko'ring. Muammo bo'lsa: `docker compose logs --tail=100 reverb queue`, `php artisan queue:failed` (`BroadcastEvent` joblari — backend Reverb'ga yoza olmadi). Kanal obunasi `403` bo'lsa foydalanuvchining roli/do'koni/filiali kanalga mos emas (yuqoridagi jadval).
+**Tekshirish.** `docker compose ps reverb` (healthy); `docker compose exec reverb wget -qO- http://127.0.0.1:8080/up`; brauzerning DevTools > Network > WS da `wss://<domen>/app/<key>` `101` va `pusher:connection_established`; buyurtma holatini o'zgartirib `order.status_changed` kelishini ko'ring. Muammo bo'lsa: `docker compose logs --tail=100 reverb queue`, `php artisan queue:failed` (`BroadcastEvent` joblari — backend Reverb'ga yoza olmadi; qayta urinilmaydi, eskirgan eventni `queue:retry` qilish shart emas). Kanal obunasi `403` bo'lsa foydalanuvchining roli/do'koni/filiali kanalga mos emas (yuqoridagi jadval).

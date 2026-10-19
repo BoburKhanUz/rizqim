@@ -4,12 +4,14 @@
 # Foydalanish:
 #   scripts/restore.sh [--yes] [--allow-live] <zaxira.dump> <maqsad-baza>
 #
-# Maqsad baza yo'q bo'lsa yaratiladi (tasdiq so'raladi). Bor bo'lsa uning jadvallari ustiga yoziladi
-# (pg_restore --clean --if-exists --single-transaction: xato bo'lsa hammasi bekor qilinadi), buning uchun
-# bazaning nomini aynan yozib tasdiqlash kerak.
+# Maqsad baza yo'q bo'lsa yaratiladi (tasdiq so'raladi). Bor bo'lsa butunlay almashtiriladi (bazaning nomini aynan
+# yozib tasdiqlash kerak): zaxira avval yangi vaqtinchalik bazaga tiklanadi (--single-transaction), faqat muvaffaqiyatli
+# bo'lsa eski baza o'chirilib, yangisi uning nomini oladi. Xato bo'lsa maqsad baza o'zgarmaydi. (pg_restore --clean
+# faqat dump'dagi obyektlarni o'chiradi: yangi migratsiyalar qo'shgan jadvallar qolib, keyingi `migrate` "already
+# exists" bilan yiqilardi.) Bazaga kimdir ulangan bo'lsa almashtirish rad etiladi.
 #
-# Ish bazasini (PGDATABASE / DB_DATABASE) ustiga yozish faqat --allow-live bilan va ilovani to'xtatib turib:
-#   docker compose stop backend queue queue-reports scheduler
+# Ish bazasini (PGDATABASE / DB_DATABASE) almashtirish faqat --allow-live bilan va ilovani to'xtatib turib:
+#   docker compose stop backend queue queue-reports scheduler reverb frontend
 # Xavfsiz tekshiruv: avval boshqa nomli bazaga tiklang (masalan rizqimbot_restore) va ma'lumotni solishtiring.
 #
 # --yes: savol bermaydi (avtomatlashtirish uchun). Ulanish sozlamalari: scripts/backup.sh dagi kabi (PG*, DB_*, backend/.env).
@@ -42,7 +44,7 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --yes) ASSUME_YES=1; shift ;;
         --allow-live) ALLOW_LIVE=1; shift ;;
-        -h | --help) sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        -h | --help) sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         --) shift; break ;;
         -*) die "noma'lum flag: $1" ;;
         *) break ;;
@@ -65,6 +67,8 @@ for tool in psql pg_restore createdb; do
 done
 [ -f "$DUMP" ] || die "zaxira fayli topilmadi: $DUMP"
 case "$TARGET" in '' | *[!A-Za-z0-9_]*) die "baza nomida faqat harf, raqam va _ bo'lishi mumkin: $TARGET" ;; esac
+# Vaqtinchalik nomlar (<baza>_restoring_<pid>, <baza>_replaced_<pid>) PostgreSQL'ning 63 belgilik chegarasiga sig'sin
+[ ${#TARGET} -le 40 ] || die "baza nomi 40 belgidan uzun: $TARGET"
 
 # Fayl butunligi: sha256 yonida bo'lsa tekshiriladi, va pg_restore uni o'qiy olishi kerak
 if [ -f "$DUMP.sha256" ]; then
@@ -84,7 +88,9 @@ confirm() { # confirm <savol> <kutilgan javob>
     [ "$answer" = "$2" ] || die "tasdiqlanmadi, hech narsa o'zgarmadi"
 }
 
-exists=$(psql -d postgres -Atq -c "SELECT 1 FROM pg_database WHERE datname = '$TARGET'")
+sql() { psql -d postgres -v ON_ERROR_STOP=1 -Atq -c "$1"; }
+
+exists=$(sql "SELECT 1 FROM pg_database WHERE datname = '$TARGET'")
 
 if [ "$TARGET" = "$LIVE_DB" ]; then
     [ "$ALLOW_LIVE" = 1 ] || die "$TARGET ish bazasi. Avval boshqa nomli bazaga tiklang yoki ilovani to'xtatib --allow-live bering."
@@ -93,21 +99,37 @@ fi
 
 if [ "$exists" = 1 ]; then
     tables=$(psql -d "$TARGET" -Atq -c "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public'")
-    log "'$TARGET' bazasi bor ($tables ta jadval). Tiklash uning jadvallarini zaxiradagilar bilan almashtiradi."
+    log "'$TARGET' bazasi bor ($tables ta jadval). Tiklash uni butunlay zaxiradagi baza bilan almashtiradi."
     confirm "Tasdiqlash uchun baza nomini yozing ($TARGET):" "$TARGET"
+    # Ulangan jarayon almashtirishga to'sqinlik qiladi: uzoq tiklashdan oldin aytiladi
+    busy=$(sql "SELECT count(*) FROM pg_stat_activity WHERE datname = '$TARGET' AND pid <> pg_backend_pid()")
+    [ "$busy" = 0 ] || die "'$TARGET' ga $busy ta ulanish bor: backend, queue, scheduler (va psql) ni to'xtating; hech narsa o'zgarmadi."
+    # Bo'sh yangi bazaga tiklanadi va faqat muvaffaqiyatli bo'lsa almashtiriladi
+    WORK_DB="${TARGET}_restoring_$$"
 else
     confirm "'$TARGET' bazasi yo'q. Yaratib, tiklaymizmi? (yes):" "yes"
-    createdb "$TARGET"
-    log "'$TARGET' yaratildi."
+    WORK_DB=$TARGET
 fi
 
-log "Tiklanmoqda: $DUMP -> $TARGET"
-if pg_restore --clean --if-exists --no-owner --no-privileges --single-transaction --dbname="$TARGET" "$DUMP"; then
-    psql -d "$TARGET" -Atq -c "ANALYZE" >/dev/null 2>&1 || true
-    tables=$(psql -d "$TARGET" -Atq -c "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public'")
-    log "Tayyor: '$TARGET' bazasida $tables ta jadval."
-    log "Keyingi qadam (agar zaxira joriy koddan eski bo'lsa): php artisan migrate --force && php artisan queue:restart"
-else
-    log "XATO: pg_restore tugamadi; --single-transaction tufayli '$TARGET' o'zgarmagan."
+createdb "$WORK_DB"
+log "Tiklanmoqda: $DUMP -> $WORK_DB"
+if ! pg_restore --no-owner --no-privileges --single-transaction --dbname="$WORK_DB" "$DUMP"; then
+    sql "DROP DATABASE IF EXISTS \"$WORK_DB\"" >/dev/null 2>&1 || log "OGOHLANTIRISH: '$WORK_DB' bazasini qo'lda o'chiring."
+    log "XATO: pg_restore tugamadi; '$TARGET' o'zgarmagan."
     exit 1
 fi
+psql -d "$WORK_DB" -Atq -c "ANALYZE" >/dev/null 2>&1 || true
+
+if [ "$WORK_DB" != "$TARGET" ]; then
+    OLD_DB="${TARGET}_replaced_$$"
+    # Ikkala nom bitta tranzaksiyada almashadi. Bazaga kimdir ulangan bo'lsa RENAME rad etiladi va hech narsa o'zgarmaydi
+    if ! sql "BEGIN; ALTER DATABASE \"$TARGET\" RENAME TO \"$OLD_DB\"; ALTER DATABASE \"$WORK_DB\" RENAME TO \"$TARGET\"; COMMIT;" >/dev/null; then
+        sql "DROP DATABASE IF EXISTS \"$WORK_DB\"" >/dev/null 2>&1 || log "OGOHLANTIRISH: '$WORK_DB' bazasini qo'lda o'chiring."
+        die "'$TARGET' almashtirilmadi (unga ulangan jarayonlar bormi? backend, queue, scheduler, psql ni to'xtating); '$TARGET' o'zgarmagan."
+    fi
+    sql "DROP DATABASE \"$OLD_DB\"" >/dev/null || log "OGOHLANTIRISH: eski baza '$OLD_DB' nomi bilan qoldi, keraksiz bo'lsa o'chiring."
+fi
+
+tables=$(psql -d "$TARGET" -Atq -c "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public'")
+log "Tayyor: '$TARGET' bazasida $tables ta jadval."
+log "Keyingi qadam (agar zaxira joriy koddan eski bo'lsa): php artisan migrate --force && php artisan queue:restart"

@@ -2,6 +2,7 @@
 
 namespace App\Policies;
 
+use App\Enums\CancelReason;
 use App\Enums\OrderStatus;
 use App\Enums\UserRole;
 use App\Models\Order;
@@ -42,15 +43,16 @@ class OrderPolicy
     /**
      * Owners/managers run the whole lifecycle of their store's (branch's) orders; a courier only moves
      * the order assigned to them through the delivery phase; the customer may only cancel their own order while it is
-     * new and unpaid (Order::isCancellableByCustomer). Refunds are super_admin only (before()).
+     * new and unpaid (Order::isCancellableByCustomer), and only for customer_request: $reason is the cancel reason asked
+     * for, so no caller can let a customer cancel with a store's reason. Refunds are super_admin only (before()).
      */
-    public function changeStatus(User $user, Order $order, OrderStatus $to): bool
+    public function changeStatus(User $user, Order $order, OrderStatus $to, ?CancelReason $reason = null): bool
     {
         if ($to === OrderStatus::REFUNDED) {
             return false;
         }
 
-        if ($this->isOwnCancellableOrder($user, $order, $to)) {
+        if ($this->isOwnCancellableOrder($user, $order, $to, $reason)) {
             return true;
         }
 
@@ -107,9 +109,10 @@ class OrderPolicy
             || (int) $user->branch_id === (int) $order->branch_id;
     }
 
-    protected function isOwnCancellableOrder(User $user, Order $order, OrderStatus $to): bool
+    protected function isOwnCancellableOrder(User $user, Order $order, OrderStatus $to, ?CancelReason $reason): bool
     {
         return $to === OrderStatus::CANCELED
+            && $reason === CancelReason::CUSTOMER_REQUEST
             && (int) $order->user_id === (int) $user->id
             && $order->isCancellableByCustomer();
     }

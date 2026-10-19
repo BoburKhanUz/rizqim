@@ -21,7 +21,7 @@ class CheckProductionConfigCommand extends Command
      *
      * @var string
      */
-    protected $description = 'Fail (exit 1) on production-unsafe settings: APP_ENV, APP_DEBUG, APP_KEY, TELEGRAM_ALLOW_MOCK_AUTH, TELEGRAM_WEBHOOK_SECRET, TELEGRAM_WEBAPP_URL, default super admin password';
+    protected $description = 'Fail (exit 1) on production-unsafe settings: APP_ENV, APP_DEBUG, APP_KEY, TELEGRAM_ALLOW_MOCK_AUTH, TELEGRAM_WEBHOOK_SECRET, TELEGRAM_WEBAPP_URL, Reverb keys, default super admin password';
 
     private const DEFAULT_SEED_PASSWORD = '12345678';
 
@@ -62,7 +62,7 @@ class CheckProductionConfigCommand extends Command
             $problems[] = 'TELEGRAM_WEBAPP_URL https:// bilan boshlanishi kerak — Telegram Mini App\'ni faqat HTTPS manzildan ochadi';
         }
 
-        $problems = array_merge($problems, $this->accountProblems());
+        $problems = array_merge($problems, $this->reverbProblems(), $this->accountProblems());
 
         if ($problems !== []) {
             $this->error('XAVFLI SOZLAMALAR: production uchun ishga tushirish rad etildi.');
@@ -77,6 +77,32 @@ class CheckProductionConfigCommand extends Command
         $this->info('Production sozlamalari tekshiruvdan o\'tdi.');
 
         return self::SUCCESS;
+    }
+
+    /**
+     * With blank keys every private channel signature (POST /api/broadcasting/auth) is an HMAC with an empty secret
+     * that anyone can forge, so any socket could listen to any store's, courier's or customer's orders.
+     *
+     * @return list<string>
+     */
+    private function reverbProblems(): array
+    {
+        if (config('broadcasting.default') !== 'reverb') {
+            return [];
+        }
+
+        $problems = [];
+        foreach (['app_id' => 'REVERB_APP_ID', 'key' => 'REVERB_APP_KEY', 'secret' => 'REVERB_APP_SECRET'] as $option => $name) {
+            if (blank(config("broadcasting.connections.reverb.{$option}"))) {
+                $problems[] = "BROADCAST_CONNECTION=reverb, lekin {$name} o'rnatilmagan — bo'sh kalitlar bilan istalgan kishi private kanal imzosini soxtalashtira oladi (ildiz .env ga yozing, docs/DEPLOY.md 9-bo'lim) yoki BROADCAST_CONNECTION=null qiling";
+            }
+        }
+
+        if (in_array('*', (array) config('reverb.apps.apps.0.allowed_origins', []), true)) {
+            $this->warn('OGOHLANTIRISH: REVERB_ALLOWED_ORIGINS=* — WebSocket istalgan saytdan ochiladi; Mini App domenini yozing (masalan, mini.example.uz).');
+        }
+
+        return $problems;
     }
 
     /**

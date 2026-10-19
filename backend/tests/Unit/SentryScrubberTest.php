@@ -6,6 +6,7 @@ use App\Support\SentryScrubber;
 use Sentry\Breadcrumb;
 use Sentry\Event;
 use Sentry\ExceptionDataBag;
+use Sentry\Tracing\Span;
 use Sentry\UserDataBag;
 use Tests\TestCase;
 
@@ -80,6 +81,34 @@ class SentryScrubberTest extends TestCase
         $this->assertStringNotContainsString('AAHdF6IQ', $clean);
         $this->assertStringNotContainsString('279058397', $clean);
         $this->assertStringNotContainsString('deadbeef00', $clean);
+    }
+
+    public function test_telegram_bot_token_in_bot_api_urls_is_masked(): void
+    {
+        $token = '7012345678:AAHdF6IQ-xYz_0123456789abcdefABCDEFg';
+        $url = "https://api.telegram.org/bot{$token}/sendMessage";
+
+        $message = SentryScrubber::scrubString("cURL error 28: Operation timed out after 10001 milliseconds for {$url}");
+        $this->assertStringNotContainsString('AAHdF6IQ', $message);
+        $this->assertStringContainsString('https://api.telegram.org/bot'.self::MASK.'/sendMessage', $message);
+        $this->assertStringNotContainsString('AAHdF6IQ', SentryScrubber::scrubString("https://api.telegram.org/file/bot{$token}/photos/1.jpg"));
+
+        // http_client breadcrumb (metadata url) and span (description + data url) as sentry-laravel records them
+        $breadcrumb = SentryScrubber::beforeBreadcrumb(new Breadcrumb(Breadcrumb::LEVEL_ERROR, Breadcrumb::TYPE_HTTP, 'http', null, [
+            'url' => $url, 'http.request.method' => 'POST',
+        ]));
+        $this->assertSame('https://api.telegram.org/bot'.self::MASK.'/sendMessage', $breadcrumb->getMetadata()['url']);
+
+        $transaction = Event::createTransaction();
+        $span = new Span();
+        $span->setDescription("POST {$url}");
+        $span->setData(['url' => $url]);
+        $transaction->setSpans([$span]);
+        $sent = SentryScrubber::beforeSendTransaction($transaction);
+
+        $this->assertStringNotContainsString('AAHdF6IQ', json_encode([
+            array_map(fn (Span $s) => [$s->getDescription(), $s->getData()], $sent->getSpans()),
+        ], JSON_THROW_ON_ERROR));
     }
 
     public function test_ordinary_numbers_are_not_masked(): void

@@ -5,6 +5,7 @@ namespace App\Events\Broadcast;
 use App\Models\Order;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
+use Illuminate\Contracts\Broadcasting\ShouldRescue;
 use Illuminate\Contracts\Events\ShouldDispatchAfterCommit;
 
 /**
@@ -14,9 +15,18 @@ use Illuminate\Contracts\Events\ShouldDispatchAfterCommit;
  * never announced. The payload is the order as it was at that moment and nothing personal: clients refetch the order
  * through the API, which applies OrderPolicy. With BROADCAST_CONNECTION=null or log nothing reaches a client and
  * nothing else changes.
+ *
+ * Like Telegram, a Reverb outage never fails the request (the order is already committed, a 4xx/5xx would make the
+ * customer retry into a duplicate): ShouldRescue reports a failed push (or, on a sync queue, a failed send) and moves
+ * on. Queued on their own `broadcasts` queue and tried once: a hint that missed its moment is stale, the Mini App
+ * refetches anyway, and an outage must not pile retries in front of the Telegram jobs on `default`.
  */
-abstract class OrderBroadcast implements ShouldBroadcast, ShouldDispatchAfterCommit
+abstract class OrderBroadcast implements ShouldBroadcast, ShouldDispatchAfterCommit, ShouldRescue
 {
+    public const QUEUE = 'broadcasts';
+
+    public int $tries = 1;
+
     public string $uuid;
 
     public string $status;
@@ -40,6 +50,11 @@ abstract class OrderBroadcast implements ShouldBroadcast, ShouldDispatchAfterCom
         $this->courierId = $order->courier_id !== null ? (int) $order->courier_id : null;
         $this->customerId = (int) $order->user_id;
         $this->updatedAt = $order->updated_at?->toJSON();
+    }
+
+    public function broadcastQueue(): string
+    {
+        return self::QUEUE;
     }
 
     abstract public function broadcastAs(): string;

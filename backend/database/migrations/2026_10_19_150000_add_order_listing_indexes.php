@@ -1,9 +1,7 @@
 <?php
 
+use App\Support\ConcurrentIndex;
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 
 /**
  * Indexes behind GET /api/v1/orders (OrderQueryService), which dashboards poll every few seconds:
@@ -28,28 +26,16 @@ return new class extends Migration
 
     public function up(): void
     {
+        // Built without blocking writes on these live tables; an INVALID leftover of a failed build is rebuilt
         foreach (self::INDEXES as $name => [$table, $columns]) {
-            if (DB::getDriverName() === 'pgsql') {
-                // Built without blocking writes on these live tables
-                DB::statement(sprintf('CREATE INDEX CONCURRENTLY IF NOT EXISTS %s ON %s (%s)', $name, $table, implode(', ', $columns)));
-
-                continue;
-            }
-
-            Schema::table($table, fn (Blueprint $blueprint) => $blueprint->index($columns, $name));
+            ConcurrentIndex::create($name, $table, $columns);
         }
     }
 
     public function down(): void
     {
         foreach (array_reverse(self::INDEXES, true) as $name => [$table]) {
-            if (DB::getDriverName() === 'pgsql') {
-                DB::statement("DROP INDEX CONCURRENTLY IF EXISTS {$name}");
-
-                continue;
-            }
-
-            Schema::table($table, fn (Blueprint $blueprint) => $blueprint->dropIndex($name));
+            ConcurrentIndex::drop($name, $table);
         }
     }
 };

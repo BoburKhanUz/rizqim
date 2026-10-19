@@ -33,9 +33,11 @@ x-backend-environment: &backend-environment
   # Real-time updates (Laravel Reverb, `reverb` xizmati). Kalitlar ildiz .env dan (frontend build ham shu REVERB_APP_KEY
   # ni oladi), shuning uchun backend/.env dagi REVERB_APP_* va BROADCAST_CONNECTION Docker'da e'tiborga olinmaydi.
   # Backend Reverb'ga compose tarmog'i ichida HTTP orqali (reverb:8080) yozadi; brauzerlar esa Mini App origin'i orqali
-  # (frontend nginx /app/ va /apps/ ni reverb:8080 ga proksi qiladi). BROADCAST_CONNECTION=null (yoki log) real-time'ni
-  # o'chiradi, qolgan hammasi odatdagidek ishlaydi (Mini App so'rov bilan yangilaydi). docs/DEPLOY.md, docs/OPERATIONS.md
-  BROADCAST_CONNECTION: ${BROADCAST_CONNECTION:-reverb}
+  # (frontend nginx faqat /app/ ni reverb:8080 ga proksi qiladi). Standart null (o'chiq; qolgan hammasi odatdagidek
+  # ishlaydi, Mini App so'rov bilan yangilaydi): bo'sh kalitlar bilan private kanal imzosini istalgan kishi soxtalashtira
+  # oladi. Kalitlarni yaratgach ildiz .env da BROADCAST_CONNECTION=reverb qiling; reverb + bo'sh kalit bo'lsa
+  # app:check-production konteynerni ishga tushirmaydi. docs/DEPLOY.md (9-bo'lim), docs/OPERATIONS.md
+  BROADCAST_CONNECTION: ${BROADCAST_CONNECTION:-null}
   REVERB_APP_ID: ${REVERB_APP_ID:-}
   REVERB_APP_KEY: ${REVERB_APP_KEY:-}
   REVERB_APP_SECRET: ${REVERB_APP_SECRET:-}
@@ -120,10 +122,11 @@ services:
 
   # Navbat ishchilari QUEUE_CONNECTION ga ergashadi (redis; 'database' zaxira). Ikki ishchi: og'ir hisobotlar (SendOrderReport, `reports` navbati)
   # Telegram xabarlari (`default` navbati) ortidan navbat kutib qolmasin va xotira cheklovi bilan ajratilgan bo'lsin.
-  # queue:restart (entrypoint) ikkalasini ham yangilaydi.
+  # `broadcasts` (Reverb real-time eventlari, bir urinish) shu ishchida, `default` dan keyin: Reverb ishlamay qolsa ham
+  # Telegram joblari oldinda turadi. queue:restart (entrypoint) ikkalasini ham yangilaydi.
   queue:
     <<: *queue-worker
-    command: ["php", "artisan", "queue:work", "--queue=default", "--tries=3", "--max-time=3600"]
+    command: ["php", "artisan", "queue:work", "--queue=default,broadcasts", "--tries=3", "--max-time=3600"]
 
   # `reports` navbati: SendOrderReport (CSV hisobot, job timeout 120 s). --memory=512 ishchining yumshoq chegarasi
   # (job tugagach chiqadi), -d memory_limit=768M esa PHP'ning qattiq chegarasi (standart 128M bo'lsa --memory ma'nosiz).
@@ -155,8 +158,8 @@ services:
       start_period: 180s
 
   # WebSocket server (Laravel Reverb): buyurtma holatlari Mini App'ga real vaqtda (routes/channels.php dagi private
-  # kanallar, POST /api/broadcasting/auth). Tashqariga port ochilmagan: brauzer frontend nginx orqali (/app/, /apps/)
-  # ulanadi, backend/queue esa compose tarmog'ida reverb:8080 ga yozadi. Eventlar navbat orqali yuboriladi (`queue`).
+  # kanallar, POST /api/broadcasting/auth). Tashqariga port ochilmagan: brauzer frontend nginx orqali (/app/)
+  # ulanadi, backend/queue esa compose tarmog'ida reverb:8080 ga yozadi. Eventlar `broadcasts` navbati orqali yuboriladi (`queue`).
   # Yangi kod `docker compose up -d --build` da qayta yaratish bilan keladi. docs/DEPLOY.md
   reverb:
     <<: *backend

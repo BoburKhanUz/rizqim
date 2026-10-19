@@ -60,6 +60,31 @@ enum CancelReason: string
     }
 
     /**
+     * Whether the reason may be given for cancelling an order of this type that is in $from. "No show" only for a pickup
+     * order the store already accepted (accepted, preparing, ready): the cash pickup ban counts it, so staff must not be
+     * able to give it for an order the customer could not have collected yet.
+     */
+    public function appliesTo(OrderType|string|null $orderType, OrderStatus $from): bool
+    {
+        if ($this !== self::NO_SHOW) {
+            return true;
+        }
+
+        $type = $orderType instanceof OrderType ? $orderType : OrderType::tryFrom((string) $orderType);
+
+        return $type === OrderType::PICKUP
+            && in_array($from, [OrderStatus::ACCEPTED, OrderStatus::PREPARING, OrderStatus::READY], true);
+    }
+
+    /**
+     * @return array<string, string> value => staff label of the reasons staff may give for cancelling this order now
+     */
+    public static function staffOptionsFor(OrderType|string|null $orderType, OrderStatus $from): array
+    {
+        return array_filter(self::staffOptions(), fn (string $value) => self::from($value)->appliesTo($orderType, $from), ARRAY_FILTER_USE_KEY);
+    }
+
+    /**
      * @return list<string>
      */
     public static function staffValues(): array

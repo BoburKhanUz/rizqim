@@ -14,6 +14,7 @@ use App\Models\PromoCode;
 use App\Services\Order\OrderStatusService;
 use App\Services\Order\OrderTransitionException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -160,6 +161,27 @@ class OrderCancelReasonTest extends TestCase
         $this->assertSame(CancelReason::OUT_OF_STOCK, $orders[4]->fresh()->cancel_reason);
     }
 
+    public function test_a_retried_customer_cancel_is_a_no_op_not_a_422(): void
+    {
+        $order = $this->makeOrder(OrderStatus::NEW, ['order_type' => 'pickup']);
+
+        $this->cancelAsCustomer($order)->assertOk()->assertJsonPath('data.status', 'canceled');
+        // The response was lost and the Mini App sends the same request again
+        $this->cancelAsCustomer($order)->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.status', 'canceled')
+            ->assertJsonPath('data.cancel_reason', 'customer_request');
+
+        $this->assertSame(1, OrderStatusHistory::where('order_id', $order->id)->where('status', 'canceled')->count());
+        $this->assertCount(1, $this->messagesTo('5001'));
+        $this->assertCount(1, $this->messagesTo('5009'));
+
+        // Someone else's cancel of the same order is still refused, as is a retry against a store's cancellation
+        $this->cancelAsCustomer($order, [], $this->makeCustomer())->assertStatus(403);
+        $storeCancelled = $this->makeOrder(OrderStatus::CANCELED, ['cancel_reason' => 'customer_request', 'cancelled_by' => $this->manager->id]);
+        $this->cancelAsCustomer($storeCancelled)->assertStatus(422);
+    }
+
     public function test_store_accepting_first_wins_over_a_stale_customer_cancel(): void
     {
         $order = $this->makeOrder(OrderStatus::NEW);
@@ -258,6 +280,55 @@ class OrderCancelReasonTest extends TestCase
 
         $this->assertSame(OrderStatus::NEW, $order->fresh()->status);
         $this->assertSame(10, (int) $this->variant->fresh()->stock);
+    }
+
+    public function test_no_show_is_only_given_for_a_pickup_order_the_store_accepted(): void
+    {
+        // A still-new order (the customer could not have collected it yet) would otherwise cost them cash payment
+        $new = $this->checkout($this->customer, 1);
+        foreach (['canceled', 'rejected'] as $status) {
+            $this->setStatus($new, $this->manager, $status, ['reason' => 'no_show'])
+                ->assertStatus(422)
+                ->assertJsonValidationErrors(['reason' => "«Mijoz kelmadi» sababi faqat qabul qilingan olib ketish buyurtmasini bekor qilishda tanlanadi."]);
+        }
+        $this->assertSame(OrderStatus::NEW, $new->fresh()->status);
+        $this->assertFalse(Order::cashPickupBanApplies($this->customer->id));
+
+        $delivery = $this->makeOrder(OrderStatus::PREPARING, ['order_type' => 'delivery']);
+        $this->setStatus($delivery, $this->manager, 'canceled', ['reason' => 'no_show'])->assertStatus(422)->assertJsonValidationErrors('reason');
+        $this->assertSame(OrderStatus::PREPARING, $delivery->fresh()->status);
+
+        foreach ([OrderStatus::ACCEPTED, OrderStatus::PREPARING, OrderStatus::READY] as $from) {
+            $pickup = $this->makeOrder($from, ['order_type' => 'pickup']);
+            $this->setStatus($pickup, $this->manager, 'canceled', ['reason' => 'no_show'])->assertOk()->assertJsonPath('data.cancel_reason', 'no_show');
+        }
+
+        $this->assertSame(['accepted', 'preparing', 'ready'], array_values(array_filter(
+            ['new', 'accepted', 'preparing', 'ready'],
+            fn (string $from) => CancelReason::NO_SHOW->appliesTo('pickup', OrderStatus::from($from))
+        )));
+        $this->assertArrayNotHasKey('no_show', CancelReason::staffOptionsFor('pickup', OrderStatus::NEW));
+        $this->assertArrayNotHasKey('no_show', CancelReason::staffOptionsFor('delivery', OrderStatus::READY));
+        $this->assertArrayHasKey('no_show', CancelReason::staffOptionsFor('pickup', OrderStatus::READY));
+    }
+
+    public function test_the_policy_itself_lets_a_customer_cancel_only_for_customer_request(): void
+    {
+        $order = $this->makeOrder(OrderStatus::NEW);
+        $gate = Gate::forUser($this->customer);
+
+        $this->assertTrue($gate->allows('changeStatus', [$order, OrderStatus::CANCELED, CancelReason::CUSTOMER_REQUEST]));
+        $this->assertFalse($gate->allows('changeStatus', [$order, OrderStatus::CANCELED]));
+        $this->assertFalse($gate->allows('changeStatus', [$order, OrderStatus::CANCELED, CancelReason::NO_SHOW]));
+
+        // A caller that forgets the customer option cannot let the customer pick a store's reason
+        try {
+            app(OrderStatusService::class)->transition($order, OrderStatus::CANCELED, $this->customer, ['cancel_reason' => CancelReason::OTHER]);
+            $this->fail('The customer must not cancel with a store reason.');
+        } catch (OrderTransitionException $e) {
+            $this->assertSame(403, $e->status);
+        }
+        $this->assertSame(OrderStatus::NEW, $order->fresh()->status);
     }
 
     public function test_unpaid_online_orders_expire_with_the_payment_timeout_reason(): void

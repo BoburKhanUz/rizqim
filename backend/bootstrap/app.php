@@ -20,10 +20,10 @@ return Application::configure(basePath: dirname(__DIR__))
         },
     )
     // Real-time updates (Laravel Reverb): POST /api/broadcasting/auth signs private channel subscriptions for a Sanctum
-    // Bearer token; who may join which channel is in routes/channels.php
+    // Bearer token (60 per minute per user, AppServiceProvider); who may join which channel is in routes/channels.php
     ->withBroadcasting(__DIR__.'/../routes/channels.php', [
         'prefix' => 'api',
-        'middleware' => ['auth:sanctum'],
+        'middleware' => ['auth:sanctum', 'throttle:broadcast-auth'],
     ])
     ->withSchedule(function (Schedule $schedule) {
         $schedule->job(new \App\Jobs\CheckUnacceptedAssignmentsJob)->everyMinute();

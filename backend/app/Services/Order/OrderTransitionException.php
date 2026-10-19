@@ -58,6 +58,11 @@ class OrderTransitionException extends RuntimeException
         return new self("Bu sababni tanlab bo'lmaydi.", 422, 'reason');
     }
 
+    public static function noShowNotApplicable(): self
+    {
+        return new self("«Mijoz kelmadi» sababi faqat qabul qilingan olib ketish buyurtmasini bekor qilishda tanlanadi.", 422, 'reason');
+    }
+
     /**
      * The customer's own cancel: the store already took the order, or it is paid.
      */

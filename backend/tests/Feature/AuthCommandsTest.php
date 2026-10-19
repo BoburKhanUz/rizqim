@@ -185,6 +185,27 @@ class AuthCommandsTest extends TestCase
         $this->artisan('app:check-production')->assertFailed();
     }
 
+    public function test_production_check_refuses_reverb_without_keys_and_warns_on_any_origin(): void
+    {
+        $this->safeProductionConfig();
+        config(['broadcasting.default' => 'reverb', 'broadcasting.connections.reverb.app_id' => '', 'broadcasting.connections.reverb.key' => '',
+            'broadcasting.connections.reverb.secret' => '']);
+        $this->artisan('app:check-production')->expectsOutputToContain('REVERB_APP_SECRET')->assertFailed();
+
+        config(['broadcasting.connections.reverb.app_id' => 'a1b2c3d4', 'broadcasting.connections.reverb.key' => str_repeat('k', 32)]);
+        $this->artisan('app:check-production')->expectsOutputToContain('REVERB_APP_SECRET')->assertFailed();
+
+        config(['broadcasting.connections.reverb.secret' => str_repeat('s', 64), 'reverb.apps.apps.0.allowed_origins' => ['*']]);
+        $this->artisan('app:check-production')->expectsOutputToContain('REVERB_ALLOWED_ORIGINS')->assertSuccessful();
+
+        config(['reverb.apps.apps.0.allowed_origins' => ['mini.example.uz']]);
+        $this->artisan('app:check-production')->doesntExpectOutputToContain('REVERB_ALLOWED_ORIGINS')->assertSuccessful();
+
+        // Real-time switched off: blank keys are harmless
+        config(['broadcasting.default' => 'null', 'broadcasting.connections.reverb.secret' => '']);
+        $this->artisan('app:check-production')->assertSuccessful();
+    }
+
     public function test_production_check_fails_while_a_super_admin_keeps_the_default_password(): void
     {
         $this->safeProductionConfig();

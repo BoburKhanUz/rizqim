@@ -8,6 +8,7 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\OrderStatusHistory;
 use App\Models\User;
+use App\Support\ConcurrentIndex;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -228,6 +229,10 @@ class OrderListingScopesTest extends TestCase
                 ['scope' => 'history', 'cursor' => 'not a cursor!'],
                 ['scope' => 'history', 'cursor' => 'Zm9v'], // "foo"
                 ['scope' => 'history', 'cursor' => $encode(['t' => '2026-13-45 10:00:00', 'i' => 1])],
+                // Well-formed but out of range: PostgreSQL refuses year 0000 (a 500 before)
+                ['scope' => 'history', 'cursor' => $encode(['t' => '0000-01-01 00:00:00', 'i' => 1])],
+                ['scope' => 'history', 'cursor' => $encode(['t' => '1969-12-31 23:59:59', 'i' => 1])],
+                ['scope' => 'history', 'cursor' => $encode(['t' => '10000-01-01 00:00:00', 'i' => 1])],
                 ['scope' => 'history', 'cursor' => $encode(['t' => "2026-10-01 10:00:00'; --", 'i' => 1])],
                 ['scope' => 'history', 'cursor' => $encode(['t' => '2026-10-01 10:00:00', 'i' => '1'])],
                 ['scope' => 'history', 'cursor' => $encode(['t' => '2026-10-01 10:00:00', 'i' => 0])],
@@ -289,8 +294,12 @@ class OrderListingScopesTest extends TestCase
             'orders_store_id_created_at_id_index',
             'orders_user_id_created_at_id_index',
             'order_items_order_id_index',
+            // History of a courier and of a branch manager
+            'orders_courier_id_created_at_id_index',
+            'orders_branch_id_created_at_id_index',
         ] as $name) {
             $this->assertContains($name, $indexes);
+            $this->assertFalse(ConcurrentIndex::isInvalid($name), $name);
         }
     }
 

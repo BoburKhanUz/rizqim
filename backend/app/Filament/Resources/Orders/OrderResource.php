@@ -267,7 +267,8 @@ class OrderResource extends Resource
         return [
             Forms\Components\Select::make('reason')
                 ->label('Sabab')
-                ->options(CancelReason::staffOptions())
+                // "Mijoz kelmadi" only for a pickup order already accepted (OrderStatusService refuses it otherwise)
+                ->options(fn (Order $record) => CancelReason::staffOptionsFor($record->order_type, $record->status))
                 ->required(),
             Forms\Components\Textarea::make('note')
                 ->label('Izoh')

@@ -19,7 +19,7 @@ Bu hujjat qabul qilingan qarorlar, papkalar tuzilmasi va bosqichlarni saqlaydi. 
 | Kuryerlar | Aralash: restoranning o'z kuryerlari va Rizqim kuryer parki, bitta ilovada |
 | Biznes model | Ikkalasi ham: POS obunasi (terminal/oy) va onlayn buyurtmadan komissiya; tarif har hamkor uchun tanlanadi |
 | Deploy | Faqat Docker |
-| Fiskal chek | Ochiq: provayder tanlanmagan (POS bosqichigacha hal qilinadi) |
+| Fiskal chek | **Shoshilinch, ochiq.** VM 393-son qarori (20.07.2026) umumiy ovqatlanishda soliq tizimlari bilan integratsiya qilinmagan hisob va buyurtma dasturlarini taqiqlaydi; kuchga kirish sanasi buxgalter/yurist bilan aniqlanmoqda. Yo'llar: Rizqim o'zi virtual kassa sifatida ro'yxatdan o'tadi yoki reyestrdagi provayderga yozma tasdiq bilan ulanadi; onlayn to'lovlarda chekni Payme/Click chiqaradi |
 
 ## Asosiy arxitektura tamoyili: bitta buyurtma, barcha kanallar
 
@@ -87,3 +87,8 @@ takrorlanmaydi, faqat uskuna bilan ishlaydigan qism (`pos_hardware`) farqlanadi.
 - Apple Developer va Google Play akkauntlari; iOS yig'ish uchun Mac yoki bulutli xizmat (masalan, Codemagic).
 - Pilot restoran va real POS uskunalari (printer, kassa qutisi, terminal) sinov uchun.
 - Ishlash muhitida Flutter SDK va pub.dev'ga tarmoq ruxsati.
+
+## Texnik eslatmalar
+
+- Reverb backend image'ida `ext-uv` (yoki `ext-event`) yo'q, shuning uchun bitta Reverb jarayoni taxminan 1000 ta bir
+  vaqtdagi ulanishgacha ishlaydi; undan oshgan mijozlar so'rov bilan yangilanadi. 1-bosqichda image'ga `ext-uv` qo'shiladi.
