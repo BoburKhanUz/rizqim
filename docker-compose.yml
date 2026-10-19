@@ -5,7 +5,6 @@
 # artisan va navbat/scheduler jarayonlari www-data nomidan ishlaydi (entrypoint su-exec bilan tushiradi).
 # Ops buyruqlari: docker compose exec -u www-data backend php artisan ... (exec standart bo'yicha root: root yaratgan
 # storage/logs/laravel.log ni php-fpm yoza olmaydi).
-# VPS varianti shu qadamlarni scripts/setup-server.sh va scripts/deploy.sh bilan bajaradi.
 
 # Backend, queue va scheduler bitta Dockerfile va bitta kod bazasidan quriladi; sozlamalar backend/.env dan (env_file) olinadi.
 x-backend: &backend
@@ -119,8 +118,7 @@ services:
       retries: 6
       start_period: 120s
 
-  # Navbat ishchilari QUEUE_CONNECTION ga ergashadi (redis; 'database' zaxira). VPS: rizqim-queue.service va
-  # rizqim-queue-reports.service, flaglar bir xil. Ikki ishchi: og'ir hisobotlar (SendOrderReport, `reports` navbati)
+  # Navbat ishchilari QUEUE_CONNECTION ga ergashadi (redis; 'database' zaxira). Ikki ishchi: og'ir hisobotlar (SendOrderReport, `reports` navbati)
   # Telegram xabarlari (`default` navbati) ortidan navbat kutib qolmasin va xotira cheklovi bilan ajratilgan bo'lsin.
   # queue:restart (entrypoint) ikkalasini ham yangilaydi.
   queue:
@@ -133,7 +131,7 @@ services:
     <<: *queue-worker
     command: ["php", "-d", "memory_limit=768M", "artisan", "queue:work", "--queue=reports", "--memory=512", "--timeout=150", "--tries=1", "--max-time=3600"]
 
-  # To'lanmagan onlayn buyurtmalarni bekor qilish kabi rejalashtirilgan vazifalar uchun. VPS: cron (schedule:run).
+  # To'lanmagan onlayn buyurtmalarni bekor qilish kabi rejalashtirilgan vazifalar uchun.
   scheduler:
     <<: *backend
     environment:
@@ -159,7 +157,7 @@ services:
   # WebSocket server (Laravel Reverb): buyurtma holatlari Mini App'ga real vaqtda (routes/channels.php dagi private
   # kanallar, POST /api/broadcasting/auth). Tashqariga port ochilmagan: brauzer frontend nginx orqali (/app/, /apps/)
   # ulanadi, backend/queue esa compose tarmog'ida reverb:8080 ga yozadi. Eventlar navbat orqali yuboriladi (`queue`).
-  # Yangi kod `docker compose up -d --build` da qayta yaratish bilan keladi. VPS varianti: docs/DEPLOY.md.
+  # Yangi kod `docker compose up -d --build` da qayta yaratish bilan keladi. docs/DEPLOY.md
   reverb:
     <<: *backend
     environment:

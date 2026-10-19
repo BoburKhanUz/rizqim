@@ -18,7 +18,7 @@ return [
     'connections' => [
 
         // The backend publishes over HTTP to the Reverb server: inside Docker that is reverb:8080 (docker-compose.yml
-        // sets REVERB_HOST/PORT/SCHEME for the backend containers), on a VPS 127.0.0.1:8080. Clients connect through
+        // sets REVERB_HOST/PORT/SCHEME for the backend containers). Clients connect through
         // the Mini App's own origin (nginx proxies /app/ and /apps/), see the VITE_REVERB_* build args.
         'reverb' => [
             'driver' => 'reverb',

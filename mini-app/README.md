@@ -18,7 +18,7 @@ Dev server `/api` so'rovlarini `http://127.0.0.1:8000` ga proksilaydi (`vite.con
 
 ## Muhit o'zgaruvchilari (`VITE_*`)
 
-Build vaqtida bundle ichiga yoziladi; o'zgartirgandan keyin qayta build qiling. Docker'da qiymatlar ildizdagi `.env` dan build argument sifatida uzatiladi (`docker compose up -d --build frontend`; `.dockerignore` `.env.*` fayllarni image'ga kiritmaydi). VPS'da `scripts/deploy.sh` `npm run build` ni ishga tushiradi, shuning uchun qiymatlarni `mini-app/.env.production` ga yozing (git e'tiborsiz qoldiradi).
+Build vaqtida bundle ichiga yoziladi; o'zgartirgandan keyin qayta build qiling. Docker'da qiymatlar ildizdagi `.env` dan build argument sifatida uzatiladi (`docker compose up -d --build frontend`; `.dockerignore` `.env.*` fayllarni image'ga kiritmaydi). Docker'siz qo'lda build qilsangiz (`npm run build`), qiymatlarni `mini-app/.env.production` ga yozing (git e'tiborsiz qoldiradi).
 
 | O'zgaruvchi | Standart | Ma'nosi |
 |---|---|---|
@@ -39,7 +39,7 @@ Build vaqtida bundle ichiga yoziladi; o'zgartirgandan keyin qayta build qiling. 
 | `npm test` | `vitest run` (bir martalik); `npm run test:watch` — kuzatuv rejimi |
 | `npm run test:e2e` | Playwright brauzer testlari (`e2e/`), backend kerak emas — pastdagi "E2E testlar" bo'limiga qarang |
 
-`test-browser.js` — qo'lda ishga tushiriladigan puppeteer skripti (`node test-browser.js`, dev server `localhost:5173` da ishlab turishi kerak): sahifani ochib brauzer konsoli va so'rov xatolarini chiqaradi. CI, Docker build va `scripts/deploy.sh` uni ishlatmaydi va `npm ci` ni `PUPPETEER_SKIP_DOWNLOAD` bilan yuritadi (Chrome yuklanmaydi). Lokalda ham kerak bo'lmasa: `PUPPETEER_SKIP_DOWNLOAD=1 npm ci`; skriptni ishga tushirish uchun Chrome'ni `npx puppeteer browsers install chrome` bilan o'rnating.
+`test-browser.js` — qo'lda ishga tushiriladigan puppeteer skripti (`node test-browser.js`, dev server `localhost:5173` da ishlab turishi kerak): sahifani ochib brauzer konsoli va so'rov xatolarini chiqaradi. CI va Docker build uni ishlatmaydi va `npm ci` ni `PUPPETEER_SKIP_DOWNLOAD` bilan yuritadi (Chrome yuklanmaydi). Lokalda ham kerak bo'lmasa: `PUPPETEER_SKIP_DOWNLOAD=1 npm ci`; skriptni ishga tushirish uchun Chrome'ni `npx puppeteer browsers install chrome` bilan o'rnating.
 
 ## Tuzilma (`src/`)
 

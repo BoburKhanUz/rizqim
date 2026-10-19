@@ -38,8 +38,8 @@ if ! as_app php artisan app:check-production; then
 fi
 
 # Only the web container (RUN_MIGRATIONS=true) deploys; queue and scheduler wait for its healthcheck (docker-compose.yml)
-# and so start after the migrations. Same steps as scripts/deploy.sh (VPS). Nothing serves requests while this runs
-# (nginx and php-fpm start after the entrypoint), so unlike the VPS there is no maintenance mode to switch on.
+# and so start after the migrations. Nothing serves requests while this runs (nginx and php-fpm start after the
+# entrypoint), so there is no maintenance mode to switch on.
 if [ "$RUN_MIGRATIONS" = "true" ]; then
     as_app php artisan migrate --force
     as_app php artisan storage:link || true

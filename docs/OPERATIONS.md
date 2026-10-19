@@ -58,20 +58,18 @@ Eslatmalar:
 
 **Nima zaxiralanadi.** PostgreSQL (barcha buyurtmalar, moliya, foydalanuvchilar) `pg_dump --format=custom` bilan (siqilgan, `.dump`), yonida `.sha256`. Yuklangan rasmlar (`backend_storage` volume) alohida (pastda). Redis'dagi narsa (kesh, sessiya, navbat) zaxiralanmaydi: tiklash shart emas.
 
-**Docker (standart).** `backup` xizmati `docker compose up -d` bilan ishga tushadi: har kuni `BACKUP_TIME` (UTC, standart 03:00) da va xizmat ishga tushganda dump oladi, `BACKUP_HOST_DIR` (standart `./backups`) ga yozadi, `BACKUP_RETENTION_DAYS` (14) kundan eskilarini o'chiradi. Sozlamalar ildizdagi `.env` da. Log: `docker compose logs backup`.
+**Avtomatik zaxira.** `backup` xizmati `docker compose up -d` bilan ishga tushadi: har kuni `BACKUP_TIME` (UTC, standart 03:00) da va xizmat ishga tushganda dump oladi, `BACKUP_HOST_DIR` (standart `./backups`) ga yozadi, `BACKUP_RETENTION_DAYS` (14) kundan eskilarini o'chiradi. Sozlamalar ildizdagi `.env` da. Log: `docker compose logs backup`.
 
-**Qo'lda yoki VPS (cron).**
+**Qo'lda zaxira.** Deploy/migratsiya oldidan ham bitta oling (`backup` xizmati shu konteynerda, bazaga o'zi ulanadi):
 ```bash
-BACKUP_DIR=/var/backups/rizqim scripts/backup.sh         # backend/.env dagi DB_* ishlatiladi
-# crontab -e:  15 3 * * *  cd /var/www/order-mini-app && BACKUP_DIR=/var/backups/rizqim scripts/backup.sh >> /var/log/rizqim-backup.log 2>&1
+docker compose exec backup sh /usr/local/bin/backup.sh
 ```
-Deploy/migratsiya oldidan ham bitta oling: `scripts/backup.sh` (Docker: `docker compose exec backup sh /usr/local/bin/backup.sh`).
 
-**Server tashqarisiga nusxa (majburiy deb hisoblang).** Server disk'i yo'qolsa shu serverdagi zaxira ham yo'qoladi. `BACKUP_OFFSITE_CMD` har dump'dan keyin `sh -c` bilan ishga tushadi, fayl yo'li `$BACKUP_FILE` da; xato bersa zaxira saqlanadi, skript `2` kodi bilan tugaydi (cron pochtasi/log). Misol (serverda `rclone` sozlangan bo'lsa, VPS/cron varianti):
+**Server tashqarisiga nusxa (majburiy deb hisoblang).** Server disk'i yo'qolsa shu serverdagi zaxira ham yo'qoladi. Standart `backup` konteynerida faqat postgres vositalari bor (`rclone`, `aws` yo'q), shuning uchun `BACKUP_HOST_DIR` (standart `./backups`) papkasini serverning o'zidagi cron boshqa joyga ko'chirsin. Misol (serverda `rclone` sozlangan bo'lsa):
 ```bash
-BACKUP_OFFSITE_CMD='rclone copy "$BACKUP_FILE" remote:rizqim-backups' scripts/backup.sh
+# crontab -e:  45 3 * * *  rclone copy /path/to/rizqim/backups remote:rizqim-backups >> /var/log/rizqim-offsite.log 2>&1
 ```
-Standart `backup` konteynerida faqat postgres vositalari bor: tashqi nusxani serverda cron orqali (yuqoridagi buyruq) yoki `./backups` papkasini boshqa jarayon (rsync/rclone cron) ko'chirishi bilan qiling.
+Muqobil: `BACKUP_OFFSITE_CMD` har dump'dan keyin `sh -c` bilan **konteyner ichida** ishga tushadi, fayl yo'li `$BACKUP_FILE` da; xato bersa zaxira saqlanadi, skript `2` kodi bilan tugaydi (`docker compose logs backup`). U faqat kerakli vosita konteynerda bo'lsa ishlaydi (masalan, o'z obrazingiz bilan).
 
 **Yuklangan rasmlar (storage).**
 ```bash
@@ -95,7 +93,6 @@ docker compose exec -T backend tar czf - -C /var/www/html/storage/app . > backup
    ```
    `up` deploy qadamlarini (migratsiya, `queue:restart`) o'zi bajaradi. Zaxira koddan eski bo'lsa migratsiyalar yetishmagan qismini qo'llaydi.
 3. **Zaxiradan keyingi yo'qotish.** Dump olingandan keyingi buyurtmalar/to'lovlar tiklanmaydi: Click/Payme kabinetidan shu oraliqdagi to'lovlarni solishtiring, kerak bo'lsa qo'lda kiriting. Telegram webhook qayta o'rnatiladi (`up` da avtomatik).
-4. VPS'da: `PGHOST=127.0.0.1 PGUSER=... PGPASSWORD=... scripts/restore.sh <fayl> <baza>` (yoki `backend/.env` dan o'qiydi); `postgresql-client` kerak.
 
 **Oyiga bir marta mashq qiling:** eng yangi dump'ni `..._restore` bazasiga tiklab, jadvallardagi qatorlar sonini ish bazasi bilan solishtiring, so'ng `drop database` qiling. Tiklanmaydigan zaxira zaxira emas.
 
@@ -115,19 +112,19 @@ docker compose exec -T backend tar czf - -C /var/www/html/storage/app . > backup
 | Real-time (Reverb) | `docker compose ps reverb` (healthcheck `GET /up`); `failed_jobs` dagi `Illuminate\Broadcasting\BroadcastEvent` | `reverb` `unhealthy`; `BroadcastEvent` joblari muvaffaqiyatsiz (6-bo'lim) |
 | Sertifikat | Reverse proxy'dagi TLS muddati (Telegram webhook va Mini App faqat HTTPS) | 14 kun qolganda |
 
-**Birinchi yordam.** Hamma narsa to'xtagan bo'lsa: `curl -i https://<domen>/api/v1/health` > `fail` bo'lsa `database`/`redis` qaysi biri; `docker compose ps`; `docker compose logs --tail=200 backend`. Bazani buzgan deploy bo'lsa: kodni qaytaring (`docs/DEPLOY.md`, 9-bo'lim), kerak bo'lsa 4-bo'limdagi tiklash.
+**Birinchi yordam.** Hamma narsa to'xtagan bo'lsa: `curl -i https://<domen>/api/v1/health` > `fail` bo'lsa `database`/`redis` qaysi biri; `docker compose ps`; `docker compose logs --tail=200 backend`. Bazani buzgan deploy bo'lsa: kodni qaytaring (`docs/DEPLOY.md`, 7-bo'lim), kerak bo'lsa 4-bo'limdagi tiklash.
 
 ## 6. Real-time (Laravel Reverb)
 
-Sozlash va kanallar: `docs/DEPLOY.md`, 11-bo'lim. Reverb ixtiyoriy qatlam: ishlamay qolsa buyurtmalar, to'lovlar va Telegram xabarlari odatdagidek ishlaydi, Mini App esa so'rov (polling) bilan yangilanadi. Shuning uchun u `/health` ga kiritilmagan (backend'ni nosog'lom qilmaydi).
+Sozlash va kanallar: `docs/DEPLOY.md`, 9-bo'lim. Reverb ixtiyoriy qatlam: ishlamay qolsa buyurtmalar, to'lovlar va Telegram xabarlari odatdagidek ishlaydi, Mini App esa so'rov (polling) bilan yangilanadi. Shuning uchun u `/health` ga kiritilmagan (backend'ni nosog'lom qilmaydi).
 
 | Holat | Belgisi | Nima qilish |
 |---|---|---|
-| `reverb` konteyneri to'xtagan / `unhealthy` | Mini App'da yangilanishlar faqat so'rov bilan; DevTools'da `wss://.../app/...` ulanmaydi (502) | `docker compose logs --tail=200 reverb`; `docker compose up -d reverb`. VPS: `systemctl status rizqim-reverb`, `journalctl -u rizqim-reverb` |
+| `reverb` konteyneri to'xtagan / `unhealthy` | Mini App'da yangilanishlar faqat so'rov bilan; DevTools'da `wss://.../app/...` ulanmaydi (502) | `docker compose logs --tail=200 reverb`; `docker compose up -d reverb` |
 | Backend Reverb'ga yoza olmayapti | `failed_jobs` da `BroadcastEvent` (`cURL error`, `401`/`Invalid auth signature`) | Kalitlar backend va `reverb` da bir xilmi (`REVERB_APP_ID`/`KEY`/`SECRET`), `REVERB_HOST`/`PORT` to'g'rimi. Eski hodisalarni qayta yuborish shart emas (mijozlar baribir qayta so'raydi): `php artisan queue:forget <id>` yoki `queue:flush` |
 | Obuna `403` | Mini App ulanadi, lekin kanalga qo'shilmaydi | Foydalanuvchining roli, `store_id`, `branch_id` kanalga mos emas (`routes/channels.php`); do'konsiz xodimni `user:assign-role` bilan biriktiring |
 | WebSocket tez-tez uzilyapti | DevTools'da qayta ulanishlar | Tashqi proksi `/app/` uchun `Upgrade`/`Connection` va `proxy_read_timeout` (≥ 120 s) ni o'tkazayotganini tekshiring |
 | Real-time'ni vaqtincha o'chirish | — | Ildiz `.env` da `BROADCAST_CONNECTION=null`, so'ng `docker compose up -d --force-recreate backend queue queue-reports scheduler` |
 
-Loglar: `docker compose logs -f reverb` (ulanishlar sonini ko'rish uchun vaqtincha `php artisan reverb:start --debug`). Hodisalarda shaxsiy ma'lumot yo'q (faqat buyurtma `uuid`, holat va id'lar), shuning uchun Reverb loglari maxfiy emas. Yangi kod bilan Reverb `docker compose up -d --build` da qayta yaratiladi; VPS'da deploydan keyin `sudo systemctl restart rizqim-reverb`.
+Loglar: `docker compose logs -f reverb` (ulanishlar sonini ko'rish uchun vaqtincha `php artisan reverb:start --debug`). Hodisalarda shaxsiy ma'lumot yo'q (faqat buyurtma `uuid`, holat va id'lar), shuning uchun Reverb loglari maxfiy emas. Yangi kod bilan Reverb `docker compose up -d --build` da qayta yaratiladi.
 

@@ -6,7 +6,7 @@ O'zbekiston uchun ko'p do'konli (multi-store) ovqat buyurtma va yetkazib berish 
 |---|---|---|
 | `backend/` | Laravel 12, PHP 8.3, PostgreSQL, Redis, Sanctum, Filament (`/admin`, `/superadmin`) | [backend/README.md](backend/README.md) |
 | `mini-app/` | React 19, TypeScript, Vite 8, Tailwind 4, TanStack Query, zustand | [mini-app/README.md](mini-app/README.md) |
-| Deploy | Docker Compose yoki VPS skriptlari (`scripts/`) | [docs/DEPLOY.md](docs/DEPLOY.md) |
+| Deploy | Docker Compose | [docs/DEPLOY.md](docs/DEPLOY.md) |
 
 ## Arxitektura
 

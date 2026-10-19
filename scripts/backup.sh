@@ -2,7 +2,7 @@
 # Rizqim: PostgreSQL zaxira nusxasi (pg_dump custom format, zlib bilan siqilgan), vaqt belgili fayl, eskilarini o'chirish.
 #
 # Foydalanish:
-#   scripts/backup.sh            bir marta zaxira oladi (cron, deploy oldidan qo'lda)
+#   scripts/backup.sh            bir marta zaxira oladi (deploy oldidan qo'lda: docker compose exec backup sh /usr/local/bin/backup.sh)
 #   scripts/backup.sh --daemon   har kuni BACKUP_TIME (UTC) da zaxira oladi; docker-compose.yml dagi `backup` xizmati shuni ishlatadi
 #
 # Sozlamalar (env; docker compose'da ildizdagi .env dan):

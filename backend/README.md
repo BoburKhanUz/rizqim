@@ -41,7 +41,7 @@ php artisan schedule:work  # alohida terminalda: to'lanmagan buyurtmalarni bekor
 
 | Seeder | Nima qiladi | Eslatma |
 |---|---|---|
-| `DatabaseSeeder` | faqat `SettingSeeder` ni chaqiradi | qolganlarini `--class=` bilan ishga tushiring; Docker/VPS deploy hech qaysi seederni o'zi ishga tushirmaydi |
+| `DatabaseSeeder` | faqat `SettingSeeder` ni chaqiradi | qolganlarini `--class=` bilan ishga tushiring; Docker deploy hech qaysi seederni o'zi ishga tushirmaydi |
 | `SettingSeeder` | `settings` jadvaliga `sms_driver=log`, `eskiz_email`, `eskiz_password` (bo'sh), `eskiz_from=4546` yozadi (mavjudini o'zgartirmaydi) | bu qatorlar (bo'sh bo'lsa ham) `SMS_DRIVER`/`ESKIZ_*` env'dan ustun; SMS'ni Superadmin > Tizim Sozlamalari'dan yoqing |
 | `SuperAdminSeeder` | `SUPERADMIN_EMAIL`/`SUPERADMIN_PASSWORD` bilan `super_admin` yaratadi | `local`/`testing` dan boshqa muhitda ikkalasi majburiy, parol kamida 12 belgi; mavjud email'ning paroli va roli o'zgarmaydi |
 | `LocationSeeder` | 14 hudud (viloyatlar, Qoraqalpog'iston, Toshkent shahri) va ularning tumanlari | Idempotent: `firstOrCreate` bilan faqat yetishmaydigan hudud va tumanlarni qo'shadi, hech narsani o'chirmaydi va o'zgartirmaydi (`TRUNCATE` yo'q), shuning uchun ishlaydigan bazada ham xavfsiz. Faqat o'zi yaratgan qatorlar uchun Andijon viloyati/Asaka tumani faol bo'ladi; panelda yoqilgan/o'chirilgan holat saqlanadi, qolganini Superadmin > Viloyatlar/Tumanlar'da yoqing |
@@ -126,12 +126,12 @@ Namuna: [.env.example](.env.example). "Standart" ustunida `.env.example` qiymati
 | Buyruq | Vazifasi |
 |---|---|
 | `user:assign-role {telegram_id} {role} [--store=ID_yoki_UUID] [--branch=ID]` | Rol berish (`super_admin`, `owner`, `manager`, `courier`, `customer`). `owner`/`manager`/`courier` uchun `--store` majburiy. Foydalanuvchi Mini App'ni kamida bir marta ochgan bo'lishi kerak. `audit_logs` ga `cli_role_assigned` yoziladi |
-| `app:check-production` | Xavfli sozlamalarda `exit 1`: `APP_ENV` `production` emas, `APP_DEBUG=true`, `APP_KEY` bo'sh (production kalitni o'zi yaratmaydi), `TELEGRAM_ALLOW_MOCK_AUTH=true`, `TELEGRAM_WEBHOOK_SECRET` bo'sh yoki noto'g'ri belgili, `TELEGRAM_WEBAPP_URL` bo'sh yoki `https://` bilan boshlanmaydi, super adminda standart parol `12345678`. Do'konsiz xodim hisoblari haqida faqat ogohlantiradi. Click/Payme kalitlari, Redis va CORS tekshirilmaydi. Docker entrypoint va `scripts/deploy.sh` ishga tushiradi |
+| `app:check-production` | Xavfli sozlamalarda `exit 1`: `APP_ENV` `production` emas, `APP_DEBUG=true`, `APP_KEY` bo'sh (production kalitni o'zi yaratmaydi), `TELEGRAM_ALLOW_MOCK_AUTH=true`, `TELEGRAM_WEBHOOK_SECRET` bo'sh yoki noto'g'ri belgili, `TELEGRAM_WEBAPP_URL` bo'sh yoki `https://` bilan boshlanmaydi, super adminda standart parol `12345678`. Do'konsiz xodim hisoblari haqida faqat ogohlantiradi. Click/Payme kalitlari, Redis va CORS tekshirilmaydi. Docker entrypoint ishga tushiradi |
 | `telegram:set-webhook [--url=] [--if-configured]` | Webhookni `secret_token` va `allowed_updates` (`message`, `callback_query`) bilan ro'yxatdan o'tkazadi. URL tartibi: `--url`, `TELEGRAM_WEBHOOK_URL`, `APP_URL`; HTTPS shart. `--if-configured`: token yo'q bo'lsa jim chiqadi |
 | `telegram:poll` | Lokal long polling: botning webhookini o'chiradi va yangilanishlarni `http://127.0.0.1:8000/api/v1/telegram/webhook` ga secret bilan yuboradi (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET` kerak). Productionda ishlatmang |
-| `queue:work --queue=default --tries=3 --max-time=3600` | Asosiy navbat ishchisi (Docker'dagi `queue` xizmati va `rizqim-queue.service` shu flaglar bilan) |
-| `queue:work --queue=reports --memory=512 --timeout=150 --tries=1 --max-time=3600` | `reports` navbati ishchisi (Docker'da `queue-reports`, VPS'da `rizqim-queue-reports.service`; PHP `memory_limit=768M` bilan). `SendOrderReport` shu navbatga qo'yiladi |
-| `schedule:work` / `schedule:run` | Scheduler: lokal/Docker'da `schedule:work`, VPS'da cron orqali har daqiqada `schedule:run` |
+| `queue:work --queue=default --tries=3 --max-time=3600` | Asosiy navbat ishchisi (Docker'dagi `queue` xizmati shu flaglar bilan) |
+| `queue:work --queue=reports --memory=512 --timeout=150 --tries=1 --max-time=3600` | `reports` navbati ishchisi (Docker'da `queue-reports` xizmati; PHP `memory_limit=768M` bilan). `SendOrderReport` shu navbatga qo'yiladi |
+| `schedule:work` / `schedule:run` | Scheduler: lokal/Docker'da `schedule:work` |
 | `queue:restart`, `queue:failed`, `queue:retry all` | Deploydan keyin ishchilarni yangilash (ikkala ishchini ham); muvaffaqiyatsiz joblarni ko'rish va qayta urinish |
 | `migrate --force`, `storage:link`, `filament:upgrade`, `config:cache`, `route:cache`, `view:cache` | Deploy qadamlari (tartibi [../docs/DEPLOY.md](../docs/DEPLOY.md) da) |
 
