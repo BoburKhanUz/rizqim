@@ -111,7 +111,7 @@ class SettlementRecoveryService
         } elseif ($gaveUp) {
             Log::critical("Ledger booking of delivered order {$order->uuid} given up after {$attempts} failed attempts", $context);
             $this->alerts->send("🚨 Moliya: #{$order->short_code} buyurtmasining hisob-kitobi {$attempts} marta urinishdan keyin ham "
-                . "yozilmadi, avtomatik urinishlar to'xtatildi. Sababini bartaraf etib, qo'lda yozing.\nXato: {$short}");
+                . "yozilmadi, avtomatik urinishlar to'xtatildi. Sababini bartaraf etib: php artisan orders:retry-settlements {$order->id}\nXato: {$short}");
         } else {
             Log::error("Ledger booking retry {$attempts} of delivered order {$order->uuid} failed", $context);
         }

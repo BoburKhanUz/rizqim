@@ -38,7 +38,7 @@ Build vaqtida bundle ichiga yoziladi; o'zgartirgandan keyin qayta build qiling. 
 | `npm run lint` | `eslint .` (typescript-eslint, react-hooks, react-refresh) |
 | `npm test` | `vitest run` (bir martalik); `npm run test:watch` — kuzatuv rejimi |
 
-`test-browser.js` — qo'lda ishga tushiriladigan puppeteer skripti (`node test-browser.js`, dev server `localhost:5173` da ishlab turishi kerak): sahifani ochib brauzer konsoli va so'rov xatolarini chiqaradi. CI'da ishlatilmaydi (CI `PUPPETEER_SKIP_DOWNLOAD` o'rnatadi).
+`test-browser.js` — qo'lda ishga tushiriladigan puppeteer skripti (`node test-browser.js`, dev server `localhost:5173` da ishlab turishi kerak): sahifani ochib brauzer konsoli va so'rov xatolarini chiqaradi. CI, Docker build va `scripts/deploy.sh` uni ishlatmaydi va `npm ci` ni `PUPPETEER_SKIP_DOWNLOAD` bilan yuritadi (Chrome yuklanmaydi). Lokalda ham kerak bo'lmasa: `PUPPETEER_SKIP_DOWNLOAD=1 npm ci`; skriptni ishga tushirish uchun Chrome'ni `npx puppeteer browsers install chrome` bilan o'rnating.
 
 ## Tuzilma (`src/`)
 
@@ -83,4 +83,9 @@ Ro'yxatlar so'rov (polling) bilan yangilanadi (`lib/polling.ts`): mijoz buyurtma
 
 ## Docker image
 
-`Dockerfile` ko'p bosqichli: `node:20-alpine` da `npm ci` va `npm run build` (`VITE_*` build argumentlari bilan), so'ng `nginx:1.27-alpine` ga `dist/` nusxalanadi. `docker/nginx.conf`: SPA uchun `index.html` ga qaytish, **faqat** `/api/` ni `http://backend:80/api/` ga proksilash (Host va `X-Forwarded-*` sarlavhalari bilan), statik fayllar 30 kun keshlanadi.
+`Dockerfile` ko'p bosqichli: `node:22-alpine` da `PUPPETEER_SKIP_DOWNLOAD=1 npm ci` va `npm run build` (`VITE_*` build argumentlari bilan), so'ng `nginx:1.27-alpine` ga `dist/` nusxalanadi. `docker/nginx.conf`:
+
+- SPA uchun `index.html` ga qaytish; `/api/` va `/storage/` (yuklangan rasmlar) `http://backend:80` ga yo'lni o'zgartirmasdan proksilanadi (`Host`, `X-Real-IP`, `X-Forwarded-For` va `X-Forwarded-Proto` bilan; kelgan `X-Forwarded-Proto` o'zgarmay uzatiladi, yo'q bo'lsa `$scheme` qo'yiladi).
+- `backend` nomi Docker DNS (`resolver 127.0.0.11`, 5 s kesh) orqali har so'rovda aniqlanadi, shuning uchun backend konteyneri alohida qayta yaratilsa ham frontend'ni qayta ishga tushirish shart emas. Bu qism faqat Docker Compose tarmog'ida ishlaydi.
+- `client_max_body_size 10m` (nginx standarti 1 MB rasm yuklashni to'sardi; API rasmni 5 MB bilan cheklaydi).
+- Kesh: `index.html` — `Cache-Control: no-cache` (har safar qayta tekshiriladi), `/assets/*` (nomida hash bor) — `public, max-age=31536000, immutable`, `public/` dagi hashsiz fayllar (`favicon.svg`, ...) — 30 kun.

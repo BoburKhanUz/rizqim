@@ -32,17 +32,7 @@ class LedgerService
             $lockedStore = Store::where('id', $store->id)->lockForUpdate()->firstOrFail();
 
             // Idempotency check: Have we already deducted commission for this order?
-            $existsMain = StoreTransaction::where('store_id', $store->id)
-                ->where('order_id', $order->id)
-                ->where('type', StoreTransactionType::COMMISSION->value)
-                ->exists();
-
-            $existsWallet = StoreWalletTransaction::where('store_id', $store->id)
-                ->where('order_id', $order->id)
-                ->where('type', StoreTransactionType::COMMISSION->value)
-                ->exists();
-
-            if ($existsMain || $existsWallet) {
+            if ($this->hasCommission($order)) {
                 throw new Exception("Commission already deducted for order: {$order->id}");
             }
 
@@ -251,7 +241,10 @@ class LedgerService
     }
 
     /**
-     * Process all financial logic when an order is delivered
+     * Everything delivery books for an order: the commission, the platform-collected money to the store, and the
+     * referrer's reward for a referred customer's first delivered order. Idempotent, part by part, so a booking that
+     * failed can simply be run again (SettlementRecoveryService); callers run it in a transaction (savepoint) of its
+     * own, so a failure books nothing at all.
      */
     public function processOrderDelivered(\App\Models\Order $order, ?int $performedBy = null): void
     {
@@ -262,56 +255,89 @@ class LedgerService
             : Money::of($order->total_price)->percent($store->commission_rate ?? 10);
 
         // 1. Always deduct commission for every order to log the commission transaction
-        if ($commissionAmount->isPositive()) {
+        if ($commissionAmount->isPositive() && !$this->hasCommission($order)) {
             $this->deductCommission($store, $commissionAmount, $order, null, $performedBy);
         }
 
         // 2. Settle full amount if collected by the platform
         $this->settlePlatformOrder($order, $performedBy);
 
-        // --- Referral & Cashback Processing ---
-        try {
-            $user = $order->user;
-            if ($user && $user->referred_by && Money::of($order->total_price)->isGreaterThanOrEqualTo(50000)) {
-                // Check if this is the customer's first completed/delivered order (a refunded one kept its reward, so it counts)
-                $completedOrdersCount = \App\Models\Order::where('user_id', $user->id)
-                    ->whereIn('status', [\App\Enums\OrderStatus::DELIVERED->value, \App\Enums\OrderStatus::REFUNDED->value])
-                    ->count();
-
-                if ($completedOrdersCount === 1) {
-                    $referrer = \App\Models\User::find($user->referred_by);
-                    if ($referrer) {
-                        // Store row first, then the user, like every other ledger path; both or neither
-                        DB::transaction(function () use ($store, $order, $user, $referrer, $performedBy) {
-                            $lockedStore = Store::where('id', $store->id)->lockForUpdate()->firstOrFail();
-
-                            // 1. Award 5000 cashback points to referrer
-                            $referrer->increment('balance', 5000);
-
-                            // 2. Charge 5000 to store's debit/balance
-                            $balanceBefore = Money::of($lockedStore->debt_balance);
-                            $balanceAfter = $balanceBefore->plus(5000);
-
-                            StoreTransaction::create([
-                                'store_id' => $store->id,
-                                'type' => StoreTransactionType::COMMISSION->value,
-                                'amount' => Money::of(5000)->toString(),
-                                'balance_before' => $balanceBefore->toString(),
-                                'balance_after' => $balanceAfter->toString(),
-                                'reference_id' => $order->uuid,
-                                'order_id' => $order->id,
-                                'performed_by' => $performedBy,
-                                'notes' => self::REFERRAL_NOTE . " for referred user #{$user->id}",
-                            ]);
-
-                            $lockedStore->forceFill(['debt_balance' => $balanceAfter->toString()])->save();
-                        });
-                    }
-                }
-            }
-        } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error("Failed to process referral reward for order {$order->uuid}: " . $e->getMessage());
+        // 3. Referral reward; a failure fails the whole booking, which is then retried like any other
+        $user = $order->user;
+        if (!$user || !$user->referred_by || Money::of($order->total_price)->isLessThan(50000)
+            || $this->hasReferralReward($order) || !$this->isFirstDelivery($order)) {
+            return;
         }
+
+        $referrer = \App\Models\User::find($user->referred_by);
+        if (!$referrer) {
+            return;
+        }
+
+        // Store row first, then the user, like every other ledger path; both or neither
+        DB::transaction(function () use ($store, $order, $user, $referrer, $performedBy) {
+            $lockedStore = Store::where('id', $store->id)->lockForUpdate()->firstOrFail();
+
+            // 1. Award 5000 cashback points to referrer
+            $referrer->increment('balance', 5000);
+
+            // 2. Charge 5000 to store's debit/balance
+            $balanceBefore = Money::of($lockedStore->debt_balance);
+            $balanceAfter = $balanceBefore->plus(5000);
+
+            StoreTransaction::create([
+                'store_id' => $store->id,
+                'type' => StoreTransactionType::COMMISSION->value,
+                'amount' => Money::of(5000)->toString(),
+                'balance_before' => $balanceBefore->toString(),
+                'balance_after' => $balanceAfter->toString(),
+                'reference_id' => $order->uuid,
+                'order_id' => $order->id,
+                'performed_by' => $performedBy,
+                'notes' => self::REFERRAL_NOTE . " for referred user #{$user->id}",
+            ]);
+
+            $lockedStore->forceFill(['debt_balance' => $balanceAfter->toString()])->save();
+        });
+    }
+
+    /**
+     * Whether the order's commission was deducted (wallet and/or debt); the referral reward's cost is not commission.
+     */
+    public function hasCommission(\App\Models\Order $order): bool
+    {
+        return StoreWalletTransaction::where('order_id', $order->id)->where('type', StoreTransactionType::COMMISSION->value)->exists()
+            || StoreTransaction::where('order_id', $order->id)->where('type', StoreTransactionType::COMMISSION->value)
+                ->where(fn ($query) => $query->whereNull('notes')->orWhere('notes', 'not like', self::REFERRAL_NOTE . '%'))
+                ->exists();
+    }
+
+    private function hasReferralReward(\App\Models\Order $order): bool
+    {
+        return StoreTransaction::where('order_id', $order->id)
+            ->where('type', StoreTransactionType::COMMISSION->value)
+            ->where('notes', 'like', self::REFERRAL_NOTE . '%')
+            ->exists();
+    }
+
+    /**
+     * Whether no other order of the customer was delivered before this one (a refunded one was delivered too, and
+     * one without a recorded delivery counts as earlier). Decided by the order of the delivered status history rows,
+     * so a booking retried after the customer's next order was delivered still sees this one as the first.
+     */
+    private function isFirstDelivery(\App\Models\Order $order): bool
+    {
+        $delivered = \App\Enums\OrderStatus::DELIVERED->value;
+        $deliveredAs = \App\Models\OrderStatusHistory::where('order_id', $order->id)->where('status', $delivered)->min('id');
+
+        return !\App\Models\Order::where('user_id', $order->user_id)
+            ->whereKeyNot($order->id)
+            ->whereIn('status', [$delivered, \App\Enums\OrderStatus::REFUNDED->value])
+            ->when($deliveredAs !== null, fn ($query) => $query->whereDoesntHave(
+                'statusHistories',
+                fn ($history) => $history->where('status', $delivered)->where('id', '>', $deliveredAs)
+            ))
+            ->exists();
     }
 
     /**

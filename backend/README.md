@@ -24,12 +24,12 @@ php artisan key:generate
 ```bash
 php artisan migrate
 php artisan db:seed --class=SuperAdminSeeder   # local/testing da SUPERADMIN_* bo'sh bo'lsa: admin@gmail.com / 12345678
-php artisan db:seed --class=LocationSeeder     # viloyat va tumanlar (faqat bo'sh bazada, pastga qarang)
+php artisan db:seed --class=LocationSeeder     # viloyat va tumanlar (qayta ishga tushirish xavfsiz, pastga qarang)
 php artisan db:seed                            # DatabaseSeeder = faqat SettingSeeder
 php artisan storage:link                       # yuklangan rasmlar uchun (public disk)
 
 php artisan serve          # http://127.0.0.1:8000 (Mini App dev serveri /api ni shu yerga proksilaydi)
-php artisan queue:work     # alohida terminalda: Telegram xabarlari, hisobotlar
+php artisan queue:work --queue=default,reports   # alohida terminalda: Telegram xabarlari (default) va hisobotlar (reports); productionda ikkita alohida ishchi
 php artisan schedule:work  # alohida terminalda: to'lanmagan buyurtmalarni bekor qilish va h.k.
 ```
 
@@ -44,8 +44,8 @@ php artisan schedule:work  # alohida terminalda: to'lanmagan buyurtmalarni bekor
 | `DatabaseSeeder` | faqat `SettingSeeder` ni chaqiradi | qolganlarini `--class=` bilan ishga tushiring; Docker/VPS deploy hech qaysi seederni o'zi ishga tushirmaydi |
 | `SettingSeeder` | `settings` jadvaliga `sms_driver=log`, `eskiz_email`, `eskiz_password` (bo'sh), `eskiz_from=4546` yozadi (mavjudini o'zgartirmaydi) | bu qatorlar (bo'sh bo'lsa ham) `SMS_DRIVER`/`ESKIZ_*` env'dan ustun; SMS'ni Superadmin > Tizim Sozlamalari'dan yoqing |
 | `SuperAdminSeeder` | `SUPERADMIN_EMAIL`/`SUPERADMIN_PASSWORD` bilan `super_admin` yaratadi | `local`/`testing` dan boshqa muhitda ikkalasi majburiy, parol kamida 12 belgi; mavjud email'ning paroli va roli o'zgarmaydi |
-| `LocationSeeder` | 14 hudud (viloyatlar, Qoraqalpog'iston, Toshkent shahri) va ularning tumanlari | `TRUNCATE ... CASCADE` ishlatadi: `branches`, `addresses` va ularga bog'liq jadvallarni ham tozalaydi — faqat bo'sh bazada. Faqat Andijon viloyati/Asaka tumani faol bo'ladi, qolganini Superadmin > Viloyatlar/Tumanlar'da yoqing |
-| `PaymentProviderSeeder` | `payme`, `click`, `uzum`, `paynet` qatorlarini bo'sh kalitlar bilan yaratadi | `updateOrCreate`: qayta ishga tushirsangiz kiritilgan kalitlarni bo'shatadi |
+| `LocationSeeder` | 14 hudud (viloyatlar, Qoraqalpog'iston, Toshkent shahri) va ularning tumanlari | Idempotent: `firstOrCreate` bilan faqat yetishmaydigan hudud va tumanlarni qo'shadi, hech narsani o'chirmaydi va o'zgartirmaydi (`TRUNCATE` yo'q), shuning uchun ishlaydigan bazada ham xavfsiz. Faqat o'zi yaratgan qatorlar uchun Andijon viloyati/Asaka tumani faol bo'ladi; panelda yoqilgan/o'chirilgan holat saqlanadi, qolganini Superadmin > Viloyatlar/Tumanlar'da yoqing |
+| `PaymentProviderSeeder` | `payme`, `click`, `uzum`, `paynet` qatorlarini bo'sh kalitlar bilan yaratadi | Idempotent (`firstOrCreate`): mavjud qatorga tegmaydi, qayta ishga tushirish kiritilgan kalitlar va yoqilgan holatni saqlaydi |
 | `PromoCodeSeeder` | demo promo-kodlar `TEZFOOD` (10%), `RIZQIM_81` (10%), `YANGI2026` (15%), har mijozga 1 marta | faqat ishlab chiqish uchun |
 
 ## Muhit o'zgaruvchilari (`.env`)
@@ -123,25 +123,29 @@ Namuna: [.env.example](.env.example). "Standart" ustunida `.env.example` qiymati
 | Buyruq | Vazifasi |
 |---|---|
 | `user:assign-role {telegram_id} {role} [--store=ID_yoki_UUID] [--branch=ID]` | Rol berish (`super_admin`, `owner`, `manager`, `courier`, `customer`). `owner`/`manager`/`courier` uchun `--store` majburiy. Foydalanuvchi Mini App'ni kamida bir marta ochgan bo'lishi kerak. `audit_logs` ga `cli_role_assigned` yoziladi |
-| `app:check-production` | Xavfli sozlamalarda `exit 1`: `APP_ENV` `production` emas, `APP_DEBUG=true`, `TELEGRAM_ALLOW_MOCK_AUTH=true`, `TELEGRAM_WEBHOOK_SECRET` bo'sh yoki noto'g'ri belgili, super adminda standart parol `12345678`. Do'konsiz xodim hisoblari haqida faqat ogohlantiradi. Docker entrypoint va `scripts/deploy.sh` ishga tushiradi |
+| `app:check-production` | Xavfli sozlamalarda `exit 1`: `APP_ENV` `production` emas, `APP_DEBUG=true`, `APP_KEY` bo'sh (production kalitni o'zi yaratmaydi), `TELEGRAM_ALLOW_MOCK_AUTH=true`, `TELEGRAM_WEBHOOK_SECRET` bo'sh yoki noto'g'ri belgili, `TELEGRAM_WEBAPP_URL` bo'sh yoki `https://` bilan boshlanmaydi, super adminda standart parol `12345678`. Do'konsiz xodim hisoblari haqida faqat ogohlantiradi. Click/Payme kalitlari, Redis va CORS tekshirilmaydi. Docker entrypoint va `scripts/deploy.sh` ishga tushiradi |
 | `telegram:set-webhook [--url=] [--if-configured]` | Webhookni `secret_token` va `allowed_updates` (`message`, `callback_query`) bilan ro'yxatdan o'tkazadi. URL tartibi: `--url`, `TELEGRAM_WEBHOOK_URL`, `APP_URL`; HTTPS shart. `--if-configured`: token yo'q bo'lsa jim chiqadi |
 | `telegram:poll` | Lokal long polling: botning webhookini o'chiradi va yangilanishlarni `http://127.0.0.1:8000/api/v1/telegram/webhook` ga secret bilan yuboradi (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET` kerak). Productionda ishlatmang |
-| `queue:work --tries=3 --max-time=3600` | Navbat ishchisi (Docker'dagi `queue` xizmati va `rizqim-queue.service` shu flaglar bilan) |
+| `queue:work --queue=default --tries=3 --max-time=3600` | Asosiy navbat ishchisi (Docker'dagi `queue` xizmati va `rizqim-queue.service` shu flaglar bilan) |
+| `queue:work --queue=reports --memory=512 --timeout=150 --tries=1 --max-time=3600` | `reports` navbati ishchisi (Docker'da `queue-reports`, VPS'da `rizqim-queue-reports.service`; PHP `memory_limit=768M` bilan). `SendOrderReport` shu navbatga qo'yiladi |
 | `schedule:work` / `schedule:run` | Scheduler: lokal/Docker'da `schedule:work`, VPS'da cron orqali har daqiqada `schedule:run` |
-| `queue:restart`, `queue:failed`, `queue:retry all` | Deploydan keyin ishchilarni yangilash; muvaffaqiyatsiz joblarni ko'rish va qayta urinish |
+| `queue:restart`, `queue:failed`, `queue:retry all` | Deploydan keyin ishchilarni yangilash (ikkala ishchini ham); muvaffaqiyatsiz joblarni ko'rish va qayta urinish |
 | `migrate --force`, `storage:link`, `filament:upgrade`, `config:cache`, `route:cache`, `view:cache` | Deploy qadamlari (tartibi [../docs/DEPLOY.md](../docs/DEPLOY.md) da) |
 
 ## Navbat va scheduler
 
-`php artisan schedule:list` hozir uchta vazifani ko'rsatadi:
+Docker'da artisan buyruqlarini `www-data` nomidan bajaring: `docker compose exec -u www-data backend php artisan ...` (`exec` standart bo'yicha root; root yaratgan `storage/logs/laravel.log` ga php-fpm yoza olmaydi). Fayl yuklash chegaralari (`backend/docker/php.ini`: `upload_max_filesize=12M`, `post_max_size=16M`; nginx `client_max_body_size` 16m, Mini App nginx'i 10m; API rasmni 5 MB bilan cheklaydi) haqida: [../docs/DEPLOY.md](../docs/DEPLOY.md).
+
+`php artisan schedule:list` hozir to'rtta vazifani ko'rsatadi:
 
 | Vazifa | Jadval | Izoh |
 |---|---|---|
 | `CancelUnpaidOnlineOrdersJob` (`routes/console.php`) | har daqiqa, `withoutOverlapping(10)` | to'lanmagan onlayn buyurtmalarni bekor qiladi; navbatga tushmaydi, scheduler ichida bajariladi |
 | `CheckUnacceptedAssignmentsJob` (`bootstrap/app.php`) | har daqiqa | `ShouldQueue`: kuryer biriktirilganiga 15 daqiqa bo'lib ham yo'lga chiqmasa, filial menejeriga bir marta Telegram ogohlantirishi |
+| `RetryFailedSettlementsJob` (`routes/console.php`) | har 10 daqiqa, `withoutOverlapping(30)` | yetkazilgan, lekin hisob-kitob yozuvi muvaffaqiyatsiz bo'lgan buyurtmalarni qayta yozadi; navbatga tushmaydi. Qo'lda: `php artisan orders:retry-settlements <id_yoki_uuid>...` |
 | `sanctum:prune-expired --hours=24` | har kuni | muddati o'tgan tokenlarni o'chiradi |
 
-Navbat ishchisi bajaradigan joblar: `SendTelegramRequest` (har bir Telegram Bot API chaqiruvi; commit'dan keyin yuboriladi, 5 urinish, kutish 10/30/90/300 s, 429 va tarmoq xatolari qayta uriniladi), `SendOrderReport` (CSV hisobot, 3 urinish, 120 s), navbatdagi listenerlar (`SendCustomerStatusAlert`, `SendOrderCancelledAlert`, `SendOwnerFinanceAlert`) va `CheckUnacceptedAssignmentsJob`. Ishchi bo'lmasa Telegram xabarlari ketmaydi; scheduler bo'lmasa to'lanmagan buyurtmalar bekor qilinmaydi.
+Navbat ishchisi bajaradigan joblar: `SendTelegramRequest` (har bir Telegram Bot API chaqiruvi; commit'dan keyin yuboriladi, 5 urinish, kutish 10/30/90/300 s, 429 va tarmoq xatolari qayta uriniladi), `SendOrderReport` (CSV hisobot, 3 urinish, 120 s; alohida `reports` navbatida, shuning uchun uni `--queue=reports` ishchisi bajaradi), navbatdagi listenerlar (`SendCustomerStatusAlert`, `SendOrderCancelledAlert`, `SendOwnerFinanceAlert`) va `CheckUnacceptedAssignmentsJob`. `default` ishchisi bo'lmasa Telegram xabarlari, `reports` ishchisi bo'lmasa hisobotlar ketmaydi; scheduler bo'lmasa to'lanmagan buyurtmalar bekor qilinmaydi.
 
 ## Testlar
 

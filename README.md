@@ -14,7 +14,7 @@ O'zbekiston uchun ko'p do'konli (multi-store) ovqat buyurtma va yetkazib berish 
 Telegram (mijoz, xodim)
    |  Mini App
    v
-[frontend: nginx + React] --/api/*--> [backend: nginx + php-fpm, Laravel]
+[frontend: nginx + React] --/api/*, /storage/*--> [backend: nginx + php-fpm, Laravel]
                                         /api/v1   /admin   /superadmin
                                            |          |
                                            v          v
@@ -27,9 +27,9 @@ scheduler    --- har daqiqa ---------------> to'lanmagan buyurtmalarni bekor qil
 backend      --- geokodlash proksisi ------> Nominatim   (Mini App unga o'zi murojaat qilmaydi)
 ```
 
-`queue worker` va `scheduler` backend bilan bir kod bazasidan ishlaydi.
+`queue worker` va `scheduler` backend bilan bir kod bazasidan ishlaydi. Navbat ikki ishchiga bo'lingan: `default` (Telegram xabarlari, listenerlar) va `reports` (og'ir CSV hisobotlar, `SendOrderReport`), shunda hisobot xabarlar ortidan navbat kutib qolmaydi.
 
-`docker-compose.yml` oltita xizmat ishga tushiradi: `postgres` (17), `redis` (7, AOF), `backend` (migratsiyalarni ham shu bajaradi), `queue` (`queue:work`), `scheduler` (`schedule:work`), `frontend` (Mini App statikasi va faqat `/api/` proksisi). Admin panellar (`/admin`, `/superadmin`) backend portida (standart 8000), Mini App frontend portida (standart 8080) ochiladi.
+`docker-compose.yml` yettita xizmat ishga tushiradi: `postgres` (17), `redis` (7, AOF), `backend` (migratsiyalarni ham shu bajaradi), `queue` (`queue:work --queue=default`), `queue-reports` (`queue:work --queue=reports`), `scheduler` (`schedule:work`), `frontend` (Mini App statikasi hamda `/api/` va `/storage/` proksisi; `backend` manzilini Docker DNS orqali har so'rovda aniqlaydi). Admin panellar (`/admin`, `/superadmin`) backend portida (standart 8000), Mini App frontend portida (standart 8080) ochiladi.
 
 ## Rollar
 
@@ -125,6 +125,6 @@ backend      --- geokodlash proksisi ------> Nominatim   (Mini App unga o'zi mur
 
 ## Tezkor boshlash
 
-- Production-ga o'xshash ishga tushirish: `cp .env.example .env`, `cp backend/.env.example backend/.env`, ikkalasini to'ldiring (`APP_KEY` ni oldindan yozing), `docker compose up -d --build` — batafsil [docs/DEPLOY.md](docs/DEPLOY.md).
+- Production-ga o'xshash ishga tushirish: `cp .env.example .env`, `cp backend/.env.example backend/.env`, ikkalasini to'ldiring (`APP_KEY` va `https://` li `TELEGRAM_WEBAPP_URL` ni oldindan yozing), `docker compose up -d --build` — batafsil [docs/DEPLOY.md](docs/DEPLOY.md). Konteynerda artisan buyruqlari: `docker compose exec -u www-data backend php artisan ...`.
 - Lokal ishlab chiqish (Docker'siz): [backend/README.md](backend/README.md) va [mini-app/README.md](mini-app/README.md). Docker konteynerlari `APP_ENV=production` bo'lmasa ishga tushmaydi.
 - Sifat nazorati (`.github/workflows/ci.yml`): backend testlari (PostgreSQL, `php artisan test`), PHPStan/Larastan (level 5; hozircha ogohlantiruvchi job), Mini App (`eslint`, `vitest`, `build`).
