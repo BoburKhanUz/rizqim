@@ -1,10 +1,17 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { DollarSign, ShieldAlert, Activity, TrendingDown, TrendingUp, Send, CheckCircle2, XCircle, Clock } from 'lucide-react';
+import { AlertTriangle, Banknote, CheckCircle2, Clock, CreditCard, Gauge, Send, ShieldAlert, TrendingDown, TrendingUp, XCircle } from 'lucide-react';
 import { useLanguageStore } from '../store/languageStore';
-import { FullScreenLoader } from '../components/Feedback';
+import { Button, Card, Dialog, InlineError, PageHeader, Section, cx } from '../components/ui';
+import { Field } from '../components/staff/Field';
+import { fieldClass } from '../components/staff/fieldStyles';
+import { Pill, type PillTone } from '../components/staff/Pill';
+import { Skeleton } from '../components/staff/Skeleton';
+import { StoreStatusPill } from '../components/staff/StoreStatusPill';
 import api from '../services/api';
 import { tg, hapticFeedback } from '../lib/telegram';
+import { notificationOccurred, selectionChanged } from '../lib/twa';
+import { showAlert } from '../lib/dialogs';
 import { getApiErrorMessage, getErrorMessage } from '../lib/apiError';
 import { parseAmount, sumAmounts, toAmount } from '../lib/money';
 import { formatDate, formatDateTime, formatMoney } from '../lib/format';
@@ -23,8 +30,11 @@ const errorText = (err: unknown) => getApiErrorMessage(err) || getErrorMessage(e
 // Money arrives as floats and decimal strings alike: lib/format reads it through toAmount.
 const formatPrice = (price: Amount) => formatMoney(price);
 
+const payoutTone = (status: PayoutStatus): PillTone => (status === 'completed' ? 'success' : status === 'rejected' ? 'danger' : 'warning');
+
 export default function OwnerPayments() {
   const { language } = useLanguageStore();
+  const uz = language === 'uz';
   const queryClient = useQueryClient();
 
   // State for Payout form
@@ -46,7 +56,7 @@ export default function OwnerPayments() {
       return res.data?.data;
     },
     onSuccess: (data) => {
-      hapticFeedback('success');
+      notificationOccurred('success');
       setShowTopupModal(false);
       const paymentUrl = data?.payment_url;
       if (paymentUrl) {
@@ -58,15 +68,15 @@ export default function OwnerPayments() {
       }
     },
     onError: (err: unknown) => {
-      hapticFeedback('error');
+      notificationOccurred('error');
       const msg = errorText(err);
-      alert(language === 'uz' ? `Xatolik: ${msg}` : `Ошибка: ${msg}`);
+      void showAlert(uz ? `Xatolik: ${msg}` : `Ошибка: ${msg}`);
     }
   });
 
   // 1. Fetch finance details. The balances move whenever an order is commissioned or a top-up lands, so the
   // screen refreshes itself while it is visible (never in the background, backing off while the server fails).
-  const { data: financeData, isLoading } = useQuery({
+  const { data: financeData, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ['ownerFinance'],
     queryFn: async () => {
       const res = await api.get<ApiResponse<OwnerFinance>>('/owner/finance');
@@ -82,9 +92,10 @@ export default function OwnerPayments() {
       return res.data;
     },
     onSuccess: () => {
+      notificationOccurred('success');
       setSuccessMessage(
-        language === 'uz'
-          ? 'Payout so\'rovi muvaffaqiyatli yuborildi!'
+        uz
+          ? 'Yechib olish so\'rovi muvaffaqiyatli yuborildi!'
           : 'Запрос на выплату успешно отправлен!'
       );
       setAmount('');
@@ -95,14 +106,37 @@ export default function OwnerPayments() {
       setTimeout(() => setSuccessMessage(''), 5000);
     },
     onError: (err: unknown) => {
+      notificationOccurred('error');
       setErrorMessage(errorText(err));
       setSuccessMessage('');
     },
   });
 
-  if (isLoading) return <FullScreenLoader message="Moliya ma'lumotlari yuklanmoqda..." />;
+  const title = uz ? 'Balans va moliya' : 'Баланс и финансы';
+  const subtitle = uz ? 'Platforma bilan hisob-kitoblar' : 'Взаиморасчеты с платформой';
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col gap-4 px-4 pt-2" role="status" aria-label={uz ? 'Moliya yuklanmoqda' : 'Загрузка'}>
+        <PageHeader title={title} subtitle={subtitle} />
+        <div className="grid grid-cols-2 gap-3">
+          <Skeleton className="h-24 rounded-card" />
+          <Skeleton className="h-24 rounded-card" />
+          <Skeleton className="col-span-2 h-28 rounded-card" />
+        </div>
+        <Skeleton className="h-14 rounded-card" />
+      </div>
+    );
+  }
   // Only a first load that failed leaves nothing to show; a poll that fails later keeps the last balances on screen.
-  if (!financeData) return <div className="p-4 text-center text-red-500">Moliya ma'lumotlarini yuklashda xatolik yuz berdi.</div>;
+  if (!financeData) {
+    return (
+      <div className="flex flex-col gap-4 px-4 pt-2">
+        <PageHeader title={title} subtitle={subtitle} />
+        <InlineError title="Moliya ma'lumotlarini yuklashda xatolik yuz berdi." onRetry={() => void refetch()} retrying={isRefetching} />
+      </div>
+    );
+  }
 
   const {
     payment_account_type = 'own_account',
@@ -127,46 +161,17 @@ export default function OwnerPayments() {
   const advancePayment = debtBalance < 0 ? Math.abs(debtBalance) : 0;
   const availableCredit = Math.max(0, sumAmounts([Math.abs(creditLimit), -debtBalance]));
 
-  const getStatusBadge = (storeStatus: string) => {
-    switch (storeStatus) {
-      case 'active':
-        return (
-          <span className="bg-emerald-500/10 text-emerald-500 text-[10px] font-black px-3 py-1 rounded-full border border-emerald-500/20 uppercase tracking-wider">
-            {language === 'uz' ? 'Faol' : 'Активен'}
-          </span>
-        );
-      case 'payment_required':
-        return (
-          <span className="bg-rose-500/10 text-rose-500 text-[10px] font-black px-3 py-1 rounded-full border border-rose-500/20 uppercase tracking-wider animate-pulse">
-            {language === 'uz' ? 'To\'lov kutilmoqda' : 'Требуется оплата'}
-          </span>
-        );
-      case 'suspended':
-        return (
-          <span className="bg-amber-500/10 text-amber-500 text-[10px] font-black px-3 py-1 rounded-full border border-amber-500/20 uppercase tracking-wider">
-            {language === 'uz' ? 'Muzlatilgan' : 'Приостановлен'}
-          </span>
-        );
-      default:
-        return (
-          <span className="bg-gray-500/10 text-gray-500 text-[10px] font-black px-3 py-1 rounded-full border border-gray-500/20 uppercase tracking-wider">
-            {storeStatus}
-          </span>
-        );
-    }
-  };
-
   const handlePayoutSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const payoutAmount = parseAmount(amount);
     if (payoutAmount === null || payoutAmount <= 0) {
-      setErrorMessage(language === 'uz' ? 'To\'g\'ri summani kiriting' : 'Введите корректную сумму');
+      setErrorMessage(uz ? 'To\'g\'ri summani kiriting' : 'Введите корректную сумму');
       return;
     }
     const minReserve = minPayoutReserve;
     if (walletBalance < minReserve) {
       setErrorMessage(
-        language === 'uz'
+        uz
           ? `Mablag' yechish uchun hamyonda kamida ${formatPrice(minReserve)} qoldiq bo'lishi shart`
           : `Для вывода средств на балансе кошелька должно быть не менее ${formatPrice(minReserve)}`
       );
@@ -175,7 +180,7 @@ export default function OwnerPayments() {
     if (sumAmounts([walletBalance, -payoutAmount]) < minReserve) {
       const maxPayout = sumAmounts([walletBalance, -minReserve]);
       setErrorMessage(
-        language === 'uz'
+        uz
           ? `Yechib olingandan so'ng hamyonda kamida ${formatPrice(minReserve)} qolishi shart. Maksimal yechish summasi: ${formatPrice(maxPayout)}`
           : `После вывода на балансе должно остаться не менее ${formatPrice(minReserve)}. Макс. сумма вывода: ${formatPrice(maxPayout)}`
       );
@@ -183,7 +188,7 @@ export default function OwnerPayments() {
     }
     if (!cardNumber || cardNumber.replace(/\s/g, '').length < 16) {
       setErrorMessage(
-        language === 'uz' ? 'Karta raqamini to\'liq kiriting' : 'Введите полный номер карты'
+        uz ? 'Karta raqamini to\'liq kiriting' : 'Введите полный номер карты'
       );
       return;
     }
@@ -212,140 +217,87 @@ export default function OwnerPayments() {
     }
   };
 
-  const getPayoutStatusIcon = (reqStatus: PayoutStatus) => {
-    switch (reqStatus) {
-      case 'completed':
-        return <CheckCircle2 className="w-4 h-4 text-emerald-500" />;
-      case 'rejected':
-        return <XCircle className="w-4 h-4 text-rose-500" />;
-      default:
-        return <Clock className="w-4 h-4 text-amber-500 animate-pulse" />;
-    }
+  const payoutStatus = (reqStatus: PayoutStatus) => {
+    if (reqStatus === 'completed') return { label: uz ? 'Bajarildi' : 'Выполнено', icon: CheckCircle2 };
+    if (reqStatus === 'rejected') return { label: uz ? 'Rad etildi' : 'Отклонено', icon: XCircle };
+    return { label: uz ? 'Kutilmoqda' : 'В ожидании', icon: Clock };
   };
 
-  const getPayoutStatusLabel = (reqStatus: PayoutStatus) => {
-    if (reqStatus === 'completed') {
-      return language === 'uz' ? 'Bajarildi' : 'Выполнено';
-    }
-    if (reqStatus === 'rejected') {
-      return language === 'uz' ? 'Rad etildi' : 'Отклонено';
-    }
-    return language === 'uz' ? 'Kutilmoqda' : 'В ожидании';
-  };
+  const topupDisabled = topupValue === null || topupValue < MIN_TOPUP;
 
   return (
-    <div className="p-4 pb-24 min-h-screen bg-gradient-to-br from-bg via-bg to-primary/5 space-y-6 animate-fade-in">
-      {/* Header */}
-      <div className="pt-2 flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-black text-fg">
-            {language === 'uz' ? 'Balans va Moliya' : 'Баланс и Финансы'}
-          </h1>
-          <p className="text-xs text-hint font-medium mt-1">
-            {language === 'uz' ? 'Platforma bilan hisob-kitoblar' : 'Взаиморасчеты с платформой'}
-          </p>
-        </div>
-        {getStatusBadge(status)}
+    <div className="flex flex-col gap-5 px-4 pt-2 animate-fade-in">
+      <PageHeader title={title} subtitle={subtitle} action={<StoreStatusPill status={status} />} />
+
+      {/* Main stats */}
+      <div className="grid grid-cols-2 gap-3">
+        <Card className="flex flex-col gap-1 p-3">
+          <span className="flex items-center gap-1.5 text-footnote font-medium text-fg-muted">
+            <ShieldAlert aria-hidden="true" className="size-4 shrink-0 text-danger" />
+            {uz ? 'Komissiya qarzi' : 'Долг по комиссии'}
+          </span>
+          <span className="text-headline font-bold text-fg">{formatPrice(currentDebt)}</span>
+          <span className="text-caption text-fg-muted">
+            {debtBalance > 0 ? (uz ? 'To\'lanishi kerak' : 'Необходимо оплатить') : (uz ? 'Qarz yo\'q' : 'Долга нет')}
+          </span>
+        </Card>
+
+        <Card className="flex flex-col gap-1 p-3">
+          <span className="flex items-center gap-1.5 text-footnote font-medium text-fg-muted">
+            <Banknote aria-hidden="true" className="size-4 shrink-0 text-success" />
+            {uz ? 'Oldindan to\'lov' : 'Предоплата'}
+          </span>
+          <span className="text-headline font-bold text-fg">{formatPrice(advancePayment)}</span>
+          <span className="text-caption text-fg-muted">{uz ? 'Balansdagi depozit' : 'Депозит на балансе'}</span>
+        </Card>
+
+        <Card className="col-span-2 flex items-center justify-between gap-3">
+          <div className="flex min-w-0 flex-col gap-1">
+            <span className="flex items-center gap-1.5 text-footnote font-medium text-fg-muted">
+              <Gauge aria-hidden="true" className="size-4 shrink-0 text-brand" />
+              {uz ? 'Mavjud limit (kredit)' : 'Доступный лимит (кредит)'}
+            </span>
+            <span className="text-title font-bold text-fg">{formatPrice(availableCredit)}</span>
+            <span className="text-caption text-fg-muted">
+              {uz ? `Maksimal qarz limiti: ${formatPrice(Math.abs(creditLimit))}` : `Максимальный лимит долга: ${formatPrice(Math.abs(creditLimit))}`}
+            </span>
+          </div>
+          <Pill tone="brand" className="self-start">
+            {commissionRate}% {uz ? 'komissiya' : 'комиссия'}
+          </Pill>
+        </Card>
       </div>
 
-      {/* Main Stats Cards Grid */}
-      <div className="grid grid-cols-2 gap-3.5">
-        {/* Current Debt Card */}
-        <div className="bg-secondary p-4 rounded-3xl border border-hint/5 flex flex-col gap-1 shadow-sm relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-12 h-12 bg-red-500/5 rounded-full blur-lg"></div>
-          <div className="flex items-center gap-1.5 text-red-500">
-            <ShieldAlert className="w-4.5 h-4.5" />
-            <span className="text-[9px] font-black uppercase tracking-wider text-hint">
-              {language === 'uz' ? 'Komissiya Qarzi' : 'Долг по комиссии'}
-            </span>
-          </div>
-          <span className="text-sm font-black text-fg mt-1">
-            {formatPrice(currentDebt)}
-          </span>
-          <span className="text-[8px] text-hint font-medium">
-            {debtBalance > 0 ? (language === 'uz' ? 'To\'lanishi kerak' : 'Необходимо оплатить') : (language === 'uz' ? 'Qarz yo\'q' : 'Долга нет')}
-          </span>
-        </div>
-
-        {/* Prepaid/Advance Card */}
-        <div className="bg-secondary p-4 rounded-3xl border border-hint/5 flex flex-col gap-1 shadow-sm relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-12 h-12 bg-emerald-500/5 rounded-full blur-lg"></div>
-          <div className="flex items-center gap-1.5 text-emerald-500">
-            <DollarSign className="w-4.5 h-4.5" />
-            <span className="text-[9px] font-black uppercase tracking-wider text-hint">
-              {language === 'uz' ? 'Oldindan To\'lov' : 'Предоплата'}
-            </span>
-          </div>
-          <span className="text-sm font-black text-fg mt-1">
-            {formatPrice(advancePayment)}
-          </span>
-          <span className="text-[8px] text-hint font-medium">
-            {language === 'uz' ? 'Balansdagi depozit' : 'Депозит на балансе'}
-          </span>
-        </div>
-
-        {/* Available Credit Card */}
-        <div className="col-span-2 bg-secondary p-5 rounded-3xl border border-hint/5 flex justify-between items-center shadow-sm relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-primary/5 rounded-full blur-xl pointer-events-none"></div>
-          <div className="space-y-1">
-            <div className="flex items-center gap-1.5 text-primary">
-              <Activity className="w-4.5 h-4.5" />
-              <span className="text-[9px] font-black uppercase tracking-wider text-hint">
-                {language === 'uz' ? 'Mavjud Limit (Kredit)' : 'Доступный лимит (Кредит)'}
-              </span>
-            </div>
-            <span className="text-2xl font-black text-fg block">
-              {formatPrice(availableCredit)}
-            </span>
-            <span className="text-[9px] text-hint font-medium block">
-              {language === 'uz' ? `Maksimal qarz limiti: ${formatPrice(Math.abs(creditLimit))}` : `Максимальный лимит долга: ${formatPrice(Math.abs(creditLimit))}`}
-            </span>
-          </div>
-          <div className="bg-primary/10 text-primary text-[10px] font-black px-2.5 py-1 rounded-xl border border-primary/20">
-            {commissionRate}% {language === 'uz' ? 'komissiya' : 'комиссия'}
-          </div>
-        </div>
-      </div>
-
-      {/* Top Up Button */}
-      <button
+      {/* Top up */}
+      <Button
+        size="lg"
+        icon={CreditCard}
         onClick={() => { hapticFeedback('light'); setShowTopupModal(true); }}
-        className="w-full bg-primary hover:bg-primary/95 text-on-brand rounded-3xl py-3.5 text-xs font-black shadow-lg shadow-primary/15 flex items-center justify-center gap-1.5 transition-transform active:scale-95 cursor-pointer"
+        fullWidth
       >
-        💳 {language === 'uz' ? "Balansni To'ldirish (Card Top Up)" : "Пополнение баланса (Картой)"}
-      </button>
+        {uz ? "Balansni to'ldirish" : 'Пополнить баланс'}
+      </Button>
 
-      {/* Wallet Balance Card (For Platform Payments mode) */}
+      {/* Wallet balance (platform payments mode) */}
       {hasPlatformWallet && (
-        <div className="bg-secondary p-5 rounded-3xl border border-hint/5 flex justify-between items-center shadow-sm relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-full blur-xl pointer-events-none"></div>
-          <div className="space-y-1">
-            <div className="flex items-center gap-1.5 text-emerald-500">
-              <DollarSign className="w-4.5 h-4.5" />
-              <span className="text-[9px] font-black uppercase tracking-wider text-hint">
-                {language === 'uz' ? 'Hamyon Balansi (Onlayn tushumlar)' : 'Баланс кошелька (Онлайн оплаты)'}
-              </span>
-            </div>
-            <span className="text-2xl font-black text-emerald-500 block">
-              {formatPrice(walletBalance)}
-            </span>
-            <span className="text-[9px] text-hint font-medium block">
-              {language === 'uz' ? 'Yechib olish mumkin bo\'lgan summa' : 'Сумма, доступная к выводу'}
-            </span>
-          </div>
-        </div>
+        <Card className="flex flex-col gap-1">
+          <span className="flex items-center gap-1.5 text-footnote font-medium text-fg-muted">
+            <Banknote aria-hidden="true" className="size-4 shrink-0 text-success" />
+            {uz ? 'Hamyon balansi (onlayn tushumlar)' : 'Баланс кошелька (онлайн оплаты)'}
+          </span>
+          <span className="text-title font-bold text-success-soft-fg">{formatPrice(walletBalance)}</span>
+          <span className="text-caption text-fg-muted">{uz ? 'Yechib olish mumkin bo\'lgan summa' : 'Сумма, доступная к выводу'}</span>
+        </Card>
       )}
 
-      {/* Warning Box */}
+      {/* Warning box */}
       {debtBalance > Math.abs(creditLimit) && (
-        <div className="bg-rose-500/10 border border-rose-500/20 rounded-2xl p-4 flex gap-3 items-start animate-pulse">
-          <span className="text-xl shrink-0">⚠️</span>
-          <div>
-            <h4 className="text-xs font-black text-rose-500 uppercase tracking-wider">
-              {language === 'uz' ? 'Qarz Limiti Tugadi!' : 'Лимит долга исчерпан!'}
-            </h4>
-            <p className="text-[10px] text-rose-500/80 leading-normal mt-1 font-semibold">
-              {language === 'uz'
+        <div role="alert" className="flex items-start gap-3 rounded-card bg-danger-soft p-4 text-danger-soft-fg">
+          <AlertTriangle aria-hidden="true" className="mt-0.5 size-5 shrink-0" />
+          <div className="flex flex-col gap-1">
+            <h2 className="text-body font-bold">{uz ? 'Qarz limiti tugadi!' : 'Лимит долга исчерпан!'}</h2>
+            <p className="text-footnote">
+              {uz
                 ? 'Qarzdorligingiz ruxsat etilgan limitdan oshib ketdi. Yangi buyurtmalar qabul qilish to\'xtatildi. Iltimos, balansni to\'ldiring!'
                 : 'Ваш долг превысил допустимый лимит. Прием новых заказов приостановлен. Пожалуйста, пополните баланс!'}
             </p>
@@ -353,146 +305,121 @@ export default function OwnerPayments() {
         </div>
       )}
 
-      {/* Withdraw / Payout Form (Visible only if hasPlatformWallet & walletBalance > 0) */}
+      {/* Withdraw / payout form (only with a platform wallet that holds money) */}
       {hasPlatformWallet && walletBalance > 0 && (
-        <div className="bg-secondary p-5 rounded-3xl border border-hint/5 space-y-4">
-          <div>
-            <h2 className="text-sm font-black text-fg uppercase tracking-wider">
-              {language === 'uz' ? 'Mablag\'ni Yechib Olish' : 'Вывод средств'}
-            </h2>
-            <p className="text-[10px] text-hint mt-0.5">
-              {language === 'uz' ? 'Platformadan kartangizga pul o\'tkazish so\'rovi' : 'Запрос на перевод денег с платформы на карту'}
-            </p>
-          </div>
+        <Section title={uz ? 'Mablag\'ni yechib olish' : 'Вывод средств'}>
+          <Card>
+            <form onSubmit={handlePayoutSubmit} className="flex flex-col gap-4">
+              <p className="text-footnote text-fg-muted">
+                {uz ? 'Platformadan kartangizga pul o\'tkazish so\'rovi' : 'Запрос на перевод денег с платформы на карту'}
+              </p>
 
-          <form onSubmit={handlePayoutSubmit} className="space-y-3">
-            {/* Amount */}
-            <div className="space-y-1">
-              <div className="flex justify-between items-center pl-1">
-                <label className="text-[10px] font-black uppercase text-hint tracking-wide">
-                  {language === 'uz' ? 'Summa (UZS)' : 'Сумма (UZS)'}
-                </label>
-                <span className="text-[9px] text-hint font-bold text-amber-500">
-                  {language === 'uz' ? `Min. qoldiq: ${formatPrice(minPayoutReserve)}` : `Мин. остаток: ${formatPrice(minPayoutReserve)}`}
-                </span>
-              </div>
-              <input
-                type="number"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                placeholder="Masalan: 50000"
-                className="w-full bg-bg border border-hint/10 focus:border-primary/40 focus:ring-0 rounded-2xl px-4 py-3 text-xs text-fg font-black placeholder:font-medium placeholder:text-hint/40"
-              />
-            </div>
+              <Field
+                label={uz ? 'Summa (UZS)' : 'Сумма (UZS)'}
+                hint={uz ? `Min. qoldiq: ${formatPrice(minPayoutReserve)}` : `Мин. остаток: ${formatPrice(minPayoutReserve)}`}
+              >
+                {(props) => (
+                  <input
+                    {...props}
+                    type="number"
+                    inputMode="numeric"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    placeholder="Masalan: 50000"
+                    className={fieldClass}
+                  />
+                )}
+              </Field>
 
-            {/* Card Number */}
-            <div className="space-y-1">
-              <label className="text-[10px] font-black uppercase text-hint tracking-wide pl-1">
-                {language === 'uz' ? 'Karta raqami (8600... / 9860...)' : 'Номер карты (8600... / 9860...)'}
-              </label>
-              <input
-                type="text"
-                value={cardNumber}
-                onChange={(e) => setCardNumber(formatCardNumber(e.target.value))}
-                placeholder="0000 0000 0000 0000"
-                maxLength={19}
-                className="w-full bg-bg border border-hint/10 focus:border-primary/40 focus:ring-0 rounded-2xl px-4 py-3 text-xs text-fg font-black placeholder:font-medium placeholder:text-hint/40"
-              />
-            </div>
+              <Field label={uz ? 'Karta raqami (8600... / 9860...)' : 'Номер карты (8600... / 9860...)'}>
+                {(props) => (
+                  <input
+                    {...props}
+                    type="text"
+                    inputMode="numeric"
+                    value={cardNumber}
+                    onChange={(e) => setCardNumber(formatCardNumber(e.target.value))}
+                    placeholder="0000 0000 0000 0000"
+                    maxLength={19}
+                    className={fieldClass}
+                  />
+                )}
+              </Field>
 
-            {/* Notes */}
-            <div className="space-y-1">
-              <label className="text-[10px] font-black uppercase text-hint tracking-wide pl-1">
-                {language === 'uz' ? 'Izoh (Ixtiyoriy)' : 'Примечание (Опционально)'}
-              </label>
-              <input
-                type="text"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder={language === 'uz' ? 'Qo\'shimcha izohlar...' : 'Дополнительные примечания...'}
-                className="w-full bg-bg border border-hint/10 focus:border-primary/40 focus:ring-0 rounded-2xl px-4 py-3 text-xs text-fg font-black placeholder:font-medium placeholder:text-hint/40"
-              />
-            </div>
+              <Field label={uz ? 'Izoh (ixtiyoriy)' : 'Примечание (необязательно)'}>
+                {(props) => (
+                  <input
+                    {...props}
+                    type="text"
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder={uz ? 'Qo\'shimcha izohlar...' : 'Дополнительные примечания...'}
+                    className={fieldClass}
+                  />
+                )}
+              </Field>
 
-            {successMessage && (
-              <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-[10px] font-black px-4 py-2.5 rounded-2xl">
-                {successMessage}
-              </div>
-            )}
+              {successMessage && (
+                <p role="status" className="rounded-control bg-success-soft px-4 py-2.5 text-footnote font-bold text-success-soft-fg">
+                  {successMessage}
+                </p>
+              )}
 
-            {errorMessage && (
-              <div className="bg-rose-500/10 border border-rose-500/20 text-rose-500 text-[10px] font-black px-4 py-2.5 rounded-2xl">
-                {errorMessage}
-              </div>
-            )}
+              {errorMessage && (
+                <p role="alert" className="rounded-control bg-danger-soft px-4 py-2.5 text-footnote font-bold text-danger-soft-fg">
+                  {errorMessage}
+                </p>
+              )}
 
-            <button
-              type="submit"
-              disabled={payoutMutation.isPending}
-              className="w-full bg-primary hover:bg-primary/95 disabled:bg-primary/50 text-on-brand rounded-2xl py-3 text-xs font-black shadow-sm shadow-primary/20 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-            >
-              <Send className="w-4 h-4" />
-              {payoutMutation.isPending
-                ? (language === 'uz' ? 'Yuborilmoqda...' : 'Отправка...')
-                : (language === 'uz' ? 'Yechib olishni so\'rash' : 'Запросить выплату')}
-            </button>
-          </form>
-        </div>
+              <Button type="submit" icon={Send} loading={payoutMutation.isPending} fullWidth>
+                {payoutMutation.isPending
+                  ? (uz ? 'Yuborilmoqda...' : 'Отправка...')
+                  : (uz ? 'Yechib olishni so\'rash' : 'Запросить выплату')}
+              </Button>
+            </form>
+          </Card>
+        </Section>
       )}
 
-      {/* Payout History (Visible if hasPlatformWallet & requests exist) */}
+      {/* Payout history */}
       {hasPlatformWallet && payout_requests.length > 0 && (
-        <div className="space-y-3">
-          <h2 className="text-sm font-black text-fg uppercase tracking-wider pl-1">
-            {language === 'uz' ? 'Yechib Olish So\'rovlari' : 'Запросы на выплату'}
-          </h2>
-          <div className="space-y-2.5">
-            {payout_requests.map((req) => (
-              <div key={req.id} className="bg-secondary p-4 rounded-2xl border border-hint/5 flex justify-between items-center shadow-sm">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-hint/5 rounded-xl shrink-0">
-                    {getPayoutStatusIcon(req.status)}
-                  </div>
-                  <div>
-                    <span className="text-[11px] font-black text-fg uppercase tracking-wide block">
-                      {formatPrice(req.amount)}
-                    </span>
-                    <span className="text-[9px] text-hint font-bold block mt-0.5">
-                      Karta: {req.card_number.replace(/(\d{4})\d{8}(\d{4})/, '$1 **** **** $2')}
-                    </span>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                    req.status === 'completed' ? 'bg-emerald-500/10 text-emerald-500' :
-                    req.status === 'rejected' ? 'bg-rose-500/10 text-rose-500' :
-                    'bg-amber-500/10 text-amber-500'
-                  }`}>
-                    {getPayoutStatusLabel(req.status)}
-                  </span>
-                  <span className="text-[8px] text-hint font-bold block mt-1">
-                    {formatDate(req.created_at)}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+        <Section title={uz ? 'Yechib olish so\'rovlari' : 'Запросы на выплату'}>
+          <ul className="flex flex-col gap-2">
+            {payout_requests.map((req) => {
+              const state = payoutStatus(req.status);
+              return (
+                <li key={req.id}>
+                  <Card className="flex items-center justify-between gap-3 p-3">
+                    <div className="min-w-0">
+                      <span className="block text-body font-bold text-fg">{formatPrice(req.amount)}</span>
+                      <span className="block text-footnote text-fg-muted">
+                        Karta: {req.card_number.replace(/(\d{4})\d{8}(\d{4})/, '$1 **** **** $2')}
+                      </span>
+                    </div>
+                    <div className="flex shrink-0 flex-col items-end gap-1">
+                      <Pill tone={payoutTone(req.status)} icon={state.icon}>
+                        {state.label}
+                      </Pill>
+                      <span className="text-caption text-fg-muted">{formatDate(req.created_at)}</span>
+                    </div>
+                  </Card>
+                </li>
+              );
+            })}
+          </ul>
+        </Section>
       )}
 
-      {/* Ledger Transactions (Debt / Top-up Logs) */}
-      <div className="space-y-3">
-        <h2 className="text-sm font-black text-fg uppercase tracking-wider pl-1">
-          {language === 'uz' ? 'Hisob-Kitoblar Tarixi' : 'История взаиморасчетов'}
-        </h2>
+      {/* Ledger (debt / top-up log) */}
+      <Section title={uz ? 'Hisob-kitoblar tarixi' : 'История взаиморасчетов'}>
         {ledger_transactions.length === 0 ? (
-          <div className="bg-secondary/40 border border-hint/5 p-6 rounded-3xl text-center">
-            <p className="text-xs text-hint font-medium">
-              {language === 'uz' ? 'Hozircha moliyaviy tranzaksiyalar yo\'q.' : 'Финансовых транзакций пока нет.'}
+          <Card className="text-center">
+            <p className="text-footnote text-fg-muted">
+              {uz ? 'Hozircha moliyaviy tranzaksiyalar yo\'q.' : 'Финансовых транзакций пока нет.'}
             </p>
-          </div>
+          </Card>
         ) : (
-          <div className="space-y-2.5">
+          <ul className="flex flex-col gap-2">
             {ledger_transactions.map((tx) => {
               const amountValue = toAmount(tx.amount);
               // In this ledger:
@@ -501,140 +428,126 @@ export default function OwnerPayments() {
               const isCommission = tx.type === 'commission' || amountValue > 0;
               const isRefund = tx.type === 'refund';
               const label = isRefund
-                ? (language === 'uz' ? 'Buyurtma qaytarildi' : 'Возврат заказа')
+                ? (uz ? 'Buyurtma qaytarildi' : 'Возврат заказа')
                 : isCommission
-                  ? (language === 'uz' ? 'Buyurtma Komissiyasi' : 'Комиссия с заказа')
-                  : (language === 'uz' ? 'Balansni To\'ldirish' : 'Пополнение баланса');
+                  ? (uz ? 'Buyurtma komissiyasi' : 'Комиссия с заказа')
+                  : (uz ? 'Balansni to\'ldirish' : 'Пополнение баланса');
 
               return (
-                <div key={tx.id} className="bg-secondary p-4 rounded-2xl border border-hint/5 flex justify-between items-center shadow-sm">
-                  <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-xl shrink-0 ${isCommission ? 'bg-red-500/10 text-red-500' : 'bg-emerald-500/10 text-emerald-500'}`}>
-                      {isCommission ? <TrendingUp className="w-4.5 h-4.5" /> : <TrendingDown className="w-4.5 h-4.5" />}
-                    </div>
-                    <div>
-                      <span className="text-[11px] font-black text-fg uppercase tracking-wide block">
-                        {label}
+                <li key={tx.id}>
+                  <Card className="flex items-center justify-between gap-3 p-3">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span
+                        className={cx(
+                          'flex size-10 shrink-0 items-center justify-center rounded-control',
+                          isCommission ? 'bg-danger-soft text-danger-soft-fg' : 'bg-success-soft text-success-soft-fg',
+                        )}
+                      >
+                        {isCommission ? <TrendingUp aria-hidden="true" className="size-5" /> : <TrendingDown aria-hidden="true" className="size-5" />}
                       </span>
-                      <span className="text-[9px] text-hint font-bold block mt-0.5">{formatDateTime(tx.created_at)}</span>
+                      <div className="min-w-0">
+                        <span className="block text-body font-medium text-fg">{label}</span>
+                        <span className="block text-footnote text-fg-muted">{formatDateTime(tx.created_at)}</span>
+                        <span className="block text-caption text-fg-muted">
+                          {uz ? 'Qarzdorlik: ' : 'Задолженность: '}{formatPrice(tx.balance_after)}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                  <div className="text-right">
-                    <span className={`text-xs font-black block ${isCommission ? 'text-red-500' : 'text-emerald-500'}`}>
+                    <span className={cx('shrink-0 text-body font-bold', isCommission ? 'text-danger-soft-fg' : 'text-success-soft-fg')}>
                       {isCommission ? '+' : '-'}{formatPrice(Math.abs(amountValue))}
                     </span>
-                    <span className="text-[8px] text-hint font-bold block mt-0.5">
-                      {language === 'uz' ? 'Qarzdorlik: ' : 'Задолженность: '}{formatPrice(tx.balance_after)}
-                    </span>
-                  </div>
-                </div>
+                  </Card>
+                </li>
               );
             })}
-          </div>
+          </ul>
         )}
-      </div>
+      </Section>
 
-      {/* Top Up Modal */}
-      {showTopupModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in animate-duration-200">
-          <div className="bg-secondary w-full max-w-sm rounded-[32px] p-6 space-y-6 border border-hint/10 shadow-2xl animate-scale-up animate-duration-200">
-            <div className="flex justify-between items-center">
-              <h3 className="text-base font-black text-fg uppercase tracking-wide">
-                {language === 'uz' ? "Balansni To'ldirish" : "Пополнение баланса"}
-              </h3>
+      {/* Top-up sheet */}
+      <Dialog
+        open={showTopupModal}
+        onClose={() => { hapticFeedback('light'); setShowTopupModal(false); }}
+        busy={topupMutation.isPending}
+        title={uz ? "Balansni to'ldirish" : 'Пополнение баланса'}
+        footer={
+          <Button
+            size="lg"
+            loading={topupMutation.isPending}
+            disabled={topupDisabled}
+            onClick={() => {
+              if (topupValue === null || topupValue < MIN_TOPUP) return;
+              hapticFeedback('medium');
+              topupMutation.mutate({
+                amount: topupValue,
+                provider: topupProvider,
+              });
+            }}
+          >
+            {uz ? "To'lashga o'tish" : 'Перейти к оплате'}
+          </Button>
+        }
+      >
+        <div className="flex flex-col gap-4">
+          <Field
+            label={uz ? "To'lov summasi (UZS)" : 'Сумма оплаты (UZS)'}
+            hint={uz ? `Kamida ${formatPrice(MIN_TOPUP)}` : `Минимум ${formatPrice(MIN_TOPUP)}`}
+          >
+            {(props) => (
+              <input
+                {...props}
+                type="number"
+                inputMode="numeric"
+                value={topupAmount}
+                onChange={(e) => setTopupAmount(e.target.value)}
+                placeholder="Masalan: 50000"
+                className={fieldClass}
+              />
+            )}
+          </Field>
+
+          {/* Quick choices */}
+          <div role="group" aria-label={uz ? 'Tez tanlash' : 'Быстрый выбор'} className="grid grid-cols-4 gap-2">
+            {TOPUP_PRESETS.map((preset) => (
               <button
-                onClick={() => { hapticFeedback('light'); setShowTopupModal(false); }}
-                className="w-7 h-7 rounded-full bg-hint/10 text-fg font-bold text-xs flex items-center justify-center active:scale-90 transition-transform"
+                key={preset}
+                type="button"
+                aria-pressed={topupValue === preset}
+                onClick={() => { selectionChanged(); setTopupAmount(String(preset)); }}
+                className={cx(
+                  'min-h-11 cursor-pointer rounded-control border text-body font-bold transition-colors',
+                  'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand',
+                  topupValue === preset ? 'border-brand bg-brand-soft text-brand-soft-fg' : 'border-line bg-surface-2 text-fg',
+                )}
               >
-                ✕
+                {(preset / 1000) + 'k'}
               </button>
+            ))}
+          </div>
+
+          {/* Payment provider */}
+          <div className="flex flex-col gap-1.5">
+            <span id="topup-provider" className="text-footnote font-bold text-fg-muted">{uz ? "To'lov tizimi" : 'Платежная система'}</span>
+            <div role="group" aria-labelledby="topup-provider" className="grid grid-cols-2 gap-2">
+              {([['click', 'Click'], ['payme', 'Payme']] as const).map(([provider, name]) => (
+                <button
+                  key={provider}
+                  type="button"
+                  aria-pressed={topupProvider === provider}
+                  onClick={() => { selectionChanged(); setTopupProvider(provider); }}
+                  className={cx(
+                    'min-h-12 cursor-pointer rounded-card border-2 text-headline font-bold transition-colors',
+                    'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand',
+                    topupProvider === provider ? 'border-brand bg-brand-soft text-brand-soft-fg' : 'border-line bg-surface-2 text-fg',
+                  )}
+                >
+                  {name}
+                </button>
+              ))}
             </div>
-
-            <div className="space-y-4">
-              {/* Amount input */}
-              <div className="space-y-1">
-                <label className="text-[10px] font-black uppercase text-hint tracking-wide pl-1">
-                  {language === 'uz' ? 'To\'lov summasi (UZS)' : 'Сумма оплаты (UZS)'}
-                </label>
-                <input
-                  type="number"
-                  value={topupAmount}
-                  onChange={(e) => setTopupAmount(e.target.value)}
-                  placeholder="Masalan: 50000"
-                  className="w-full bg-bg border border-hint/10 focus:border-primary/40 focus:ring-0 rounded-2xl px-4 py-3 text-xs text-fg font-black placeholder:font-medium placeholder:text-hint/40"
-                />
-              </div>
-
-              {/* Quick choices */}
-              <div className="grid grid-cols-4 gap-1.5">
-                {TOPUP_PRESETS.map((preset) => (
-                  <button
-                    key={preset}
-                    type="button"
-                    onClick={() => { hapticFeedback('light'); setTopupAmount(String(preset)); }}
-                    className={`py-2 px-1 rounded-xl text-[9px] font-black border transition-all ${
-                      topupValue === preset ? 'bg-primary text-on-brand border-primary' : 'bg-bg text-fg border-hint/10'
-                    }`}
-                  >
-                    {(preset / 1000) + 'k'}
-                  </button>
-                ))}
-              </div>
-
-              {/* Payment provider selection */}
-              <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase text-hint tracking-wide pl-1">
-                  {language === 'uz' ? 'To\'lov tizimi' : 'Платежная система'}
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  {/* Click */}
-                  <button
-                    type="button"
-                    onClick={() => { hapticFeedback('light'); setTopupProvider('click'); }}
-                    className={`p-3 rounded-2xl border-2 flex flex-col items-center gap-1 transition-all ${
-                      topupProvider === 'click' ? 'bg-[#0059c0]/10 border-[#0059c0]/55 shadow-sm' : 'bg-bg border-transparent'
-                    }`}
-                  >
-                    <span className="text-lg">🔵</span>
-                    <span className="text-[10px] font-extrabold text-fg">CLICK</span>
-                  </button>
-
-                  {/* Payme */}
-                  <button
-                    type="button"
-                    onClick={() => { hapticFeedback('light'); setTopupProvider('payme'); }}
-                    className={`p-3 rounded-2xl border-2 flex flex-col items-center gap-1 transition-all ${
-                      topupProvider === 'payme' ? 'bg-[#12c8e5]/10 border-[#12c8e5]/55 shadow-sm' : 'bg-bg border-transparent'
-                    }`}
-                  >
-                    <span className="text-lg">🟢</span>
-                    <span className="text-[10px] font-extrabold text-fg">Payme</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <button
-              onClick={() => {
-                if (topupValue === null || topupValue < MIN_TOPUP) return;
-                hapticFeedback('medium');
-                topupMutation.mutate({
-                  amount: topupValue,
-                  provider: topupProvider,
-                });
-              }}
-              disabled={topupMutation.isPending || topupValue === null || topupValue < MIN_TOPUP}
-              className="w-full bg-primary hover:bg-primary/95 disabled:bg-primary/50 text-on-brand rounded-2xl py-3.5 text-xs font-black shadow-lg shadow-primary/15 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-            >
-              {topupMutation.isPending ? (
-                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-              ) : (
-                language === 'uz' ? "To'lashga o'tish" : "Перейти к оплате"
-              )}
-            </button>
           </div>
         </div>
-      )}
+      </Dialog>
     </div>
   );
 }

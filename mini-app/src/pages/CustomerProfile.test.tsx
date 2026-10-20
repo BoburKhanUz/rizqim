@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, render } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -30,9 +31,11 @@ beforeEach(() => {
 describe('CustomerProfile: refreshing the user', () => {
   it('keeps the balance a number, not the decimal string the API sent', async () => {
     render(
-      <MemoryRouter>
-        <CustomerProfile />
-      </MemoryRouter>,
+      <QueryClientProvider client={new QueryClient()}>
+        <MemoryRouter>
+          <CustomerProfile />
+        </MemoryRouter>
+      </QueryClientProvider>,
     );
     await flush();
 

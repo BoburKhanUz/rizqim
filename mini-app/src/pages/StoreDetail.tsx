@@ -1,21 +1,30 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useCartStore, type PendingCartItem } from '../store/cartStore';
 import { hapticFeedback } from '../lib/telegram';
-import { InlineError } from '../components/ui/InlineError';
+import { isTelegramHost, selectionChanged } from '../lib/twa';
+import { showAlert } from '../lib/dialogs';
+import { EmptyState, IconButton, InlineError, cx } from '../components/ui';
 import api from '../services/api';
-import { ArrowLeft, Heart, Star, Minus, Plus } from 'lucide-react';
+import { ArrowLeft, Clock, MessageSquare, Plus, Star } from 'lucide-react';
 import VariantSelectorModal from '../components/VariantSelectorModal';
+import { FavoriteButton } from '../components/catalog/FavoriteButton';
+import { ProductImage } from '../components/catalog/ProductImage';
+import { QuantityStepper } from '../components/catalog/QuantityStepper';
+import { ReplaceCartDialog } from '../components/catalog/ReplaceCartDialog';
+import { StoreLogo } from '../components/catalog/StoreLogo';
 import { getAddBlockedMessage, getVariantStock, isProductSoldOut, type StockVariant } from '../lib/stock';
 import { formatDate, formatMoney } from '../lib/format';
 import { buildCartItem, getProductBasePrice, getStoreInfo } from '../lib/catalog';
 import type { ApiResponse, Category, Product, ProductVariant, StoreCatalog, StoreCatalogStore } from '../types';
 
+const CHIP = 'min-h-11 shrink-0 cursor-pointer whitespace-nowrap rounded-control px-4 text-body font-medium transition-colors';
+
 export default function StoreDetail() {
   const { id: uuid } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { items: cartItems, addItem, forceClearAndAdd, removeItem } = useCartStore();
+  const { items: cartItems, addItem, removeItem, updateQuantity } = useCartStore();
   const [pendingCartItem, setPendingCartItem] = useState<PendingCartItem | null>(null);
   const [selectedProductForVariant, setSelectedProductForVariant] = useState<Product | null>(null);
 
@@ -29,7 +38,7 @@ export default function StoreDetail() {
   const [selectedParentCategoryId, setSelectedParentCategoryId] = useState<number | null>(null);
   const [selectedSubCategoryId, setSelectedSubCategoryId] = useState<number | null>(null);
   const [activeSegment, setActiveSegment] = useState<'menu' | 'reviews'>('menu');
-  const [isFav, setIsFav] = useState(false); // Mock favorite state
+  const [isFav, setIsFav] = useState(false); // Favourite of this visit (not stored anywhere yet)
 
   useEffect(() => {
     if (!uuid) return;
@@ -110,7 +119,7 @@ export default function StoreDetail() {
     const blocked = getAddBlockedMessage(variant, inCart);
     if (blocked) {
       hapticFeedback('error');
-      alert(blocked);
+      void showAlert(blocked);
       return false;
     }
     return true;
@@ -130,8 +139,7 @@ export default function StoreDetail() {
     }
   };
 
-  const handleAddToCart = (e: React.MouseEvent, product: Product) => {
-    e.stopPropagation();
+  const handleAddToCart = (product: Product) => {
     hapticFeedback('medium');
 
     if (product.variants && product.variants.length > 1) {
@@ -142,10 +150,16 @@ export default function StoreDetail() {
     addToCart(product, product.variants?.[0]);
   };
 
-  const handleRemoveFromCart = (e: React.MouseEvent, productId: string) => {
-    e.stopPropagation();
+  // "-" takes one unit off the product's first cart line (the line goes when it was the last unit)
+  const handleDecrement = (line: { id: string; quantity: number }) => {
     hapticFeedback('light');
-    removeItem(productId);
+    if (line.quantity > 1) updateQuantity(line.id, line.quantity - 1);
+    else removeItem(line.id);
+  };
+
+  const selectSegment = (segment: 'menu' | 'reviews') => {
+    if (segment !== activeSegment) selectionChanged();
+    setActiveSegment(segment);
   };
 
   if (error) {
@@ -162,342 +176,271 @@ export default function StoreDetail() {
   }
   if (loading || !store) {
     return (
-      <div className="pb-28 bg-white min-h-screen">
-        {/* Header Banner Skeleton */}
-        <div className="h-52 bg-slate-100 animate-pulse relative">
-          <div className="absolute top-4 left-4 right-4 flex items-center justify-between">
-            <div className="w-10 h-10 rounded-2xl bg-slate-200"></div>
-            <div className="w-10 h-10 rounded-2xl bg-slate-200"></div>
-          </div>
-          <div className="absolute bottom-4 left-4 right-4 flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-slate-200"></div>
-            <div className="space-y-1.5">
-              <div className="h-4 w-32 bg-slate-200 rounded"></div>
-              <div className="h-3 w-24 bg-slate-200 rounded"></div>
-            </div>
-          </div>
-        </div>
-
-        {/* Details Skeleton */}
-        <div className="bg-white p-4 border-b border-slate-100 space-y-4">
-          <div className="h-3 w-3/4 bg-slate-100 rounded animate-pulse"></div>
-          <div className="grid grid-cols-2 gap-2.5">
-            <div className="h-10 bg-slate-50 rounded-2xl border border-slate-100 animate-pulse"></div>
-            <div className="h-10 bg-slate-50 rounded-2xl border border-slate-100 animate-pulse"></div>
-          </div>
-        </div>
-
-        {/* Segments Skeleton */}
-        <div className="flex border-b border-slate-100 bg-white px-4 py-3 gap-4">
-          <div className="flex-1 h-4 bg-slate-100 rounded animate-pulse"></div>
-          <div className="flex-1 h-4 bg-slate-100 rounded animate-pulse"></div>
-        </div>
-
-        {/* Products List Skeleton */}
-        <div className="p-4 space-y-4">
-          <div className="flex gap-2.5 overflow-x-auto scrollbar-hide py-1">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="h-8 w-20 bg-slate-100 rounded-2xl animate-pulse shrink-0"></div>
-            ))}
-          </div>
-
-          <div className="space-y-3 pt-2">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="bg-white rounded-3xl p-3 border border-slate-100 flex items-center justify-between gap-3">
-                <div className="flex-1 space-y-2">
-                  <div className="h-3 w-1/3 bg-slate-100 rounded animate-pulse"></div>
-                  <div className="h-2 w-3/4 bg-slate-100 rounded animate-pulse"></div>
-                  <div className="h-3 w-1/4 bg-slate-100 rounded animate-pulse"></div>
-                </div>
-                <div className="w-16 h-16 rounded-2xl bg-slate-100 animate-pulse shrink-0"></div>
+      <div aria-busy="true">
+        <div className="h-40 animate-pulse bg-line" />
+        <div className="-mt-6 space-y-3 px-4">
+          <div className="space-y-3 rounded-card border border-line bg-surface p-4">
+            <div className="flex items-center gap-3">
+              <div className="size-14 animate-pulse rounded-card bg-surface-2" />
+              <div className="flex-1 space-y-2">
+                <div className="h-5 w-1/2 animate-pulse rounded-control bg-surface-2" />
+                <div className="h-3 w-1/3 animate-pulse rounded-control bg-surface-2" />
               </div>
-            ))}
+            </div>
+            <div className="h-3 w-3/4 animate-pulse rounded-control bg-surface-2" />
           </div>
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="flex gap-3 rounded-card border border-line bg-surface p-3">
+              <div className="flex-1 space-y-2">
+                <div className="h-4 w-1/3 animate-pulse rounded-control bg-surface-2" />
+                <div className="h-3 w-3/4 animate-pulse rounded-control bg-surface-2" />
+                <div className="h-4 w-1/4 animate-pulse rounded-control bg-surface-2" />
+              </div>
+              <div className="size-20 animate-pulse rounded-control bg-surface-2" />
+            </div>
+          ))}
         </div>
       </div>
     );
   }
 
-  const initials = store.name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
+  const rating = Number(store.rating);
+  const hasRating = rating > 0 && store.review_count > 0;
+  const minOrder = store.min_order > 0 ? store.min_order : null;
+  const deliveryFee = store.delivery_fee > 0 ? store.delivery_fee : null;
+  const reviewCount = store.ratings?.length ?? 0;
 
   return (
-    <div className="pb-28 animate-fade-in bg-white min-h-screen">
-      {/* Banner Cover with favorite toggle */}
-      <div className="h-52 relative w-full bg-slate-900">
-        {store.banner_url ? (
-          <img src={store.banner_url} alt="" className="w-full h-full object-cover opacity-90" />
-        ) : (
-          <div className="w-full h-full bg-amber-500/20" />
-        )}
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent"></div>
-        
-        {/* Native Floating Controls */}
-        <div className="absolute top-4 left-4 right-4 flex items-center justify-between z-10">
-          <button 
-            onClick={() => navigate('/')} 
-            className="w-10 h-10 rounded-2xl bg-white/90 backdrop-blur-md text-slate-800 flex items-center justify-center shadow-lg hover:scale-105 active:scale-95 transition"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <button 
-            onClick={toggleFavoriteStore}
-            className="w-10 h-10 rounded-2xl bg-white/90 backdrop-blur-md text-slate-800 flex items-center justify-center shadow-lg hover:scale-105 active:scale-95 transition"
-          >
-            <Heart className={`w-5 h-5 ${isFav ? 'fill-rose-500 text-rose-500' : ''}`} />
-          </button>
+    <div className="animate-fade-in">
+      {/* Cover with the back and favourite buttons */}
+      <div className="relative h-40 w-full bg-brand-soft">
+        {store.banner_url && <img src={store.banner_url} alt="" className="size-full object-cover" />}
+        <div className="absolute inset-x-3 top-3 flex items-center justify-between">
+          {!isTelegramHost() ? (
+            <IconButton icon={ArrowLeft} label="Orqaga" variant="surface" onClick={() => navigate('/')} />
+          ) : (
+            <span />
+          )}
+          <FavoriteButton active={isFav} onToggle={toggleFavoriteStore} onPhoto />
         </div>
+      </div>
 
-        <div className="absolute bottom-4 left-4 right-4 text-white">
+      <div className="relative -mt-6 flex flex-col gap-4 px-4 pb-4">
+        {/* The restaurant */}
+        <section className="flex flex-col gap-3 rounded-card border border-line bg-surface p-4">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-white/95 backdrop-blur-md flex items-center justify-center text-xl font-black text-amber-500 shadow-md border border-white/20 shrink-0 overflow-hidden">
-              {store.logo_url ? (
-                <img src={store.logo_url} className="w-full h-full object-cover" alt="" />
-              ) : (
-                <span>{initials}</span>
-              )}
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-lg font-black tracking-tight leading-tight">{store.name}</h1>
-                <span className={`text-[9px] font-black px-2 py-0.5 rounded ${
-                  store.is_open ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'
-                }`}>
-                  {store.is_open ? "🟢 Ochiq" : "🔴 Yopiq"}
+            <StoreLogo name={store.name} logoUrl={store.logo_url} className="size-14 rounded-card" />
+            <div className="min-w-0 flex-1">
+              <h1 className="text-title font-bold text-fg">{store.name}</h1>
+              <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-footnote text-fg-muted">
+                <span
+                  className={cx(
+                    'rounded-control px-2 py-0.5 text-caption font-bold',
+                    store.is_open ? 'bg-success-soft text-success-soft-fg' : 'bg-surface-2 text-fg-muted',
+                  )}
+                >
+                  {store.is_open ? 'Ochiq' : 'Yopiq'}
                 </span>
+                {hasRating && (
+                  <span className="flex items-center gap-1 text-fg">
+                    <Star aria-hidden="true" className="size-4 fill-accent text-accent" />
+                    {rating.toFixed(1)}
+                    <span className="text-fg-muted">({store.review_count})</span>
+                  </span>
+                )}
+                {store.delivery_time && (
+                  <span className="flex items-center gap-1">
+                    <Clock aria-hidden="true" className="size-4" />
+                    {store.delivery_time}
+                  </span>
+                )}
               </div>
-              <p className="text-[10px] text-white/90 font-bold flex items-center gap-1 mt-0.5">
-                <Star className="w-3 h-3 fill-amber-500 text-amber-500" /> {store.rating || "4.5"} ({store.review_count || 0} sharhlar) • {store.delivery_time || "20-30 min"}
-              </p>
             </div>
           </div>
+          {store.description && <p className="text-footnote text-fg-muted">{store.description}</p>}
+          {(minOrder !== null || deliveryFee !== null) && (
+            <dl className="grid grid-cols-2 gap-2 border-t border-line pt-3">
+              {minOrder !== null && (
+                <div>
+                  <dt className="text-caption text-fg-muted">Minimal buyurtma</dt>
+                  <dd className="text-body font-bold text-fg">{formatMoney(minOrder)}</dd>
+                </div>
+              )}
+              {deliveryFee !== null && (
+                <div>
+                  <dt className="text-caption text-fg-muted">Kuryer xizmati</dt>
+                  <dd className="text-body font-bold text-fg">{formatMoney(deliveryFee)}</dd>
+                </div>
+              )}
+            </dl>
+          )}
+        </section>
+
+        {!store.is_open && (
+          <p role="status" className="rounded-card bg-warning-soft px-4 py-3 text-footnote text-warning-soft-fg">
+            Oshxona hozir yopiq: buyurtma qabul qilinmaydi.
+          </p>
+        )}
+
+        {/* Menu / reviews */}
+        <div role="tablist" aria-label="Oshxona bo'limlari" className="sticky top-0 z-10 -mx-4 flex gap-1 bg-page px-4 py-1">
+          {([['menu', 'Menyu'], ['reviews', reviewCount > 0 ? `Fikrlar (${reviewCount})` : 'Fikrlar']] as const).map(([segment, label]) => (
+            <button
+              key={segment}
+              type="button"
+              role="tab"
+              aria-selected={activeSegment === segment}
+              onClick={() => selectSegment(segment)}
+              className={cx(
+                'min-h-11 flex-1 cursor-pointer rounded-control text-body font-bold transition-colors',
+                activeSegment === segment ? 'bg-brand text-on-brand' : 'bg-surface text-fg-muted',
+              )}
+            >
+              {label}
+            </button>
+          ))}
         </div>
-      </div>
 
-      {/* Description Info and constraints card */}
-      <div className="bg-white p-4 rounded-b-3xl border-b border-slate-100 space-y-3.5 shadow-sm">
-        <p className="text-xs text-slate-500 font-semibold leading-relaxed">{store.description || "Mazali taomlar"}</p>
-        <div className="grid grid-cols-2 gap-2.5 text-[10px] text-center font-bold">
-          <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 text-slate-600">
-            Minimal buyurtma: <span className="block font-black text-slate-800 mt-0.5">{formatMoney(store.min_order !== undefined && store.min_order !== null ? store.min_order : 30000)}</span>
-          </div>
-          <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 text-slate-600">
-            Kuryer xizmati: <span className="block font-black text-slate-800 mt-0.5">{formatMoney(store.delivery_fee !== undefined && store.delivery_fee !== null ? store.delivery_fee : 10000)}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Segment Navigation */}
-      <div className="flex border-b border-slate-100 bg-white sticky top-0 z-10 px-4 pt-2">
-        <button 
-          onClick={() => setActiveSegment('menu')}
-          className={`flex-1 py-3 text-xs font-black border-b-2 transition-all ${
-            activeSegment === 'menu' ? 'border-amber-500 text-amber-600' : 'border-transparent text-slate-400'
-          }`}
-        >
-          Menyu
-        </button>
-        <button 
-          onClick={() => setActiveSegment('reviews')}
-          className={`flex-1 py-3 text-xs font-black border-b-2 transition-all ${
-            activeSegment === 'reviews' ? 'border-amber-500 text-amber-600' : 'border-transparent text-slate-400'
-          }`}
-        >
-          Fikrlar
-        </button>
-      </div>
-
-      {activeSegment === 'menu' ? (
-        <div className="p-4 space-y-6">
-          {/* Categories Selector */}
-          {parentCategories.length > 0 && (
-            <div className="space-y-3 pb-2 border-b border-slate-50">
-              <div className="flex gap-2.5 overflow-x-auto scrollbar-hide py-1">
-                {parentCategories.map((cat) => {
-                  const isSelected = selectedParentCategoryId === cat.id;
-                  return (
-                    <button
-                      key={cat.id}
-                      onClick={() => {
-                        hapticFeedback('light');
-                        setSelectedParentCategoryId(isSelected ? null : cat.id);
-                        setSelectedSubCategoryId(null);
-                      }}
-                      className={`px-4 py-2 rounded-2xl text-xs font-black whitespace-nowrap transition-all ${
-                        isSelected 
-                          ? 'bg-amber-500 text-white shadow-md shadow-amber-500/20' 
-                          : 'bg-slate-50 text-slate-600 border border-slate-100 hover:bg-slate-100'
-                      }`}
-                    >
-                      {cat.name}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Subcategories (Second Row) */}
-              {selectedParentCategoryId && subCategories.length > 0 && (
-                <div className="flex gap-2 overflow-x-auto scrollbar-hide py-1 pl-1 border-l-2 border-amber-500/30">
-                  {subCategories.map((subCat) => {
-                    const isSelected = selectedSubCategoryId === subCat.id;
+        {activeSegment === 'menu' ? (
+          <div className="flex flex-col gap-5">
+            {/* Categories Selector */}
+            {parentCategories.length > 0 && (
+              <div className="flex flex-col gap-2">
+                <div className="scrollbar-hide -mx-4 flex gap-2 overflow-x-auto px-4">
+                  {parentCategories.map((cat) => {
+                    const isSelected = selectedParentCategoryId === cat.id;
                     return (
                       <button
-                        key={subCat.id}
+                        key={cat.id}
+                        type="button"
+                        aria-pressed={isSelected}
                         onClick={() => {
-                          hapticFeedback('light');
-                          setSelectedSubCategoryId(isSelected ? null : subCat.id);
+                          selectionChanged();
+                          setSelectedParentCategoryId(isSelected ? null : cat.id);
+                          setSelectedSubCategoryId(null);
                         }}
-                        className={`px-3 py-1.5 rounded-xl text-[10px] font-bold whitespace-nowrap transition-all ${
-                          isSelected 
-                            ? 'bg-amber-500/10 text-amber-600 border border-amber-500/20' 
-                            : 'bg-white text-slate-500 border border-slate-100 hover:bg-slate-50'
-                        }`}
+                        className={cx(CHIP, isSelected ? 'bg-brand text-on-brand' : 'border border-line bg-surface text-fg')}
                       >
-                        {subCat.name}
+                        {cat.name}
                       </button>
                     );
                   })}
                 </div>
-              )}
-            </div>
-          )}
 
-          {Object.entries(groupedProducts).map(([catName, productsGroup]) => {
-            return (
-              <div key={catName} className="space-y-3">
-                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-wider pl-2.5 border-l-4 border-amber-500">
-                  {catName}
-                </h3>
-                <div className="space-y-2.5">
-                  {productsGroup.map((product) => {
-                    const cartItemsArray = cartItems.filter(item => item.productId === product.id);
-                    const cartQty = cartItemsArray.reduce((sum, item) => sum + item.quantity, 0);
-                    const isSoldOut = isProductSoldOut(product);
-                    // Single-variant products: the "+" stops at the available stock
-                    const singleVariantStock = product.variants?.length === 1 ? getVariantStock(product.variants[0]) : null;
-                    const isAtStockLimit = singleVariantStock !== null && cartQty >= singleVariantStock;
-
-                    return (
-                      <div 
-                        key={product.id} 
-                        className={`bg-white rounded-3xl p-3 border border-slate-100 flex items-center justify-between gap-3 shadow-[0_8px_30px_rgb(0,0,0,0.02)] transition-all duration-200 ${
-                          !store.is_open ? 'opacity-60 cursor-not-allowed' : isSoldOut ? 'opacity-60' : 'hover:shadow-sm active:scale-[0.98]'
-                        }`}
-                      >
-                        <div className="flex-1 min-w-0">
-                          <h4 className="text-xs font-black text-slate-800 leading-tight">{product.name}</h4>
-                          <p className="text-[10px] text-slate-400 font-medium line-clamp-2 mt-1 leading-relaxed">{product.description}</p>
-                          <span className="text-xs font-black text-slate-800 block mt-2">{formatMoney(getProductBasePrice(product))}</span>
-                        </div>
-                        <div className="flex flex-col items-center gap-2 shrink-0">
-                          <div className="w-16 h-16 rounded-2xl overflow-hidden relative border border-slate-100 bg-slate-50 flex items-center justify-center">
-                            {product.image_url ? (
-                              <img src={product.image_url} alt="" className="w-full h-full object-cover" />
-                            ) : (
-                              <span className="text-2xl">🍔</span>
-                            )}
-                          </div>
-                          {store.is_open ? (
-                            cartQty > 0 ? (
-                              <div className="flex items-center bg-amber-500 text-white rounded-full p-0.5 scale-90" onClick={e => e.stopPropagation()}>
-                                <>
-                                  <button onClick={(e) => handleRemoveFromCart(e, cartItemsArray[0].id)} className="w-6 h-6 flex items-center justify-center rounded-full text-white active:scale-90 transition">
-                                    <Minus className="w-3 h-3" />
-                                  </button>
-                                  <span className="px-1.5 text-xs font-black">{cartQty}</span>
-                                  <button onClick={(e) => handleAddToCart(e, product)} className={`w-6 h-6 flex items-center justify-center rounded-full text-white active:scale-90 transition ${isSoldOut || isAtStockLimit ? 'opacity-40' : ''}`}>
-                                    <Plus className="w-3 h-3" />
-                                  </button>
-                                </>
-                              </div>
-                            ) : isSoldOut ? (
-                              <button
-                                disabled
-                                className="bg-slate-100 text-red-500 px-3 py-1.5 rounded-full font-extrabold text-[9px] border border-slate-200 whitespace-nowrap cursor-not-allowed"
-                              >
-                                Tugagan
-                              </button>
-                            ) : (
-                              <button 
-                                onClick={(e) => handleAddToCart(e, product)} 
-                                className="bg-amber-50 hover:bg-amber-100 text-amber-600 px-3 py-1.5 rounded-full font-black text-[9px] border border-amber-100 transition whitespace-nowrap active:scale-90"
-                              >
-                                Qo'shish +
-                              </button>
-                            )
-                          ) : (
-                            <span className="text-[8px] bg-slate-100 text-slate-400 font-bold px-2 py-1 rounded">Yopiq</span>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        <div className="p-4 space-y-3">
-          {store?.ratings && store.ratings.length > 0 ? (
-            store.ratings.map((rate) => (
-              <div key={rate.id} className="bg-white p-4 rounded-3xl border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.01)] space-y-2">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <p className="text-xs font-black text-slate-800">{rate.user?.name || "Mijoz"}</p>
-                    <p className="text-[9px] text-slate-400 font-bold mt-0.5">
-                      {formatDate(rate.created_at)}
-                    </p>
+                {/* Subcategories (Second Row) */}
+                {selectedParentCategoryId && subCategories.length > 0 && (
+                  <div className="scrollbar-hide -mx-4 flex gap-2 overflow-x-auto px-4">
+                    {subCategories.map((subCat) => {
+                      const isSelected = selectedSubCategoryId === subCat.id;
+                      return (
+                        <button
+                          key={subCat.id}
+                          type="button"
+                          aria-pressed={isSelected}
+                          onClick={() => {
+                            selectionChanged();
+                            setSelectedSubCategoryId(isSelected ? null : subCat.id);
+                          }}
+                          className={cx(CHIP, isSelected ? 'bg-brand-soft text-brand-soft-fg' : 'border border-line bg-surface text-fg-muted')}
+                        >
+                          {subCat.name}
+                        </button>
+                      );
+                    })}
                   </div>
-                  <div className="flex items-center gap-0.5 bg-amber-50 px-2 py-1 rounded-xl">
-                    <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
-                    <span className="text-xs font-black text-amber-600">{rate.rating}</span>
-                  </div>
-                </div>
-                {rate.comment && (
-                  <p className="text-xs text-slate-600 font-semibold leading-relaxed pt-2 border-t border-slate-50">
-                    {rate.comment}
-                  </p>
                 )}
               </div>
-            ))
-          ) : (
-            <div className="text-center text-slate-400 py-10 text-xs font-semibold">
-              Hozircha sharhlar yo'q
-            </div>
-          )}
-        </div>
-      )}
+            )}
 
-      {/* Cross-Store Cart Override Modal */}
-      {pendingCartItem && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in" onClick={() => setPendingCartItem(null)}>
-          <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-xl space-y-4 animate-scale-up" onClick={e => e.stopPropagation()}>
-            <div className="w-12 h-12 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center text-2xl mb-2">⚠️</div>
-            <h3 className="font-black text-slate-800 text-lg leading-tight">Boshqa restoran!</h3>
-            <p className="text-xs text-slate-500 font-medium leading-relaxed">
-              Savatda boshqa oshxonaning taomlari bor. Savatni tozalab, shu taomni qo'shishni xohlaysizmi?
-            </p>
-            <div className="flex gap-2 pt-3">
-              <button 
-                onClick={() => setPendingCartItem(null)}
-                className="flex-1 py-3 bg-slate-100 text-slate-600 font-bold rounded-2xl text-xs active:scale-95 transition"
-              >
-                Yo'q, qaytish
-              </button>
-              <button 
-                onClick={() => {
-                  forceClearAndAdd(pendingCartItem.item, pendingCartItem.storeInfo);
-                  setPendingCartItem(null);
-                  hapticFeedback('success');
-                }}
-                className="flex-1 py-3 bg-amber-500 text-white font-bold rounded-2xl text-xs active:scale-95 transition"
-              >
-                Ha, tozalash
-              </button>
-            </div>
+            {Object.entries(groupedProducts).map(([catName, productsGroup]) => {
+              return (
+                <section key={catName} aria-label={catName} className="flex flex-col gap-2">
+                  <h2 className="px-1 text-headline font-bold text-fg">{catName}</h2>
+                  <ul className="flex flex-col gap-2">
+                    {productsGroup.map((product) => {
+                      const cartItemsArray = cartItems.filter(item => item.productId === product.id);
+                      const cartQty = cartItemsArray.reduce((sum, item) => sum + item.quantity, 0);
+                      const isSoldOut = isProductSoldOut(product);
+                      // Single-variant products: the "+" stops at the available stock
+                      const singleVariantStock = product.variants?.length === 1 ? getVariantStock(product.variants[0]) : null;
+                      const isAtStockLimit = singleVariantStock !== null && cartQty >= singleVariantStock;
+
+                      return (
+                        <li
+                          key={product.id}
+                          className={cx(
+                            'flex gap-3 rounded-card border border-line bg-surface p-3',
+                            (!store.is_open || isSoldOut) && 'opacity-60',
+                          )}
+                        >
+                          <div className="flex min-w-0 flex-1 flex-col gap-1">
+                            <h3 className="text-body font-bold text-fg">{product.name}</h3>
+                            {product.description && <p className="line-clamp-2 text-footnote text-fg-muted">{product.description}</p>}
+                            <div className="mt-auto flex flex-wrap items-center justify-between gap-x-2 gap-y-1 pt-1">
+                              <span className="text-body font-bold text-fg">{formatMoney(getProductBasePrice(product))}</span>
+                              {store.is_open && (
+                                cartQty > 0 ? (
+                                  <QuantityStepper
+                                    quantity={cartQty}
+                                    removeAtOne
+                                    incrementDimmed={isSoldOut || isAtStockLimit}
+                                    decrementLabel={`${product.name}: kamaytirish`}
+                                    incrementLabel={`${product.name}: ko'paytirish`}
+                                    onDecrement={() => handleDecrement(cartItemsArray[0])}
+                                    onIncrement={() => handleAddToCart(product)}
+                                    className="ml-auto"
+                                  />
+                                ) : isSoldOut ? (
+                                  <span className="ml-auto rounded-control bg-surface-2 px-2.5 py-1 text-caption font-bold text-fg-muted">Tugagan</span>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    aria-label={`Qo'shish: ${product.name}`}
+                                    onClick={() => handleAddToCart(product)}
+                                    className="ml-auto flex min-h-11 cursor-pointer items-center gap-1.5 rounded-full bg-brand-soft px-4 text-body font-bold text-brand-soft-fg transition-transform focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand motion-safe:active:scale-95"
+                                  >
+                                    <Plus aria-hidden="true" className="size-[18px]" />
+                                    Qo'shish
+                                  </button>
+                                )
+                              )}
+                            </div>
+                          </div>
+                          <ProductImage src={product.image_url} className="size-20 rounded-control" />
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </section>
+              );
+            })}
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="flex flex-col gap-3">
+            {store?.ratings && store.ratings.length > 0 ? (
+              store.ratings.map((rate) => (
+                <article key={rate.id} className="flex flex-col gap-2 rounded-card border border-line bg-surface p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-body font-bold text-fg">{rate.user?.name || "Mijoz"}</p>
+                      <p className="text-caption text-fg-muted">{formatDate(rate.created_at)}</p>
+                    </div>
+                    <span className="flex shrink-0 items-center gap-1 rounded-control bg-surface-2 px-2 py-1 text-footnote font-bold text-fg">
+                      <Star aria-hidden="true" className="size-4 fill-accent text-accent" />
+                      {rate.rating}
+                    </span>
+                  </div>
+                  {rate.comment && <p className="border-t border-line pt-2 text-footnote text-fg">{rate.comment}</p>}
+                </article>
+              ))
+            ) : (
+              <EmptyState icon={MessageSquare} title="Hozircha sharhlar yo'q" />
+            )}
+          </div>
+        )}
+      </div>
+
+      <ReplaceCartDialog pending={pendingCartItem} onClose={() => setPendingCartItem(null)} />
 
       {/* Product Variant / Option Selector Sheet */}
       <VariantSelectorModal

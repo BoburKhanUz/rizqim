@@ -52,8 +52,8 @@ describe('VariantSelectorModal', () => {
 
       const label = screen.getByText('Tugagan');
       expect(label).toBeInTheDocument();
-      expect(screen.getByText('Oilaviy').closest('div[class*="cursor-not-allowed"]')).not.toBeNull();
-      expect(screen.getByText('Kichik').closest('div[class*="cursor-not-allowed"]')).toBeNull();
+      expect(screen.getByRole('radio', { name: /Oilaviy/ })).toBeDisabled();
+      expect(screen.getByRole('radio', { name: /Kichik/ })).toBeEnabled();
     });
 
     it('does not preselect a sold-out first variant: it starts on the first one that can be ordered', () => {
@@ -121,9 +121,9 @@ describe('VariantSelectorModal', () => {
   });
 
   it('closes from the backdrop without adding anything', () => {
-    const { onAdd, onClose, baseElement } = renderModal(makeProduct({ variants: [small] }));
+    const { onAdd, onClose } = renderModal(makeProduct({ variants: [small] }));
 
-    fireEvent.click(baseElement.querySelector('.absolute.inset-0') as HTMLElement);
+    fireEvent.click(screen.getByRole('dialog').parentElement as HTMLElement); // the scrim around the sheet
 
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(onAdd).not.toHaveBeenCalled();

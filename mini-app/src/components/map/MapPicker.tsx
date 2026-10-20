@@ -1,4 +1,5 @@
 import 'leaflet/dist/leaflet.css';
+import './mapPicker.css';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MouseEvent as ReactMouseEvent, RefObject } from 'react';
 import type { LatLngTuple, LeafletEvent, LeafletMouseEvent, Marker as LeafletMarker } from 'leaflet';
@@ -98,7 +99,7 @@ export default function MapPicker({ position, onPick, fallbackCenter = null, hei
 
   return (
     <div
-      className="relative isolate overflow-hidden rounded-2xl border border-slate-200 bg-slate-100"
+      className="rz-map relative isolate overflow-hidden rounded-card border border-line bg-surface-2"
       style={{ height }}
       onClickCapture={openAttributionLink}
     >

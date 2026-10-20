@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider, focusManager } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
+import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import api from '../services/api';
 import { useAuthStore } from '../store/authStore';
@@ -24,7 +25,11 @@ const callsOf = (scope: string) =>
 let client: QueryClient;
 
 function renderWithClient(ui: ReactNode) {
-  return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
+  return render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter>{ui}</MemoryRouter>
+    </QueryClientProvider>,
+  );
 }
 
 const settle = (ms = 0) => act(() => vi.advanceTimersByTimeAsync(ms));

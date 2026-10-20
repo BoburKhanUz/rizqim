@@ -1,91 +1,48 @@
-import { Bell, CheckCircle2, Clock, ShieldAlert, Sparkles, MessageSquare, Flame } from 'lucide-react';
-import { useLanguageStore } from '../store/languageStore';
-import { formatTime } from '../lib/format';
+import { Bell } from 'lucide-react';
+import { Card, cx } from './ui';
+import { Spinner } from './ui/Spinner';
+import { formatDateTime } from '../lib/format';
+import { useCopy } from '../lib/customerCopy';
 import { useNotifications } from '../hooks/useNotifications';
+import { NOTIFICATION_TILE, getNotificationLook } from '../lib/notificationLook';
 
+// The latest notifications as a card to drop into a screen (the full feed is pages/Notifications.tsx).
 export default function NotificationCenter() {
-  const { language } = useLanguageStore();
-
+  const c = useCopy();
   const { data: notifications = [], isLoading } = useNotifications();
 
-  const getIcon = (type: string) => {
-    switch (type) {
-      case 'delivered':
-      case 'accepted':
-        return <CheckCircle2 className="w-4.5 h-4.5 text-emerald-500" />;
-      case 'store_payment_required':
-        return <ShieldAlert className="w-4.5 h-4.5 text-rose-500" />;
-      case 'complaint_reply':
-        return <MessageSquare className="w-4.5 h-4.5 text-blue-500" />;
-      case 'new_order':
-        return <Sparkles className="w-4.5 h-4.5 text-amber-500" />;
-      case 'on_the_way':
-        return <Flame className="w-4.5 h-4.5 text-orange-500" />;
-      default:
-        return <Clock className="w-4.5 h-4.5 text-slate-500" />;
-    }
-  };
-
-  const getBgClass = (type: string) => {
-    switch (type) {
-      case 'delivered':
-      case 'accepted':
-        return 'bg-emerald-500/10 border border-emerald-500/20';
-      case 'store_payment_required':
-        return 'bg-rose-500/10 border border-rose-500/20 animate-pulse';
-      case 'complaint_reply':
-        return 'bg-blue-500/10 border border-blue-500/20';
-      case 'new_order':
-        return 'bg-amber-500/10 border border-amber-500/20';
-      case 'on_the_way':
-        return 'bg-orange-500/10 border border-orange-500/20';
-      default:
-        return 'bg-slate-100 border border-slate-200/50';
-    }
-  };
-
   return (
-    <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.02)] space-y-4">
-      <div className="flex items-center gap-2 border-b border-slate-50 pb-2">
-        <Bell className="w-5 h-5 text-amber-600" />
-        <h4 className="text-xs font-black uppercase tracking-wider text-slate-800">
-          {language === 'uz' ? 'Bildirishnomalar' : 'Уведомления'}
-        </h4>
+    <Card className="flex flex-col gap-3">
+      <div className="flex items-center gap-2 border-b border-line pb-3">
+        <Bell aria-hidden="true" className="size-5 text-brand" />
+        <h2 className="text-headline font-bold text-fg">{c('notificationsTitle')}</h2>
       </div>
 
       {isLoading ? (
-        <div className="flex items-center justify-center py-4">
-          <div className="w-5 h-5 border-2 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
+        <div className="flex items-center justify-center py-4 text-brand" role="status" aria-label={c('notificationsTitle')}>
+          <Spinner />
         </div>
       ) : notifications.length === 0 ? (
-        <p className="text-[11px] text-slate-400 font-semibold italic text-center py-2">
-          {language === 'uz' ? 'Hozircha xabarnomalar yo\'q.' : 'Уведомлений пока нет.'}
-        </p>
+        <p className="py-2 text-center text-footnote text-fg-muted">{c('notificationsEmptyTitle')}</p>
       ) : (
-        <div className="space-y-2.5 max-h-[250px] overflow-y-auto pr-1">
-          {notifications.map((notif) => (
-            <div
-              key={notif.id}
-              className={`p-3 rounded-2xl flex gap-3 items-start transition-all ${getBgClass(notif.type)}`}
-            >
-              <div className="mt-0.5 shrink-0">
-                {getIcon(notif.type)}
-              </div>
-              <div className="text-left space-y-0.5">
-                <span className="text-[11px] font-black text-slate-800 block leading-tight">
-                  {notif.title}
+        <ul className="flex max-h-72 flex-col gap-2.5 overflow-y-auto">
+          {notifications.map((notification) => {
+            const { icon: Icon, tone } = getNotificationLook(notification.type);
+            return (
+              <li key={notification.id} className="flex items-start gap-3 rounded-control bg-surface-2 p-3">
+                <span className={cx('flex size-8 shrink-0 items-center justify-center rounded-control', NOTIFICATION_TILE[tone])}>
+                  <Icon aria-hidden="true" className="size-4" />
                 </span>
-                <span className="text-[10px] text-slate-500 font-semibold block leading-relaxed">
-                  {notif.message}
-                </span>
-                <span className="text-[8px] text-slate-400 font-bold block pt-0.5">
-                  {formatTime(notif.sent_at)}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
+                <div className="min-w-0">
+                  <span className="block select-text break-words text-footnote font-bold text-fg">{notification.title}</span>
+                  <span className="block select-text break-words text-footnote text-fg-muted">{notification.message}</span>
+                  <span className="block pt-0.5 text-caption text-fg-muted">{formatDateTime(notification.sent_at)}</span>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
       )}
-    </div>
+    </Card>
   );
 }

@@ -1,8 +1,10 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import api from '../services/api';
+import { showAlert } from '../lib/dialogs';
 import { useCartStore } from '../store/cartStore';
 import { makeProduct, makeStore, makeVariant } from '../test/factories';
 import type { Product } from '../types';
@@ -14,6 +16,7 @@ import Home from './Home';
 
 vi.mock('../lib/telegram', () => ({ hapticFeedback: vi.fn(), tg: { initDataUnsafe: {} } }));
 vi.mock('../services/api', () => ({ default: { get: vi.fn(), post: vi.fn() } }));
+vi.mock('../lib/dialogs', () => ({ showAlert: vi.fn().mockResolvedValue(undefined) }));
 
 const get = vi.mocked(api.get);
 
@@ -35,12 +38,14 @@ function serve(product: Product) {
 async function open(page: ReactElement, path: string, product: Product) {
   serve(product);
   render(
-    <MemoryRouter initialEntries={[path]}>
-      <Routes>
-        <Route path="/" element={page} />
-        <Route path="/category/:id" element={page} />
-      </Routes>
-    </MemoryRouter>,
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter initialEntries={[path]}>
+        <Routes>
+          <Route path="/" element={page} />
+          <Route path="/category/:id" element={page} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
   await flush();
 }
@@ -49,7 +54,7 @@ const addButton = () => screen.getByRole('button', { name: "Savatga qo'shish" })
 const cartQuantity = () => useCartStore.getState().items.reduce((sum, item) => sum + item.quantity, 0);
 
 beforeEach(() => {
-  vi.spyOn(window, 'alert').mockImplementation(() => {});
+  vi.mocked(showAlert).mockClear();
   useCartStore.setState({ items: [], storeName: '', storeAddress: '' });
 });
 
@@ -62,7 +67,7 @@ describe.each([
 
     fireEvent.click(addButton());
 
-    expect(window.alert).toHaveBeenCalledWith('Kechirasiz, bu mahsulot tugagan.');
+    expect(showAlert).toHaveBeenCalledWith('Kechirasiz, bu mahsulot tugagan.');
     expect(cartQuantity()).toBe(0);
   });
 
@@ -72,10 +77,10 @@ describe.each([
     fireEvent.click(addButton());
     fireEvent.click(addButton());
     expect(cartQuantity()).toBe(2);
-    expect(window.alert).not.toHaveBeenCalled();
+    expect(showAlert).not.toHaveBeenCalled();
 
     fireEvent.click(addButton());
-    expect(window.alert).toHaveBeenCalledWith('Kechirasiz, omborda faqat 2 dona qolgan.');
+    expect(showAlert).toHaveBeenCalledWith('Kechirasiz, omborda faqat 2 dona qolgan.');
     expect(cartQuantity()).toBe(2);
   });
 
@@ -86,6 +91,6 @@ describe.each([
     fireEvent.click(addButton());
 
     expect(cartQuantity()).toBe(2);
-    expect(window.alert).not.toHaveBeenCalled();
+    expect(showAlert).not.toHaveBeenCalled();
   });
 });

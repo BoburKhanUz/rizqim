@@ -1,4 +1,5 @@
 import { lazy, Suspense } from 'react';
+import { Spinner } from '../ui';
 import MapErrorBoundary from './MapErrorBoundary';
 import type { MapPickerProps } from './MapPicker';
 
@@ -15,9 +16,11 @@ export default function LazyMapPicker(props: MapPickerProps) {
       <Suspense
         fallback={
           <div
-            className="flex items-center justify-center rounded-2xl border border-slate-200 bg-slate-100 text-[11px] font-bold text-slate-400"
+            role="status"
+            className="flex items-center justify-center gap-2 rounded-card border border-line bg-surface-2 text-footnote text-fg-muted"
             style={{ height }}
           >
+            <Spinner className="size-4" />
             Xarita yuklanmoqda...
           </div>
         }

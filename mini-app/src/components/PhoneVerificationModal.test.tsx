@@ -1,11 +1,14 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import api from '../services/api';
+import { showAlert } from '../lib/dialogs';
 import { failedRequest, secretsIn } from '../test/httpErrors';
 import PhoneVerificationModal from './PhoneVerificationModal';
 
 vi.mock('../lib/telegram', () => ({ hapticFeedback: vi.fn(), tg: { initDataUnsafe: {} } }));
 vi.mock('../services/api', () => ({ default: { post: vi.fn() } }));
+// The messages the user is told (Telegram's popup, or the app's own dialog outside Telegram)
+vi.mock('../lib/dialogs', () => ({ showAlert: vi.fn().mockResolvedValue(undefined) }));
 
 const post = vi.mocked(api.post);
 
@@ -35,10 +38,10 @@ async function tick(seconds: number) {
   }
 }
 
-let alertSpy: ReturnType<typeof vi.spyOn>;
+const alertSpy = vi.mocked(showAlert);
 
 beforeEach(() => {
-  alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
+  alertSpy.mockClear();
   vi.spyOn(console, 'error').mockImplementation(() => {});
 });
 

@@ -1,13 +1,24 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Bell, Bike, ChevronRight, CreditCard, ShieldCheck, Store, TriangleAlert, Settings } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { isLanguage, useLanguageStore } from '../store/languageStore';
 import { hapticFeedback } from '../lib/telegram';
-import { User as UserIcon, Phone, MapPin, Save, Globe, Loader2, Bell } from 'lucide-react';
+import { notificationOccurred, selectionChanged } from '../lib/twa';
+import { showAlert } from '../lib/dialogs';
+import { useMainButton } from '../hooks/useMainButton';
+import { useNotifications } from '../hooks/useNotifications';
 import api from '../services/api';
 import PhoneVerificationModal from '../components/PhoneVerificationModal';
 import { classifyPhoneChange } from '../lib/phone';
 import { getApiFieldError, logApiError } from '../lib/apiError';
+import { Button, Card, IconButton, PageHeader, Section, cx } from '../components/ui';
+import { Field } from '../components/staff/Field';
+import { fieldClass } from '../components/staff/fieldStyles';
+import { Pill } from '../components/staff/Pill';
+import { Skeleton } from '../components/staff/Skeleton';
+import { StoreStatusPill } from '../components/staff/StoreStatusPill';
 import type { ApiResponse, OwnerStoreSettings } from '../types';
 
 // What the form fields hold while the profile is being edited
@@ -17,10 +28,30 @@ interface ProfileDraft {
   address: string;
 }
 
+const storageUrl = (path: string) => (path.startsWith('http') ? path : `/storage/${path}`);
+
+// A row that opens another screen
+function LinkRow({ icon: Icon, label, onClick }: { icon: LucideIcon; label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex min-h-14 w-full cursor-pointer items-center gap-3 px-4 text-left text-body font-medium text-fg transition-colors hover:bg-surface-2 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand"
+    >
+      <span className="flex size-9 shrink-0 items-center justify-center rounded-control bg-brand-soft text-brand-soft-fg">
+        <Icon aria-hidden="true" className="size-5" />
+      </span>
+      <span className="flex-1">{label}</span>
+      <ChevronRight aria-hidden="true" className="size-5 shrink-0 text-fg-muted" />
+    </button>
+  );
+}
+
 export default function Profile() {
   const navigate = useNavigate();
   const { user, updateUser, smsVerificationRequired } = useAuthStore();
   const { language, setLanguage } = useLanguageStore();
+  const uz = language === 'uz';
 
   const isOwner = user?.role === 'owner';
 
@@ -43,6 +74,10 @@ export default function Profile() {
   const [verifyingPhone, setVerifyingPhone] = useState<string | null>(null);
   const [phoneError, setPhoneError] = useState('');
 
+  // The bell shows a dot only while something is unread
+  const { data: notifications } = useNotifications();
+  const unread = notifications?.filter((item) => !item.is_read).length ?? 0;
+
   // Fetch store settings for Owner
   useEffect(() => {
     if (isOwner) {
@@ -64,6 +99,13 @@ export default function Profile() {
     }
   }, [user, isOwner]);
 
+  // The success note goes away by itself
+  useEffect(() => {
+    if (!showToast) return;
+    const timer = setTimeout(() => setShowToast(false), 3000);
+    return () => clearTimeout(timer);
+  }, [showToast]);
+
   // `phoneToSave` is null when the saved phone must stay untouched (it only changes through the SMS flow)
   const handleSavePersonalProfile = async (phoneToSave: string | null) => {
     try {
@@ -78,16 +120,16 @@ export default function Profile() {
       updateUser(fields);
 
       setDraft(null);
+      notificationOccurred('success');
       setShowToast(true);
-      setTimeout(() => setShowToast(false), 3000);
     } catch (err) {
       logApiError('Failed to update profile:', err);
       const phoneMessage = getApiFieldError(err, 'phone');
       if (phoneMessage) {
-        hapticFeedback('error');
+        notificationOccurred('error');
         setPhoneError(phoneMessage);
       } else {
-        alert(language === 'uz' ? 'Profilni saqlashda xatolik yuz berdi.' : 'Ошибка при сохранении профиля.');
+        void showAlert(uz ? 'Profilni saqlashda xatolik yuz berdi.' : 'Ошибка при сохранении профиля.');
       }
     } finally {
       setIsSaving(false);
@@ -107,10 +149,10 @@ export default function Profile() {
     // SMS verification is on: the server only accepts a new phone that went through the SMS flow
     const change = classifyPhoneChange(phone, user?.phone);
     if (change.kind === 'invalid' || change.kind === 'cleared') {
-      hapticFeedback('error');
+      notificationOccurred('error');
       setPhoneError(change.kind === 'invalid'
-        ? (language === 'uz' ? 'Telefon raqami +998 bilan boshlanib, 9 ta raqamdan iborat bo\'lishi kerak.' : 'Номер телефона должен начинаться с +998 и содержать 9 цифр.')
-        : (language === 'uz' ? 'Tasdiqlangan telefon raqamini o\'chirib bo\'lmaydi.' : 'Подтверждённый номер телефона нельзя удалить.'));
+        ? (uz ? 'Telefon raqami +998 bilan boshlanib, 9 ta raqamdan iborat bo\'lishi kerak.' : 'Номер телефона должен начинаться с +998 и содержать 9 цифр.')
+        : (uz ? 'Tasdiqlangan telefon raqamini o\'chirib bo\'lmaydi.' : 'Подтверждённый номер телефона нельзя удалить.'));
       return;
     }
     if (change.kind === 'changed') {
@@ -120,16 +162,33 @@ export default function Profile() {
     await handleSavePersonalProfile(null);
   };
 
+  // While editing, saving is the one action of the screen
+  useMainButton({
+    text: uz ? 'Saqlash' : 'Сохранить',
+    onClick: () => void handleSave(),
+    progress: isSaving,
+    visible: isEditing,
+  });
+
+  const title = isOwner
+    ? (uz ? 'Do\'kon profili' : 'Профиль магазина')
+    : (uz ? 'Mening profilim' : language === 'ru' ? 'Мой профиль' : 'My Profile');
+
   if (isOwner && storeLoading && !storeInfo) {
     return (
-      <div className="flex justify-center items-center min-h-screen bg-bg">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <div className="flex flex-col gap-4 px-4 pt-2" role="status" aria-label={uz ? 'Yuklanmoqda' : 'Загрузка'}>
+        <PageHeader title={title} />
+        <Skeleton className="h-36 rounded-card" />
+        <Skeleton className="h-64 rounded-card" />
       </div>
     );
   }
 
+  const roleLabel = user?.role === 'courier' ? (uz ? 'Kuryer' : 'Курьер') : user?.role === 'manager' ? (uz ? 'Menejer' : 'Менеджер') : user?.role === 'super_admin' ? 'Superadmin' : null;
+  const readOnlyLook = !isEditing && 'border-transparent text-fg';
+
   return (
-    <div className="p-4 flex flex-col gap-6 min-h-screen pb-24">
+    <div className="flex flex-col gap-4 px-4 pt-2">
       {verifyingPhone && (
         <PhoneVerificationModal
           initialPhone={verifyingPhone}
@@ -143,238 +202,161 @@ export default function Profile() {
         />
       )}
 
-      {/* Toast Alert */}
+      {/* Saved note */}
       {showToast && (
-        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 w-11/12 max-w-xs animate-fade-in-up">
-          <div className="bg-emerald-500 text-white px-4 py-3 rounded-2xl shadow-lg text-xs font-bold text-center border border-emerald-400/20">
-            {language === 'uz' ? 'Sozlamalar muvaffaqiyatli saqlandi! 🎉' : 'Настройки успешно сохранены! 🎉'}
-          </div>
+        <div role="status" className="bottom-dock fixed inset-x-4 z-50 mx-auto max-w-sm animate-fade-in-up rounded-card bg-success px-4 py-3 text-center text-body font-bold text-on-success shadow-lg">
+          {uz ? 'Sozlamalar muvaffaqiyatli saqlandi' : 'Настройки успешно сохранены'}
         </div>
       )}
 
-      <header className="flex justify-between items-center pb-2 border-b border-hint/10">
-        <h1 className="text-2xl font-bold text-fg">
-          {isOwner 
-            ? (language === 'uz' ? 'Do\'kon profili' : 'Профиль магазина')
-            : (language === 'uz' ? 'Mening profilim' : language === 'ru' ? 'Мой профиль' : 'My Profile')}
-        </h1>
-        <button
-          onClick={() => { hapticFeedback('light'); navigate('/notifications'); }}
-          className="w-10 h-10 rounded-2xl bg-secondary border border-white/5 flex items-center justify-center text-fg active:scale-95 transition relative shrink-0 shadow-sm"
-        >
-          <Bell className="w-4.5 h-4.5" />
-          <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-rose-500 rounded-full border-2 border-secondary"></span>
-        </button>
-      </header>
+      <PageHeader
+        title={title}
+        action={
+          <span className="relative">
+            <IconButton
+              icon={Bell}
+              variant="surface"
+              label={unread > 0 ? `${uz ? 'Bildirishnomalar' : 'Уведомления'}: ${unread}` : uz ? 'Bildirishnomalar' : 'Уведомления'}
+              onClick={() => { hapticFeedback('light'); navigate('/notifications'); }}
+            />
+            {unread > 0 && <span aria-hidden="true" className="absolute right-2 top-2 size-2.5 rounded-full bg-danger ring-2 ring-surface" />}
+          </span>
+        }
+      />
 
-      {/* Header Cards (Store Profile or Customer Card) */}
+      {/* Header card (store profile or the person) */}
       {isOwner ? (
-        <div className="flex flex-col gap-4">
-          {/* Store Brand/Banner Card */}
+        <div className="flex flex-col gap-2">
           <div className="relative">
-            <div className="w-full h-36 bg-secondary border border-white/5 rounded-[24px] overflow-hidden flex items-center justify-center relative shadow-sm">
+            <div className="flex h-36 w-full items-center justify-center overflow-hidden rounded-card border border-line bg-surface-2 text-footnote text-fg-muted">
               {storeInfo?.banner ? (
-                <img 
-                  src={storeInfo.banner.startsWith('http') ? storeInfo.banner : `/storage/${storeInfo.banner}`} 
-                  alt="Banner" 
-                  className="w-full h-full object-cover" 
-                />
+                <img src={storageUrl(storeInfo.banner)} alt="Banner" className="size-full object-cover" />
               ) : (
-                <span className="text-hint/30 text-[10px] font-bold uppercase tracking-wider">Muqova rasmi (Banner)</span>
+                <span>{uz ? "Muqova rasmi yo'q" : 'Нет обложки'}</span>
               )}
             </div>
             {/* Logo positioning */}
-            <div className="absolute -bottom-6 left-6 w-16 h-16 rounded-full bg-secondary border-2 border-bg shadow-lg flex items-center justify-center overflow-hidden">
+            <div className="absolute -bottom-7 left-4 flex size-16 items-center justify-center overflow-hidden rounded-full border-2 border-page bg-surface text-fg-muted shadow">
               {storeInfo?.logo ? (
-                <img 
-                  src={storeInfo.logo.startsWith('http') ? storeInfo.logo : `/storage/${storeInfo.logo}`} 
-                  alt="Logo" 
-                  className="w-full h-full object-cover" 
-                />
+                <img src={storageUrl(storeInfo.logo)} alt="Logo" className="size-full object-cover" />
               ) : (
-                <span className="text-xl">🏪</span>
+                <Store aria-hidden="true" className="size-7" />
               )}
             </div>
           </div>
 
-          <div className="pt-4 px-2 flex justify-between items-start">
-            <div>
-              <h2 className="text-xl font-black text-fg">{storeInfo?.name || 'Do\'kon'}</h2>
-              <span className="text-[10px] text-hint font-medium">ID: #{storeInfo?.id}</span>
+          <div className="flex items-start justify-between gap-3 px-1 pt-8">
+            <div className="min-w-0">
+              <h2 className="truncate text-title font-bold text-fg">{storeInfo?.name || (uz ? "Do'kon" : 'Магазин')}</h2>
+              {storeInfo?.id !== undefined && <span className="text-footnote text-fg-muted">ID: #{storeInfo.id}</span>}
             </div>
-            <div className="flex flex-col items-end gap-1">
-              {storeInfo?.status === 'active' && (
-                <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider">
-                  {language === 'uz' ? 'Faol' : 'Активно'}
-                </span>
-              )}
-              {storeInfo?.status === 'payment_required' && (
-                <span className="bg-rose-500/10 text-rose-400 border border-rose-500/20 text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider animate-pulse">
-                  {language === 'uz' ? 'To\'lov kutilmoqda' : 'Требуется оплата'}
-                </span>
-              )}
-              {storeInfo?.status === 'suspended' && (
-                <span className="bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider">
-                  {language === 'uz' ? 'Muzlatilgan' : 'Приостановлен'}
-                </span>
-              )}
-            </div>
+            <StoreStatusPill status={storeInfo?.status} />
           </div>
         </div>
       ) : (
-        /* Personal Profile Card */
-        <div className="bg-secondary p-5 rounded-3xl flex flex-col items-center text-center shadow-sm border border-hint/5 relative overflow-hidden">
-          {user?.role === 'courier' && (
-            <div className="absolute top-3 right-3 bg-purple-500/10 text-purple-500 text-[9px] font-black px-2.5 py-0.5 rounded-full border border-purple-500/20">
-              {language === 'uz' ? '🚴 KURYER' : language === 'ru' ? '🚴 КУРЬЕР' : '🚴 COURIER'}
-            </div>
-          )}
-          <div className="w-16 h-16 bg-primary/10 border border-primary/20 rounded-full flex items-center justify-center text-primary text-2xl font-black mb-3">
+        <Card className="flex flex-col items-center gap-1 text-center">
+          <span className="flex size-16 items-center justify-center rounded-full bg-brand-soft text-title font-bold text-brand-soft-fg">
             {name ? name.charAt(0).toUpperCase() : 'U'}
-          </div>
-          <h3 className="font-bold text-fg text-lg mb-0.5">{name || 'Foydalanuvchi'}</h3>
-          <p className="text-xs text-hint">{telegram || '@telegram_user'}</p>
-        </div>
+          </span>
+          <h2 className="mt-2 text-headline font-bold text-fg">{name || (uz ? 'Foydalanuvchi' : 'Пользователь')}</h2>
+          {telegram && <p className="text-footnote text-fg-muted">{telegram}</p>}
+          {roleLabel && (
+            <Pill tone="brand" icon={user?.role === 'courier' ? Bike : ShieldCheck} className="mt-1">
+              {roleLabel}
+            </Pill>
+          )}
+        </Card>
       )}
 
-      {/* Form Fields Section */}
-      <div className="bg-secondary p-5 rounded-3xl flex flex-col gap-4 border border-hint/5">
-        <div className="flex flex-col gap-1.5">
-          <label className="text-[10px] uppercase font-black text-hint tracking-wider flex items-center gap-1">
-            <UserIcon className="w-3.5 h-3.5 text-primary" />
-            {language === 'uz' ? 'Foydalanuvchi ismi' : 'Имя пользователя'}
-          </label>
-          <input
-            type="text"
-            disabled={!isEditing}
-            value={name}
-            onChange={(e) => setDraft((current) => current && { ...current, name: e.target.value })}
-            className="w-full px-4 py-3 rounded-2xl bg-bg border border-hint/15 font-bold text-xs text-fg outline-none focus:border-primary disabled:opacity-75"
-          />
-        </div>
-
-        <div className="flex flex-col gap-1.5">
-          <label className="text-[10px] uppercase font-black text-hint tracking-wider flex items-center gap-1">
-            <Phone className="w-3.5 h-3.5 text-primary" />
-            {language === 'uz' ? 'Telefon raqam' : 'Номер телефона'}
-          </label>
-          <input
-            type="text"
-            disabled={!isEditing}
-            placeholder="+998 (90) 123-45-67"
-            value={phone}
-            onChange={(e) => { setDraft((current) => current && { ...current, phone: e.target.value }); setPhoneError(''); }}
-            className="w-full px-4 py-3 rounded-2xl bg-bg border border-hint/15 font-bold text-xs text-fg outline-none focus:border-primary disabled:opacity-75"
-          />
-          {phoneError ? (
-            <p className="text-[10px] text-rose-500 font-bold pl-1">{phoneError}</p>
-          ) : isEditing && smsVerificationRequired && (
-            <p className="text-[10px] text-hint font-medium pl-1">
-              {language === 'uz' ? 'Yangi raqam SMS kod orqali tasdiqlanadi' : 'Новый номер будет подтверждён по SMS'}
-            </p>
+      {/* Form fields */}
+      <Card className="flex flex-col gap-4">
+        <Field label={uz ? 'Foydalanuvchi ismi' : 'Имя пользователя'}>
+          {(props) => (
+            <input
+              {...props}
+              type="text"
+              readOnly={!isEditing}
+              value={name}
+              onChange={(e) => setDraft((current) => current && { ...current, name: e.target.value })}
+              className={cx(fieldClass, readOnlyLook)}
+            />
           )}
-        </div>
+        </Field>
+
+        <Field
+          label={uz ? 'Telefon raqam' : 'Номер телефона'}
+          error={phoneError || undefined}
+          hint={isEditing && smsVerificationRequired ? (uz ? 'Yangi raqam SMS kod orqali tasdiqlanadi' : 'Новый номер будет подтверждён по SMS') : undefined}
+        >
+          {(props) => (
+            <input
+              {...props}
+              type="tel"
+              readOnly={!isEditing}
+              placeholder="+998 (90) 123-45-67"
+              value={phone}
+              onChange={(e) => { setDraft((current) => current && { ...current, phone: e.target.value }); setPhoneError(''); }}
+              className={cx(fieldClass, readOnlyLook)}
+            />
+          )}
+        </Field>
 
         {!isOwner && (
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] uppercase font-black text-hint tracking-wider flex items-center gap-1">
-              <MapPin className="w-3.5 h-3.5 text-primary" />
-              {language === 'uz' ? 'Yetkazish manzili' : 'Адрес доставки'}
-            </label>
-            <textarea
-              disabled={!isEditing}
-              placeholder={language === 'uz' ? 'Toshkent sh., Chilonzor tumani...' : 'Ташкент, Чиланзарский район...'}
-              value={address}
-              onChange={(e) => setDraft((current) => current && { ...current, address: e.target.value })}
-              className="w-full px-4 py-3 rounded-2xl bg-bg border border-hint/15 font-bold text-xs text-fg outline-none focus:border-primary disabled:opacity-75 h-20 resize-none leading-relaxed"
-            />
-          </div>
+          <Field label={uz ? 'Yetkazish manzili' : 'Адрес доставки'}>
+            {(props) => (
+              <textarea
+                {...props}
+                readOnly={!isEditing}
+                placeholder={uz ? 'Toshkent sh., Chilonzor tumani...' : 'Ташкент, Чиланзарский район...'}
+                value={address}
+                onChange={(e) => setDraft((current) => current && { ...current, address: e.target.value })}
+                className={cx(fieldClass, readOnlyLook, 'h-20 resize-none')}
+              />
+            )}
+          </Field>
         )}
 
-        <div className="flex flex-col gap-1.5">
-          <label className="text-[10px] uppercase font-black text-hint tracking-wider flex items-center gap-1">
-            <Globe className="w-3.5 h-3.5 text-primary" />
-            Telegram
-          </label>
-          <input
-            type="text"
-            disabled={true}
-            value={telegram}
-            className="w-full px-4 py-3 rounded-2xl bg-bg border border-hint/15 font-bold text-xs text-fg outline-none opacity-60"
-          />
-        </div>
+        {telegram && (
+          <Field label="Telegram">
+            {(props) => <input {...props} type="text" disabled value={telegram} className={fieldClass} />}
+          </Field>
+        )}
 
-        {/* Dynamic App Language Dropdown */}
-        <div className="flex flex-col gap-1.5">
-          <label className="text-[10px] uppercase font-black text-hint tracking-wider flex items-center gap-1">
-            <Globe className="w-3.5 h-3.5 text-primary" />
-            {language === 'uz' ? 'Ilova tili' : language === 'ru' ? 'Язык приложения' : 'App Language'}
-          </label>
-          <div className="relative">
+        {/* App language */}
+        <Field label={uz ? 'Ilova tili' : language === 'ru' ? 'Язык приложения' : 'App language'}>
+          {(props) => (
             <select
+              {...props}
               value={language}
-              onChange={(e) => { hapticFeedback('light'); if (isLanguage(e.target.value)) setLanguage(e.target.value); }}
-              className="w-full px-4 py-3 rounded-2xl bg-bg border border-hint/15 font-bold text-xs text-fg outline-none focus:border-primary appearance-none cursor-pointer"
+              onChange={(e) => { selectionChanged(); if (isLanguage(e.target.value)) setLanguage(e.target.value); }}
+              className={cx(fieldClass, 'cursor-pointer')}
             >
               <option value="uz">O'zbekcha (UZ)</option>
               <option value="ru">Русский (RU)</option>
               <option value="en">English (EN)</option>
             </select>
-            <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-hint font-bold text-[10px]">
-              ▼
-            </div>
-          </div>
-        </div>
-
-        <div className="pt-2">
-          {isEditing ? (
-            <button
-              onClick={handleSave}
-              disabled={isSaving}
-              className="w-full bg-primary text-on-brand font-extrabold text-xs py-3.5 rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-all shadow-md shadow-primary/20 disabled:opacity-75"
-            >
-              {isSaving ? (
-                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-              ) : (
-                <Save className="w-4 h-4" />
-              )}
-              <span>{language === 'uz' ? 'Saqlash' : 'Сохранить'}</span>
-            </button>
-          ) : (
-            <button
-              onClick={() => { hapticFeedback('light'); setDraft({ name, phone, address }); }}
-              className="w-full bg-primary/10 border border-primary/20 text-primary font-extrabold text-xs py-3.5 rounded-2xl active:scale-95 transition-all"
-            >
-              {language === 'uz' ? 'Tahrirlash' : 'Редактировать'}
-            </button>
           )}
-        </div>
-      </div>
+        </Field>
+
+        {isEditing ? (
+          <Button variant="secondary" onClick={() => { setDraft(null); setPhoneError(''); }} disabled={isSaving} fullWidth>
+            {uz ? 'Bekor qilish' : 'Отмена'}
+          </Button>
+        ) : (
+          <Button variant="secondary" onClick={() => { hapticFeedback('light'); setDraft({ name, phone, address }); }} fullWidth>
+            {uz ? 'Tahrirlash' : 'Редактировать'}
+          </Button>
+        )}
+      </Card>
 
       {user?.role === 'owner' && (
-        <div className="bg-secondary p-5 rounded-3xl flex flex-col gap-3 border border-hint/5">
-          <h4 className="text-[10px] font-black uppercase tracking-wider pl-1 text-hint">
-            {language === 'uz' ? 'Do\'kon Sozlamalari' : 'Настройки магазина'}
-          </h4>
-          <button
-            onClick={() => { hapticFeedback('light'); navigate('/admin/payments'); }}
-            className="w-full bg-primary/10 border border-primary/20 text-primary font-extrabold text-xs py-3.5 rounded-2xl active:scale-95 transition-all text-center"
-          >
-            {language === 'uz' ? 'Balans va To\'lovlar 💳' : 'Баланс и Платежи 💳'}
-          </button>
-          <button
-            onClick={() => { hapticFeedback('light'); navigate('/admin/settings'); }}
-            className="w-full bg-primary/10 border border-primary/20 text-primary font-extrabold text-xs py-3.5 rounded-2xl active:scale-95 transition-all text-center"
-          >
-            {language === 'uz' ? 'Tizim va Ish vaqti Sozlamalari ⚙️' : 'Настройки Системы и Часов ⚙️'}
-          </button>
-          <button
-            onClick={() => { hapticFeedback('light'); navigate('/complaints'); }}
-            className="w-full bg-primary/10 border border-primary/20 text-primary font-extrabold text-xs py-3.5 rounded-2xl active:scale-95 transition-all text-center"
-          >
-            {language === 'uz' ? 'Shikoyatlar va E\'tirozlar ⚠️' : 'Жалобы и Споры ⚠️'}
-          </button>
-        </div>
+        <Section title={uz ? "Do'kon sozlamalari" : 'Настройки магазина'}>
+          <Card padded={false} className="divide-y divide-line overflow-hidden">
+            <LinkRow icon={CreditCard} label={uz ? "Balans va to'lovlar" : 'Баланс и платежи'} onClick={() => { hapticFeedback('light'); navigate('/admin/payments'); }} />
+            <LinkRow icon={Settings} label={uz ? 'Tizim va ish vaqti sozlamalari' : 'Настройки системы и часов'} onClick={() => { hapticFeedback('light'); navigate('/admin/settings'); }} />
+            <LinkRow icon={TriangleAlert} label={uz ? "Shikoyatlar va e'tirozlar" : 'Жалобы и споры'} onClick={() => { hapticFeedback('light'); navigate('/complaints'); }} />
+          </Card>
+        </Section>
       )}
     </div>
   );

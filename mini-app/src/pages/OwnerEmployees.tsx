@@ -1,10 +1,16 @@
-import React, { useState, useEffect } from 'react';
-import { Users, UserPlus, Trash2, Shield, Share2, Copy, Check, MapPin } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Users, UserPlus, Trash2, Shield, Share2, Copy, Check } from 'lucide-react';
 import { hapticFeedback } from '../lib/telegram';
+import { notificationOccurred } from '../lib/twa';
+import { showAlert, showConfirm } from '../lib/dialogs';
 import api from '../services/api';
 import { useAuthStore } from '../store/authStore';
 import { getApiErrorMessage, getApiFieldError, logApiError } from '../lib/apiError';
-import { FullScreenLoader } from '../components/Feedback';
+import { Button, Card, EmptyState, IconButton, InlineError, PageHeader, Section } from '../components/ui';
+import { Field } from '../components/staff/Field';
+import { fieldClass } from '../components/staff/fieldStyles';
+import { CardSkeletons } from '../components/staff/Skeleton';
+import { SegmentedControl } from '../components/staff/SegmentedControl';
 import type { ApiResponse, Branch, Employee, EmployeeInvite } from '../types';
 
 const NO_BRANCHES: Branch[] = [];
@@ -23,9 +29,11 @@ export default function OwnerEmployees() {
 
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const copiedTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [newRole, setNewRole] = useState<'manager' | 'courier'>('manager');
   const [newName, setNewName] = useState('');
   const [chosenBranchId, setChosenBranchId] = useState<string>('');
@@ -35,6 +43,9 @@ export default function OwnerEmployees() {
   const [reloadCount, setReloadCount] = useState(0);
   const refreshEmployees = () => setReloadCount((count) => count + 1);
 
+  // The "Nusxalandi" timer must not outlive the screen
+  useEffect(() => () => clearTimeout(copiedTimer.current), []);
+
   useEffect(() => {
     let cancelled = false;
     const fetchEmployees = async () => {
@@ -42,9 +53,11 @@ export default function OwnerEmployees() {
         const res = await api.get<ApiResponse<Employee[]>>('/owner/employees');
         if (res.data.success && !cancelled) {
           setEmployees(res.data.data);
+          setLoadFailed(false);
         }
       } catch (err) {
         logApiError('Failed to load employees:', err);
+        if (!cancelled) setLoadFailed(true);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -58,7 +71,7 @@ export default function OwnerEmployees() {
   const handleGenerateInvite = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName.trim()) return;
-    
+
     hapticFeedback('medium');
     setGenerating(true);
     try {
@@ -73,20 +86,25 @@ export default function OwnerEmployees() {
         setNewName('');
       }
     } catch (err) {
-      alert(getApiErrorMessage(err) || 'Xatolik yuz berdi');
+      void showAlert(getApiErrorMessage(err) || 'Xatolik yuz berdi');
     } finally {
       setGenerating(false);
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!window.confirm("Rostdan ham bu xodimni o'chirmoqchimisiz?")) return;
+  const handleDelete = async (employee: Employee) => {
+    const confirmed = await showConfirm(`${employee.name} xodimini o'chirmoqchimisiz?`, {
+      title: "Xodimni o'chirish",
+      confirmText: "O'chirish",
+      destructive: true,
+    });
+    if (!confirmed) return;
     hapticFeedback('heavy');
     try {
-      await api.delete(`/owner/employees/${id}`);
+      await api.delete(`/owner/employees/${employee.id}`);
       refreshEmployees();
     } catch {
-      alert('O\'chirishda xatolik yuz berdi');
+      void showAlert("O'chirishda xatolik yuz berdi");
     }
   };
 
@@ -102,7 +120,7 @@ export default function OwnerEmployees() {
         refreshEmployees();
       }
     } catch (err) {
-      alert(getApiFieldError(err, 'branch_id') || getApiErrorMessage(err) || 'Filialni o\'zgartirishda xatolik yuz berdi');
+      void showAlert(getApiFieldError(err, 'branch_id') || getApiErrorMessage(err) || 'Filialni o\'zgartirishda xatolik yuz berdi');
     }
   };
 
@@ -110,8 +128,9 @@ export default function OwnerEmployees() {
     if (inviteLink) {
       navigator.clipboard.writeText(inviteLink);
       setCopied(true);
-      hapticFeedback('success');
-      setTimeout(() => setCopied(false), 2000);
+      notificationOccurred('success');
+      clearTimeout(copiedTimer.current);
+      copiedTimer.current = setTimeout(() => setCopied(false), 2000);
     }
   };
 
@@ -123,177 +142,154 @@ export default function OwnerEmployees() {
     }
   };
 
-  if (loading) return <FullScreenLoader message="Xodimlar yuklanmoqda..." />;
+  const subtitle = loading || loadFailed ? undefined : `Jami ${employees.length} ta xodim`;
+
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-4 px-4 pt-2">
+        <PageHeader title="Xodimlar" />
+        <CardSkeletons count={3} lines={2} label="Xodimlar yuklanmoqda" />
+      </div>
+    );
+  }
+
+  if (loadFailed && employees.length === 0) {
+    return (
+      <div className="flex flex-col gap-4 px-4 pt-2">
+        <PageHeader title="Xodimlar" />
+        <InlineError
+          onRetry={() => {
+            setLoading(true);
+            refreshEmployees();
+          }}
+        />
+      </div>
+    );
+  }
 
   return (
-    <div className="p-4 pb-24 animate-fade-in min-h-screen bg-gradient-to-br from-bg via-bg to-primary/5">
-      <div className="mb-6 pt-2">
-        <h1 className="text-3xl font-black text-text">
-          Xodimlar
-        </h1>
-        <p className="text-xs text-hint font-medium mt-1">Jami {employees.length} ta xodim</p>
-      </div>
+    <div className="flex flex-col gap-5 px-4 pt-2 animate-fade-in">
+      <PageHeader title="Xodimlar" subtitle={subtitle} />
 
-      <div className="relative mb-8">
-        <div className="absolute -inset-0.5 bg-gradient-to-br from-primary/10 to-accent/10 rounded-[28px] blur opacity-50"></div>
-        <div className="relative bg-secondary/80 backdrop-blur-xl p-5 rounded-[24px] border border-white/5 shadow-sm space-y-4">
-          <div className="flex items-center gap-2 text-primary mb-2">
-            <div className="p-1.5 bg-primary/10 rounded-lg">
-              <UserPlus className="w-5 h-5" />
-            </div>
-            <h2 className="font-extrabold text-sm uppercase tracking-wide">Yangi xodim qo'shish</h2>
-          </div>
+      <Card className="flex flex-col gap-4">
+        <h2 className="flex items-center gap-2 text-headline font-bold text-fg">
+          <span className="flex size-8 items-center justify-center rounded-control bg-brand-soft text-brand-soft-fg">
+            <UserPlus aria-hidden="true" className="size-5" />
+          </span>
+          Yangi xodim qo'shish
+        </h2>
 
-          {!inviteLink ? (
-            <form onSubmit={handleGenerateInvite} className="space-y-4">
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setNewRole('manager')}
-                  className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all border ${
-                    newRole === 'manager' 
-                      ? 'bg-primary text-on-brand border-primary shadow-md shadow-primary/20' 
-                      : 'bg-bg text-text border-white/5 active:bg-primary/10'
-                  }`}
-                >
-                  Menejer
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setNewRole('courier')}
-                  className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all border ${
-                    newRole === 'courier' 
-                      ? 'bg-primary text-on-brand border-primary shadow-md shadow-primary/20' 
-                      : 'bg-bg text-text border-white/5 active:bg-primary/10'
-                  }`}
-                >
-                  Kuryer
-                </button>
-              </div>
+        {!inviteLink ? (
+          <form onSubmit={handleGenerateInvite} className="flex flex-col gap-4">
+            <SegmentedControl
+              label="Lavozim"
+              segments={[
+                { value: 'manager', label: 'Menejer' },
+                { value: 'courier', label: 'Kuryer' },
+              ]}
+              value={newRole}
+              onChange={setNewRole}
+            />
 
-              <input
-                type="text"
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                placeholder="Xodimning ism-familiyasi"
-                className="w-full bg-bg/80 backdrop-blur-sm border border-white/5 rounded-2xl px-4 py-3.5 text-sm focus:border-primary/50 focus:bg-secondary outline-none font-bold shadow-inner transition-all placeholder:text-hint/40"
-                required
-              />
+            <Field label="Ism-familiyasi">
+              {(props) => (
+                <input
+                  {...props}
+                  type="text"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  placeholder="Xodimning ism-familiyasi"
+                  className={fieldClass}
+                  required
+                />
+              )}
+            </Field>
 
-              {branches.length > 0 && (
-                <div className="space-y-1.5">
-                  <label className="text-[10px] text-hint font-black uppercase tracking-wider pl-1">Filial Biriktirish</label>
-                  <select
-                    value={selectedBranchId}
-                    onChange={(e) => setChosenBranchId(e.target.value)}
-                    className="w-full bg-bg/80 backdrop-blur-sm border border-white/5 rounded-2xl px-4 py-3.5 text-sm focus:border-primary/50 focus:bg-secondary outline-none font-bold shadow-inner transition-all text-text"
-                  >
+            {branches.length > 0 && (
+              <Field label="Filialga biriktirish">
+                {(props) => (
+                  <select {...props} value={selectedBranchId} onChange={(e) => setChosenBranchId(e.target.value)} className={fieldClass}>
                     {branches.map((b) => (
                       <option key={b.id} value={b.id}>
                         {b.name}
                       </option>
                     ))}
                   </select>
-                </div>
-              )}
+                )}
+              </Field>
+            )}
 
-              <button
-                type="submit"
-                disabled={generating}
-                className="w-full py-3.5 bg-primary text-on-brand font-bold rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-transform"
-              >
-                {generating ? <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span> : 'Taklifnoma Yaratish'}
-              </button>
-            </form>
-          ) : (
-            <div className="bg-primary/10 border border-primary/20 rounded-2xl p-4 text-center animate-fade-in">
-              <p className="text-xs text-text font-medium mb-3">
-                Xodimga quyidagi havolani yuboring. U bosganda avtomatik ravishda ro'yxatdan o'tadi.
-              </p>
-              
-              <div className="flex gap-2 mb-3">
-                <button
-                  onClick={copyLink}
-                  className="flex-1 py-3 bg-bg text-text border border-white/5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 active:bg-primary/10"
-                >
-                  {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
-                  {copied ? 'Nusxalandi' : 'Nusxa olish'}
-                </button>
-                <button
-                  onClick={shareLink}
-                  className="flex-1 py-3 bg-primary text-on-brand rounded-xl font-bold text-xs flex items-center justify-center gap-2 active:scale-95 transition-transform shadow-md shadow-primary/20"
-                >
-                  <Share2 className="w-4 h-4" />
-                  Ulashish
-                </button>
-              </div>
-
-              <button
-                onClick={() => setInviteLink(null)}
-                className="text-[10px] text-hint font-bold uppercase underline underline-offset-2"
-              >
-                Yangi yaratish
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="space-y-3">
-        <h2 className="text-sm font-black text-fg mb-3 uppercase tracking-wider pl-1">Barcha Xodimlar</h2>
-        
-        {employees.length === 0 ? (
-          <div className="text-center py-10">
-            <Users className="w-12 h-12 text-hint/30 mx-auto mb-3" />
-            <p className="text-sm text-hint font-medium">Hozircha xodimlar yo'q</p>
-          </div>
+            <Button type="submit" size="lg" loading={generating} fullWidth>
+              Taklifnoma yaratish
+            </Button>
+          </form>
         ) : (
-          employees.map(emp => (
-            <div key={emp.id} className="bg-secondary/80 backdrop-blur-md rounded-[20px] p-3 border border-white/5 flex flex-col gap-2">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-bg/50 border border-white/5 flex items-center justify-center shrink-0">
-                  <Shield className={`w-5 h-5 ${emp.role === 'manager' ? 'text-amber-500' : 'text-blue-500'}`} />
-                </div>
-                
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-bold text-sm text-fg truncate">{emp.name}</h3>
-                  <p className="text-[10px] text-hint mt-0.5">
-                    {emp.role === 'manager' ? 'Menejer' : 'Kuryer'}
-                    {branchSuffix(emp)}
-                    {emp.telegram_invite_token ? ' • (Kutmoqda)' : ''}
-                  </p>
-                </div>
-
-                <button
-                  onClick={() => handleDelete(emp.id)}
-                  className="w-10 h-10 flex items-center justify-center shrink-0 bg-red-500/10 text-red-500 rounded-xl active:scale-90 transition-transform hover:bg-red-500 hover:text-white"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-
-              {branches.length > 0 && (
-                <div className="flex items-center gap-2 border-t border-white/5 pt-2 mt-1">
-                  <MapPin className="w-3.5 h-3.5 text-hint/50" />
-                  <span className="text-[10px] text-hint font-bold uppercase tracking-wider">Filialni o'zgartirish:</span>
-                  <select
-                    value={emp.branch_id || ''}
-                    onChange={(e) => handleTransferBranch(emp.id, e.target.value)}
-                    className="flex-1 text-[11px] bg-bg/50 border border-white/5 rounded-lg px-2 py-1 outline-none text-text font-bold"
-                  >
-                    <option value="" disabled>Filialsiz</option>
-                    {branches.map((b) => (
-                      <option key={b.id} value={b.id}>
-                        {b.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
+          <div className="flex flex-col gap-3 rounded-card bg-brand-soft p-4 text-brand-soft-fg animate-fade-in">
+            <p className="text-body">
+              Xodimga quyidagi havolani yuboring. U bosganda avtomatik ravishda ro'yxatdan o'tadi.
+            </p>
+            <div className="flex gap-2">
+              <Button variant="secondary" icon={copied ? Check : Copy} onClick={copyLink} className="flex-1">
+                {copied ? 'Nusxalandi' : 'Nusxa olish'}
+              </Button>
+              <Button icon={Share2} onClick={shareLink} className="flex-1">
+                Ulashish
+              </Button>
             </div>
-          ))
+            <Button variant="ghost" onClick={() => setInviteLink(null)}>
+              Yangi taklifnoma yaratish
+            </Button>
+          </div>
         )}
-      </div>
+      </Card>
+
+      <Section title="Barcha xodimlar">
+        {employees.length === 0 ? (
+          <EmptyState icon={Users} title="Hozircha xodimlar yo'q" text="Yuqoridan taklifnoma yaratib, xodim qo'shing." />
+        ) : (
+          <ul className="flex flex-col gap-3">
+            {employees.map((emp) => (
+              <li key={emp.id}>
+                <Card className="flex flex-col gap-3 p-3">
+                  <div className="flex items-center gap-3">
+                    <span
+                      className={`flex size-11 shrink-0 items-center justify-center rounded-control ${emp.role === 'manager' ? 'bg-brand-soft text-brand-soft-fg' : 'bg-info-soft text-info-soft-fg'}`}
+                    >
+                      <Shield aria-hidden="true" className="size-5" />
+                    </span>
+
+                    <div className="min-w-0 flex-1">
+                      <h3 className="truncate text-body font-bold text-fg">{emp.name}</h3>
+                      <p className="text-footnote text-fg-muted">
+                        {emp.role === 'manager' ? 'Menejer' : 'Kuryer'}
+                        {branchSuffix(emp)}
+                        {emp.telegram_invite_token ? ' • (Kutmoqda)' : ''}
+                      </p>
+                    </div>
+
+                    <IconButton icon={Trash2} variant="danger" label={`${emp.name} xodimini o'chirish`} onClick={() => handleDelete(emp)} />
+                  </div>
+
+                  {branches.length > 0 && (
+                    <Field label="Filialni o'zgartirish" className="border-t border-line pt-3">
+                      {(props) => (
+                        <select {...props} value={emp.branch_id || ''} onChange={(e) => handleTransferBranch(emp.id, e.target.value)} className={fieldClass}>
+                          <option value="" disabled>Filialsiz</option>
+                          {branches.map((b) => (
+                            <option key={b.id} value={b.id}>
+                              {b.name}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </Field>
+                  )}
+                </Card>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Section>
     </div>
   );
 }

@@ -1,34 +1,37 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
+import { Info } from 'lucide-react';
 import { useLanguageStore } from '../store/languageStore';
+import { Button } from './ui/Button';
 
 // Pieces shared by the screens that list orders in the two scopes of GET /orders (open ones, finished ones by page).
+// The customer's and the staff's screens look the same: the tokens follow the theme, so `variant` is kept only so
+// that callers need not change.
 
 type Variant = 'customer' | 'staff';
-
-const NOTICE_STYLE: Record<Variant, string> = {
-  customer: 'bg-amber-50 border border-amber-200 text-amber-700',
-  staff: 'bg-amber-500/10 border border-amber-500/20 text-amber-500',
-};
-
-const BUTTON_STYLE: Record<Variant, string> = {
-  customer: 'bg-white border border-slate-200 text-slate-700',
-  staff: 'bg-secondary border border-hint/10 text-fg',
-};
 
 const pick = (language: string, text: { uz: string; ru: string; en: string }) =>
   language === 'ru' ? text.ru : language === 'en' ? text.en : text.uz;
 
+function Notice({ children, variant }: { children: ReactNode; variant?: Variant }) {
+  return (
+    <div role="status" data-variant={variant} className="flex items-start gap-2 rounded-card bg-warning-soft px-4 py-3 text-footnote text-warning-soft-fg">
+      <Info aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+      <p>{children}</p>
+    </div>
+  );
+}
+
 // More open orders than the server sends in one answer (200): only the newest are on screen.
-export function TruncatedOrdersNotice({ variant = 'staff' }: { variant?: Variant }) {
+export function TruncatedOrdersNotice({ variant }: { variant?: Variant }) {
   const language = useLanguageStore((state) => state.language);
   return (
-    <div role="status" className={`${NOTICE_STYLE[variant]} rounded-2xl px-4 py-3 text-[11px] font-bold leading-relaxed`}>
+    <Notice variant={variant}>
       {pick(language, {
         uz: "Faol buyurtmalar juda ko'p: faqat eng yangi 200 tasi ko'rsatilmoqda.",
         ru: 'Активных заказов очень много: показаны только 200 самых новых.',
         en: 'There are a lot of open orders: only the newest 200 are shown.',
       })}
-    </div>
+    </Notice>
   );
 }
 
@@ -36,13 +39,13 @@ export function TruncatedOrdersNotice({ variant = 'staff' }: { variant?: Variant
 export function PartialPeriodNotice() {
   const language = useLanguageStore((state) => state.language);
   return (
-    <div role="status" className={`${NOTICE_STYLE.staff} rounded-2xl px-4 py-3 text-[11px] font-bold leading-relaxed`}>
+    <Notice>
       {pick(language, {
         uz: "Tanlangan davr uchun buyurtmalar to'liq yuklanmadi: ko'rsatkichlar eng yangi buyurtmalar bo'yicha hisoblangan.",
         ru: 'Заказы за выбранный период загружены не полностью: показатели посчитаны по самым новым заказам.',
         en: 'Orders for the selected period were not fully loaded: the figures cover the newest orders only.',
       })}
-    </div>
+    </Notice>
   );
 }
 
@@ -53,11 +56,11 @@ interface LoadMoreProps {
   isError: boolean; // loading the next page failed: no automatic retry, the button retries
   loadedCount: number; // changes whenever a page arrives, so the sentinel is watched again
   onLoadMore: () => void;
-  variant?: Variant;
+  variant?: Variant; // unused: both audiences look the same
 }
 
 // The end of a paginated list: "Ko'proq yuklash" loads the next page, and so does scrolling it into view.
-export function LoadMoreOrders({ hasNextPage, isFetchingNextPage, isFetching = false, isError, loadedCount, onLoadMore, variant = 'staff' }: LoadMoreProps) {
+export function LoadMoreOrders({ hasNextPage, isFetchingNextPage, isFetching = false, isError, loadedCount, onLoadMore }: LoadMoreProps) {
   const language = useLanguageStore((state) => state.language);
   const sentinel = useRef<HTMLDivElement>(null);
   const latestLoadMore = useRef(onLoadMore);
@@ -86,7 +89,7 @@ export function LoadMoreOrders({ hasNextPage, isFetchingNextPage, isFetching = f
   return (
     <div ref={sentinel} className="flex flex-col items-center gap-2 py-2">
       {isError && (
-        <p role="alert" className="text-[11px] font-bold text-red-500">
+        <p role="alert" className="text-footnote font-medium text-danger-soft-fg">
           {pick(language, {
             uz: "Keyingi buyurtmalarni yuklab bo'lmadi.",
             ru: 'Не удалось загрузить следующие заказы.',
@@ -94,16 +97,11 @@ export function LoadMoreOrders({ hasNextPage, isFetchingNextPage, isFetching = f
           })}
         </p>
       )}
-      <button
-        type="button"
-        onClick={onLoadMore}
-        disabled={isFetching || isFetchingNextPage}
-        className={`${BUTTON_STYLE[variant]} rounded-2xl px-5 py-3 text-xs font-black active:scale-95 transition disabled:opacity-60`}
-      >
+      <Button variant="secondary" onClick={onLoadMore} disabled={isFetching || isFetchingNextPage} loading={isFetchingNextPage}>
         {isFetchingNextPage
           ? pick(language, { uz: 'Yuklanmoqda...', ru: 'Загрузка...', en: 'Loading...' })
           : pick(language, { uz: "Ko'proq yuklash", ru: 'Загрузить ещё', en: 'Load more' })}
-      </button>
+      </Button>
     </div>
   );
 }

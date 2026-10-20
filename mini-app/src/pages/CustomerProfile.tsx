@@ -4,7 +4,8 @@ import { useAuthStore } from '../store/authStore';
 import { useAddressStore } from '../store/useAddressStore';
 import type { Address } from '../store/useAddressStore';
 import { hapticFeedback } from '../lib/telegram';
-import { Trash2, Bell, Pencil } from 'lucide-react';
+import { selectionChanged } from '../lib/twa';
+import { Bell, ChevronRight, Crown, LifeBuoy, MapPin, Pencil, Plus, Share2, Trash2, UserRound, X } from 'lucide-react';
 import api from '../services/api';
 import PhoneVerificationModal from '../components/PhoneVerificationModal';
 import AddressLocationField from '../features/address/AddressLocationField';
@@ -12,7 +13,12 @@ import { toLatLng } from '../features/address/coordinates';
 import type { AddressLocationValue } from '../features/address/types';
 import { classifyPhoneChange } from '../lib/phone';
 import { getApiFieldError, logApiError } from '../lib/apiError';
-import { formatNumber } from '../lib/format';
+import { formatMoney, formatNumber } from '../lib/format';
+import { showAlert, showConfirm } from '../lib/dialogs';
+import { useNotifications } from '../hooks/useNotifications';
+import { useCopy } from '../lib/customerCopy';
+import { useLanguageStore } from '../store/languageStore';
+import { Button, Card, IconButton, PageHeader, Section, cx } from '../components/ui';
 import { normalizeUser } from '../lib/user';
 import { fetchOrdersPage } from '../hooks/useOrders';
 import type { Amount, ApiResponse, AuthPayload } from '../types';
@@ -40,8 +46,17 @@ interface LocationsData {
 
 const EMPTY_LOCATION: AddressLocationValue = { address: '', lat: null, lng: null };
 
+// Text fields: 17px (no zoom on iOS), the placeholder in fg-subtle, one height
+const FIELD =
+  'w-full rounded-control border border-line bg-surface px-3 py-2.5 text-headline text-fg focus:border-brand focus:outline-none disabled:bg-surface-2 disabled:text-fg-muted';
+
 export default function CustomerProfile() {
   const navigate = useNavigate();
+  const c = useCopy();
+  const language = useLanguageStore((state) => state.language);
+  // The bell shows a count only while there are notifications the customer has not seen
+  const { data: notifications } = useNotifications();
+  const unreadCount = notifications?.filter((notification) => !notification.is_read).length ?? 0;
   const { user, updateUser, smsVerificationRequired, setSmsVerificationRequired } = useAuthStore();
   const { addresses, deleteAddress, addAddress, updateAddress, selectedAddressId, setSelectedAddressId } = useAddressStore();
 
@@ -109,8 +124,7 @@ export default function CustomerProfile() {
   }, [updateUser, setSmsVerificationRequired]);
 
   const username = user?.telegram_username ? `@${user.telegram_username}` : "";
-  const userFullName = user?.name || "Mijoz";
-  const initials = user?.name ? user.name.slice(0, 2).toUpperCase() : "MJ";
+  const userFullName = user?.name || c('profileGuest');
 
   // `phoneToSave` is null when the saved phone must stay untouched (it only changes through the SMS flow)
   const saveProfile = async (phoneToSave: string | null) => {
@@ -133,7 +147,7 @@ export default function CustomerProfile() {
       if (phoneMessage) {
         setPhoneError(phoneMessage);
       } else {
-        alert("Profilni saqlashda xatolik yuz berdi");
+        void showAlert(c('profileSaveError'));
       }
     } finally {
       setIsSavingProfile(false);
@@ -157,9 +171,7 @@ export default function CustomerProfile() {
     const change = classifyPhoneChange(editPhone, user?.phone);
     if (change.kind === 'invalid' || change.kind === 'cleared') {
       hapticFeedback('error');
-      setPhoneError(change.kind === 'invalid'
-        ? "Telefon raqami +998 bilan boshlanib, 9 ta raqamdan iborat bo'lishi kerak."
-        : "Tasdiqlangan telefon raqamini o'chirib bo'lmaydi.");
+      setPhoneError(change.kind === 'invalid' ? c('profilePhoneInvalid') : c('profilePhoneCleared'));
       return;
     }
     if (change.kind === 'changed') {
@@ -237,8 +249,9 @@ export default function CustomerProfile() {
     hapticFeedback('success');
   };
 
-  const handleDeleteAddress = (id: number) => {
+  const handleDeleteAddress = async (id: number) => {
     hapticFeedback('medium');
+    if (!(await showConfirm(c('addressDeleteConfirm'), { destructive: true, confirmText: c('addressDeleteAction') }))) return;
     if (editingAddressId === id) resetAddressForm();
     deleteAddress(id);
     hapticFeedback('success');
@@ -246,8 +259,13 @@ export default function CustomerProfile() {
 
   const formatBalance = (val: Amount | undefined) => formatNumber(val);
 
+  const initials = user?.name ? user.name.slice(0, 2).toUpperCase() : '';
+  const nameFieldId = 'profile-name';
+  const phoneFieldId = 'profile-phone';
+  const bellLabel = unreadCount > 0 ? c('profileNotificationsUnread', { n: unreadCount }) : c('profileNotifications');
+
   return (
-    <div className="p-4 space-y-4 pb-28 animate-fade-in bg-slate-50 min-h-screen">
+    <div className="flex flex-col gap-4 p-4 animate-fade-in">
       {verifyingPhone && (
         <PhoneVerificationModal
           initialPhone={verifyingPhone}
@@ -261,326 +279,310 @@ export default function CustomerProfile() {
         />
       )}
 
-      <header className="flex justify-between items-center pb-2">
-        <h1 className="text-xl font-black text-slate-800">
-          Mening profilim
-        </h1>
-        <button
-          onClick={() => { hapticFeedback('light'); navigate('/notifications'); }}
-          className="w-10 h-10 rounded-2xl bg-white border border-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-50 active:scale-95 transition relative shrink-0 shadow-sm"
-        >
-          <Bell className="w-4.5 h-4.5" />
-          <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-rose-500 rounded-full border border-white"></span>
-        </button>
-      </header>
+      <PageHeader
+        title={c('profileTitle')}
+        action={
+          <span className="relative">
+            <IconButton
+              icon={Bell}
+              label={bellLabel}
+              variant="surface"
+              onClick={() => {
+                hapticFeedback('light');
+                navigate('/notifications');
+              }}
+            />
+            {unreadCount > 0 && (
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1 text-caption font-bold text-on-danger"
+              >
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
+          </span>
+        }
+      />
 
-      <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.02)] flex flex-col gap-4">
+      <Card>
         {isEditingProfile ? (
-          <form onSubmit={handleUpdateProfile} className="space-y-3 w-full">
-            <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Profil ma'lumotlari</h4>
-            <div className="space-y-2">
-              <div>
-                <label className="text-[10px] text-slate-400 font-bold block mb-1">Ism familya:</label>
-                <input 
-                  type="text"
-                  required
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                  className="w-full text-xs bg-slate-500 border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:border-amber-500 font-semibold"
-                />
-              </div>
-              <div>
-                <label className="text-[10px] text-slate-400 font-bold block mb-1">Telefon raqam:</label>
-                <input 
-                  type="text"
-                  value={editPhone}
-                  onChange={(e) => { setEditPhone(e.target.value); setPhoneError(""); }}
-                  placeholder="+998901234567"
-                  className="w-full text-xs bg-slate-500 border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:border-amber-500 font-semibold"
-                />
-                {phoneError ? (
-                  <p className="text-[10px] text-rose-500 font-bold mt-1 pl-1">{phoneError}</p>
-                ) : smsVerificationRequired && (
-                  <p className="text-[10px] text-slate-400 font-semibold mt-1 pl-1">Yangi raqam SMS kod orqali tasdiqlanadi</p>
-                )}
-              </div>
+          <form onSubmit={handleUpdateProfile} className="flex flex-col gap-3">
+            <h2 className="text-headline font-bold text-fg">{c('profileInfo')}</h2>
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor={nameFieldId} className="text-footnote font-bold text-fg-muted">
+                {c('profileName')}
+              </label>
+              <input
+                id={nameFieldId}
+                type="text"
+                required
+                autoComplete="name"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                className={FIELD}
+              />
             </div>
-            <div className="flex gap-2 pt-2">
-              <button 
-                type="button"
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor={phoneFieldId} className="text-footnote font-bold text-fg-muted">
+                {c('profilePhone')}
+              </label>
+              <input
+                id={phoneFieldId}
+                type="tel"
+                autoComplete="tel"
+                value={editPhone}
+                onChange={(e) => {
+                  setEditPhone(e.target.value);
+                  setPhoneError('');
+                }}
+                placeholder="+998901234567"
+                aria-invalid={phoneError ? true : undefined}
+                className={FIELD}
+              />
+              {phoneError ? (
+                <p role="alert" className="text-footnote font-medium text-danger-soft-fg">
+                  {phoneError}
+                </p>
+              ) : (
+                smsVerificationRequired && <p className="text-footnote text-fg-muted">{c('profilePhoneHint')}</p>
+              )}
+            </div>
+            <div className="flex gap-2 pt-1 [&>*]:flex-1">
+              <Button
+                variant="secondary"
                 onClick={() => {
                   hapticFeedback('light');
                   setIsEditingProfile(false);
-                  setEditName(user?.name || "");
-                  setEditPhone(user?.phone || "");
+                  setEditName(user?.name || '');
+                  setEditPhone(user?.phone || '');
                 }}
-                className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs py-2.5 rounded-xl transition"
               >
-                Bekor qilish
-              </button>
-              <button 
-                type="submit"
-                disabled={isSavingProfile}
-                className="flex-1 bg-amber-500 hover:bg-amber-600 text-white font-black text-xs py-2.5 rounded-xl transition disabled:opacity-50"
-              >
-                {isSavingProfile ? "Saqlanmoqda..." : "Saqlash"}
-              </button>
+                {c('cancel')}
+              </Button>
+              <Button type="submit" loading={isSavingProfile}>
+                {isSavingProfile ? c('saving') : c('save')}
+              </Button>
             </div>
           </form>
         ) : (
-          <div className="flex items-center justify-between w-full">
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-3xl bg-amber-100 text-amber-700 font-black text-2xl flex items-center justify-center border-2 border-amber-300 shadow-sm">
-                {initials}
-              </div>
-              <div>
-                <h3 className="text-base font-black text-slate-800">{userFullName}</h3>
-                {username && <p className="text-xs text-slate-400 font-semibold">{username}</p>}
-                {user?.phone && (
-                  <p className="text-[10px] text-slate-500 font-bold mt-0.5">📞 {user.phone}</p>
-                )}
-                {completedOrdersCount >= 3 ? (
-                  <span className="inline-block bg-amber-50 text-amber-700 text-[9px] font-black tracking-wide px-2.5 py-0.5 rounded-full mt-1.5 border border-amber-200 shadow-sm uppercase">
-                    Premium Mijoz 👑
-                  </span>
-                ) : (
-                  <span className="inline-block bg-slate-100 text-slate-600 text-[9px] font-black tracking-wide px-2.5 py-0.5 rounded-full mt-1.5 border border-slate-200 shadow-sm uppercase">
-                    Faol Mijoz ⚡
-                  </span>
-                )}
-              </div>
+          <div className="flex items-center gap-3">
+            <div
+              aria-hidden="true"
+              className="flex size-16 shrink-0 items-center justify-center rounded-card bg-brand-soft text-title font-bold text-brand-soft-fg"
+            >
+              {initials || <UserRound className="size-8" />}
             </div>
-            <button 
+            <div className="min-w-0 flex-1">
+              <h2 className="break-words text-headline font-bold text-fg">{userFullName}</h2>
+              {username && <p className="select-text text-footnote text-fg-muted">{username}</p>}
+              {user?.phone && <p className="select-text text-footnote text-fg-muted">{user.phone}</p>}
+              {completedOrdersCount >= 3 && (
+                <span className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-brand-soft px-2.5 py-1 text-caption font-bold text-brand-soft-fg">
+                  <Crown aria-hidden="true" className="size-3.5" />
+                  {c('profilePremium')}
+                </span>
+              )}
+            </div>
+            <IconButton
+              icon={Pencil}
+              label={c('profileEdit')}
+              variant="brand"
               onClick={() => {
                 hapticFeedback('light');
                 setIsEditingProfile(true);
               }}
-              className="text-[10px] font-black text-amber-600 bg-amber-50 px-3 py-2 rounded-xl border border-amber-100 active:scale-95 transition"
-            >
-              Tahrirlash ✏️
-            </button>
+            />
           </div>
         )}
-      </div>
+      </Card>
 
       <div className="grid grid-cols-2 gap-3">
-        <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.02)]">
-          <span className="text-[9px] text-slate-400 font-black uppercase tracking-wider block">Keshbek Balans</span>
-          <h4 className="text-base font-black text-slate-800 mt-1">{formatBalance(user?.balance)} ball</h4>
-        </div>
-        <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.02)]">
-          <span className="text-[9px] text-slate-400 font-black uppercase tracking-wider block">Buyurtmalarim</span>
-          <h4 className="text-base font-black text-slate-800 mt-1">{completedOrdersCount}{hasMoreOrders ? '+' : ''} ta buyurtma</h4>
-        </div>
+        <Card>
+          <span className="block text-footnote text-fg-muted">{c('profileCashback')}</span>
+          <p className="mt-1 text-headline font-bold text-fg">{c('profilePoints', { n: formatBalance(user?.balance) })}</p>
+        </Card>
+        <Card>
+          <span className="block text-footnote text-fg-muted">{c('profileOrdersLabel')}</span>
+          <p className="mt-1 text-headline font-bold text-fg">
+            {c('profileOrdersCount', { n: `${completedOrdersCount}${hasMoreOrders ? '+' : ''}` })}
+          </p>
+        </Card>
       </div>
 
-      <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.02)] space-y-3.5">
-        <div className="flex justify-between items-center">
-          <h4 className="text-[10px] font-black uppercase tracking-wider text-slate-400">Manzillarim</h4>
-          <button 
-            onClick={handleToggleAddressForm}
-            className="text-[10px] font-black text-amber-600 bg-amber-50 px-2.5 py-1.5 rounded-xl border border-amber-100"
-          >
-            {isAdding ? "Yopish ✕" : "+ Yangi manzil"}
-          </button>
+      <Card className="flex flex-col gap-3">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-headline font-bold text-fg">{c('addressesTitle')}</h2>
+          <Button variant="secondary" icon={isAdding ? X : Plus} onClick={handleToggleAddressForm}>
+            {isAdding ? c('cancel') : c('addressNew')}
+          </Button>
         </div>
 
         {isAdding && (
-          <form onSubmit={handleSaveAddressSubmit} className="bg-slate-50 border border-slate-100 p-4 rounded-2xl space-y-3">
-            <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-wider">
-              {editingAddressId !== null ? "Manzilni tahrirlash" : "Yangi Manzil kiritish"}
-            </h4>
-            <input 
+          <form onSubmit={handleSaveAddressSubmit} className="flex flex-col gap-3 rounded-card bg-surface-2 p-4">
+            <h3 className="text-body font-bold text-fg">{editingAddressId !== null ? c('addressEditTitle') : c('addressNewTitle')}</h3>
+            <input
               type="text"
               required
+              aria-label={c('addressTitlePlaceholder')}
               value={addressTitle}
               onChange={(e) => setAddressTitle(e.target.value)}
-              placeholder="Sarlavha (masalan: Uyim, Ofis)"
-              className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:border-amber-500 font-semibold"
+              placeholder={c('addressTitlePlaceholder')}
+              className={FIELD}
             />
 
-            {/* Region Selector */}
             <select
               required
+              aria-label={c('addressRegion')}
               disabled={activeRegions.length === 1}
               value={regionId}
               onChange={(e) => {
                 const val = e.target.value;
-                setSelectedRegionId(val ? Number(val) : "");
-                setSelectedDistrictId("");
+                setSelectedRegionId(val ? Number(val) : '');
+                setSelectedDistrictId('');
               }}
-              className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:border-amber-500 font-semibold disabled:opacity-75 disabled:bg-slate-50 disabled:text-slate-500"
+              className={FIELD}
             >
-              {activeRegions.length > 1 && <option value="">-- Viloyatni tanlang --</option>}
+              {activeRegions.length > 1 && <option value="">{c('addressRegion')}</option>}
               {activeRegions.map((reg) => (
-                <option key={reg.id} value={reg.id}>{reg.name}</option>
+                <option key={reg.id} value={reg.id}>
+                  {reg.name}
+                </option>
               ))}
             </select>
 
-            {/* District Selector */}
             <select
               required
+              aria-label={c('addressDistrict')}
               disabled={!regionId || activeDistsForRegion.length === 1}
               value={districtId}
               onChange={(e) => {
                 const val = e.target.value;
-                setSelectedDistrictId(val ? Number(val) : "");
+                setSelectedDistrictId(val ? Number(val) : '');
               }}
-              className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:border-amber-500 font-semibold disabled:opacity-75 disabled:bg-slate-50 disabled:text-slate-500"
+              className={FIELD}
             >
-              {activeDistsForRegion.length > 1 && <option value="">-- Tumanni tanlang --</option>}
+              {activeDistsForRegion.length > 1 && <option value="">{c('addressDistrict')}</option>}
               {activeDistsForRegion.map((dist) => (
-                <option key={dist.id} value={dist.id}>{dist.name}</option>
+                <option key={dist.id} value={dist.id}>
+                  {dist.name}
+                </option>
               ))}
             </select>
 
             {/* Where exactly: find yourself, look an address up or drop a pin on the map */}
-            <AddressLocationField
-              key={editingAddressId ?? 'new'}
-              value={location}
-              onChange={patchLocation}
-              required
-            />
+            <AddressLocationField key={editingAddressId ?? 'new'} value={location} onChange={patchLocation} required />
 
-            <input 
+            <input
               type="text"
+              aria-label={c('addressApartment')}
               value={apartmentValue}
               onChange={(e) => setApartmentValue(e.target.value)}
-              placeholder="Xonadon/Ofis raqami"
-              className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:border-amber-500 font-semibold"
+              placeholder={c('addressApartment')}
+              className={FIELD}
             />
-            <input 
+            <input
               type="text"
+              aria-label={c('addressCourierNote')}
               value={commentValue}
               onChange={(e) => setCommentValue(e.target.value)}
-              placeholder="Kuryerga eslatma"
-              className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:border-amber-500 font-semibold"
+              placeholder={c('addressCourierNote')}
+              className={FIELD}
             />
-            <button 
-              type="submit"
-              disabled={!locationPoint}
-              className="w-full bg-amber-500 hover:bg-amber-600 text-white font-black text-xs py-2.5 rounded-xl transition disabled:opacity-40"
-            >
-              {editingAddressId !== null ? "O'zgarishlarni saqlash" : "Manzilni saqlash"}
-            </button>
-            {!locationPoint && (
-              <p className="text-[10px] text-center font-bold text-slate-400 -mt-1">Saqlash uchun xaritada joylashuvni belgilang</p>
-            )}
+            <Button type="submit" fullWidth disabled={!locationPoint}>
+              {editingAddressId !== null ? c('addressSaveChanges') : c('addressSave')}
+            </Button>
+            {!locationPoint && <p className="-mt-1 text-center text-footnote text-fg-muted">{c('addressPinHint')}</p>}
           </form>
         )}
 
-        <div className="space-y-2 text-xs">
-          {addresses.length === 0 && !isAdding && (
-             <p className="text-slate-400 text-xs italic">Sizda hali saqlangan manzillar yo'q</p>
-          )}
-          {addresses.map(addr => (
-            <div 
-              key={addr.id}
-              onClick={() => {
-                hapticFeedback('light');
-                setSelectedAddressId(addr.id);
-              }}
-              className={`p-3 rounded-2xl flex justify-between items-center gap-2 border ${
-                selectedAddressId === addr.id ? 'border-amber-500 bg-amber-50/20' : 'border-slate-100 bg-white'
-              }`}
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <span className="text-base">🏠</span>
-                <div className="text-left min-w-0">
-                  <p className="font-bold text-slate-800">{addr.title}</p>
-                  <p className="text-slate-400 text-[10px] mt-0.5">
-                    {addr.region_name ? `${addr.region_name}, ` : ''}
-                    {addr.district_name ? `${addr.district_name}, ` : ''}
-                    {addr.address}
-                  </p>
-                  {toLatLng(addr.lat, addr.lng) === null && (
-                    <p className="text-[9px] text-rose-500 font-black mt-1">📍 Xaritada belgilanmagan: buyurtma berish uchun tahrirlab, joylashuvni belgilang</p>
-                  )}
-                </div>
-              </div>
-              
-              <div className="flex items-center gap-1.5 shrink-0">
-                <button 
-                  type="button"
-                  aria-label="Manzilni tahrirlash"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleEditAddress(addr);
-                  }}
-                  className="p-1.5 bg-slate-50 hover:bg-amber-50 text-slate-400 hover:text-amber-600 rounded-lg transition"
-                >
-                  <Pencil className="w-4 h-4" />
-                </button>
-                <button 
-                  type="button"
-                  aria-label="Manzilni o'chirish"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDeleteAddress(addr.id);
-                  }}
-                  className="p-1.5 bg-slate-50 hover:bg-red-50 text-slate-400 hover:text-red-500 rounded-lg transition"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+        {addresses.length === 0 && !isAdding && <p className="text-footnote text-fg-muted">{c('addressNone')}</p>}
 
-      <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.02)] space-y-3.5">
-        <h4 className="text-[10px] font-black uppercase tracking-wider text-slate-400">Do'stlarni taklif qiling 👥</h4>
-        <div className="p-4 bg-amber-50/50 border border-amber-200 rounded-2xl text-slate-700 space-y-2">
-          <p className="text-[11px] font-semibold leading-relaxed">
-            Do'stingizni taklif qiling va uning birinchi muvaffaqiyatli buyurtmasidan so'ng hisobingizga <strong className="text-amber-600">5 000 so'm</strong> keshbek bonusga ega bo'ling!
-          </p>
+        <ul className="flex flex-col gap-2">
+          {addresses.map((addr) => {
+            const selected = selectedAddressId === addr.id;
+            return (
+              <li
+                key={addr.id}
+                className={cx(
+                  'flex items-center gap-1 rounded-card border py-1 pl-3 pr-1',
+                  selected ? 'border-brand bg-brand-soft' : 'border-line bg-surface',
+                )}
+              >
+                <button
+                  type="button"
+                  aria-pressed={selected}
+                  aria-label={`${c('addressSelect')}: ${addr.title}`}
+                  onClick={() => {
+                    selectionChanged();
+                    setSelectedAddressId(addr.id);
+                  }}
+                  className="flex min-h-11 min-w-0 flex-1 cursor-pointer items-center gap-3 py-1 text-left"
+                >
+                  <MapPin aria-hidden="true" className={cx('size-5 shrink-0', selected ? 'text-brand-soft-fg' : 'text-brand')} />
+                  <span className="min-w-0">
+                    <span className={cx('block text-body font-bold', selected ? 'text-brand-soft-fg' : 'text-fg')}>{addr.title}</span>
+                    <span className={cx('block break-words text-footnote', selected ? 'text-brand-soft-fg' : 'text-fg-muted')}>
+                      {addr.region_name ? `${addr.region_name}, ` : ''}
+                      {addr.district_name ? `${addr.district_name}, ` : ''}
+                      {addr.address}
+                    </span>
+                    {toLatLng(addr.lat, addr.lng) === null && (
+                      <span className="mt-1 block text-footnote font-medium text-danger-soft-fg">{c('addressNoPin')}</span>
+                    )}
+                  </span>
+                </button>
+                <IconButton icon={Pencil} label={c('addressEdit')} onClick={() => handleEditAddress(addr)} />
+                <IconButton icon={Trash2} label={c('addressDelete')} onClick={() => void handleDeleteAddress(addr.id)} />
+              </li>
+            );
+          })}
+        </ul>
+      </Card>
+
+      <Section title={c('inviteTitle')}>
+        <Card className="flex flex-col gap-3">
+          <p className="text-footnote text-fg">{c('inviteText', { amount: formatMoney(5000, language) })}</p>
           {user?.id && (
-            <div className="bg-white p-2.5 border border-slate-200 rounded-xl flex justify-between items-center text-xs font-bold">
-              <span className="text-slate-500 tracking-wider">rizqim_{user.id}</span>
-              <button 
+            <div className="flex items-center justify-between gap-3 rounded-control bg-surface-2 py-1 pl-3 pr-1">
+              <span className="select-text text-body font-medium text-fg-muted">rizqim_{user.id}</span>
+              <Button
+                variant="secondary"
+                icon={Share2}
                 onClick={() => {
                   hapticFeedback('success');
                   const botUsername = import.meta.env.VITE_BOT_USERNAME || 'rizqimbot';
                   const refLink = `https://t.me/${botUsername}?start=rizqim_${user.id}`;
-                  const text = encodeURIComponent("Rizqim dan ajoyib taomlarga buyurtma bering va keshbeklarga ega bo'ling!");
+                  const text = encodeURIComponent(c('inviteMessage'));
                   const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${text}`;
-                  
+
                   if (typeof window !== 'undefined' && window.Telegram?.WebApp) {
                     window.Telegram.WebApp.openTelegramLink(shareUrl);
                   } else {
                     window.open(shareUrl, '_blank');
                   }
                 }}
-                className="text-amber-600 hover:text-amber-700 bg-amber-50 px-2.5 py-1.5 rounded-lg border border-amber-200 transition"
               >
-                Ulashish
-              </button>
+                {c('inviteShare')}
+              </Button>
             </div>
           )}
-        </div>
-      </div>
+        </Card>
+      </Section>
 
-      <div className="bg-white rounded-3xl border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.02)] divide-y divide-slate-50 overflow-hidden text-xs font-medium text-slate-700">
-        <div className="p-4 hover:bg-slate-50 cursor-pointer flex justify-between items-center transition">
-          <span>Plastik kartalarim (Click/Payme)</span>
-          <span className="text-slate-400">▸</span>
-        </div>
-        <div 
-          onClick={() => { hapticFeedback('light'); navigate('/complaints'); }}
-          className="p-4 hover:bg-slate-50 cursor-pointer flex justify-between items-center transition"
+      <Card padded={false}>
+        <button
+          type="button"
+          onClick={() => {
+            hapticFeedback('light');
+            navigate('/complaints');
+          }}
+          className="flex min-h-14 w-full cursor-pointer items-center gap-3 rounded-card px-4 text-left text-body font-medium text-fg focus-visible:outline-2 focus-visible:outline-brand"
         >
-          <span>Qo'llab-quvvatlash xizmati (Shikoyatlar)</span>
-          <span className="text-slate-400">▸</span>
-        </div>
-        <div className="p-4 hover:bg-slate-50 cursor-pointer flex justify-between items-center text-rose-500 transition" onClick={() => {
-          if (typeof window !== 'undefined' && window.Telegram?.WebApp) {
-            window.Telegram.WebApp.close();
-          }
-        }}>
-          <span className="font-black">Tizimni yopish (TMA)</span>
-          <span>▸</span>
-        </div>
-      </div>
+          <LifeBuoy aria-hidden="true" className="size-5 shrink-0 text-brand" />
+          <span className="flex-1">{c('supportRow')}</span>
+          <ChevronRight aria-hidden="true" className="size-5 shrink-0 text-fg-muted" />
+        </button>
+      </Card>
     </div>
   );
 }

@@ -185,6 +185,9 @@ export class FakeApi {
     if (method === 'GET' && path === '/stores') return ok([this.storeListItem()])
     if (method === 'GET' && path === '/catalog') return this.catalog(query)
     if (method === 'GET' && path === '/couriers') return ok([])
+    // The unread badge of the home screen's bell: no notifications
+    if (method === 'GET' && path === '/notifications') return ok({ items: [], unread_count: 0, pagination: { current_page: 1, last_page: 1, per_page: 20, total: 0 } })
+    if (method === 'POST' && path === '/notifications/read') return ok(null)
     if (method === 'GET' && path === '/orders') return this.listOrders(query)
     if (method === 'POST' && path === '/orders') return this.placeOrder(body ?? {})
 

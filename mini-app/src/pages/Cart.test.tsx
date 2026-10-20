@@ -8,6 +8,7 @@ import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
 import { makeOrder, makeStore, makeUser } from '../test/factories';
 import type { BranchSummary, PaymentSettings, StoreListItem } from '../types';
+import { MainButtonHost } from '../components/ui/MainButtonHost';
 import Cart from './Cart';
 
 // The cart on a fake API: which payment methods and ways of getting the order it offers must follow what the server
@@ -54,6 +55,8 @@ async function renderCart(paymentSettings: unknown) {
     <QueryClientProvider client={queryClient}>
       <MemoryRouter>
         <Cart />
+        {/* Outside Telegram the checkout button (the MainButton) is drawn by the dock's host */}
+        <MainButtonHost />
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -61,18 +64,18 @@ async function renderCart(paymentSettings: unknown) {
 }
 
 const tab = (name: RegExp) => screen.getByRole('button', { name });
-const paymentTile = (name: RegExp) => screen.getByRole('button', { name });
-const queryPaymentTile = (name: RegExp) => screen.queryByRole('button', { name });
+const paymentTile = (name: RegExp) => screen.getByRole('radio', { name });
+const queryPaymentTile = (name: RegExp) => screen.queryByRole('radio', { name });
 const orderButton = () => screen.getByRole('button', { name: /^Buyurtma berish/ }) as HTMLButtonElement;
-const isSelected = (element: HTMLElement) => element.getAttribute('aria-pressed') === 'true';
+// A tab is pressed, a payment method (a radio) is checked
+const isSelected = (element: HTMLElement) => element.getAttribute('aria-pressed') === 'true' || element.getAttribute('aria-checked') === 'true';
 
-const DELIVERY = /^🛵 Yetkazib berish/;
-const PICKUP = /^🏃 Olib ketish/;
+const DELIVERY = /^Yetkazib berish/;
+const PICKUP = /^Olib ketish/;
 
 beforeEach(() => {
   queryClient = new QueryClient();
   vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
-  vi.spyOn(window, 'alert').mockImplementation(() => {});
 
   useAuthStore.getState().setAuth('token', makeUser({ balance: '0.00' }), makeStore(), false);
   useCartStore.setState({
@@ -266,5 +269,22 @@ describe('Cart: placing the order', () => {
     await flush();
 
     expect(queryClient.getQueryState(['orders', 'active', 'customer'])?.isInvalidated).toBe(false);
+  });
+});
+
+describe('Cart: the screen', () => {
+  it('shows the total in the checkout button (the MainButton stand-in)', async () => {
+    await renderCart(null);
+
+    expect(orderButton()).toHaveTextContent("Buyurtma berish · 35 000 so'm"); // 25 000 + 10 000 delivery
+  });
+
+  it('offers the catalog when the cart is empty, and has no checkout button', async () => {
+    useCartStore.setState({ items: [], storeName: '', storeAddress: '' });
+    await renderCart(null);
+
+    expect(screen.getByRole('heading', { name: "Savat bo'sh" })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: "Katalogga o'tish" })).toHaveAttribute('href', '/');
+    expect(screen.queryByRole('button', { name: /^Buyurtma berish/ })).not.toBeInTheDocument();
   });
 });

@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { Loader2, LocateFixed, Search } from 'lucide-react';
+import { CheckCircle2, LocateFixed, MapPin, Search } from 'lucide-react';
 import LazyMapPicker from '../../components/map/LazyMapPicker';
 import { roundCoordinate } from '../../components/map/geo';
 import { hapticFeedback } from '../../lib/telegram';
+import { Button, Spinner } from '../../components/ui';
+import { INPUT_CLASS } from '../../components/catalog/fieldStyles';
 import { reverseGeocode, searchAddress } from './geocodeApi';
 import { GeolocationError, getCurrentPosition } from './geolocation';
 import type { GeolocationFailure } from './geolocation';
@@ -184,15 +186,9 @@ export default function AddressLocationField({ value, onChange, fallbackCenter =
 
   return (
     <div className="flex flex-col gap-3">
-      <button
-        type="button"
-        onClick={handleLocate}
-        disabled={isLocating}
-        className="w-full py-3 bg-amber-500/10 text-amber-600 rounded-xl text-xs font-black flex items-center justify-center gap-2 border border-amber-500/20 hover:bg-amber-500/20 active:scale-95 transition-all disabled:opacity-50"
-      >
-        {isLocating ? <Loader2 className="w-4 h-4 animate-spin" /> : <LocateFixed className="w-4 h-4" />}
-        <span>{isLocating ? 'Aniqlanmoqda...' : 'Joylashuvimni aniqlash'}</span>
-      </button>
+      <Button type="button" variant="secondary" fullWidth icon={LocateFixed} loading={isLocating} onClick={handleLocate}>
+        {isLocating ? 'Aniqlanmoqda...' : 'Joylashuvimni aniqlash'}
+      </Button>
 
       <div className="flex gap-2">
         <input
@@ -215,29 +211,31 @@ export default function AddressLocationField({ value, onChange, fallbackCenter =
               void handleSearch();
             }
           }}
-          className="min-w-0 flex-1 select-text bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs outline-none focus:border-amber-500 transition-colors font-semibold"
+          className={`${INPUT_CLASS} flex-1 select-text`}
         />
         <button
           type="button"
           onClick={handleSearch}
           disabled={!canSearch}
           aria-label="Manzilni qidirish"
-          className="w-11 shrink-0 flex items-center justify-center bg-slate-800 text-white rounded-xl active:scale-95 transition disabled:opacity-30"
+          title="Manzilni qidirish"
+          className="flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-control bg-brand text-on-brand transition-transform focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-50 motion-safe:active:scale-95"
         >
-          {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+          {isSearching ? <Spinner /> : <Search aria-hidden="true" className="size-5" />}
         </button>
       </div>
 
       {results !== null && results.length > 0 && (
-        <ul className="bg-white border border-slate-200 rounded-xl divide-y divide-slate-100 overflow-hidden" aria-label="Topilgan manzillar">
+        <ul className="divide-y divide-line overflow-hidden rounded-control border border-line bg-surface" aria-label="Topilgan manzillar">
           {results.map((place) => (
             <li key={`${place.lat},${place.lng},${place.address}`}>
               <button
                 type="button"
                 onClick={() => handleSelectResult(place)}
-                className="w-full text-left px-3 py-2.5 text-[11px] font-semibold text-slate-700 hover:bg-amber-50 active:bg-amber-50 transition"
+                className="flex min-h-11 w-full cursor-pointer items-start gap-2 px-3 py-2.5 text-left text-footnote text-fg active:bg-brand-soft"
               >
-                📍 {place.address}
+                <MapPin aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-brand" />
+                <span className="min-w-0 flex-1">{place.address}</span>
               </button>
             </li>
           ))}
@@ -248,9 +246,9 @@ export default function AddressLocationField({ value, onChange, fallbackCenter =
         <button
           type="button"
           onClick={handleApplySuggestion}
-          className="w-full text-left px-3 py-2.5 rounded-xl border border-amber-200 bg-amber-50 text-[10px] font-semibold text-amber-800 active:scale-[0.99] transition"
+          className="min-h-11 w-full cursor-pointer rounded-control bg-brand-soft px-3 py-2.5 text-left text-footnote text-brand-soft-fg"
         >
-          <span className="block font-black uppercase tracking-wider text-[9px] text-amber-600">Xarita bo'yicha manzil (bosing va qo'llang)</span>
+          <span className="block text-caption font-bold">{"Xarita bo'yicha manzil (bosing va qo'llang)"}</span>
           {suggestion}
         </button>
       )}
@@ -259,17 +257,22 @@ export default function AddressLocationField({ value, onChange, fallbackCenter =
 
       <div role="status" className="flex flex-col gap-1">
         {isResolving && (
-          <p className="text-[10px] font-bold text-slate-400 flex items-center gap-1.5">
-            <Loader2 className="w-3 h-3 animate-spin" /> Manzil aniqlanmoqda...
+          <p className="flex items-center gap-1.5 text-footnote text-fg-muted">
+            <Spinner className="size-3.5" /> Manzil aniqlanmoqda...
           </p>
         )}
         {notice && (
-          <p className={`text-[10px] font-bold ${notice.tone === 'warn' ? 'text-rose-500' : 'text-slate-500'}`}>{notice.text}</p>
+          <p className={notice.tone === 'warn' ? 'text-footnote text-warning-soft-fg' : 'text-footnote text-fg-muted'}>{notice.text}</p>
         )}
         {position ? (
-          <p className="text-[10px] font-bold text-emerald-600">✓ Joylashuv belgilandi. Aniqroq joylashtirish uchun pinni sudrang.</p>
+          <p className="flex items-start gap-1.5 text-footnote text-success-soft-fg">
+            <CheckCircle2 aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+            Joylashuv belgilandi. Aniqroq joylashtirish uchun pinni sudrang.
+          </p>
         ) : (
-          <p className="text-[10px] font-bold text-amber-600">Joylashuv hali belgilanmagan: xaritani bosing, joylashuvingizni aniqlang yoki manzilni qidiring.</p>
+          <p className="text-footnote text-warning-soft-fg">
+            Joylashuv hali belgilanmagan: xaritani bosing, joylashuvingizni aniqlang yoki manzilni qidiring.
+          </p>
         )}
       </div>
     </div>

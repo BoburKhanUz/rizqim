@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { hapticFeedback } from '../lib/telegram';
+import { showAlert } from '../lib/dialogs';
 import { getAddBlockedMessage } from '../lib/stock';
 import type { StockVariant } from '../lib/stock';
 import { useCartStore } from '../store/cartStore';
@@ -17,7 +18,7 @@ export function useCanAddToCart() {
     const blocked = getAddBlockedMessage(variant, inCart);
     if (blocked) {
       hapticFeedback('error');
-      alert(blocked);
+      void showAlert(blocked);
       return false;
     }
     return true;

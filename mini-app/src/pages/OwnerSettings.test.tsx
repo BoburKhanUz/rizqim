@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { MainButtonHost } from '../components/ui/MainButtonHost';
 import api from '../services/api';
 import type { OwnerStoreSettings, PaymentSettings } from '../types';
 import OwnerSettings from './OwnerSettings';
@@ -11,6 +12,7 @@ import OwnerSettings from './OwnerSettings';
 // `(bool) ($settings['delivery_enabled'] ?? true)` (App\Actions\Order\CreateOrderAction).
 
 vi.mock('../lib/telegram', () => ({ hapticFeedback: vi.fn(), tg: { initDataUnsafe: {} } }));
+vi.mock('../lib/dialogs', () => ({ showAlert: vi.fn().mockResolvedValue(undefined) }));
 vi.mock('../services/api', () => ({ default: { get: vi.fn(), post: vi.fn() } }));
 
 const get = vi.mocked(api.get);
@@ -45,14 +47,15 @@ async function renderSettings(paymentSettings: PaymentSettings) {
     <QueryClientProvider client={client}>
       <MemoryRouter>
         <OwnerSettings />
+        <MainButtonHost />
       </MemoryRouter>
     </QueryClientProvider>,
   );
   await screen.findByRole('button', { name: /Sozlamalarni saqlash/ });
 }
 
-const deliverySwitch = () => screen.getByRole('switch', { name: 'Yetkazib berish (Delivery)' });
-const pickupSwitch = () => screen.getByRole('switch', { name: 'Olib ketish (Takeaway/Pickup)' });
+const deliverySwitch = () => screen.getByRole('switch', { name: 'Yetkazib berish' });
+const pickupSwitch = () => screen.getByRole('switch', { name: 'Olib ketish' });
 
 // Saves the form and returns the `payment_settings` it sent
 async function save(): Promise<Record<string, unknown>> {
@@ -65,7 +68,6 @@ async function save(): Promise<Record<string, unknown>> {
 
 beforeEach(() => {
   client = new QueryClient();
-  vi.spyOn(window, 'alert').mockImplementation(() => {});
   post.mockResolvedValue({ data: { success: true } });
 });
 

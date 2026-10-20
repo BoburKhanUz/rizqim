@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider, focusManager } from '@tanstack/react-query';
 import { act, fireEvent, render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import api from '../services/api';
 import { formatMoney } from '../lib/format';
@@ -34,7 +35,9 @@ const financeCalls = () => get.mock.calls.filter(([url]) => url === '/owner/fina
 async function renderPage() {
   render(
     <QueryClientProvider client={client}>
-      <OwnerPayments />
+      <MemoryRouter>
+        <OwnerPayments />
+      </MemoryRouter>
     </QueryClientProvider>,
   );
   await settle();
@@ -210,7 +213,7 @@ describe('OwnerPayments: payout request', () => {
     await settle();
 
     expect(post).toHaveBeenCalledWith('/owner/payouts', { amount: 50000, card_number: '8600123456781234', notes: undefined });
-    expect(screen.getByText('Payout so\'rovi muvaffaqiyatli yuborildi!')).toBeInTheDocument();
+    expect(screen.getByText('Yechib olish so\'rovi muvaffaqiyatli yuborildi!')).toBeInTheDocument();
     expect(financeCalls()).toBe(2); // the balances are fetched again
   });
 
@@ -242,7 +245,7 @@ describe('OwnerPayments: payout request', () => {
 describe('OwnerPayments: balance top-up', () => {
   const openTopup = async () => {
     await renderPage();
-    fireEvent.click(screen.getByRole('button', { name: /Balansni To'ldirish \(Card Top Up\)/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Balansni to'ldirish/ }));
   };
   const payButton = () => screen.getByRole('button', { name: /To'lashga o'tish/ });
 

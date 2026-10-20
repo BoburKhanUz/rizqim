@@ -2,6 +2,8 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MapPickerProps } from '../components/map/MapPicker';
+import { MainButtonHost } from '../components/ui/MainButtonHost';
+import { showAlert } from '../lib/dialogs';
 import api from '../services/api';
 import SuperadminCreateStore from './SuperadminCreateStore';
 
@@ -16,6 +18,7 @@ vi.mock('../components/map/LazyMapPicker', () => ({
     </div>
   ),
 }));
+vi.mock('../lib/dialogs', () => ({ showAlert: vi.fn().mockResolvedValue(undefined) }));
 vi.mock('../lib/telegram', () => ({ hapticFeedback: vi.fn(), tg: {} }));
 vi.mock('../services/api', () => ({ default: { get: vi.fn(), post: vi.fn() } }));
 vi.mock('../features/address/geocodeApi', () => ({ reverseGeocode: vi.fn().mockResolvedValue(null), searchAddress: vi.fn() }));
@@ -42,6 +45,7 @@ async function renderForm() {
   const view = render(
     <MemoryRouter>
       <SuperadminCreateStore />
+      <MainButtonHost />
     </MemoryRouter>,
   );
   await flush();
@@ -56,11 +60,11 @@ const fillRequiredFields = () => {
   type('Masalan: Alisher Valiyev', 'Alisher Valiyev');
   typeAddress('Chilonzor 12');
 };
-const submit = () => fireEvent.click(screen.getByRole('button', { name: /Restoranni Saqlash/ }));
+const submit = () => fireEvent.click(screen.getByRole('button', { name: /Restoranni saqlash/ }));
 const tapMap = () => fireEvent.click(screen.getByRole('button', { name: 'tap the map' }));
 
 beforeEach(() => {
-  vi.spyOn(window, 'alert').mockImplementation(() => {});
+  vi.mocked(showAlert).mockClear();
   post.mockResolvedValue({ data: { success: true, data: { store_id: 7, invite_link: 'https://t.me/bot?start=invite_x' } } });
 });
 
@@ -82,7 +86,7 @@ describe('SuperadminCreateStore: the branch location', () => {
     await flush();
 
     expect(post).not.toHaveBeenCalled();
-    expect(window.alert).toHaveBeenCalledWith(expect.stringContaining('xaritada belgilanmagan'));
+    expect(showAlert).toHaveBeenCalledWith(expect.stringContaining('xaritada belgilanmagan'));
     expect(screen.getByRole('alert')).toHaveTextContent('Restoran joylashuvini xaritada belgilang');
   });
 
@@ -108,7 +112,7 @@ describe('SuperadminCreateStore: the branch location', () => {
       branch_district_id: '10',
     });
     expect(body).not.toMatchObject(OLD_DEFAULT);
-    expect(window.alert).not.toHaveBeenCalledWith(expect.stringContaining('xaritada belgilanmagan'));
+    expect(showAlert).not.toHaveBeenCalledWith(expect.stringContaining('xaritada belgilanmagan'));
   });
 
   it('drops the pin error once the pin is placed', async () => {
@@ -133,6 +137,6 @@ describe('SuperadminCreateStore: the branch location', () => {
     await flush();
 
     expect(post).not.toHaveBeenCalled();
-    expect(window.alert).toHaveBeenCalledWith("Iltimos barcha majburiy maydonlarni to'ldiring.");
+    expect(showAlert).toHaveBeenCalledWith("Iltimos barcha majburiy maydonlarni to'ldiring.");
   });
 });

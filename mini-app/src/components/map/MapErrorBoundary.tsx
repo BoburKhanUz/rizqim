@@ -1,5 +1,6 @@
 import { Component } from 'react';
 import type { ReactNode } from 'react';
+import { Button } from '../ui';
 
 interface MapErrorBoundaryProps {
   children: ReactNode;
@@ -24,21 +25,17 @@ export default class MapErrorBoundary extends Component<MapErrorBoundaryProps, M
 
     return (
       <div
-        className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-rose-100 bg-rose-50 px-4 text-center"
+        className="flex flex-col items-center justify-center gap-2 rounded-card bg-danger-soft px-4 text-center"
         style={{ height: this.props.height }}
         role="alert"
       >
-        <p className="text-[11px] font-bold text-rose-600">Xaritani yuklab bo'lmadi.</p>
-        <p className="text-[10px] font-semibold text-rose-500">
+        <p className="text-footnote font-bold text-danger-soft-fg">Xaritani yuklab bo'lmadi.</p>
+        <p className="text-caption text-danger-soft-fg">
           Joylashuvni "Joylashuvimni aniqlash" tugmasi yoki manzilni qidirish orqali belgilashingiz mumkin.
         </p>
-        <button
-          type="button"
-          onClick={() => window.location.reload()}
-          className="rounded-xl border border-rose-200 bg-white px-3 py-1.5 text-[10px] font-black text-rose-600 active:scale-95 transition"
-        >
+        <Button variant="secondary" onClick={() => window.location.reload()}>
           Sahifani yangilash
-        </button>
+        </Button>
       </div>
     );
   }
