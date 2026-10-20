@@ -43,6 +43,56 @@ describe('LoginForm', () => {
     expect(start).toHaveBeenCalled();
   });
 
+  it('lets the same person in two stores pick the store after the code', async () => {
+    const { calls } = mockFetch({
+      'POST /api/session/send-code': () => json({ ok: true }),
+      'POST /api/session/login': () =>
+        json(
+          {
+            message: 'Qaysi biriga kirishni tanlang.',
+            reason: 'account_selection_required',
+            accounts: [
+              { user_id: 7, role: 'owner', store: 'Osh Markazi', branch: null },
+              { user_id: 9, role: 'manager', store: 'Somsa Uyi', branch: 'Chilonzor' },
+            ],
+          },
+          409,
+        ),
+      'POST /api/session/select-account': () => json({ access_token: 'access-9', expires_at: null, user: { id: 9, name: 'Aziz', role: 'manager' } }),
+    });
+    const typing = userEvent.setup();
+    renderPage(<LoginForm />);
+    await typing.type(screen.getByLabelText('Telefon raqami'), '901234567');
+    await typing.click(screen.getByRole('button', { name: 'Kod yuborish' }));
+    await typing.type(await screen.findByLabelText('SMS kod'), '123456');
+    await typing.click(screen.getByRole('button', { name: 'Kirish' }));
+
+    expect(await screen.findByText('Qaysi hisobga kirasiz?')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Osh Markazi\s*Ega/ })).toBeInTheDocument();
+    await typing.click(screen.getByRole('button', { name: /Somsa Uyi\s*Menejer · Chilonzor/ }));
+
+    await waitFor(() => expect(replace).toHaveBeenCalledWith('/'));
+    expect(await calls[2]?.json()).toEqual({ user_id: 9 });
+    expect(getSession()?.accessToken).toBe('access-9');
+    expect(start).toHaveBeenCalled();
+  });
+
+  it('shows why a phone without a staff account cannot sign in', async () => {
+    mockFetch({
+      'POST /api/session/send-code': () => json({ ok: true }),
+      'POST /api/session/login': () => json({ message: "Bu raqam hech qaysi do'kon xodimiga biriktirilmagan.", reason: 'staff_account_not_found' }, 403),
+    });
+    const typing = userEvent.setup();
+    renderPage(<LoginForm />);
+    await typing.type(screen.getByLabelText('Telefon raqami'), '901234567');
+    await typing.click(screen.getByRole('button', { name: 'Kod yuborish' }));
+    await typing.type(await screen.findByLabelText('SMS kod'), '123456');
+    await typing.click(screen.getByRole('button', { name: 'Kirish' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent("Bu raqam hech qaysi do'kon xodimiga biriktirilmagan.");
+    expect(getSession()).toBeNull();
+  });
+
   it('rejects a short phone number without calling the server', async () => {
     const { fetchMock } = mockFetch({});
     const typing = userEvent.setup();

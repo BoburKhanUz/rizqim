@@ -7,11 +7,33 @@ part of 'data33.dart';
 // **************************************************************************
 
 Data33 _$Data33FromJson(Map<String, dynamic> json) => Data33(
-  employee: User.fromJson(json['employee'] as Map<String, dynamic>),
-  inviteLink: json['invite_link'] as String,
+  uuid: json['uuid'] as String,
+  type: json['type'] as String,
+  name: json['name'] as String,
+  platform: json['platform'] as String?,
+  appVersion: json['app_version'] as String?,
+  storeId: (json['store_id'] as num?)?.toInt(),
+  branchId: (json['branch_id'] as num?)?.toInt(),
+  user: json['user'] == null
+      ? null
+      : User13.fromJson(json['user'] as Map<String, dynamic>),
+  hasPushToken: json['has_push_token'] as bool,
+  lastSeenAt: json['last_seen_at'] as String?,
+  revokedAt: json['revoked_at'] as String?,
+  createdAt: json['created_at'] as String?,
 );
 
 Map<String, dynamic> _$Data33ToJson(Data33 instance) => <String, dynamic>{
-  'employee': instance.employee,
-  'invite_link': instance.inviteLink,
+  'uuid': instance.uuid,
+  'type': instance.type,
+  'name': instance.name,
+  'platform': instance.platform,
+  'app_version': instance.appVersion,
+  'store_id': instance.storeId,
+  'branch_id': instance.branchId,
+  'user': instance.user,
+  'has_push_token': instance.hasPushToken,
+  'last_seen_at': instance.lastSeenAt,
+  'revoked_at': instance.revokedAt,
+  'created_at': instance.createdAt,
 };

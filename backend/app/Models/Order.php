@@ -28,6 +28,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property numeric-string $service_charge_amount
  * @property numeric-string $place_fee_amount
  * @property int|null $guests_count
+ * @property int|null $delivery_zone_id
+ * @property numeric-string|null $delivery_zone_price
+ * @property numeric-string|null $delivery_min_order_amount
  */
 class Order extends Model
 {
@@ -81,6 +84,10 @@ class Order extends Model
             'service_charge_amount' => 'decimal:2',
             'place_fee_amount' => 'decimal:2',
             'guests_count' => 'integer',
+            // P1-32: the delivery zone as it was at checkout (null without zones); the fee charged is delivery_price
+            'delivery_zone_id' => 'integer',
+            'delivery_zone_price' => 'decimal:2',
+            'delivery_min_order_amount' => 'decimal:2',
         ];
     }
 
@@ -139,7 +146,17 @@ class Order extends Model
     {
         return $this->belongsTo(Branch::class);
     }
-    
+
+    /**
+     * The zone the order was priced from (P1-32); null once the zone is deleted, the snapshot columns stay.
+     *
+     * @return BelongsTo<DeliveryZone, $this>
+     */
+    public function deliveryZone(): BelongsTo
+    {
+        return $this->belongsTo(DeliveryZone::class);
+    }
+
     /**
      * @return HasMany<OrderItem, $this>
      */

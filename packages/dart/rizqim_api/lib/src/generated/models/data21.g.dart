@@ -7,15 +7,21 @@ part of 'data21.dart';
 // **************************************************************************
 
 Data21 _$Data21FromJson(Map<String, dynamic> json) => Data21(
-  items: (json['items'] as List<dynamic>)
-      .map((e) => Items.fromJson(e as Map<String, dynamic>))
+  role: json['role'] as String,
+  storeId: (json['store_id'] as num?)?.toInt(),
+  branchId: (json['branch_id'] as num?)?.toInt(),
+  branchScoped: json['branch_scoped'] as bool,
+  permissions: (json['permissions'] as List<dynamic>)
+      .map((e) => e as String)
       .toList(),
-  unreadCount: (json['unread_count'] as num).toInt(),
-  pagination: Pagination.fromJson(json['pagination'] as Map<String, dynamic>),
+  deviceUuid: json['device_uuid'] as String?,
 );
 
 Map<String, dynamic> _$Data21ToJson(Data21 instance) => <String, dynamic>{
-  'items': instance.items,
-  'unread_count': instance.unreadCount,
-  'pagination': instance.pagination,
+  'role': instance.role,
+  'store_id': instance.storeId,
+  'branch_id': instance.branchId,
+  'branch_scoped': instance.branchScoped,
+  'permissions': instance.permissions,
+  'device_uuid': instance.deviceUuid,
 };

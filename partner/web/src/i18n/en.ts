@@ -41,6 +41,7 @@ export const en: Messages = {
   resend: 'Send the code again',
   resendIn: 'You can resend in {{seconds}} s',
   changePhone: 'Change the number',
+  chooseAccount: 'Which account do you want to use?',
   rateLimited: 'Too many attempts. Please try again a little later.',
 
   noAccessTitle: 'This account has no access to the dashboard',

@@ -7,23 +7,39 @@ part of 'data41.dart';
 // **************************************************************************
 
 Data41 _$Data41FromJson(Map<String, dynamic> json) => Data41(
-  roles: (json['roles'] as List<dynamic>)
-      .map((e) => Roles.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  permissions: (json['permissions'] as List<dynamic>)
-      .map((e) => Permissions.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  matrix: (json['matrix'] as Map<String, dynamic>).map(
-    (k, e) => MapEntry(k, Map<String, bool>.from(e as Map)),
+  id: (json['id'] as num).toInt(),
+  uuid: json['uuid'] as String,
+  name: json['name'] as String,
+  nameI18n: (json['name_i18n'] as Map<String, dynamic>?)?.map(
+    (k, e) => MapEntry(k, e as String),
   ),
-  defaults: (json['defaults'] as Map<String, dynamic>).map(
-    (k, e) => MapEntry(k, Map<String, bool>.from(e as Map)),
+  minSelect: (json['min_select'] as num).toInt(),
+  maxSelect: (json['max_select'] as num?)?.toInt(),
+  isRequired: json['is_required'] as bool,
+  sortOrder: (json['sort_order'] as num).toInt(),
+  isActive: json['is_active'] as bool,
+  modifiers: (json['modifiers'] as List<dynamic>)
+      .map((e) => Modifiers3.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  productIds: (json['product_ids'] as List<dynamic>)
+      .map((e) => (e as num).toInt())
+      .toList(),
+  productRules: ProductRules3.fromJson(
+    json['product_rules'] as Map<String, dynamic>,
   ),
 );
 
 Map<String, dynamic> _$Data41ToJson(Data41 instance) => <String, dynamic>{
-  'roles': instance.roles,
-  'permissions': instance.permissions,
-  'matrix': instance.matrix,
-  'defaults': instance.defaults,
+  'id': instance.id,
+  'uuid': instance.uuid,
+  'name': instance.name,
+  'name_i18n': instance.nameI18n,
+  'min_select': instance.minSelect,
+  'max_select': instance.maxSelect,
+  'is_required': instance.isRequired,
+  'sort_order': instance.sortOrder,
+  'is_active': instance.isActive,
+  'modifiers': instance.modifiers,
+  'product_ids': instance.productIds,
+  'product_rules': instance.productRules,
 };

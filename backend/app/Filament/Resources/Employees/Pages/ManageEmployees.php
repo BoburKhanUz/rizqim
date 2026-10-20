@@ -23,6 +23,7 @@ class ManageEmployees extends ManageRecords
                     return $data;
                 })
                 ->after(function (\App\Models\User $record) {
+                    EmployeeResource::vouchLoginPhone($record);
                     $owner = auth()->user();
                     if ($owner && $owner->telegram_id) {
                         app(\App\Services\Notifications\TelegramNotificationService::class)->sendEmployeeInvite($record, $owner);

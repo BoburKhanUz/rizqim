@@ -20,6 +20,8 @@ use Illuminate\Support\Facades\Route;
 Route::post('/auth/refresh', [TokenController::class, 'refresh'])->middleware('throttle:auth-refresh');
 Route::post('/auth/phone/send-code', [PhoneLoginController::class, 'sendCode'])->middleware('throttle:otp-send');
 Route::post('/auth/phone/verify', [PhoneLoginController::class, 'verify'])->middleware('throttle:otp-verify');
+// P1-36: a phone holding several staff accounts (two stores): finish the sign-in with the chosen one
+Route::post('/auth/phone/select-account', [PhoneLoginController::class, 'selectAccount'])->middleware('throttle:otp-verify');
 Route::post('/devices/pair', [TerminalController::class, 'pair'])->middleware('throttle:device-pair');
 
 // A signed-in user (Mini App, apps, staff PIN session)

@@ -13,13 +13,17 @@ V1AuthPhoneVerifyRequestBody _$V1AuthPhoneVerifyRequestBodyFromJson(
   code: json['code'] as String,
   device: json['device'] == null
       ? null
-      : Device2.fromJson(json['device'] as Map<String, dynamic>),
+      : Device4.fromJson(json['device'] as Map<String, dynamic>),
+  account: json['account'] == null
+      ? null
+      : Account.fromJson(json['account'] as String),
 );
 
 Map<String, dynamic> _$V1AuthPhoneVerifyRequestBodyToJson(
   V1AuthPhoneVerifyRequestBody instance,
 ) => <String, dynamic>{
+  'device': instance.device,
   'phone': instance.phone,
   'code': instance.code,
-  'device': instance.device,
+  'account': instance.account,
 };

@@ -1,5 +1,5 @@
 import { createApiClient, type ApiClient } from '@rizqim/api-client';
-import type { SessionPayload, SessionUser } from './types';
+import type { AccountChoice, SessionPayload, SessionUser } from './types';
 
 // Browser half of the sign-in. The access token (15 minutes) lives in this module's memory only: not in localStorage,
 // not in a cookie. The refresh token is an httpOnly cookie the page cannot read; /api/session/refresh trades it for a
@@ -124,6 +124,8 @@ export class SessionError extends Error {
     message: string,
     readonly status: number,
     readonly reason?: string,
+    // The staff accounts of a phone that holds several (reason account_selection_required)
+    readonly accounts: AccountChoice[] = [],
   ) {
     super(message);
   }
@@ -142,8 +144,8 @@ async function postSession<T>(path: string, body?: unknown, headers?: Record<str
   } catch {
     throw new SessionError('', 0, 'unreachable');
   }
-  const json = (await response.json().catch(() => null)) as { message?: string; reason?: string } | null;
-  if (!response.ok) throw new SessionError(json?.message ?? '', response.status, json?.reason);
+  const json = (await response.json().catch(() => null)) as { message?: string; reason?: string; accounts?: AccountChoice[] } | null;
+  if (!response.ok) throw new SessionError(json?.message ?? '', response.status, json?.reason, Array.isArray(json?.accounts) ? json.accounts : []);
   return json as T;
 }
 
@@ -152,6 +154,13 @@ export const sendCode = (phone: string) => postSession<{ ok: true }>('send-code'
 // Verifies the code; on success the session starts (the refresh cookie is set by the server)
 export async function login(phone: string, code: string): Promise<Session> {
   const session = toSession(await postSession<SessionPayload>('login', { phone, code }));
+  setSession(session);
+  return session;
+}
+
+// The phone holds several staff accounts (login threw account_selection_required): sign in to the chosen one
+export async function selectAccount(userId: number): Promise<Session> {
+  const session = toSession(await postSession<SessionPayload>('select-account', { user_id: userId }));
   setSession(session);
   return session;
 }

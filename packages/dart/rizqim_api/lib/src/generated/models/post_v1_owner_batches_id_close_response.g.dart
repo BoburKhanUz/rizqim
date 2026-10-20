@@ -11,7 +11,7 @@ PostV1OwnerBatchesIdCloseResponse _$PostV1OwnerBatchesIdCloseResponseFromJson(
 ) => PostV1OwnerBatchesIdCloseResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data27.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data28.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1OwnerBatchesIdCloseResponseToJson(

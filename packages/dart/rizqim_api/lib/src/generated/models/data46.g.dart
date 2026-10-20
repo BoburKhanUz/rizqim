@@ -7,13 +7,11 @@ part of 'data46.dart';
 // **************************************************************************
 
 Data46 _$Data46FromJson(Map<String, dynamic> json) => Data46(
-  channels: json['channels'] as List<dynamic>,
-  settings: (json['settings'] as List<dynamic>)
-      .map((e) => Settings.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  productId: (json['product_id'] as num).toInt(),
+  modifierGroups: json['modifier_groups'] as String,
 );
 
 Map<String, dynamic> _$Data46ToJson(Data46 instance) => <String, dynamic>{
-  'channels': instance.channels,
-  'settings': instance.settings,
+  'product_id': instance.productId,
+  'modifier_groups': instance.modifierGroups,
 };

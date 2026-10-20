@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'type.dart';
+import 'type2.dart';
 
 part 'v1_devices_request_body.g.dart';
 
@@ -22,7 +22,7 @@ class V1DevicesRequestBody {
   factory V1DevicesRequestBody.fromJson(Map<String, Object?> json) =>
       _$V1DevicesRequestBodyFromJson(json);
 
-  final Type type;
+  final Type2 type;
   final String? uuid;
   final String? name;
   final String? platform;

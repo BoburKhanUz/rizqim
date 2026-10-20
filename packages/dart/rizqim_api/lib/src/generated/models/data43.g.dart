@@ -7,15 +7,13 @@ part of 'data43.dart';
 // **************************************************************************
 
 Data43 _$Data43FromJson(Map<String, dynamic> json) => Data43(
-  productId: (json['product_id'] as num).toInt(),
-  channels: json['channels'] as List<dynamic>,
-  prices: (json['prices'] as List<dynamic>)
-      .map((e) => Prices.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  role: json['role'] as String,
+  permission: json['permission'] as String,
+  allowed: json['allowed'] as bool,
 );
 
 Map<String, dynamic> _$Data43ToJson(Data43 instance) => <String, dynamic>{
-  'product_id': instance.productId,
-  'channels': instance.channels,
-  'prices': instance.prices,
+  'role': instance.role,
+  'permission': instance.permission,
+  'allowed': instance.allowed,
 };

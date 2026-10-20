@@ -16,6 +16,10 @@ use App\Enums\OrderChannel;
 use App\Enums\StopListSubject;
 use App\Models\Branch;
 use App\Models\MenuBatch;
+use App\Domain\Delivery\DeliveryQuote;
+use App\Domain\Delivery\DeliveryQuoter;
+use App\Domain\Delivery\DeliveryUnavailableException;
+use App\Domain\Delivery\ZoneResolver;
 use App\Services\Catalog\BatchService;
 use App\Services\Catalog\ChannelMenu;
 use App\Services\Catalog\MenuAvailability;
@@ -38,6 +42,9 @@ class CreateOrderAction
         protected OrderLineBuilder $lines,
         protected BatchService $batches,
         protected DiningFeeCalculator $diningFees,
+        // P1-32: delivery zones price and route delivery orders (docs/ZONES.md)
+        protected DeliveryQuoter $deliveryQuoter,
+        protected ZoneResolver $zones,
     ) {}
 
     /**
@@ -120,6 +127,9 @@ class CreateOrderAction
             // 2. Branch Routing Engine
             $branch = null;
             $customerAddress = $payload['address'] ?? null;
+            // P1-32: a store with active delivery zones routes and prices delivery by them; without zones, the radius rule
+            $deliveryQuote = null;
+            $zoneDelivery = $payload['type'] === 'delivery' && $this->zones->hasZones($store);
             
             if ($payload['type'] === 'pickup') {
                 $branch = \App\Models\Branch::where('id', $payload['branch_id'])
@@ -130,6 +140,9 @@ class CreateOrderAction
                     throw new Exception("Tanlangan filial ushbu restoranga tegishli emas yoki hozir ishlamayapti.");
                 }
                 $customerAddress = $branch->address ?? $store->address ?? 'Restoran filiali';
+            } elseif ($zoneDelivery) {
+                $deliveryQuote = $this->zoneQuote($store, $payload);
+                $branch = $deliveryQuote->branch;
             } elseif ($payload['type'] === 'delivery') {
                 $lat = $payload['latitude'] ?? null;
                 $lng = $payload['longitude'] ?? null;
@@ -269,7 +282,13 @@ class CreateOrderAction
 
             // 4. Minimum Order Validation
             $minOrderAmount = Money::of($store->min_order_amount);
-            if ($minOrderAmount->isPositive() && $totalAmount->isLessThan($minOrderAmount)) {
+            if ($deliveryQuote !== null) {
+                // The zone's minimum replaces the store's; the same zone instance, so fee, minimum and snapshot agree
+                $deliveryQuote = $this->deliveryQuoter->reprice($deliveryQuote, $totalAmount);
+                if ($deliveryQuote->meetsMinOrder === false) {
+                    throw DeliveryUnavailableException::belowMinOrder($deliveryQuote->minOrderAmount, $totalAmount);
+                }
+            } elseif ($minOrderAmount->isPositive() && $totalAmount->isLessThan($minOrderAmount)) {
                 throw new Exception("Eng kam buyurtma summasi: " . number_format($minOrderAmount->toFloat(), 0, '.', ' ') . " UZS.");
             }
 
@@ -277,7 +296,10 @@ class CreateOrderAction
             // Fetch delivery fee from store payment settings
             $deliveryFee = Money::zero();
             $configuredFee = $store->payment_settings['delivery_fee'] ?? 0;
-            if ($payload['type'] === 'delivery' && is_numeric($configuredFee)) {
+            if ($deliveryQuote !== null) {
+                // The zone's price (zero past its free-delivery threshold); whatever the client sent is never read
+                $deliveryFee = $deliveryQuote->deliveryPrice;
+            } elseif ($payload['type'] === 'delivery' && is_numeric($configuredFee)) {
                 $deliveryFee = Money::of($configuredFee);
             }
 
@@ -363,6 +385,11 @@ class CreateOrderAction
                 'service_charge_amount' => $diningFees['service_charge']->toString(),
                 'place_fee_amount' => $diningFees['place_fee']->toString(),
                 'guests_count' => $guests,
+                // P1-32: the zone as it was at checkout, so later zone edits never rewrite this order's history
+                'delivery_zone_id' => $deliveryQuote?->zone->id,
+                'delivery_zone_name' => $deliveryQuote?->zone->name,
+                'delivery_zone_price' => $deliveryQuote?->zone->deliveryPrice()->toString(),
+                'delivery_min_order_amount' => $deliveryQuote?->minOrderAmount->toString(),
             ]);
 
             // Create initial payment log for consistent transaction records
@@ -446,6 +473,33 @@ class CreateOrderAction
  
             return $order;
         });
+    }
+
+    /**
+     * Zone delivery (P1-32): the zone covering the point and the branch that cooks it, through the same DeliveryQuoter
+     * as GET /delivery/quote. Without branch_id the quoter picks (the zone's branch, else the nearest open one); with
+     * it, that branch must serve a zone covering the point. Unpriced here: the cart is priced after the branch is known.
+     *
+     * @throws DeliveryUnavailableException
+     */
+    private function zoneQuote(\App\Models\Store $store, array $payload): DeliveryQuote
+    {
+        $lat = $payload['latitude'] ?? null;
+        $lng = $payload['longitude'] ?? null;
+        if (!is_numeric($lat) || !is_numeric($lng)) {
+            throw ValidationException::withMessages(['latitude' => "Yetkazib berish manzilining xaritadagi joylashuvi kerak."]);
+        }
+
+        $chosen = null;
+        if (!empty($payload['branch_id'])) {
+            // Another store's branch reads as one that does not deliver here
+            $chosen = Branch::query()->where('store_id', $store->id)->find($payload['branch_id']);
+            if ($chosen === null) {
+                throw DeliveryUnavailableException::branchOutsideZone();
+            }
+        }
+
+        return $this->deliveryQuoter->quote($store, (float) $lat, (float) $lng, null, null, $chosen);
     }
 
     private function outOfStock(ProductVariant $variant, int|float|null $available = null): ValidationException

@@ -88,7 +88,7 @@ class NotificationRouter
      */
     public function reachable(User $user): bool
     {
-        return filled($user->telegram_id)
+        return $user->hasTelegram()
             || Device::where('user_id', $user->id)->active()->whereNotNull('push_token')->exists();
     }
 
@@ -102,7 +102,7 @@ class NotificationRouter
     public function onlyReachable($query)
     {
         return $query->where(fn ($query) => $query
-            ->whereNotNull('telegram_id')
+            ->where(fn ($query) => $query->whereNotNull('telegram_id')->where('telegram_id', 'not like', 'temp\\_%'))
             ->orWhereExists(fn ($devices) => $devices->selectRaw('1')->from('devices')
                 ->whereColumn('devices.user_id', 'users.id')
                 ->whereNull('devices.revoked_at')
@@ -133,7 +133,8 @@ class NotificationRouter
     {
         $content = $message->telegram;
 
-        if ($content === null || blank($recipient->telegram_id) || !$this->telegram->isConfigured()) {
+        // An unclaimed invite's 'temp_…' placeholder is no chat (P1-36: app-only staff get the push instead)
+        if ($content === null || !$recipient->hasTelegram() || !$this->telegram->isConfigured()) {
             return false;
         }
 

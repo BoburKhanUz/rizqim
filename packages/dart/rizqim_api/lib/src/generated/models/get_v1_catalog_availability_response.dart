@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data5.dart';
+import 'data6.dart';
 
 part 'get_v1_catalog_availability_response.g.dart';
 
@@ -22,7 +22,7 @@ class GetV1CatalogAvailabilityResponse {
 
   final bool success;
   final String message;
-  final Data5 data;
+  final Data6 data;
 
   Map<String, Object?> toJson() =>
       _$GetV1CatalogAvailabilityResponseToJson(this);

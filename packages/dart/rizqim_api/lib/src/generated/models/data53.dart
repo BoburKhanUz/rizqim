@@ -4,40 +4,19 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'entries.dart';
+
 part 'data53.g.dart';
 
 @JsonSerializable()
 class Data53 {
-  const Data53({
-    required this.id,
-    required this.branchId,
-    required this.type,
-    required this.subjectId,
-    required this.subjectUuid,
-    required this.name,
-    required this.reason,
-    required this.until,
-    required this.createdBy,
-    required this.createdAt,
-  });
+  const Data53({required this.branchId, required this.entries});
 
   factory Data53.fromJson(Map<String, Object?> json) => _$Data53FromJson(json);
 
-  final int id;
   @JsonKey(name: 'branch_id')
   final int branchId;
-  final String type;
-  @JsonKey(name: 'subject_id')
-  final int subjectId;
-  @JsonKey(name: 'subject_uuid')
-  final dynamic subjectUuid;
-  final dynamic name;
-  final String? reason;
-  final String? until;
-  @JsonKey(name: 'created_by')
-  final int? createdBy;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
+  final List<Entries> entries;
 
   Map<String, Object?> toJson() => _$Data53ToJson(this);
 }

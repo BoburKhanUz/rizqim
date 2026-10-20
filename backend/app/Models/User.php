@@ -111,6 +111,15 @@ class User extends Authenticatable implements FilamentUser, HasTenants
     {
         return $this->pin_hash !== null;
     }
+
+    /**
+     * A real Telegram account to message: not empty and not the 'temp_…' placeholder of an unclaimed staff invite
+     * (OwnerEmployeeController). App-only staff (P1-36) have none and are reached by push.
+     */
+    public function hasTelegram(): bool
+    {
+        return filled($this->telegram_id) && !str_starts_with((string) $this->telegram_id, 'temp_');
+    }
     
     /**
      * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<Store, $this>

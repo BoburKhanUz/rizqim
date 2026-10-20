@@ -269,14 +269,21 @@ class OrderStatusService
     }
 
     /**
-     * Staff who claimed their invite: an unclaimed one still has a pending token and no real Telegram account
-     * ('temp_…' placeholder or none), so it could never see or move the order.
+     * Staff who can see and move the order: they claimed their Telegram invite (no pending token, a real Telegram
+     * account rather than a 'temp_…' placeholder), or they signed in to a Rizqim app (P1-36: an app-only courier,
+     * the restaurant's own or the Rizqim fleet, has a live personal device and no Telegram). An unclaimed invite with
+     * neither could never see the order. How they hear about it is NotificationRouter's business (Telegram when they
+     * have it, otherwise push).
      */
     protected function joined(Builder $query): Builder
     {
-        return $query->whereNull('telegram_invite_token')
-            ->whereNotNull('telegram_id')
-            ->where('telegram_id', 'not like', 'temp\\_%');
+        return $query->where(fn (Builder $query) => $query
+            ->where(fn (Builder $query) => $query->whereNull('telegram_invite_token')
+                ->whereNotNull('telegram_id')
+                ->where('telegram_id', 'not like', 'temp\\_%'))
+            ->orWhereExists(fn ($devices) => $devices->selectRaw('1')->from('devices')
+                ->whereColumn('devices.user_id', 'users.id')
+                ->whereNull('devices.revoked_at')));
     }
 
     /**

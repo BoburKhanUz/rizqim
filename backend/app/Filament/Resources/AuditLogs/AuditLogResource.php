@@ -83,6 +83,8 @@ class AuditLogResource extends Resource
             'staff.pin_changed' => "PIN almashtirildi",
             'staff.pin_reset' => "PIN o'chirildi",
             'staff.session_started' => 'Terminalga kirish (PIN)',
+            // P1-36: the partner panel / a staff app, by SMS code
+            'staff.signed_in' => 'Xodim SMS kod bilan kirdi',
             'permissions.changed' => "Ruxsat o'zgardi",
             'device.pairing_code_created' => 'Ulash kodi yaratildi',
             'device.paired' => 'Terminal ulandi',

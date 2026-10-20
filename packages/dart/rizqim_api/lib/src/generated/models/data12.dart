@@ -11,41 +11,19 @@ part 'data12.g.dart';
 @JsonSerializable()
 class Data12 {
   const Data12({
-    required this.uuid,
-    required this.type,
-    required this.name,
-    required this.platform,
-    required this.appVersion,
-    required this.storeId,
-    required this.branchId,
+    required this.token,
+    required this.expiresAt,
     required this.user,
-    required this.hasPushToken,
-    required this.lastSeenAt,
-    required this.revokedAt,
-    required this.createdAt,
+    required this.permissions,
   });
 
   factory Data12.fromJson(Map<String, Object?> json) => _$Data12FromJson(json);
 
-  final String uuid;
-  final String type;
-  final String name;
-  final String? platform;
-  @JsonKey(name: 'app_version')
-  final String? appVersion;
-  @JsonKey(name: 'store_id')
-  final int? storeId;
-  @JsonKey(name: 'branch_id')
-  final int? branchId;
-  final User8? user;
-  @JsonKey(name: 'has_push_token')
-  final bool hasPushToken;
-  @JsonKey(name: 'last_seen_at')
-  final String? lastSeenAt;
-  @JsonKey(name: 'revoked_at')
-  final String? revokedAt;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
+  final String token;
+  @JsonKey(name: 'expires_at')
+  final String expiresAt;
+  final User8 user;
+  final List<String> permissions;
 
   Map<String, Object?> toJson() => _$Data12ToJson(this);
 }

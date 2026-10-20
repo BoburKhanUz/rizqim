@@ -4,25 +4,31 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'items.dart';
-import 'pagination.dart';
-
 part 'data21.g.dart';
 
 @JsonSerializable()
 class Data21 {
   const Data21({
-    required this.items,
-    required this.unreadCount,
-    required this.pagination,
+    required this.role,
+    required this.storeId,
+    required this.branchId,
+    required this.branchScoped,
+    required this.permissions,
+    required this.deviceUuid,
   });
 
   factory Data21.fromJson(Map<String, Object?> json) => _$Data21FromJson(json);
 
-  final List<Items> items;
-  @JsonKey(name: 'unread_count')
-  final int unreadCount;
-  final Pagination pagination;
+  final String role;
+  @JsonKey(name: 'store_id')
+  final int? storeId;
+  @JsonKey(name: 'branch_id')
+  final int? branchId;
+  @JsonKey(name: 'branch_scoped')
+  final bool branchScoped;
+  final List<String> permissions;
+  @JsonKey(name: 'device_uuid')
+  final String? deviceUuid;
 
   Map<String, Object?> toJson() => _$Data21ToJson(this);
 }

@@ -4,30 +4,29 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'type6.dart';
+import 'subscription.dart';
+import 'terminals.dart';
+import 'next_invoice.dart';
 
 part 'data55.g.dart';
 
 @JsonSerializable()
 class Data55 {
   const Data55({
-    required this.id,
-    required this.code,
-    required this.type,
-    required this.amount,
-    required this.discountAmount,
-    required this.description,
+    required this.subscription,
+    required this.commissionRate,
+    required this.terminals,
+    required this.nextInvoice,
   });
 
   factory Data55.fromJson(Map<String, Object?> json) => _$Data55FromJson(json);
 
-  final int id;
-  final String code;
-  final Type6 type;
-  final num amount;
-  @JsonKey(name: 'discount_amount')
-  final num? discountAmount;
-  final String description;
+  final Subscription? subscription;
+  @JsonKey(name: 'commission_rate')
+  final num commissionRate;
+  final Terminals terminals;
+  @JsonKey(name: 'next_invoice')
+  final NextInvoice? nextInvoice;
 
   Map<String, Object?> toJson() => _$Data55ToJson(this);
 }

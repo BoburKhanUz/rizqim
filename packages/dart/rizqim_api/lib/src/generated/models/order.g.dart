@@ -7,9 +7,7 @@ part of 'order.dart';
 // **************************************************************************
 
 Order _$OrderFromJson(Map<String, dynamic> json) => Order(
-  deletedAt: json['deleted_at'] == null
-      ? null
-      : DateTime.parse(json['deleted_at'] as String),
+  courierId: (json['courier_id'] as num?)?.toInt(),
   uuid: json['uuid'] as String,
   shortCode: json['short_code'] as String?,
   storeId: (json['store_id'] as num).toInt(),
@@ -29,9 +27,11 @@ Order _$OrderFromJson(Map<String, dynamic> json) => Order(
   updatedAt: json['updated_at'] == null
       ? null
       : DateTime.parse(json['updated_at'] as String),
-  id: (json['id'] as num).toInt(),
+  deletedAt: json['deleted_at'] == null
+      ? null
+      : DateTime.parse(json['deleted_at'] as String),
   paymentMethod: json['payment_method'] as String,
-  courierId: (json['courier_id'] as num?)?.toInt(),
+  id: (json['id'] as num).toInt(),
   commissionAmount: json['commission_amount'] as String,
   branchId: (json['branch_id'] as num?)?.toInt(),
   addressId: (json['address_id'] as num?)?.toInt(),
@@ -49,15 +49,19 @@ Order _$OrderFromJson(Map<String, dynamic> json) => Order(
       : CancelReason.fromJson(json['cancel_reason'] as String),
   cancelNote: json['cancel_note'] as String?,
   cancelledBy: json['cancelled_by'],
-  address: json['address'] as String?,
+  channel: OrderChannel.fromJson(json['channel'] as String),
   externalId: json['external_id'] as String?,
   serviceChargeAmount: json['service_charge_amount'] as String,
   placeFeeAmount: json['place_fee_amount'] as String,
-  guestsCount: (json['guests_count'] as num?)?.toInt(),
+  address: json['address'] as String?,
   hallRef: json['hall_ref'] as String?,
   tableRef: json['table_ref'] as String?,
+  deliveryZoneId: (json['delivery_zone_id'] as num?)?.toInt(),
+  deliveryZoneName: json['delivery_zone_name'] as String?,
+  deliveryZonePrice: json['delivery_zone_price'] as String?,
+  deliveryMinOrderAmount: json['delivery_min_order_amount'] as String?,
   type: json['type'] as String,
-  channel: OrderChannel.fromJson(json['channel'] as String),
+  guestsCount: (json['guests_count'] as num?)?.toInt(),
   store: json['store'] == null
       ? null
       : Store.fromJson(json['store'] as Map<String, dynamic>),
@@ -73,6 +77,9 @@ Order _$OrderFromJson(Map<String, dynamic> json) => Order(
   branch: json['branch'] == null
       ? null
       : Branch.fromJson(json['branch'] as Map<String, dynamic>),
+  deliveryZone: json['delivery_zone'] == null
+      ? null
+      : DeliveryZone.fromJson(json['delivery_zone'] as Map<String, dynamic>),
   items: (json['items'] as List<dynamic>?)
       ?.map((e) => OrderItem.fromJson(e as Map<String, dynamic>))
       .toList(),
@@ -127,6 +134,10 @@ Map<String, dynamic> _$OrderToJson(Order instance) => <String, dynamic>{
   'guests_count': instance.guestsCount,
   'hall_ref': instance.hallRef,
   'table_ref': instance.tableRef,
+  'delivery_zone_id': instance.deliveryZoneId,
+  'delivery_zone_name': instance.deliveryZoneName,
+  'delivery_zone_price': instance.deliveryZonePrice,
+  'delivery_min_order_amount': instance.deliveryMinOrderAmount,
   'type': instance.type,
   'address': instance.address,
   'store': instance.store,
@@ -134,6 +145,7 @@ Map<String, dynamic> _$OrderToJson(Order instance) => <String, dynamic>{
   'courier': instance.courier,
   'manager': instance.manager,
   'branch': instance.branch,
+  'delivery_zone': instance.deliveryZone,
   'items': instance.items,
   'status_histories': instance.statusHistories,
   'payments': instance.payments,

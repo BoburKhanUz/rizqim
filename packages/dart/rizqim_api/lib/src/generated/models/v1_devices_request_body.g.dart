@@ -9,7 +9,7 @@ part of 'v1_devices_request_body.dart';
 V1DevicesRequestBody _$V1DevicesRequestBodyFromJson(
   Map<String, dynamic> json,
 ) => V1DevicesRequestBody(
-  type: Type.fromJson(json['type'] as String),
+  type: Type2.fromJson(json['type'] as String),
   uuid: json['uuid'] as String?,
   name: json['name'] as String?,
   platform: json['platform'] as String?,

@@ -13,7 +13,7 @@ use Carbon\CarbonInterface;
  * Which delivery zone a map point falls in, and which branch serves it. Deterministic: the same data and the same point
  * always give the same answer (zones tie-break on priority, then area, then id; branches on distance, then id).
  *
- * Not used by checkout yet (P1-32 plugs it in).
+ * Checkout prices delivery orders through it (DeliveryQuoter, CreateOrderAction; docs/ZONES.md).
  */
 class ZoneResolver
 {
@@ -22,12 +22,16 @@ class ZoneResolver
     /**
      * The active zone of the store that covers the point: highest priority first, then the smallest, then the oldest.
      * The indexed bounding box narrows the candidates in SQL; the exact test (ray casting, holes and edges handled) runs in PHP.
+     *
+     * With $branchId (checkout with a branch the customer chose, P1-32): only the zones that branch may serve, i.e. the
+     * zones bound to it and the zones bound to no branch; the same order applies among them.
      */
-    public function resolve(Store|int $store, float $lat, float $lng): ?DeliveryZone
+    public function resolve(Store|int $store, float $lat, float $lng, ?int $branchId = null): ?DeliveryZone
     {
         $zones = DeliveryZone::query()
             ->where('store_id', $store instanceof Store ? $store->id : $store)
             ->where('active', true)
+            ->when($branchId !== null, fn ($query) => $query->where(fn ($query) => $query->whereNull('branch_id')->orWhere('branch_id', $branchId)))
             ->where('min_lat', '<=', $lat)->where('max_lat', '>=', $lat)
             ->where('min_lng', '<=', $lng)->where('max_lng', '>=', $lng)
             ->orderByDesc('priority')

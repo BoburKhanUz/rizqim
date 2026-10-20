@@ -7,33 +7,23 @@ part of 'data8.dart';
 // **************************************************************************
 
 Data8 _$Data8FromJson(Map<String, dynamic> json) => Data8(
-  uuid: json['uuid'] as String,
-  type: json['type'] as String,
-  name: json['name'] as String,
-  platform: json['platform'] as String?,
-  appVersion: json['app_version'] as String?,
-  storeId: (json['store_id'] as num?)?.toInt(),
-  branchId: (json['branch_id'] as num?)?.toInt(),
-  user: json['user'] == null
+  zone: Zone.fromJson(json['zone'] as Map<String, dynamic>),
+  branch: Branch.fromJson(json['branch'] as Map<String, dynamic>),
+  deliveryPrice: json['delivery_price'] as String,
+  minOrderAmount: json['min_order_amount'] as String,
+  freeDeliveryApplies: json['free_delivery_applies'] as bool,
+  meetsMinOrder: json['meets_min_order'] as bool?,
+  eta: json['eta'] == null
       ? null
-      : User4.fromJson(json['user'] as Map<String, dynamic>),
-  hasPushToken: json['has_push_token'] as bool,
-  lastSeenAt: json['last_seen_at'] as String?,
-  revokedAt: json['revoked_at'] as String?,
-  createdAt: json['created_at'] as String?,
+      : Eta.fromJson(json['eta'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data8ToJson(Data8 instance) => <String, dynamic>{
-  'uuid': instance.uuid,
-  'type': instance.type,
-  'name': instance.name,
-  'platform': instance.platform,
-  'app_version': instance.appVersion,
-  'store_id': instance.storeId,
-  'branch_id': instance.branchId,
-  'user': instance.user,
-  'has_push_token': instance.hasPushToken,
-  'last_seen_at': instance.lastSeenAt,
-  'revoked_at': instance.revokedAt,
-  'created_at': instance.createdAt,
+  'zone': instance.zone,
+  'branch': instance.branch,
+  'delivery_price': instance.deliveryPrice,
+  'min_order_amount': instance.minOrderAmount,
+  'free_delivery_applies': instance.freeDeliveryApplies,
+  'meets_min_order': instance.meetsMinOrder,
+  'eta': instance.eta,
 };

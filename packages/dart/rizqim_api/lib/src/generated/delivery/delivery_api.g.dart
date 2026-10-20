@@ -26,6 +26,7 @@ class _DeliveryApi implements DeliveryApi {
     required num lat,
     required num lng,
     String? subtotal,
+    int? branch,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{
@@ -33,6 +34,7 @@ class _DeliveryApi implements DeliveryApi {
       r'lat': lat,
       r'lng': lng,
       r'subtotal': subtotal,
+      r'branch': branch,
     };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};

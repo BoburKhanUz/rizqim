@@ -158,6 +158,22 @@ class GlobalUserResource extends Resource
                     ])
                     ->modalSubmitAction(false)
                     ->modalCancelActionLabel('Yopish'),
+                // P1-36: a staff member's phone typed in without an SMS code (e.g. before SMS sign-in existed) becomes
+                // their login phone only when the platform vouches for it here
+                \Filament\Actions\Action::make('vouchLoginPhone')
+                    ->label('SMS bilan kirishni yoqish')
+                    ->icon('heroicon-o-device-phone-mobile')
+                    ->color('warning')
+                    ->visible(fn (User $record) => $record->role->isStoreStaff()
+                        && $record->phone_verified_at === null
+                        && is_string($record->phone)
+                        && preg_match(\App\Services\Auth\StaffPhoneLoginService::PHONE_PATTERN, $record->phone) === 1)
+                    ->requiresConfirmation()
+                    ->modalDescription(fn (User $record) => "{$record->phone} raqami egasi hamkor paneli va ilovalarga SMS kod bilan shu xodim hisobiga kira oladi. Raqam haqiqatan shu xodimniki ekanini tekshiring.")
+                    ->action(function (User $record) {
+                        app(\App\Services\Auth\StaffPhoneLoginService::class)->vouch($record, $record->phone);
+                        \Filament\Notifications\Notification::make()->title('SMS bilan kirish yoqildi')->success()->send();
+                    }),
                 ViewAction::make()
                     ->slideOver()
                     ->modalWidth('4xl'),

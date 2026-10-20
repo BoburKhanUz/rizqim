@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { POST as login } from './login/route';
 import { POST as logout } from './logout/route';
 import { POST as refresh } from './refresh/route';
+import { POST as selectAccount } from './select-account/route';
 import { POST as sendCode } from './send-code/route';
 
 const DEVICE = '3f2b8c1e-5a4d-4e6f-9b7a-1c2d3e4f5a6b';
@@ -58,7 +59,8 @@ describe('POST /api/session/login', () => {
     expect(JSON.stringify(body)).not.toContain('refresh-secret');
 
     expect(calls[0]?.path).toBe('/api/v1/auth/phone/verify');
-    expect(calls[0]?.body).toMatchObject({ phone: '+998901234567', code: '123456', device: { type: 'web', platform: 'web' } });
+    // The panel signs in to the staff account of the phone (owner, manager...), never a customer one
+    expect(calls[0]?.body).toMatchObject({ phone: '+998901234567', code: '123456', account: 'staff', device: { type: 'web', platform: 'web' } });
     expect((calls[0]?.body.device as { uuid: string }).uuid).toMatch(/^[0-9a-f-]{36}$/);
 
     const refreshCookie = response.cookies.get('rz_refresh');
@@ -89,6 +91,70 @@ describe('POST /api/session/login', () => {
     expect((await login(post('login', { phone: '+998901234567', code: '12' }))).status).toBe(422);
     expect((await login(post('login', { phone: '+998901234567', code: '123456' }, { Origin: 'https://evil.example' }))).status).toBe(403);
     expect(calls).toHaveLength(0);
+  });
+});
+
+describe('signing in when the phone is staff in two stores', () => {
+  const accounts = [
+    { user_id: 7, name: 'Aziz', role: 'owner', role_label: 'Ega', store: { id: 1, name: 'Osh Markazi' }, branch: null },
+    { user_id: 9, name: 'Aziz', role: 'manager', role_label: 'Menejer', store: { id: 2, name: 'Somsa Uyi' }, branch: { id: 5, name: 'Chilonzor' } },
+  ];
+  const choice = { success: false, message: 'Qaysi biriga kirishni tanlang.', data: { reason: 'account_selection_required', selection_token: 'sel_ticket', selection_expires_in: 300, accounts } };
+
+  it('lists the accounts and keeps the ticket in an httpOnly cookie, out of the body', async () => {
+    stubBackend(() => reply(choice, 409));
+
+    const response = await login(post('login', { phone: '+998901234567', code: '123456' }));
+
+    expect(response.status).toBe(409);
+    const body = await response.json();
+    expect(body).toEqual({
+      message: 'Qaysi biriga kirishni tanlang.',
+      reason: 'account_selection_required',
+      accounts: [
+        { user_id: 7, role: 'owner', store: 'Osh Markazi', branch: null },
+        { user_id: 9, role: 'manager', store: 'Somsa Uyi', branch: 'Chilonzor' },
+      ],
+    });
+    expect(JSON.stringify(body)).not.toContain('sel_ticket');
+    expect(response.cookies.get('rz_select')).toMatchObject({ value: 'sel_ticket', httpOnly: true, sameSite: 'strict', path: '/api/session', maxAge: 300 });
+    expect(response.cookies.get('rz_refresh')).toBeUndefined();
+  });
+
+  it('signs in to the chosen account with the cookie\'s ticket and spends it', async () => {
+    const calls = stubBackend(() => reply({ success: true, data: { ...sessionData, user: { id: 9, name: 'Aziz', role: 'manager' } } }));
+
+    const response = await selectAccount(post('select-account', { user_id: 9 }, { Cookie: `rz_select=sel_ticket; rz_device=${DEVICE}` }));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ access_token: 'access-token', user: { id: 9, role: 'manager' } });
+    expect(calls[0]?.path).toBe('/api/v1/auth/phone/select-account');
+    expect(calls[0]?.body).toEqual({ selection_token: 'sel_ticket', user_id: 9, device: { type: 'web', uuid: DEVICE, name: 'Hamkor veb-panel', platform: 'web' } });
+    expect(response.cookies.get('rz_refresh')?.value).toBe('refresh-secret');
+    expect(response.cookies.get('rz_select')).toMatchObject({ value: '', maxAge: 0 });
+  });
+
+  it('refuses without a ticket, and drops the ticket the backend refused', async () => {
+    const calls = stubBackend(() => reply({ success: false, message: 'Tanlov muddati tugagan', data: { reason: 'selection_invalid' } }, 422));
+
+    const none = await selectAccount(post('select-account', { user_id: 9 }));
+    expect(none.status).toBe(422);
+    expect((await none.json()).reason).toBe('selection_invalid');
+    expect((await selectAccount(post('select-account', { user_id: 'x' }, { Cookie: 'rz_select=sel_ticket' }))).status).toBe(422);
+    expect((await selectAccount(post('select-account', { user_id: 9 }, { Cookie: 'rz_select=sel_ticket', Origin: 'https://evil.example' }))).status).toBe(403);
+    expect(calls).toHaveLength(0);
+
+    const refused = await selectAccount(post('select-account', { user_id: 9 }, { Cookie: 'rz_select=sel_ticket' }));
+    expect(refused.status).toBe(422);
+    expect((await refused.json()).reason).toBe('selection_invalid');
+    expect(refused.cookies.get('rz_select')).toMatchObject({ value: '', maxAge: 0 });
+  });
+
+  it('passes on that the phone belongs to no staff account', async () => {
+    stubBackend(() => reply({ success: false, message: "Bu raqam hech qaysi do'kon xodimiga biriktirilmagan.", data: { reason: 'staff_account_not_found' } }, 403));
+    const response = await login(post('login', { phone: '+998901234567', code: '123456' }));
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ message: "Bu raqam hech qaysi do'kon xodimiga biriktirilmagan.", reason: 'staff_account_not_found' });
   });
 });
 

@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'type4.dart';
+import 'type5.dart';
 
 part 'v1_owner_devices_pairing_codes_request_body.g.dart';
 
@@ -20,7 +20,7 @@ class V1OwnerDevicesPairingCodesRequestBody {
     Map<String, Object?> json,
   ) => _$V1OwnerDevicesPairingCodesRequestBodyFromJson(json);
 
-  final Type4 type;
+  final Type5 type;
   @JsonKey(name: 'branch_id')
   final int? branchId;
   final String? name;

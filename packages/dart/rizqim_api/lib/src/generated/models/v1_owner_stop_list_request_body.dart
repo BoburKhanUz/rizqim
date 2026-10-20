@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'type5.dart';
+import 'type6.dart';
 
 part 'v1_owner_stop_list_request_body.g.dart';
 
@@ -23,7 +23,7 @@ class V1OwnerStopListRequestBody {
 
   @JsonKey(name: 'branch_id')
   final int? branchId;
-  final Type5 type;
+  final Type6 type;
   final int id;
   final String? reason;
   final DateTime? until;

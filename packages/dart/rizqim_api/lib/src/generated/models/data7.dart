@@ -4,37 +4,32 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'zone.dart';
-import 'branch.dart';
-import 'eta.dart';
-
 part 'data7.g.dart';
 
 @JsonSerializable()
 class Data7 {
   const Data7({
-    required this.zone,
-    required this.branch,
-    required this.deliveryPrice,
-    required this.minOrderAmount,
-    required this.freeDeliveryApplies,
-    required this.meetsMinOrder,
-    required this.eta,
+    required this.id,
+    required this.name,
+    required this.phone,
+    required this.telegramUsername,
+    required this.branchId,
+    required this.courierType,
   });
 
   factory Data7.fromJson(Map<String, Object?> json) => _$Data7FromJson(json);
 
-  final Zone zone;
-  final Branch branch;
-  @JsonKey(name: 'delivery_price')
-  final String deliveryPrice;
-  @JsonKey(name: 'min_order_amount')
-  final String minOrderAmount;
-  @JsonKey(name: 'free_delivery_applies')
-  final bool freeDeliveryApplies;
-  @JsonKey(name: 'meets_min_order')
-  final bool? meetsMinOrder;
-  final Eta? eta;
+  final int id;
+  final String name;
+  final String? phone;
+  @JsonKey(name: 'telegram_username')
+  final String? telegramUsername;
+  @JsonKey(name: 'branch_id')
+  final int? branchId;
+
+  /// P1-24: the restaurant's own courier or the Rizqim fleet
+  @JsonKey(name: 'courier_type')
+  final String courierType;
 
   Map<String, Object?> toJson() => _$Data7ToJson(this);
 }

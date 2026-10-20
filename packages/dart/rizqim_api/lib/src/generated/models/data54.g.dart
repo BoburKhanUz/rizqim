@@ -7,19 +7,27 @@ part of 'data54.dart';
 // **************************************************************************
 
 Data54 _$Data54FromJson(Map<String, dynamic> json) => Data54(
-  subscription: json['subscription'] == null
-      ? null
-      : Subscription.fromJson(json['subscription'] as Map<String, dynamic>),
-  commissionRate: json['commission_rate'] as num,
-  terminals: Terminals.fromJson(json['terminals'] as Map<String, dynamic>),
-  nextInvoice: json['next_invoice'] == null
-      ? null
-      : NextInvoice.fromJson(json['next_invoice'] as Map<String, dynamic>),
+  id: (json['id'] as num).toInt(),
+  branchId: (json['branch_id'] as num).toInt(),
+  type: json['type'] as String,
+  subjectId: (json['subject_id'] as num).toInt(),
+  subjectUuid: json['subject_uuid'],
+  name: json['name'],
+  reason: json['reason'] as String?,
+  until: json['until'] as String?,
+  createdBy: (json['created_by'] as num?)?.toInt(),
+  createdAt: json['created_at'] as String?,
 );
 
 Map<String, dynamic> _$Data54ToJson(Data54 instance) => <String, dynamic>{
-  'subscription': instance.subscription,
-  'commission_rate': instance.commissionRate,
-  'terminals': instance.terminals,
-  'next_invoice': instance.nextInvoice,
+  'id': instance.id,
+  'branch_id': instance.branchId,
+  'type': instance.type,
+  'subject_id': instance.subjectId,
+  'subject_uuid': instance.subjectUuid,
+  'name': instance.name,
+  'reason': instance.reason,
+  'until': instance.until,
+  'created_by': instance.createdBy,
+  'created_at': instance.createdAt,
 };

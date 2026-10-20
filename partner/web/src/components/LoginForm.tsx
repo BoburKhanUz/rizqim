@@ -3,7 +3,9 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button, Field, fieldClass } from '@rizqim/ui';
-import { login, sendCode, SessionError } from '@/lib/session/client';
+import { login, selectAccount, sendCode, SessionError } from '@/lib/session/client';
+import type { AccountChoice } from '@/lib/session/types';
+import { roleLabel } from '@/lib/labels';
 import { formatNationalInput, nationalDigits, PHONE_PREFIX, toE164 } from '@/lib/phone';
 import type { Translate } from '@/i18n';
 import { useAuth } from './AuthProvider';
@@ -20,13 +22,14 @@ function messageFor(error: unknown, t: Translate, fallback: string): string {
   return error.message || fallback;
 }
 
-// Phone number → SMS code → signed in. The refresh token never reaches this code: the server sets it as an httpOnly
-// cookie (app/api/session/login).
+// Phone number → SMS code → signed in (→ the store, when the phone is staff in several). The refresh token never
+// reaches this code: the server sets it as an httpOnly cookie (app/api/session/login).
 export function LoginForm() {
   const t = useT();
   const router = useRouter();
   const auth = useAuth();
-  const [step, setStep] = useState<'phone' | 'code'>('phone');
+  const [step, setStep] = useState<'phone' | 'code' | 'account'>('phone');
+  const [accounts, setAccounts] = useState<AccountChoice[]>([]);
   const [phoneInput, setPhoneInput] = useState('');
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
@@ -78,15 +81,74 @@ export function LoginForm() {
       auth.start();
       router.replace('/');
     } catch (failure) {
-      setError(messageFor(failure, t, t('invalidCode')));
+      // The same person in two stores: the code is spent, the server holds a ticket for the choice
+      if (failure instanceof SessionError && failure.reason === 'account_selection_required' && failure.accounts.length > 0) {
+        setAccounts(failure.accounts);
+        setStep('account');
+      } else {
+        setError(messageFor(failure, t, t('invalidCode')));
+      }
       setBusy(false);
     }
+  }
+
+  async function choose(account: AccountChoice) {
+    setBusy(true);
+    setError(null);
+    try {
+      await selectAccount(account.user_id);
+      auth.start();
+      router.replace('/');
+    } catch (failure) {
+      setError(messageFor(failure, t, t('unknownError')));
+      setBusy(false);
+    }
+  }
+
+  function restart() {
+    setStep('phone');
+    setAccounts([]);
+    setCode('');
+    setError(null);
   }
 
   function onSubmit(event: FormEvent) {
     event.preventDefault();
     if (busy) return;
     void (step === 'phone' ? requestCode() : verify());
+  }
+
+  if (step === 'account') {
+    return (
+      <div className="flex flex-col gap-4">
+        <p className="text-headline text-fg">{t('chooseAccount')}</p>
+        <ul className="flex flex-col gap-2" aria-label={t('chooseAccount')}>
+          {accounts.map((account) => (
+            <li key={account.user_id}>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void choose(account)}
+                className="flex w-full flex-col items-start gap-0.5 rounded-control border border-line bg-surface px-4 py-3 text-left hover:bg-surface-2 disabled:opacity-60"
+              >
+                <span className="text-headline text-fg">{account.store}</span>
+                <span className="text-footnote text-fg-muted">
+                  {[roleLabel(t, account.role), account.branch].filter(Boolean).join(' · ')}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+        {error && (
+          <p role="alert" className="text-footnote font-bold text-danger-soft-fg">
+            {error}
+          </p>
+        )}
+        <Button variant="ghost" disabled={busy} onClick={restart}>
+          {t('changePhone')}
+        </Button>
+      </div>
+    );
   }
 
   return (

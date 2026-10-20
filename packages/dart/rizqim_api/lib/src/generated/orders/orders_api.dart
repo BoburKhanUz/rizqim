@@ -55,6 +55,14 @@ abstract class OrdersApi {
   /// `telegram` (default) or `mobile`. An `Idempotency-Key` header makes retries safe: the same key with the same body.
   /// within 24 hours returns the first response (header `Idempotent-Replayed: true`), with another body 409.
   ///
+  /// P1-32 (docs/ZONES.md): when the store has delivery zones, a `delivery` order is routed and priced by the zone.
+  /// that covers `latitude`/`longitude`, exactly as `GET /delivery/quote` prices it: the zone's fee (free past its.
+  /// threshold) and minimum order replace the store-wide ones, any fee the client sends is ignored. Without.
+  /// `branch_id` the branch is picked automatically (the zone's branch, else the nearest open one); with it, that.
+  /// branch must serve a zone covering the point. 422 with `data.reason`: `outside_zone`, `branch_outside_zone`,.
+  /// `branch_closed`, or `below_minimum_order` (with `data.min_order_amount` and `data.subtotal`). Stores without.
+  /// zones keep the branch radius rule and the store's delivery fee.
+  ///
   /// [idempotencyKey] - Optional, 1-255 visible characters (e.g. a UUID made per checkout attempt). Same key + same body within 24 hours: the first response is returned again; another body: 409.
   @POST('/v1/orders')
   Future<PostV1OrdersResponse> orderStore({

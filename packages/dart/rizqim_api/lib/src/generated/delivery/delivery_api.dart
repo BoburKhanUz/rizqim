@@ -19,7 +19,8 @@ abstract class DeliveryApi {
   /// Which zone and branch would serve `lat`/`lng`, what delivery costs (the free-delivery rule applied when `subtotal`.
   /// is given) and the minimum order. 422 with `data.reason` when the point cannot be served:.
   /// `outside_zone` (hududdan tashqarida), `zones_not_configured` (the store has not drawn zones) or `branch_closed`.
-  /// Money is a string with two decimals.
+  /// Money is a string with two decimals. Optional `branch`: price as checkout would with that `branch_id` (the best.
+  /// zone that branch serves); `branch_outside_zone` when it serves none covering the point.
   ///
   /// [store] - Do'kon uuid yoki id.
   ///
@@ -28,12 +29,15 @@ abstract class DeliveryApi {
   /// [lng] - Longitude of the delivery point.
   ///
   /// [subtotal] - Cart total before delivery; enables the free-delivery and minimum-order checks.
+  ///
+  /// [branch] - Filial id: the branch the customer chose at checkout (P1-32).
   @GET('/v1/delivery/quote')
   Future<GetV1DeliveryQuoteResponse> deliveryZoneQuote({
     @Query('store') required String store,
     @Query('lat') required num lat,
     @Query('lng') required num lng,
     @Query('subtotal') String? subtotal,
+    @Query('branch') int? branch,
   });
 
   /// Delivery zones of a store.

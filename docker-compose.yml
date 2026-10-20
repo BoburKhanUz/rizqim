@@ -1,4 +1,5 @@
-# Rizqim: postgres + redis + backend (nginx/php-fpm) + queue + queue-reports + scheduler + reverb (WebSocket) + frontend (nginx).
+# Rizqim: postgres + redis + backend (nginx/php-fpm) + queue + queue-reports + scheduler + reverb (WebSocket) + frontend (nginx)
+# + partner-web (hamkor veb-panel, Next.js).
 # Ishga tushirish va yangilash: docker compose up -d --build
 # Monitoring: GET /health (JSON), loglar JSON/stderr'da, zaxira `backup` xizmatida: docs/OPERATIONS.md.
 # Deploy qadamlari (migratsiya, app:check-production, telegram:set-webhook, queue:restart) backend/docker/entrypoint.sh da;
@@ -224,6 +225,36 @@ services:
       timeout: 5s
       retries: 3
       start_period: 30s
+
+  # Hamkor veb-panel (partner/web, Next.js; restoran egasi va xodimlari, SMS kod bilan kiradi). Tashqi TLS proksi uni
+  # alohida hostda beradi: panel.<domen> -> PARTNER_WEB_PORT (Mini App FRONTEND_PORT da bo'lgani kabi). Sozlamalar
+  # runtime'da o'qiladi (image har muhitda bir xil): Next serveri backend'ga compose tarmog'i ichida (API_BASE_URL),
+  # brauzer esa API'ga ochiq manzil orqali (PARTNER_PUBLIC_API_BASE_URL, masalan https://<domen>/api) murojaat qiladi,
+  # shuning uchun backend/.env dagi CORS_ALLOWED_ORIGINS da panel origin'i (https://panel.<domen>) bo'lishi shart.
+  # docs/DEPLOY.md (4-bo'lim), partner/web/README.md
+  partner-web:
+    build:
+      # Ildiz: panel packages/ts/ui va packages/ts/api-client ga bog'liq. Image'ga nimalar kirishi: partner/web/Dockerfile.dockerignore
+      context: .
+      dockerfile: partner/web/Dockerfile
+    restart: unless-stopped
+    environment:
+      API_BASE_URL: http://backend/api
+      PUBLIC_API_BASE_URL: ${PARTNER_PUBLIC_API_BASE_URL:-}
+      # Sessiya cookie'lari faqat HTTPS orqali (production). false faqat http:// orqali sinash uchun
+      SESSION_COOKIE_SECURE: ${PARTNER_SESSION_COOKIE_SECURE:-true}
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${PARTNER_WEB_PORT:-3000}:3000"
+    # Kirish sahifasi (Next serveri ishlayapti); backend'ga ulanishni frontend healthcheck'i tekshiradi
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/login || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
 
   # PostgreSQL zaxirasi: har kuni BACKUP_TIME (UTC) da pg_dump (custom format) -> BACKUP_HOST_DIR (standart ./backups),
   # BACKUP_RETENTION_DAYS kundan eskilari o'chiriladi. Ishga tushganda ham bitta zaxira oladi. Tashqi nusxa: BACKUP_OFFSITE_CMD

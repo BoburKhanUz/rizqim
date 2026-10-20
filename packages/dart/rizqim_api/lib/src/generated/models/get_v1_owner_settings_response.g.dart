@@ -11,7 +11,7 @@ GetV1OwnerSettingsResponse _$GetV1OwnerSettingsResponseFromJson(
 ) => GetV1OwnerSettingsResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data48.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data49.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1OwnerSettingsResponseToJson(

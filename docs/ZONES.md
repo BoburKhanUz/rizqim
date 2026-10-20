@@ -11,8 +11,9 @@ ishlashi, API va P1-32 buyurtma yaratishga uni qanday ulashi haqida (P1-24).
   do'konda hududlar kam, nuqta hududga tushganini PHP'da hisoblaymiz (`App\Domain\Delivery\Geometry`).
 - Tez saralash uchun ko'pburchakning chegara to'rtburchagi (`min_lat`, `max_lat`, `min_lng`, `max_lng`) alohida
   ustunlarda va indeksda. Ular ko'pburchakdan avtomatik hisoblanadi, qo'lda yozilmaydi.
-- Hozircha buyurtma yaratish (`CreateOrderAction`) hududlardan foydalanmaydi: u hamon filial radiusi va oddiy yetkazib
-  berish narxi bilan ishlaydi. Hududlarni buyurtmaga ulash — P1-32.
+- Buyurtma yaratish (`POST /orders`, `CreateOrderAction`) yetkazib berish buyurtmasini hudud bo'yicha narxlaydi va
+  filialni hududdan tanlaydi (P1-32, pastda "Buyurtma berishda hududlar"). Hududi yo'q do'konlar avvalgidek filial
+  radiusi va do'konning yetkazib berish narxi bilan ishlaydi.
 
 ## Ega hududni qanday chizadi
 
@@ -75,8 +76,8 @@ Pul bilan ishlash `App\Support\Money` orqali (tiyingacha aniq), suzuvchi nuqtasi
 
 - **Yetkazib berish narxi** (`delivery_price`): hududning narxi.
 - **Minimal buyurtma** (`min_order_amount`): taomlar summasi (yetkazib berishsiz) shundan kam bo'lsa, buyurtma qabul
-  qilinmasligi kerak. Narx so'rovi buni **rad etmaydi**, faqat `meets_min_order` bayrog'ini qaytaradi; rad etish
-  checkout (P1-32) ishi.
+  qilinmasligi kerak. Narx so'rovi buni **rad etmaydi**, faqat `meets_min_order` bayrog'ini qaytaradi; buyurtmani
+  `POST /orders` rad etadi (`below_minimum_order`).
 - **Bepul yetkazib berish** (`free_delivery_from`, bo'sh bo'lishi mumkin): taomlar summasi shu miqdorga **teng yoki
   undan ko'p** bo'lsa, yetkazib berish narxi 0. Bo'sh bo'lsa, hech qachon bepul emas. `0` bo'lsa — doim bepul.
 - **Taxminiy vaqt** (`eta_minutes`): daqiqada, ixtiyoriy.
@@ -108,10 +109,11 @@ Token kerak emas. Pul qiymatlari ikki xonali satr (`"12000.00"`).
 
 Cheklov: IP bo'yicha daqiqasiga 120 ta (`delivery-zones`).
 
-### `GET /api/v1/delivery/quote?store=&lat=&lng=&subtotal=`
+### `GET /api/v1/delivery/quote?store=&lat=&lng=&subtotal=&branch=`
 
 `store` (uuid yoki id), `lat`, `lng` majburiy; `subtotal` (taomlar summasi, ixtiyoriy) bepul yetkazib berish va
-minimal buyurtmani hisoblash uchun. Cheklov: IP bo'yicha daqiqasiga 60 ta (`delivery-quote`).
+minimal buyurtmani hisoblash uchun. `branch` (filial id, ixtiyoriy) — mijoz filialni o'zi tanlagan bo'lsa, narx
+buyurtmadagidek shu filial bo'yicha hisoblanadi. Cheklov: IP bo'yicha daqiqasiga 60 ta (`delivery-quote`).
 
 200:
 
@@ -141,27 +143,60 @@ minimal buyurtmani hisoblash uchun. Cheklov: IP bo'yicha daqiqasiga 60 ta (`deli
 | `outside_zone` | do'konning hududlari bor, nuqta birortasiga ham tushmadi ("... hududdan tashqarida") |
 | `zones_not_configured` | do'konda faol hudud yo'q (ega hali chizmagan) |
 | `branch_closed` | hudud topildi, lekin unga xizmat qiladigan filial hozir yopiq |
+| `branch_outside_zone` | `branch` berilgan, lekin u nuqtani qamraydigan birorta hududga xizmat qilmaydi (yoki boshqa do'konniki) |
 
 Boshqa xatolar: noto'g'ri `lat`/`lng`/`subtotal` — 422 (Laravel `errors` bilan), noma'lum yoki ko'rinmaydigan
 do'kon — 404, cheklov oshsa — 429.
 
-## P1-32 buyurtma yaratishga qanday ulaydi
+## Buyurtma berishda hududlar (P1-32)
 
-Hozirgi `CreateOrderAction` filialni radius bo'yicha tanlaydi va yetkazib berish narxini do'kon sozlamasidan oladi.
-P1-32 shu qismni `App\Domain\Delivery\DeliveryQuoter::quote($store, $lat, $lng, $subtotal)` bilan almashtiradi:
+`POST /api/v1/orders` da `type: delivery` bo'lsa va do'konda kamida bitta **faol** hudud bo'lsa:
 
-1. `delivery` turidagi buyurtmada manzil koordinatalari va taomlar summasi bilan `quote()` chaqiriladi.
-2. `DeliveryUnavailableException` (`reason`, `getMessage()`) 422 xatoga aylanadi: `outside_zone` hozirgi
-   "yetkazib berish hududidan tashqarida" xatosining o'rnini bosadi.
-3. Buyurtma filiali — `quote->branch`; yetkazib berish narxi — `quote->deliveryPrice` (Money); `meetsMinOrder === false`
-   bo'lsa buyurtma rad etiladi. Narx buyurtmada **server tomonda qayta hisoblanadi**, mijoz yuborgan qiymatga
-   ishonilmaydi.
-4. Mini App va mobil ilovalar savatda `GET /delivery/quote` bilan narxni ko'rsatadi va xaritada
-   `GET /stores/{store}/zones` hududlarini chizadi.
-5. Hududlari hali chizilmagan do'konlar (`zones_not_configured`) uchun o'tish davrida eski radius qoidasiga qaytish
-   yoki hudud chizishni majburiy qilish — P1-32 qarori.
-6. Narx va hudud buyurtma yaratilgan paytdagi holat bilan buyurtmaga yoziladi (keyin hudud o'zgarsa, eski buyurtma
-   o'zgarmaydi).
+1. Filial **taomlarni tekshirishdan oldin** tanlanadi (taom bor-yo'qligi, stop-list va qozon qoldig'i filialga
+   bog'liq). Buning uchun narx so'rovidagi xuddi o'sha `DeliveryQuoter::quote()` chaqiriladi, shuning uchun narx
+   so'rovi va buyurtma doim bir xil hudud, filial va narxni beradi.
+   - `branch_id` yuborilmasa — avtomatik: hududda filial ko'rsatilgan bo'lsa o'sha, bo'lmasa manzilga eng yaqin
+     ochiq filial ("Filial" bo'limi).
+   - `branch_id` yuborilsa — o'sha filial nuqtani qamraydigan hududga xizmat qilishi kerak: shu filialga bog'langan
+     yoki filiali ko'rsatilmagan hududlar orasidan odatiy tartib (ustuvorlik, maydon, `id`) bo'yicha birinchisi
+     olinadi. Bunday hudud yo'q bo'lsa yoki filial boshqa do'konniki bo'lsa — `branch_outside_zone`. Filial yopiq
+     bo'lsa — `branch_closed`.
+2. Taomlar summasi (chegirmagacha, yetkazib berishsiz) hisoblangach, **o'sha hudud** shu summa bilan narxlanadi
+   (hudud bazadan qayta o'qilmaydi): yetkazib berish narxi hududniki (bepul chegaraga yetsa 0), minimal buyurtma
+   hududniki. Do'konning umumiy `min_order_amount` va `payment_settings.delivery_fee` bu buyurtmaga **qo'llanmaydi**.
+   Mijoz yuborgan narx (`delivery_price`, `delivery_fee` va h.k.) o'qilmaydi.
+3. Yetkazib berish narxi buyurtma summasiga, to'lovga va komissiya asosiga avvalgi yetkazib berish narxi qanday
+   kirgan bo'lsa, xuddi shunday kiradi (`orders.delivery_price` → `total_price` → `commission_amount`, ledger).
+   Komissiya hisobi o'zgarmagan.
+4. Buyurtmaga hududning o'sha paytdagi holati yoziladi: `delivery_zone_id`, `delivery_zone_name`,
+   `delivery_zone_price` (hududning asl narxi), `delivery_min_order_amount`. Ega keyin hududni o'zgartirsa yoki
+   o'chirsa, eski buyurtma o'zgarmaydi (o'chirilsa faqat `delivery_zone_id` bo'shaydi). Narx, minimal buyurtma
+   tekshiruvi va yozilgan nusxa bitta o'qilgan hududdan olinadi, shuning uchun buyurtma paytida hudud tahrirlansa ham
+   ular bir-biriga zid bo'lmaydi.
+
+Rad etish — 422, narx so'rovidagi shakl (`success: false`, `message` o'zbekcha, `data.reason`):
+
+| `data.reason` | Qachon | Qo'shimcha |
+|---|---|---|
+| `outside_zone` | nuqta do'konning birorta faol hududiga tushmadi (filial radiusi qamrasa ham) | — |
+| `branch_outside_zone` | tanlangan filial bu nuqtaga yetkazib bermaydi | — |
+| `branch_closed` | hududga xizmat qiladigan (yoki tanlangan) filial hozir yopiq | — |
+| `below_minimum_order` | taomlar summasi hudud minimalidan kam ("Bu hududda eng kam buyurtma summasi: 30 000 UZS.") | `data.min_order_amount`, `data.subtotal` |
+
+Koordinatalarsiz yetkazib berish buyurtmasi (faqat ichki chaqiruvda bo'lishi mumkin, API ularni talab qiladi) —
+oddiy 422 validatsiya xatosi.
+
+**Hududi yo'q do'konlar** (yoki hamma hududi o'chirilgan): o'zgarishsiz eski qoida — manzil radiusiga tushadigan eng
+yaqin faol filial, narx `payment_settings.delivery_fee`, do'konning `min_order_amount`; radiusdan tashqarida 400
+"... yetkazib berish hududidan tashqarida joylashgan.". `branch_id` yetkazib berishda e'tiborga olinmaydi. Ega
+birinchi hududni chizgan zahoti do'kon hudud rejimiga o'tadi.
+
+**Olib ketish (`pickup`) va zal (POS) buyurtmalari** hududlardan foydalanmaydi: filial, do'kon minimal summasi va
+yetkazib berish narxi (0) avvalgidek.
+
+Mini App va mobil ilovalar savatda `GET /delivery/quote` (summa bilan, filial tanlangan bo'lsa `branch` bilan) narxni
+ko'rsatadi va xaritada `GET /stores/{store}/zones` hududlarini chizadi; buyurtmadagi yakuniy narx baribir serverda
+qayta hisoblanadi.
 
 ## Kodda
 
@@ -170,8 +205,10 @@ P1-32 shu qismni `App\Domain\Delivery\DeliveryQuoter::quote($store, $lat, $lng, 
 | Geometriya (tekshirish, chegara, maydon, nuqta, haversine) | `App\Domain\Delivery\Geometry` |
 | Hudud tanlash, eng yaqin ochiq filial, ish vaqti | `App\Domain\Delivery\ZoneResolver` |
 | Narx hisoblash | `App\Domain\Delivery\DeliveryQuoter`, `DeliveryQuote` |
+| Buyurtmaga ulash (P1-32) | `App\Actions\Order\CreateOrderAction::zoneQuote()`, rad etish `DeliveryUnavailableException` |
 | Model | `App\Models\DeliveryZone` (saqlashda chegara va maydon hisoblanadi) |
 | Tekshiruv qoidasi | `App\Rules\ValidGeoJsonPolygon` |
 | Panel | `App\Filament\Resources\DeliveryZones`, `resources/views/filament/forms/components/zone-map-editor.blade.php` |
 | API | `App\Http\Controllers\Api\V1\Delivery\DeliveryZoneController` |
-| Migratsiyalar | `2026_10_22_400000_create_delivery_zones_table`, `2026_10_22_400100_add_courier_type_to_users_table` |
+| Migratsiyalar | `2026_10_22_400000_create_delivery_zones_table`, `2026_10_22_400100_add_courier_type_to_users_table`, `2026_10_23_100000_add_delivery_zone_snapshot_to_orders_table` |
+| Testlar | `DeliveryZoneResolverTest`, `DeliveryQuoteApiTest`, `DeliveryZoneCheckoutTest` (P1-32) |

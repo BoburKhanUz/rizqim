@@ -153,9 +153,10 @@ so'rov yuborilmaydi.
 
 ## 7. Bilish kerak bo'lgan cheklovlar
 
-- Buyurtmani kuryerga biriktirish hozir faqat Telegram orqali ulangan kuryerni tanlaydi (`OrderStatusService::joined()`), shuning
-  uchun faqat ilovasi bor (Telegramsiz) kuryer avtomatik biriktirilmaydi. Push uni topshiriq haqida xabardor qila oladi, lekin
-  tanlash qoidasini o'zgartirish keyingi vazifa (kuryer ilovasi bilan birga).
+- Buyurtmani kuryerga biriktirish Telegramga bog'liq emas (P1-36, `OrderStatusService::joined()`): Telegram taklifini qabul
+  qilgan yoki ilovaga kirgan (o'chirilmagan shaxsiy qurilmasi bor) kuryer qo'lda ham, avtomatik ham biriktiriladi. Telegrami
+  bor kuryer xabarni Telegramda, faqat ilovasi bor (o'z yoki Rizqim kuryeri) — push orqali oladi; push tokeni yo'q bo'lsa
+  ham buyurtma biriktiriladi (ilova ochilganda ko'rinadi). Taklifning `temp_…` belgisiga Telegram xabari yuborilmaydi.
 - Push matnlari qisqa va o'zbekcha (`App\Services\Push\OrderPushMessages`); boshqa tillar kerak bo'lsa shu klass kengaytiriladi.
 - Foydalanuvchi uchun tilga qarab matn tanlash va rasmli push hozircha yo'q.
 - Web push (brauzer) uchun `web` turidagi qurilma tokeni qabul qilinadi, lekin service worker va VAPID sozlamalari bu vazifada

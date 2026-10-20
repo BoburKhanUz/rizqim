@@ -9,7 +9,7 @@ yozilishini tushuntiradi (P1-12). Barcha endpointlar `/api/v1` ostida.
 |---|---|---|
 | Telegram Mini App | `POST /auth/telegram` (initData) | Bitta token, `SANCTUM_TOKEN_EXPIRATION` (30 kun). 401 bo'lsa initData bilan qayta kiradi |
 | Mobil ilova (mijoz, hamkor, kuryer) | `POST /auth/telegram` yoki `POST /auth/phone/verify`, `device` bilan | Qisqa access token (15 daqiqa) + refresh token (30 kun) |
-| Hamkor veb-panel (`partner/web`) | `POST /auth/phone/verify`, `device.type = web`; so'rovni brauzer emas, panelning Next serveri yuboradi | Access token faqat brauzer xotirasida; refresh token httpOnly cookie'da (Next route handler), `localStorage` yo'q. [partner/web/README.md](../partner/web/README.md) |
+| Hamkor veb-panel (`partner/web`) | `POST /auth/phone/verify`, `account = staff`, `device.type = web`; so'rovni brauzer emas, panelning Next serveri yuboradi | Access token faqat brauzer xotirasida; refresh token httpOnly cookie'da (Next route handler), `localStorage` yo'q. [partner/web/README.md](../partner/web/README.md) |
 | POS/KDS terminal | `POST /devices/pair` (8 belgili kod, `ABCD-EFGH`) | Terminalning o'z tokeni (365 kun yoki o'chirilguncha) |
 | Terminaldagi xodim | `POST /devices/{device}/staff-session` (PIN) | Qisqa xodim sessiyasi (12 soat), terminalga bog'langan |
 
@@ -35,6 +35,29 @@ to'g'ri kelsa ikkalasi ham sarflanadi. Shunda begona odam qayta-qayta kod so'rab
 olmaydi. Bitta raqam uchun barcha kodlar bo'yicha jami sutkasiga 30 ta urinish
 (`auth.phone_verification.max_attempts_per_day`), keyin "Bugun urinishlar soni tugadi" (422).
 
+**Xodim sifatida SMS bilan kirish (P1-36: hamkor paneli, xodim ilovalari).** `POST /auth/phone/verify` ga
+`account: "staff"` va `device` (`type`: `web`, `partner_mobile` yoki `courier`) qo'shiladi. Shunda mijoz hisobi
+qidirilmaydi va hech qanday hisob yaratilmaydi: shu raqam **kirish raqami** bo'lgan do'kon xodimi (ega, menejer, kassir,
+ofitsiant, oshpaz, kuryer) kiradi. Javob oddiy kirish bilan bir xil (`user`, `store`, refresh token, `device`); sessiya
+doim qurilmaga bog'langan (refresh token oilasi, ega "Qurilmalar" da ko'radi va o'chira oladi), xodim PIN sessiyasi
+emas (`not-staff-session` yo'llari ochiq, faqat roldagi ruxsatlar bilan). Har kirish jurnalga yoziladi (`staff.signed_in`).
+Kod cheklovlari (5 urinish, sutkasiga 30 ta, kod bir martalik) xuddi yuqoridagidek.
+
+- Kirish raqami — `users.phone_verified_at` belgilangan raqam: xodim uni o'zi SMS kod bilan tasdiqlagan (Mini App yoki
+  ilovada `POST /phone/verify-code`), yoki hisob ustidan vakolati borlar yozgan: superadmin egani yaratganda ("Phone
+  Number (Login)", `POST /superadmin/stores` dagi `+998…` ko'rinishidagi `owner_phone`), Superadmin > Foydalanuvchilar >
+  "SMS bilan kirishni yoqish", ega yoki menejer do'kon panelidagi Xodimlar formasida ("Telefon (SMS bilan kirish)", menejer —
+  o'zidan pastdagilarga). Bir do'konda bitta raqam bitta xodimga. Profilda kodsiz o'zgartirilgan raqam kirish raqami
+  bo'lmaydi.
+- Raqam hech qaysi xodimniki bo'lmasa (faqat mijozniki yoki hech kimniki) — **403** `data.reason = staff_account_not_found`,
+  hech narsa o'zgarmaydi. Superadmin va do'konsiz hisoblar bu yo'l bilan kirmaydi.
+- Raqam bir nechta xodim hisobida bo'lsa (bir odam ikki do'konda) — **409** `data.reason = account_selection_required`,
+  `data.accounts` (`user_id`, `name`, `role`, `role_label`, `store {id, name}`, `branch`) va `data.selection_token`
+  (5 daqiqa, bir martalik; serverda faqat xeshi saqlanadi). Kod shu bilan sarflangan. Ilova hisobni tanlab
+  `POST /auth/phone/select-account {selection_token, user_id, device}` yuboradi. Noto'g'ri, eskirgan, ishlatilgan token yoki
+  ro'yxatda bo'lmagan hisob — **422** `selection_invalid` (token baribir sarflanadi; qaytadan kod so'raladi).
+- Hamkor paneli tokenni brauzerga bermaydi: u httpOnly cookie'da (`partner/web/README.md`).
+
 **Telefonni tasdiqlash (kirgan foydalanuvchi uchun).** `POST /phone/send-code` va `POST /phone/verify-code` avvalgidek
 ishlaydi; tasdiqlangan raqam `users.phone_verified_at` bilan belgilanadi. Profilda kodsiz o'zgartirilgan raqam
 tasdiqlanmagan hisoblanadi.
@@ -53,7 +76,8 @@ odamning mobil kirishini o'z hisobiga tushirishi mumkin edi.
   Mini App keyingi 401 da avtomatik qayta kiradi va birlashtirilgan hisobga tushadi. Boshqa hollarda — **409**
   (`data.reason = phone_linked_to_another_account`), hech qanday ma'lumot o'chirilmaydi. Bunday hisoblarni birlashtirish
   qo'llab-quvvatlash xizmati orqali qo'lda qilinadi.
-- Xodim hisoblari (ega, menejer va boshqalar) bu qoidaga kirmaydi: ularda telefon faqat aloqa ma'lumoti.
+- Xodim hisoblari (ega, menejer va boshqalar) bu qoidaga kirmaydi: ular mijoz hisobi bilan birlashmaydi. Xodim o'z
+  hisobiga "Xodim sifatida SMS bilan kirish" orqali kiradi (yuqorida).
 - Eski foydalanuvchilarda `phone_verified_at` bo'sh: ular raqamini bir marta qayta tasdiqlaganda bog'lanadi.
 
 ## 2. Refresh token
@@ -243,6 +267,7 @@ yoziladi (mijozning manzili saqlanmaydi) va faqat ega hamda superadminga ko'rsat
 | `staff.role_changed`, `staff.branch_changed` | xodim roli yoki filiali o'zgarsa |
 | `staff.pin_set`, `staff.pin_changed`, `staff.pin_reset` | PIN qo'yilsa, almashtirilsa, o'chirilsa |
 | `staff.session_started` | xodim terminalga PIN bilan kirsa |
+| `staff.signed_in` | xodim hamkor paneli yoki xodim ilovasiga SMS kod bilan kirsa (`account = staff`; qurilma bilan) |
 | `permissions.changed` | do'kon ruxsatlari o'zgarsa |
 | `device.pairing_code_created`, `device.paired`, `device.renamed`, `device.revoked` | terminal va qurilmalar |
 | `account.linked` | Telegram hisobi telefon bo'yicha boshqa hisobga birlashtirilsa |

@@ -69,10 +69,16 @@ CORS kerak emas. Cookie'siz Bearer token ishlatilgani uchun `supports_credential
 
 Route handler'lar `Origin`/`Sec-Fetch-Site` ni tekshiradi (boshqa saytdan chaqirib bo'lmaydi).
 
-**Ma'lum cheklov.** `POST /auth/phone/verify` hozir faqat *mijoz* hisobini topadi yoki yaratadi (`AccountLinkingService::customerForVerifiedPhone`);
-xodim (ega, menejer) hisoblarida telefon "faqat aloqa ma'lumoti". Shuning uchun SMS bilan kirgan ega-menejer panelga to'liq tusha olmaydi:
-panel "Bu hisob uchun panelga kirish yo'q" ekranini ko'rsatadi. Xodimni telefon bo'yicha topish backend'da alohida ish (P1-12 ning davomi)
-va bu paneldan oldin hal qilinishi kerak.
+**Xodim hisobi (P1-36).** Login `account: 'staff'` bilan yuboriladi: backend mijoz hisobini emas, shu raqam **kirish raqami**
+bo'lgan do'kon xodimini (ega, menejer va boshqalar) topadi, hech qachon yangi hisob yaratmaydi ([docs/AUTH.md](../../docs/AUTH.md),
+"Xodim sifatida SMS bilan kirish"). Kirish raqami: ega uchun superadmin do'kon yaratganda yozgan raqam, boshqa xodimlar uchun
+do'kon panelidagi Xodimlar formasidagi "Telefon (SMS bilan kirish)". Raqam hech qaysi xodimniki bo'lmasa, backend sababini
+aytadi va forma shuni ko'rsatadi.
+
+**Bir odam ikki do'konda.** Raqam bir nechta xodim hisobida bo'lsa, `/api/session/login` 409 `account_selection_required`
+va hisoblar ro'yxatini (do'kon, rol, filial) qaytaradi; backend bergan bir martalik tanlov chiptasi brauzerga berilmaydi,
+u httpOnly `rz_select` cookie'sida (5 daqiqa). Forma do'konlarni ko'rsatadi, tanlanganda `POST /api/session/select-account
+{user_id}` → backend `POST /auth/phone/select-account` (chipta cookie'dan) va sessiya odatdagidek boshlanadi.
 
 ## Huquqlar va menyu
 
@@ -102,14 +108,15 @@ docker run --rm -p 3000:3000 -e API_BASE_URL=http://backend:8000/api -e PUBLIC_A
   -e SESSION_COOKIE_SECURE=false rizqim-partner-web      # false faqat http://localhost sinovi uchun
 ```
 
-**docker-compose.yml'ga hali qo'shilmagan** (P1-35 uchun eslatma): xizmat, reverse-proxy'dagi domen (`panel.<domen>` → `:3000`, TLS),
-`CORS_ALLOWED_ORIGINS` ga panel origin'i, `API_BASE_URL` (compose tarmog'idagi `frontend`/`backend` manzili) va `PUBLIC_API_BASE_URL`.
-Image sog'liq tekshiruvi: `GET /login`.
+**docker-compose.yml'da `partner-web` xizmati** (P1-36): `API_BASE_URL=http://backend/api` (compose tarmog'i), `PUBLIC_API_BASE_URL` va
+`SESSION_COOKIE_SECURE` ildiz `.env` dagi `PARTNER_PUBLIC_API_BASE_URL`, `PARTNER_SESSION_COOKIE_SECURE` dan, port `PARTNER_WEB_PORT`
+(3000). Tashqi TLS proksi `panel.<domen>` ni shu portga uzatadi (`Host` o'zgarmasin), panel origin'i backend'dagi
+`CORS_ALLOWED_ORIGINS` da bo'ladi: [docs/DEPLOY.md](../../docs/DEPLOY.md), 4-bo'lim. Image sog'liq tekshiruvi: `GET /login`.
 
 ## Tuzilma
 
 ```
-src/app/                  App Router: /login, (app)/{dashboard,orders,menu,stoplist,branches,staff,reports,finance,settings}, api/session/*
+src/app/                  App Router: /login, (app)/{dashboard,orders,menu,stoplist,branches,staff,reports,finance,settings}, api/session/* (send-code, login, select-account, refresh, logout)
 src/components/           AppShell + Sidebar, LoginForm, Dashboard, OrdersView, AuthProvider, I18nProvider ...
 src/lib/session/          server.ts (cookie va backend), client.ts (access token xotirada, single-flight refresh, authFetch, API klienti)
 src/lib/permissions.ts    bo'lim <-> ruxsat

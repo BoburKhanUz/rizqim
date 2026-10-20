@@ -42,6 +42,7 @@ export const uz = {
   resend: 'Kodni qayta yuborish',
   resendIn: 'Qayta yuborish mumkin: {{seconds}} s',
   changePhone: "Raqamni o'zgartirish",
+  chooseAccount: 'Qaysi hisobga kirasiz?',
   rateLimited: "Juda ko'p urinish. Birozdan so'ng qayta urinib ko'ring.",
 
   // Kirish huquqi yo'q

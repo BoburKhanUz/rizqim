@@ -7,23 +7,19 @@ part of 'data7.dart';
 // **************************************************************************
 
 Data7 _$Data7FromJson(Map<String, dynamic> json) => Data7(
-  zone: Zone.fromJson(json['zone'] as Map<String, dynamic>),
-  branch: Branch.fromJson(json['branch'] as Map<String, dynamic>),
-  deliveryPrice: json['delivery_price'] as String,
-  minOrderAmount: json['min_order_amount'] as String,
-  freeDeliveryApplies: json['free_delivery_applies'] as bool,
-  meetsMinOrder: json['meets_min_order'] as bool?,
-  eta: json['eta'] == null
-      ? null
-      : Eta.fromJson(json['eta'] as Map<String, dynamic>),
+  id: (json['id'] as num).toInt(),
+  name: json['name'] as String,
+  phone: json['phone'] as String?,
+  telegramUsername: json['telegram_username'] as String?,
+  branchId: (json['branch_id'] as num?)?.toInt(),
+  courierType: json['courier_type'] as String,
 );
 
 Map<String, dynamic> _$Data7ToJson(Data7 instance) => <String, dynamic>{
-  'zone': instance.zone,
-  'branch': instance.branch,
-  'delivery_price': instance.deliveryPrice,
-  'min_order_amount': instance.minOrderAmount,
-  'free_delivery_applies': instance.freeDeliveryApplies,
-  'meets_min_order': instance.meetsMinOrder,
-  'eta': instance.eta,
+  'id': instance.id,
+  'name': instance.name,
+  'phone': instance.phone,
+  'telegram_username': instance.telegramUsername,
+  'branch_id': instance.branchId,
+  'courier_type': instance.courierType,
 };

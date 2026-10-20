@@ -199,6 +199,11 @@ class SuperadminController extends Controller
                 'store_id' => $store->id,
                 'telegram_invite_token' => $ownerToken,
             ]);
+            // P1-36: a +998 number from the platform is the owner's login phone (SMS sign-in to the partner panel);
+            // anything else stays a contact detail
+            if (is_string($owner->phone) && preg_match(\App\Services\Auth\StaffPhoneLoginService::PHONE_PATTERN, $owner->phone)) {
+                app(\App\Services\Auth\StaffPhoneLoginService::class)->vouch($owner, $owner->phone);
+            }
 
             // 3. Create the Main Branch
             Branch::create([

@@ -4,32 +4,25 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'branches.dart';
+
 part 'data6.g.dart';
 
 @JsonSerializable()
 class Data6 {
   const Data6({
-    required this.id,
-    required this.name,
-    required this.phone,
-    required this.telegramUsername,
-    required this.branchId,
-    required this.courierType,
+    required this.storeId,
+    required this.branches,
+    required this.generatedAt,
   });
 
   factory Data6.fromJson(Map<String, Object?> json) => _$Data6FromJson(json);
 
-  final int id;
-  final String name;
-  final String? phone;
-  @JsonKey(name: 'telegram_username')
-  final String? telegramUsername;
-  @JsonKey(name: 'branch_id')
-  final int? branchId;
-
-  /// P1-24: the restaurant's own courier or the Rizqim fleet
-  @JsonKey(name: 'courier_type')
-  final String courierType;
+  @JsonKey(name: 'store_id')
+  final int storeId;
+  final List<Branches> branches;
+  @JsonKey(name: 'generated_at')
+  final String? generatedAt;
 
   Map<String, Object?> toJson() => _$Data6ToJson(this);
 }

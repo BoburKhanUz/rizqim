@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'type2.dart';
+import 'type3.dart';
 
 part 'v1_complaints_request_body.g.dart';
 
@@ -21,7 +21,7 @@ class V1ComplaintsRequestBody {
 
   @JsonKey(name: 'order_id')
   final int orderId;
-  final Type2 type;
+  final Type3 type;
   final String description;
 
   Map<String, Object?> toJson() => _$V1ComplaintsRequestBodyToJson(this);

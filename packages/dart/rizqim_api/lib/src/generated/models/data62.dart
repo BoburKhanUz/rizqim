@@ -4,25 +4,18 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'device7.dart';
-import 'store2.dart';
-import 'branch3.dart';
-
 part 'data62.g.dart';
 
 @JsonSerializable()
 class Data62 {
-  const Data62({
-    required this.device,
-    required this.store,
-    required this.branch,
-  });
+  const Data62({required this.storeId, required this.inviteLink});
 
   factory Data62.fromJson(Map<String, Object?> json) => _$Data62FromJson(json);
 
-  final Device7 device;
-  final Store2? store;
-  final Branch3? branch;
+  @JsonKey(name: 'store_id')
+  final int storeId;
+  @JsonKey(name: 'invite_link')
+  final String inviteLink;
 
   Map<String, Object?> toJson() => _$Data62ToJson(this);
 }

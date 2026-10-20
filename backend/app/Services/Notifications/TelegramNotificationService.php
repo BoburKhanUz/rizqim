@@ -172,11 +172,14 @@ class TelegramNotificationService
 
         // 2. If the order is sent for delivery, notify courier (or fallback to managers/owners if no courier is assigned).
         //    An assignment (courier_assigned) is announced to the courier by the SendCourierAssignedAlert listener.
+        //    An app-only courier (P1-36, no Telegram) works the order in the courier app: nobody else is told "no courier"
         if ($telegramReady && ($statusValue === 'delivery' || $statusValue === 'on_the_way')) {
             $recipients = [];
             
-            if ($order->courier && $order->courier->telegram_id) {
+            if ($order->courier && $order->courier->hasTelegram()) {
                 $recipients[] = $order->courier;
+            } elseif ($order->courier) {
+                // Nothing to send over Telegram: the courier's app shows the order and its "delivered" action
             } else {
                 // Find managers with telegram_id who may complete this order
                 $managers = $this->managersForOrder($order);
