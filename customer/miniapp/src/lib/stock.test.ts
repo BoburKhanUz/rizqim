@@ -91,3 +91,16 @@ describe('getAddBlockedMessage', () => {
     expect(getAddBlockedMessage({ stock: 3 }, 10)).toBe('Kechirasiz, omborda faqat 3 dona qolgan.');
   });
 });
+
+describe('getAddBlockedMessage for an item sold by weight', () => {
+  const meat = { stock: 1.2, unit: 'kg' as const };
+
+  it('adds a step at a time and says what is left in kg', () => {
+    expect(getAddBlockedMessage(meat, 0.5, 0.5)).toBeNull();
+    expect(getAddBlockedMessage(meat, 1, 0.5)).toBe('Kechirasiz, omborda faqat 1,2\u00a0kg qolgan.');
+  });
+
+  it('does not trip over float noise at the limit', () => {
+    expect(getAddBlockedMessage({ stock: 0.3, unit: 'kg' }, 0.1, 0.2)).toBeNull();
+  });
+});

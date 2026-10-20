@@ -1,3 +1,4 @@
+import { formatLineQuantity } from '../lib/quantity';
 import { useId, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -143,7 +144,7 @@ function ActiveOrderCard({ order, uz, couriers, courierId, onPickCourier, onChan
   const isDelivery = order.order_type === 'delivery';
   const TypeIcon = isDelivery ? Bike : ShoppingBag;
   const typeLabel = isDelivery ? (uz ? 'Yetkazish' : 'Доставка') : order.order_type === 'dine_in' ? (uz ? 'Zalda' : 'В зале') : uz ? 'Olib ketish' : 'Самовывоз';
-  const preview = items.map((item) => `${item.product_name} x${item.quantity}`).join(', ');
+  const preview = items.map((item) => `${item.product_name} ${formatLineQuantity(item.quantity, item.unit)}`).join(', ');
   const code = formatOrderCode(order);
   const courierName = order.courier?.name || (uz ? 'Kuryer' : 'Курьер');
 
@@ -219,8 +220,13 @@ function ActiveOrderCard({ order, uz, couriers, courierId, onPickCourier, onChan
               <ul className="flex flex-col gap-1 text-body text-fg">
                 {items.map((item, index) => (
                   <li key={index}>
-                    <span>{item.product_name} x{item.quantity}</span>
+                    <span>{item.product_name} {formatLineQuantity(item.quantity, item.unit)}</span>
                     {item.variant_name && <span className="ml-1.5 text-footnote text-fg-muted">{item.variant_name}</span>}
+                    {item.modifiers && item.modifiers.length > 0 && (
+                      <span className="block text-footnote text-fg-muted">
+                        {item.modifiers.map((modifier) => (modifier.quantity > 1 ? `${modifier.name} × ${modifier.quantity}` : modifier.name)).join(', ')}
+                      </span>
+                    )}
                   </li>
                 ))}
               </ul>

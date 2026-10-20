@@ -15,6 +15,7 @@ import { showAlert } from '../lib/dialogs';
 import api from '../services/api';
 import { getApiErrorMessage, logApiError } from '../lib/apiError';
 import { toAmount } from '../lib/money';
+import { formatLineQuantity } from '../lib/quantity';
 import { formatDateTime, formatMoney, formatOrderCode } from '../lib/format';
 import { getPaymentMethodLabel } from '../lib/paymentMethod';
 import type { Order, PaymentStatus } from '../types';
@@ -207,8 +208,14 @@ export default function Orders() {
                   <span className="min-w-0 break-words font-medium text-fg">
                     {item.product_name || t('orderItemFallback')}
                     {item.variant_name && <span className="block text-caption font-normal text-fg-muted">{item.variant_name}</span>}
+                    {item.modifiers?.map((modifier) => (
+                      <span key={modifier.uuid} className="block text-caption font-normal text-fg-muted">
+                        {modifier.name}
+                        {modifier.quantity > 1 ? ` × ${modifier.quantity}` : ''}
+                      </span>
+                    ))}
                   </span>
-                  <span className="whitespace-nowrap text-fg-muted">x{item.quantity}</span>
+                  <span className="whitespace-nowrap text-fg-muted">{formatLineQuantity(item.quantity, item.unit, language)}</span>
                   <span className="whitespace-nowrap text-right font-bold text-fg">
                     {formatMoney(item.total_price ? toAmount(item.total_price) : toAmount(item.unit_price) * item.quantity, language)}
                   </span>

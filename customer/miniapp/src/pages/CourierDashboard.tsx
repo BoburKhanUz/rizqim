@@ -1,3 +1,4 @@
+import { formatLineQuantity } from '../lib/quantity';
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Bike, CheckCircle2, Clock, MapPin, Navigation, PackageCheck, Phone, StickyNote, Wallet } from 'lucide-react';
@@ -104,7 +105,7 @@ function DeliveryCard({ order, uz, isCurrent, showCurrentMark, onPickUp, onDeliv
         <ul aria-label={uz ? 'Mahsulotlar' : 'Содержимое'} className="flex flex-wrap gap-1.5">
           {items.map((item, index) => (
             <li key={index} className="rounded-control bg-surface-2 px-2 py-1 text-footnote text-fg">
-              {item.product_name} x{item.quantity}
+              {item.product_name} {formatLineQuantity(item.quantity, item.unit)}
             </li>
           ))}
         </ul>

@@ -62,12 +62,11 @@ describe.each([
   ['Home', <Home />, '/'],
   ['CategoryDetail', <CategoryDetail />, '/category/1'],
 ] as const)('%s: stock check on a single-variant product', (_name, page, path) => {
-  it('refuses a sold-out product and says so', async () => {
+  it('marks a sold-out product "Tugadi" and offers no way to add it', async () => {
     await open(page, path, productWithStock(0));
 
-    fireEvent.click(addButton());
-
-    expect(showAlert).toHaveBeenCalledWith('Kechirasiz, bu mahsulot tugagan.');
+    expect(screen.getByText('Tugadi')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: "Savatga qo'shish" })).not.toBeInTheDocument();
     expect(cartQuantity()).toBe(0);
   });
 

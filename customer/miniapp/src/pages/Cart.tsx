@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import { logApiError } from '../lib/apiError';
-import { useCartStore } from '../store/cartStore';
+import { cartLineTotal, quantityOfVariant, useCartStore } from '../store/cartStore';
 import { useAddressStore } from '../store/useAddressStore';
 import type { Address } from '../store/useAddressStore';
 import { hapticFeedback, tg } from '../lib/telegram';
@@ -16,22 +16,33 @@ import api from '../services/api';
 import { AlertTriangle, Banknote, Bike, ChevronDown, CreditCard, MapPin, MessageSquare, Phone, Pencil, Plus, PlusCircle, ShoppingBag, Smartphone, Store, Ticket, Trash2, Wallet } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import VariantSelectorModal from '../components/VariantSelectorModal';
+import ProductSheet from '../components/ProductSheet';
+import { DeliveryQuoteNote } from '../components/catalog/DeliveryQuoteNote';
+import { SoldOutBadge } from '../components/catalog/SoldOutBadge';
 import { useAuthStore } from '../store/authStore';
-import { getAddBlockedMessage, getVariantStock, isProductSoldOut } from '../lib/stock';
-import type { StockVariant } from '../lib/stock';
+import { getAddBlockedMessage, getVariantStock } from '../lib/stock';
+import { availabilityView, findCartIssues, isProductUnavailable } from '../lib/menuAvailability';
+import { addQuantities, formatQuantity, isMeasuredUnit, subtractQuantities, unitLabel } from '../lib/quantity';
+import { toOrderModifiers } from '../lib/modifiers';
+import { createCheckoutAttempt } from '../lib/idempotency';
+import { describeOrderFailure } from '../lib/orderErrors';
+import { useAddToCart } from '../hooks/useAddToCart';
+import { useDeliveryQuote } from '../hooks/useDeliveryQuote';
+import { useMenuAvailability } from '../hooks/useMenuAvailability';
 import { getAllowedPaymentMethods, getAvailableOrderTypes, pickOrderType, pickPaymentMethod } from '../lib/checkout';
 import type { CartOrderType, CartPaymentMethod } from '../lib/checkout';
 import { formatMoney } from '../lib/format';
 import { getPaymentMethodLabel } from '../lib/paymentMethod';
 import { useLanguageStore } from '../store/languageStore';
-import { parseAmount } from '../lib/money';
-import { buildCartItem, getProductBasePrice, getStoreInfo, parsePrice } from '../lib/catalog';
+import { parseAmount, toAmount } from '../lib/money';
+import { getProductBasePrice, getStoreInfo, parsePrice } from '../lib/catalog';
 import { ORDERS_KEY } from '../hooks/useOrders';
 import AddressLocationField from '../features/address/AddressLocationField';
 import { isOnAnyBranch, toLatLng } from '../features/address/coordinates';
 import type { AddressLocationValue, LatLng } from '../features/address/types';
 import type { ApiErrorBody, ApiResponse, BranchSummary, Product, PromoValidation, StoreCatalog, StoreListItem } from '../types';
+
+const NO_PRODUCTS: Product[] = [];
 
 interface AppliedPromo {
   // The code string is what we send as `promo_code` when placing the order
@@ -92,7 +103,7 @@ export default function Cart() {
   const { t } = useLanguageStore();
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
-  const { items, storeName, storeAddress, updateQuantity, removeItem, clearCart, getSubtotal, addItem } = useCartStore();
+  const { items, storeName, storeAddress, updateQuantity, removeItem, clearCart, getSubtotal } = useCartStore();
   const { addresses, selectedAddressId, setSelectedAddressId, addAddress, updateAddress } = useAddressStore();
   const balance = user?.balance;
 
@@ -108,7 +119,7 @@ export default function Cart() {
 
   // The upsell catalog of the store it was fetched for, so a different store's products are never shown
   const [catalog, setCatalog] = useState<{ storeId: string; products: Product[] } | null>(null);
-  const [selectedProductForVariant, setSelectedProductForVariant] = useState<Product | null>(null);
+  const [catalogReload, setCatalogReload] = useState(0); // bumped when the menu may have changed under the cart
 
   // The customer's own pick (the way actually used is deliveryMethod, which only ever is one the store takes)
   const [chosenOrderType, setChosenOrderType] = useState<CartOrderType>('delivery');
@@ -117,7 +128,8 @@ export default function Cart() {
   // copying the restaurant's coordinates into hand-typed addresses (see isOnAnyBranch)
   const [branchPoints, setBranchPoints] = useState<LatLng[]>([]);
   const [selectedBranchId, setSelectedBranchId] = useState<number | null>(null);
-  const [storeDeliveryFee, setStoreDeliveryFee] = useState(15000);
+  // The store's own delivery fee: only used for a store that has drawn no delivery zones (the quote prices the others)
+  const [storeDeliveryFee, setStoreDeliveryFee] = useState(0);
 
   const [storeDetail, setStoreDetail] = useState<StoreListItem | null>(null);
 
@@ -130,6 +142,8 @@ export default function Cart() {
 
   const [isOrdering, setIsOrdering] = useState(false);
   const orderingRef = useRef(false);
+  // One Idempotency-Key per checkout attempt, kept while the attempt is retried
+  const attemptRef = useRef(createCheckoutAttempt());
   const [orderSuccess, setOrderSuccess] = useState(false);
   const [successOrderNumber, setSuccessOrderNumber] = useState('');
 
@@ -137,6 +151,8 @@ export default function Cart() {
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'instant' });
   }, []);
+
+  const cartStoreId = items[0]?.storeId;
 
   // Fetch store branches on mount/items change
   useEffect(() => {
@@ -160,7 +176,7 @@ export default function Cart() {
             const rawFee = matchedStore.delivery_fee !== undefined && matchedStore.delivery_fee !== null
               ? matchedStore.delivery_fee
               : (matchedStore.payment_settings?.delivery_fee !== undefined ? parsePrice(matchedStore.payment_settings.delivery_fee) : NaN);
-            setStoreDeliveryFee(isNaN(rawFee) ? 15000 : rawFee);
+            setStoreDeliveryFee(isNaN(rawFee) ? 0 : rawFee);
           }
         }
       }).catch(err => {
@@ -192,52 +208,19 @@ export default function Cart() {
         logApiError('Failed to fetch store products for upsell', err);
       });
     }
-  }, [items]);
-
-  const cartStoreId = items[0]?.storeId;
-  const storeProducts = useMemo<Product[]>(
-    () => (catalog && catalog.storeId === cartStoreId ? catalog.products : []),
-    [catalog, cartStoreId]
-  );
-
-  const upsellRecommendations = useMemo(() => {
-    if (items.length === 0) return [];
-    const inCartProductIds = items.map(item => item.productId);
-    return storeProducts
-      .filter(p => !inCartProductIds.includes(p.id) && p.variants && p.variants.length > 0 && !isProductSoldOut(p))
-      .slice(0, 3);
-  }, [storeProducts, items]);
+  }, [items, catalogReload]);
 
   // Cart items carry no stock info: look the variant up in the store catalog fetched above.
   const findCatalogVariant = (productId: number, variantId?: string) =>
     storeProducts.find(p => p.id === productId)?.variants?.find(v => v.uuid === variantId);
 
-  // Same stock rule as the store page: never add a sold-out variant or more than what is in stock.
-  const canAddMore = (variant: StockVariant | undefined, cartItemId: string): boolean => {
-    const inCart = items.find(item => item.id === cartItemId)?.quantity ?? 0;
-    const blocked = getAddBlockedMessage(variant, inCart);
-    if (blocked) {
-      hapticFeedback('error');
-      void showAlert(blocked);
-      return false;
-    }
-    return true;
-  };
+  // The menu of the cart's store; null until it has loaded (nothing is judged against a menu that is not there)
+  const loadedProducts = catalog && catalog.storeId === cartStoreId ? catalog.products : null;
+  const storeProducts = loadedProducts ?? NO_PRODUCTS;
 
-  const handleAddUpsellItem = (product: Product) => {
-    hapticFeedback('medium');
-    if (product.variants && product.variants.length > 1) {
-      setSelectedProductForVariant(product);
-      return;
-    }
-
-    const variant = product.variants?.[0];
-    const cartItem = buildCartItem(product, variant);
-
-    if (!canAddMore(variant, cartItem.id)) return;
-
-    addItem(cartItem, getStoreInfo({ name: storeName, address: storeAddress }));
-  };
+  // What the store cannot offer now (stop-list, sold-out batches): kept current by events and polling. The branch that
+  // cooks the order decides, so the view narrows to it once it is known (the delivery quote's, or the pickup branch)
+  const { branches: availabilityBranches, refetch: refetchAvailability } = useMenuAvailability(cartStoreId);
 
   // The map point of a saved address, or null when it has none that can be trusted
   const getAddressPoint = (address: Address): LatLng | null => {
@@ -362,10 +345,6 @@ export default function Cart() {
   // How the order is placed: the customer's pick while the store takes it, else the other way. Null when the store
   // takes neither, and then no order can be placed.
   const deliveryMethod = pickOrderType(availableOrderTypes, chosenOrderType);
-  const deliveryFee = deliveryMethod === 'delivery' ? storeDeliveryFee : 0;
-  const total = Math.max(0, subtotal - discountAmount + deliveryFee);
-  const minOrderLimit = storeDetail?.min_order !== undefined && storeDetail?.min_order !== null ? storeDetail.min_order : 0;
-  const isMinOrderNotMet = subtotal < minOrderLimit;
   // The server decides whether the store can take orders (debt / finance status): `is_order_locked` on the
   // public store. A missing field (older backend) means not locked.
   const isStoreLocked = storeDetail?.is_order_locked === true;
@@ -373,18 +352,62 @@ export default function Cart() {
   // The map opens at the restaurant until the customer has dropped a pin (a view only, never saved as an address)
   const mapFallbackCenter = toLatLng(selectedBranch?.latitude, selectedBranch?.longitude);
 
+  // Delivery orders are routed to a branch (and priced) by their coordinates, so we need real ones.
+  const selectedAddress = addresses.find(a => a.id === selectedAddressId);
+  const deliveryPoint = selectedAddress ? getAddressPoint(selectedAddress) : null;
+  const hasDeliveryLocation = deliveryPoint !== null;
+
+  // What delivery to the address costs, the minimum order and the time: asked from the server (GET /delivery/quote), which
+  // prices the order the same way when it is placed. A store without zones keeps its own fee and the radius rule.
+  const quote = useDeliveryQuote({
+    storeId: cartStoreId,
+    point: deliveryPoint,
+    subtotal,
+    enabled: deliveryMethod === 'delivery' && !isStoreLocked,
+  });
+  const quoted = quote.status === 'ready' ? quote.quote : null;
+  const isQuoteBlocking = deliveryMethod === 'delivery' && hasDeliveryLocation && (quote.status === 'loading' || quote.status === 'refused' || quote.status === 'error');
+  const deliveryFee = deliveryMethod !== 'delivery' ? 0 : quoted ? toAmount(quoted.delivery_price) : quote.status === 'unconfigured' ? storeDeliveryFee : 0;
+  const total = Math.max(0, subtotal - discountAmount + deliveryFee);
+
+  // The zone's minimum replaces the store's for a delivery; a store without zones, and pickup, keep the store's
+  const storeMinOrder = storeDetail?.min_order !== undefined && storeDetail?.min_order !== null ? storeDetail.min_order : 0;
+  const minOrderLimit = deliveryMethod === 'delivery' && quoted ? toAmount(quoted.min_order_amount) : storeMinOrder;
+  const isMinOrderNotMet = deliveryMethod === 'delivery' && quoted ? quoted.meets_min_order === false : subtotal < storeMinOrder;
+
+  // What the menu cannot offer now, as the branch that will cook the order sees it (every branch before it is known)
+  const menuBranchId = deliveryMethod === 'delivery' ? quoted?.branch.id : deliveryMethod === 'pickup' ? selectedBranch?.id : undefined;
+  const availability = useMemo(() => availabilityView(availabilityBranches, menuBranchId), [availabilityBranches, menuBranchId]);
+  const issues = useMemo(() => findCartIssues(items, loadedProducts, availability), [items, loadedProducts, availability]);
+  const issueOf = (itemId: string) => issues.find((issue) => issue.item.id === itemId);
+  const hasIssues = issues.length > 0;
+
+  // Dishes of the same restaurant offered below the list; the product sheet opens for the ones with choices
+  const upsell = useAddToCart({ storeInfoOf: () => getStoreInfo({ name: storeName, address: storeAddress }), availability });
+  const inCartProductIds = items.map(item => item.productId);
+  const upsellRecommendations = storeProducts
+    .filter(p => !inCartProductIds.includes(p.id) && p.variants && p.variants.length > 0 && !isProductUnavailable(p, availability))
+    .slice(0, 3);
+
   // Cashback pays for the whole order or not at all; a choice that is no longer possible (store settings changed,
   // cart grew past the balance) quietly becomes the first method that is. Null when nothing can be paid with.
   const isKeshbekAffordable = balance !== undefined && balance >= total;
   const effectivePaymentMethod = pickPaymentMethod(availablePaymentMethods, chosenPaymentMethod, isKeshbekAffordable);
 
-  // Delivery orders are routed to a branch (and priced) by their coordinates, so we need real ones.
-  const selectedAddress = addresses.find(a => a.id === selectedAddressId);
-  const deliveryPoint = selectedAddress ? getAddressPoint(selectedAddress) : null;
-  const hasDeliveryLocation = deliveryPoint !== null;
-  const isOrderDisabled = isOrdering || isMinOrderNotMet || isStoreLocked
+  const isOrderDisabled = isOrdering || isMinOrderNotMet || isStoreLocked || hasIssues || isQuoteBlocking
     || deliveryMethod === null || effectivePaymentMethod === null
     || (deliveryMethod === 'delivery' && !hasDeliveryLocation);
+
+  // The menu may have changed under the cart (the server said so, or something sold out): ask for it again
+  const refreshMenu = () => {
+    setCatalogReload((count) => count + 1);
+    void refetchAvailability();
+  };
+
+  const removeUnavailableLines = () => {
+    hapticFeedback('medium');
+    issues.forEach((issue) => removeItem(issue.item.id));
+  };
 
   const handlePlaceOrder = async () => {
     // One order per press: a second tap (or a second MainButton event) while the first is being sent is dropped
@@ -392,6 +415,18 @@ export default function Cart() {
     if (isStoreLocked) {
       hapticFeedback('error');
       void showAlert("Do'kon vaqtincha to'lov muammolari sababli buyurtma qabul qilmayapti. Savat saqlanadi, keyinroq urinib ko'ring.");
+      return;
+    }
+    if (hasIssues) {
+      hapticFeedback('error');
+      void showAlert("Savatdagi ba'zi taomlar tugagan yoki menyudan olib tashlangan. Ularni olib tashlang, so'ng buyurtma bering.");
+      return;
+    }
+    if (deliveryMethod === 'delivery' && isQuoteBlocking) {
+      hapticFeedback('error');
+      void showAlert(quote.status === 'refused' ? quote.message : quote.status === 'error'
+        ? "Yetkazib berish narxini hisoblab bo'lmadi. Qayta urinib ko'ring."
+        : "Yetkazib berish narxi hisoblanmoqda. Bir soniya kuting.");
       return;
     }
     if (isMinOrderNotMet) {
@@ -435,7 +470,9 @@ export default function Cart() {
         store_id: parseInt(items[0].storeId),
         items: items.map(item => ({
           variant_id: item.variantId || item.id, // Must be UUID
-          quantity: item.quantity
+          quantity: item.quantity, // a fraction for an item sold by weight (0.5 kg)
+          // The chosen modifiers: [{id: uuid, quantity}]. Prices are never sent: the server prices every line itself
+          ...(item.modifiers && item.modifiers.length > 0 ? { modifiers: toOrderModifiers(item.modifiers) } : {}),
         })),
         type: deliveryMethod, // 'delivery' or 'pickup'
         payment_method: effectivePaymentMethod === 'naqd' ? 'cash' : effectivePaymentMethod,
@@ -450,8 +487,11 @@ export default function Cart() {
         longitude: deliveryMethod === 'delivery' ? deliveryPoint?.lng ?? null : null,
       };
 
-      const res = await api.post<ApiResponse<OrderResponseData>>('/orders', payload);
+      // The same key for a retry of the same order, so a repeated tap or a dropped connection never places two
+      const idempotencyKey = attemptRef.current.keyFor(payload);
+      const res = await api.post<ApiResponse<OrderResponseData>>('/orders', payload, { headers: { 'Idempotency-Key': idempotencyKey } });
       if (res.data.success) {
+        attemptRef.current.finish();
         const orderData = res.data.data ?? {};
         setSuccessOrderNumber(getOrderDisplayNumber(orderData));
         // The customer's own channel brings no event for an order they placed: without this, a cached list of their
@@ -483,8 +523,12 @@ export default function Cart() {
         hapticFeedback('error');
         void showAlert(`${promoMessage}\n\nPromo-kod olib tashlandi. Iltimos, jami summani qayta tekshirib, buyurtmani qaytadan tasdiqlang.`);
       } else {
-        const errorMsg = response?.data?.message || "Buyurtma berishda xatolik yuz berdi. Iltimos, qaytadan urinib ko'ring.";
-        void showAlert(errorMsg);
+        // A sentence the customer can act on ("Tugadi", "bu manzilga yetkazib berilmaydi"), never a raw validation error
+        const failure = describeOrderFailure(err);
+        hapticFeedback('error');
+        if (failure.refreshMenu) refreshMenu();
+        if (failure.refreshQuote) quote.retry();
+        void showAlert(failure.message);
       }
     } finally {
       orderingRef.current = false;
@@ -506,7 +550,13 @@ export default function Cart() {
   // over while it is open and gives it back when it closes (useMainButton keeps a stack); while an address is being
   // edited the form's own Save/Cancel are the actions, so it steps aside.
   useMainButton({
-    text: isStoreLocked ? "Do'kon vaqtincha yopiq" : `Buyurtma berish · ${formatMoney(total)}`,
+    text: isStoreLocked
+      ? "Do'kon vaqtincha yopiq"
+      : hasIssues
+        ? "Tugaganlarni olib tashlang"
+        : isQuoteBlocking && quote.status === 'refused'
+          ? 'Bu manzilga yetkazib berilmaydi'
+          : `Buyurtma berish · ${formatMoney(total)}`,
     onClick: handlePlaceOrder,
     enabled: !isOrderDisabled,
     progress: isOrdering,
@@ -564,6 +614,21 @@ export default function Cart() {
           <div>
             <p className="text-body font-bold">Do'kon vaqtincha buyurtma qabul qilmayapti</p>
             <p className="text-footnote">Savat saqlanadi, keyinroq urinib ko'ring.</p>
+          </div>
+        </div>
+      )}
+
+      {hasIssues && (
+        <div role="alert" className="flex items-start gap-3 rounded-card bg-danger-soft p-4 text-danger-soft-fg">
+          <AlertTriangle aria-hidden="true" className="mt-0.5 size-5 shrink-0" />
+          <div className="flex min-w-0 flex-col items-start gap-2">
+            <p className="text-body font-bold">Savatdagi ba'zi taomlar hozir buyurtma qilinmaydi</p>
+            <p className="text-footnote">
+              {issues.map((issue) => issue.item.name).join(', ')}. Ularni olib tashlang yoki boshqa taom tanlang: shundan keyin buyurtma berishingiz mumkin.
+            </p>
+            <Button variant="secondary" onClick={removeUnavailableLines}>
+              Tugaganlarni olib tashlash
+            </Button>
           </div>
         </div>
       )}
@@ -703,6 +768,19 @@ export default function Cart() {
                 {!selectedAddress && (
                   <p role="status" className="text-footnote text-danger-soft-fg">Iltimos, yetkazib berish manzilini tanlang</p>
                 )}
+                {selectedAddress && hasDeliveryLocation && (
+                  <DeliveryQuoteNote
+                    quote={quote}
+                    onChoosePickup={
+                      availableOrderTypes.includes('pickup')
+                        ? () => {
+                            selectionChanged();
+                            setChosenOrderType('pickup');
+                          }
+                        : undefined
+                    }
+                  />
+                )}
                 {selectedAddress && !hasDeliveryLocation && (
                   <div role="status" className="flex flex-col items-start gap-2 rounded-card bg-warning-soft p-3 text-warning-soft-fg">
                     <p className="text-footnote">
@@ -766,36 +844,78 @@ export default function Cart() {
         <ul className="divide-y divide-line">
           {items.map((item) => {
             const catalogVariant = findCatalogVariant(item.productId, item.variantId);
+            const issue = issueOf(item.id);
+            const measured = isMeasuredUnit(item.unit);
+            const step = item.quantityStep ?? 0.1;
+            const minimum = item.minQuantity ?? step;
+            // The stock is the variant's: lines of it with other modifiers count too
+            const variantInCart = quantityOfVariant(items, item.variantId);
             const itemStock = getVariantStock(catalogVariant);
-            const isAtStockLimit = itemStock !== null && item.quantity >= itemStock;
+            const isAtStockLimit = itemStock !== null && addQuantities(variantInCart, measured ? step : 1) > itemStock;
             return (
               <li key={item.id} className="flex gap-3 p-3">
-                <ProductImage src={item.image} className="size-14 rounded-control" />
+                <ProductImage src={item.image} className={cx('size-14 rounded-control', issue && 'opacity-50 grayscale')} />
                 <div className="min-w-0 flex-1">
                   <p className="line-clamp-2 text-body font-bold text-fg">{item.name}</p>
+                  {item.modifiers && item.modifiers.length > 0 && (
+                    <ul aria-label="Tanlangan qo'shimchalar" className="mt-0.5 text-footnote text-fg-muted">
+                      {item.modifiers.map((modifier) => (
+                        <li key={modifier.uuid}>
+                          {modifier.name}
+                          {modifier.quantity > 1 ? ` × ${modifier.quantity}` : ''}
+                          {modifier.priceDelta !== 0 ? ` · +${formatMoney(modifier.priceDelta * modifier.quantity)}` : ''}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {issue && (
+                    <p role="status" className="mt-1 flex flex-wrap items-center gap-1.5 text-footnote font-bold text-danger-soft-fg">
+                      {issue.problem === 'sold_out' && <SoldOutBadge />}
+                      {issue.problem === 'sold_out' ? 'Bu taom hozir mavjud emas' : issue.message}
+                    </p>
+                  )}
                   <div className="mt-1 flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
                     <div>
-                      <p className="text-body font-bold text-fg">{formatMoney(item.price * item.quantity)}</p>
-                      {item.quantity > 1 && <p className="text-caption text-fg-muted">{formatMoney(item.price)} × {item.quantity}</p>}
+                      <p className={cx('text-body font-bold', issue ? 'text-fg-muted' : 'text-fg')}>{formatMoney(cartLineTotal(item))}</p>
+                      {measured ? (
+                        <p className="text-caption text-fg-muted">
+                          {formatMoney(item.price)} / {unitLabel(item.unit)} · {formatQuantity(item.quantity, item.unit)}
+                        </p>
+                      ) : (
+                        item.quantity > 1 && <p className="text-caption text-fg-muted">{formatMoney(item.price)} × {item.quantity}</p>
+                      )}
                     </div>
                     <QuantityStepper
                       quantity={item.quantity}
+                      valueLabel={measured ? formatQuantity(item.quantity, item.unit) : undefined}
                       removeAtOne
-                      incrementDimmed={isAtStockLimit}
-                      decrementLabel={item.quantity <= 1 ? `${item.name}: savatdan olib tashlash` : `${item.name}: kamaytirish`}
+                      removeAt={measured ? minimum : 1}
+                      incrementDimmed={isAtStockLimit || !!issue}
+                      decrementLabel={item.quantity <= (measured ? minimum : 1) ? `${item.name}: savatdan olib tashlash` : `${item.name}: kamaytirish`}
                       incrementLabel={`${item.name}: ko'paytirish`}
                       onDecrement={() => {
                         hapticFeedback('medium');
-                        if (item.quantity <= 1) {
+                        const next = subtractQuantities(item.quantity, measured ? step : 1);
+                        if (next < (measured ? minimum : 1)) {
                           removeItem(item.id);
                         } else {
-                          updateQuantity(item.id, item.quantity - 1);
+                          updateQuantity(item.id, next);
                         }
                       }}
                       onIncrement={() => {
-                        if (!canAddMore(catalogVariant, item.id)) return;
+                        if (issue) {
+                          hapticFeedback('error');
+                          void showAlert(issue.message);
+                          return;
+                        }
+                        const blocked = getAddBlockedMessage(catalogVariant, variantInCart, measured ? step : 1);
+                        if (blocked) {
+                          hapticFeedback('error');
+                          void showAlert(blocked);
+                          return;
+                        }
                         hapticFeedback('light');
-                        updateQuantity(item.id, item.quantity + 1);
+                        updateQuantity(item.id, addQuantities(item.quantity, measured ? step : 1));
                       }}
                       className="ml-auto"
                     />
@@ -816,9 +936,9 @@ export default function Cart() {
                 <ProductImage src={product.image_url} className="aspect-square w-full rounded-control" />
                 <div className="min-w-0 flex-1">
                   <h3 className="line-clamp-2 text-footnote font-bold text-fg">{product.name}</h3>
-                  <p className="mt-0.5 text-footnote text-fg-muted">{formatMoney(getProductBasePrice(product))}</p>
+                  <p className="mt-0.5 text-footnote text-fg-muted">{formatMoney(getProductBasePrice(product))}{product.variants?.some((variant) => isMeasuredUnit(variant.unit)) ? ` / ${unitLabel('kg')}` : ''}</p>
                 </div>
-                <Button variant="secondary" icon={Plus} fullWidth onClick={() => handleAddUpsellItem(product)}>
+                <Button variant="secondary" icon={Plus} fullWidth onClick={() => upsell.start(product)}>
                   Qo'shish
                 </Button>
               </div>
@@ -962,7 +1082,11 @@ export default function Cart() {
           {deliveryMethod === 'delivery' && (
             <div className="flex justify-between gap-3">
               <dt className="text-fg-muted">Kuryer xizmati</dt>
-              <dd className="font-bold text-fg">{formatMoney(deliveryFee)}</dd>
+              <dd className="font-bold text-fg">
+                {quote.status === 'ready' || quote.status === 'unconfigured'
+                  ? deliveryFee > 0 ? formatMoney(deliveryFee) : 'Bepul'
+                  : quote.status === 'loading' ? 'Hisoblanmoqda…' : '—'}
+              </dd>
             </div>
           )}
         </dl>
@@ -972,17 +1096,14 @@ export default function Cart() {
         </div>
       </Card>
 
-      {/* Product Variant / Option Selector Sheet */}
-      <VariantSelectorModal
-        isOpen={!!selectedProductForVariant}
-        onClose={() => setSelectedProductForVariant(null)}
-        product={selectedProductForVariant}
-        onAdd={(variant) => {
-          if (!selectedProductForVariant) return;
-          const cartItem = buildCartItem(selectedProductForVariant, variant);
-          if (!canAddMore(variant, cartItem.id)) return;
-
-          addItem(cartItem, getStoreInfo({ name: storeName, address: storeAddress }));
+      {/* The product sheet of an upsell dish: variant, modifiers, weight */}
+      <ProductSheet
+        isOpen={!!upsell.sheetProduct}
+        onClose={upsell.closeSheet}
+        product={upsell.sheetProduct}
+        availability={availability}
+        onAdd={(choice) => {
+          if (upsell.sheetProduct) upsell.addVariant(upsell.sheetProduct, choice.variant, choice);
         }}
       />
     </div>

@@ -6,6 +6,7 @@ import type {
   BranchSummary,
   CancelReason,
   Category,
+  ModifierGroup,
   Order,
   OrderStatus,
   Product,
@@ -20,6 +21,7 @@ export interface ApiCall {
   query: Record<string, string>
   body: Record<string, unknown> | null
   authorization: string | null
+  idempotencyKey: string | null // the Idempotency-Key header of POST /orders
   status: number // what the fake answered
 }
 
@@ -84,6 +86,34 @@ function distanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: numb
   return 2 * 6371 * Math.asin(Math.sqrt(h))
 }
 
+// The modifier groups of the "Burger" (the shape CatalogPresenter sends)
+const SAUCE_GROUP: ModifierGroup = {
+  id: 1,
+  uuid: 'd0000000-0000-4000-8000-000000000001',
+  name: 'Sous',
+  min_select: 1,
+  max_select: 1,
+  is_required: true,
+  sort_order: 0,
+  modifiers: [
+    { id: 1, uuid: 'e0000000-0000-4000-8000-000000000001', modifier_group_id: 1, name: 'Ketchup', price_delta: '0.00', max_quantity: 1, sort_order: 0, is_active: true },
+    { id: 2, uuid: 'e0000000-0000-4000-8000-000000000002', modifier_group_id: 1, name: 'Pishloqli', price_delta: '3000.00', max_quantity: 1, sort_order: 1, is_active: true },
+  ],
+}
+const EXTRAS_GROUP: ModifierGroup = {
+  id: 2,
+  uuid: 'd0000000-0000-4000-8000-000000000002',
+  name: "Qo'shimchalar",
+  min_select: 0,
+  max_select: 2,
+  is_required: false,
+  sort_order: 1,
+  modifiers: [
+    { id: 3, uuid: 'e0000000-0000-4000-8000-000000000003', modifier_group_id: 2, name: 'Zaytun', price_delta: '2000.00', max_quantity: 1, sort_order: 0, is_active: true },
+    { id: 4, uuid: 'e0000000-0000-4000-8000-000000000004', modifier_group_id: 2, name: "Go'sht", price_delta: '9000.00', max_quantity: 1, sort_order: 1, is_active: true },
+  ],
+}
+
 const reply = (status: number, body: unknown): ApiReply => ({ status, body })
 const ok = (data: unknown, extra: Record<string, unknown> = {}): ApiReply => reply(200, { success: true, message: '', data, ...extra })
 const fail = (status: number, message: string, errors?: Record<string, string[]>): ApiReply =>
@@ -110,7 +140,43 @@ export class FakeApi {
       name: 'Cola',
       variants: [makeVariant({ id: 2, uuid: 'b0000000-0000-4000-8000-000000000002', product_id: 2, name: '0.5 l', price: '8000.00', stock: 50 })],
     }),
+    // A dish with a required choice (the sauce) and an optional one
+    makeProduct({
+      id: 3,
+      uuid: 'a0000000-0000-4000-8000-000000000003',
+      store_id: 1,
+      name: 'Burger',
+      variants: [makeVariant({ id: 3, uuid: 'b0000000-0000-4000-8000-000000000003', product_id: 3, name: 'Standart', price: '50000.00', stock: 50 })],
+      modifier_groups: [SAUCE_GROUP, EXTRAS_GROUP],
+    }),
+    // Sold by the kilogram, in steps of 0.5 kg
+    makeProduct({
+      id: 4,
+      uuid: 'a0000000-0000-4000-8000-000000000004',
+      store_id: 1,
+      name: 'Qazi',
+      variants: [
+        makeVariant({ id: 4, uuid: 'b0000000-0000-4000-8000-000000000004', product_id: 4, name: 'kg', price: '33333.00', unit: 'kg', quantity_step: '0.500', min_quantity: '0.500', stock: 20 }),
+      ],
+    }),
+    // On the branch's stop-list (see stoppedVariantIds)
+    makeProduct({
+      id: 5,
+      uuid: 'a0000000-0000-4000-8000-000000000005',
+      store_id: 1,
+      name: 'Osh',
+      variants: [makeVariant({ id: 5, uuid: 'b0000000-0000-4000-8000-000000000005', product_id: 5, name: 'Standart', price: '35000.00', stock: 50 })],
+    }),
   ]
+
+  /** Variant ids on the branch's stop-list: GET /catalog/availability lists them, POST /orders refuses them ("tugadi"). */
+  stoppedVariantIds: number[] = [5]
+  /** Modifier ids on the stop-list. */
+  stoppedModifierIds: number[] = []
+  /** The delivery zone of the store (one zone: the branch's service area). Set zoneMinOrder to give it a minimum order. */
+  zoneMinOrder = 0
+  /** false: the store has drawn no zones yet, so GET /delivery/quote answers zones_not_configured. */
+  zonesConfigured = true
 
   orders: Order[] = [] // newest first, like the API lists them
 
@@ -128,6 +194,8 @@ export class FakeApi {
   private validTokens = new Set<string>()
   private tokenCounter = 0
   private orderCounter = 100
+  /** The Idempotency-Key of every order that was placed, oldest first. */
+  readonly idempotencyKeys: Array<string | null> = []
 
   /** Signs in as a user of `role` (the Telegram account is the same, the account behind it differs). */
   signInAs(role: UserRole, overrides: Partial<ApiUser> = {}): ApiUser {
@@ -187,15 +255,15 @@ export class FakeApi {
     return this.calls.filter((call) => call.method === method && (typeof path === 'string' ? call.path === path : path.test(call.path)))
   }
 
-  handle(method: string, path: string, query: Record<string, string>, body: Record<string, unknown> | null, authorization: string | null): ApiReply {
-    const call: ApiCall = { method, path, query, body, authorization, status: 0 }
+  handle(method: string, path: string, query: Record<string, string>, body: Record<string, unknown> | null, authorization: string | null, idempotencyKey: string | null = null): ApiReply {
+    const call: ApiCall = { method, path, query, body, authorization, idempotencyKey, status: 0 }
     this.calls.push(call)
-    const result = this.route(method, path, query, body, authorization)
+    const result = this.route(method, path, query, body, authorization, idempotencyKey)
     call.status = result.status
     return result
   }
 
-  private route(method: string, path: string, query: Record<string, string>, body: Record<string, unknown> | null, authorization: string | null): ApiReply {
+  private route(method: string, path: string, query: Record<string, string>, body: Record<string, unknown> | null, authorization: string | null, idempotencyKey: string | null): ApiReply {
     if (method === 'POST' && path === '/auth/telegram') return this.login()
 
     const token = authorization?.replace(/^Bearer /, '') ?? ''
@@ -213,7 +281,9 @@ export class FakeApi {
     if (method === 'GET' && path === '/geocode/search') return this.geocodeSearch(query)
     if (method === 'GET' && path === '/geocode/reverse') return this.geocodeReverse(query)
     if (method === 'GET' && path === '/orders') return this.listOrders(query)
-    if (method === 'POST' && path === '/orders') return this.placeOrder(body ?? {})
+    if (method === 'GET' && path === '/catalog/availability') return this.availabilityReply(query)
+    if (method === 'GET' && path === '/delivery/quote') return this.deliveryQuote(query)
+    if (method === 'POST' && path === '/orders') return this.placeOrder(body ?? {}, idempotencyKey)
 
     const orderAction = /^\/orders\/([^/]+)\/(cancel|status|complete)$/.exec(path)
     if (method === 'POST' && orderAction) {
@@ -256,7 +326,7 @@ export class FakeApi {
       return ok({ categories: [CATEGORY], products, promos: [], highlight_product: null })
     }
     if (query.store_id !== this.store.uuid && query.store_id !== String(this.store.id)) return fail(404, 'Do\'kon topilmadi.')
-    return ok({ store: { ...this.store, branches: [BRANCH], ratings: [] }, categories: [CATEGORY], products: this.products })
+    return ok({ store: { ...this.store, branches: [BRANCH], ratings: [] }, categories: [CATEGORY], products: this.products, availability: this.availabilityBranches() })
   }
 
   // What GET /orders shows the signed-in user: a customer their own orders, staff the orders of their store
@@ -311,37 +381,136 @@ export class FakeApi {
     return ok(visible)
   }
 
+  // The branch's availability, shaped like MenuAvailability::forStore
+  private availabilityBranches() {
+    return [
+      {
+        branch_id: BRANCH.id,
+        stopped: { products: [], variants: this.stoppedVariantIds, modifiers: this.stoppedModifierIds },
+        sold_out: { variants: [] },
+        stop_list: [],
+        batches: [],
+      },
+    ]
+  }
+
+  // GET /catalog/availability?store_id=
+  private availabilityReply(query: Record<string, string>): ApiReply {
+    if (query.store_id !== this.store.uuid && query.store_id !== String(this.store.id)) return fail(404, 'Store not found.')
+    return ok({ store_id: this.store.id, branches: this.availabilityBranches(), generated_at: new Date().toISOString() })
+  }
+
+  /** The zone covers the branch's service area; a point outside it is "outside_zone". */
+  private zoneCovers(lat: number, lng: number): boolean {
+    return distanceKm({ lat, lng }, { lat: Number(BRANCH.latitude), lng: Number(BRANCH.longitude) }) <= BRANCH.radius_km
+  }
+
+  // GET /delivery/quote?store=&lat=&lng=&subtotal= (docs/ZONES.md)
+  private deliveryQuote(query: Record<string, string>): ApiReply {
+    if (query.store !== this.store.uuid && query.store !== String(this.store.id)) return fail(404, "Do'kon topilmadi.")
+    const lat = Number(query.lat)
+    const lng = Number(query.lng)
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return fail(422, 'The given data was invalid.', { lat: ['The lat field is required.'] })
+    if (!this.zonesConfigured) return reply(422, { success: false, message: "Bu do'kon uchun yetkazib berish hududlari hali sozlanmagan.", data: { reason: 'zones_not_configured' } })
+    if (!this.zoneCovers(lat, lng)) return reply(422, { success: false, message: 'Manzil yetkazib berish hududidan tashqarida.', data: { reason: 'outside_zone' } })
+
+    const subtotal = query.subtotal === undefined ? null : Number(query.subtotal)
+    const fee = this.store.delivery_fee
+    return ok({
+      zone: { id: 7, name: 'Markaz', delivery_price: fee.toFixed(2), min_order_amount: this.zoneMinOrder.toFixed(2), free_delivery_from: null, eta_minutes: 40 },
+      branch: { id: BRANCH.id, name: BRANCH.name, distance_km: 1.2 },
+      delivery_price: fee.toFixed(2),
+      min_order_amount: this.zoneMinOrder.toFixed(2),
+      free_delivery_applies: false,
+      meets_min_order: subtotal === null ? null : subtotal >= this.zoneMinOrder,
+      eta: { minutes: 40 },
+    })
+  }
+
   // POST /orders
-  private placeOrder(body: Record<string, unknown>): ApiReply {
-    const lines = Array.isArray(body.items) ? (body.items as Array<{ variant_id: string; quantity: number }>) : []
-    const items = lines.flatMap((line, index) => {
+  private placeOrder(body: Record<string, unknown>, idempotencyKey: string | null): ApiReply {
+    type Line = { variant_id: string; quantity: number; modifiers?: Array<{ id: string; quantity?: number } | string> }
+    const lines = Array.isArray(body.items) ? (body.items as Line[]) : []
+    const items: Order['items'] = []
+
+    for (const [index, line] of lines.entries()) {
       const variant = this.products.flatMap((product) => product.variants).find((v) => v.uuid === line.variant_id)
-      if (!variant) return []
-      const total = Number(variant.price) * line.quantity
-      const product = this.products.find((p) => p.id === variant.product_id)
-      return [makeOrderItem({
+      const product = this.products.find((p) => p.id === variant?.product_id)
+      if (!variant || !product) return fail(400, 'Product variant not found or unavailable.')
+      const name = `${product.name}${variant.name ? ` (${variant.name})` : ''}`
+
+      if (this.stoppedVariantIds.includes(variant.id)) {
+        return fail(422, 'The given data was invalid.', { items: [`Uzr, '${name}' hozir ushbu filialda mavjud emas (tugadi). Iltimos, savatni yangilang.`] })
+      }
+
+      // Pieces are whole; a weighed item moves in its step and is at least its minimum
+      const measured = variant.unit === 'kg' || variant.unit === 'l'
+      const step = Number(variant.quantity_step ?? 0.1)
+      if (!measured && !Number.isInteger(line.quantity)) {
+        return fail(422, 'The given data was invalid.', { [`items.${index}.quantity`]: [`'${name}' dona bilan sotiladi: miqdor butun son bo'lishi kerak.`] })
+      }
+      if (measured && (line.quantity < Number(variant.min_quantity ?? step) || Math.abs(Math.round(line.quantity / step) * step - line.quantity) > 1e-9)) {
+        return fail(422, 'The given data was invalid.', { [`items.${index}.quantity`]: [`'${name}' miqdori ${step} kg qadam bilan bo'lishi kerak.`] })
+      }
+
+      // The modifiers: belonging, stop-list, and the group rules (the backend's OrderLineBuilder)
+      const chosen = (line.modifiers ?? []).map((choice) => (typeof choice === 'string' ? { id: choice, quantity: 1 } : { id: choice.id, quantity: choice.quantity ?? 1 }))
+      const groups = product.modifier_groups ?? []
+      const snapshot: NonNullable<Order['items']>[number]['modifiers'] = []
+      let modifiersTotal = 0
+      for (const choice of chosen) {
+        const group = groups.find((g) => g.modifiers.some((m) => m.uuid === choice.id))
+        const modifier = group?.modifiers.find((m) => m.uuid === choice.id)
+        if (!group || !modifier) return fail(422, 'The given data was invalid.', { [`items.${index}.modifiers`]: [`Tanlangan qo'shimcha '${name}' taomiga tegishli emas yoki hozir sotilmaydi. Iltimos, savatni yangilang.`] })
+        if (this.stoppedModifierIds.includes(modifier.id)) {
+          return fail(422, 'The given data was invalid.', { [`items.${index}.modifiers`]: [`Uzr, '${modifier.name}' hozir ushbu filialda mavjud emas. Iltimos, boshqasini tanlang.`] })
+        }
+        modifiersTotal += Number(modifier.price_delta) * choice.quantity
+        snapshot?.push({ id: modifier.id, uuid: modifier.uuid, group_id: group.id, group_name: group.name, name: modifier.name, price_delta: modifier.price_delta, quantity: choice.quantity, total: (Number(modifier.price_delta) * choice.quantity).toFixed(2) })
+      }
+      for (const group of groups) {
+        const count = chosen.filter((choice) => group.modifiers.some((m) => m.uuid === choice.id)).reduce((sum, choice) => sum + choice.quantity, 0)
+        const min = group.is_required ? Math.max(1, group.min_select) : group.min_select
+        if (count < min) return fail(422, 'The given data was invalid.', { [`items.${index}.modifiers`]: [`'${name}': '${group.name}' tanlovi majburiy.`] })
+        if (group.max_select !== null && count > group.max_select) {
+          return fail(422, 'The given data was invalid.', { [`items.${index}.modifiers`]: [`'${name}': '${group.name}' guruhidan ko'pi bilan ${group.max_select} ta tanlash mumkin.`] })
+        }
+      }
+
+      // price × quantity + modifiers × (pieces ? quantity : 1), rounded once, half up, to whole so'm (docs/MENU.md)
+      const exact = Number(variant.price) * line.quantity + modifiersTotal * (measured ? 1 : line.quantity)
+      const total = Math.floor(exact + 0.5)
+      items.push(makeOrderItem({
         id: index + 1,
         product_variant_id: variant.id,
-        product_name: product?.name ?? 'Mahsulot',
+        product_name: product.name,
         variant_name: variant.name,
         quantity: line.quantity,
+        unit: variant.unit ?? 'piece',
         unit_price: variant.price,
+        modifiers: snapshot,
+        modifiers_total: modifiersTotal.toFixed(2),
         total_price: total.toFixed(2),
-      })]
-    })
+      }))
+    }
     if (items.length === 0) return fail(422, 'The given data was invalid.', { items: ['Savat bo\'sh.'] })
 
     const isDelivery = body.type === 'delivery'
-    // A delivery order is routed to the branch whose service radius holds the point, and refused (400, like the backend's
-    // CreateOrderAction) when none does
+    // A delivery order is priced by the zone that covers the point, and refused (422 data.reason) when none does
     if (isDelivery && typeof body.latitude === 'number' && typeof body.longitude === 'number') {
-      if (distanceKm({ lat: body.latitude, lng: body.longitude }, { lat: Number(BRANCH.latitude), lng: Number(BRANCH.longitude) }) > BRANCH.radius_km) {
-        return fail(400, 'Uzr, siz kiritgan manzil ushbu restoranning yetkazib berish hududidan tashqarida joylashgan.')
+      if (!this.zoneCovers(body.latitude, body.longitude)) {
+        // A store without zones keeps the old radius rule (a 400 with the message)
+        if (!this.zonesConfigured) return fail(400, 'Uzr, siz kiritgan manzil ushbu restoranning yetkazib berish hududidan tashqarida joylashgan.')
+        return reply(422, { success: false, message: 'Manzil yetkazib berish hududidan tashqarida.', data: { reason: 'outside_zone' } })
       }
     }
     const subtotal = items.reduce((sum, item) => sum + Number(item.total_price), 0)
+    if (isDelivery && this.zonesConfigured && subtotal < this.zoneMinOrder) {
+      return reply(422, { success: false, message: 'Bu hududda eng kam buyurtma summasi.', data: { reason: 'below_minimum_order', min_order_amount: this.zoneMinOrder.toFixed(2), subtotal: subtotal.toFixed(2) } })
+    }
     const deliveryPrice = isDelivery ? this.store.delivery_fee : 0
     const address = typeof body.address === 'string' ? body.address : null
+    this.idempotencyKeys.push(idempotencyKey)
     const order = this.addOrder({
       user_id: this.user.id,
       status: 'new',

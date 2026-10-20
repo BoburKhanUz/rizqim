@@ -112,6 +112,33 @@ export interface OrderChannelSession {
   close: () => void;
 }
 
+// The Reverb client of the app. Both libraries are imported here, on first use. The token is read for every private
+// channel authorization (it can change after a re-login); public channels need none.
+async function createEcho(config: RealtimeConfig, getToken: () => string | null) {
+  const [{ default: Echo }, { default: Pusher }] = await Promise.all([import('laravel-echo'), import('pusher-js')]);
+
+  return new Echo({
+    broadcaster: 'reverb',
+    key: config.key,
+    Pusher,
+    wsHost: config.host,
+    wsPort: config.port,
+    wssPort: config.port,
+    forceTLS: config.forceTLS,
+    enabledTransports: ['ws', 'wss'],
+    authEndpoint: config.authEndpoint,
+    channelAuthorization: {
+      transport: 'ajax',
+      endpoint: config.authEndpoint,
+      headers: {},
+      headersProvider: () => {
+        const token = getToken();
+        return token ? { Authorization: `Bearer ${token}`, Accept: 'application/json' } : { Accept: 'application/json' };
+      },
+    },
+  });
+}
+
 const RESUBSCRIBE_BASE_MS = 5_000;
 const RESUBSCRIBE_MAX_MS = 60_000;
 
@@ -136,28 +163,7 @@ export async function openOrderChannels(
   getToken: () => string | null,
   handlers: OrderChannelHandlers,
 ): Promise<OrderChannelSession> {
-  const [{ default: Echo }, { default: Pusher }] = await Promise.all([import('laravel-echo'), import('pusher-js')]);
-
-  const echo = new Echo({
-    broadcaster: 'reverb',
-    key: config.key,
-    Pusher,
-    wsHost: config.host,
-    wsPort: config.port,
-    wssPort: config.port,
-    forceTLS: config.forceTLS,
-    enabledTransports: ['ws', 'wss'],
-    authEndpoint: config.authEndpoint,
-    channelAuthorization: {
-      transport: 'ajax',
-      endpoint: config.authEndpoint,
-      headers: {},
-      headersProvider: () => {
-        const token = getToken();
-        return token ? { Authorization: `Bearer ${token}`, Accept: 'application/json' } : { Accept: 'application/json' };
-      },
-    },
-  });
+  const echo = await createEcho(config, getToken);
 
   const channels: ChannelState[] = [...new Set(channelNames)].map((name) => ({
     name,
@@ -231,6 +237,102 @@ export async function openOrderChannels(
       }
       echo.disconnect();
       socketUp = false;
+      report();
+    },
+  };
+}
+
+// --- The menu's availability (public channel menu.{store_id}) ---
+
+export const MENU_EVENT = 'menu.availability_changed';
+
+export function getMenuChannelName(storeId: number | string): string {
+  return `menu.${storeId}`;
+}
+
+export interface MenuChannelHandlers {
+  // something on the menu became (un)available: ask GET /catalog/availability again
+  onChange: () => void;
+  // true once the socket is connected and the channel subscribed; false whenever either is lost
+  onConnectionChange: (connected: boolean) => void;
+  // the channel is subscribed again after having been lost: events may have been missed
+  onResync: () => void;
+}
+
+// Listens for `menu.availability_changed` of a store on its public channel (availability is public data: no token). The
+// event only says "something changed"; the app asks the availability endpoint again. Like the order channels it
+// reports the connection state (the caller polls slowly while it is up), and re-subscribes by itself.
+// Rejects when the libraries cannot be loaded or the client cannot be created: the caller keeps polling.
+export async function openMenuChannel(
+  config: RealtimeConfig,
+  storeId: number | string,
+  handlers: MenuChannelHandlers,
+): Promise<OrderChannelSession> {
+  const echo = await createEcho(config, () => null);
+  const name = getMenuChannelName(storeId);
+
+  let closed = false;
+  let socketUp = false;
+  let subscribed = false;
+  let everSubscribed = false;
+  let failures = 0;
+  let retryTimer: ReturnType<typeof setTimeout> | undefined;
+  let reported = false;
+
+  const report = () => {
+    const connected = socketUp && subscribed;
+    if (connected === reported) return;
+    reported = connected;
+    handlers.onConnectionChange(connected);
+  };
+
+  const subscribe = () => {
+    const channel = echo.channel(name);
+    channel.listen(`.${MENU_EVENT}`, () => {
+      if (!closed) handlers.onChange();
+    });
+    channel.subscribed(() => {
+      if (closed) return;
+      failures = 0;
+      subscribed = true;
+      report();
+      if (everSubscribed) handlers.onResync();
+      everSubscribed = true;
+    });
+    channel.error(() => {
+      if (closed) return;
+      subscribed = false;
+      report();
+      echo.leave(name);
+      const delay = Math.min(RESUBSCRIBE_BASE_MS * 2 ** failures, RESUBSCRIBE_MAX_MS);
+      failures += 1;
+      clearTimeout(retryTimer);
+      retryTimer = setTimeout(() => {
+        if (!closed) {
+          everSubscribed = true; // whatever happened meanwhile was not heard
+          subscribe();
+        }
+      }, delay);
+    });
+  };
+
+  const stopWatching = echo.connector.onConnectionChange((status) => {
+    socketUp = status === 'connected';
+    if (!socketUp) subscribed = false; // pusher-js subscribes again on reconnect and says so
+    report();
+  });
+  subscribe();
+
+  return {
+    close: () => {
+      if (closed) return;
+      closed = true;
+      stopWatching();
+      clearTimeout(retryTimer);
+      echo.leave(name);
+      echo.disconnect();
+      socketUp = false;
+      subscribed = false;
       report();
     },
   };

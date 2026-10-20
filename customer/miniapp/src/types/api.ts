@@ -11,6 +11,9 @@ export interface ApiResponse<T, M = undefined> {
 export interface ApiErrorBody {
   message?: string;
   errors?: Record<string, string[] | string | undefined>;
+  // The domain refusals (a delivery quote or an order that is refused for a reason the app knows) say why in
+  // `data.reason`; other failures send an empty list here
+  data?: { reason?: string; min_order_amount?: string; subtotal?: string } | unknown[] | null;
 }
 
 // Laravel paginator metadata as returned by GET /notifications.

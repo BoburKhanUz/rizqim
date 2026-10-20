@@ -3,7 +3,10 @@ import { echoInstances, type FakeEcho } from '../test/fakeEcho';
 import {
   getOrderChannelNames,
   getRealtimeConfig,
+  getMenuChannelName,
+  openMenuChannel,
   openOrderChannels,
+  type MenuChannelHandlers,
   parseOrderPayload,
   type OrderChannelHandlers,
   type RealtimeConfig,
@@ -117,7 +120,7 @@ describe('openOrderChannels', () => {
       enabledTransports: ['ws', 'wss'],
       authEndpoint: '/api/broadcasting/auth',
     });
-    expect(echo.channel.name).toBe('store.3');
+    expect(echo.firstChannel.name).toBe('store.3');
   });
 
   it('authorizes with the token the app has at that moment, not the one it had at start', async () => {
@@ -134,7 +137,7 @@ describe('openOrderChannels', () => {
   it('listens for the three order events, with the leading dot that skips the namespace', async () => {
     const { echo } = await open();
 
-    expect([...echo.channel.listeners.keys()].sort()).toEqual(['.order.assigned', '.order.created', '.order.status_changed']);
+    expect([...echo.firstChannel.listeners.keys()].sort()).toEqual(['.order.assigned', '.order.created', '.order.status_changed']);
   });
 
   it('passes events on, with the order when the payload has one', async () => {
@@ -208,7 +211,7 @@ describe('openOrderChannels', () => {
     echo.acceptSubscription();
     expect(handlers.onConnectionChange).toHaveBeenLastCalledWith(true);
     expect(handlers.onResync).toHaveBeenCalledOnce(); // events were missed meanwhile
-    expect([...echo.channel.listeners.keys()]).toHaveLength(3);
+    expect([...echo.firstChannel.listeners.keys()]).toHaveLength(3);
   });
 
   it('leaves, disconnects and goes quiet when closed', async () => {
@@ -330,5 +333,99 @@ describe('openOrderChannels', () => {
 
       expect(handlers.onResync).toHaveBeenCalledTimes(2);
     });
+  });
+});
+
+describe('openMenuChannel', () => {
+  const CONFIG: RealtimeConfig = { key: 'app-key', host: 'ws.example.uz', port: 443, forceTLS: true, authEndpoint: '/api/broadcasting/auth' };
+  let handlers: { [K in keyof MenuChannelHandlers]: ReturnType<typeof vi.fn> };
+
+  const open = async () => {
+    const session = await openMenuChannel(CONFIG, 7, handlers as unknown as MenuChannelHandlers);
+    return { session, echo: echoInstances[echoInstances.length - 1] as FakeEcho };
+  };
+
+  beforeEach(() => {
+    echoInstances.length = 0;
+    handlers = { onChange: vi.fn(), onConnectionChange: vi.fn(), onResync: vi.fn() };
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('names the public channel of the store', () => {
+    expect(getMenuChannelName(7)).toBe('menu.7');
+  });
+
+  it('listens for menu.availability_changed on the public channel, with the leading dot', async () => {
+    const { echo } = await open();
+
+    expect(echo.firstChannel.name).toBe('menu.7');
+    expect([...echo.firstChannel.listeners.keys()]).toEqual(['.menu.availability_changed']);
+  });
+
+  it('tells the app to ask the availability again when something changed', async () => {
+    const { echo } = await open();
+    echo.connectAndSubscribe();
+
+    echo.emit('.menu.availability_changed', { store_id: 7, branch_id: 1, reason: 'stop_list', items: [], changed_at: 't' });
+
+    expect(handlers.onChange).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports the connection once the socket is up and the channel subscribed, and again when it is lost', async () => {
+    const { echo } = await open();
+
+    echo.setConnection('connected');
+    expect(handlers.onConnectionChange).not.toHaveBeenCalled();
+    echo.acceptSubscription();
+    expect(handlers.onConnectionChange).toHaveBeenLastCalledWith(true);
+
+    echo.setConnection('disconnected');
+    expect(handlers.onConnectionChange).toHaveBeenLastCalledWith(false);
+  });
+
+  it('asks for a resync when the channel is subscribed again after a loss (events may have been missed)', async () => {
+    const { echo } = await open();
+    echo.connectAndSubscribe();
+    expect(handlers.onResync).not.toHaveBeenCalled();
+
+    echo.setConnection('disconnected');
+    echo.connectAndSubscribe();
+
+    expect(handlers.onResync).toHaveBeenCalledTimes(1);
+  });
+
+  it('subscribes again after a refused subscription, with a growing delay', async () => {
+    vi.useFakeTimers();
+    const { echo } = await open();
+
+    echo.refuseSubscription();
+    expect(echo.left).toContain('menu.7');
+    expect(echo.channels).toHaveLength(1);
+
+    vi.advanceTimersByTime(5_000);
+    expect(echo.channels).toHaveLength(2);
+  });
+
+  it('needs no token: a public channel is not authorized', async () => {
+    const { echo } = await open();
+    const { headersProvider } = echo.options.channelAuthorization as { headersProvider: () => Record<string, string> };
+
+    expect(headersProvider()).not.toHaveProperty('Authorization');
+  });
+
+  it('closes cleanly and stops reporting', async () => {
+    const { session, echo } = await open();
+    echo.connectAndSubscribe();
+
+    session.close();
+
+    expect(echo.left).toContain('menu.7');
+    expect(echo.disconnected).toBe(true);
+    expect(handlers.onConnectionChange).toHaveBeenLastCalledWith(false);
+    echo.emit('.menu.availability_changed', {});
+    expect(handlers.onChange).not.toHaveBeenCalled();
   });
 });

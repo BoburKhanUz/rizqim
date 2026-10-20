@@ -1,21 +1,25 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { useCartStore, type PendingCartItem } from '../store/cartStore';
+import { useCartStore } from '../store/cartStore';
 import { hapticFeedback } from '../lib/telegram';
 import { isTelegramHost, selectionChanged } from '../lib/twa';
-import { showAlert } from '../lib/dialogs';
 import { EmptyState, IconButton, InlineError, ProductImage, cx } from '../components/ui';
 import api from '../services/api';
 import { ArrowLeft, Clock, MessageSquare, Plus, Star } from 'lucide-react';
-import VariantSelectorModal from '../components/VariantSelectorModal';
+import ProductSheet from '../components/ProductSheet';
 import { FavoriteButton } from '../components/catalog/FavoriteButton';
 import { QuantityStepper } from '../components/catalog/QuantityStepper';
 import { ReplaceCartDialog } from '../components/catalog/ReplaceCartDialog';
+import { SoldOutBadge } from '../components/catalog/SoldOutBadge';
 import { StoreLogo } from '../components/catalog/StoreLogo';
-import { getAddBlockedMessage, getVariantStock, isProductSoldOut, type StockVariant } from '../lib/stock';
+import { useAddToCart } from '../hooks/useAddToCart';
+import { useMenuAvailability } from '../hooks/useMenuAvailability';
+import { getVariantStock } from '../lib/stock';
+import { availabilityView, isProductUnavailable } from '../lib/menuAvailability';
+import { formatQuantity, isMeasuredUnit, unitLabel } from '../lib/quantity';
 import { formatDate, formatMoney } from '../lib/format';
-import { buildCartItem, getProductBasePrice, getStoreInfo } from '../lib/catalog';
-import type { ApiResponse, Category, Product, ProductVariant, StoreCatalog, StoreCatalogStore } from '../types';
+import { getProductBasePrice, getStoreInfo, needsProductSheet } from '../lib/catalog';
+import type { ApiResponse, BranchAvailability, Category, Product, StoreCatalog, StoreCatalogStore } from '../types';
 
 const CHIP = 'min-h-11 shrink-0 cursor-pointer whitespace-nowrap rounded-control px-4 text-body font-medium transition-colors';
 
@@ -23,11 +27,10 @@ export default function StoreDetail() {
   const { id: uuid } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { items: cartItems, addItem, removeItem, updateQuantity } = useCartStore();
-  const [pendingCartItem, setPendingCartItem] = useState<PendingCartItem | null>(null);
-  const [selectedProductForVariant, setSelectedProductForVariant] = useState<Product | null>(null);
+  const { items: cartItems, removeItem, updateQuantity } = useCartStore();
 
   const [store, setStore] = useState<StoreCatalogStore | null>(null);
+  const [catalogAvailability, setCatalogAvailability] = useState<BranchAvailability[] | undefined>(undefined);
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,6 +53,7 @@ export default function StoreDetail() {
           setStore(res.data.data.store);
           setCategories(res.data.data.categories);
           setProducts(res.data.data.products);
+          setCatalogAvailability(res.data.data.availability);
         }
       } catch (err) {
         if (!cancelled) setError(err);
@@ -71,7 +75,13 @@ export default function StoreDetail() {
     if (!targetProductId || targetProductId === dismissedTargetId) return null;
     return products.find(p => p.id.toString() === targetProductId) ?? null;
   }, [targetProductId, dismissedTargetId, products]);
-  const variantModalProduct = selectedProductForVariant ?? targetProduct;
+
+  // What the store cannot offer right now: the first picture from GET /catalog/availability (the catalog's own copy
+  // until it arrives), then kept current by events / polling
+  const { branches: availabilityBranches } = useMenuAvailability(store?.id, catalogAvailability);
+  const availability = useMemo(() => availabilityView(availabilityBranches), [availabilityBranches]);
+  const cart = useAddToCart({ storeInfoOf: () => getStoreInfo(store), availability });
+  const variantModalProduct = cart.sheetProduct ?? targetProduct;
 
   const parentCategories = useMemo(() => {
     return categories.filter(c => !c.parent_id);
@@ -109,44 +119,6 @@ export default function StoreDetail() {
   const toggleFavoriteStore = () => {
     hapticFeedback('light');
     setIsFav(!isFav);
-  };
-
-  // Mirrors VariantSelectorModal: a variant with stock <= 0 can't be added,
-  // and the cart can never hold more of a variant than is in stock.
-  const canAddVariant = (variant: StockVariant | undefined, cartItemId: string): boolean => {
-    const inCart = cartItems.find(item => item.id === cartItemId)?.quantity ?? 0;
-    const blocked = getAddBlockedMessage(variant, inCart);
-    if (blocked) {
-      hapticFeedback('error');
-      void showAlert(blocked);
-      return false;
-    }
-    return true;
-  };
-
-  // Puts one unit of the variant into the cart (unless the stock rule blocks it); another store's items in the cart
-  // ask the customer first
-  const addToCart = (product: Product, variant: ProductVariant | undefined) => {
-    const cartItem = buildCartItem(product, variant);
-    if (!canAddVariant(variant, cartItem.id)) return;
-
-    const storeInfo = getStoreInfo(store);
-
-    const isSuccess = addItem(cartItem, storeInfo);
-    if (!isSuccess) {
-      setPendingCartItem({ item: cartItem, storeInfo });
-    }
-  };
-
-  const handleAddToCart = (product: Product) => {
-    hapticFeedback('medium');
-
-    if (product.variants && product.variants.length > 1) {
-      setSelectedProductForVariant(product);
-      return;
-    }
-
-    addToCart(product, product.variants?.[0]);
   };
 
   // "-" takes one unit off the product's first cart line (the line goes when it was the last unit)
@@ -359,53 +331,70 @@ export default function StoreDetail() {
                     {productsGroup.map((product) => {
                       const cartItemsArray = cartItems.filter(item => item.productId === product.id);
                       const cartQty = cartItemsArray.reduce((sum, item) => sum + item.quantity, 0);
-                      const isSoldOut = isProductSoldOut(product);
+                      const isSoldOut = isProductUnavailable(product, availability);
+                      // A dish with variants, modifiers or a weight to choose opens its sheet; the others have a stepper
+                      const needsSheet = needsProductSheet(product);
+                      const measuredVariant = product.variants?.find((variant) => isMeasuredUnit(variant.unit));
                       // Single-variant products: the "+" stops at the available stock
                       const singleVariantStock = product.variants?.length === 1 ? getVariantStock(product.variants[0]) : null;
                       const isAtStockLimit = singleVariantStock !== null && cartQty >= singleVariantStock;
+                      const inCartText = measuredVariant
+                        ? formatQuantity(cartQty, measuredVariant.unit)
+                        : String(cartItemsArray.reduce((sum, item) => sum + item.quantity, 0));
 
                       return (
-                        <li
-                          key={product.id}
-                          className={cx(
-                            'flex gap-3 rounded-card border border-line bg-surface p-3',
-                            (!store.is_open || isSoldOut) && 'opacity-60',
-                          )}
-                        >
+                        <li key={product.id} className="flex gap-3 rounded-card border border-line bg-surface p-3">
                           <div className="flex min-w-0 flex-1 flex-col gap-1">
-                            <h3 className="text-body font-bold text-fg">{product.name}</h3>
+                            <h3 className={cx('text-body font-bold', isSoldOut || !store.is_open ? 'text-fg-muted' : 'text-fg')}>{product.name}</h3>
                             {product.description && <p className="line-clamp-2 text-footnote text-fg-muted">{product.description}</p>}
                             <div className="mt-auto flex flex-wrap items-center justify-between gap-x-2 gap-y-1 pt-1">
-                              <span className="text-body font-bold text-fg">{formatMoney(getProductBasePrice(product))}</span>
-                              {store.is_open && (
-                                cartQty > 0 ? (
+                              <span className={cx('text-body font-bold', isSoldOut ? 'text-fg-muted' : 'text-fg')}>
+                                {formatMoney(getProductBasePrice(product))}
+                                {measuredVariant && <span className="text-footnote font-medium text-fg-muted"> / {unitLabel(measuredVariant.unit)}</span>}
+                              </span>
+                              {isSoldOut ? (
+                                <SoldOutBadge className="ml-auto" />
+                              ) : (
+                                store.is_open &&
+                                (needsSheet ? (
+                                  <div className="ml-auto flex items-center gap-2">
+                                    {cartQty > 0 && <span className="text-footnote font-medium text-fg-muted">Savatda: {inCartText}</span>}
+                                    <button
+                                      type="button"
+                                      aria-label={`Qo'shish: ${product.name}`}
+                                      onClick={() => cart.start(product)}
+                                      className="flex min-h-11 cursor-pointer items-center gap-1.5 rounded-full bg-brand-soft px-4 text-body font-bold text-brand-soft-fg transition-transform focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand motion-safe:active:scale-95"
+                                    >
+                                      <Plus aria-hidden="true" className="size-[18px]" />
+                                      Qo'shish
+                                    </button>
+                                  </div>
+                                ) : cartQty > 0 ? (
                                   <QuantityStepper
                                     quantity={cartQty}
                                     removeAtOne
-                                    incrementDimmed={isSoldOut || isAtStockLimit}
+                                    incrementDimmed={isAtStockLimit}
                                     decrementLabel={`${product.name}: kamaytirish`}
                                     incrementLabel={`${product.name}: ko'paytirish`}
                                     onDecrement={() => handleDecrement(cartItemsArray[0])}
-                                    onIncrement={() => handleAddToCart(product)}
+                                    onIncrement={() => cart.start(product)}
                                     className="ml-auto"
                                   />
-                                ) : isSoldOut ? (
-                                  <span className="ml-auto rounded-control bg-surface-2 px-2.5 py-1 text-caption font-bold text-fg-muted">Tugagan</span>
                                 ) : (
                                   <button
                                     type="button"
                                     aria-label={`Qo'shish: ${product.name}`}
-                                    onClick={() => handleAddToCart(product)}
+                                    onClick={() => cart.start(product)}
                                     className="ml-auto flex min-h-11 cursor-pointer items-center gap-1.5 rounded-full bg-brand-soft px-4 text-body font-bold text-brand-soft-fg transition-transform focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand motion-safe:active:scale-95"
                                   >
                                     <Plus aria-hidden="true" className="size-[18px]" />
                                     Qo'shish
                                   </button>
-                                )
+                                ))
                               )}
                             </div>
                           </div>
-                          <ProductImage src={product.image_url} className="size-20 rounded-control" />
+                          <ProductImage src={product.image_url} className={cx('size-20 rounded-control', (isSoldOut || !store.is_open) && 'opacity-50 grayscale')} />
                         </li>
                       );
                     })}
@@ -439,18 +428,19 @@ export default function StoreDetail() {
         )}
       </div>
 
-      <ReplaceCartDialog pending={pendingCartItem} onClose={() => setPendingCartItem(null)} />
+      <ReplaceCartDialog pending={cart.pending} onClose={cart.clearPending} />
 
-      {/* Product Variant / Option Selector Sheet */}
-      <VariantSelectorModal
+      {/* The product sheet: variant, modifiers, weight */}
+      <ProductSheet
         isOpen={!!variantModalProduct}
         onClose={() => {
-          setSelectedProductForVariant(null);
+          cart.closeSheet();
           setDismissedTargetId(targetProductId);
         }}
         product={variantModalProduct}
-        onAdd={(variant) => {
-          if (variantModalProduct) addToCart(variantModalProduct, variant);
+        availability={availability}
+        onAdd={(choice) => {
+          if (variantModalProduct) cart.addVariant(variantModalProduct, choice.variant, choice);
         }}
       />
     </div>

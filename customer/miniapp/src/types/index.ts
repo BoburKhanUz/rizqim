@@ -8,3 +8,4 @@ export type * from './order';
 export type * from './notification';
 export type * from './superadmin';
 export type * from './owner';
+export type * from './delivery';

@@ -249,8 +249,40 @@ test.describe('the map pin', () => {
 })
 
 test.describe('the service area', () => {
-  test('an address outside every branch\'s radius is refused by the server, and a closer one then goes through', async ({ page, api }) => {
+  test('an address outside the delivery zone is refused by the quote before ordering, and a closer one then goes through', async ({ page, api }) => {
     api.places = [SAMARKAND, CHILONZOR]
+    await openNewAddressForm(page)
+
+    await addressInput(page).fill('Amir Temur')
+    await page.getByRole('button', { name: 'Manzilni qidirish' }).click()
+    await page.getByRole('list', { name: 'Topilgan manzillar' }).getByRole('button', { name: SAMARKAND.address }).click()
+    await saveAddress(page)
+
+    // The quote says it, in Uzbek, and the order cannot be placed
+    const refusal = page.getByRole('alert').filter({ hasText: 'Bu manzilga yetkazib berilmaydi' })
+    await expect(refusal).toContainText('Boshqa manzilni tanlang')
+    await expect(page.getByRole('button', { name: /^Bu manzilga yetkazib berilmaydi/ })).toBeDisabled()
+    expect(api.callsTo('GET', '/delivery/quote')[0].query).toMatchObject({ store: '1', lat: String(SAMARKAND.lat), lng: String(SAMARKAND.lng), subtotal: '25000' })
+    expect(api.callsTo('POST', '/orders')).toHaveLength(0)
+
+    // Another address, inside the zone
+    await page.getByRole('button', { name: "Yangi manzil qo'shish" }).click()
+    await addressInput(page).fill('Amir Temur')
+    await page.getByRole('button', { name: 'Manzilni qidirish' }).click()
+    await page.getByRole('list', { name: 'Topilgan manzillar' }).getByRole('button', { name: CHILONZOR.address }).click()
+    await saveAddress(page)
+    await expect(page.getByRole('radio', { name: new RegExp(CHILONZOR.address) })).toBeChecked()
+    await expect(page.getByText(/Yetkazib berish: 12\s000/)).toBeVisible()
+
+    await page.getByRole('button', { name: /^Buyurtma berish/ }).click()
+    await expect(page.getByRole('heading', { name: 'Buyurtma qabul qilindi!' })).toBeVisible()
+    expect(api.orders).toHaveLength(1)
+    expect(api.callsTo('POST', '/orders')[0].body).toMatchObject({ address: CHILONZOR.address, latitude: CHILONZOR.lat, longitude: CHILONZOR.lng })
+  })
+
+  test('a store without zones keeps the radius rule: the server refuses at checkout and the customer is told in plain Uzbek', async ({ page, api }) => {
+    api.zonesConfigured = false
+    api.places = [SAMARKAND]
     await openNewAddressForm(page)
 
     await addressInput(page).fill('Amir Temur')
@@ -261,25 +293,12 @@ test.describe('the service area', () => {
     await page.getByRole('button', { name: /^Buyurtma berish/ }).click()
 
     const alert = page.getByRole('alertdialog')
-    await expect(alert).toContainText('yetkazib berish hududidan tashqarida')
+    await expect(alert).toContainText('Bu manzilga yetkazib berilmaydi')
     await alert.getByRole('button', { name: 'OK' }).click()
     await expect(alert).toBeHidden()
     expect(api.orders).toHaveLength(0)
     expect(api.callsTo('POST', '/orders')[0].status).toBe(400)
     // The cart is still there
     await expect(page.getByText('Lavash (Standart)')).toBeVisible()
-
-    // Another address, inside the radius
-    await page.getByRole('button', { name: "Yangi manzil qo'shish" }).click()
-    await addressInput(page).fill('Amir Temur')
-    await page.getByRole('button', { name: 'Manzilni qidirish' }).click()
-    await page.getByRole('list', { name: 'Topilgan manzillar' }).getByRole('button', { name: CHILONZOR.address }).click()
-    await saveAddress(page)
-    await expect(page.getByRole('radio', { name: new RegExp(CHILONZOR.address) })).toBeChecked()
-
-    await page.getByRole('button', { name: /^Buyurtma berish/ }).click()
-    await expect(page.getByRole('heading', { name: 'Buyurtma qabul qilindi!' })).toBeVisible()
-    expect(api.orders).toHaveLength(1)
-    expect(api.callsTo('POST', '/orders')[1].body).toMatchObject({ address: CHILONZOR.address, latitude: CHILONZOR.lat, longitude: CHILONZOR.lng })
   })
 })

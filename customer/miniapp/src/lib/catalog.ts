@@ -1,6 +1,9 @@
-import type { CartItem, CartStoreInfo } from '../store/cartStore';
+import { cartLineId, type CartItem, type CartModifier, type CartStoreInfo } from '../store/cartStore';
 import type { Amount, Product, ProductVariant } from '../types';
+import { formatMoney } from './format';
 import { parseAmount, toAmount } from './money';
+import { groupsOf } from './modifiers';
+import { isMeasuredUnit, minQuantityOf, quantityStepOf, unitLabel } from './quantity';
 
 // A price as a number, or NaN when it is not one: for the callers that must tell "no price" from 0
 // (everything that only adds up or shows prices uses toAmount instead).
@@ -34,16 +37,40 @@ export function getStoreInfo(
   return store ? { name: store.name, address: store.address || DEFAULT_STORE_ADDRESS } : undefined;
 }
 
-// The cart line for one unit of a product (of `variant`, or of a product without variants).
-export function buildCartItem(product: Product, variant: ProductVariant | undefined): CartItem {
+// What the customer picked on a product: how much of it (a fraction for an item sold by weight) and the modifiers.
+export interface CartSelection {
+  quantity?: number;
+  modifiers?: CartModifier[];
+}
+
+// The cart line for one unit of a product (of `variant`, or of a product without variants), or for the quantity and
+// modifiers of `selection`. Lines of one variant with different modifiers get different ids.
+export function buildCartItem(product: Product, variant: ProductVariant | undefined, selection: CartSelection = {}): CartItem {
+  const modifiers = selection.modifiers && selection.modifiers.length > 0 ? selection.modifiers : undefined;
+  const measured = isMeasuredUnit(variant?.unit);
   return {
-    id: variant ? `${product.id}-${variant.uuid}` : `${product.id}`,
+    id: cartLineId(variant ? `${product.id}-${variant.uuid}` : `${product.id}`, modifiers),
     productId: product.id,
     variantId: variant?.uuid,
     storeId: product.store_id.toString(),
     name: variant ? `${product.name} (${variant.name})` : product.name,
     price: variant ? toAmount(variant.price) : 0,
-    quantity: 1,
+    quantity: selection.quantity ?? (measured ? minQuantityOf(variant) : 1),
     image: product.image_url ?? undefined,
+    variantDbId: variant?.id,
+    ...(measured && variant ? { unit: variant.unit, quantityStep: quantityStepOf(variant), minQuantity: minQuantityOf(variant) } : {}),
+    ...(modifiers ? { modifiers } : {}),
   };
+}
+
+// Whether adding the dish needs its sheet first: variants to choose from, modifier groups to fill in, or a weight to pick.
+export function needsProductSheet(product: Pick<Product, 'variants' | 'modifier_groups'>): boolean {
+  const variants = product.variants ?? [];
+  return variants.length > 1 || groupsOf(product).length > 0 || variants.some((variant) => isMeasuredUnit(variant.unit));
+}
+
+// "33 000 so'm / kg" for an item sold by weight, "33 000 so'm" otherwise.
+export function formatUnitPrice(variant: Pick<ProductVariant, 'price' | 'unit'>): string {
+  const price = formatMoney(variant.price);
+  return isMeasuredUnit(variant.unit) ? `${price} / ${unitLabel(variant.unit)}` : price;
 }
