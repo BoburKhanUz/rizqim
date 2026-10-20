@@ -85,7 +85,8 @@ export function resetMainButtonForTests(): void {
 }
 
 // A second press of the same action that arrives before the first one disabled the button (two quick taps, two
-// events from Telegram) is dropped. A new action (the text changed, e.g. the courier's next step) is pressed at once.
+// events from Telegram) is dropped. A new action (the text changed, e.g. the courier's next step) is pressed at once,
+// and so is the same action once the first press's promise has settled (a retry after a refused order).
 const REPEAT_GUARD_MS = 700;
 
 // The one main action of a screen ("Buyurtma berish", "Saqlash"), at the bottom, always in reach.
@@ -117,6 +118,7 @@ export function useMainButton({ text, onClick, enabled = true, progress = false,
         pending = true;
         void (result as Promise<unknown>).finally(() => {
           pending = false;
+          lastPress = { text: '', at: -Infinity };
         });
       }
     };

@@ -174,6 +174,14 @@ describe('useMainButton outside Telegram (the button in the bottom dock)', () =>
     fireEvent.click(dockButton()!);
     expect(onClick).toHaveBeenCalledTimes(2);
 
+    // Once a press's request has settled (e.g. the order was refused), pressing again right away is a retry, not a
+    // double tap
+    await act(async () => finish());
+    now += 100;
+    fireEvent.click(dockButton()!);
+    expect(onClick).toHaveBeenCalledTimes(3);
+    await act(async () => finish());
+
     // A synchronous action pressed twice within a moment (before the screen could disable it) runs once
     const onSync = vi.fn();
     render(
