@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createCheckoutAttempt, newIdempotencyKey } from './idempotency';
+import { createCheckoutAttempt, newIdempotencyKey, type OpenAttempt } from './idempotency';
 
 describe('newIdempotencyKey', () => {
   it('is a UUID the server accepts (1-255 visible characters)', () => {
@@ -33,5 +33,33 @@ describe('createCheckoutAttempt', () => {
     attempt.keyFor({ a: 1 });
     attempt.finish();
     expect(attempt.keyFor({ a: 1 })).toBe('key-2');
+  });
+});
+
+describe('createCheckoutAttempt with a kept attempt', () => {
+  const counter = () => {
+    let n = 0;
+    return () => `key-${++n}`;
+  };
+  const kept = () => {
+    let value: OpenAttempt | null = null;
+    return { get: () => value, set: (next: OpenAttempt | null) => void (value = next) };
+  };
+
+  it('a new attempt over the same storage (the cart opened again) reuses the key of the same body', () => {
+    const storage = kept();
+    const body = { items: [{ variant_id: 'v', quantity: 1 }] };
+    expect(createCheckoutAttempt(counter(), storage).keyFor(body)).toBe('key-1');
+    expect(createCheckoutAttempt(counter(), storage).keyFor({ ...body })).toBe('key-1');
+  });
+
+  it('a changed body or a placed order ends the kept attempt', () => {
+    const storage = kept();
+    const make = counter();
+    createCheckoutAttempt(make, storage).keyFor({ quantity: 1 });
+    expect(createCheckoutAttempt(make, storage).keyFor({ quantity: 2 })).toBe('key-2');
+    createCheckoutAttempt(make, storage).finish();
+    expect(storage.get()).toBeNull();
+    expect(createCheckoutAttempt(make, storage).keyFor({ quantity: 2 })).toBe('key-3');
   });
 });

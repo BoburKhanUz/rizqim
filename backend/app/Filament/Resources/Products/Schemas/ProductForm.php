@@ -19,6 +19,7 @@ use App\Enums\OrderChannel;
 use App\Models\ModifierGroup;
 use App\Models\Product;
 use App\Services\Catalog\MenuImageService;
+use App\Support\QuantityRules;
 use Filament\Schemas\Components\Utilities\Get;
 
 class ProductForm
@@ -78,6 +79,8 @@ class ProductForm
                                         TextInput::make('price')
                                             ->required()
                                             ->numeric()
+                                            ->minValue(0)
+                                            ->maxValue(9999999999)
                                             ->prefix('UZS')
                                             ->columnSpan(2),
                                         \Filament\Forms\Components\Hidden::make('stock')
@@ -98,6 +101,7 @@ class ProductForm
                                             ->label('Qadam')
                                             ->numeric()
                                             ->minValue(0.001)
+                                            ->maxValue(99999)
                                             ->placeholder('0.1')
                                             ->visible(fn (Get $get) => $get('unit') !== null && $get('unit') !== MenuUnit::PIECE->value)
                                             ->columnSpan(1),
@@ -105,6 +109,14 @@ class ProductForm
                                             ->label('Eng kam')
                                             ->numeric()
                                             ->minValue(0.001)
+                                            ->maxValue(99999)
+                                            // A multiple of the step, or no quantity at or above it is accepted at checkout
+                                            ->rule(fn (Get $get): \Closure => function (string $attribute, mixed $value, \Closure $fail) use ($get): void {
+                                                $problem = QuantityRules::minimumProblem($value, $get('quantity_step'));
+                                                if ($problem !== null) {
+                                                    $fail($problem);
+                                                }
+                                            })
                                             ->visible(fn (Get $get) => $get('unit') !== null && $get('unit') !== MenuUnit::PIECE->value)
                                             ->columnSpan(1),
                                         TextInput::make('batch_consumption')
@@ -112,6 +124,7 @@ class ProductForm
                                             ->helperText('Masalan 0.7 porsiya uchun 0.7')
                                             ->numeric()
                                             ->minValue(0.001)
+                                            ->maxValue(99999)
                                             ->default(1)
                                             ->columnSpan(2),
                                     ])
@@ -136,8 +149,8 @@ class ProductForm
                                             ->required()
                                             ->distinct()
                                             ->columnSpan(3),
-                                        TextInput::make('min_select')->label('Kamida')->numeric()->minValue(0)->columnSpan(1),
-                                        TextInput::make('max_select')->label("Ko'pi bilan")->numeric()->minValue(1)->columnSpan(1),
+                                        TextInput::make('min_select')->label('Kamida')->numeric()->minValue(0)->maxValue(50)->columnSpan(1),
+                                        TextInput::make('max_select')->label("Ko'pi bilan")->numeric()->minValue(1)->maxValue(50)->columnSpan(1),
                                         Select::make('is_required')
                                             ->label('Majburiy')
                                             ->options([1 => 'Ha', 0 => "Yo'q"])
@@ -177,7 +190,7 @@ class ProductForm
                                             })
                                             ->placeholder('Butun mahsulot')
                                             ->columnSpan(2),
-                                        TextInput::make('price')->label('Narx')->numeric()->minValue(0)->prefix('UZS')->columnSpan(1),
+                                        TextInput::make('price')->label('Narx')->numeric()->minValue(0)->maxValue(9999999999)->prefix('UZS')->columnSpan(1),
                                         Toggle::make('is_hidden')->label('Yashirish')->default(false)->columnSpan(1),
                                     ])
                                     ->columns(6),

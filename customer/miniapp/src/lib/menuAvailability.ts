@@ -1,5 +1,7 @@
 import { quantityOfVariant, type CartItem } from '../store/cartStore';
 import type { BranchAvailability, Modifier, Product, ProductVariant } from '../types';
+import { currentLine, lineChange, missingModifier } from './cartPricing';
+import { formatMoney } from './format';
 import { formatQuantity } from './quantity';
 import { getVariantStock, isVariantActive, isVariantOutOfStock } from './stock';
 
@@ -64,8 +66,9 @@ export function isModifierUnavailable(modifier: Pick<Modifier, 'id'>, view: Avai
   return view.isModifierStopped(modifier.id);
 }
 
-// Why a cart line cannot be ordered any more.
-export type LineProblem = 'sold_out' | 'modifier_stopped' | 'removed' | 'insufficient';
+// Why a cart line cannot be ordered as it is. `price_changed` is the only one the customer can accept (the line stays,
+// at the new price); the others need the line out of the cart.
+export type LineProblem = 'sold_out' | 'modifier_stopped' | 'removed' | 'insufficient' | 'measure_changed' | 'price_changed';
 
 export interface CartLineIssue {
   item: CartItem;
@@ -100,6 +103,18 @@ export function findCartIssues(items: readonly CartItem[], products: readonly Pr
     const stopped = item.modifiers?.find((modifier) => view.isModifierStopped(modifier.id));
     if (stopped) {
       issues.push({ item, problem: 'modifier_stopped', message: `"${stopped.name}" tugadi: boshqasini tanlang yoki olib tashlang` });
+      continue;
+    }
+    const gone = missingModifier(item, products);
+    if (gone) {
+      issues.push({ item, problem: 'modifier_stopped', message: `"${gone.name}" endi taklif qilinmaydi: olib tashlang va qaytadan qo'shing` });
+      continue;
+    }
+    const change = lineChange(item, currentLine(item, products));
+    if (change?.kind === 'measure') {
+      issues.push({ item, problem: 'measure_changed', message: "O'lchov birligi yoki miqdor qadami o'zgardi: olib tashlang va qaytadan qo'shing" });
+    } else if (change?.kind === 'price') {
+      issues.push({ item, problem: 'price_changed', message: `Narxi o'zgardi: ${formatMoney(change.from)} → ${formatMoney(change.to)}` });
     }
   }
 

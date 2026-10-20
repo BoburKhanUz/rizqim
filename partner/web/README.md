@@ -110,7 +110,9 @@ docker run --rm -p 3000:3000 -e API_BASE_URL=http://backend:8000/api -e PUBLIC_A
 
 **docker-compose.yml'da `partner-web` xizmati** (P1-36): `API_BASE_URL=http://backend/api` (compose tarmog'i), `PUBLIC_API_BASE_URL` va
 `SESSION_COOKIE_SECURE` ildiz `.env` dagi `PARTNER_PUBLIC_API_BASE_URL`, `PARTNER_SESSION_COOKIE_SECURE` dan, port `PARTNER_WEB_PORT`
-(3000). Tashqi TLS proksi `panel.<domen>` ni shu portga uzatadi (`Host` o'zgarmasin), panel origin'i backend'dagi
+(3000, faqat `127.0.0.1` da; `PARTNER_WEB_BIND`). Tashqi TLS proksi `panel.<domen>` ni shu portga uzatadi (`Host`
+o'zgarmasin, `X-Forwarded-For` ga mijoz IP'si qo'shilsin: kirish handler'lari uning oxirgi yozuvini backend'ga uzatadi,
+backend'ning IP limitlari har kishiga alohida bo'ladi), panel origin'i backend'dagi
 `CORS_ALLOWED_ORIGINS` da bo'ladi: [docs/DEPLOY.md](../../docs/DEPLOY.md), 4-bo'lim. Image sog'liq tekshiruvi: `GET /login`.
 
 ## Tuzilma

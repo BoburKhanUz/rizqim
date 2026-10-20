@@ -30,6 +30,7 @@ export async function POST(request: NextRequest) {
 
   const result = await backendFetch('/v1/auth/phone/verify', {
     body: { phone, code, account: 'staff', device: webDevice(request) },
+    request,
   });
 
   const choices = accountChoices(result);

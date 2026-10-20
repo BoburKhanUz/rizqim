@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -34,6 +35,14 @@ return new class extends Migration
 
     public function down(): void
     {
+        // An integer column would silently round 0.5 kg of stock (P1-34): refuse while a fraction is stored
+        if (DB::table('product_variants')->whereRaw('stock <> FLOOR(stock)')->exists()) {
+            throw new RuntimeException(
+                "Rollback refused: product_variants.stock has fractional values (sold by weight). An integer column would "
+                . "round them. Set those variants' stock to whole numbers (or delete them) first, then roll back again."
+            );
+        }
+
         Schema::table('products', function (Blueprint $table) {
             $table->dropColumn('batch_tracked');
         });

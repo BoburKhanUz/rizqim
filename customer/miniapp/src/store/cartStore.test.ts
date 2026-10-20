@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { cartLineId, cartLineTotal, quantityOfVariant, useCartStore, type CartItem, type CartModifier } from './cartStore';
+import { createCheckoutAttempt } from '../lib/idempotency';
+import { cartAttemptStorage, cartLineId, cartLineTotal, quantityOfVariant, useCartStore, type CartItem, type CartModifier } from './cartStore';
 
 const burger: CartItem = {
   id: '1-v1',
@@ -182,6 +183,32 @@ describe('persistence', () => {
     const saved = JSON.parse(localStorage.getItem('cart-storage') ?? 'null');
     expect(saved.state.items).toEqual([{ ...burger, quantity: 2 }]);
     expect(saved.state.storeName).toBe('Evos');
+  });
+
+  it('keeps the open checkout attempt with the cart, and drops it with the cart', () => {
+    cart().addItem(burger, { name: 'Evos', address: 'Chilonzor 5' });
+    const key = createCheckoutAttempt(() => 'key-1', cartAttemptStorage).keyFor({ items: [1] });
+
+    const saved = JSON.parse(localStorage.getItem('cart-storage') ?? 'null');
+    expect(saved.state.checkoutAttempt).toEqual({ key, fingerprint: '{"items":[1]}' });
+    // The cart page opened again (a new attempt object): the same body keeps the key
+    expect(createCheckoutAttempt(() => 'key-2', cartAttemptStorage).keyFor({ items: [1] })).toBe('key-1');
+
+    cart().clearCart();
+    expect(cart().checkoutAttempt).toBeNull();
+  });
+});
+
+describe('refreshLines', () => {
+  it('takes the new price and modifier deltas into the matching lines only', () => {
+    const cheesy: CartItem = { ...burger, id: 'b+m', modifiers: [{ id: 5, uuid: 'm-5', groupId: 1, name: 'Pishloq', priceDelta: 3000, quantity: 1 }] };
+    cart().addItem(cheesy);
+    cart().addItem(cola);
+
+    cart().refreshLines([{ ...cheesy, price: 31000, quantity: 99, modifiers: [{ ...cheesy.modifiers![0], priceDelta: 4000 }] }]);
+
+    expect(cart().items.find((item) => item.id === 'b+m')).toMatchObject({ price: 31000, quantity: 1, modifiers: [{ priceDelta: 4000 }] });
+    expect(cart().items.find((item) => item.id === cola.id)).toEqual(cola);
   });
 });
 

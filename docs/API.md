@@ -133,6 +133,8 @@ Tarmoq uzilib, ilova bir so'rovni qayta yuborsa ikkinchi buyurtma yaratilmasligi
   qaytadi, sarlavha `Idempotent-Replayed: true`.
 - Shu kalit **boshqa tana** bilan — 409. Bir vaqtda kelgan dublikat birinchisini kutadi (10 soniyadan oshsa 409).
 - Muvaffaqiyatsiz so'rov (masalan 422) kalitni bo'shatadi: tuzatib, shu kalit bilan qayta yuborish mumkin.
+- Kalit buyurtma bilan bitta tranzaksiyada belgilanadi: buyurtma saqlanib, javob yozilmay qolgan bo'lsa ham qayta
+  yuborish ikkinchi buyurtma yaratmaydi (409; ilova buyurtmalar ro'yxatini yangilaydi).
 - Boshqa endpointga ulash (backend): `->middleware(EnsureIdempotency::class . ':scope')`. POS'ning barcha o'zgartiruvchi
   so'rovlari shunday bo'ladi ([POS_SPEC.md](POS_SPEC.md)).
 - Qo'shimcha himoya: `orders.external_id` do'kon va kanal ichida yagona (agregator yoki POS'ning o'z raqami).

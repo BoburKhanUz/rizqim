@@ -60,13 +60,12 @@ jobs:
               - 'backend/docker/**'
               - 'scripts/**'
               - 'infra/**'
-              - 'customer/miniapp/Dockerfile'
-              - 'customer/miniapp/Dockerfile.dockerignore'
-              - 'customer/miniapp/docker/**'
-              # P1-25: the Mini App image is built from the repository root and includes packages/ts/ui
-              - 'packages/ts/ui/**'
-              - 'partner/web/Dockerfile'
-              - 'partner/web/Dockerfile.dockerignore'
+              # The Mini App and partner web images are built here from the repository root: any change to the apps or
+              # the TypeScript packages they link (packages/ts) can break the image build (lockfiles, file: links, build)
+              - 'customer/miniapp/**'
+              - 'partner/web/**'
+              - 'packages/ts/**'
+              - '.dockerignore'
               - '.github/workflows/ci.yml'
             # P1-25: the partner web (partner/web) and the TypeScript packages it links (packages/ts: ui, api-client)
             partnerweb:
@@ -346,6 +345,22 @@ jobs:
         run: |
           docker build -t rizqim-backup:ci infra/backup
           docker run --rm rizqim-backup:ci sh -c 'pg_dump --version | grep -q "(PostgreSQL) 17" && rclone version'
+
+      # Built from the repository root like docker-compose.yml does; BuildKit takes the files from the Dockerfile's own
+      # <Dockerfile>.dockerignore (an allow-list), not from the root .dockerignore
+      - name: Mini App image builds
+        env:
+          DOCKER_BUILDKIT: "1"
+        run: |
+          docker build -f customer/miniapp/Dockerfile -t rizqim-miniapp:ci .
+          docker run --rm --entrypoint nginx rizqim-miniapp:ci -t
+
+      - name: Partner web image builds
+        env:
+          DOCKER_BUILDKIT: "1"
+        run: |
+          docker build -f partner/web/Dockerfile -t rizqim-partner-web:ci .
+          docker run --rm --entrypoint test rizqim-partner-web:ci -f partner/web/server.js
 
   # --- P1-11 TypeScript API client (runs when packages/ts or the OpenAPI spec changed, see the `apiclient` filter) --
   api-client:

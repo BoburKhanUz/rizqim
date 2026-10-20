@@ -159,9 +159,12 @@ class CatalogController extends Controller
 
         // STORE-SPECIFIC MODE
         $queryField = 'uuid';
-        if (is_numeric($storeUuid)) {
+        if (is_string($storeUuid) && ctype_digit($storeUuid)) {
+            // P1-34: a numeric id must fit the id column (a longer one used to fail the query with a 500)
+            $storeUuid = \App\Support\RowId::parse($storeUuid)
+                ?? throw \Illuminate\Validation\ValidationException::withMessages(['store_id' => "store_id musbat butun son bo'lishi kerak."]);
             $queryField = 'id';
-        } elseif (!preg_match('/^[a-f\d]{8}-(?:[a-f\d]{4}-){3}[a-f\d]{12}$/i', $storeUuid)) {
+        } elseif (!is_string($storeUuid) || !preg_match('/^[a-f\d]{8}-(?:[a-f\d]{4}-){3}[a-f\d]{12}$/i', $storeUuid)) {
             return $this->error('Store not found.', [], 404);
         }
 

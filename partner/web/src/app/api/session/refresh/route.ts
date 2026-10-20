@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: 'Kirish talab qilinadi.', reason: 'no_session' }, { status: 401 });
   }
 
-  const result = await backendFetch('/v1/auth/refresh', { body: { refresh_token: refreshToken, device_uuid: deviceUuid } });
+  const result = await backendFetch('/v1/auth/refresh', { body: { refresh_token: refreshToken, device_uuid: deviceUuid }, request });
 
   if (result.status === 401 || result.status === 403 || result.status === 422) {
     const response = failure({ ...result, status: 401 }, 'Seans tugagan. Qaytadan kiring.');

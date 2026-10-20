@@ -200,6 +200,28 @@ test.describe('sold out', () => {
   })
 })
 
+test.describe('a price that changed while the dish was in the cart', () => {
+  test('the cart totals it at the new price, flags it, and the order goes once the customer accepts it', async ({ page, api }) => {
+    api.stoppedVariantIds = []
+    await openStore(page)
+    await dish(page, 'Cola').getByRole('button', { name: "Qo'shish: Cola" }).click()
+
+    api.products[1].variants![0].price = '12000.00' // the store raised the price meanwhile (was 8 000)
+    await page.goto('/cart')
+
+    const cola = page.getByRole('listitem').filter({ hasText: 'Cola (0.5 l)' })
+    await expect(cola.getByText(`Narxi o'zgardi: 8${NBSP}000${NBSP}so'm → 12${NBSP}000${NBSP}so'm`)).toBeVisible()
+    await expect(cola.getByText(`12${NBSP}000${NBSP}so'm`, { exact: true })).toBeVisible()
+    await page.getByRole('button', { name: /Olib ketish/ }).click()
+    await expect(page.getByRole('button', { name: 'Yangi narxlarni tasdiqlang' })).toBeDisabled()
+
+    await page.getByRole('button', { name: 'Yangi narxlarni qabul qilish' }).click()
+    await page.getByRole('button', { name: `Buyurtma berish · 12${NBSP}000${NBSP}so'm` }).click()
+    await expect(page.getByRole('heading', { name: 'Buyurtma qabul qilindi!' })).toBeVisible()
+    expect(api.orders.at(-1)?.items?.[0]?.total_price).toBe('12000.00')
+  })
+})
+
 test.describe('the delivery quote', () => {
   const HOME = { id: 1, title: 'Uy', address: 'Chilonzor 9, 14-uy', lat: 41.2856, lng: 69.2037, is_default: true }
   const FAR = { id: 2, title: 'Samarqand', address: 'Samarqand, Registon', lat: 39.6542, lng: 66.9597, is_default: false }

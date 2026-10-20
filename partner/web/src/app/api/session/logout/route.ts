@@ -13,12 +13,12 @@ export async function POST(request: NextRequest) {
   const refreshToken = request.cookies.get(REFRESH_COOKIE)?.value;
   const deviceUuid = request.cookies.get(DEVICE_COOKIE)?.value;
   if (!token && refreshToken && deviceUuid) {
-    const renewed = await backendFetch('/v1/auth/refresh', { body: { refresh_token: refreshToken, device_uuid: deviceUuid } });
+    const renewed = await backendFetch('/v1/auth/refresh', { body: { refresh_token: refreshToken, device_uuid: deviceUuid }, request });
     const data = isRecord(renewed.body?.data) ? renewed.body.data : null;
     if (data && typeof data.token === 'string') token = data.token;
   }
 
-  if (token) await backendFetch('/v1/auth/logout', { token });
+  if (token) await backendFetch('/v1/auth/logout', { token, request });
 
   const response = NextResponse.json({ ok: true });
   clearRefreshCookie(response);

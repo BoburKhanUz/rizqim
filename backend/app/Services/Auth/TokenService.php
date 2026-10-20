@@ -45,7 +45,7 @@ class TokenService
             $refreshPlain = 'rt_' . Str::random(64);
             $refreshExpiresAt = now()->addDays(max(1, (int) config('auth.tokens.refresh_ttl_days', 30)));
 
-            RefreshToken::create([
+            $refresh = RefreshToken::create([
                 'user_id' => $user->id,
                 'device_id' => $device->id,
                 'family_id' => $familyId ?? (string) Str::uuid(),
@@ -54,7 +54,7 @@ class TokenService
                 'expires_at' => $refreshExpiresAt,
             ]);
 
-            return new IssuedTokens($access->plainTextToken, $accessExpiresAt, $refreshPlain, $refreshExpiresAt, $device);
+            return new IssuedTokens($access->plainTextToken, $accessExpiresAt, $refreshPlain, $refreshExpiresAt, $device, (int) $refresh->getKey());
         });
     }
 
@@ -73,6 +73,22 @@ class TokenService
                 return 'invalid';
             }
 
+            $device = $current->device;
+            $rightDevice = $device && !$device->isRevoked() && hash_equals($device->uuid, $deviceUuid)
+                && (int) $device->user_id === (int) $current->user_id;
+
+            // The answer to a refresh got lost on the way (network drop) and the app retries with the token it just
+            // spent: rotate once more, ending the pair the app never received, instead of logging it out
+            if ($current->used_at !== null && $current->revoked_at === null && $device && $rightDevice && $current->user
+                && ($successor = $this->unclaimedSuccessor($current)) !== null) {
+                $this->revokeToken($successor);
+                $current->forceFill(['grace_used_at' => now()])->save();
+                $next = $this->issuePair($current->user, $device, $current->family_id);
+                $current->forceFill(['replaced_by_id' => $next->refreshTokenId])->save();
+
+                return $next;
+            }
+
             // Spent before: somebody else holds a copy of it. A logged-out (revoked) one is simply dead
             if ($current->used_at !== null || $current->revoked_at !== null) {
                 $this->revokeFamily($current->family_id);
@@ -80,8 +96,7 @@ class TokenService
                 return $current->used_at !== null ? 'reused' : 'invalid';
             }
 
-            $device = $current->device;
-            if (!$device || $device->isRevoked() || !hash_equals($device->uuid, $deviceUuid) || (int) $device->user_id !== (int) $current->user_id) {
+            if (!$device || !$rightDevice) {
                 $this->revokeFamily($current->family_id);
 
                 return 'invalid';
@@ -100,7 +115,10 @@ class TokenService
 
             $device->forceFill(['last_seen_at' => now()])->save();
 
-            return $this->issuePair($current->user, $device, $current->family_id);
+            $next = $this->issuePair($current->user, $device, $current->family_id);
+            $current->forceFill(['replaced_by_id' => $next->refreshTokenId])->save();
+
+            return $next;
         });
 
         if ($result instanceof IssuedTokens) {
@@ -113,6 +131,39 @@ class TokenService
                 : "Sessiya muddati tugagan yoki yaroqsiz. Iltimos, qaytadan kiring.",
             "refresh_{$result}",
         );
+    }
+
+    /**
+     * The pair issued when $spent was spent, if the app has evidently not received it: $spent was spent within the
+     * grace window (auth.tokens.refresh_grace_seconds), no retry has used the grace yet, and its successor was neither
+     * used nor revoked since. Anything else presenting a spent token is a replay.
+     */
+    private function unclaimedSuccessor(RefreshToken $spent): ?RefreshToken
+    {
+        $grace = min(60, (int) config('auth.tokens.refresh_grace_seconds', 30));
+
+        if ($grace <= 0 || $spent->used_at === null || $spent->grace_used_at !== null || $spent->replaced_by_id === null
+            || $spent->used_at->lt(now()->subSeconds($grace))) {
+            return null;
+        }
+
+        return RefreshToken::whereKey($spent->replaced_by_id)
+            ->where('family_id', $spent->family_id)
+            ->whereNull('used_at')
+            ->whereNull('revoked_at')
+            ->lockForUpdate()
+            ->first();
+    }
+
+    /**
+     * Revoke one refresh token and the access token issued with it.
+     */
+    private function revokeToken(RefreshToken $token): void
+    {
+        $token->forceFill(['revoked_at' => now()])->save();
+        if ($token->access_token_id) {
+            PersonalAccessToken::whereKey($token->access_token_id)->delete();
+        }
     }
 
     /**
@@ -134,6 +185,19 @@ class TokenService
     {
         RefreshToken::where('user_id', $user->id)->whereNull('revoked_at')->update(['revoked_at' => now()]);
         $user->tokens()->delete();
+        Device::where('user_id', $user->id)->whereNotNull('push_token')->update(['push_token' => null]);
+    }
+
+    /**
+     * End the user's app sessions on every device (refresh token families and their access tokens), e.g. when their
+     * staff login phone changes or is cleared (P1-34). The Mini App token (Telegram) and terminal PIN sessions
+     * (bound to a paired terminal and the PIN, not to the phone) stay.
+     */
+    public function revokeAppSessions(User $user): void
+    {
+        RefreshToken::where('user_id', $user->id)->whereNull('revoked_at')->update(['revoked_at' => now()]);
+        $user->tokens()->where('name', self::ACCESS_TOKEN_NAME)->delete();
+        // The apps signed out must not keep receiving the person's pushes (P1-22)
         Device::where('user_id', $user->id)->whereNotNull('push_token')->update(['push_token' => null]);
     }
 

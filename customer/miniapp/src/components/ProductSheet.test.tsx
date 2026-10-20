@@ -292,6 +292,20 @@ describe('an item sold by weight', () => {
     expect(onAdd).toHaveBeenCalledWith(expect.objectContaining({ quantity: 0.5, modifiers: [] }));
   });
 
+  it('offers only multiples of the step when the minimum is not one (0,3 kg in steps of 0,5 starts at 0,5)', () => {
+    const { onAdd } = renderModal(meat({ min_quantity: '0.300' }));
+
+    expect(screen.getByText('0,5 kg')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: "Qazi: ko'paytirish" }));
+    expect(screen.getByText('1 kg')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Qazi: kamaytirish' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Qazi: kamaytirish' })); // never down to 0,3
+    expect(screen.getByText('0,5 kg')).toBeInTheDocument();
+
+    fireEvent.click(confirmButton());
+    expect(onAdd).toHaveBeenCalledWith(expect.objectContaining({ quantity: 0.5 }));
+  });
+
   it('rounds the line like the server: 33 333 per kg × 0.5 kg is 16 667', () => {
     renderModal(meat({ price: '33333.00' }));
 

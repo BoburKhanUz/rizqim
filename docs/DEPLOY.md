@@ -17,7 +17,7 @@ Production uchun yagona yo'l: Docker Compose (`docker-compose.yml`). Backend dep
 
 ## 1. Oldindan tayyorlash
 
-- **Server.** Docker Engine va Compose v2 (`docker compose`), `git`. Server qayta yoqilganda Docker o'zi ishga tushishi kerak: xizmatlar `restart: unless-stopped` bilan o'zlari qayta ko'tariladi. Portlar: `FRONTEND_PORT` (8080), `BACKEND_PORT` (8000) va hamkor veb-panel uchun `PARTNER_WEB_PORT` (3000) tashqi proksi uchun; Postgres va Redis tashqariga ochilmaydi, ularni va ularning dasturlarini serverga o'rnatish shart emas.
+- **Server.** Docker Engine va Compose v2 (`docker compose`), `git`. Server qayta yoqilganda Docker o'zi ishga tushishi kerak: xizmatlar `restart: unless-stopped` bilan o'zlari qayta ko'tariladi. Portlar: `FRONTEND_PORT` (8080), `BACKEND_PORT` (8000) va hamkor veb-panel uchun `PARTNER_WEB_PORT` (3000, faqat `127.0.0.1` da, 4-bo'lim) tashqi proksi uchun; Postgres va Redis tashqariga ochilmaydi, ularni va ularning dasturlarini serverga o'rnatish shart emas.
 - **Domen va HTTPS.** Telegram Mini App va webhook faqat HTTPS bilan ishlaydi. Compose TLS o'rnatmaydi: sertifikatni tashqi reverse proxy (nginx, Caddy, Cloudflare) beradi (4-bo'lim).
 - **Telegram bot** (BotFather): token (`TELEGRAM_BOT_TOKEN`), username (`TELEGRAM_BOT_USERNAME` va Mini App'dagi `VITE_BOT_USERNAME`, `@` siz), Mini App manzili (`TELEGRAM_WEBAPP_URL`).
 - **Click / Payme** merchant: maxfiy kalitlar (`CLICK_SECRET_KEY`, `PAYME_SECRET_KEY`) va id'lar. Merchant kabinetida webhook manzillari: `https://<domen>/api/v1/payments/click/webhook` va `https://<domen>/api/v1/payments/payme/webhook`.
@@ -45,7 +45,7 @@ Hammasining ma'nosi va standarti: [backend/README.md](../backend/README.md), [cu
 | `FIREBASE_CREDENTIALS_JSON` (yoki `FIREBASE_CREDENTIALS` fayl yo'li), ixtiyoriy `FIREBASE_PROJECT_ID`, `PUSH_ANDROID_CHANNEL_ID` | Push xabarlar (P1-22). Bo'sh bo'lsa push o'chiq turadi va hech narsa buzilmaydi. Service account kalitini `base64 -w0 kalit.json` bilan bir qatorga o'tkazib bering; qadamlari `docs/PUSH.md` da |
 | `LOG_LEVEL` | `warning` tavsiya etiladi: Click, Payme va Telegram webhook payload'lari `info` darajasida to'liq logga yoziladi (shaxsiy ma'lumot bo'lishi mumkin) |
 
-**Ildizdagi `.env`** (compose o'qiydi): `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD` (postgres ham, backend ham shundan oladi va `backend/.env` dagilarni bekor qiladi), `REDIS_PASSWORD` (`$` belgisiz), `BACKEND_PORT` (8000), `FRONTEND_PORT` (8080), hamkor veb-panel uchun `PARTNER_WEB_PORT` (3000), `PARTNER_PUBLIC_API_BASE_URL` va `PARTNER_SESSION_COOKIE_SECURE` (4-bo'lim), `VITE_BOT_USERNAME`, `VITE_API_URL`, `VITE_MAP_TILE_URL`, `VITE_MAP_ATTRIBUTION`, real-time uchun `BROADCAST_CONNECTION` (standart `null`; kalitlar bilan `reverb`), `REVERB_APP_ID`, `REVERB_APP_KEY`, `REVERB_APP_SECRET`, `REVERB_ALLOWED_ORIGINS` va `VITE_REVERB_*` (9-bo'lim; bular `backend/.env` dagilarni bekor qiladi). Ildizdagi `.env.example` ning pastki qismidagi `APP_ENV`, `CACHE_STORE`, `SUPERADMIN_*` kabi qatorlar faqat eslatma: konteyner ularni `backend/.env` dan o'qiydi, ildizdagi `.env` dan emas.
+**Ildizdagi `.env`** (compose o'qiydi): `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD` (postgres ham, backend ham shundan oladi va `backend/.env` dagilarni bekor qiladi), `REDIS_PASSWORD` (`$` belgisiz), `BACKEND_PORT` (8000), `FRONTEND_PORT` (8080), hamkor veb-panel uchun `PARTNER_WEB_PORT` (3000), `PARTNER_WEB_BIND` (standart `127.0.0.1`), `PARTNER_PUBLIC_API_BASE_URL` va `PARTNER_SESSION_COOKIE_SECURE` (4-bo'lim), `VITE_BOT_USERNAME`, `VITE_API_URL`, `VITE_MAP_TILE_URL`, `VITE_MAP_ATTRIBUTION`, real-time uchun `BROADCAST_CONNECTION` (standart `null`; kalitlar bilan `reverb`), `REVERB_APP_ID`, `REVERB_APP_KEY`, `REVERB_APP_SECRET`, `REVERB_ALLOWED_ORIGINS` va `VITE_REVERB_*` (9-bo'lim; bular `backend/.env` dagilarni bekor qiladi). Ildizdagi `.env.example` ning pastki qismidagi `APP_ENV`, `CACHE_STORE`, `SUPERADMIN_*` kabi qatorlar faqat eslatma: konteyner ularni `backend/.env` dan o'qiydi, ildizdagi `.env` dan emas.
 
 ## 3. Ishga tushirish
 
@@ -104,7 +104,19 @@ Restoran egasi, menejeri va boshqa xodimlar uchun veb-panel ([partner/web/README
   (`TELEGRAM_WEBAPP_URL`, `APP_URL`) o'chadi; Mini App same-origin ishlagani uchun odatda bu muammo emas.
 - **Proksi.** `Host` sarlavhasini o'zgartirmay uzating (yoki `X-Forwarded-Host` yuboring): panelning kirish so'rovlari
   (`/api/session/*`) `Origin` ni shu host bilan solishtiradi, boshqa host bilan 403 qaytaradi. nginx misoli:
-  `proxy_set_header Host $host; proxy_set_header X-Forwarded-Proto https;`.
+  `proxy_set_header Host $host; proxy_set_header X-Forwarded-Proto https; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`.
+- **Mijoz IP manzili.** Kirish so'rovlari (SMS kod, kodni tekshirish, refresh) backend'ga Next serveri orqali boradi;
+  panel backend'ga mijozning IP manzilini `X-Forwarded-For` da uzatadi (backend uni faqat xususiy tarmoqdan, ya'ni
+  compose tarmog'idagi `partner-web` dan qabul qiladi). Usiz backend'ning IP bo'yicha limitlari (SMS: daqiqada 1 ta,
+  noto'g'ri kod, refresh) va audit IP'si barcha hamkorlar uchun bitta bo'lardi. Panel kelgan `X-Forwarded-For` ning
+  faqat **oxirgi** yozuvini oladi — uni tashqi proksi yozadi (`$proxy_add_x_forwarded_for` yoki `$remote_addr`);
+  brauzer yuborgan chapdagi yozuvlar e'tiborga olinmaydi. Shuning uchun `partner-web` porti standart bo'yicha faqat
+  `127.0.0.1` da ochiladi (`PARTNER_WEB_BIND`): proksini chetlab portga kelgan kishi o'z IP'sini soxtalashtirib limitlarni
+  aylanib o'tardi. Proksi boshqa xostda bo'lsa `PARTNER_WEB_BIND` ni o'zgartiring va portni faydalanuvchilardan
+  firewall bilan yoping. Proksi oldida CDN (masalan Cloudflare) bo'lsa, proksi avval haqiqiy IP'ni tiklashi kerak
+  (nginx `real_ip` moduli: `set_real_ip_from <CDN tarmoqlari>; real_ip_header CF-Connecting-IP;`), aks holda oxirgi
+  yozuv CDN manzili bo'ladi. Mini App va backend portlariga bu shart emas: Mini App nginx'i o'zi ko'rgan manzilni
+  zanjir oxiriga qo'shadi.
 - **Kirish.** Xodim telefon raqami va SMS kod bilan kiradi (`docs/AUTH.md`, 1-bo'lim). Raqam xodim hisobiga "kirish raqami"
   sifatida biriktirilgan bo'lishi kerak: egasi uchun Superadmin > Restoranlar > yaratishdagi "Phone Number (Login)", boshqa
   xodimlar uchun do'kon panelidagi Xodimlar formasi. Bu o'zgarishdan oldin yaratilgan egalar uchun: Superadmin >

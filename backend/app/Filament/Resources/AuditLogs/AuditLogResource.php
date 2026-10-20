@@ -85,6 +85,10 @@ class AuditLogResource extends Resource
             'staff.session_started' => 'Terminalga kirish (PIN)',
             // P1-36: the partner panel / a staff app, by SMS code
             'staff.signed_in' => 'Xodim SMS kod bilan kirdi',
+            // P1-34: the staff login phone (masked in the log)
+            'staff.login_phone_set' => "Kirish raqami qo'yildi",
+            'staff.login_phone_changed' => "Kirish raqami o'zgartirildi",
+            'staff.login_phone_cleared' => "Kirish raqami o'chirildi",
             'permissions.changed' => "Ruxsat o'zgardi",
             'device.pairing_code_created' => 'Ulash kodi yaratildi',
             'device.paired' => 'Terminal ulandi',

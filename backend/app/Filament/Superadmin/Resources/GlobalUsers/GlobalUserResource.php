@@ -177,7 +177,8 @@ class GlobalUserResource extends Resource
                 ViewAction::make()
                     ->slideOver()
                     ->modalWidth('4xl'),
-                EditAction::make(),
+                EditAction::make()
+                    ->using(fn (User $record, array $data) => static::saveUser($record, $data)),
                 DeleteAction::make(),
             ])
             ->toolbarActions([
@@ -185,6 +186,30 @@ class GlobalUserResource extends Resource
                     DeleteBulkAction::make(),
                 ]),
             ]);
+    }
+
+    /**
+     * Save an edited user. A phone typed here is a contact detail (it loses its verification, User::booted), and a
+     * vouched login phone ends when the account leaves the store roles; when either drops a staff login phone, that
+     * is audited and the account's app sessions end (P1-34, StaffPhoneLoginService::loginPhoneChanged).
+     *
+     * @param  array<string, mixed>  $data
+     */
+    public static function saveUser(User $record, array $data): User
+    {
+        $loginPhone = $record->role->isStoreStaff() ? \App\Services\Auth\StaffPhoneLoginService::loginPhone($record) : null;
+        $via = $record->phone_verified_via;
+        $storeId = $record->store_id;
+
+        \Illuminate\Support\Facades\DB::transaction(function () use ($record, $data, $loginPhone, $via, $storeId) {
+            $record->update($data);
+
+            if ($loginPhone !== null && \App\Services\Auth\StaffPhoneLoginService::loginPhone($record) !== $loginPhone) {
+                app(\App\Services\Auth\StaffPhoneLoginService::class)->loginPhoneChanged($record, $loginPhone, $via, $storeId);
+            }
+        });
+
+        return $record;
     }
 
   public static function infolist(Schema $schema): Schema

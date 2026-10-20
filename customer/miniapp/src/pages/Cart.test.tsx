@@ -166,10 +166,10 @@ describe('Cart: payment methods follow the store settings the server enforces', 
     fireEvent.click(paymentTile(/payme/i));
     expect(isSelected(paymentTile(/payme/i))).toBe(true);
 
-    // The store switches Payme off; the cart reloads the store when its items change
+    // The store switches Payme off; the cart reloads the store once its items changed (and settled)
     serveStore(storeWith({ cash: { enabled: true }, click: { enabled: true }, payme: { enabled: false } }));
     act(() => useCartStore.getState().updateQuantity('1-lavash', 2));
-    await flush();
+    await settle();
 
     expect(queryPaymentTile(/payme/i)).not.toBeInTheDocument();
     expect(isSelected(paymentTile(/naqd/i))).toBe(true);
@@ -249,7 +249,7 @@ describe('Cart: delivery and pickup follow the store switches the server enforce
 
     serveStore(storeWith({ cash: { enabled: true }, pickup_enabled: false }));
     act(() => useCartStore.getState().updateQuantity('1-lavash', 2));
-    await flush();
+    await settle();
 
     expect(tab(PICKUP)).toBeDisabled();
     expect(isSelected(tab(DELIVERY))).toBe(true);

@@ -53,8 +53,12 @@ Loyihani Rizqim egasi yaratadi (bepul, Spark tarifi yetadi).
 
 | O'zgaruvchi | Ma'nosi |
 |---|---|
-| `FIREBASE_CREDENTIALS_JSON` | Service account JSON faylning base64 ko'rinishi, bir qatorda: `base64 -w0 rizqim-firebase-adminsdk.json`. Docker uchun eng qulayi |
-| `FIREBASE_CREDENTIALS` | Yoki JSON fayl yo'li (nisbiy yo'l `backend/` dan boshlanadi). Ikkalasi berilsa `FIREBASE_CREDENTIALS_JSON` ustun |
+| `FIREBASE_CREDENTIALS_JSON` | **Tavsiya etiladi.** Service account JSON faylning base64 ko'rinishi, bir qatorda: `base64 -w0 rizqim-firebase-adminsdk.json`. Docker uchun eng qulayi |
+| `FIREBASE_CREDENTIALS` | Yoki JSON fayl yo'li. Faylni `backend/` papkasidan **tashqarida** saqlang (masalan `/etc/rizqim/firebase.json`, konteynerga volume bilan ulanadi): `backend/` ichidagi fayl Docker obraziga (`COPY . .`) tushishi mumkin. Nisbiy yo'l `backend/` dan boshlanadi. Ikkalasi berilsa `FIREBASE_CREDENTIALS_JSON` ustun |
+
+Kalit fayli hech qachon gitga yoki Docker obraziga tushmasligi kerak. Ehtiyot chorasi sifatida `*firebase-adminsdk*.json`,
+`*service-account*.json` va `backend/storage/firebase*.json` nomli fayllar `.gitignore` (ildiz va `backend/`) hamda
+`backend/.dockerignore` da e'tiborsiz qoldiriladi, lekin boshqa nom bilan saqlangan fayl himoyalanmaydi.
 | `FIREBASE_PROJECT_ID` | Odatda kerak emas: JSON ichidagi `project_id` ishlatiladi |
 | `PUSH_ANDROID_CHANNEL_ID` | Android bildirishnoma kanali, standart `orders`. Ilova shu nomli kanal yaratishi shart |
 

@@ -11,6 +11,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property \Illuminate\Support\Carbon $expires_at
  * @property \Illuminate\Support\Carbon|null $used_at
  * @property \Illuminate\Support\Carbon|null $revoked_at
+ * @property \Illuminate\Support\Carbon|null $grace_used_at
+ * @property int|null $replaced_by_id
  */
 class RefreshToken extends Model
 {
@@ -31,6 +33,8 @@ class RefreshToken extends Model
             'expires_at' => 'datetime',
             'used_at' => 'datetime',
             'revoked_at' => 'datetime',
+            'grace_used_at' => 'datetime',
+            'replaced_by_id' => 'integer',
         ];
     }
 

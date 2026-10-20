@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\V1\Device\TerminalController;
 use App\Http\Controllers\Api\V1\User\NotificationPreferenceController;
 use App\Http\Controllers\Api\V1\Store\AuditLogController;
 use App\Http\Controllers\Api\V1\Store\StaffAccessController;
+use App\Support\RowId;
 use Illuminate\Support\Facades\Route;
 
 // No token yet: refresh, phone sign-in, terminal pairing
@@ -53,9 +54,9 @@ Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->group(functi
             ->middleware(['permission:devices.manage', 'throttle:pairing-code']);
 
         Route::middleware('throttle:staff-admin')->group(function () {
-            Route::put('/owner/staff/{id}/pin', [StaffAccessController::class, 'setPin'])->whereNumber('id')->middleware('permission:staff.pin');
-            Route::delete('/owner/staff/{id}/pin', [StaffAccessController::class, 'resetPin'])->whereNumber('id')->middleware('permission:staff.pin');
-            Route::put('/owner/staff/{id}/role', [StaffAccessController::class, 'updateRole'])->whereNumber('id')->middleware('permission:staff.manage');
+            Route::put('/owner/staff/{id}/pin', [StaffAccessController::class, 'setPin'])->where('id', RowId::ROUTE_PATTERN)->middleware('permission:staff.pin');
+            Route::delete('/owner/staff/{id}/pin', [StaffAccessController::class, 'resetPin'])->where('id', RowId::ROUTE_PATTERN)->middleware('permission:staff.pin');
+            Route::put('/owner/staff/{id}/role', [StaffAccessController::class, 'updateRole'])->where('id', RowId::ROUTE_PATTERN)->middleware('permission:staff.manage');
             Route::get('/owner/permissions', [StaffAccessController::class, 'permissions'])->middleware('permission:permissions.manage');
             Route::put('/owner/permissions', [StaffAccessController::class, 'updatePermission'])->middleware('permission:permissions.manage');
         });

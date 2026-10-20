@@ -23,17 +23,40 @@ export interface CheckoutAttempt {
   finish: () => void;
 }
 
-export function createCheckoutAttempt(makeKey: () => string = newIdempotencyKey): CheckoutAttempt {
-  let current: { key: string; fingerprint: string } | null = null;
+// The open attempt as it is kept: the key and the body it was sent with (as JSON, the fingerprint of the body).
+export interface OpenAttempt {
+  key: string;
+  fingerprint: string;
+}
 
+// Where the open attempt lives between requests. In memory by default; the cart keeps it in its persisted store
+// (store/cartStore.ts), so that leaving the cart, a remount or a reload of the Mini App after a lost answer retries
+// the same body with the same key instead of placing a second order.
+export interface AttemptStorage {
+  get: () => OpenAttempt | null;
+  set: (attempt: OpenAttempt | null) => void;
+}
+
+function memoryStorage(): AttemptStorage {
+  let current: OpenAttempt | null = null;
+  return {
+    get: () => current,
+    set: (attempt) => {
+      current = attempt;
+    },
+  };
+}
+
+export function createCheckoutAttempt(makeKey: () => string = newIdempotencyKey, storage: AttemptStorage = memoryStorage()): CheckoutAttempt {
   return {
     keyFor: (body) => {
       const fingerprint = JSON.stringify(body);
-      if (current === null || current.fingerprint !== fingerprint) current = { key: makeKey(), fingerprint };
-      return current.key;
+      const current = storage.get();
+      if (current !== null && current.fingerprint === fingerprint && typeof current.key === 'string' && current.key !== '') return current.key;
+      const next = { key: makeKey(), fingerprint };
+      storage.set(next);
+      return next.key;
     },
-    finish: () => {
-      current = null;
-    },
+    finish: () => storage.set(null),
   };
 }

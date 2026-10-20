@@ -25,12 +25,18 @@ use App\Traits\Auditable;
  * @property \Illuminate\Support\Carbon|null $email_verified_at
  * @property \Illuminate\Support\Carbon|null $pin_set_at
  * @property \Illuminate\Support\Carbon|null $phone_verified_at
+ * @property string|null $phone_verified_via
  * @property string|null $pin_hash
  * @property string|null $staff_code
  * @property \App\Enums\CourierType $courier_type
  */
 class User extends Authenticatable implements FilamentUser, HasTenants
 {
+    // users.phone_verified_via (P1-34): the holder proved the phone with an SMS code, or a store owner/manager or the
+    // super admin wrote it as a staff login phone (StaffPhoneLoginService::vouch)
+    public const PHONE_VIA_SMS = 'sms';
+    public const PHONE_VIA_VOUCHED = 'vouched';
+
     /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, Notifiable, \App\Traits\HasPublicUuid, Auditable;
 
@@ -64,9 +70,11 @@ class User extends Authenticatable implements FilamentUser, HasTenants
     protected $hidden = [
         'password',
         'remember_token',
-        // Terminal PIN (bcrypt); never leaves the server. pin_hash, staff_code and phone_verified_at are deliberately
-        // not mass assignable: StaffPinService and AccountLinkingService set them
+        // Terminal PIN (bcrypt); never leaves the server. pin_hash, staff_code, phone_verified_at and phone_verified_via
+        // are deliberately not mass assignable: StaffPinService, AccountLinkingService and StaffPhoneLoginService set them
         'pin_hash',
+        // Internal: decides what the phone may do (P1-34), the apps only need phone_verified_at
+        'phone_verified_via',
         // An unclaimed staff invite: whoever holds it becomes that employee. Only the owner's employee list shows it
         // (OwnerEmployeeController::index makes it visible there)
         'telegram_invite_token',
@@ -95,6 +103,20 @@ class User extends Authenticatable implements FilamentUser, HasTenants
         static::saving(function (User $user) {
             if ($user->isDirty('phone') && !$user->isDirty('phone_verified_at')) {
                 $user->phone_verified_at = null;
+            }
+
+            // A vouched phone is a store's word for its own staff member, not a proof of the number: it ends when the
+            // account leaves the store roles (as a customer it would sign the number's real holder in to this account)
+            if ($user->isDirty('role') && !in_array($user->role, \App\Enums\UserRole::storeRoles(), true)
+                && $user->phone_verified_via === self::PHONE_VIA_VOUCHED) {
+                $user->phone_verified_at = null;
+            }
+
+            // How it was verified goes with the verification; one set without saying how came from an SMS code
+            if ($user->phone_verified_at === null) {
+                $user->phone_verified_via = null;
+            } elseif ($user->phone_verified_via === null) {
+                $user->phone_verified_via = self::PHONE_VIA_SMS;
             }
         });
     }

@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import { logApiError } from '../lib/apiError';
-import { cartLineTotal, quantityOfVariant, useCartStore } from '../store/cartStore';
+import { cartAttemptStorage, cartLineTotal, quantityOfVariant, useCartStore } from '../store/cartStore';
 import { useAddressStore } from '../store/useAddressStore';
 import type { Address } from '../store/useAddressStore';
 import { hapticFeedback, tg } from '../lib/telegram';
@@ -24,10 +24,12 @@ import { getAddBlockedMessage, getVariantStock } from '../lib/stock';
 import { availabilityView, findCartIssues, isProductUnavailable } from '../lib/menuAvailability';
 import { addQuantities, formatQuantity, isMeasuredUnit, subtractQuantities, unitLabel } from '../lib/quantity';
 import { toOrderModifiers } from '../lib/modifiers';
-import { createCheckoutAttempt } from '../lib/idempotency';
+import { createCheckoutAttempt, newIdempotencyKey } from '../lib/idempotency';
+import { currentLines } from '../lib/cartPricing';
 import { describeOrderFailure } from '../lib/orderErrors';
 import { useAddToCart } from '../hooks/useAddToCart';
 import { useDeliveryQuote } from '../hooks/useDeliveryQuote';
+import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import { useMenuAvailability } from '../hooks/useMenuAvailability';
 import { getAllowedPaymentMethods, getAvailableOrderTypes, pickOrderType, pickPaymentMethod } from '../lib/checkout';
 import type { CartOrderType, CartPaymentMethod } from '../lib/checkout';
@@ -43,6 +45,7 @@ import type { AddressLocationValue, LatLng } from '../features/address/types';
 import type { ApiErrorBody, ApiResponse, BranchSummary, Product, PromoValidation, StoreCatalog, StoreListItem } from '../types';
 
 const NO_PRODUCTS: Product[] = [];
+const CART_SETTLE_MS = 400;
 
 interface AppliedPromo {
   // The code string is what we send as `promo_code` when placing the order
@@ -103,7 +106,7 @@ export default function Cart() {
   const { t } = useLanguageStore();
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
-  const { items, storeName, storeAddress, updateQuantity, removeItem, clearCart, getSubtotal } = useCartStore();
+  const { items, storeName, storeAddress, updateQuantity, removeItem, clearCart, refreshLines } = useCartStore();
   const { addresses, selectedAddressId, setSelectedAddressId, addAddress, updateAddress } = useAddressStore();
   const balance = user?.balance;
 
@@ -142,8 +145,9 @@ export default function Cart() {
 
   const [isOrdering, setIsOrdering] = useState(false);
   const orderingRef = useRef(false);
-  // One Idempotency-Key per checkout attempt, kept while the attempt is retried
-  const attemptRef = useRef(createCheckoutAttempt());
+  // One Idempotency-Key per checkout attempt, kept while the attempt is retried. The open attempt is persisted with the
+  // cart, so a retry after a lost answer reuses the key even after the cart was left or the Mini App reloaded
+  const attemptRef = useRef(createCheckoutAttempt(newIdempotencyKey, cartAttemptStorage));
   const [orderSuccess, setOrderSuccess] = useState(false);
   const [successOrderNumber, setSuccessOrderNumber] = useState('');
 
@@ -153,11 +157,14 @@ export default function Cart() {
   }, []);
 
   const cartStoreId = items[0]?.storeId;
+  // The cart once it stayed put for a moment: the store and its menu are asked again after a change of the cart (the
+  // store may have switched a payment or order type off, a price may have changed), once per burst of +/- taps
+  const settledItems = useDebouncedValue(items, CART_SETTLE_MS);
 
-  // Fetch store branches on mount/items change
+  // Fetch store branches on mount and after the cart changed (settled, not on every tap)
   useEffect(() => {
-    if (items.length > 0) {
-      const storeId = items[0].storeId;
+    if (cartStoreId !== undefined) {
+      const storeId = cartStoreId;
       api.get<ApiResponse<StoreListItem[]>>('/stores').then(res => {
         if (res.data?.success) {
           const stores = res.data.data;
@@ -183,7 +190,7 @@ export default function Cart() {
         logApiError('Failed to fetch store branches', err);
       });
     }
-  }, [items]);
+  }, [cartStoreId, settledItems]);
 
   // What the store takes at checkout, by the rules of the server. Until the store has loaded its settings are read as
   // "nothing set up" (cash, delivery and pickup), which is what the server assumes for a store without settings.
@@ -196,10 +203,11 @@ export default function Cart() {
     [storeDetail]
   );
 
-  // Fetch store catalog for upsell recommendations
+  // Fetch the store's menu: the current prices of the cart lines, their stock and the upsell. Again after the cart
+  // changed (settled) and when the menu may have changed (catalogReload)
   useEffect(() => {
-    if (items.length > 0) {
-      const storeId = items[0].storeId;
+    if (cartStoreId !== undefined) {
+      const storeId = cartStoreId;
       api.get<ApiResponse<StoreCatalog>>(`/catalog?store_id=${storeId}`).then(res => {
         if (res.data?.success) {
           setCatalog({ storeId, products: res.data.data.products || [] });
@@ -208,7 +216,7 @@ export default function Cart() {
         logApiError('Failed to fetch store products for upsell', err);
       });
     }
-  }, [items, catalogReload]);
+  }, [cartStoreId, settledItems, catalogReload]);
 
   // Cart items carry no stock info: look the variant up in the store catalog fetched above.
   const findCatalogVariant = (productId: number, variantId?: string) =>
@@ -217,6 +225,11 @@ export default function Cart() {
   // The menu of the cart's store; null until it has loaded (nothing is judged against a menu that is not there)
   const loadedProducts = catalog && catalog.storeId === cartStoreId ? catalog.products : null;
   const storeProducts = loadedProducts ?? NO_PRODUCTS;
+
+  // The lines at the loaded menu's prices (what the server charges); the saved prices until the menu has loaded
+  const pricedItems = useMemo(() => currentLines(items, loadedProducts), [items, loadedProducts]);
+  const pricedLineOf = (itemId: string) => pricedItems.find((line) => line.id === itemId);
+  const subtotal = pricedItems.reduce((sum, line) => sum + cartLineTotal(line), 0);
 
   // What the store cannot offer now (stop-list, sold-out batches): kept current by events and polling. The branch that
   // cooks the order decides, so the view narrows to it once it is known (the delivery quote's, or the pickup branch)
@@ -290,7 +303,7 @@ export default function Cart() {
 
     try {
       const storeId = parseInt(items[0].storeId);
-      const validatedSubtotal = getSubtotal();
+      const validatedSubtotal = subtotal;
       const res = await api.post<ApiResponse<PromoValidation>>('/promo/validate', {
         code: code,
         store_id: storeId,
@@ -324,7 +337,6 @@ export default function Cart() {
     setActivePromo(null);
   };
 
-  const subtotal = getSubtotal();
   const discountAmount = useMemo(() => {
     if (!activePromo || subtotal <= 0) return 0;
 
@@ -381,6 +393,9 @@ export default function Cart() {
   const issues = useMemo(() => findCartIssues(items, loadedProducts, availability), [items, loadedProducts, availability]);
   const issueOf = (itemId: string) => issues.find((issue) => issue.item.id === itemId);
   const hasIssues = issues.length > 0;
+  // A changed price is accepted with one tap; everything else needs the line out of the cart
+  const lineProblems = issues.filter((issue) => issue.problem !== 'price_changed');
+  const priceChanges = issues.filter((issue) => issue.problem === 'price_changed');
 
   // Dishes of the same restaurant offered below the list; the product sheet opens for the ones with choices
   const upsell = useAddToCart({ storeInfoOf: () => getStoreInfo({ name: storeName, address: storeAddress }), availability });
@@ -406,7 +421,13 @@ export default function Cart() {
 
   const removeUnavailableLines = () => {
     hapticFeedback('medium');
-    issues.forEach((issue) => removeItem(issue.item.id));
+    lineProblems.forEach((issue) => removeItem(issue.item.id));
+  };
+
+  const acceptNewPrices = () => {
+    hapticFeedback('medium');
+    const changed = new Set(priceChanges.map((issue) => issue.item.id));
+    refreshLines(pricedItems.filter((line) => changed.has(line.id)));
   };
 
   const handlePlaceOrder = async () => {
@@ -417,9 +438,14 @@ export default function Cart() {
       void showAlert("Do'kon vaqtincha to'lov muammolari sababli buyurtma qabul qilmayapti. Savat saqlanadi, keyinroq urinib ko'ring.");
       return;
     }
-    if (hasIssues) {
+    if (lineProblems.length > 0) {
       hapticFeedback('error');
       void showAlert("Savatdagi ba'zi taomlar tugagan yoki menyudan olib tashlangan. Ularni olib tashlang, so'ng buyurtma bering.");
+      return;
+    }
+    if (priceChanges.length > 0) {
+      hapticFeedback('error');
+      void showAlert("Savatdagi ba'zi taomlarning narxi o'zgardi. Yangi narxlarni tasdiqlang, so'ng buyurtma bering.");
       return;
     }
     if (deliveryMethod === 'delivery' && isQuoteBlocking) {
@@ -552,9 +578,11 @@ export default function Cart() {
   useMainButton({
     text: isStoreLocked
       ? "Do'kon vaqtincha yopiq"
-      : hasIssues
+      : lineProblems.length > 0
         ? "Tugaganlarni olib tashlang"
-        : isQuoteBlocking && quote.status === 'refused'
+        : priceChanges.length > 0
+          ? 'Yangi narxlarni tasdiqlang'
+          : isQuoteBlocking && quote.status === 'refused'
           ? 'Bu manzilga yetkazib berilmaydi'
           : `Buyurtma berish · ${formatMoney(total)}`,
     onClick: handlePlaceOrder,
@@ -618,16 +646,31 @@ export default function Cart() {
         </div>
       )}
 
-      {hasIssues && (
+      {lineProblems.length > 0 && (
         <div role="alert" className="flex items-start gap-3 rounded-card bg-danger-soft p-4 text-danger-soft-fg">
           <AlertTriangle aria-hidden="true" className="mt-0.5 size-5 shrink-0" />
           <div className="flex min-w-0 flex-col items-start gap-2">
             <p className="text-body font-bold">Savatdagi ba'zi taomlar hozir buyurtma qilinmaydi</p>
             <p className="text-footnote">
-              {issues.map((issue) => issue.item.name).join(', ')}. Ularni olib tashlang yoki boshqa taom tanlang: shundan keyin buyurtma berishingiz mumkin.
+              {lineProblems.map((issue) => issue.item.name).join(', ')}. Ularni olib tashlang yoki boshqa taom tanlang: shundan keyin buyurtma berishingiz mumkin.
             </p>
             <Button variant="secondary" onClick={removeUnavailableLines}>
               Tugaganlarni olib tashlash
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {priceChanges.length > 0 && (
+        <div role="alert" className="flex items-start gap-3 rounded-card bg-warning-soft p-4 text-warning-soft-fg">
+          <AlertTriangle aria-hidden="true" className="mt-0.5 size-5 shrink-0" />
+          <div className="flex min-w-0 flex-col items-start gap-2">
+            <p className="text-body font-bold">Ba'zi taomlarning narxi o'zgardi</p>
+            <p className="text-footnote">
+              {priceChanges.map((issue) => issue.item.name).join(', ')}. Jami summa yangi narxlar bo'yicha hisoblandi: tasdiqlang, so'ng buyurtma bering.
+            </p>
+            <Button variant="secondary" onClick={acceptNewPrices}>
+              Yangi narxlarni qabul qilish
             </Button>
           </div>
         </div>
@@ -845,6 +888,10 @@ export default function Cart() {
           {items.map((item) => {
             const catalogVariant = findCatalogVariant(item.productId, item.variantId);
             const issue = issueOf(item.id);
+            // Shown at the menu's current prices: the ones the order is charged at
+            const priced = pricedLineOf(item.id) ?? item;
+            // A changed price is a note under the line, not a reason to grey it out
+            const lineBlocked = issue !== undefined && issue.problem !== 'price_changed';
             const measured = isMeasuredUnit(item.unit);
             const step = item.quantityStep ?? 0.1;
             const minimum = item.minQuantity ?? step;
@@ -854,12 +901,12 @@ export default function Cart() {
             const isAtStockLimit = itemStock !== null && addQuantities(variantInCart, measured ? step : 1) > itemStock;
             return (
               <li key={item.id} className="flex gap-3 p-3">
-                <ProductImage src={item.image} className={cx('size-14 rounded-control', issue && 'opacity-50 grayscale')} />
+                <ProductImage src={item.image} className={cx('size-14 rounded-control', lineBlocked && 'opacity-50 grayscale')} />
                 <div className="min-w-0 flex-1">
                   <p className="line-clamp-2 text-body font-bold text-fg">{item.name}</p>
-                  {item.modifiers && item.modifiers.length > 0 && (
+                  {priced.modifiers && priced.modifiers.length > 0 && (
                     <ul aria-label="Tanlangan qo'shimchalar" className="mt-0.5 text-footnote text-fg-muted">
-                      {item.modifiers.map((modifier) => (
+                      {priced.modifiers.map((modifier) => (
                         <li key={modifier.uuid}>
                           {modifier.name}
                           {modifier.quantity > 1 ? ` × ${modifier.quantity}` : ''}
@@ -869,20 +916,20 @@ export default function Cart() {
                     </ul>
                   )}
                   {issue && (
-                    <p role="status" className="mt-1 flex flex-wrap items-center gap-1.5 text-footnote font-bold text-danger-soft-fg">
+                    <p role="status" className={cx('mt-1 flex flex-wrap items-center gap-1.5 text-footnote font-bold', lineBlocked ? 'text-danger-soft-fg' : 'text-warning-soft-fg')}>
                       {issue.problem === 'sold_out' && <SoldOutBadge />}
                       {issue.problem === 'sold_out' ? 'Bu taom hozir mavjud emas' : issue.message}
                     </p>
                   )}
                   <div className="mt-1 flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
                     <div>
-                      <p className={cx('text-body font-bold', issue ? 'text-fg-muted' : 'text-fg')}>{formatMoney(cartLineTotal(item))}</p>
+                      <p className={cx('text-body font-bold', lineBlocked ? 'text-fg-muted' : 'text-fg')}>{formatMoney(cartLineTotal(priced))}</p>
                       {measured ? (
                         <p className="text-caption text-fg-muted">
-                          {formatMoney(item.price)} / {unitLabel(item.unit)} · {formatQuantity(item.quantity, item.unit)}
+                          {formatMoney(priced.price)} / {unitLabel(item.unit)} · {formatQuantity(item.quantity, item.unit)}
                         </p>
                       ) : (
-                        item.quantity > 1 && <p className="text-caption text-fg-muted">{formatMoney(item.price)} × {item.quantity}</p>
+                        item.quantity > 1 && <p className="text-caption text-fg-muted">{formatMoney(priced.price)} × {item.quantity}</p>
                       )}
                     </div>
                     <QuantityStepper
@@ -890,7 +937,7 @@ export default function Cart() {
                       valueLabel={measured ? formatQuantity(item.quantity, item.unit) : undefined}
                       removeAtOne
                       removeAt={measured ? minimum : 1}
-                      incrementDimmed={isAtStockLimit || !!issue}
+                      incrementDimmed={isAtStockLimit || lineBlocked}
                       decrementLabel={item.quantity <= (measured ? minimum : 1) ? `${item.name}: savatdan olib tashlash` : `${item.name}: kamaytirish`}
                       incrementLabel={`${item.name}: ko'paytirish`}
                       onDecrement={() => {
@@ -903,7 +950,7 @@ export default function Cart() {
                         }
                       }}
                       onIncrement={() => {
-                        if (issue) {
+                        if (issue && lineBlocked) {
                           hapticFeedback('error');
                           void showAlert(issue.message);
                           return;

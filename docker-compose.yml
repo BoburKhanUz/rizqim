@@ -246,8 +246,12 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+    # Faqat 127.0.0.1 da: panel kirish so'rovlarini backend'ga mijozning IP manzili bilan (X-Forwarded-For) uzatadi va bu
+    # manzilni tashqi proksi yozgan oxirgi yozuvdan oladi. Portga proksini chetlab kelgan kishi o'z IP'sini soxtalashtirib
+    # SMS/kod limitlarini aylanib o'tardi. Proksi boshqa xostda bo'lsa PARTNER_WEB_BIND (port faqat proksiga ochiq bo'lsin).
+    # docs/DEPLOY.md, 4-bo'lim
     ports:
-      - "${PARTNER_WEB_PORT:-3000}:3000"
+      - "${PARTNER_WEB_BIND:-127.0.0.1}:${PARTNER_WEB_PORT:-3000}:3000"
     # Kirish sahifasi (Next serveri ishlayapti); backend'ga ulanishni frontend healthcheck'i tekshiradi
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/login || exit 1"]

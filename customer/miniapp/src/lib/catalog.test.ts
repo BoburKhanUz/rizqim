@@ -123,6 +123,12 @@ describe('buildCartItem with a selection', () => {
     expect(buildCartItem(product, meat)).toMatchObject({ quantity: 1, unit: 'kg', quantityStep: 0.5, minQuantity: 1, price: 120000 });
     expect(buildCartItem(product, meat, { quantity: 2.5 }).quantity).toBe(2.5);
   });
+
+  it('starts at the first multiple of the step when the minimum is not one, so the server takes the order', () => {
+    const meat = makeVariant({ uuid: 'v-meat', price: '100000.00', unit: 'kg', quantity_step: '0.500', min_quantity: '0.300' });
+
+    expect(buildCartItem(product, meat)).toMatchObject({ quantity: 0.5, quantityStep: 0.5, minQuantity: 0.5 });
+  });
 });
 
 describe('needsProductSheet', () => {

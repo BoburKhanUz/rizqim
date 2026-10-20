@@ -19,3 +19,7 @@ bootstrap/cache/*.php
 tests
 *.log
 *.md
+# Firebase service account keys never go into the image (docs/PUSH.md)
+*firebase-adminsdk*.json
+*service-account*.json
+storage/firebase*.json

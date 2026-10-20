@@ -37,10 +37,16 @@ export function quantityStepOf(variant: Pick<ProductVariant, 'unit' | 'quantity_
 }
 
 // The least one line may take: `min_quantity` for a measured item (else one step), 1 for pieces (ProductVariant::minimumQuantity).
+// The server also wants every quantity to be a multiple of the step (OrderLineBuilder::checkQuantity), so a minimum that
+// is not one (0.3 kg in steps of 0.5, saved before the menu forms checked it) becomes the first multiple above it (0.5):
+// starting there and moving by the step, every quantity offered is one the server takes.
 export function minQuantityOf(variant: Pick<ProductVariant, 'unit' | 'quantity_step' | 'min_quantity'> | undefined | null): number {
   if (!isMeasuredUnit(variant?.unit)) return 1;
+  const step = quantityStepOf(variant);
   const min = Number(variant?.min_quantity);
-  return Number.isFinite(min) && min > 0 ? roundQuantity(min) : quantityStepOf(variant);
+  if (!Number.isFinite(min) || min <= 0) return step;
+  const stepMilli = toMilli(step);
+  return (Math.ceil(toMilli(min) / stepMilli) * stepMilli) / SCALE;
 }
 
 // The step as the server wants it: a multiple of `step` (checked in thousandths, like Quantity::isMultipleOf).

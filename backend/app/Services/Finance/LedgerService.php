@@ -570,7 +570,8 @@ class LedgerService
         }
 
         return DB::transaction(function () use ($invoice, $amount, $performedBy) {
-            $store = Store::where('id', $invoice->store_id)->lockForUpdate()->firstOrFail();
+            // A deleted store's last months are billed too (as syncStatuses() sees its invoices), never a failing run
+            $store = Store::withTrashed()->where('id', $invoice->store_id)->lockForUpdate()->firstOrFail();
 
             $existing = $this->subscriptionRows($invoice)->where('amount', '>', 0)->first();
             if ($existing) {
@@ -613,7 +614,7 @@ class LedgerService
     public function reverseSubscriptionCharge(\App\Models\SubscriptionInvoice $invoice, ?int $performedBy = null, ?string $reason = null): ?StoreTransaction
     {
         return DB::transaction(function () use ($invoice, $performedBy, $reason) {
-            $store = Store::where('id', $invoice->store_id)->lockForUpdate()->firstOrFail();
+            $store = Store::withTrashed()->where('id', $invoice->store_id)->lockForUpdate()->firstOrFail();
 
             $reversal = $this->subscriptionRows($invoice)->where('amount', '<', 0)->first();
             $charge = $this->subscriptionRows($invoice)->where('amount', '>', 0)->first();

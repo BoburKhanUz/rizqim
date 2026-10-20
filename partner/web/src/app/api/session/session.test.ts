@@ -20,7 +20,7 @@ function post(path: string, body: unknown = {}, headers: Record<string, string> 
 const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
 function stubBackend(handler: (url: URL, init: RequestInit) => Response) {
-  const calls: Array<{ path: string; body: Record<string, unknown>; authorization: string | null }> = [];
+  const calls: Array<{ path: string; body: Record<string, unknown>; authorization: string | null; forwardedFor?: string | null }> = [];
   vi.stubGlobal(
     'fetch',
     vi.fn(async (input: string | URL, init: RequestInit) => {
@@ -29,6 +29,7 @@ function stubBackend(handler: (url: URL, init: RequestInit) => Response) {
         path: url.pathname,
         body: JSON.parse(String(init.body ?? '{}')) as Record<string, unknown>,
         authorization: new Headers(init.headers).get('Authorization'),
+        ...(new Headers(init.headers).has('X-Forwarded-For') ? { forwardedFor: new Headers(init.headers).get('X-Forwarded-For') } : {}),
       });
       return handler(url, init);
     }),
@@ -150,6 +151,20 @@ describe('signing in when the phone is staff in two stores', () => {
     expect(refused.cookies.get('rz_select')).toMatchObject({ value: '', maxAge: 0 });
   });
 
+  it('keeps the ticket when the backend could not answer, so the choice can be tried again', async () => {
+    const cookie = { Cookie: 'rz_select=sel_ticket' };
+    for (const [status, body] of [[503, { message: 'boom' }], [429, { message: 'Too many' }], [403, { message: 'Hisob bloklangan', data: { reason: 'account_blocked' } }]] as const) {
+      stubBackend(() => reply(body, status));
+      const response = await selectAccount(post('select-account', { user_id: 9 }, cookie));
+      expect(response.status).toBe(status === 503 ? 502 : status);
+      expect(response.cookies.get('rz_select')).toBeUndefined();
+    }
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('fetch failed'); }));
+    const unreachable = await selectAccount(post('select-account', { user_id: 9 }, cookie));
+    expect(unreachable.status).toBe(502);
+    expect(unreachable.cookies.get('rz_select')).toBeUndefined();
+  });
+
   it('passes on that the phone belongs to no staff account', async () => {
     stubBackend(() => reply({ success: false, message: "Bu raqam hech qaysi do'kon xodimiga biriktirilmagan.", data: { reason: 'staff_account_not_found' } }, 403));
     const response = await login(post('login', { phone: '+998901234567', code: '123456' }));
@@ -220,5 +235,39 @@ describe('POST /api/session/logout', () => {
     expect(calls[1]?.authorization).toBe('Bearer fresh');
     expect(response.status).toBe(200);
     expect(response.cookies.get('rz_refresh')?.maxAge).toBe(0);
+  });
+});
+
+describe('the client address the backend sees', () => {
+  const routes = [
+    ['send-code', () => sendCode(post('send-code', { phone: '+998901234567' }, xff))],
+    ['login', () => login(post('login', { phone: '+998901234567', code: '123456' }, xff))],
+    ['select-account', () => selectAccount(post('select-account', { user_id: 9 }, { ...xff, Cookie: 'rz_select=sel_ticket' }))],
+    ['refresh', () => refresh(post('refresh', {}, { ...xff, Cookie: `rz_refresh=r; rz_device=${DEVICE}` }))],
+    ['logout', () => logout(post('logout', {}, { ...xff, Cookie: `rz_refresh=r; rz_device=${DEVICE}` }))],
+  ] as const;
+  // The browser wrote 6.6.6.6 itself; the outer proxy appended the address it saw the connection from
+  const xff = { 'X-Forwarded-For': '6.6.6.6, 203.0.113.9' };
+
+  it.each(routes)('%s forwards the address the outer proxy saw, not the one the browser claimed', async (_name, call) => {
+    const calls = stubBackend(() => reply({ success: true, data: { ...sessionData, token: 'fresh' } }));
+    await call();
+    expect(calls.length).toBeGreaterThan(0);
+    for (const backendCall of calls) expect(backendCall.forwardedFor).toBe('203.0.113.9');
+  });
+
+  it('two people signing in at once reach the backend as two addresses', async () => {
+    const calls = stubBackend(() => reply({ success: true, data: {} }));
+    await sendCode(post('send-code', { phone: '+998901111111' }, { 'X-Forwarded-For': '198.51.100.1' }));
+    await sendCode(post('send-code', { phone: '+998902222222' }, { 'X-Forwarded-For': '2001:db8::7' }));
+    expect(calls.map((call) => call.forwardedFor)).toEqual(['198.51.100.1', '2001:db8::7']);
+  });
+
+  it('sends no address when there is none or it is not an IP address', async () => {
+    const calls = stubBackend(() => reply({ success: true, data: {} }));
+    await sendCode(post('send-code', { phone: '+998901234567' }));
+    await sendCode(post('send-code', { phone: '+998901234567' }, { 'X-Forwarded-For': '203.0.113.9, not-an-ip' }));
+    await sendCode(post('send-code', { phone: '+998901234567' }, { 'X-Forwarded-For': ' , ' }));
+    expect(calls.map((call) => call.forwardedFor)).toEqual([undefined, undefined, undefined]);
   });
 });

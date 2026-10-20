@@ -49,11 +49,35 @@ Kod cheklovlari (5 urinish, sutkasiga 30 ta, kod bir martalik) xuddi yuqoridagid
   "SMS bilan kirishni yoqish", ega yoki menejer do'kon panelidagi Xodimlar formasida ("Telefon (SMS bilan kirish)", menejer —
   o'zidan pastdagilarga). Bir do'konda bitta raqam bitta xodimga. Profilda kodsiz o'zgartirilgan raqam kirish raqami
   bo'lmaydi.
+- **Raqam qanday tasdiqlangani saqlanadi (P1-34)** — `users.phone_verified_via`: `sms` (egasi kodni o'zi kiritgan) yoki
+  `vouched` (ega, menejer yoki superadmin yozgan). API javoblarida ko'rinmaydi. Migratsiyadan oldin tasdiqlangan raqamlar
+  `sms` deb belgilanadi (ega yozgan raqam shu reliz bilan paydo bo'ladi). Xodimlar formasida:
+  - raqam faqat forma uni haqiqatan **o'zgartirganda** kirish raqami bo'ladi: boshqa maydonni (ism, filial) saqlash xodim
+    profilida o'zi yozgan raqamni tasdiqlamaydi;
+  - xodimning o'zi SMS bilan tasdiqlagan raqamini formada almashtirib ham, o'chirib ham bo'lmaydi ("Bu raqamni xodimning
+    o'zi SMS kod bilan tasdiqlagan..." xatosi). Raqam almashsa, xodim yangisini ilovada SMS kod bilan tasdiqlaydi;
+    ishdan ketgan xodim o'chiriladi yoki roli o'zgartiriladi;
+  - menejer o'zidan pastdagi xodimning (ega yoki menejer yozgan, `vouched`) raqamini baribir o'zgartira oladi — bu uning
+    vakolati. Shuning uchun har bir o'zgarish jurnalga yoziladi (pastda) va ega uni ko'radi.
+- Kirish raqami qo'yilsa, o'zgarsa yoki o'chirilsa (xodimlar formasi, superadmin "SMS bilan kirishni yoqish", do'kon
+  yaratish ustasi va `POST /superadmin/stores`, superadmin foydalanuvchini tahrirlaganda raqam yoki rol o'zgarib kirish
+  raqami yo'qolsa) — jurnalga `staff.login_phone_set` / `staff.login_phone_changed` / `staff.login_phone_cleared` yoziladi
+  (raqam niqoblangan, `via` va `previous_via` bilan). O'zgarsa yoki o'chirilsa, xodimning **ilovadagi barcha sessiyalari**
+  (refresh token oilalari va ularning access tokenlari, barcha qurilmalarda; push tokenlar ham tozalanadi) darhol
+  yopiladi: eski raqam bilan kirgan kishi qaytadan kira olmaydi. Mini App tokeni (Telegram) va terminal PIN sessiyalari
+  qoladi: ular raqamga emas, Telegram hisobiga va PIN'ga bog'langan.
+- **Boshqa do'kon va tanlash ro'yxati.** Raqamni har bir do'kon o'z xodimi uchun yozadi, shuning uchun istalgan do'kon
+  egasi begona raqamni o'z xodimiga yozib, raqam egasining tanlash ro'yxatiga o'z do'konini qo'shishi mumkin (u hisobga
+  faqat raqam egasi kirganda va o'zi tanlaganda kiriladi). Ro'yxatda har bir hisobning **do'kon nomi** (sarlavha), roli
+  va filiali ko'rsatiladi, notanish do'kon tanlanmasin. Qo'shimcha qoida: raqam egasi uni **boshqa do'kondagi xodim
+  hisobida SMS bilan tasdiqlagan** bo'lsa, u ishlamaydigan do'kon bu raqamni xodimlar formasida yoza olmaydi (xato
+  xabari). Bunday xodim raqamsiz qo'shiladi va taklif havolasi orqali kirib raqamini o'zi tasdiqlaydi, yoki superadmin
+  "SMS bilan kirishni yoqish" bilan yoqadi. Faqat `vouched` raqam uchun bu cheklov yo'q (egasi uni hali isbotlamagan).
 - Raqam hech qaysi xodimniki bo'lmasa (faqat mijozniki yoki hech kimniki) — **403** `data.reason = staff_account_not_found`,
   hech narsa o'zgarmaydi. Superadmin va do'konsiz hisoblar bu yo'l bilan kirmaydi.
 - Raqam bir nechta xodim hisobida bo'lsa (bir odam ikki do'konda) — **409** `data.reason = account_selection_required`,
   `data.accounts` (`user_id`, `name`, `role`, `role_label`, `store {id, name}`, `branch`) va `data.selection_token`
-  (5 daqiqa, bir martalik; serverda faqat xeshi saqlanadi). Kod shu bilan sarflangan. Ilova hisobni tanlab
+  (5 daqiqa, bir martalik — bir vaqtda yuborilgan ikki so'rovdan ham faqat bittasi o'tadi; serverda faqat xeshi saqlanadi). Kod shu bilan sarflangan. Ilova hisobni tanlab
   `POST /auth/phone/select-account {selection_token, user_id, device}` yuboradi. Noto'g'ri, eskirgan, ishlatilgan token yoki
   ro'yxatda bo'lmagan hisob — **422** `selection_invalid` (token baribir sarflanadi; qaytadan kod so'raladi).
 - Hamkor paneli tokenni brauzerga bermaydi: u httpOnly cookie'da (`partner/web/README.md`).
@@ -79,6 +103,9 @@ odamning mobil kirishini o'z hisobiga tushirishi mumkin edi.
 - Xodim hisoblari (ega, menejer va boshqalar) bu qoidaga kirmaydi: ular mijoz hisobi bilan birlashmaydi. Xodim o'z
   hisobiga "Xodim sifatida SMS bilan kirish" orqali kiradi (yuqorida).
 - Eski foydalanuvchilarda `phone_verified_at` bo'sh: ular raqamini bir marta qayta tasdiqlaganda bog'lanadi.
+- Xodim uchun ega yoki superadmin yozgan (`vouched`) raqam hech qachon mijoz hisobiga kiritmaydi va bog'lamaydi: u faqat
+  `phone_verified_via = sms` raqamlarni hisobga oladi. Hisob do'kon rollaridan chiqsa (masalan, superadmin mijozga
+  aylantirsa), `vouched` tasdiq o'chiriladi (SMS bilan tasdiqlangani qoladi).
 
 ## 2. Refresh token
 
@@ -90,6 +117,13 @@ odamning mobil kirishini o'z hisobiga tushirishi mumkin edi.
   Javob 401, `data.reason`: `refresh_reused`, `refresh_invalid` yoki `refresh_expired`.
 - Ilova bitta refresh so'rovini bir vaqtda faqat bir marta yuborishi kerak (single-flight), aks holda ikkinchi so'rov
   qayta ishlatish deb hisoblanadi.
+- **Javob yo'qolsa (P1-34).** Server tokenni almashtirgan, lekin javob ilovaga yetmagan bo'lsa (tarmoq uzilishi), ilova
+  o'sha sarflangan token bilan qayta so'raydi. Agar u 30 soniya ichida (`auth.tokens.refresh_grace_seconds`, ko'pi bilan
+  60) kelsa, o'sha qurilmadan bo'lsa va yo'qolgan juftlik hali ishlatilmagan bo'lsa — oila bekor qilinmaydi: yo'qolgan
+  juftlik o'chiriladi va yangisi beriladi. Bu bitta token uchun **bir marta**. Kechroq kelsa, yangi juftlik allaqachon
+  ishlatilgan bo'lsa yoki boshqa qurilmadan kelsa — oldingidek qayta ishlatish (`refresh_reused`), butun oila yopiladi.
+  Agar bu imkonni tokenni o'g'irlagan kishi ishlatsa, haqiqiy ilova keyingi refresh'da yopilgan tokenni yuboradi va oila
+  baribir yopiladi.
 - Shu qurilmada qaytadan kirilsa (yangi oila boshlansa), qurilmaning eski oilalari bekor qilinadi: eski refresh token va
   access token ishlamay qoladi.
 - `POST /auth/logout` — joriy sessiya (qurilma bo'lsa, uning refresh tokenlari ham). `POST /auth/logout-all` — barcha
@@ -268,6 +302,7 @@ yoziladi (mijozning manzili saqlanmaydi) va faqat ega hamda superadminga ko'rsat
 | `staff.pin_set`, `staff.pin_changed`, `staff.pin_reset` | PIN qo'yilsa, almashtirilsa, o'chirilsa |
 | `staff.session_started` | xodim terminalga PIN bilan kirsa |
 | `staff.signed_in` | xodim hamkor paneli yoki xodim ilovasiga SMS kod bilan kirsa (`account = staff`; qurilma bilan) |
+| `staff.login_phone_set`, `staff.login_phone_changed`, `staff.login_phone_cleared` | xodimning kirish raqami qo'yilsa, o'zgartirilsa yoki o'chirilsa (raqam niqoblangan; `via`: `sms`/`vouched`) |
 | `permissions.changed` | do'kon ruxsatlari o'zgarsa |
 | `device.pairing_code_created`, `device.paired`, `device.renamed`, `device.revoked` | terminal va qurilmalar |
 | `account.linked` | Telegram hisobi telefon bo'yicha boshqa hisobga birlashtirilsa |

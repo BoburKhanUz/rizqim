@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -29,6 +30,14 @@ return new class extends Migration
 
     public function down(): void
     {
+        // An integer column would silently round 1.5 kg sold (P1-34): order history is never rewritten, so refuse
+        if (DB::table('order_items')->whereRaw('quantity <> FLOOR(quantity)')->exists()) {
+            throw new RuntimeException(
+                "Rollback refused: order_items.quantity has fractional values (items sold by weight). An integer column "
+                . "would round them and rewrite order history. Keep this migration, or move those orders out first."
+            );
+        }
+
         Schema::table('order_items', function (Blueprint $table) {
             $table->dropConstrainedForeignId('batch_id');
             $table->dropColumn(['unit', 'modifiers', 'modifiers_total', 'batch_quantity']);

@@ -33,6 +33,8 @@ class V1OrdersRequestBody {
   @JsonKey(name: 'store_id')
   final int storeId;
   final List<Items2> items;
+
+  /// P1-34: accepted for older apps, ignored: the channel is the sign-in's (channelOf)
   final Channel2? channel;
   final Type4 type;
   @JsonKey(name: 'payment_method')

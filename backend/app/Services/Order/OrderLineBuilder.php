@@ -29,8 +29,8 @@ use Illuminate\Validation\ValidationException;
 class OrderLineBuilder
 {
     /**
-     * Reads the request's items into lines; lines with the same variant and the same modifiers are merged (their
-     * quantities added), others stay separate order lines.
+     * Reads the request's items into lines, one per item as sent (merge() then joins the identical piece lines once
+     * the variants' units are known).
      *
      * @param  array<int, mixed>  $items  [{variant_id, quantity, modifiers?: [uuid | {id, quantity?}]}]
      * @return list<array{index: int, variant_uuid: string, quantity: Quantity, modifiers: array<string, int>}>
@@ -62,18 +62,43 @@ class OrderLineBuilder
             }
             ksort($modifiers);
 
-            $variantUuid = strtolower((string) ($item['variant_id'] ?? ''));
-            $signature = $variantUuid . '|' . http_build_query($modifiers);
+            $lines[] = ['index' => $index, 'variant_uuid' => strtolower((string) ($item['variant_id'] ?? '')), 'quantity' => $quantity, 'modifiers' => $modifiers];
+        }
 
-            if (isset($lines[$signature])) {
-                $lines[$signature]['quantity'] = $lines[$signature]['quantity']->plus($quantity);
+        return $lines;
+    }
+
+    /**
+     * Lines of the same variant with the same modifiers are merged (their quantities added) when the variant is sold
+     * by the piece: the merged line costs exactly what the separate ones did. A weighed (kg/l) line is never merged:
+     * it is its own portion (its own minimum, its modifiers once per line, its own rounding), so the order costs the
+     * sum of the lines the customer saw. Variants not found are left to the caller's checks.
+     *
+     * @param  list<array{index: int, variant_uuid: string, quantity: Quantity, modifiers: array<string, int>}>  $lines
+     * @param  Collection<string, ProductVariant>  $variants  keyed by lower-case uuid
+     * @return list<array{index: int, variant_uuid: string, quantity: Quantity, modifiers: array<string, int>}>
+     */
+    public function merge(array $lines, Collection $variants): array
+    {
+        $merged = [];
+
+        foreach ($lines as $line) {
+            $variant = $variants->get($line['variant_uuid']);
+            if ($variant === null || $variant->unit->isMeasured()) {
+                $merged[] = $line;
                 continue;
             }
 
-            $lines[$signature] = ['index' => $index, 'variant_uuid' => $variantUuid, 'quantity' => $quantity, 'modifiers' => $modifiers];
+            $signature = $line['variant_uuid'] . '|' . http_build_query($line['modifiers']);
+            if (isset($merged[$signature])) {
+                $merged[$signature]['quantity'] = $merged[$signature]['quantity']->plus($line['quantity']);
+                continue;
+            }
+
+            $merged[$signature] = $line;
         }
 
-        return array_values($lines);
+        return array_values($merged);
     }
 
     /**

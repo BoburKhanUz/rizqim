@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { lineTotal } from '../lib/linePrice';
 import { addQuantities, isMeasuredUnit, roundQuantity } from '../lib/quantity';
+import type { AttemptStorage, OpenAttempt } from '../lib/idempotency';
 import type { MenuUnit } from '../types';
 
 // One chosen modifier of a cart line (a "Sous: pishloqli" with the price it adds).
@@ -70,6 +71,10 @@ interface CartState {
   storeName: string;
   storeAddress: string;
   specialInstructions: string;
+  // The checkout attempt whose answer has not come yet (its Idempotency-Key and body), kept with the cart so that a
+  // retry after a lost answer reuses the key even after the cart was left or the Mini App reloaded (lib/idempotency.ts).
+  // Cleared when the order is placed (2xx) or the cart is emptied; a changed body replaces it.
+  checkoutAttempt: OpenAttempt | null;
   addItem: (item: CartItem, storeInfo?: CartStoreInfo) => boolean;
   forceClearAndAdd: (item: CartItem, storeInfo?: CartStoreInfo) => void;
   removeItem: (id: string) => void;
@@ -79,6 +84,8 @@ interface CartState {
   getSubtotal: () => number;
   getTotalItems: () => number;
   setSpecialInstructions: (instructions: string) => void;
+  // Takes the menu's current price, modifier prices and quantity rules into the lines (the customer accepted them)
+  refreshLines: (lines: readonly CartItem[]) => void;
 }
 
 export const useCartStore = create<CartState>()(
@@ -88,6 +95,7 @@ export const useCartStore = create<CartState>()(
       storeName: '',
       storeAddress: '',
       specialInstructions: '',
+      checkoutAttempt: null,
       
       addItem: (newItem, storeInfo) => {
         let isSuccess = true;
@@ -133,7 +141,8 @@ export const useCartStore = create<CartState>()(
             items: [{ ...newItem, quantity: newItem.quantity || 1 }],
             storeName: storeInfo?.name || '',
             storeAddress: storeInfo?.address || 'Asosiy filial',
-            specialInstructions: ''
+            specialInstructions: '',
+            checkoutAttempt: null
          });
       },
       
@@ -156,7 +165,7 @@ export const useCartStore = create<CartState>()(
         });
       },
       
-      clearCart: () => set({ items: [], storeName: '', storeAddress: '', specialInstructions: '' }),
+      clearCart: () => set({ items: [], storeName: '', storeAddress: '', specialInstructions: '', checkoutAttempt: null }),
       
       replaceCart: (newItem) => set({ items: [{ ...newItem, quantity: newItem.quantity || 1 }] }),
       
@@ -169,10 +178,27 @@ export const useCartStore = create<CartState>()(
         return get().items.reduce((total, item) => total + (isMeasuredUnit(item.unit) ? 1 : item.quantity), 0);
       },
 
-      setSpecialInstructions: (specialInstructions) => set({ specialInstructions })
+      setSpecialInstructions: (specialInstructions) => set({ specialInstructions }),
+
+      refreshLines: (lines) => {
+        set((state) => ({
+          items: state.items.map((item) => {
+            const fresh = lines.find((line) => line.id === item.id);
+            if (!fresh) return item;
+            const { price, unit, quantityStep, minQuantity, modifiers } = fresh;
+            return { ...item, price, unit, quantityStep, minQuantity, ...(modifiers ? { modifiers } : {}) };
+          }),
+        }));
+      },
     }),
     {
       name: 'cart-storage',
     }
   )
 );
+
+// The cart's open checkout attempt as the storage of lib/idempotency.ts: it is persisted with the cart.
+export const cartAttemptStorage: AttemptStorage = {
+  get: () => useCartStore.getState().checkoutAttempt ?? null,
+  set: (checkoutAttempt) => useCartStore.setState({ checkoutAttempt }),
+};

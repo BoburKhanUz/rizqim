@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Enums\DeviceType;
 use App\Enums\UserRole;
+use App\Models\Device;
 use App\Models\Modifier;
 use App\Models\ModifierGroup;
 use App\Models\Product;
@@ -80,6 +82,31 @@ trait MenuFixtures
             'payment_method' => 'cash',
             'items' => $items,
         ], $overrides));
+    }
+
+    /**
+     * POST /orders as order() does, but signed in from an app on a device of $type (a Sanctum token bound to the
+     * device, as /auth/telegram or /auth/phone/verify with `device` issue it). The server takes the order's channel
+     * from it (P1-34): a customer_mobile device makes a `mobile` order.
+     *
+     * @param  list<array<string, mixed>>  $items
+     */
+    protected function mobileOrder(array $items, array $overrides = [], ?User $user = null, DeviceType $type = DeviceType::CUSTOMER_MOBILE): TestResponse
+    {
+        $user ??= $this->customer;
+        $device = Device::create(['user_id' => $user->id, 'type' => $type, 'name' => 'Telefon']);
+        $token = $user->createToken('test-app');
+        $token->accessToken->forceFill(['device_id' => $device->id])->save();
+        // A user set by an earlier actingAs() would win over the bearer token
+        $this->app['auth']->forgetGuards();
+
+        return $this->postJson('/api/v1/orders', array_merge([
+            'store_id' => $this->store->id,
+            'type' => 'pickup',
+            'branch_id' => $this->branch->id,
+            'payment_method' => 'cash',
+            'items' => $items,
+        ], $overrides), ['Authorization' => "Bearer {$token->plainTextToken}"]);
     }
 
     /**

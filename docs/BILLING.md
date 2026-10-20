@@ -62,6 +62,13 @@ Holatlar: `trialing` (sinov davri), `active` (faol), `past_due` (to'lov muddati 
   - Joriy tarifni qayta tanlash kutilayotgan o'zgarish yoki bekor qilishni olib tashlaydi.
 - **Bekor qilish**: *oy oxirida* — shu oy hisoblanadi, keyin obuna tugaydi; *darhol* — obuna hozir tugaydi va shu oy
   uchun hisob-faktura chiqmaydi.
+- **Tugagan oy avval hisoblanadi.** Tarifni o'zgartirish yoki bekor qilish oy tugagandan keyin, lekin kunlik ish (00:15)
+  hali ishlamaganida qilinsa (masalan 1-noyabr 00:05 da), avval tugagan oy(lar) odatdagidek, o'sha oyda amalda bo'lgan
+  tarif bilan hisoblanadi, keyin o'zgarish qo'llanadi. Shu sababli hech bir oy yo'qolmaydi va davr hech qachon boshlanishidan
+  oldin tugamaydi (`current_period_end > current_period_start` — kodda tekshiriladi, buzilsa xato).
+- **Do'kon o'chirilsa** (superadmin "O'chirish", soft delete): uning tugagan oylari hisoblanadi (qarz hisobiga yoziladi),
+  keyin obuna darhol tugaydi; o'chirish paytidagi joriy oy hisoblanmaydi. Biror sababga ko'ra ochiq qolgan bo'lsa, kunlik
+  ish uni xuddi shunday yopadi (o'chirishdan oldin tugagan oylar hisoblanadi), har kuni xato bermaydi.
 
 ## 4. Oylik hisob-faktura qanday hisoblanadi
 

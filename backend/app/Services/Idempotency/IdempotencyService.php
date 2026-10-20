@@ -9,6 +9,7 @@ use Closure;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 use Throwable;
 
 /**
@@ -20,7 +21,11 @@ use Throwable;
  *    again; any other outcome releases the key, so a retry runs again (nothing was created);
  *  - the same key with a different body: 409;
  *  - a repeat arriving while the first still runs waits for it (up to wait_seconds), then replays; if the first is
- *    still running after that, 409. A key held by a request that died is free again after lock_seconds.
+ *    still running after that, 409. A key held by a request that died is free again after lock_seconds;
+ *  - an endpoint whose work commits in a transaction calls markApplied() inside it (POST /orders does): the key is
+ *    then marked used together with what was created, so a request that died after committing, or one still running
+ *    past lock_seconds, is never taken over and run twice (P1-34). Each run owns its claim by its locked_until value:
+ *    a run whose claim was taken over cannot commit (markApplied throws) nor release the new owner's key.
  *
  * Keys are per scope (endpoint) and per actor (the user, else the terminal); another user's key never collides.
  */
@@ -29,6 +34,9 @@ class IdempotencyService
     public const HEADER = 'Idempotency-Key';
 
     public const REPLAYED_HEADER = 'Idempotent-Replayed';
+
+    /** The request attribute holding this run's claim: {id, locked_until} (the raw column value it owns). */
+    public const CLAIM_ATTRIBUTE = 'idempotency.claim';
 
     /**
      * @param  Closure(Request): Response  $next
@@ -64,6 +72,8 @@ class IdempotencyService
                     return $this->error("Shu kalit bilan yuborilgan so'rov hali bajarilmoqda. Birozdan so'ng qayta urinib ko'ring.", 409);
                 }
 
+                usleep(50_000);
+
                 continue; // released or expired meanwhile: try to claim it again
             }
 
@@ -76,7 +86,7 @@ class IdempotencyService
             }
 
             if ($this->takeOverStale($existing)) {
-                return $this->run($existing, $request, $next);
+                return $this->run($existing->refresh(), $request, $next);
             }
 
             if (microtime(true) >= $deadline) {
@@ -174,7 +184,33 @@ class IdempotencyService
     }
 
     /**
-     * A key whose request died while running (never answered, past locked_until) is claimed by this request.
+     * Marks this request's key used, inside the transaction that commits what the request created (so both commit or
+     * neither does). From then on the key is never taken over: a repeat replays the response, or gets 409 while it is
+     * not stored yet. Throws 409 (rolling the transaction back) when this run's claim was taken over meanwhile. A
+     * request without an Idempotency-Key has no claim: nothing to do.
+     */
+    public function markApplied(Request $request): void
+    {
+        $claim = $request->attributes->get(self::CLAIM_ATTRIBUTE);
+        if (!is_array($claim)) {
+            return;
+        }
+
+        $marked = IdempotencyKey::whereKey($claim['id'])
+            ->whereNull('response_status')
+            ->where('locked_until', $claim['locked_until'])
+            ->update(['locked_until' => null, 'updated_at' => now()]);
+
+        if ($marked !== 1) {
+            throw new ConflictHttpException("Shu kalit bilan yuborilgan so'rov boshqa urinishda bajarilmoqda. Birozdan so'ng qayta urinib ko'ring.");
+        }
+
+        $request->attributes->set(self::CLAIM_ATTRIBUTE, ['applied' => true] + $claim);
+    }
+
+    /**
+     * A key whose request died while running (never answered, past locked_until) is claimed by this request. A key
+     * marked used (markApplied: locked_until null) never is.
      */
     private function takeOverStale(IdempotencyKey $existing): bool
     {
@@ -193,24 +229,43 @@ class IdempotencyService
      */
     private function run(IdempotencyKey $claimed, Request $request, Closure $next): Response
     {
+        $lockedUntil = $claimed->getRawOriginal('locked_until');
+        $request->attributes->set(self::CLAIM_ATTRIBUTE, ['id' => (int) $claimed->id, 'locked_until' => $lockedUntil]);
+
+        // This run's claim: still the one it took (not taken over), not answered yet
+        $own = fn (bool $applied) => IdempotencyKey::whereKey($claimed->id)
+            ->whereNull('response_status')
+            ->when($applied, fn ($query) => $query->whereNull('locked_until'), fn ($query) => $query->where('locked_until', $lockedUntil));
+
         try {
             $response = $next($request);
         } catch (Throwable $e) {
-            $claimed->delete();
+            // Nothing was committed under the key: release it (unless another run owns it by now)
+            $own(false)->delete();
 
             throw $e;
         }
 
+        $store = [
+            'response_status' => $response->getStatusCode(),
+            'response_body' => (string) $response->getContent(),
+            'response_content_type' => mb_substr((string) $response->headers->get('Content-Type', 'application/json'), 0, 100),
+            'locked_until' => null,
+            'updated_at' => now(),
+        ];
+
+        $applied = (bool) data_get($request->attributes->get(self::CLAIM_ATTRIBUTE), 'applied');
+
+        if ($applied && $own(true)->update($store) === 1) {
+            // Marked used with what it created (markApplied): whatever the answer, it is the one a repeat gets
+            return $response;
+        }
+
         if ($response->isSuccessful()) {
-            $claimed->forceFill([
-                'response_status' => $response->getStatusCode(),
-                'response_body' => (string) $response->getContent(),
-                'response_content_type' => mb_substr((string) $response->headers->get('Content-Type', 'application/json'), 0, 100),
-                'locked_until' => null,
-            ])->save();
+            $own(false)->update($store);
         } else {
             // Nothing was created: the same key may be used for the retry
-            $claimed->delete();
+            $own(false)->delete();
         }
 
         return $response;

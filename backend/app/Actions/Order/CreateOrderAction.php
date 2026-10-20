@@ -181,6 +181,14 @@ class CreateOrderAction
                 $branch = $closestBranch;
             }
 
+            // P1-34: every line is checked against a branch's stop-list and batches; an order no branch was resolved for
+            // (a hall order, which is the staff/POS path's) would skip both, so it is never placed
+            if ($branch === null) {
+                throw ValidationException::withMessages([
+                    'type' => "Buyurtma uchun filial aniqlanmadi. Yetkazib berish yoki olib ketishni tanlang.",
+                ]);
+            }
+
             // 3. Validate variants and calculate total securely (P1-21: units, modifiers, channel prices, stop-list,
             // batches; App\Services\Order\OrderLineBuilder, docs/MENU.md)
             $totalAmount = Money::zero();
@@ -209,6 +217,9 @@ class CreateOrderAction
                 ->get()
                 ->keyBy(fn ($variant) => strtolower($variant->uuid));
 
+            // Identical piece lines become one order line; weighed lines stay as sent (OrderLineBuilder::merge)
+            $lines = $this->lines->merge($lines, $variants);
+
             $stopList = $this->lines->stopList($branch);
 
             foreach ($requestedQuantities as $uuid => $quantity) {
@@ -219,15 +230,13 @@ class CreateOrderAction
                 }
 
                 // Check branch product variant availability override
-                if ($branch) {
-                    $branchOverride = \App\Models\BranchProductVariant::where('branch_id', $branch->id)
-                        ->where('variant_id', $variant->id)
-                        ->first();
+                $branchOverride = \App\Models\BranchProductVariant::where('branch_id', $branch->id)
+                    ->where('variant_id', $variant->id)
+                    ->first();
 
-                    if ($branchOverride && !$branchOverride->is_active) {
-                        $reason = $branchOverride->hidden_reason ? " ({$branchOverride->hidden_reason})" : "";
-                        throw new Exception("Uzr, '{$variant->product->name} ({$variant->name})' mahsuloti ushbu filialda vaqtincha mavjud emas{$reason}.");
-                    }
+                if ($branchOverride && !$branchOverride->is_active) {
+                    $reason = $branchOverride->hidden_reason ? " ({$branchOverride->hidden_reason})" : "";
+                    throw new Exception("Uzr, '{$variant->product->name} ({$variant->name})' mahsuloti ushbu filialda vaqtincha mavjud emas{$reason}.");
                 }
 
                 $this->assertSellable($variant, $channelMenu, $stopList);
@@ -332,7 +341,7 @@ class CreateOrderAction
 
             // P1-21: service charge and place fee, separate lines for the POS hall; never on Telegram orders
             $guests = isset($payload['guests_count']) ? (int) $payload['guests_count'] : null;
-            $diningFees = $this->diningFees->calculate((int) $storeId, $branch?->id, $channel, Money::max(Money::zero(), $totalAmount->minus($discount)), $guests);
+            $diningFees = $this->diningFees->calculate((int) $storeId, $branch->id, $channel, Money::max(Money::zero(), $totalAmount->minus($discount)), $guests);
 
             $totalPrice = Money::max(Money::zero(), $totalAmount->minus($discount)->plus($deliveryFee))
                 ->plus($diningFees['service_charge'])
@@ -361,7 +370,7 @@ class CreateOrderAction
             $order = Order::create([
                 'user_id' => $user->id,
                 'store_id' => $storeId,
-                'branch_id' => $branch?->id,
+                'branch_id' => $branch->id,
                 'short_code' => $shortCode,
                 'total_price' => $totalPrice->toString(),
                 'subtotal' => $totalAmount->toString(),
@@ -552,7 +561,18 @@ class CreateOrderAction
     {
         $none = ['line_batches' => [], 'batches' => []];
         $productIds = $variants->map(fn (ProductVariant $variant) => (int) $variant->product_id)->unique()->values()->all();
-        if (!$branch || $productIds === []) {
+        if ($productIds === []) {
+            return $none;
+        }
+
+        if (!$branch) {
+            // No branch, no batch to take from: a batch-tracked product is sold out, never sold without stock (P1-34)
+            foreach ($variants as $variant) {
+                if ($variant->product->batch_tracked) {
+                    throw $this->soldOut($variant);
+                }
+            }
+
             return $none;
         }
 

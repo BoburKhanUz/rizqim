@@ -637,8 +637,10 @@ export interface paths {
          *     P1-21 (docs/MENU.md): `items.*.quantity` may be a fraction for items sold by weight (kg/l, at least
          *     `min_quantity`, in `quantity_step` steps); `items.*.modifiers` lists the chosen modifiers as uuids or
          *     `{id: uuid, quantity}`; prices always come from the server. 422 when a modifier rule is broken, the item is on
-         *     the branch's stop-list, its batch is sold out ("tugadi") or it is hidden on the channel. `channel` is
-         *     `telegram` (default) or `mobile`. An `Idempotency-Key` header makes retries safe: the same key with the same body
+         *     the branch's stop-list, its batch is sold out ("tugadi") or it is hidden on the channel. The channel is decided by
+         *     the server from the sign-in (P1-34): `mobile` for a token of a customer mobile app device, else `telegram`; a
+         *     `channel` in the body is accepted for older apps but ignored. `type=dine_in` is refused with 422 (hall orders
+         *     are taken by staff on the POS). An `Idempotency-Key` header makes retries safe: the same key with the same body
          *     within 24 hours returns the first response (header `Idempotent-Replayed: true`), with another body 409.
          *
          *     P1-32 (docs/ZONES.md): when the store has delivery zones, a `delivery` order is routed and priced by the zone
@@ -2408,6 +2410,9 @@ export interface components {
             created_at: string | null;
             /** Format: date-time */
             updated_at: string | null;
+            replaced_by_id: number | null;
+            /** Format: date-time */
+            grace_used_at: string | null;
             user?: components["schemas"]["User"];
             device?: components["schemas"]["Device"];
         };
@@ -4557,7 +4562,10 @@ export interface operations {
                         quantity: number;
                         modifiers?: string[] | null;
                     }[];
-                    /** @enum {string|null} */
+                    /**
+                     * @description P1-34: accepted for older apps, ignored: the channel is the sign-in's (channelOf)
+                     * @enum {string|null}
+                     */
                     channel?: "telegram" | "mobile" | null;
                     /** @enum {string} */
                     type: "delivery" | "pickup" | "dine_in";
@@ -4599,6 +4607,14 @@ export interface operations {
                 };
             };
             401: components["responses"]["AuthenticationException"];
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Yetkazib berish hududi: manzilga yetkazib bo'lmaydi yoki buyurtma hududning eng kam summasidan kam */
             422: {
                 headers: {

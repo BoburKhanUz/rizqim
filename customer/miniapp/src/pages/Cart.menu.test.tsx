@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MainButtonHost } from '../components/ui/MainButtonHost';
@@ -60,12 +60,13 @@ function quoteOf(overrides: Record<string, unknown> = {}) {
 
 let availability: BranchAvailability[];
 let quote: () => Promise<unknown>;
+let products = PRODUCTS;
 
 function serve() {
   get.mockImplementation((url) => {
     if (url === '/stores') return Promise.resolve({ data: { success: true, data: [STORE] } });
     if (url.startsWith('/catalog/availability')) return Promise.resolve({ data: { success: true, data: { store_id: 1, branches: availability } } });
-    if (url.startsWith('/catalog')) return Promise.resolve({ data: { success: true, data: { products: PRODUCTS } } });
+    if (url.startsWith('/catalog')) return Promise.resolve({ data: { success: true, data: { products } } });
     if (url === '/delivery/quote') return quote();
     return Promise.reject(new Error(`unexpected GET ${url}`));
   });
@@ -88,7 +89,7 @@ async function renderCart(items: CartItem[]) {
   await flush();
 }
 
-const orderButton = () => screen.getByRole('button', { name: /^(Buyurtma berish|Tugaganlarni olib tashlang|Bu manzilga yetkazib berilmaydi)/ }) as HTMLButtonElement;
+const orderButton = () => screen.getByRole('button', { name: /^(Buyurtma berish|Tugaganlarni olib tashlang|Yangi narxlarni tasdiqlang|Bu manzilga yetkazib berilmaydi)/ }) as HTMLButtonElement;
 const lastAlert = () => useDialogQueue.getState().queue.at(-1)?.message;
 // The list item of a dish by its exact name (the sold-out banner repeats the names inside longer sentences)
 const line = (name: RegExp) => screen.getByText(new RegExp(`^${name.source}$`)).closest('li') as HTMLElement;
@@ -102,6 +103,8 @@ beforeEach(() => {
   useAddressStore.setState({ addresses: [{ id: 1, title: 'Uy', address: 'Chilonzor 12', lat: 41.27, lng: 69.21, is_default: true }], selectedAddressId: 1 });
   availability = [{ branch_id: 5, stopped: { products: [], variants: [], modifiers: [] }, sold_out: { variants: [] } }];
   quote = () => Promise.resolve({ data: { success: true, data: quoteOf() } });
+  products = PRODUCTS;
+  useCartStore.setState({ checkoutAttempt: null });
   post.mockReset();
   post.mockResolvedValue({ data: { success: true, data: { order_number: 'A100' } } });
 });
@@ -347,5 +350,105 @@ describe('Cart: one Idempotency-Key per checkout attempt', () => {
 
     expect(post).toHaveBeenCalledTimes(2);
     expect(keyOf(1)).not.toBe(keyOf(0));
+  });
+});
+
+describe('Cart: the checkout attempt outlives the cart page', () => {
+  const keyOf = (call: number) => (post.mock.calls[call][2] as { headers: Record<string, string> }).headers['Idempotency-Key'];
+
+  it('retries an unchanged order with the same key after the cart was left and opened again (the answer was lost)', async () => {
+    // The first POST reached the server (the order exists) but its answer was lost on the way back
+    post.mockRejectedValueOnce(failedRequest(undefined, undefined, '/orders'));
+    await renderCart([cola, { ...burger }]);
+    await settle();
+    fireEvent.click(orderButton());
+    await flush();
+    expect(lastAlert()).toMatch(/ikki marta yaratilmaydi/);
+
+    cleanup(); // the customer looks at "Buyurtmalarim", then comes back to the cart (or Telegram reloads the Mini App)
+    await renderCart(useCartStore.getState().items);
+    await settle();
+    fireEvent.click(orderButton());
+    await flush();
+
+    expect(post).toHaveBeenCalledTimes(2);
+    expect(post.mock.calls[1][1]).toEqual(post.mock.calls[0][1]);
+    expect(keyOf(1)).toBe(keyOf(0)); // the server answers with the first order instead of placing a second
+  });
+
+  it('starts a new attempt once the order was placed', async () => {
+    await renderCart([cola]);
+    await settle();
+    fireEvent.click(orderButton());
+    await flush();
+    expect(useCartStore.getState().checkoutAttempt).toBeNull();
+
+    cleanup();
+    await renderCart([cola]);
+    await settle();
+    fireEvent.click(orderButton());
+    await flush();
+
+    expect(post).toHaveBeenCalledTimes(2);
+    expect(keyOf(1)).not.toBe(keyOf(0));
+  });
+});
+
+describe('Cart: prices of the menu as it is now', () => {
+  const dearerCola = () => [PRODUCTS[0], PRODUCTS[1], makeProduct({ id: 3, name: 'Cola', variants: [makeVariant({ id: 3, uuid: 'v-cola', product_id: 3, price: '12000.00', stock: 20 })] })];
+
+  it('totals a line at the current price and flags the change before the order can go', async () => {
+    products = dearerCola();
+    await renderCart([burger, { ...cola, quantity: 2 }]); // cola was added at 8 000
+    await settle();
+
+    const colaLine = line(/Cola \(Standart\)/);
+    expect(within(colaLine).getByText("24 000 so'm")).toBeInTheDocument(); // 12 000 × 2, what the server charges
+    expect(within(colaLine).getByText(/Narxi o'zgardi: 16\s000\sso'm → 24\s000\sso'm/)).toBeInTheDocument();
+    expect(screen.getByText("Ba'zi taomlarning narxi o'zgardi")).toBeInTheDocument();
+    // The quote is asked for the subtotal the server will see: 66 000 + 24 000
+    expect(get).toHaveBeenCalledWith('/delivery/quote', { params: { store: '1', lat: 41.27, lng: 69.21, subtotal: 90000 } });
+    expect(orderButton()).toHaveTextContent('Yangi narxlarni tasdiqlang');
+    expect(orderButton()).toBeDisabled();
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  it('lets the customer accept the new prices, and then the order goes with the right total', async () => {
+    products = dearerCola();
+    await renderCart([burger, { ...cola, quantity: 2 }]);
+    await settle();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Yangi narxlarni qabul qilish' }));
+    await settle();
+
+    expect(useCartStore.getState().items.find((item) => item.id === cola.id)?.price).toBe(12000);
+    expect(screen.queryByText("Ba'zi taomlarning narxi o'zgardi")).not.toBeInTheDocument();
+    expect(orderButton()).toBeEnabled();
+    expect(orderButton()).toHaveTextContent(/^Buyurtma berish · 102\s000\sso'm/); // 90 000 + delivery 12 000
+  });
+
+  it('prices modifiers at their current delta', async () => {
+    products = [makeProduct({ ...PRODUCTS[0], modifier_groups: [{ ...sauce, modifiers: [{ ...sauce.modifiers[0], price_delta: '5000.00' }] }] }), PRODUCTS[1], PRODUCTS[2]];
+    await renderCart([burger]);
+    await settle();
+
+    const burgerLine = line(/Burger \(Standart\)/);
+    expect(within(burgerLine).getByText(/Pishloqli · \+5\s000\sso'm/)).toBeInTheDocument();
+    expect(within(burgerLine).getByText("70 000 so'm")).toBeInTheDocument(); // (30 000 + 5 000) × 2
+    expect(orderButton()).toHaveTextContent('Yangi narxlarni tasdiqlang');
+  });
+
+  it('asks for the stores and the menu again once the +/- taps settle, not on every tap', async () => {
+    await renderCart([cola]);
+    await settle();
+    const fetches = () => get.mock.calls.filter(([url]) => url === '/stores' || /^\/catalog\?/.test(url)).length;
+    const before = fetches();
+
+    fireEvent.click(within(line(/Cola \(Standart\)/)).getByRole('button', { name: "Cola (Standart): ko'paytirish" }));
+    fireEvent.click(within(line(/Cola \(Standart\)/)).getByRole('button', { name: "Cola (Standart): ko'paytirish" }));
+    await settle();
+
+    expect(useCartStore.getState().items[0].quantity).toBe(3);
+    expect(fetches()).toBe(before + 2); // one /stores and one /catalog for the two taps
   });
 });

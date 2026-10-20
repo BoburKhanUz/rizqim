@@ -22,6 +22,8 @@ class RefreshToken {
     required this.revokedAt,
     required this.createdAt,
     required this.updatedAt,
+    required this.replacedById,
+    required this.graceUsedAt,
     this.user,
     this.device,
   });
@@ -48,6 +50,10 @@ class RefreshToken {
   final DateTime? createdAt;
   @JsonKey(name: 'updated_at')
   final DateTime? updatedAt;
+  @JsonKey(name: 'replaced_by_id')
+  final int? replacedById;
+  @JsonKey(name: 'grace_used_at')
+  final DateTime? graceUsedAt;
   final User? user;
   final Device? device;
 

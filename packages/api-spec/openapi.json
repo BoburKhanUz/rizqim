@@ -4997,7 +4997,7 @@
             },
             "post": {
                 "operationId": "order.store",
-                "description": "Prices, stock, the promo code and the delivery fee are checked on the server. `payment_url` is set for online\npayment methods (Click, Payme): open it to pay; the order is cancelled when it stays unpaid. 400 with the reason\nwhen the order cannot be placed (store closed, item unavailable, minimum not reached...).\n\nP1-21 (docs/MENU.md): `items.*.quantity` may be a fraction for items sold by weight (kg/l, at least\n`min_quantity`, in `quantity_step` steps); `items.*.modifiers` lists the chosen modifiers as uuids or\n`{id: uuid, quantity}`; prices always come from the server. 422 when a modifier rule is broken, the item is on\nthe branch's stop-list, its batch is sold out (\"tugadi\") or it is hidden on the channel. `channel` is\n`telegram` (default) or `mobile`. An `Idempotency-Key` header makes retries safe: the same key with the same body\nwithin 24 hours returns the first response (header `Idempotent-Replayed: true`), with another body 409.\n\nP1-32 (docs/ZONES.md): when the store has delivery zones, a `delivery` order is routed and priced by the zone\nthat covers `latitude`/`longitude`, exactly as `GET /delivery/quote` prices it: the zone's fee (free past its\nthreshold) and minimum order replace the store-wide ones, any fee the client sends is ignored. Without\n`branch_id` the branch is picked automatically (the zone's branch, else the nearest open one); with it, that\nbranch must serve a zone covering the point. 422 with `data.reason`: `outside_zone`, `branch_outside_zone`,\n`branch_closed`, or `below_minimum_order` (with `data.min_order_amount` and `data.subtotal`). Stores without\nzones keep the branch radius rule and the store's delivery fee.",
+                "description": "Prices, stock, the promo code and the delivery fee are checked on the server. `payment_url` is set for online\npayment methods (Click, Payme): open it to pay; the order is cancelled when it stays unpaid. 400 with the reason\nwhen the order cannot be placed (store closed, item unavailable, minimum not reached...).\n\nP1-21 (docs/MENU.md): `items.*.quantity` may be a fraction for items sold by weight (kg/l, at least\n`min_quantity`, in `quantity_step` steps); `items.*.modifiers` lists the chosen modifiers as uuids or\n`{id: uuid, quantity}`; prices always come from the server. 422 when a modifier rule is broken, the item is on\nthe branch's stop-list, its batch is sold out (\"tugadi\") or it is hidden on the channel. The channel is decided by\nthe server from the sign-in (P1-34): `mobile` for a token of a customer mobile app device, else `telegram`; a\n`channel` in the body is accepted for older apps but ignored. `type=dine_in` is refused with 422 (hall orders\nare taken by staff on the POS). An `Idempotency-Key` header makes retries safe: the same key with the same body\nwithin 24 hours returns the first response (header `Idempotent-Replayed: true`), with another body 409.\n\nP1-32 (docs/ZONES.md): when the store has delivery zones, a `delivery` order is routed and priced by the zone\nthat covers `latitude`/`longitude`, exactly as `GET /delivery/quote` prices it: the zone's fee (free past its\nthreshold) and minimum order replace the store-wide ones, any fee the client sends is ignored. Without\n`branch_id` the branch is picked automatically (the zone's branch, else the nearest open one); with it, that\nbranch must serve a zone covering the point. 422 with `data.reason`: `outside_zone`, `branch_outside_zone`,\n`branch_closed`, or `below_minimum_order` (with `data.min_order_amount` and `data.subtotal`). Stores without\nzones keep the branch radius rule and the store's delivery fee.",
                 "summary": "Place an order (checkout)",
                 "tags": [
                     "Orders"
@@ -5020,7 +5020,8 @@
                                 "type": "object",
                                 "properties": {
                                     "store_id": {
-                                        "type": "integer"
+                                        "type": "integer",
+                                        "minimum": 1
                                     },
                                     "items": {
                                         "type": "array",
@@ -5059,6 +5060,7 @@
                                             "string",
                                             "null"
                                         ],
+                                        "description": "P1-34: accepted for older apps, ignored: the channel is the sign-in's (channelOf)",
                                         "enum": [
                                             "telegram",
                                             "mobile",
@@ -5088,7 +5090,8 @@
                                         "type": [
                                             "integer",
                                             "null"
-                                        ]
+                                        ],
+                                        "minimum": 1
                                     },
                                     "address": {
                                         "type": [
@@ -5135,6 +5138,16 @@
                 },
                 "responses": {
                     "400": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
                         "description": "",
                         "content": {
                             "application/json": {
@@ -6948,13 +6961,16 @@
                                 "type": "object",
                                 "properties": {
                                     "branch_id": {
-                                        "type": "integer"
+                                        "type": "integer",
+                                        "minimum": 1
                                     },
                                     "product_id": {
-                                        "type": "integer"
+                                        "type": "integer",
+                                        "minimum": 1
                                     },
                                     "product_variant_id": {
-                                        "type": "integer"
+                                        "type": "integer",
+                                        "minimum": 1
                                     },
                                     "is_active": {
                                         "type": "boolean"
@@ -17419,6 +17435,19 @@
                         ],
                         "format": "date-time"
                     },
+                    "replaced_by_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ]
+                    },
+                    "grace_used_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date-time"
+                    },
                     "user": {
                         "$ref": "#/components/schemas/User"
                     },
@@ -17436,7 +17465,9 @@
                     "used_at",
                     "revoked_at",
                     "created_at",
-                    "updated_at"
+                    "updated_at",
+                    "replaced_by_id",
+                    "grace_used_at"
                 ],
                 "title": "RefreshToken"
             },

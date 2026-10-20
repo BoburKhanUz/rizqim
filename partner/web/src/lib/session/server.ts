@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { apiBaseUrl, secureCookies } from '../config';
 import { randomUUID } from 'node:crypto';
+import { isIP } from 'node:net';
 import type { AccountChoice, SessionPayload, SessionUser } from './types';
 
 // Server half of the sign-in (used only by the route handlers in app/api/session). The browser never sees the refresh
@@ -29,8 +30,24 @@ export interface BackendResult {
   retryAfter: string | null;
 }
 
-// One JSON call to the backend. Never throws: an unreachable backend is status 0.
-export async function backendFetch(path: string, init: { body?: unknown; token?: string } = {}): Promise<BackendResult> {
+// The address of the person behind a request to these handlers, for the backend's per-IP rate limits (SMS codes, wrong
+// codes, refresh) and its audit log. Without it every sign-in would reach the backend from this server's own address and
+// all partners would share one rate-limit bucket.
+//
+// Only the last X-Forwarded-For entry is taken: the one the hop right in front of this server wrote (the outer TLS proxy
+// with `$proxy_add_x_forwarded_for` or `$remote_addr`; without a proxy Next itself fills the header with the socket
+// address when it is missing). Entries to its left came from the browser and are ignored. This holds only while nothing
+// but the outer proxy can reach this server: compose binds its port to 127.0.0.1 (docs/DEPLOY.md, 4-bo'lim). A CDN in
+// front of the proxy must have its real-IP header turned into the proxy's $remote_addr first (nginx real_ip module).
+export function clientIp(request: NextRequest): string | null {
+  const last = request.headers.get('x-forwarded-for')?.split(',').map((entry) => entry.trim()).filter(Boolean).at(-1);
+  return last && isIP(last) !== 0 ? last : null;
+}
+
+// One JSON call to the backend. Never throws: an unreachable backend is status 0. `request` is the incoming request whose
+// client address the backend should see (sent as X-Forwarded-For; the backend trusts it from the compose network only).
+export async function backendFetch(path: string, init: { body?: unknown; token?: string; request?: NextRequest } = {}): Promise<BackendResult> {
+  const ip = init.request ? clientIp(init.request) : null;
   try {
     const response = await fetch(`${apiBaseUrl()}${path}`, {
       method: 'POST',
@@ -38,6 +55,7 @@ export async function backendFetch(path: string, init: { body?: unknown; token?:
         Accept: 'application/json',
         'Content-Type': 'application/json',
         ...(init.token ? { Authorization: `Bearer ${init.token}` } : {}),
+        ...(ip ? { 'X-Forwarded-For': ip } : {}),
       },
       body: JSON.stringify(init.body ?? {}),
       cache: 'no-store',

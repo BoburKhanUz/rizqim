@@ -40,6 +40,17 @@ describe('the step and the least quantity of a variant', () => {
     expect(minQuantityOf({ unit: 'l', quantity_step: '0.250', min_quantity: null })).toBe(0.25);
   });
 
+  it('starts at the first multiple of the step at or above a minimum that is not one (the server takes multiples only)', () => {
+    const variant = { unit: 'kg' as const, quantity_step: '0.500', min_quantity: '0.300' };
+    const start = minQuantityOf(variant);
+    expect(start).toBe(0.5);
+    const offered = [start];
+    for (let i = 0; i < 5; i++) offered.push(addQuantities(offered[offered.length - 1], 0.5));
+    expect(offered.every((quantity) => isMultipleOfStep(quantity, 0.5) && quantity >= 0.3)).toBe(true);
+    expect(minQuantityOf({ unit: 'kg', quantity_step: '0.250', min_quantity: '0.600' })).toBe(0.75);
+    expect(minQuantityOf({ unit: 'l', quantity_step: '0.100', min_quantity: '0.300' })).toBe(0.3);
+  });
+
   it('knows the measured units', () => {
     expect(isMeasuredUnit('kg')).toBe(true);
     expect(isMeasuredUnit('l')).toBe(true);

@@ -105,6 +105,8 @@ class AuthStaffPhoneLoginTest extends TestCase
         // The refresh token family works as for any app
         $this->withBearer(null)->postJson('/api/v1/auth/refresh', ['refresh_token' => $data['refresh_token'], 'device_uuid' => $data['device']['uuid']])
             ->assertOk();
+        // Past the grace window for a lost answer (docs/AUTH.md)
+        $this->travel(31)->seconds();
         $this->withBearer(null)->postJson('/api/v1/auth/refresh', ['refresh_token' => $data['refresh_token'], 'device_uuid' => $data['device']['uuid']])
             ->assertUnauthorized()
             ->assertJsonPath('data.reason', 'refresh_reused');

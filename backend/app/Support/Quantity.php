@@ -109,7 +109,7 @@ final class Quantity implements JsonSerializable, Stringable
 
     public function isWhole(): bool
     {
-        return $this->amount->getFractionalPart() === str_repeat('0', self::SCALE);
+        return !$this->amount->hasNonZeroFractionalPart();
     }
 
     /**
