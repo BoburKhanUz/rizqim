@@ -1,7 +1,7 @@
 # Rizqim dizayn tizimi (Mini App)
 
-Bitta manba: `mini-app/src/index.css` (`--rz-*` o'zgaruvchilar va Tailwind `@theme`). Komponentlar:
-`mini-app/src/components/ui/`. Formatlash: `mini-app/src/lib/format.ts`. Telegram: `mini-app/src/lib/twa.ts`,
+Bitta manba: `customer/miniapp/src/index.css` (`--rz-*` o'zgaruvchilar va Tailwind `@theme`). Komponentlar:
+`customer/miniapp/src/components/ui/`. Formatlash: `customer/miniapp/src/lib/format.ts`. Telegram: `customer/miniapp/src/lib/twa.ts`,
 `lib/dialogs.ts`, `hooks/useMainButton.ts`.
 
 Mavzu (light/dark) Telegram'dan olinadi: `lib/twa.ts` `<html data-theme>` ni `WebApp.colorScheme` bo'yicha qo'yadi va
