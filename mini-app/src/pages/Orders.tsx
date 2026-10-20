@@ -194,7 +194,7 @@ export default function Orders() {
         {/* Why a canceled or rejected order was */}
         {hasReason && (
           <div className="mt-3 flex flex-col gap-1 rounded-control bg-danger-soft p-3 text-footnote text-danger-soft-fg">
-            <span className="text-caption font-bold">{c('orderCancelReason')}</span>
+            <span className="text-caption font-bold">{c(order.status === 'rejected' ? 'orderRejectReason' : 'orderCancelReason')}</span>
             {order.cancel_reason && <span className="font-medium">{getCustomerCancelReasonLabel(order.cancel_reason, language)}</span>}
             {order.cancel_note && <span className="select-text">"{order.cancel_note}"</span>}
           </div>
@@ -301,8 +301,8 @@ export default function Orders() {
   };
 
   return (
-    <div className="flex flex-col gap-5 p-4">
-      <PageHeader title={t('myOrders')} subtitle={c('ordersSubtitle')} back />
+    <div className="flex flex-col gap-5 px-4 pb-4 pt-2">
+      <PageHeader title={t('myOrders')} subtitle={c('ordersSubtitle')} />
 
       {failed && !hasOrders ? (
         <InlineError

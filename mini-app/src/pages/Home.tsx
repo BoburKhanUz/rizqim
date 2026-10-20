@@ -3,7 +3,7 @@ import { useCartStore, type PendingCartItem } from '../store/cartStore';
 import { useAddressStore } from '../store/useAddressStore';
 import { hapticFeedback } from '../lib/telegram';
 import { useCanAddToCart } from '../hooks/useCanAddToCart';
-import { Button, EmptyState, InlineError, Section, buttonClasses } from '../components/ui';
+import { Button, EmptyState, InlineError, PageHeader, ProductImage, Section, buttonClasses } from '../components/ui';
 import api from '../services/api';
 import { MapPin, Search } from 'lucide-react';
 import HeroPromoSlider from '../components/HeroPromoSlider';
@@ -11,7 +11,6 @@ import { Link, useNavigate } from 'react-router-dom';
 import VariantSelectorModal from '../components/VariantSelectorModal';
 import { NotificationBell } from '../components/catalog/NotificationBell';
 import { ProductCard } from '../components/catalog/ProductCard';
-import { ProductImage } from '../components/catalog/ProductImage';
 import { ReplaceCartDialog } from '../components/catalog/ReplaceCartDialog';
 import { SearchField } from '../components/catalog/SearchField';
 import { StoreCard } from '../components/catalog/StoreCard';
@@ -124,9 +123,14 @@ export default function Home() {
     return filtered;
   }, [searchQuery, products, stores]);
 
+  const query = searchQuery.trim().toLowerCase();
+  const searching = query !== '';
+  const shownStores = searching ? stores.filter((store) => store.name.toLowerCase().includes(query)) : stores;
+
   if (error) {
     return (
-      <div className="p-4">
+      <div className="flex flex-col gap-4 px-4 pb-4 pt-2">
+        <PageHeader title="Rizqim" />
         <InlineError onRetry={() => setReloadKey((key) => key + 1)} />
       </div>
     );
@@ -189,9 +193,10 @@ export default function Home() {
 
       <SearchField value={searchQuery} onChange={setSearchQuery} placeholder="Taom yoki oshxona qidirish" />
 
-      <HeroPromoSlider promos={promos} />
+      {/* While searching only the results are shown, so they (and "nothing found") are right under the field */}
+      {!searching && <HeroPromoSlider promos={promos} />}
 
-      {parentCategories.length > 0 && (
+      {!searching && parentCategories.length > 0 && (
         <Section title="Turkumlar">
           <div className="scrollbar-hide -mx-4 flex gap-1 overflow-x-auto px-3">
             {parentCategories.map((cat) => (
@@ -226,7 +231,7 @@ export default function Home() {
       )}
 
       {/* Restaurants */}
-      {stores.length > 0 && (
+      {shownStores.length > 0 && (
         <Section
           title="Oshxonalar va restoranlar"
           action={
@@ -240,7 +245,7 @@ export default function Home() {
           }
         >
           <div className="scrollbar-hide -mx-4 flex gap-3 overflow-x-auto px-4 pb-1">
-            {stores.map((store) => (
+            {shownStores.map((store) => (
               <StoreCard
                 key={store.id}
                 store={store}
@@ -255,8 +260,8 @@ export default function Home() {
 
       {/* Dishes of all restaurants */}
       <Section
-        title="Siz uchun tavsiyalar"
-        action={searchQuery ? <span className="text-footnote text-fg-muted">{searchedProducts.length} ta natija</span> : undefined}
+        title={searching ? 'Taomlar' : 'Siz uchun tavsiyalar'}
+        action={searching ? <span className="text-footnote text-fg-muted">{searchedProducts.length} ta natija</span> : undefined}
       >
         {searchedProducts.length === 0 && searchQuery ? (
           <EmptyState icon={Search} title="Hech narsa topilmadi" text="Boshqa so'z bilan qidirib ko'ring" />

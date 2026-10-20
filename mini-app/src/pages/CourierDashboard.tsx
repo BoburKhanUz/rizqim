@@ -6,8 +6,7 @@ import { useAuthStore } from '../store/authStore';
 import { hapticFeedback } from '../lib/telegram';
 import { notificationOccurred } from '../lib/twa';
 import { showAlert } from '../lib/dialogs';
-import { Button, EmptyState, InlineError, PageHeader, StatusBadge, cx } from '../components/ui';
-import { CardSkeletons } from '../components/staff/Skeleton';
+import { Button, CardSkeletons, EmptyState, InlineError, PageHeader, StatusBadge, cx } from '../components/ui';
 import { SegmentedControl } from '../components/staff/SegmentedControl';
 import { Pill } from '../components/staff/Pill';
 import { useMainButton } from '../hooks/useMainButton';
@@ -273,8 +272,8 @@ export default function CourierDashboard() {
           activeOrders.length === 0 ? (
             <EmptyState
               icon={Bike}
-              title={uz ? 'Sizga hali buyurtma biriktirilmagan.' : 'У вас пока нет активных заказов.'}
-              text={uz ? 'Menejer buyurtmani biriktirsa, shu yerda paydo bo‘ladi.' : 'Когда менеджер назначит заказ, он появится здесь.'}
+              title={uz ? 'Sizga hali buyurtma biriktirilmagan' : 'У вас пока нет активных заказов'}
+              text={uz ? "Menejer buyurtmani biriktirsa, shu yerda paydo bo'ladi." : 'Когда менеджер назначит заказ, он появится здесь.'}
             />
           ) : (
             activeOrders.map((order, index) => (
@@ -291,7 +290,7 @@ export default function CourierDashboard() {
             ))
           )
         ) : completedOrders.length === 0 ? (
-          <EmptyState icon={CheckCircle2} title={uz ? "Bugun hali yetkazib berilgan buyurtmalar yo'q." : 'Сегодня еще нет доставленных заказов.'} />
+          <EmptyState icon={CheckCircle2} title={uz ? "Bugun hali yetkazib berilgan buyurtmalar yo'q" : 'Сегодня еще нет доставленных заказов'} />
         ) : (
           completedOrders.map((order) => (
             <article key={order.id} aria-label={`${uz ? 'Buyurtma' : 'Заказ'} ${formatOrderCode(order)}`} className="flex flex-col gap-2 rounded-card border border-line bg-surface p-3">

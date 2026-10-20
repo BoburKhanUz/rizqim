@@ -1,11 +1,8 @@
 import { useMemo, useRef, useState, useEffect, type ReactNode } from 'react';
 import { useLanguageStore } from '../store/languageStore';
 import { formatMoney } from '../lib/format';
-import { Button, Card, InlineError, PageHeader } from '../components/ui';
-import { Skeleton } from '../components/staff/Skeleton';
+import { Button, Card, Field, InlineError, PageHeader, Skeleton, fieldClass } from '../components/ui';
 import { SegmentedControl } from '../components/staff/SegmentedControl';
-import { Field } from '../components/staff/Field';
-import { fieldClass } from '../components/staff/fieldStyles';
 import { Activity, CheckCircle2, Download, FileSpreadsheet, XCircle } from 'lucide-react';
 import api from '../services/api';
 import { getApiErrorMessage } from '../lib/apiError';
@@ -162,7 +159,7 @@ export default function AdminReports() {
         </p>
 
         <Button size="lg" icon={Download} loading={isExporting} onClick={handleExportReport} fullWidth>
-          {uz ? 'Excel hisobotini Telegramga yuborish' : 'Отправить отчёт Excel в Telegram'}
+          {uz ? 'Excelni Telegramga yuborish' : 'Отправить Excel в Telegram'}
         </Button>
 
         {exportMessage && (

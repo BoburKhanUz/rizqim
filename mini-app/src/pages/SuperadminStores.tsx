@@ -5,10 +5,8 @@ import { notificationOccurred } from '../lib/twa';
 import { showAlert } from '../lib/dialogs';
 import api from '../services/api';
 import { logApiError } from '../lib/apiError';
-import { Button, EmptyState, InlineError, PageHeader } from '../components/ui';
-import { CardSkeletons } from '../components/staff/Skeleton';
+import { Button, CardSkeletons, EmptyState, InlineError, PageHeader, fieldClass } from '../components/ui';
 import { Pill } from '../components/staff/Pill';
-import { fieldClass } from '../components/staff/fieldStyles';
 import type { ApiResponse, SuperadminStore } from '../types';
 
 export default function SuperadminStores() {
@@ -89,7 +87,7 @@ export default function SuperadminStores() {
         <input
           type="search"
           aria-label="Restoran qidirish"
-          placeholder="Restoran qidirish..."
+          placeholder="Restoran qidirish"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className={`${fieldClass} bg-surface pl-10`}
@@ -109,7 +107,7 @@ export default function SuperadminStores() {
                 <div className="min-w-0 flex-1">
                   <h2 className="truncate text-body font-bold text-fg">{store.name}</h2>
                   <p className="text-footnote text-fg-muted">
-                    {store.commission_rate}% komissiya · {store.branches_count} filial
+                    {Number(store.commission_rate)}% komissiya · {store.branches_count} filial
                   </p>
                 </div>
                 {store.is_active ? (

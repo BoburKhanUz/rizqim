@@ -1,5 +1,5 @@
 import { useId, type ReactNode } from 'react';
-import { cx } from '../ui/cx';
+import { cx } from './cx';
 
 interface FieldProps {
   label: ReactNode;

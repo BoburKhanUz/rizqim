@@ -1,3 +1,4 @@
+import { realImageUrl } from '../../lib/image';
 import { cx } from '../ui';
 
 interface StoreLogoProps {
@@ -9,7 +10,7 @@ interface StoreLogoProps {
 
 // The logo of a store, or its initials on the soft brand colour when it has none.
 export function StoreLogo({ name, logoUrl, className }: StoreLogoProps) {
-  const url = logoUrl && logoUrl.trim() !== '' ? logoUrl : null;
+  const url = realImageUrl(logoUrl);
   if (url) return <img src={url} alt="" loading="lazy" className={cx('shrink-0 bg-surface-2 object-cover', className)} />;
   const initials = name
     .split(' ')

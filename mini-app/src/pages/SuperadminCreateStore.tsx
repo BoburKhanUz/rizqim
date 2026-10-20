@@ -7,9 +7,7 @@ import { showAlert } from '../lib/dialogs';
 import { useMainButton } from '../hooks/useMainButton';
 import api from '../services/api';
 import { logApiError } from '../lib/apiError';
-import { Card, PageHeader, Section } from '../components/ui';
-import { Field } from '../components/staff/Field';
-import { fieldClass } from '../components/staff/fieldStyles';
+import { Card, Field, PageHeader, Section, fieldClass } from '../components/ui';
 import AddressLocationField from '../features/address/AddressLocationField';
 import { toLatLng } from '../features/address/coordinates';
 import type { AddressLocationValue } from '../features/address/types';
@@ -139,7 +137,7 @@ export default function SuperadminCreateStore() {
 
   return (
     <div className="flex flex-col gap-4 px-4 pt-2 animate-fade-in">
-      <PageHeader title="Yangi restoran" back />
+      <PageHeader title="Yangi restoran" />
 
       <form ref={formRef} onSubmit={handleSubmit} className="flex flex-col gap-5">
         {/* Store details */}
@@ -181,7 +179,7 @@ export default function SuperadminCreateStore() {
           label="Restoran egasini tayinlash"
         >
           <Card className="flex flex-col gap-4">
-            <Field label="F.I.SH. *">
+            <Field label="Ism-familiya *">
               {(props) => (
                 <input {...props} name="owner_name" value={formData.owner_name} onChange={handleChange} className={fieldClass} placeholder="Masalan: Alisher Valiyev" required />
               )}

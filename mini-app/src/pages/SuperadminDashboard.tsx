@@ -3,8 +3,7 @@ import { Activity, Landmark, Calendar, RefreshCw, Store, Users } from 'lucide-re
 import { hapticFeedback } from '../lib/telegram';
 import api from '../services/api';
 import { logApiError } from '../lib/apiError';
-import { Card, IconButton, InlineError, PageHeader, Section, cx } from '../components/ui';
-import { Skeleton } from '../components/staff/Skeleton';
+import { Card, IconButton, InlineError, PageHeader, Section, Skeleton, cx } from '../components/ui';
 import { formatMoney, formatNumber } from '../lib/format';
 import type { Amount, ApiResponse, DashboardStats } from '../types';
 

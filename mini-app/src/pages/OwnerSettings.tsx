@@ -8,12 +8,9 @@ import { notificationOccurred } from '../lib/twa';
 import { showAlert } from '../lib/dialogs';
 import { useMainButton } from '../hooks/useMainButton';
 import { useLanguageStore } from '../store/languageStore';
-import { Button, Card, InlineError, PageHeader, Section, Spinner, cx } from '../components/ui';
-import { Field } from '../components/staff/Field';
-import { fieldClass } from '../components/staff/fieldStyles';
+import { Button, Card, Field, InlineError, PageHeader, Section, Skeleton, Spinner, cx, fieldClass } from '../components/ui';
 import { FileButton } from '../components/staff/FileButton';
 import { Pill } from '../components/staff/Pill';
-import { Skeleton } from '../components/staff/Skeleton';
 import { Switch } from '../components/staff/Switch';
 import { Camera, Image as ImageIcon, MapPin, Store } from 'lucide-react';
 import type { ApiResponse, OwnerStoreSettings, PaymentProviderSettings, PaymentSettings } from '../types';
@@ -472,13 +469,13 @@ function OwnerSettingsForm({ storeInfo }: { storeInfo: OwnerStoreSettings }) {
               onChange={setPickupEnabled}
             />
 
-            <Field label="Yetkazib berish narxi (UZS)">
+            <Field label="Yetkazib berish narxi (so'm)">
               {(props) => (
                 <input {...props} type="number" inputMode="numeric" value={deliveryFee} onChange={(e) => setDeliveryFee(e.target.value)} placeholder="Masalan: 12000" className={fieldClass} />
               )}
             </Field>
 
-            <Field label="Minimal buyurtma miqdori (UZS)">
+            <Field label="Minimal buyurtma miqdori (so'm)">
               {(props) => (
                 <input {...props} type="number" inputMode="numeric" value={minOrderAmount} onChange={(e) => setMinOrderAmount(e.target.value)} placeholder="Masalan: 30000" className={fieldClass} />
               )}

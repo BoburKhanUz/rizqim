@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import { logApiError } from '../lib/apiError';
@@ -9,10 +9,8 @@ import { hapticFeedback, tg } from '../lib/telegram';
 import { selectionChanged } from '../lib/twa';
 import { showAlert, showConfirm } from '../lib/dialogs';
 import { useMainButton } from '../hooks/useMainButton';
-import { Button, Card, EmptyState, IconButton, PageHeader, Section, buttonClasses, cx } from '../components/ui';
-import { INPUT_CLASS } from '../components/catalog/fieldStyles';
+import { Button, Card, EmptyState, IconButton, PageHeader, ProductImage, Section, buttonClasses, cx, fieldClass } from '../components/ui';
 import { OrderPlaced } from '../components/catalog/OrderPlaced';
-import { ProductImage } from '../components/catalog/ProductImage';
 import { QuantityStepper } from '../components/catalog/QuantityStepper';
 import api from '../services/api';
 import { AlertTriangle, Banknote, Bike, ChevronDown, CreditCard, MapPin, MessageSquare, Phone, Pencil, Plus, PlusCircle, ShoppingBag, Smartphone, Store, Ticket, Trash2, Wallet } from 'lucide-react';
@@ -131,6 +129,7 @@ export default function Cart() {
   }, []);
 
   const [isOrdering, setIsOrdering] = useState(false);
+  const orderingRef = useRef(false);
   const [orderSuccess, setOrderSuccess] = useState(false);
   const [successOrderNumber, setSuccessOrderNumber] = useState('');
 
@@ -388,7 +387,8 @@ export default function Cart() {
     || (deliveryMethod === 'delivery' && !hasDeliveryLocation);
 
   const handlePlaceOrder = async () => {
-    if (items.length === 0) return;
+    // One order per press: a second tap (or a second MainButton event) while the first is being sent is dropped
+    if (items.length === 0 || orderingRef.current) return;
     if (isStoreLocked) {
       hapticFeedback('error');
       void showAlert("Do'kon vaqtincha to'lov muammolari sababli buyurtma qabul qilmayapti. Savat saqlanadi, keyinroq urinib ko'ring.");
@@ -409,12 +409,8 @@ export default function Cart() {
       void showAlert("Do'kon hozircha to'lov qabul qilmayapti yoki keshbek balansi yetarli emas. Keyinroq urinib ko'ring.");
       return;
     }
-    hapticFeedback('success');
-    setIsOrdering(true);
-
     if (deliveryMethod === 'delivery' && !selectedAddress) {
       void showAlert("Iltimos, yetkazib berish manzilini tanlang yoki yangisini qo'shing!");
-      setIsOrdering(false);
       return;
     }
 
@@ -422,15 +418,17 @@ export default function Cart() {
     if (deliveryMethod === 'delivery' && !deliveryPoint) {
       hapticFeedback('error');
       void showAlert("Tanlangan manzilning xaritadagi joylashuvi aniqlanmagan. Iltimos, manzilni tahrirlab, xaritada belgilang.");
-      setIsOrdering(false);
       return;
     }
 
     if (deliveryMethod === 'pickup' && !selectedBranch) {
       void showAlert("Kechirasiz, restoranning faol filiali topilmadi.");
-      setIsOrdering(false);
       return;
     }
+
+    hapticFeedback('success');
+    orderingRef.current = true;
+    setIsOrdering(true);
 
     try {
       const payload = {
@@ -489,6 +487,7 @@ export default function Cart() {
         void showAlert(errorMsg);
       }
     } finally {
+      orderingRef.current = false;
       setIsOrdering(false);
     }
   };
@@ -503,17 +502,15 @@ export default function Cart() {
     if (confirmed) clearCart();
   };
 
-  // The checkout action is Telegram's MainButton (or its stand-in in the bottom dock). It steps aside while another
-  // sheet (the variant picker) or the address form has its own action.
-  const hasOwnAction = selectedProductForVariant !== null || showAddressForm;
+  // The checkout action is Telegram's MainButton (or its stand-in in the bottom dock). The variant sheet takes it
+  // over while it is open and gives it back when it closes (useMainButton keeps a stack); while an address is being
+  // edited the form's own Save/Cancel are the actions, so it steps aside.
   useMainButton({
     text: isStoreLocked ? "Do'kon vaqtincha yopiq" : `Buyurtma berish · ${formatMoney(total)}`,
-    onClick: () => {
-      if (!hasOwnAction) void handlePlaceOrder();
-    },
+    onClick: handlePlaceOrder,
     enabled: !isOrderDisabled,
     progress: isOrdering,
-    visible: items.length > 0 && !orderSuccess && !hasOwnAction,
+    visible: items.length > 0 && !orderSuccess && !showAddressForm,
   });
 
   if (orderSuccess) {
@@ -631,7 +628,7 @@ export default function Cart() {
                     aria-label="Xonadon"
                     value={addressDraft.apartment}
                     onChange={e => patchAddressDraft({ apartment: e.target.value })}
-                    className={INPUT_CLASS}
+                    className={fieldClass}
                   />
                   <input
                     type="text"
@@ -639,7 +636,7 @@ export default function Cart() {
                     aria-label="Qavat"
                     value={addressDraft.floor}
                     onChange={e => patchAddressDraft({ floor: e.target.value })}
-                    className={INPUT_CLASS}
+                    className={fieldClass}
                   />
                 </div>
                 <div className="flex gap-2">
@@ -683,7 +680,7 @@ export default function Cart() {
                               <span className="flex items-center gap-2">
                                 <span className="truncate text-body font-bold text-fg">{addr.title}</span>
                                 {addr.is_default && (
-                                  <span className="shrink-0 rounded-control bg-surface-2 px-1.5 py-0.5 text-caption font-bold text-fg-muted">Asosiy</span>
+                                  <span className="shrink-0 rounded-control border border-line bg-surface px-1.5 py-0.5 text-caption font-bold text-fg-muted">Asosiy</span>
                                 )}
                               </span>
                               <span className="block truncate text-footnote text-fg-muted">{addr.address}</span>
@@ -733,7 +730,7 @@ export default function Cart() {
                     setSelectedBranchId(id);
                     selectionChanged();
                   }}
-                  className={INPUT_CLASS}
+                  className={fieldClass}
                 >
                   {storeBranches.map((branch) => (
                     <option key={branch.id} value={branch.id}>
@@ -859,7 +856,7 @@ export default function Cart() {
                     onChange={(e) => setPromoCodeInput(e.target.value.toUpperCase())}
                     placeholder="Promo-kodni kiriting"
                     aria-label="Promo-kod"
-                    className={`${INPUT_CLASS} flex-1`}
+                    className={`${fieldClass} flex-1`}
                   />
                   <Button onClick={() => applyPromoCode(promoCodeInput)}>Qo'llash</Button>
                 </div>
@@ -879,13 +876,13 @@ export default function Cart() {
           </button>
           {noteOpen && (
             <div className="px-4 pb-3">
-              <input
-                type="text"
-                placeholder="Uy raqami, podyezd, dom kodi yoki xohishlaringiz..."
+              <textarea
+                rows={2}
+                placeholder="Uy raqami, podyezd, dom kodi yoki xohishlaringiz"
                 aria-label="Izoh"
                 value={deliveryNote}
                 onChange={(e) => setDeliveryNote(e.target.value)}
-                className={INPUT_CLASS}
+                className={cx(fieldClass, 'resize-none py-2.5')}
               />
             </div>
           )}

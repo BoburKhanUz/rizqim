@@ -125,7 +125,7 @@ export default function CategoryDetail() {
       <SearchField
         value={searchQuery}
         onChange={setSearchQuery}
-        placeholder={uz ? 'Taomlarni qidirish...' : 'Поиск блюд...'}
+        placeholder={uz ? 'Taomlarni qidirish' : 'Поиск блюд'}
       />
 
       {subCategories.length > 0 && (

@@ -16,7 +16,7 @@ async function addLavashToCart(page: Page) {
 
   await productCard(page, 'Lavash').getByRole('button', { name: /^Qo'shish/ }).click()
   // The floating "view cart" bar appears as soon as something is in the cart (it once did not re-render on add)
-  await page.getByRole('link', { name: /Savatchani ko'rish/ }).click()
+  await page.getByRole('link', { name: /Savatni ko'rish/ }).click()
 
   await expect(page.getByRole('heading', { name: 'Savat', level: 1 })).toBeVisible()
   await expect(page.getByText('Lavash (Standart)')).toBeVisible()

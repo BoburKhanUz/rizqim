@@ -3,7 +3,7 @@ import type { Product } from '../../types';
 import { formatMoney } from '../../lib/format';
 import { getProductBasePrice } from '../../lib/catalog';
 import { useLanguageStore } from '../../store/languageStore';
-import { ProductImage } from './ProductImage';
+import { ProductImage } from '../ui';
 
 interface ProductCardProps {
   product: Product;

@@ -18,10 +18,8 @@ import { useAuthStore } from '../store/authStore';
 import { hapticFeedback } from '../lib/telegram';
 import { notificationOccurred, selectionChanged } from '../lib/twa';
 import { showAlert } from '../lib/dialogs';
-import { Button, EmptyState, InlineError, PageHeader, StatusBadge, cx } from '../components/ui';
-import { CardSkeletons } from '../components/staff/Skeleton';
+import { Button, CardSkeletons, EmptyState, InlineError, PageHeader, StatusBadge, cx, fieldClass } from '../components/ui';
 import { SegmentedControl } from '../components/staff/SegmentedControl';
-import { fieldClass } from '../components/staff/fieldStyles';
 import api from '../services/api';
 import { getApiErrorMessage, getApiFieldError, logApiError } from '../lib/apiError';
 import { toAmount } from '../lib/money';
@@ -153,7 +151,7 @@ function ActiveOrderCard({ order, uz, couriers, courierId, onPickCourier, onChan
 
   // Next to the next step, never alone on a row of its own unless there is no room
   const cancelButton = CANCELABLE_STATUSES.includes(order.status) && (
-    <Button variant="danger" disabled={busy} onClick={() => onCancel(order, 'cancel')} className="grow basis-28">
+    <Button variant="danger" disabled={busy} onClick={() => onCancel(order, 'cancel')} className="grow whitespace-nowrap basis-28">
       {uz ? 'Bekor qilish' : 'Отменить заказ'}
     </Button>
   );
@@ -235,10 +233,10 @@ function ActiveOrderCard({ order, uz, couriers, courierId, onPickCourier, onChan
       {/* Actions: the next step of the order, and the way out of it */}
       {order.status === 'new' && (
         <div className="flex flex-wrap gap-2">
-          <Button icon={Check} disabled={busy} onClick={() => change('accepted')} className="grow basis-36">
+          <Button icon={Check} disabled={busy} onClick={() => change('accepted')} className="grow whitespace-nowrap basis-36">
             {uz ? 'Qabul qilish' : 'Принять'}
           </Button>
-          <Button variant="danger" disabled={busy} onClick={() => onCancel(order, 'reject')} className="grow basis-28">
+          <Button variant="danger" disabled={busy} onClick={() => onCancel(order, 'reject')} className="grow whitespace-nowrap basis-28">
             {uz ? 'Rad etish' : 'Отклонить'}
           </Button>
         </div>
@@ -247,11 +245,11 @@ function ActiveOrderCard({ order, uz, couriers, courierId, onPickCourier, onChan
       {(order.status === 'accepted' || order.status === 'preparing') && (
         <div className="flex flex-wrap gap-2">
           {order.status === 'accepted' ? (
-            <Button icon={ChefHat} disabled={busy} onClick={() => change('preparing')} className="grow basis-40">
+            <Button icon={ChefHat} disabled={busy} onClick={() => change('preparing')} className="grow whitespace-nowrap basis-40">
               {uz ? 'Tayyorlashni boshlash' : 'Начать готовку'}
             </Button>
           ) : (
-            <Button variant="success" icon={PackageCheck} disabled={busy} onClick={() => change('ready')} className="grow basis-40">
+            <Button variant="success" icon={PackageCheck} disabled={busy} onClick={() => change('ready')} className="grow whitespace-nowrap basis-40">
               {uz ? "Tayyor bo'ldi" : 'Готово'}
             </Button>
           )}
@@ -287,12 +285,12 @@ function ActiveOrderCard({ order, uz, couriers, courierId, onPickCourier, onChan
           )}
           <div className="flex flex-wrap gap-2">
             {isDelivery ? (
-              <Button icon={Bike} disabled={!courierId || busy} onClick={() => change('courier_assigned', { courierId })} className="grow basis-40">
+              <Button icon={Bike} disabled={!courierId || busy} onClick={() => change('courier_assigned', { courierId })} className="grow whitespace-nowrap basis-40">
                 {uz ? 'Kuryerni tayinlash' : 'Назначить курьера'}
               </Button>
             ) : (
-              <Button variant="success" icon={Check} disabled={busy} onClick={() => change('delivered')} className="grow basis-40">
-                {uz ? 'Mijozga topshirish (yakunlash)' : 'Выдать заказ (завершить)'}
+              <Button variant="success" icon={Check} disabled={busy} onClick={() => change('delivered')} className="grow whitespace-nowrap basis-40">
+                {uz ? 'Mijozga topshirish' : 'Выдать заказ'}
               </Button>
             )}
             {cancelButton}
@@ -512,7 +510,7 @@ export default function ManagerDashboard() {
           <CardSkeletons count={2} lines={3} label={uz ? 'Yuklanmoqda' : 'Загрузка'} />
         ) : activeTab === 'active' ? (
           activeOrders.length === 0 ? (
-            <EmptyState icon={ClipboardList} title={uz ? "Hozircha faol buyurtmalar yo'q." : 'Активных заказов пока нет.'} text={uz ? 'Yangi buyurtma kelganda shu yerda paydo bo‘ladi.' : 'Новые заказы появятся здесь.'} />
+            <EmptyState icon={ClipboardList} title={uz ? "Hozircha faol buyurtmalar yo'q" : 'Активных заказов пока нет'} text={uz ? "Yangi buyurtma kelganda shu yerda paydo bo'ladi." : 'Новые заказы появятся здесь.'} />
           ) : shownOrders.length === 0 ? (
             <EmptyState
               icon={ClipboardList}
@@ -539,7 +537,7 @@ export default function ManagerDashboard() {
             ))
           )
         ) : completedOrders.length === 0 ? (
-          <EmptyState icon={Flag} title={uz ? "Hozircha yakunlangan buyurtmalar yo'q." : 'Завершенных заказов пока нет.'} />
+          <EmptyState icon={Flag} title={uz ? "Hozircha yakunlangan buyurtmalar yo'q" : 'Завершенных заказов пока нет'} />
         ) : (
           completedOrders.map((order) => <CompletedOrderCard key={order.id} order={order} uz={uz} />)
         )}

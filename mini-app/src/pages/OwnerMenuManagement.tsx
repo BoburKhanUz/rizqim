@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, Pencil, Trash2, Image as ImageIcon, SearchX, PackageOpen } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, SearchX, PackageOpen } from 'lucide-react';
 
 import { hapticFeedback } from '../lib/telegram';
 import { notificationOccurred } from '../lib/twa';
@@ -9,11 +9,9 @@ import api from '../services/api';
 import { logApiError } from '../lib/apiError';
 import { toAmount } from '../lib/money';
 import { formatMoney } from '../lib/format';
-import { Button, EmptyState, IconButton, InlineError, PageHeader, cx } from '../components/ui';
-import { CardSkeletons } from '../components/staff/Skeleton';
+import { Button, CardSkeletons, EmptyState, IconButton, InlineError, PageHeader, cx, fieldClass, ProductImage } from '../components/ui';
 import { Pill } from '../components/staff/Pill';
 import { Switch } from '../components/staff/Switch';
-import { fieldClass } from '../components/staff/fieldStyles';
 import type { ApiResponse, Product } from '../types';
 
 export default function OwnerMenuManagement() {
@@ -127,7 +125,7 @@ export default function OwnerMenuManagement() {
         <input
           type="search"
           aria-label="Mahsulot qidirish"
-          placeholder="Mahsulot qidirish..."
+          placeholder="Mahsulot qidirish"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className={cx(fieldClass, 'bg-surface pl-10')}
@@ -147,13 +145,7 @@ export default function OwnerMenuManagement() {
               <div className="flex">
                 {/* The picture fills the whole left side of the card; without one a neutral placeholder does */}
                 <div className={cx('relative w-28 shrink-0 self-stretch bg-surface-2', !active && 'opacity-60')}>
-                  {product.image_url ? (
-                    <img src={product.image_url} alt="" className="absolute inset-0 size-full object-cover" />
-                  ) : (
-                    <div className="absolute inset-0 flex items-center justify-center text-fg-subtle">
-                      <ImageIcon aria-hidden="true" className="size-9" />
-                    </div>
-                  )}
+                  <ProductImage src={product.image_url} className="absolute inset-0 size-full" />
                 </div>
 
                 <button
@@ -167,7 +159,9 @@ export default function OwnerMenuManagement() {
                     {!active && <Pill tone="danger">Nofaol</Pill>}
                   </span>
                   <span className="mt-auto text-footnote text-fg-muted">
-                    dan <span className="text-body font-bold text-brand">{formatMoney(startingPrice)}</span>
+                    {/* "25 000 so'mdan": from the cheapest of several variants */}
+                    <span className="text-body font-bold text-brand">{formatMoney(startingPrice)}</span>
+                    {(product.variants?.length ?? 0) > 1 && 'dan'}
                   </span>
                 </button>
               </div>

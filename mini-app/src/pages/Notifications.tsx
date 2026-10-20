@@ -45,7 +45,7 @@ export default function Notifications() {
   }, [hasUnread, queryClient]);
 
   return (
-    <div className="flex flex-col gap-4 p-4 animate-fade-in">
+    <div className="flex flex-col gap-4 px-4 pb-4 pt-2 animate-fade-in">
       <PageHeader title={c('notificationsTitle')} subtitle={notifications.length > 0 ? c('notificationsCount', { n: notifications.length }) : undefined} back />
 
       {isLoading ? (

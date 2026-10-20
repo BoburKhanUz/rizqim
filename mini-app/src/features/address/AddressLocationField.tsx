@@ -3,8 +3,7 @@ import { CheckCircle2, LocateFixed, MapPin, Search } from 'lucide-react';
 import LazyMapPicker from '../../components/map/LazyMapPicker';
 import { roundCoordinate } from '../../components/map/geo';
 import { hapticFeedback } from '../../lib/telegram';
-import { Button, Spinner } from '../../components/ui';
-import { INPUT_CLASS } from '../../components/catalog/fieldStyles';
+import { Button, Spinner, fieldClass } from '../../components/ui';
 import { reverseGeocode, searchAddress } from './geocodeApi';
 import { GeolocationError, getCurrentPosition } from './geolocation';
 import type { GeolocationFailure } from './geolocation';
@@ -197,7 +196,7 @@ export default function AddressLocationField({ value, onChange, fallbackCenter =
           value={value.address}
           enterKeyHint="search"
           aria-label="Manzil"
-          placeholder="Ko'cha va uy raqami (masalan: Chilonzor 12)"
+          placeholder="Ko'cha va uy raqami"
           onChange={(event) => {
             typedRef.current = event.target.value.trim() !== '';
             setResults(null);
@@ -211,7 +210,7 @@ export default function AddressLocationField({ value, onChange, fallbackCenter =
               void handleSearch();
             }
           }}
-          className={`${INPUT_CLASS} flex-1 select-text`}
+          className={`${fieldClass} flex-1 select-text`}
         />
         <button
           type="button"

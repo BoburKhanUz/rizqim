@@ -272,6 +272,24 @@ describe('Cart: placing the order', () => {
   });
 });
 
+describe('Cart: one order per press', () => {
+  it('sends the order once when the checkout button is pressed again while it is being sent', async () => {
+    let answer: (value: unknown) => void = () => {};
+    post.mockImplementationOnce(() => new Promise((resolve) => (answer = resolve)));
+    await renderCart(null);
+
+    const button = orderButton();
+    fireEvent.click(button);
+    fireEvent.click(button);
+    await flush();
+    fireEvent.click(orderButton());
+    expect(post).toHaveBeenCalledTimes(1);
+
+    await act(async () => answer({ data: { success: true, data: { order_number: 'A100' } } }));
+    expect(post).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('Cart: the screen', () => {
   it('shows the total in the checkout button (the MainButton stand-in)', async () => {
     await renderCart(null);

@@ -1,6 +1,6 @@
 import { Bike, CheckCircle2, Clock, MessageSquare, PackageCheck, ShieldAlert, Sparkles, TriangleAlert, UserCheck, XCircle, type LucideIcon } from 'lucide-react';
 
-// What a notification type looks like (pages/Notifications.tsx, components/NotificationCenter.tsx): an icon on a soft tile
+// What a notification type looks like (pages/Notifications.tsx): an icon on a soft tile
 // of one tone. The icon is never the only cue: the notification's title says what it is.
 
 export type NotificationTone = 'success' | 'danger' | 'info' | 'brand' | 'warning' | 'neutral';

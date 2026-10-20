@@ -7,10 +7,7 @@ import { showAlert } from '../lib/dialogs';
 import { useMainButton } from '../hooks/useMainButton';
 import api from '../services/api';
 import { getApiErrorMessage, logApiError } from '../lib/apiError';
-import { Button, Card, IconButton, PageHeader, Section, cx } from '../components/ui';
-import { Field } from '../components/staff/Field';
-import { fieldClass } from '../components/staff/fieldStyles';
-import { Skeleton } from '../components/staff/Skeleton';
+import { Button, Card, Field, IconButton, PageHeader, Section, Skeleton, cx, fieldClass } from '../components/ui';
 import { Switch } from '../components/staff/Switch';
 import type { ApiResponse, CategoryOption, Product } from '../types';
 
@@ -279,7 +276,7 @@ export default function OwnerProductForm() {
                       />
                     )}
                   </Field>
-                  <Field label="Narxi (UZS)">
+                  <Field label="Narxi (so'm)">
                     {(props) => (
                       <input
                         {...props}

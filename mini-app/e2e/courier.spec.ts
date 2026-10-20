@@ -23,7 +23,7 @@ test('courier picks up an assigned order and hands it over', async ({ page, api 
   // on_the_way -> delivered: the delivery leaves the active list and is counted among today's
   await page.getByRole('button', { name: /Yetkazib berdim/ }).click()
   await expect.poll(() => api.callsTo('POST', `/orders/${order.uuid}/complete`).length).toBe(1)
-  await expect(page.getByText('Sizga hali buyurtma biriktirilmagan.')).toBeVisible()
+  await expect(page.getByText('Sizga hali buyurtma biriktirilmagan')).toBeVisible()
   await expect(page.getByRole('button', { name: /^Faol \(0\)$/ })).toBeVisible()
   await expect(page.getByRole('button', { name: /^Topshirilganlar \(1\)$/ })).toBeVisible()
 })

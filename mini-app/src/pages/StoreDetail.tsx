@@ -4,12 +4,11 @@ import { useCartStore, type PendingCartItem } from '../store/cartStore';
 import { hapticFeedback } from '../lib/telegram';
 import { isTelegramHost, selectionChanged } from '../lib/twa';
 import { showAlert } from '../lib/dialogs';
-import { EmptyState, IconButton, InlineError, cx } from '../components/ui';
+import { EmptyState, IconButton, InlineError, ProductImage, cx } from '../components/ui';
 import api from '../services/api';
 import { ArrowLeft, Clock, MessageSquare, Plus, Star } from 'lucide-react';
 import VariantSelectorModal from '../components/VariantSelectorModal';
 import { FavoriteButton } from '../components/catalog/FavoriteButton';
-import { ProductImage } from '../components/catalog/ProductImage';
 import { QuantityStepper } from '../components/catalog/QuantityStepper';
 import { ReplaceCartDialog } from '../components/catalog/ReplaceCartDialog';
 import { StoreLogo } from '../components/catalog/StoreLogo';
@@ -434,7 +433,7 @@ export default function StoreDetail() {
                 </article>
               ))
             ) : (
-              <EmptyState icon={MessageSquare} title="Hozircha sharhlar yo'q" />
+              <EmptyState icon={MessageSquare} title="Hozircha fikrlar yo'q" />
             )}
           </div>
         )}

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, Bike, ChevronRight, CreditCard, ShieldCheck, Store, TriangleAlert, Settings } from 'lucide-react';
+import { Bike, ChevronRight, CreditCard, ShieldCheck, Store, TriangleAlert, Settings } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { isLanguage, useLanguageStore } from '../store/languageStore';
@@ -8,16 +8,13 @@ import { hapticFeedback } from '../lib/telegram';
 import { notificationOccurred, selectionChanged } from '../lib/twa';
 import { showAlert } from '../lib/dialogs';
 import { useMainButton } from '../hooks/useMainButton';
-import { useNotifications } from '../hooks/useNotifications';
+import { NotificationBell } from '../components/catalog/NotificationBell';
 import api from '../services/api';
 import PhoneVerificationModal from '../components/PhoneVerificationModal';
 import { classifyPhoneChange } from '../lib/phone';
 import { getApiFieldError, logApiError } from '../lib/apiError';
-import { Button, Card, IconButton, PageHeader, Section, cx } from '../components/ui';
-import { Field } from '../components/staff/Field';
-import { fieldClass } from '../components/staff/fieldStyles';
+import { Button, Card, Field, PageHeader, Section, Skeleton, cx, fieldClass } from '../components/ui';
 import { Pill } from '../components/staff/Pill';
-import { Skeleton } from '../components/staff/Skeleton';
 import { StoreStatusPill } from '../components/staff/StoreStatusPill';
 import type { ApiResponse, OwnerStoreSettings } from '../types';
 
@@ -74,9 +71,6 @@ export default function Profile() {
   const [verifyingPhone, setVerifyingPhone] = useState<string | null>(null);
   const [phoneError, setPhoneError] = useState('');
 
-  // The bell shows a dot only while something is unread
-  const { data: notifications } = useNotifications();
-  const unread = notifications?.filter((item) => !item.is_read).length ?? 0;
 
   // Fetch store settings for Owner
   useEffect(() => {
@@ -165,7 +159,7 @@ export default function Profile() {
   // While editing, saving is the one action of the screen
   useMainButton({
     text: uz ? 'Saqlash' : 'Сохранить',
-    onClick: () => void handleSave(),
+    onClick: handleSave,
     progress: isSaving,
     visible: isEditing,
   });
@@ -211,17 +205,7 @@ export default function Profile() {
 
       <PageHeader
         title={title}
-        action={
-          <span className="relative">
-            <IconButton
-              icon={Bell}
-              variant="surface"
-              label={unread > 0 ? `${uz ? 'Bildirishnomalar' : 'Уведомления'}: ${unread}` : uz ? 'Bildirishnomalar' : 'Уведомления'}
-              onClick={() => { hapticFeedback('light'); navigate('/notifications'); }}
-            />
-            {unread > 0 && <span aria-hidden="true" className="absolute right-2 top-2 size-2.5 rounded-full bg-danger ring-2 ring-surface" />}
-          </span>
-        }
+        action={<NotificationBell />}
       />
 
       {/* Header card (store profile or the person) */}
@@ -270,7 +254,7 @@ export default function Profile() {
 
       {/* Form fields */}
       <Card className="flex flex-col gap-4">
-        <Field label={uz ? 'Foydalanuvchi ismi' : 'Имя пользователя'}>
+        <Field label={uz ? 'Ism-familiya' : 'Имя и фамилия'}>
           {(props) => (
             <input
               {...props}

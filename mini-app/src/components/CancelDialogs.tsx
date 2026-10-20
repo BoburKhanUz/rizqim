@@ -83,7 +83,7 @@ export function CustomerCancelDialog({ isPending, error, onConfirm, onClose }: C
       onClose={onClose}
       title={pick(language, { uz: 'Buyurtmani bekor qilish', ru: 'Отмена заказа', en: 'Cancel order' })}
       description={pick(language, {
-        uz: 'Buyurtmani bekor qilmoqchimisiz? Bu amalni qaytarib bo‘lmaydi.',
+        uz: "Buyurtmani bekor qilmoqchimisiz? Bu amalni qaytarib bo'lmaydi.",
         ru: 'Вы уверены, что хотите отменить заказ? Это действие нельзя отменить.',
         en: 'Do you want to cancel this order? This cannot be undone.',
       })}

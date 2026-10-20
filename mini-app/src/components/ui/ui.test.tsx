@@ -11,6 +11,8 @@ import { Dialog } from './Dialog';
 import { DialogHost } from './DialogHost';
 import { MainButtonHost } from './MainButtonHost';
 import { BottomDock } from './BottomDock';
+import { ProductImage } from './ProductImage';
+import { realImageUrl } from '../../lib/image';
 import { showAlert, showConfirm } from '../../lib/dialogs';
 import { useMainButton } from '../../hooks/useMainButton';
 import { useLanguageStore } from '../../store/languageStore';
@@ -214,5 +216,31 @@ describe('BottomDock', () => {
     expect(document.documentElement.style.getPropertyValue('--rz-dock-height')).toMatch(/^\d+px$/);
     unmount();
     expect(document.documentElement.style.getPropertyValue('--rz-dock-height')).toBe('0px');
+  });
+});
+
+describe('ProductImage', () => {
+  it('draws a real photo', () => {
+    const { container } = render(<ProductImage src="https://cdn.rizqim.uz/storage/products/lavash.jpg" />);
+    expect(container.querySelector('img')).toHaveAttribute('src', 'https://cdn.rizqim.uz/storage/products/lavash.jpg');
+  });
+
+  it('draws the neutral placeholder for no image, a generated avatar or a photo that does not load', () => {
+    for (const src of [null, '', '  ', 'https://ui-avatars.com/api/?name=Lavash&background=fcd34d', 'https://placehold.co/120x120']) {
+      const { container, unmount } = render(<ProductImage src={src} />);
+      expect(container.querySelector('img'), String(src)).toBeNull();
+      expect(screen.getByTestId('product-image-placeholder')).toBeInTheDocument();
+      unmount();
+    }
+    const { container } = render(<ProductImage src="https://cdn.rizqim.uz/storage/products/missing.jpg" />);
+    fireEvent.error(container.querySelector('img')!);
+    expect(container.querySelector('img')).toBeNull();
+    expect(screen.getByTestId('product-image-placeholder')).toBeInTheDocument();
+  });
+
+  it('tells a real image URL from a generated one', () => {
+    expect(realImageUrl('/storage/products/osh.png')).toBe('/storage/products/osh.png');
+    expect(realImageUrl('https://ui-avatars.com/api/?name=Product')).toBeNull();
+    expect(realImageUrl(undefined)).toBeNull();
   });
 });

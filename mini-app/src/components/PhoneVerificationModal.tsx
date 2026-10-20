@@ -159,8 +159,8 @@ export default function PhoneVerificationModal({ onVerified, onClose, initialPho
     >
       {step === 'phone' ? (
         <form onSubmit={handleSendCode} className="flex flex-col gap-4">
-          <div className="flex min-h-12 items-center gap-2 rounded-control border border-line bg-surface-2 px-3 focus-within:border-brand">
-            <span className="border-r border-line pr-2 text-headline font-bold text-fg">+998</span>
+          <div className="flex min-h-12 items-stretch gap-2 rounded-control border border-line bg-surface-2 px-3 focus-within:border-brand">
+            <span className="flex items-center border-r border-line pr-2 text-headline font-bold text-fg">+998</span>
             <input
               type="tel"
               inputMode="numeric"
@@ -170,7 +170,7 @@ export default function PhoneVerificationModal({ onVerified, onClose, initialPho
               maxLength={9}
               value={phone}
               onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
-              className="min-w-0 flex-1 border-none bg-transparent py-2 text-headline font-medium tracking-wide text-fg outline-none placeholder:text-fg-subtle"
+              className="min-h-11 min-w-0 flex-1 border-none bg-transparent py-2 text-headline font-medium tracking-wide text-fg outline-none placeholder:text-fg-subtle"
               disabled={isSubmitting}
               data-autofocus
             />

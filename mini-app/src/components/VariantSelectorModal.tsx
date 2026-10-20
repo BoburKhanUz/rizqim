@@ -6,8 +6,7 @@ import { useMainButton } from '../hooks/useMainButton';
 import { formatMoney } from '../lib/format';
 import { toAmount } from '../lib/money';
 import { isVariantActive, isVariantOutOfStock } from '../lib/stock';
-import { Button, Dialog, cx } from './ui';
-import { ProductImage } from './catalog/ProductImage';
+import { Button, Dialog, ProductImage, cx } from './ui';
 import type { Product, ProductVariant } from '../types';
 
 interface VariantSelectorModalProps {
@@ -52,7 +51,7 @@ function VariantSheet({ product, onClose, onAdd }: VariantSheetProps) {
     onClose();
   };
 
-  const confirmText = selectedVariant ? `Tasdiqlash — ${formatMoney(selectedVariant.price)}` : 'Variant tanlang';
+  const confirmText = selectedVariant ? `Tasdiqlash · ${formatMoney(selectedVariant.price)}` : 'Variant tanlang';
 
   // The confirm action is Telegram's MainButton; outside Telegram the button sits in the sheet itself (the page's
   // own dock is behind the scrim)

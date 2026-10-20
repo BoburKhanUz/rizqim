@@ -1,4 +1,4 @@
-import { cx } from '../ui/cx';
+import { cx } from './cx';
 
 // A grey placeholder block while data loads (inside the page: the header and the navigation stay usable).
 export function Skeleton({ className }: { className?: string }) {

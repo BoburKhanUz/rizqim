@@ -34,7 +34,7 @@ describe('VariantSelectorModal', () => {
     expect(screen.getByText('Kichik')).toBeInTheDocument();
     expect(screen.getByText('Katta')).toBeInTheDocument();
     expect(screen.getByText("32 000 so'm")).toBeInTheDocument();
-    expect(confirmButton()).toHaveTextContent("Tasdiqlash — 18 000 so'm");
+    expect(confirmButton()).toHaveTextContent("Tasdiqlash · 18 000 so'm");
     expect(confirmButton()).toBeEnabled();
   });
 
@@ -59,7 +59,7 @@ describe('VariantSelectorModal', () => {
     it('does not preselect a sold-out first variant: it starts on the first one that can be ordered', () => {
       renderModal(makeProduct({ variants: [soldOut, large] }));
 
-      expect(confirmButton()).toHaveTextContent("Tasdiqlash — 32 000 so'm");
+      expect(confirmButton()).toHaveTextContent("Tasdiqlash · 32 000 so'm");
     });
 
     it('ignores a click on a sold-out variant', () => {
@@ -67,7 +67,7 @@ describe('VariantSelectorModal', () => {
 
       fireEvent.click(screen.getByText('Oilaviy'));
 
-      expect(confirmButton()).toHaveTextContent("Tasdiqlash — 18 000 so'm"); // still the small one
+      expect(confirmButton()).toHaveTextContent("Tasdiqlash · 18 000 so'm"); // still the small one
       fireEvent.click(confirmButton());
       expect(onAdd).toHaveBeenCalledWith(small);
     });
@@ -105,14 +105,14 @@ describe('VariantSelectorModal', () => {
     fireEvent.click(screen.getByText('Maxsus'));
     fireEvent.click(screen.getByText('Eski'));
 
-    expect(confirmButton()).toHaveTextContent("Tasdiqlash — 18 000 so'm");
+    expect(confirmButton()).toHaveTextContent("Tasdiqlash · 18 000 so'm");
   });
 
   it('switches the selection and adds the chosen variant, then closes', () => {
     const { onAdd, onClose } = renderModal(makeProduct({ variants: [small, large] }));
 
     fireEvent.click(screen.getByText('Katta'));
-    expect(confirmButton()).toHaveTextContent("Tasdiqlash — 32 000 so'm");
+    expect(confirmButton()).toHaveTextContent("Tasdiqlash · 32 000 so'm");
     fireEvent.click(confirmButton());
 
     expect(onAdd).toHaveBeenCalledTimes(1);
@@ -140,6 +140,6 @@ describe('VariantSelectorModal', () => {
 
     rerender(<VariantSelectorModal isOpen product={shawarma} onAdd={onAdd} onClose={onClose} />);
 
-    expect(confirmButton()).toHaveTextContent("Tasdiqlash — 21 000 so'm");
+    expect(confirmButton()).toHaveTextContent("Tasdiqlash · 21 000 so'm");
   });
 });

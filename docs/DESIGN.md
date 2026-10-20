@@ -98,7 +98,10 @@ ishlatilmaydi. KATTA HARFLI + keng harf oralig'i sarlavhalar yo'q.
 | `PageHeader` | Ekran sarlavhasi; `back` — Telegram ichida chizilmaydi (Telegram BackButton ishlaydi) |
 | `Dialog` | Yagona modal: `variant="sheet"` (forma, tanlov) yoki `"center"` (savol). Escape, fokus, scroll lock |
 | `Spinner` | Tugma/hudud ichidagi yuklanish |
-| `useMainButton` | Ekranning bitta asosiy amali ("Buyurtma berish", "Saqlash"): Telegram MainButton yoki dock'dagi o'rinbosar |
+| `Skeleton`, `CardSkeletons` | Ro'yxat/kartochka yuklanayotganda o'rnidagi kulrang bloklar |
+| `Field`, `fieldClass` | Yorliqli forma maydoni; har bir input/select/textarea ko'rinishi (17px, 44px) |
+| `ProductImage` | Taom rasmi yoki neytral o'rinbosar (rasm yo'q, generatsiya qilingan avatar, yuklanmagan rasm) |
+| `useMainButton` | Ekranning bitta asosiy amali ("Buyurtma berish", "Saqlash"): Telegram MainButton yoki dock'dagi o'rinbosar. Stek: oxirgi ochilgan egasi (masalan, sahifa ustidagi sheet) ko'rsatiladi, u yopilsa yoki `visible: false` bo'lsa oldingisi qaytadi. `onClick` Promise qaytarsa, tugaguncha qayta bosish e'tiborsiz |
 | `showAlert` / `showConfirm` / `showPopup` | `lib/dialogs.ts`: Telegram popup yoki ilova ichidagi dialog. Promise qaytaradi |
 | `selectionChanged()`, `notificationOccurred()` | `lib/twa.ts`: tab/nav/stepper uchun; amal natijasi uchun |
 

@@ -1,8 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { useLanguageStore } from '../store/languageStore';
 import { formatMoney } from '../lib/format';
-import { Card, InlineError, PageHeader, Section } from '../components/ui';
-import { Skeleton } from '../components/staff/Skeleton';
+import { Card, InlineError, PageHeader, Section, Skeleton } from '../components/ui';
 import { SegmentedControl } from '../components/staff/SegmentedControl';
 import { Award, Bike, ChefHat, TrendingUp } from 'lucide-react';
 import { computeOrderAnalytics } from '../lib/analytics';

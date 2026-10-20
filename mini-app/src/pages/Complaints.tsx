@@ -189,7 +189,7 @@ export default function Complaints() {
   };
 
   return (
-    <div className="flex flex-col gap-5 p-4">
+    <div className="flex flex-col gap-5 px-4 pb-4 pt-2">
       <PageHeader
         title={isBusinessUser ? c('complaintsTitleStaff') : c('complaintsTitleCustomer')}
         subtitle={isBusinessUser ? c('complaintsSubtitleStaff') : c('complaintsSubtitleCustomer')}

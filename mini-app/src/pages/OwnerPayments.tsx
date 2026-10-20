@@ -2,11 +2,8 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Banknote, CheckCircle2, Clock, CreditCard, Gauge, Send, ShieldAlert, TrendingDown, TrendingUp, XCircle } from 'lucide-react';
 import { useLanguageStore } from '../store/languageStore';
-import { Button, Card, Dialog, InlineError, PageHeader, Section, cx } from '../components/ui';
-import { Field } from '../components/staff/Field';
-import { fieldClass } from '../components/staff/fieldStyles';
+import { Button, Card, Dialog, Field, InlineError, PageHeader, Section, Skeleton, cx, fieldClass } from '../components/ui';
 import { Pill, type PillTone } from '../components/staff/Pill';
-import { Skeleton } from '../components/staff/Skeleton';
 import { StoreStatusPill } from '../components/staff/StoreStatusPill';
 import api from '../services/api';
 import { tg, hapticFeedback } from '../lib/telegram';
@@ -315,7 +312,7 @@ export default function OwnerPayments() {
               </p>
 
               <Field
-                label={uz ? 'Summa (UZS)' : 'Сумма (UZS)'}
+                label={uz ? "Summa (so'm)" : 'Сумма (сум)'}
                 hint={uz ? `Min. qoldiq: ${formatPrice(minPayoutReserve)}` : `Мин. остаток: ${formatPrice(minPayoutReserve)}`}
               >
                 {(props) => (
@@ -490,7 +487,7 @@ export default function OwnerPayments() {
       >
         <div className="flex flex-col gap-4">
           <Field
-            label={uz ? "To'lov summasi (UZS)" : 'Сумма оплаты (UZS)'}
+            label={uz ? "To'lov summasi (so'm)" : 'Сумма оплаты (сум)'}
             hint={uz ? `Kamida ${formatPrice(MIN_TOPUP)}` : `Минимум ${formatPrice(MIN_TOPUP)}`}
           >
             {(props) => (

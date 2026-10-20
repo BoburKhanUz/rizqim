@@ -1,6 +1,6 @@
 import { Search, X } from 'lucide-react';
 import { useLanguageStore } from '../../store/languageStore';
-import { INPUT_CLASS } from './fieldStyles';
+import { fieldClass } from '../ui';
 
 interface SearchFieldProps {
   value: string;
@@ -21,7 +21,7 @@ export function SearchField({ value, onChange, placeholder }: SearchFieldProps) 
         placeholder={placeholder}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className={`${INPUT_CLASS} pl-10 pr-11`}
+        className={`${fieldClass} pl-10 pr-11`}
       />
       {value && (
         <button

@@ -6,10 +6,7 @@ import { showAlert, showConfirm } from '../lib/dialogs';
 import api from '../services/api';
 import { useAuthStore } from '../store/authStore';
 import { getApiErrorMessage, getApiFieldError, logApiError } from '../lib/apiError';
-import { Button, Card, EmptyState, IconButton, InlineError, PageHeader, Section } from '../components/ui';
-import { Field } from '../components/staff/Field';
-import { fieldClass } from '../components/staff/fieldStyles';
-import { CardSkeletons } from '../components/staff/Skeleton';
+import { Button, Card, CardSkeletons, EmptyState, Field, IconButton, InlineError, PageHeader, Section, fieldClass } from '../components/ui';
 import { SegmentedControl } from '../components/staff/SegmentedControl';
 import type { ApiResponse, Branch, Employee, EmployeeInvite } from '../types';
 
@@ -191,7 +188,7 @@ export default function OwnerEmployees() {
               onChange={setNewRole}
             />
 
-            <Field label="Ism-familiyasi">
+            <Field label="Ism-familiya">
               {(props) => (
                 <input
                   {...props}

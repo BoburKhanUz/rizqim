@@ -5,7 +5,7 @@ import { useAddressStore } from '../store/useAddressStore';
 import type { Address } from '../store/useAddressStore';
 import { hapticFeedback } from '../lib/telegram';
 import { selectionChanged } from '../lib/twa';
-import { Bell, ChevronRight, Crown, LifeBuoy, MapPin, Pencil, Plus, Share2, Trash2, UserRound, X } from 'lucide-react';
+import { ChevronRight, Crown, LifeBuoy, MapPin, Pencil, Plus, Share2, Trash2, UserRound, X } from 'lucide-react';
 import api from '../services/api';
 import PhoneVerificationModal from '../components/PhoneVerificationModal';
 import AddressLocationField from '../features/address/AddressLocationField';
@@ -13,15 +13,15 @@ import { toLatLng } from '../features/address/coordinates';
 import type { AddressLocationValue } from '../features/address/types';
 import { classifyPhoneChange } from '../lib/phone';
 import { getApiFieldError, logApiError } from '../lib/apiError';
-import { formatMoney, formatNumber } from '../lib/format';
+import { formatMoney } from '../lib/format';
 import { showAlert, showConfirm } from '../lib/dialogs';
-import { useNotifications } from '../hooks/useNotifications';
+import { NotificationBell } from '../components/catalog/NotificationBell';
 import { useCopy } from '../lib/customerCopy';
 import { useLanguageStore } from '../store/languageStore';
-import { Button, Card, IconButton, PageHeader, Section, cx } from '../components/ui';
+import { Button, Card, IconButton, PageHeader, Section, cx, fieldClass } from '../components/ui';
 import { normalizeUser } from '../lib/user';
 import { fetchOrdersPage } from '../hooks/useOrders';
-import type { Amount, ApiResponse, AuthPayload } from '../types';
+import type { ApiResponse, AuthPayload } from '../types';
 
 const COMPLETED_ORDERS_PAGE_SIZE = 50; // the most the backend serves per page
 
@@ -46,17 +46,10 @@ interface LocationsData {
 
 const EMPTY_LOCATION: AddressLocationValue = { address: '', lat: null, lng: null };
 
-// Text fields: 17px (no zoom on iOS), the placeholder in fg-subtle, one height
-const FIELD =
-  'w-full rounded-control border border-line bg-surface px-3 py-2.5 text-headline text-fg focus:border-brand focus:outline-none disabled:bg-surface-2 disabled:text-fg-muted';
-
 export default function CustomerProfile() {
   const navigate = useNavigate();
   const c = useCopy();
   const language = useLanguageStore((state) => state.language);
-  // The bell shows a count only while there are notifications the customer has not seen
-  const { data: notifications } = useNotifications();
-  const unreadCount = notifications?.filter((notification) => !notification.is_read).length ?? 0;
   const { user, updateUser, smsVerificationRequired, setSmsVerificationRequired } = useAuthStore();
   const { addresses, deleteAddress, addAddress, updateAddress, selectedAddressId, setSelectedAddressId } = useAddressStore();
 
@@ -257,15 +250,13 @@ export default function CustomerProfile() {
     hapticFeedback('success');
   };
 
-  const formatBalance = (val: Amount | undefined) => formatNumber(val);
 
   const initials = user?.name ? user.name.slice(0, 2).toUpperCase() : '';
   const nameFieldId = 'profile-name';
   const phoneFieldId = 'profile-phone';
-  const bellLabel = unreadCount > 0 ? c('profileNotificationsUnread', { n: unreadCount }) : c('profileNotifications');
 
   return (
-    <div className="flex flex-col gap-4 p-4 animate-fade-in">
+    <div className="flex flex-col gap-4 px-4 pb-4 pt-2 animate-fade-in">
       {verifyingPhone && (
         <PhoneVerificationModal
           initialPhone={verifyingPhone}
@@ -281,27 +272,7 @@ export default function CustomerProfile() {
 
       <PageHeader
         title={c('profileTitle')}
-        action={
-          <span className="relative">
-            <IconButton
-              icon={Bell}
-              label={bellLabel}
-              variant="surface"
-              onClick={() => {
-                hapticFeedback('light');
-                navigate('/notifications');
-              }}
-            />
-            {unreadCount > 0 && (
-              <span
-                aria-hidden="true"
-                className="pointer-events-none absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1 text-caption font-bold text-on-danger"
-              >
-                {unreadCount > 9 ? '9+' : unreadCount}
-              </span>
-            )}
-          </span>
-        }
+        action={<NotificationBell />}
       />
 
       <Card>
@@ -319,7 +290,7 @@ export default function CustomerProfile() {
                 autoComplete="name"
                 value={editName}
                 onChange={(e) => setEditName(e.target.value)}
-                className={FIELD}
+                className={fieldClass}
               />
             </div>
             <div className="flex flex-col gap-1.5">
@@ -337,7 +308,7 @@ export default function CustomerProfile() {
                 }}
                 placeholder="+998901234567"
                 aria-invalid={phoneError ? true : undefined}
-                className={FIELD}
+                className={fieldClass}
               />
               {phoneError ? (
                 <p role="alert" className="text-footnote font-medium text-danger-soft-fg">
@@ -399,7 +370,7 @@ export default function CustomerProfile() {
       <div className="grid grid-cols-2 gap-3">
         <Card>
           <span className="block text-footnote text-fg-muted">{c('profileCashback')}</span>
-          <p className="mt-1 text-headline font-bold text-fg">{c('profilePoints', { n: formatBalance(user?.balance) })}</p>
+          <p className="mt-1 text-headline font-bold text-fg">{formatMoney(user?.balance ?? 0, language)}</p>
         </Card>
         <Card>
           <span className="block text-footnote text-fg-muted">{c('profileOrdersLabel')}</span>
@@ -427,7 +398,7 @@ export default function CustomerProfile() {
               value={addressTitle}
               onChange={(e) => setAddressTitle(e.target.value)}
               placeholder={c('addressTitlePlaceholder')}
-              className={FIELD}
+              className={fieldClass}
             />
 
             <select
@@ -440,7 +411,7 @@ export default function CustomerProfile() {
                 setSelectedRegionId(val ? Number(val) : '');
                 setSelectedDistrictId('');
               }}
-              className={FIELD}
+              className={fieldClass}
             >
               {activeRegions.length > 1 && <option value="">{c('addressRegion')}</option>}
               {activeRegions.map((reg) => (
@@ -459,7 +430,7 @@ export default function CustomerProfile() {
                 const val = e.target.value;
                 setSelectedDistrictId(val ? Number(val) : '');
               }}
-              className={FIELD}
+              className={fieldClass}
             >
               {activeDistsForRegion.length > 1 && <option value="">{c('addressDistrict')}</option>}
               {activeDistsForRegion.map((dist) => (
@@ -478,7 +449,7 @@ export default function CustomerProfile() {
               value={apartmentValue}
               onChange={(e) => setApartmentValue(e.target.value)}
               placeholder={c('addressApartment')}
-              className={FIELD}
+              className={fieldClass}
             />
             <input
               type="text"
@@ -486,7 +457,7 @@ export default function CustomerProfile() {
               value={commentValue}
               onChange={(e) => setCommentValue(e.target.value)}
               placeholder={c('addressCourierNote')}
-              className={FIELD}
+              className={fieldClass}
             />
             <Button type="submit" fullWidth disabled={!locationPoint}>
               {editingAddressId !== null ? c('addressSaveChanges') : c('addressSave')}
@@ -520,8 +491,8 @@ export default function CustomerProfile() {
                 >
                   <MapPin aria-hidden="true" className={cx('size-5 shrink-0', selected ? 'text-brand-soft-fg' : 'text-brand')} />
                   <span className="min-w-0">
-                    <span className={cx('block text-body font-bold', selected ? 'text-brand-soft-fg' : 'text-fg')}>{addr.title}</span>
-                    <span className={cx('block break-words text-footnote', selected ? 'text-brand-soft-fg' : 'text-fg-muted')}>
+                    <span className="block text-body font-bold text-fg">{addr.title}</span>
+                    <span className="block break-words text-footnote text-fg-muted">
                       {addr.region_name ? `${addr.region_name}, ` : ''}
                       {addr.district_name ? `${addr.district_name}, ` : ''}
                       {addr.address}

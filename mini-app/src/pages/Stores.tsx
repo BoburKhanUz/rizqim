@@ -74,7 +74,7 @@ export default function Stores() {
       <SearchField
         value={searchQuery}
         onChange={setSearchQuery}
-        placeholder={uz ? 'Oshxonalarni qidirish...' : 'Поиск ресторанов...'}
+        placeholder={uz ? 'Oshxonalarni qidirish' : 'Поиск ресторанов'}
       />
 
       {error ? (
