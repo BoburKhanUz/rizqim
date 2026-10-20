@@ -7,21 +7,19 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+/**
+ * @property array<string, string>|null $image_thumbs
+ * @property string|null $image_disk
+ */
 class Category extends Model
 {
     use SoftDeletes;
     use \App\Traits\HasPublicUuid;
+    use \App\Traits\HasMenuImage; // image_url, image_thumb_urls (P1-21)
     
     protected $guarded = ['id'];
     
     protected $appends = ['image_url'];
-
-    public function getImageUrlAttribute(): ?string
-    {
-        if (!$this->image) return null;
-        if (filter_var($this->image, FILTER_VALIDATE_URL)) return $this->image;
-        return asset('storage/' . $this->image);
-    }
     
     protected static function booted()
     {

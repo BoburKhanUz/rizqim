@@ -58,7 +58,7 @@ class GlobalOrderResource extends Resource
 
                 Tables\Columns\TextColumn::make('items_summary')
                     ->label('Active Order items')
-                    ->default(fn (Order $record) => $record->items->map(fn ($item) => "{$item->product_name} x{$item->quantity}")->join(', ')),
+                    ->default(fn (Order $record) => $record->items->map(fn ($item) => "{$item->product_name} x{$item->quantityLabel()}")->join(', ')),
 
                 Tables\Columns\TextColumn::make('urgency')
                     ->label('Urgency Monitor')
@@ -162,11 +162,11 @@ class GlobalOrderResource extends Resource
                                     ->formatStateUsing(function ($state, Order $record) {
                                         $html = '<div class="flex flex-col gap-3 w-full">';
                                         foreach ($record->items as $item) {
-                                            $variant = $item->variant_name ? " ({$item->variant_name})" : "";
+                                            $variant = ($item->variant_name ? " ({$item->variant_name})" : "") . e($item->modifiersLabel()); // P1-21: modifiers
                                             $price = number_format($item->total_price, 0, '.', ' ') . " so'm";
                                             $html .= "
                                                 <div class='flex justify-between items-center w-full gap-4 py-3.5 px-4 bg-gray-50/50 dark:bg-gray-800/40 rounded-xl border border-gray-100 dark:border-gray-800/80 text-sm font-semibold shadow-sm'>
-                                                    <span class='text-gray-900 dark:text-white flex-1 min-w-0 truncate'>🍔 {$item->product_name}{$variant} <span class='text-gray-400 font-normal ml-1.5'>x{$item->quantity}</span></span>
+                                                    <span class='text-gray-900 dark:text-white flex-1 min-w-0 truncate'>🍔 {$item->product_name}{$variant} <span class='text-gray-400 font-normal ml-1.5'>x{$item->quantityLabel()}</span></span>
                                                     <span class='text-purple-600 dark:text-purple-400 font-bold whitespace-nowrap text-right'>{$price}</span>
                                                 </div>
                                             ";

@@ -25,6 +25,7 @@ final class RolePermissions
                 P::ORDERS_ASSIGN_COURIER, P::KITCHEN_MANAGE, P::TABLES_MANAGE, P::MENU_VIEW, P::STOPLIST_MANAGE,
                 P::STAFF_VIEW, P::STAFF_PIN, P::DEVICES_VIEW, P::DEVICES_MANAGE, P::REPORTS_VIEW,
                 P::POS_OPEN_SHIFT, P::POS_CLOSE_SHIFT, P::POS_CASH_IN_OUT, P::POS_TAKE_PAYMENT, P::POS_REPRINT_BILL,
+                P::BATCHES_MANAGE, // P1-21
             ],
             // Closes bills and takes payment; cancelling, discounts and voids need a manager
             UserRole::CASHIER->value => [
@@ -37,6 +38,7 @@ final class RolePermissions
             // Only the kitchen screen's "ready" button
             UserRole::COOK->value => [
                 P::ORDERS_VIEW, P::KITCHEN_MANAGE, P::MENU_VIEW,
+                P::BATCHES_MANAGE, // P1-21: the cook opens and closes the kazan
             ],
             UserRole::COURIER->value => [
                 P::DELIVERIES_MANAGE,

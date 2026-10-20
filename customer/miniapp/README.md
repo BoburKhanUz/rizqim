@@ -12,13 +12,15 @@ npm ci
 npm run dev        # http://localhost:5173
 ```
 
+**Umumiy UI paketi.** Dizayn tokenlari va tilga bog'liq bo'lmagan komponentlar `packages/ts/ui` (`@rizqim/ui`) da: `package.json` da `"@rizqim/ui": "file:../../packages/ts/ui"`, `npm ci` uni symlink qiladi (alohida build yo'q). Ulash tafsilotlari (bitta React, Tailwind `@source`, Docker): [../../packages/ts/ui/README.md](../../packages/ts/ui/README.md); `src/components/ui` da faqat Mini App'ga xos qismlar qoladi.
+
 Dev server `/api` so'rovlarini `http://127.0.0.1:8000` ga proksilaydi (`vite.config.ts`), shuning uchun backend shu portda ishlab turishi kerak (`php artisan serve`); `allowedHosts: true` — tunnel orqali ochish mumkin.
 
 **Telegramsiz ochish.** `window.Telegram.WebApp.initData` bo'lmasa ilova "faqat Telegram" ekranini (`OnlyTelegramBlocker`) ko'rsatadi. Brauzerda sinash uchun manzilga `?dev=true` qo'shing (yoki `VITE_APP_DEBUG=true`). Dev serverda (`npm run dev`) `initData` bo'lmasa ilova soxta foydalanuvchi bilan kiradi; uning id'si `localStorage` dagi `mock_telegram_id` (shuningdek `mock_telegram_username`, `mock_first_name`) kalitlarida turadi. Buning uchun backendda `APP_ENV=local`, `TELEGRAM_ALLOW_MOCK_AUTH=true`, bo'sh bo'lmagan `TELEGRAM_BOT_TOKEN` va kamida bitta faol do'kon bo'lishi shart. Production build'da soxta kirish yo'q: `?dev=true` bilan ochilsa ham Telegramsiz "Iltimos, ilovani Telegram orqali oching" xatosi chiqadi. Soxta foydalanuvchiga xodim roli berish: `php artisan user:assign-role <mock_telegram_id> owner --store=<id>`.
 
 ## Muhit o'zgaruvchilari (`VITE_*`)
 
-Build vaqtida bundle ichiga yoziladi; o'zgartirgandan keyin qayta build qiling. Docker'da qiymatlar ildizdagi `.env` dan build argument sifatida uzatiladi (`docker compose up -d --build frontend`; `.dockerignore` `.env.*` fayllarni image'ga kiritmaydi). Docker'siz qo'lda build qilsangiz (`npm run build`), qiymatlarni `customer/miniapp/.env.production` ga yozing (git e'tiborsiz qoldiradi).
+Build vaqtida bundle ichiga yoziladi; o'zgartirgandan keyin qayta build qiling. Docker'da qiymatlar ildizdagi `.env` dan build argument sifatida uzatiladi (`docker compose up -d --build frontend`; `Dockerfile.dockerignore` `.env.*` fayllarni image'ga kiritmaydi; Docker build konteksti — repozitoriy ildizi, chunki ilova `packages/ts/ui` ni ulaydi). Docker'siz qo'lda build qilsangiz (`npm run build`), qiymatlarni `customer/miniapp/.env.production` ga yozing (git e'tiborsiz qoldiradi).
 
 | O'zgaruvchi | Standart | Ma'nosi |
 |---|---|---|

@@ -1,5 +1,5 @@
 import { selectionChanged } from '../../lib/twa';
-import { cx } from '../ui/cx';
+import { cx } from '@rizqim/ui';
 
 interface SwitchProps {
   checked: boolean;

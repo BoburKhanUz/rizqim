@@ -27,6 +27,7 @@ use App\Traits\Auditable;
  * @property \Illuminate\Support\Carbon|null $phone_verified_at
  * @property string|null $pin_hash
  * @property string|null $staff_code
+ * @property \App\Enums\CourierType $courier_type
  */
 class User extends Authenticatable implements FilamentUser, HasTenants
 {
@@ -51,6 +52,8 @@ class User extends Authenticatable implements FilamentUser, HasTenants
         'phone',
         'address',
         'telegram_invite_token',
+        // P1-24: only meaningful for couriers (own / fleet)
+        'courier_type',
     ];
 
     /**
@@ -82,6 +85,7 @@ class User extends Authenticatable implements FilamentUser, HasTenants
             'role' => \App\Enums\UserRole::class,
             'pin_set_at' => 'datetime',
             'phone_verified_at' => 'datetime',
+            'courier_type' => \App\Enums\CourierType::class,
         ];
     }
 

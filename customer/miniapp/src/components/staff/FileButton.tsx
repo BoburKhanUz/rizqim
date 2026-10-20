@@ -1,6 +1,6 @@
 import type { ChangeEvent } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { buttonClasses } from '../ui/buttonStyles';
+import { buttonClasses } from '@rizqim/ui';
 
 interface FileButtonProps {
   label: string;

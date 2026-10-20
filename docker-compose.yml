@@ -193,7 +193,9 @@ services:
 
   frontend:
     build:
-      context: ./customer/miniapp
+      # Ildiz: Mini App umumiy packages/ts/ui paketiga bog'liq (P1-25). Image'ga nimalar kirishi: customer/miniapp/Dockerfile.dockerignore
+      context: .
+      dockerfile: customer/miniapp/Dockerfile
       args:
         VITE_BOT_USERNAME: ${VITE_BOT_USERNAME:-rizqimbot}
         VITE_API_URL: ${VITE_API_URL:-/api/v1}

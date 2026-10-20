@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use App\Services\Catalog\MenuImageService;
 
 #[Group('Owner: catalog', "Do'kon menyusini boshqarish (ega). Kategoriya yaratish faqat superadmin uchun.")]
 class OwnerCatalogController extends Controller
@@ -110,17 +111,18 @@ class OwnerCatalogController extends Controller
             'is_active' => 'boolean',
             // Max 5MB
             'image' => 'nullable|image|max:5120',
-            // JSON array of variants: [{"name": "...", "price": 25000}, ...]
+            // JSON array of variants: [{"name": "...", "price": 25000}, ...]; P1-21 adds optional "unit" (piece|kg|l),
+            // "quantity_step", "min_quantity" (kg/l) and "batch_consumption"
             'variants' => 'required|json',
+            'batch_tracked' => 'boolean',
         ]);
+        $this->validateVariantUnits($validated['variants']);
 
         try {
             DB::beginTransaction();
 
-            $imagePath = null;
-            if ($request->hasFile('image')) {
-                $imagePath = \App\Services\ImageOptimizer::optimizeAndStore($request->file('image'), 'products', 800, 75);
-            }
+            // P1-21: on the menu image disk (S3 when configured, else public), thumbnails made by a queued job
+            $image = $request->hasFile('image') ? app(MenuImageService::class)->store($request->file('image'), 'products') : null;
 
             $product = Product::create([
                 'store_id' => $user->store_id,
@@ -129,11 +131,14 @@ class OwnerCatalogController extends Controller
                 'slug' => Str::slug($validated['name']) . '-' . Str::random(6),
                 'description' => $validated['description'] ?? null,
                 'status' => (isset($validated['is_active']) && $validated['is_active']) ? 'active' : 'inactive',
-                'image' => $imagePath,
+                'image' => $image['path'] ?? null,
+                'image_disk' => $image['disk'] ?? null,
                 'uuid' => Str::uuid(),
                 'type' => 'physical',
                 'has_variants' => true,
+                'batch_tracked' => (bool) ($validated['batch_tracked'] ?? false),
             ]);
+            app(MenuImageService::class)->queueThumbnails($product);
 
             $variantsData = json_decode($validated['variants'], true);
             foreach ($variantsData as $variantData) {
@@ -143,7 +148,7 @@ class OwnerCatalogController extends Controller
                     'price' => $variantData['price'],
                     'stock' => 999,
                     'is_active' => true,
-                ]);
+                ] + $this->variantUnitFields($variantData));
             }
 
             DB::commit();
@@ -192,18 +197,18 @@ class OwnerCatalogController extends Controller
             'is_active' => 'boolean',
             'image' => 'nullable|image|max:5120',
             // JSON array of variants: [{"id": 1, "name": "...", "price": 25000}, ...]; one without an id is created,
-            // an existing one left out is deleted
+            // an existing one left out is deleted. P1-21: optional "unit", "quantity_step", "min_quantity", "batch_consumption"
             'variants' => 'required|json',
+            'batch_tracked' => 'boolean',
         ]);
+        $this->validateVariantUnits($validated['variants']);
 
         try {
             DB::beginTransaction();
 
             if ($request->hasFile('image')) {
-                if ($product->image) {
-                    Storage::disk('public')->delete($product->image);
-                }
-                $product->image = \App\Services\ImageOptimizer::optimizeAndStore($request->file('image'), 'products', 800, 75);
+                // P1-21: old image and thumbnails go, the new one gets thumbnails (MenuImageService)
+                app(MenuImageService::class)->replace($product, $request->file('image'), 'products');
             }
 
             $updateData = [
@@ -212,6 +217,9 @@ class OwnerCatalogController extends Controller
                 'description' => $validated['description'] ?? null,
                 'status' => (isset($validated['is_active']) && $validated['is_active']) ? 'active' : 'inactive',
             ];
+            if (array_key_exists('batch_tracked', $validated)) {
+                $updateData['batch_tracked'] = (bool) $validated['batch_tracked'];
+            }
             $product->update($updateData);
 
             // Sync variants
@@ -226,7 +234,7 @@ class OwnerCatalogController extends Controller
                         $variant->update([
                             'name' => $variantData['name'],
                             'price' => $variantData['price'],
-                        ]);
+                        ] + $this->variantUnitFields($variantData, true));
                         $existingVariantIds[] = $variant->id;
                     }
                 } else {
@@ -237,7 +245,7 @@ class OwnerCatalogController extends Controller
                         'price' => $variantData['price'],
                         'stock' => 999,
                         'is_active' => true,
-                    ]);
+                    ] + $this->variantUnitFields($variantData));
                     $existingVariantIds[] = $newVariant->id;
                 }
             }
@@ -276,9 +284,7 @@ class OwnerCatalogController extends Controller
 
         $product = Product::where('store_id', $user->store_id)->findOrFail($id);
         
-        if ($product->image) {
-            Storage::disk('public')->delete($product->image);
-        }
+        app(MenuImageService::class)->delete($product);
 
         $product->delete();
 
@@ -286,5 +292,46 @@ class OwnerCatalogController extends Controller
             'success' => true,
             'message' => 'Product deleted successfully'
         ]);
+    }
+
+    /**
+     * P1-21: the optional sale-unit fields of a variants JSON row; 422 when one is invalid.
+     */
+    private function validateVariantUnits(string $json): void
+    {
+        $rows = json_decode($json, true);
+        if (!is_array($rows)) {
+            return;
+        }
+
+        $validator = \Illuminate\Support\Facades\Validator::make(['variants' => $rows], [
+            'variants.*.unit' => ['nullable', 'string', \Illuminate\Validation\Rule::in(\App\Enums\MenuUnit::values())],
+            'variants.*.quantity_step' => 'nullable|numeric|gt:0|max:1000|decimal:0,3',
+            'variants.*.min_quantity' => 'nullable|numeric|gt:0|max:1000|decimal:0,3',
+            'variants.*.batch_consumption' => 'nullable|numeric|gt:0|max:1000|decimal:0,3',
+        ]);
+        $validator->validate();
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     * @return array<string, mixed>
+     */
+    private function variantUnitFields(array $row, bool $onlyGiven = false): array
+    {
+        $fields = [];
+        foreach (['unit', 'quantity_step', 'min_quantity', 'batch_consumption'] as $field) {
+            if (!$onlyGiven || array_key_exists($field, $row)) {
+                $fields[$field] = $row[$field] ?? null;
+            }
+        }
+
+        $fields = array_filter($fields, fn ($value, $field) => $value !== null || in_array($field, ['quantity_step', 'min_quantity'], true), ARRAY_FILTER_USE_BOTH);
+        if (($fields['unit'] ?? null) === \App\Enums\MenuUnit::PIECE->value) {
+            $fields['quantity_step'] = null;
+            $fields['min_quantity'] = null;
+        }
+
+        return $fields;
     }
 }

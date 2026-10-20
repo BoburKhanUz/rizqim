@@ -8,6 +8,11 @@ const fromPackages = (...names: string[]) =>
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    // @rizqim/ui (packages/ts/ui) is linked and compiled as source from outside this folder: its imports of react,
+    // react-dom and lucide-react must resolve to this app's copies, not to a second React
+    dedupe: ['react', 'react-dom', 'lucide-react'],
+  },
   build: {
     rolldownOptions: {
       output: {
@@ -29,6 +34,8 @@ export default defineConfig({
   },
   server: {
     allowedHosts: true,
+    // The linked @rizqim/ui sources live in packages/ts/ui, outside this folder
+    fs: { allow: ['../..'] },
     proxy: {
       '/api': {
         target: 'http://127.0.0.1:8000',

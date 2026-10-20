@@ -1,5 +1,5 @@
 import { useMainButtonFallback } from '../../hooks/useMainButton';
-import { Button } from './Button';
+import { Button } from '@rizqim/ui';
 
 // The in-page stand-in for Telegram's MainButton (hooks/useMainButton.ts), drawn in the bottom dock above the
 // navigation. Renders nothing while no screen asks for a main button or while Telegram's own is used.

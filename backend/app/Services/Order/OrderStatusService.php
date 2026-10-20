@@ -18,6 +18,7 @@ use App\Models\User;
 use App\Services\Finance\LedgerService;
 use App\Services\Finance\SettlementRecoveryService;
 use App\Support\Money;
+use App\Support\Quantity;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -377,18 +378,31 @@ class OrderStatusService
 
     protected function restoreStock(Order $order): void
     {
-        $quantities = $order->items()
-            ->whereNotNull('product_variant_id')
-            ->get(['product_variant_id', 'quantity'])
-            ->groupBy('product_variant_id')
-            ->map(fn ($items) => (int) $items->sum('quantity'))
-            ->sortKeys();
+        $items = $order->items()->get(['product_variant_id', 'quantity', 'batch_id', 'batch_quantity']);
+
+        // Decimal quantities (P1-21: 0.5 kg) are added exactly
+        $quantities = [];
+        foreach ($items->whereNotNull('product_variant_id') as $item) {
+            $variantId = (int) $item->product_variant_id;
+            $quantities[$variantId] = ($quantities[$variantId] ?? Quantity::zero())->plus($item->quantity);
+        }
+        ksort($quantities);
 
         // Variant id order, as CreateOrderAction locks them, so a cancel and a checkout cannot deadlock
         foreach ($quantities as $variantId => $quantity) {
-            if ($quantity > 0) {
-                ProductVariant::withTrashed()->whereKey($variantId)->increment('stock', $quantity);
+            if ($quantity->isPositive()) {
+                ProductVariant::withTrashed()->whereKey($variantId)->increment('stock', $quantity->toString()); // @phpstan-ignore argument.type
             }
+        }
+
+        // Then the batches the lines were taken from (batch id order, as checkout locks them)
+        $batches = [];
+        foreach ($items->whereNotNull('batch_id') as $item) {
+            $batchId = (int) $item->batch_id;
+            $batches[$batchId] = ($batches[$batchId] ?? Quantity::zero())->plus($item->batch_quantity ?? $item->quantity);
+        }
+        if ($batches !== []) {
+            app(\App\Services\Catalog\BatchService::class)->restore($batches);
         }
     }
 

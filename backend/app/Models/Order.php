@@ -24,6 +24,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property \App\Enums\CancelReason|null $cancel_reason
  * @property string|null $cancel_note
  * @property int|null $cancelled_by
+ * @property \App\Enums\OrderChannel $channel
+ * @property numeric-string $service_charge_amount
+ * @property numeric-string $place_fee_amount
+ * @property int|null $guests_count
  */
 class Order extends Model
 {
@@ -50,6 +54,11 @@ class Order extends Model
     
     protected $appends = ['address', 'type'];
 
+    /** The column default, so an order just created reads its channel like one loaded back (P1-21). */
+    protected $attributes = [
+        'channel' => 'telegram',
+    ];
+
     protected function casts(): array
     {
         return [
@@ -67,6 +76,11 @@ class Order extends Model
             'settlement_attempts' => 'integer',
             // Why the order was cancelled or rejected; null on older cancellations (App\Enums\CancelReason)
             'cancel_reason' => \App\Enums\CancelReason::class,
+            // P1-21: where the order came from; service charge and place fee lines (POS hall), guests
+            'channel' => \App\Enums\OrderChannel::class,
+            'service_charge_amount' => 'decimal:2',
+            'place_fee_amount' => 'decimal:2',
+            'guests_count' => 'integer',
         ];
     }
 

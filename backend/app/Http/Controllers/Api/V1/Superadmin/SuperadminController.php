@@ -54,12 +54,8 @@ class SuperadminController extends Controller
         $orders = Order::where('status', 'delivered')->get();
         $totalGmv = $orders->sum('total_price');
         
-        // Calculate platform commission based on store commission_rate
-        $totalCommission = $orders->sum(function ($order) {
-            $store = $order->store;
-            if (!$store) return 0;
-            return ($order->total_price * $store->commission_rate) / 100;
-        });
+        // P1-23: the commission each order was charged (its snapshot), not today's store rate, which a tariff plan may override
+        $totalCommission = \App\Support\Money::sum(...$orders->pluck('commission_amount')->all())->toFloat();
 
         // Get monthly GMV & Commission
         $monthlyOrders = Order::where('status', 'delivered')
@@ -67,32 +63,20 @@ class SuperadminController extends Controller
             ->whereYear('created_at', now()->year)
             ->get();
         $monthlyGmv = $monthlyOrders->sum('total_price');
-        $monthlyCommission = $monthlyOrders->sum(function ($order) {
-            $store = $order->store;
-            if (!$store) return 0;
-            return ($order->total_price * $store->commission_rate) / 100;
-        });
+        $monthlyCommission = \App\Support\Money::sum(...$monthlyOrders->pluck('commission_amount')->all())->toFloat();
 
         // Get last 30 days GMV & Commission
         $last30DaysOrders = Order::where('status', 'delivered')
             ->where('created_at', '>=', now()->subDays(30))
             ->get();
         $last30DaysGmv = $last30DaysOrders->sum('total_price');
-        $last30DaysCommission = $last30DaysOrders->sum(function ($order) {
-            $store = $order->store;
-            if (!$store) return 0;
-            return ($order->total_price * $store->commission_rate) / 100;
-        });
+        $last30DaysCommission = \App\Support\Money::sum(...$last30DaysOrders->pluck('commission_amount')->all())->toFloat();
 
         // Today's Stats
         $todayOrdersQuery = Order::where('status', 'delivered')->whereDate('created_at', now()->toDateString())->get();
         $todayGmv = $todayOrdersQuery->sum('total_price');
         $todayOrdersCount = $todayOrdersQuery->count();
-        $todayCommission = $todayOrdersQuery->sum(function ($order) {
-            $store = $order->store;
-            if (!$store) return 0;
-            return ($order->total_price * $store->commission_rate) / 100;
-        });
+        $todayCommission = \App\Support\Money::sum(...$todayOrdersQuery->pluck('commission_amount')->all())->toFloat();
 
         // Additional Platform Metrics
         $pendingPayouts = \App\Models\PayoutRequest::where('status', 'pending')->count();

@@ -1,5 +1,5 @@
 import { useDialogQueue } from '../../lib/dialogs';
-import { Button } from './Button';
+import { Button } from '@rizqim/ui';
 import { Dialog } from './Dialog';
 
 // Draws the in-app popups of showAlert / showConfirm / showPopup (lib/dialogs.ts) when Telegram's are not

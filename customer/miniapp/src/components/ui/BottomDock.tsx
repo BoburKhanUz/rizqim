@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, type ReactNode } from 'react';
-import { cx } from './cx';
+import { cx } from '@rizqim/ui';
 
 // Everything fixed at the bottom of the screen, stacked in one place: the in-page main button, the cart bar, the
 // navigation. The dock measures itself and publishes its height as --rz-dock-height, which `pb-dock` (the app shell)

@@ -1,16 +1,27 @@
 // The shared components of the design system (docs/DESIGN.md). Import from here: import { Button } from '../components/ui'.
-export { Button, type ButtonProps } from './Button';
-export { buttonClasses, type ButtonSize, type ButtonVariant } from './buttonStyles';
-export { IconButton, type IconButtonProps } from './IconButton';
+// The language-free ones live in packages/ts/ui (@rizqim/ui, shared with the partner web) and are re-exported here;
+// StatusBadge, InlineError and Dialog are thin Mini App wrappers that bind the language store; PageHeader and
+// ProductImage depend on the router / Telegram / the image helper and stay here.
+export {
+  Button,
+  buttonClasses,
+  Card,
+  CardSkeletons,
+  cx,
+  EmptyState,
+  Field,
+  fieldClass,
+  IconButton,
+  Section,
+  Skeleton,
+  Spinner,
+  type ButtonProps,
+  type ButtonSize,
+  type ButtonVariant,
+  type IconButtonProps,
+} from '@rizqim/ui';
 export { StatusBadge } from './StatusBadge';
 export { InlineError } from './InlineError';
-export { EmptyState } from './EmptyState';
-export { Card, Section } from './Card';
 export { Dialog } from './Dialog';
 export { PageHeader } from './PageHeader';
-export { Spinner } from './Spinner';
-export { cx } from './cx';
-export { Field } from './Field';
-export { fieldClass } from './fieldStyles';
 export { ProductImage } from './ProductImage';
-export { CardSkeletons, Skeleton } from './Skeleton';

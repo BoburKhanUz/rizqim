@@ -167,8 +167,8 @@ class OrderReportService
                     }
 
                     if (strtolower($itemCategoryName) === strtolower($category->name)) {
-                        $variantSuffix = $item->variant_name ? " ({$item->variant_name})" : "";
-                        $categoryItems[] = "{$item->quantity}x {$item->product_name}{$variantSuffix} (" . number_format(Money::of($item->total_price)->toFloat(), 0, '.', '') . " UZS)";
+                        // P1-21: weight and modifiers as sold ("1.5 kg Osh", "2x Burger (Pishloq)")
+                        $categoryItems[] = $item->displayLine() . " (" . number_format(Money::of($item->total_price)->toFloat(), 0, '.', '') . " UZS)";
                     }
                 }
                 $row[] = implode("\n", $categoryItems);

@@ -23,7 +23,7 @@ class InventoryVelocityService
                 ->where('created_at', '>=', now()->subHours(24))
                 ->sum('quantity');
 
-            $hourlyRate = $totalSold24h / 24.0;
+            $hourlyRate = (float) $totalSold24h / 24.0;
             return new InventoryRisk($record->stock, $hourlyRate);
         });
     }

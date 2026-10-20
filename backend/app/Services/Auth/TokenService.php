@@ -123,6 +123,8 @@ class TokenService
         RefreshToken::where('user_id', $user->id)->where('device_id', $device->id)->whereNull('revoked_at')
             ->update(['revoked_at' => now()]);
         $this->deviceTokens($user, $device)->delete();
+        // Signed out: this install must not keep receiving the person's pushes (P1-22)
+        $device->forceFill(['push_token' => null])->save();
     }
 
     /**
@@ -132,6 +134,7 @@ class TokenService
     {
         RefreshToken::where('user_id', $user->id)->whereNull('revoked_at')->update(['revoked_at' => now()]);
         $user->tokens()->delete();
+        Device::where('user_id', $user->id)->whereNotNull('push_token')->update(['push_token' => null]);
     }
 
     /**

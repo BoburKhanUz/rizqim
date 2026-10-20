@@ -9,6 +9,7 @@ yozilishini tushuntiradi (P1-12). Barcha endpointlar `/api/v1` ostida.
 |---|---|---|
 | Telegram Mini App | `POST /auth/telegram` (initData) | Bitta token, `SANCTUM_TOKEN_EXPIRATION` (30 kun). 401 bo'lsa initData bilan qayta kiradi |
 | Mobil ilova (mijoz, hamkor, kuryer) | `POST /auth/telegram` yoki `POST /auth/phone/verify`, `device` bilan | Qisqa access token (15 daqiqa) + refresh token (30 kun) |
+| Hamkor veb-panel (`partner/web`) | `POST /auth/phone/verify`, `device.type = web`; so'rovni brauzer emas, panelning Next serveri yuboradi | Access token faqat brauzer xotirasida; refresh token httpOnly cookie'da (Next route handler), `localStorage` yo'q. [partner/web/README.md](../partner/web/README.md) |
 | POS/KDS terminal | `POST /devices/pair` (8 belgili kod, `ABCD-EFGH`) | Terminalning o'z tokeni (365 kun yoki o'chirilguncha) |
 | Terminaldagi xodim | `POST /devices/{device}/staff-session` (PIN) | Qisqa xodim sessiyasi (12 soat), terminalga bog'langan |
 
@@ -81,6 +82,8 @@ odamning mobil kirishini o'z hisobiga tushirishi mumkin edi.
 | `GET /devices` | kirgan foydalanuvchi | o'z faol qurilmalari |
 | `POST /devices` | kirgan foydalanuvchi | qurilmani ro'yxatga olish yoki yangilash (`uuid` bilan), push token |
 | `DELETE /devices/{uuid}` | kirgan foydalanuvchi | o'z qurilmasini o'chirish |
+| `PUT /devices/{uuid}/push-token`, `DELETE /devices/{uuid}/push-token` | kirgan foydalanuvchi | o'z qurilmasining push tokenini qo'yish yoki olib tashlash (P1-22, `docs/PUSH.md`); chiqishda server o'zi tozalaydi |
+| `GET/PUT /me/notification-preferences` | kirgan foydalanuvchi | xabar turlari va kanallari (Telegram, push) sozlamalari (`docs/PUSH.md`, 5-bo'lim) |
 | `GET /owner/devices` | `devices.view` | do'kon qurilmalari (`type`, `include_revoked`) |
 | `PATCH /owner/devices/{uuid}` | `devices.manage` | nomini o'zgartirish |
 | `POST /owner/devices/{uuid}/revoke` | `devices.manage` | o'chirish: undagi barcha token va sessiyalar darhol yopiladi |
@@ -180,6 +183,7 @@ superadmin uchun.
 | `menu.view` | Menyuni ko'rish | ✓ | ✓ | ✓ | ✓ | ✓ |  |
 | `menu.manage` | Menyu va narxlarni tahrirlash | ✓ |  |  |  |  |  |
 | `stoplist.manage` | Stop-list (tugadi belgisi) | ✓ | ✓ |  |  |  |  |
+| `batches.manage` | Qozon va partiya qoldig'i: ochish, to'ldirish, yopish (P1-21, docs/MENU.md) | ✓ | ✓ |  |  | ✓ |  |
 | `staff.view` | Xodimlarni ko'rish | ✓ | ✓ |  |  |  |  |
 | `staff.manage` | Xodimlar va rollarni boshqarish | ✓ |  |  |  |  |  |
 | `staff.pin` | Xodim PIN kodini o'rnatish | ✓ | ✓ |  |  |  |  |
@@ -189,6 +193,7 @@ superadmin uchun.
 | `finance.view` | Moliyani ko'rish | ✓ |  |  |  |  |  |
 | `finance.manage` | Pul yechish va to'ldirish | ✓ |  |  |  |  |  |
 | `settings.manage` | Do'kon sozlamalari | ✓ |  |  |  |  |  |
+| `zones.manage` | Yetkazib berish hududlari va narxlari (docs/ZONES.md) | ✓ |  |  |  |  |  |
 | `audit.view` | Harakatlar jurnali | ✓ |  |  |  |  |  |
 | `permissions.manage` | Ruxsatlarni o'zgartirish | ✓ |  |  |  |  |  |
 | `pos.open_shift` | Smenani ochish | ✓ | ✓ | ✓ |  |  |  |
@@ -200,7 +205,7 @@ superadmin uchun.
 **Do'kon bo'yicha o'zgartirish.** Ega `PUT /owner/permissions {role, permission, allowed: true|false|null}` yoki
 panelda "Ruxsatlar" sahifasida menejer, kassir, ofitsiant, oshpaz va kuryer huquqlarini o'zgartira oladi (`null` —
 standartga qaytarish). Ega huquqlari o'zgarmaydi. Quyidagilarni boshqa rolga berib bo'lmaydi: `orders.refund`,
-`finance.manage`, `settings.manage`, `staff.manage`, `audit.view`, `permissions.manage`.
+`finance.manage`, `settings.manage`, `zones.manage`, `staff.manage`, `audit.view`, `permissions.manage`.
 `GET /owner/permissions` — joriy jadval va standartlar. Bu endpointlar chaqiruvchining o'z do'koni uchun: do'konsiz
 superadmin 403 (`data.reason = store_required`) oladi va do'kon ruxsatlarini panel orqali boshqaradi.
 

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { cx } from '../ui/cx';
+import { cx } from '@rizqim/ui';
 
 export type PillTone = 'success' | 'warning' | 'danger' | 'info' | 'brand' | 'neutral';
 

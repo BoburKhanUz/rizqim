@@ -4,16 +4,17 @@ namespace App\Domain\Ops;
 
 class InventoryRisk
 {
-    private int $stock;
+    // A decimal since variants can be sold by weight (P1-21)
+    private float $stock;
     private float $hourlyRate;
 
-    public function __construct(int $stock, float $hourlyRate)
+    public function __construct(int|float $stock, float $hourlyRate)
     {
-        $this->stock = $stock;
+        $this->stock = (float) $stock;
         $this->hourlyRate = $hourlyRate;
     }
 
-    public function getStock(): int
+    public function getStock(): float
     {
         return $this->stock;
     }

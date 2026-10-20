@@ -2,9 +2,12 @@
 
 namespace App\Services\Notifications;
 
+use App\Enums\NotificationType;
 use App\Enums\UserRole;
 use App\Models\Order;
 use App\Models\User;
+use App\Services\Push\OrderPushMessages;
+use App\Services\Push\PushContent;
 use App\Services\Telegram\TelegramMessenger;
 use Illuminate\Support\Facades\Log;
 
@@ -17,7 +20,9 @@ use Illuminate\Support\Facades\Log;
 class OrderAlertService
 {
     public function __construct(
-        protected TelegramMessenger $telegram
+        protected TelegramMessenger $telegram,
+        protected NotificationRouter $router,
+        protected OrderPushMessages $pushMessages,
     ) {}
 
     /**
@@ -43,7 +48,7 @@ class OrderAlertService
                           . "📍 *Yetkazish turi:* {$typeText}\n"
                           . "💰 *Jami Summa:* " . number_format((float) $order->total_price, 0, '.', ' ') . " UZS\n\n"
                           . "Ilovaga kirib qabul qiling.";
-                    $this->send($manager->telegram_id, $text, $order->id, $manager->id, 'telegram_manager_new_order');
+                    $this->send($manager, NotificationType::STAFF_NEW_ORDER, $text, $order->id, 'telegram_manager_new_order');
                 }
             }
         } catch (\Exception $e) {
@@ -57,47 +62,39 @@ class OrderAlertService
     public function statusChanged(Order $order, string $status): void
     {
         try {
-            if (!$this->telegram->isConfigured()) {
-                return;
-            }
-
             // READY -> notify branch manager OR courier
             if ($status === 'ready') {
                 list($displayAddress, $keyboard) = $this->addressAndKeyboard($order->delivery_address, $order->shipping_address);
 
                 // If a courier is assigned, notify that specific courier
-                if ($order->courier_id && $order->courier?->telegram_id) {
+                if ($order->courier_id && $order->courier && $this->router->reachable($order->courier)) {
                     $text = "📦 *Buyurtma tayyor!*\n\n"
                           . "🔢 *Buyurtma ID:* #{$order->short_code}\n"
                           . "📍 *Manzil:* {$displayAddress}\n"
                           . "Yetkazib berishni boshlashingiz mumkin.";
-                    $this->send($order->courier->telegram_id, $text, $order->id, $order->courier_id, 'telegram_courier_ready', $keyboard);
+                    $this->send($order->courier, NotificationType::COURIER_TASKS, $text, $order->id, 'telegram_courier_ready', $keyboard, $this->pushMessages->forCourier($order, assigned: false));
                 } else {
                     // Otherwise notify all couriers in this branch
-                    $couriers = User::where('store_id', $order->store_id)
+                    $couriers = $this->router->onlyReachable(User::where('store_id', $order->store_id)
                         ->where('role', UserRole::COURIER->value)
-                        ->where('branch_id', $order->branch_id)
+                        ->where('branch_id', $order->branch_id))
                         ->get();
                     if ($couriers->isNotEmpty()) {
                         foreach ($couriers as $courier) {
-                            if ($courier->telegram_id) {
-                                $text = "🔔 *Yangi tayyor buyurtma! (Kuryer biriktirilmagan)*\n\n"
-                                      . "🔢 *Buyurtma ID:* #{$order->short_code}\n"
-                                      . "📍 *Manzil:* {$displayAddress}\n"
-                                      . "Menejer orqali o'zingizni biriktirishingizni so'rang.";
-                                $this->send($courier->telegram_id, $text, $order->id, $courier->id, 'telegram_branch_couriers_ready', $keyboard);
-                            }
+                            $text = "🔔 *Yangi tayyor buyurtma! (Kuryer biriktirilmagan)*\n\n"
+                                  . "🔢 *Buyurtma ID:* #{$order->short_code}\n"
+                                  . "📍 *Manzil:* {$displayAddress}\n"
+                                  . "Menejer orqali o'zingizni biriktirishingizni so'rang.";
+                            $this->send($courier, NotificationType::COURIER_TASKS, $text, $order->id, 'telegram_branch_couriers_ready', $keyboard, $this->pushMessages->forCourier($order, assigned: false));
                         }
                     } else {
                         // Fallback: if no couriers are registered, notify managers/owners as they act as couriers
-                        $managers = User::where('store_id', $order->store_id)
-                            ->where('role', UserRole::MANAGER->value)
-                            ->whereNotNull('telegram_id')
+                        $managers = $this->router->onlyReachable(User::where('store_id', $order->store_id)
+                            ->where('role', UserRole::MANAGER->value))
                             ->get();
 
-                        $fallback = $managers->isNotEmpty() ? $managers : User::where('store_id', $order->store_id)
-                            ->where('role', UserRole::OWNER->value)
-                            ->whereNotNull('telegram_id')
+                        $fallback = $managers->isNotEmpty() ? $managers : $this->router->onlyReachable(User::where('store_id', $order->store_id)
+                            ->where('role', UserRole::OWNER->value))
                             ->get();
 
                         foreach ($fallback as $staff) {
@@ -105,7 +102,7 @@ class OrderAlertService
                                   . "🔢 *Buyurtma ID:* #{$order->short_code}\n"
                                   . "📍 *Manzil:* {$displayAddress}\n"
                                   . "Yetkazib berishni boshlashingiz mumkin.";
-                            $this->send($staff->telegram_id, $text, $order->id, $staff->id, 'telegram_courier_ready', $keyboard);
+                            $this->send($staff, NotificationType::COURIER_TASKS, $text, $order->id, 'telegram_courier_ready', $keyboard, $this->pushMessages->forCourier($order, assigned: false));
                         }
                     }
                 }
@@ -122,7 +119,7 @@ class OrderAlertService
     public function courierAssigned(Order $order, ?User $courier): void
     {
         try {
-            if ($this->telegram->isConfigured() && $courier?->telegram_id) {
+            if ($courier !== null && $this->router->reachable($courier)) {
                 list($displayAddress, $keyboard) = $this->addressAndKeyboard($order->delivery_address, $order->shipping_address);
 
                 $text = "🚚 *Yangi buyurtma biriktirildi!*\n\n"
@@ -131,20 +128,27 @@ class OrderAlertService
                       . "💰 *Jami summa:* " . number_format((float) $order->total_price, 0, '.', ' ') . " UZS\n\n"
                       . "Ilovadan buyurtmani qabul qiling va yo'lga chiqing! 🚀";
 
-                $this->send($courier->telegram_id, $text, $order->id, $courier->id, 'telegram_courier_assigned', $keyboard);
+                $this->send($courier, NotificationType::COURIER_TASKS, $text, $order->id, 'telegram_courier_assigned', $keyboard, $this->pushMessages->forCourier($order, assigned: true));
             }
         } catch (\Exception $e) {
-            Log::error("Failed to send telegram notification to courier {$courier?->id}: " . $e->getMessage());
+            Log::error("Failed to send telegram notification to courier {$order->courier_id}: " . $e->getMessage());
         }
     }
 
-    protected function send(string $chatId, string $text, int $orderId, int $userId, string $type, array $replyMarkup = []): void
+    /**
+     * Telegram (as always) and, when given, the app push, each over the channels the recipient keeps on for $type.
+     */
+    protected function send(User $recipient, NotificationType $type, string $text, int $orderId, string $logType, array $replyMarkup = [], ?PushContent $push = null): void
     {
-        $this->telegram->sendMessage($chatId, $text, ['parse_mode' => 'Markdown', 'reply_markup' => $replyMarkup], [
-            'user_id' => $userId,
-            'order_id' => $orderId,
-            'type' => $type,
-        ]);
+        $this->router->send($recipient, new NotificationMessage(
+            $type,
+            telegram: new TelegramContent($text, ['parse_mode' => 'Markdown', 'reply_markup' => $replyMarkup], [
+                'user_id' => $recipient->id,
+                'order_id' => $orderId,
+                'type' => $logType,
+            ]),
+            push: $push,
+        ));
     }
 
     /**

@@ -1,5 +1,5 @@
 import { selectionChanged } from '../../lib/twa';
-import { cx } from '../ui/cx';
+import { cx } from '@rizqim/ui';
 
 export interface Segment<T extends string> {
   value: T;

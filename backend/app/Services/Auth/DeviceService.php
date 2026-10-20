@@ -91,6 +91,7 @@ class DeviceService
 
             if ($device) {
                 $device->fill($attributes + ['last_seen_at' => now()])->save();
+                $this->releasePushTokenElsewhere($device);
 
                 return $device;
             }
@@ -103,10 +104,31 @@ class DeviceService
                 'last_seen_at' => now(),
             ]);
 
+            $this->releasePushTokenElsewhere($device);
             $this->enforceCap($user);
 
             return $device;
         });
+    }
+
+    /**
+     * Set (a string) or clear (null) the push token of a device (P1-22). One install has one token, so the same token
+     * is taken away from any other device row: after a different person signs in on the same phone, the earlier
+     * person's pushes stop reaching it.
+     */
+    public function setPushToken(Device $device, ?string $token): void
+    {
+        DB::transaction(function () use ($device, $token) {
+            $device->forceFill(['push_token' => $token !== null && $token !== '' ? $token : null, 'last_seen_at' => now()])->save();
+            $this->releasePushTokenElsewhere($device);
+        });
+    }
+
+    private function releasePushTokenElsewhere(Device $device): void
+    {
+        if (filled($device->push_token)) {
+            Device::where('push_token', $device->push_token)->where('id', '!=', $device->id)->update(['push_token' => null]);
+        }
     }
 
     /**

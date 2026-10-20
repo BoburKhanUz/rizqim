@@ -14,6 +14,12 @@ use Filament\Schemas\Components\Group;
 use Filament\Schemas\Schema;
 use Filament\Forms\Set;
 use Illuminate\Support\Str;
+use App\Enums\MenuUnit;
+use App\Enums\OrderChannel;
+use App\Models\ModifierGroup;
+use App\Models\Product;
+use App\Services\Catalog\MenuImageService;
+use Filament\Schemas\Components\Utilities\Get;
 
 class ProductForm
 {
@@ -80,8 +86,101 @@ class ProductForm
                                             ->label('Active')
                                             ->default(true)
                                             ->columnSpan(1),
+                                        // P1-21: sold by the piece or by weight (price is per kg / l), batch use
+                                        Select::make('unit')
+                                            ->label("O'lchov birligi")
+                                            ->options(collect(MenuUnit::cases())->mapWithKeys(fn (MenuUnit $unit) => [$unit->value => $unit->label()])->all())
+                                            ->default(MenuUnit::PIECE->value)
+                                            ->required()
+                                            ->live()
+                                            ->columnSpan(2),
+                                        TextInput::make('quantity_step')
+                                            ->label('Qadam')
+                                            ->numeric()
+                                            ->minValue(0.001)
+                                            ->placeholder('0.1')
+                                            ->visible(fn (Get $get) => $get('unit') !== null && $get('unit') !== MenuUnit::PIECE->value)
+                                            ->columnSpan(1),
+                                        TextInput::make('min_quantity')
+                                            ->label('Eng kam')
+                                            ->numeric()
+                                            ->minValue(0.001)
+                                            ->visible(fn (Get $get) => $get('unit') !== null && $get('unit') !== MenuUnit::PIECE->value)
+                                            ->columnSpan(1),
+                                        TextInput::make('batch_consumption')
+                                            ->label('Qozondan (1 birlikka)')
+                                            ->helperText('Masalan 0.7 porsiya uchun 0.7')
+                                            ->numeric()
+                                            ->minValue(0.001)
+                                            ->default(1)
+                                            ->columnSpan(2),
                                     ])
                                     ->columns(6)
+                            ]),
+
+                        // P1-21: the modifier groups this product offers, with per-product rules (docs/MENU.md)
+                        Section::make('Modifikatorlar')
+                            ->description("Taomga ulangan modifikator guruhlari. Bo'sh qoldirilgan qoidalar guruhnikidan olinadi.")
+                            ->collapsible()
+                            ->schema([
+                                Repeater::make('modifierGroupLinks')
+                                    ->relationship()
+                                    ->hiddenLabel()
+                                    ->defaultItems(0)
+                                    ->orderColumn('sort_order')
+                                    ->addActionLabel("Guruh qo'shish")
+                                    ->schema([
+                                        Select::make('modifier_group_id')
+                                            ->label('Guruh')
+                                            ->options(fn () => ModifierGroup::where('store_id', StorePanelScope::storeId())->orderBy('sort_order')->pluck('name', 'id')->all())
+                                            ->required()
+                                            ->distinct()
+                                            ->columnSpan(3),
+                                        TextInput::make('min_select')->label('Kamida')->numeric()->minValue(0)->columnSpan(1),
+                                        TextInput::make('max_select')->label("Ko'pi bilan")->numeric()->minValue(1)->columnSpan(1),
+                                        Select::make('is_required')
+                                            ->label('Majburiy')
+                                            ->options([1 => 'Ha', 0 => "Yo'q"])
+                                            ->placeholder('Guruhdagidek')
+                                            ->columnSpan(1),
+                                    ])
+                                    ->columns(6),
+                            ]),
+
+                        // P1-21: own price or hidden on a sales channel; no row = the variant's price, visible
+                        Section::make('Kanal narxlari')
+                            ->description("Telegram, mobil ilova, POS yoki agregatorda boshqa narx yoki yashirish.")
+                            ->collapsible()
+                            ->collapsed()
+                            ->schema([
+                                Repeater::make('channelPrices')
+                                    ->relationship()
+                                    ->hiddenLabel()
+                                    ->defaultItems(0)
+                                    ->addActionLabel("Qator qo'shish")
+                                    ->mutateRelationshipDataBeforeCreateUsing(fn (array $data) => $data + [
+                                        'store_id' => StorePanelScope::storeId(),
+                                    ])
+                                    ->schema([
+                                        Select::make('channel')
+                                            ->label('Kanal')
+                                            ->options(collect(OrderChannel::cases())->mapWithKeys(fn (OrderChannel $channel) => [$channel->value => $channel->label()])->all())
+                                            ->required()
+                                            ->columnSpan(2),
+                                        Select::make('product_variant_id')
+                                            ->label('Variant')
+                                            // The product's variants (the page's record; none yet while creating)
+                                            ->options(function ($livewire) {
+                                                $product = method_exists($livewire, 'getRecord') ? $livewire->getRecord() : null;
+
+                                                return $product instanceof Product ? $product->variants()->pluck('name', 'id')->all() : [];
+                                            })
+                                            ->placeholder('Butun mahsulot')
+                                            ->columnSpan(2),
+                                        TextInput::make('price')->label('Narx')->numeric()->minValue(0)->prefix('UZS')->columnSpan(1),
+                                        Toggle::make('is_hidden')->label('Yashirish')->default(false)->columnSpan(1),
+                                    ])
+                                    ->columns(6),
                             ]),
                     ])
                     ->columnSpan(['lg' => 2]),
@@ -104,6 +203,8 @@ class ProductForm
                                     ->hiddenLabel()
                                     ->image()
                                     ->imageEditor()
+                                    // P1-21: the menu image disk (S3 when configured); thumbnails are queued on save
+                                    ->disk(fn () => app(MenuImageService::class)->disk())
                                     ->directory('products'),
                             ]),
 
@@ -112,6 +213,11 @@ class ProductForm
                                 Toggle::make('is_active')
                                     ->label('Visible to Customers')
                                     ->default(true),
+                                // P1-21: "tugadi" on a branch unless an open batch (kazan) has something left
+                                Toggle::make('batch_tracked')
+                                    ->label("Qozon bo'yicha sotiladi")
+                                    ->helperText("Yoqilsa, filialda ochiq partiya bo'lmasa taom \"tugadi\" bo'ladi.")
+                                    ->default(false),
                                 TextInput::make('sort_order')
                                     ->label('Display Order')
                                     ->numeric()

@@ -60,6 +60,13 @@ class GlobalUserResource extends Resource
                     ->required(fn ($get) => self::isStoreRole($get('role')))
                     ->dehydratedWhenHidden()
                     ->dehydrateStateUsing(fn ($state, $get) => self::isStoreRole($get('role')) ? $state : null),
+                // P1-24: whose courier this is; the Rizqim fleet is assigned here, not by restaurants
+                Select::make('courier_type')
+                    ->label('Kuryer turi')
+                    ->options(\App\Enums\CourierType::options())
+                    ->default(\App\Enums\CourierType::OWN->value)
+                    ->visible(fn ($get) => $get('role') === UserRole::COURIER->value || $get('role') === UserRole::COURIER)
+                    ->required(fn ($get) => $get('role') === UserRole::COURIER->value || $get('role') === UserRole::COURIER),
                 TextInput::make('password')
                     ->password()
                     ->dehydrated(fn ($state) => filled($state))

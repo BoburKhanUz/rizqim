@@ -1,12 +1,20 @@
-# Rizqim dizayn tizimi (Mini App)
+# Rizqim dizayn tizimi (Mini App va hamkor veb-panel)
 
-Bitta manba: `customer/miniapp/src/index.css` (`--rz-*` o'zgaruvchilar va Tailwind `@theme`). Komponentlar:
-`customer/miniapp/src/components/ui/`. Formatlash: `customer/miniapp/src/lib/format.ts`. Telegram: `customer/miniapp/src/lib/twa.ts`,
-`lib/dialogs.ts`, `hooks/useMainButton.ts`.
+Bitta manba — **`packages/ts/ui`** (`@rizqim/ui`, P1-25): tokenlar `packages/ts/ui/src/styles.css` (`--rz-*` o'zgaruvchilar va
+Tailwind `@theme`), umumiy komponentlar `packages/ts/ui/src/components/` (`Button`, `IconButton`, `StatusBadge`, `Card`,
+`Section`, `EmptyState`, `InlineError`, `Skeleton`, `Field`, `Dialog`, `Spinner`), formatlash `packages/ts/ui/src/lib/format.ts`.
+Paket tilni, routerni va Telegram'ni bilmaydi: matnlar va til prop sifatida beriladi. Mini App ularni `@rizqim/ui` dan oladi
+va `customer/miniapp/src/components/ui/` da faqat Mini App'ga xos qismlar qoladi: `StatusBadge`, `InlineError`, `Dialog` (til
+ombori bilan qoplagich), `PageHeader`, `ProductImage`, `BottomDock`, `MainButtonHost`, `DialogHost`. Formatlash:
+`customer/miniapp/src/lib/format.ts` (tilni `languageStore` dan olib `@rizqim/ui` ga uzatadi). Telegram:
+`customer/miniapp/src/lib/twa.ts`, `lib/dialogs.ts`, `hooks/useMainButton.ts`. Hamkor veb-panel (`partner/web`) shu paketni
+to'g'ridan-to'g'ri ishlatadi. Ulash va ishlatish: `packages/ts/ui/README.md`.
 
-Mavzu (light/dark) Telegram'dan olinadi: `lib/twa.ts` `<html data-theme>` ni `WebApp.colorScheme` bo'yicha qo'yadi va
-`themeChanged` da yangilaydi. Telegram tashqarisida tizim sozlamasi (`prefers-color-scheme`) ishlaydi. Telegram
-ranglari faqat `page`, `surface`, `fg`, `fg-subtle` uchun ishlatiladi; `fg-muted`, brend va holat ranglari — Rizqim'niki.
+Mavzu (light/dark) Mini App'da Telegram'dan olinadi: `lib/twa.ts` `<html data-theme>` ni `WebApp.colorScheme` bo'yicha qo'yadi va
+`themeChanged` da yangilaydi. Telegram tashqarisida (va hamkor veb-panelda) tizim sozlamasi (`prefers-color-scheme`) ishlaydi. Telegram
+ranglari faqat `page`, `surface`, `fg`, `fg-subtle` uchun ishlatiladi; `fg-muted`, brend va holat ranglari — Rizqim'niki. Telegram
+ranglari tokenlarga `--rz-host-page`, `--rz-host-surface`, `--rz-host-fg`, `--rz-host-fg-subtle` ilgaklari orqali beriladi
+(`customer/miniapp/src/index.css`); ilgak berilmasa (veb-panel) tokenning o'z qiymati ishlaydi.
 
 ## Palitra
 
@@ -85,7 +93,7 @@ ishlatilmaydi. KATTA HARFLI + keng harf oralig'i sarlavhalar yo'q.
 
 `rounded-control` 10px (input, chip) · `rounded-card` 16px (kartochka, tugma) · `rounded-sheet` 24px (sheet, dialog).
 
-## Komponentlar (`components/ui`)
+## Komponentlar (`packages/ts/ui` va Mini App `components/ui`)
 
 | Komponent | Qachon |
 |---|---|
@@ -113,7 +121,7 @@ Pastki dock (`components/ui/BottomDock.tsx`): MainButton o'rinbosari → savat p
 Safe area (`env(safe-area-inset-bottom)`, `--tg-safe-area-inset-bottom`, `--tg-content-safe-area-inset-bottom`)
 hisobga olinadi. Sahifalarda `fixed bottom-[NNpx]` yozmang.
 
-## Holat ranglari (`lib/orderStatus.ts`)
+## Holat ranglari (`packages/ts/ui/src/lib/orderStatus.ts`; Mini App'da `lib/orderStatus.ts` unga yorliq kalitlarini qo'shadi)
 
 | Guruh | Holatlar | Badge |
 |---|---|---|
@@ -148,7 +156,7 @@ Bir guruhdagi holatlar ikonka va yorliq bilan farqlanadi, rang bilan emas. Badge
 
 ## Nazorat
 
-`src/test/designSystem.test.ts` har bir `.tsx` faylni tekshiradi (xom ranglar, eski aliaslar, < 12px matn,
+`customer/miniapp/src/test/designSystem.test.ts` har bir `.tsx` faylni (shu jumladan `packages/ts/ui/src` dagilarni) tekshiradi (xom ranglar, eski aliaslar, < 12px matn,
 `alert/confirm`). Hali o'tkazilmagan fayllar `src/test/designSystemAllowlist.ts` da. Faylni o'tkazgach uni ro'yxatdan
 o'chiring; ro'yxatdagi toza fayl testni yiqitadi (ro'yxat faqat qisqaradi). Asosli istisno: qator oxirida
 `design-ok: <sabab>` izohi.

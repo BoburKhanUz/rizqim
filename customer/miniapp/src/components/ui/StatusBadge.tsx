@@ -1,6 +1,6 @@
+import { StatusBadge as BaseStatusBadge } from '@rizqim/ui';
 import { getOrderStatusLook } from '../../lib/orderStatus';
 import { useLanguageStore } from '../../store/languageStore';
-import { cx } from './cx';
 
 interface StatusBadgeProps {
   status: string;
@@ -9,24 +9,13 @@ interface StatusBadgeProps {
   className?: string;
 }
 
-// The badge of an order status: semantic colour + an icon + a label (lib/orderStatus.ts has the table).
+// The badge of an order status: semantic colour + an icon + a label (lib/orderStatus.ts has the table). The look
+// comes from @rizqim/ui; the words from the Mini App's language store.
 export function StatusBadge({ status, audience = 'customer', className }: StatusBadgeProps) {
   const t = useLanguageStore((state) => state.t);
   // Subscribing to the language re-renders the badge when it changes (t itself never changes)
   useLanguageStore((state) => state.language);
   const look = getOrderStatusLook(status);
   const key = audience === 'staff' ? look.staffLabelKey : look.labelKey;
-  const Icon = look.icon;
-  return (
-    <span
-      className={cx(
-        'inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-1 text-caption font-bold',
-        look.badge,
-        className,
-      )}
-    >
-      <Icon aria-hidden="true" className="size-3.5 shrink-0" />
-      <span>{key ? t(key) : status}</span>
-    </span>
-  );
+  return <BaseStatusBadge status={status} label={key ? t(key) : status} className={className} />;
 }

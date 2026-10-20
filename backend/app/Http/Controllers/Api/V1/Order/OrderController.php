@@ -21,6 +21,7 @@ use App\Services\Order\PaymentLinkService;
 use App\Services\Notifications\TelegramNotificationService;
 use App\Services\Telegram\TelegramMessenger;
 use Dedoc\Scramble\Attributes\Group;
+use Dedoc\Scramble\Attributes\HeaderParameter;
 use Dedoc\Scramble\Attributes\QueryParameter;
 use Dedoc\Scramble\Attributes\Response as ApiDocResponse;
 use Illuminate\Support\Facades\Gate;
@@ -158,14 +159,25 @@ class OrderController extends Controller
      * Prices, stock, the promo code and the delivery fee are checked on the server. `payment_url` is set for online
      * payment methods (Click, Payme): open it to pay; the order is cancelled when it stays unpaid. 400 with the reason
      * when the order cannot be placed (store closed, item unavailable, minimum not reached...).
+     *
+     * P1-21 (docs/MENU.md): `items.*.quantity` may be a fraction for items sold by weight (kg/l, at least
+     * `min_quantity`, in `quantity_step` steps); `items.*.modifiers` lists the chosen modifiers as uuids or
+     * `{id: uuid, quantity}`; prices always come from the server. 422 when a modifier rule is broken, the item is on
+     * the branch's stop-list, its batch is sold out ("tugadi") or it is hidden on the channel. `channel` is
+     * `telegram` (default) or `mobile`. An `Idempotency-Key` header makes retries safe: the same key with the same body
+     * within 24 hours returns the first response (header `Idempotent-Replayed: true`), with another body 409.
      */
+    #[HeaderParameter('Idempotency-Key', description: 'Optional, 1-255 visible characters (e.g. a UUID made per checkout attempt). Same key + same body within 24 hours: the first response is returned again; another body: 409.', type: 'string')]
     public function store(Request $request): JsonResponse
     {
         $request->validate([
             'store_id' => 'required|exists:stores,id',
             'items' => 'required|array|min:1',
             'items.*.variant_id' => 'required|uuid',
-            'items.*.quantity' => 'required|integer|min:1',
+            // P1-21: a fraction for items sold by weight (0.5 kg, at most 3 decimals); pieces stay whole (checked per unit)
+            'items.*.quantity' => 'required|numeric|gt:0|max:9999',
+            'items.*.modifiers' => 'nullable|array|max:50',
+            'channel' => ['nullable', 'string', Rule::in(\App\Enums\OrderChannel::customerValues())],
             'type' => 'required|string|in:delivery,pickup,dine_in',
             'payment_method' => 'required|string|in:cash,click,payme,uzum,paynet,keshbek',
             'branch_id' => 'required_if:type,pickup|nullable|exists:branches,id',
@@ -181,7 +193,7 @@ class OrderController extends Controller
             $order = $this->createOrderAction->execute(
                 $request->user(),
                 $request->items,
-                $request->only(['store_id', 'type', 'payment_method', 'address', 'latitude', 'longitude', 'branch_id', 'notes', 'promo_code'])
+                $request->only(['store_id', 'type', 'payment_method', 'address', 'latitude', 'longitude', 'branch_id', 'notes', 'promo_code', 'channel'])
             );
 
             $this->alerts->newOrder($order);
