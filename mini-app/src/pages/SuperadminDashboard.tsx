@@ -6,8 +6,9 @@ import {
 import { hapticFeedback } from '../lib/telegram';
 import api from '../services/api';
 import { logApiError } from '../lib/apiError';
-import { FullScreenLoader, ErrorFallback } from '../components/Feedback';
-import { toAmount } from '../lib/money';
+import { FullScreenLoader } from '../components/Feedback';
+import { InlineError } from '../components/ui/InlineError';
+import { formatMoney, formatNumber } from '../lib/format';
 import type { Amount, ApiResponse, DashboardStats } from '../types';
 
 export default function SuperadminDashboard() {
@@ -44,25 +45,23 @@ export default function SuperadminDashboard() {
     setReloadCount((count) => count + 1);
   };
 
-  const formatMoney = (amount: Amount) => {
-    const num = Math.round(toAmount(amount));
-    return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + " so'm";
-  };
-
-  const formatPoints = (amount: Amount) => {
-    const num = Math.round(toAmount(amount));
-    return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + " ball";
-  };
+  const formatPoints = (amount: Amount) => `${formatNumber(amount)} ball`;
 
   if (loading && !stats) return <FullScreenLoader message="Statistikalar yuklanmoqda..." />;
-  if (error) return <ErrorFallback error={error} />;
+  if (error) {
+    return (
+      <div className="p-4">
+        <InlineError onRetry={refresh} retrying={loading} />
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 pb-28 animate-fade-in space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-black text-text-h">Boshqaruv Paneli</h1>
+          <h1 className="text-2xl font-black text-fg">Boshqaruv Paneli</h1>
           <p className="text-xs text-hint font-medium">Tizimning umumiy holati</p>
         </div>
         <button 
@@ -105,13 +104,13 @@ export default function SuperadminDashboard() {
         {/* Current Month (Calendar Month) */}
         <div className="bg-secondary rounded-[24px] p-4 border border-hint/10 space-y-3">
           <div className="flex justify-between items-center border-b border-hint/10 pb-2">
-            <span className="text-xs font-bold text-text-h">Joriy oy (Taqvim bo'yicha)</span>
+            <span className="text-xs font-bold text-fg">Joriy oy (Taqvim bo'yicha)</span>
             <span className="text-[10px] font-medium text-hint">1-sanadan bugungacha</span>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <span className="text-[9px] font-bold text-hint uppercase">GMV Aylanma</span>
-              <p className="text-sm font-black text-text-h mt-0.5">{formatMoney(stats?.monthly_gmv || 0)}</p>
+              <p className="text-sm font-black text-fg mt-0.5">{formatMoney(stats?.monthly_gmv || 0)}</p>
             </div>
             <div>
               <span className="text-[9px] font-bold text-hint uppercase">Platforma foydasi</span>
@@ -123,13 +122,13 @@ export default function SuperadminDashboard() {
         {/* Last 30 Days (Rolling) */}
         <div className="bg-secondary rounded-[24px] p-4 border border-hint/10 space-y-3">
           <div className="flex justify-between items-center border-b border-hint/10 pb-2">
-            <span className="text-xs font-bold text-text-h">Oxirgi 30 kunlik</span>
+            <span className="text-xs font-bold text-fg">Oxirgi 30 kunlik</span>
             <span className="text-[10px] font-medium text-hint">Rolling 30 kun</span>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <span className="text-[9px] font-bold text-hint uppercase">GMV Aylanma</span>
-              <p className="text-sm font-black text-text-h mt-0.5">{formatMoney(stats?.last_30_days_gmv || 0)}</p>
+              <p className="text-sm font-black text-fg mt-0.5">{formatMoney(stats?.last_30_days_gmv || 0)}</p>
             </div>
             <div>
               <span className="text-[9px] font-bold text-hint uppercase">Platforma foydasi</span>
@@ -149,7 +148,7 @@ export default function SuperadminDashboard() {
         <div className="grid grid-cols-3 gap-2">
           <div className="bg-secondary rounded-[20px] p-3 border border-hint/10 flex flex-col justify-between">
             <span className="text-[9px] font-bold text-hint uppercase">Bugun GMV</span>
-            <span className="text-xs font-black text-text-h mt-1">{formatMoney(stats?.today_gmv || 0)}</span>
+            <span className="text-xs font-black text-fg mt-1">{formatMoney(stats?.today_gmv || 0)}</span>
           </div>
 
           <div className="bg-secondary rounded-[20px] p-3 border border-hint/10 flex flex-col justify-between">
@@ -184,7 +183,7 @@ export default function SuperadminDashboard() {
 
           <div className="bg-secondary rounded-[20px] p-3 border border-hint/10 flex flex-col justify-between relative overflow-hidden">
             <span className="text-[9px] font-bold text-hint uppercase">Kutilayotgan Payout</span>
-            <span className={`text-xs font-black mt-1 ${stats?.pending_payouts && stats.pending_payouts > 0 ? 'text-blue-500 animate-pulse' : 'text-text-h'}`}>
+            <span className={`text-xs font-black mt-1 ${stats?.pending_payouts && stats.pending_payouts > 0 ? 'text-blue-500 animate-pulse' : 'text-fg'}`}>
               {stats?.pending_payouts || 0} ta
             </span>
           </div>
@@ -201,7 +200,7 @@ export default function SuperadminDashboard() {
         <div className="grid grid-cols-3 gap-2">
           <div className="bg-secondary rounded-[20px] p-3 border border-hint/10 flex flex-col justify-between">
             <span className="text-[9px] font-bold text-hint uppercase">Jami</span>
-            <span className="text-xs font-black text-text-h mt-1">{stats?.total_stores || 0} ta</span>
+            <span className="text-xs font-black text-fg mt-1">{stats?.total_stores || 0} ta</span>
           </div>
 
           <div className="bg-secondary rounded-[20px] p-3 border border-hint/10 flex flex-col justify-between">
@@ -225,7 +224,7 @@ export default function SuperadminDashboard() {
             </div>
             <div>
               <p className="text-[10px] font-bold text-hint uppercase tracking-wider">Umumiy Mijozlar</p>
-              <h3 className="text-sm font-black text-text-h">{stats?.total_users || 0} ta</h3>
+              <h3 className="text-sm font-black text-fg">{stats?.total_users || 0} ta</h3>
             </div>
           </div>
         </div>

@@ -4,16 +4,15 @@ import { useAuthStore } from '../store/authStore';
 import { useAddressStore } from '../store/useAddressStore';
 import { hapticFeedback } from '../lib/telegram';
 import { useCanAddToCart } from '../hooks/useCanAddToCart';
-import { ErrorFallback } from '../components/Feedback';
+import { InlineError } from '../components/ui/InlineError';
 import api from '../services/api';
 import { Search, X, MapPin, Heart, Star, Plus, Bell } from 'lucide-react';
 import HeroPromoSlider from '../components/HeroPromoSlider';
 import { useNavigate } from 'react-router-dom';
 import VariantSelectorModal from '../components/VariantSelectorModal';
 import { useLanguageStore } from '../store/languageStore';
-import { formatUzbekSum } from '../lib/format';
+import { formatMoney } from '../lib/format';
 import { buildCartItem, getProductBasePrice, getStoreInfo } from '../lib/catalog';
-import { getErrorMessage } from '../lib/apiError';
 import { getLocationParams } from '../lib/location';
 import type { ApiResponse, Category, FeedCatalog, Product, ProductVariant, Promo, StoreListItem } from '../types';
 
@@ -36,6 +35,7 @@ export default function Home() {
   const [stores, setStores] = useState<StoreListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>(null);
+  const [reloadKey, setReloadKey] = useState(0); // bumped by "Qayta urinish" after a failed load
   
   // Favorites mock state
   const [favoriteStores, setFavoriteStores] = useState<string[]>([]);
@@ -44,6 +44,7 @@ export default function Home() {
     const fetchData = async () => {
       try {
         setLoading(true);
+        setError(null);
         const params = getLocationParams(activeAddress);
 
         const [catalogRes, storesRes] = await Promise.all([
@@ -67,7 +68,7 @@ export default function Home() {
       }
     };
     fetchData();
-  }, [activeAddress]);
+  }, [activeAddress, reloadKey]);
 
   const toggleFavoriteStore = (e: React.MouseEvent, uuid: string) => {
     e.stopPropagation();
@@ -120,7 +121,13 @@ export default function Home() {
     return filtered;
   }, [searchQuery, products, stores]);
 
-  if (error) return <ErrorFallback error={getErrorMessage(error) || "Failed to load"} />;
+  if (error) {
+    return (
+      <div className="p-4">
+        <InlineError onRetry={() => setReloadKey((key) => key + 1)} />
+      </div>
+    );
+  }
   if (loading) {
     return (
       <div className="space-y-6 pb-24 bg-white min-h-screen">
@@ -309,7 +316,7 @@ export default function Home() {
             <h3 className="text-sm font-black text-slate-800 mt-1 line-clamp-1">{bugungiOshProduct.name}</h3>
             <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">{bugungiOshProduct.description}</p>
             <div className="flex items-center gap-2 mt-2">
-              <span className="text-xs font-black text-slate-800">{formatUzbekSum(getProductBasePrice(bugungiOshProduct))}</span>
+              <span className="text-xs font-black text-slate-800">{formatMoney(getProductBasePrice(bugungiOshProduct))}</span>
               <button 
                 onClick={(e) => handleAddToCart(e, bugungiOshProduct)}
                 className="bg-amber-500 hover:bg-amber-600 text-white text-[9px] font-black px-2.5 py-1 rounded-lg transition"
@@ -385,7 +392,7 @@ export default function Home() {
                   <span className="text-[10px] font-black text-amber-500 flex items-center gap-0.5">
                     <Star className="w-3 h-3 fill-amber-500" /> {store.rating || "4.5"}
                   </span>
-                  <span className="text-[9px] text-slate-400 font-bold">Min: {formatUzbekSum(store.min_order !== undefined && store.min_order !== null ? store.min_order : 30000)}</span>
+                  <span className="text-[9px] text-slate-400 font-bold">Min: {formatMoney(store.min_order !== undefined && store.min_order !== null ? store.min_order : 30000)}</span>
                 </div>
               </div>
             );
@@ -437,7 +444,7 @@ export default function Home() {
                   <p className="text-[10px] text-slate-400 font-medium line-clamp-2 mt-1 leading-relaxed">{product.description}</p>
                 </div>
                 <div className="flex items-center justify-between mt-3.5 pt-2 border-t border-slate-50">
-                  <span className="text-[11px] font-black text-slate-800">{formatUzbekSum(getProductBasePrice(product))}</span>
+                  <span className="text-[11px] font-black text-slate-800">{formatMoney(getProductBasePrice(product))}</span>
                   <button 
                     aria-label="Savatga qo'shish"
                     onClick={(e) => handleAddToCart(e, product)} 

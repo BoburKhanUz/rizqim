@@ -136,7 +136,7 @@ export default function SuperadminCreateStore() {
           <ChevronLeft className="w-6 h-6 text-text" />
         </button>
         <div>
-          <h1 className="text-xl font-black text-text-h">Yangi Restoran</h1>
+          <h1 className="text-xl font-black text-fg">Yangi Restoran</h1>
         </div>
       </div>
 
@@ -275,7 +275,7 @@ export default function SuperadminCreateStore() {
         <button 
           type="submit" 
           disabled={loading}
-          className="w-full bg-primary text-white font-extrabold text-sm py-4 rounded-2xl active:scale-95 transition-transform shadow-lg shadow-primary/20 flex items-center justify-center gap-2"
+          className="w-full bg-primary text-on-brand font-extrabold text-sm py-4 rounded-2xl active:scale-95 transition-transform shadow-lg shadow-primary/20 flex items-center justify-center gap-2"
         >
           {loading ? (
              <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>

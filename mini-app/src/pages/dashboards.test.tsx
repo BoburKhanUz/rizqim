@@ -62,7 +62,7 @@ describe('ManagerDashboard', () => {
 
     expect(screen.getByText('#A100')).toBeInTheDocument();
     expect(screen.getByText('Lavash x2')).toBeInTheDocument();
-    expect(screen.getByText(/^45\D?000 UZS$/)).toBeInTheDocument(); // the decimal string, read as a number
+    expect(screen.getByText(/^45 000 so'm$/)).toBeInTheDocument(); // the decimal string, read as a number
     expect(screen.queryByText('#A200')).not.toBeInTheDocument(); // finished orders are on the other tab
   });
 
@@ -76,7 +76,7 @@ describe('ManagerDashboard', () => {
     await settle(8000 + 2000); // the next poll fails, and so does its retry
 
     expect(screen.getByText('#A100')).toBeInTheDocument();
-    expect(screen.queryByText('Authentication Failed')).not.toBeInTheDocument();
+    expect(screen.queryByText("Ma'lumotlarni yuklab bo'lmadi")).not.toBeInTheDocument();
   });
 
   it('shows the error screen when the very first load fails: there is nothing else to show', async () => {
@@ -85,20 +85,22 @@ describe('ManagerDashboard', () => {
     renderWithClient(<ManagerDashboard />);
     await settle(5000);
 
-    expect(screen.getByText('Failed to fetch store orders.')).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent("Ma'lumotlarni yuklab bo'lmadi");
+    expect(screen.getByRole('button', { name: 'Qayta urinish' })).toBeInTheDocument();
   });
 
   it('recovers by itself once the server answers again', async () => {
     get.mockRejectedValue(failedRequest(502, {}, '/orders'));
     renderWithClient(<ManagerDashboard />);
     await settle(5000);
-    expect(screen.getByText('Failed to fetch store orders.')).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent("Ma'lumotlarni yuklab bo'lmadi");
+    expect(screen.getByRole('button', { name: 'Qayta urinish' })).toBeInTheDocument();
 
     serveOrders([makeOrder({ id: 1, short_code: 'A100', status: 'new' })]);
     await settle(60_000); // after the longer wait of the backed-off poll
 
     expect(screen.getByText('#A100')).toBeInTheDocument();
-    expect(screen.queryByText('Failed to fetch store orders.')).not.toBeInTheDocument();
+    expect(screen.queryByText("Ma'lumotlarni yuklab bo'lmadi")).not.toBeInTheDocument();
   });
 
   it('does not poll while the page is hidden', async () => {
@@ -130,7 +132,7 @@ describe('CourierDashboard', () => {
     renderWithClient(<CourierDashboard />);
     await settle();
 
-    expect(screen.getByText(/^20\D?000\.5 UZS$/)).toBeInTheDocument();
+    expect(screen.getByText(/^20 001 so'm$/)).toBeInTheDocument();
     expect(screen.getByText(/^3 ta$/)).toBeInTheDocument();
   });
 
@@ -143,7 +145,7 @@ describe('CourierDashboard', () => {
     renderWithClient(<CourierDashboard />);
     await settle();
 
-    expect(screen.getByText(/^5\D?000 UZS$/)).toBeInTheDocument();
+    expect(screen.getByText(/^5 000 so'm$/)).toBeInTheDocument();
     expect(screen.queryByText(/NaN/)).not.toBeInTheDocument();
   });
 
@@ -157,7 +159,7 @@ describe('CourierDashboard', () => {
     await settle(15_000 + 2000);
 
     expect(screen.getByText('#K100')).toBeInTheDocument();
-    expect(screen.queryByText('Failed to fetch courier deliveries.')).not.toBeInTheDocument();
+    expect(screen.queryByText("Ma'lumotlarni yuklab bo'lmadi")).not.toBeInTheDocument();
   });
 });
 
@@ -178,7 +180,7 @@ describe('AdminReports', () => {
     renderWithClient(<AdminReports />);
     await settle();
 
-    expect(screen.getByText(/^42\D?500\.5 UZS$/)).toBeInTheDocument();
+    expect(screen.getByText(/^42 501 so'm$/)).toBeInTheDocument();
   });
 });
 
@@ -403,7 +405,7 @@ describe('CourierDashboard: today\'s deliveries', () => {
     renderWithClient(<CourierDashboard />);
     await settle();
 
-    expect(screen.getByText(/^12\D?000 UZS$/)).toBeInTheDocument();
+    expect(screen.getByText(/^12 000 so'm$/)).toBeInTheDocument();
     expect(screen.getByText(/^2 ta$/)).toBeInTheDocument();
   });
 
@@ -446,13 +448,13 @@ describe('AdminReports: finished orders of the period', () => {
 
   it('adds the finished orders of later pages to the report', async () => {
     const today = new Date(2026, 9, 14, 12, 0, 0).toISOString();
-    // 60 orders delivered today (three pages of 50 would hold them): each is 1 000 UZS
+    // 60 orders delivered today (three pages of 50 would hold them): each is 1 000 so'm
     serveOrders(Array.from({ length: 60 }, (_, i) => makeOrder({ id: i + 1, status: 'delivered', total_price: '1000.00', created_at: today, updated_at: today })));
 
     renderWithClient(<AdminReports />);
     await settle(100);
 
-    expect(screen.getByText(/^60\D?000 UZS$/)).toBeInTheDocument();
+    expect(screen.getByText(/^60 000 so'm$/)).toBeInTheDocument();
   });
 
   it('says so when the period was not loaded in full', async () => {

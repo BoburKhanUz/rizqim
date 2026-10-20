@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLanguageStore } from '../store/languageStore';
 import { useAuthStore } from '../store/authStore';
 import { hapticFeedback } from '../lib/telegram';
-import { ErrorFallback } from '../components/Feedback';
+import { InlineError } from '../components/ui/InlineError';
 import { 
   Bike, 
   CheckCircle, 
@@ -14,6 +14,8 @@ import {
 import api from '../services/api';
 import { getApiErrorMessage, getApiFieldError, logApiError } from '../lib/apiError';
 import { toAmount } from '../lib/money';
+import { formatMoney } from '../lib/format';
+import { getPaymentMethodLabel } from '../lib/paymentMethod';
 import { POLL_INTERVAL_MS } from '../lib/polling';
 import { NO_ORDERS, ORDERS_KEY, useOrderHistory, useStaffOrders } from '../hooks/useOrders';
 import { StaffCancelDialog } from '../components/CancelDialogs';
@@ -43,7 +45,7 @@ const isCancellation = (status: OrderStatus) => status === 'canceled' || status 
 
 export default function ManagerDashboard() {
   const { user } = useAuthStore();
-  const { language } = useLanguageStore();
+  const { language, t } = useLanguageStore();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<'active' | 'completed'>('active');
   const [selectedCourierId, setSelectedCourierId] = useState<Record<string, number>>({});
@@ -51,7 +53,7 @@ export default function ManagerDashboard() {
   const [cancelError, setCancelError] = useState<string | null>(null);
 
   // 1. Fetch the open store orders: polled while the screen is visible, pushed over the socket when it is up
-  const { data: activeData, isLoading, error } = useStaffOrders('manager', POLL_INTERVAL_MS.managerOrders);
+  const { data: activeData, isLoading, error, refetch: refetchActive, isRefetching: isRefetchingActive } = useStaffOrders('manager', POLL_INTERVAL_MS.managerOrders);
   const orders = activeData?.orders ?? NO_ORDERS;
 
   // The finished orders (the archive tab) come a page at a time, once the tab is opened
@@ -119,13 +121,17 @@ export default function ManagerDashboard() {
   };
 
   // A failed background refresh keeps showing the last orders; the error screen is only for "nothing to show"
-  if (error && orders.length === 0) return <ErrorFallback error="Failed to fetch store orders." />;
+  if (error && orders.length === 0) {
+    return (
+      <div className="p-4">
+        <InlineError onRetry={() => void refetchActive()} retrying={isRefetchingActive} />
+      </div>
+    );
+  }
 
   const activeOrders = orders.filter((order) => ACTIVE_STATUSES.includes(order.status));
 
-  const formatPrice = (price: number) => {
-    return price.toLocaleString() + ' UZS';
-  };
+  const formatPrice = (price: number) => formatMoney(price, language);
 
   const getCleanAddress = (addressText: string | null) => {
     if (!addressText) return '';
@@ -137,16 +143,6 @@ export default function ManagerDashboard() {
     return addressText;
   };
 
-  const getPaymentMethodLabel = (method: string) => {
-    switch (method?.toLowerCase()) {
-      case 'cash': return language === 'uz' ? 'Naqd pul 💵' : 'Наличные 💵';
-      case 'card':
-      case 'terminal': return language === 'uz' ? 'Plastik karta 💳' : 'Карта 💳';
-      case 'click': return 'Click 📱';
-      case 'payme': return 'Payme 📱';
-      default: return method?.toUpperCase();
-    }
-  };
 
   // --- Individual Order Stage Time Trackers ---
   const getStageDurations = (order: Order) => {
@@ -195,7 +191,7 @@ export default function ManagerDashboard() {
               </span>
               <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
             </div>
-            <h1 className="text-sm font-black text-text-h">
+            <h1 className="text-sm font-black text-fg">
               {user?.name}
             </h1>
           </div>
@@ -246,7 +242,7 @@ export default function ManagerDashboard() {
           onClick={() => { hapticFeedback('light'); setActiveTab('active'); }}
           className={`flex-1 py-3 text-xs font-black rounded-xl transition-all ${
             activeTab === 'active' 
-              ? 'bg-primary text-white shadow-sm' 
+              ? 'bg-primary text-on-brand shadow-sm' 
               : 'text-hint'
           }`}
         >
@@ -256,7 +252,7 @@ export default function ManagerDashboard() {
           onClick={() => { hapticFeedback('light'); setActiveTab('completed'); }}
           className={`flex-1 py-3 text-xs font-black rounded-xl transition-all ${
             activeTab === 'completed' 
-              ? 'bg-primary text-white shadow-sm' 
+              ? 'bg-primary text-on-brand shadow-sm' 
               : 'text-hint'
           }`}
         >
@@ -301,7 +297,7 @@ export default function ManagerDashboard() {
                       <span className="text-[10px] font-black uppercase text-hint tracking-wider">
                         #{order.short_code}
                       </span>
-                      <span className="text-xs font-black text-text-h">
+                      <span className="text-xs font-black text-fg">
                         {order.user?.name}
                       </span>
                     </div>
@@ -332,13 +328,13 @@ export default function ManagerDashboard() {
                         <span>{item.product_name} x{item.quantity}</span>
                       </div>
                     ))}
-                    <div className="flex justify-between items-center text-[11px] font-black text-text-h border-t border-hint/5 pt-2 mt-1">
+                    <div className="flex justify-between items-center text-[11px] font-black text-fg border-t border-hint/5 pt-2 mt-1">
                       <span>{language === 'uz' ? 'Jami summa' : 'Сумма'}</span>
                       <span className="text-primary">{formatPrice(toAmount(order.total_price))}</span>
                     </div>
                     <div className="flex justify-between items-center text-[10px] text-hint font-medium pt-1">
                       <span>{language === 'uz' ? 'To\'lov turi' : 'Оплата'}</span>
-                      <span>{getPaymentMethodLabel(order.payment_method)}</span>
+                      <span>{getPaymentMethodLabel(order.payment_method, t)}</span>
                     </div>
                   </div>
 
@@ -350,7 +346,7 @@ export default function ManagerDashboard() {
                         {language === 'uz' ? 'Operatsion vaqtlar hisobi' : 'Хронология заказа'}
                       </span>
                       
-                      <div className="flex flex-col gap-2 text-[10px] font-bold text-text-h">
+                      <div className="flex flex-col gap-2 text-[10px] font-bold text-fg">
                         {timings.acceptTime && (
                           <div className="flex justify-between items-center bg-secondary/50 px-3 py-1.5 rounded-xl">
                             <span className="text-hint">🆕 ➔ ✅ {language === 'uz' ? 'Qabul qilish' : 'Принятие'}:</span>
@@ -387,7 +383,7 @@ export default function ManagerDashboard() {
                       </span>
                       <div className="flex gap-2 mt-1 items-start">
                         <MapPin className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" />
-                        <span className="text-[11px] text-text-h font-bold leading-normal">
+                        <span className="text-[11px] text-fg font-bold leading-normal">
                           {getCleanAddress(order.address)}
                         </span>
                       </div>
@@ -400,7 +396,7 @@ export default function ManagerDashboard() {
                       <div className="flex gap-2">
                         <button
                           onClick={() => updateStatusMutation.mutate({ orderUuid: order.uuid, status: 'accepted' })}
-                          className="flex-1 bg-primary text-white font-extrabold text-[11px] py-3 rounded-xl active:scale-95 transition-all shadow-md shadow-primary/10"
+                          className="flex-1 bg-primary text-on-brand font-extrabold text-[11px] py-3 rounded-xl active:scale-95 transition-all shadow-md shadow-primary/10"
                         >
                           {language === 'uz' ? 'Qabul qilish ✅' : 'Принять ✅'}
                         </button>
@@ -449,7 +445,7 @@ export default function ManagerDashboard() {
                                     [order.uuid]: parseInt(e.target.value)
                                   }));
                                 }}
-                                className="w-full px-3 py-2 rounded-xl bg-bg border border-hint/15 font-bold text-xs text-text-h outline-none"
+                                className="w-full px-3 py-2 rounded-xl bg-bg border border-hint/15 font-bold text-xs text-fg outline-none"
                               >
                                 <option value="">-- {language === 'uz' ? 'Kuryerni tanlang' : 'Выбрать курьера'} --</option>
                                 {couriers.map((courier) => (
@@ -486,7 +482,7 @@ export default function ManagerDashboard() {
                       <div className="flex flex-col gap-1.5 p-2 bg-bg/40 rounded-2xl text-[10px] text-hint font-bold">
                         <div className="flex justify-between items-center">
                           <span>{language === 'uz' ? 'Biriktirilgan kuryer' : 'Назначенный курьер'}</span>
-                          <span className="text-text-h">{order.courier?.name || 'Kuryer'}</span>
+                          <span className="text-fg">{order.courier?.name || 'Kuryer'}</span>
                         </div>
                         <p className="text-[9px] text-amber-500 mt-1 italic">
                           {language === 'uz' ? 'Kuryer buyurtmani qabul qilib yo\'lga chiqishini kutmoqda...' : 'Ожидание принятия курьером...'}
@@ -494,7 +490,7 @@ export default function ManagerDashboard() {
                         <div className="flex gap-2 mt-2">
                           <button
                             onClick={() => updateStatusMutation.mutate({ orderUuid: order.uuid, status: 'on_the_way' })}
-                            className="flex-1 bg-primary text-white font-extrabold text-[11px] py-2.5 rounded-xl active:scale-95 transition-all"
+                            className="flex-1 bg-primary text-on-brand font-extrabold text-[11px] py-2.5 rounded-xl active:scale-95 transition-all"
                           >
                             {language === 'uz' ? 'Yo\'lga chiqdi 🚚' : 'В пути 🚚'}
                           </button>
@@ -506,7 +502,7 @@ export default function ManagerDashboard() {
                       <div className="flex flex-col gap-1.5 p-2 bg-bg/40 rounded-2xl text-[10px] text-hint font-bold">
                         <div className="flex justify-between items-center">
                           <span>{language === 'uz' ? 'Mas\'ul kuryer' : 'Курьер'}</span>
-                          <span className="text-text-h">{order.courier?.name || 'Kuryer'}</span>
+                          <span className="text-fg">{order.courier?.name || 'Kuryer'}</span>
                         </div>
                         <button
                           onClick={() => updateStatusMutation.mutate({ orderUuid: order.uuid, status: 'delivered' })}
@@ -547,7 +543,7 @@ export default function ManagerDashboard() {
                   className="bg-secondary p-4 rounded-3xl border border-hint/5 shadow-sm flex flex-col gap-3 opacity-80"
                 >
                   <div className="flex justify-between items-center pb-2 border-b border-hint/5">
-                    <span className="text-xs font-black text-text-h">#{order.short_code}</span>
+                    <span className="text-xs font-black text-fg">#{order.short_code}</span>
                     <span className={`text-[9px] font-black px-2 py-0.5 rounded-md border uppercase flex items-center gap-1 ${
                       order.status === 'delivered' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/10' :
                       order.status === 'refunded' ? 'bg-sky-500/10 text-sky-500 border-sky-500/10' :
@@ -575,7 +571,7 @@ export default function ManagerDashboard() {
                   </div>
                   <div className="flex justify-between items-center text-xs font-bold text-hint">
                     <span>{order.user?.name}</span>
-                    <span className="text-text-h">{formatPrice(toAmount(order.total_price))}</span>
+                    <span className="text-fg">{formatPrice(toAmount(order.total_price))}</span>
                   </div>
                   {(order.status === 'canceled' || order.status === 'rejected') && (order.cancel_reason || order.cancel_note) && (
                     <div className="text-[10px] font-bold text-red-500 bg-red-500/5 border border-red-500/10 rounded-xl px-3 py-2 flex flex-col gap-0.5">

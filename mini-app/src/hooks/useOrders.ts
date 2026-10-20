@@ -168,6 +168,9 @@ export function useOrderHistory(scope: OrdersScope, options: OrderHistoryOptions
     isFetching,
     isFetchingNextPage,
     fetchNextPage: loadMore,
+    // Loads the pages again (the retry button of an error)
+    refetch: query.refetch,
+    isRefetching: query.isRefetching,
     dataUpdatedAt: query.dataUpdatedAt,
     // `since` was not reached, within `maxAutoPages` pages or before loading stopped on an error: the screen is
     // showing only the newest part of its period

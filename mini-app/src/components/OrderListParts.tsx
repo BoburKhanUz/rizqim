@@ -12,7 +12,7 @@ const NOTICE_STYLE: Record<Variant, string> = {
 
 const BUTTON_STYLE: Record<Variant, string> = {
   customer: 'bg-white border border-slate-200 text-slate-700',
-  staff: 'bg-secondary border border-hint/10 text-text-h',
+  staff: 'bg-secondary border border-hint/10 text-fg',
 };
 
 const pick = (language: string, text: { uz: string; ru: string; en: string }) =>

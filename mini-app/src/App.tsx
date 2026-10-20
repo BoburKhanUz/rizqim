@@ -1,19 +1,27 @@
 import { Suspense, useEffect, useState } from 'react';
-import { BrowserRouter, Routes, Route, NavLink, useLocation, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { initTelegramApp, hapticFeedback } from './lib/telegram';
+import { initTelegramApp } from './lib/telegram';
+import { startTelegramChrome } from './lib/twa';
 import { useTelegramAuth } from './hooks/useTelegramAuth';
 import { useRealtimeOrders } from './hooks/useRealtimeOrders';
-import { useCartStore } from './store/cartStore';
 import { useLanguageStore } from './store/languageStore';
 import { useAuthStore } from './store/authStore';
-import { ShoppingBag, User as UserIcon, BarChart3, Activity, Building2, PlusCircle, LayoutGrid, Users, Home as HomeIcon, List, ClipboardList } from 'lucide-react';
+import { RotateCw, Send, WifiOff } from 'lucide-react';
 import api from './services/api';
 import PhoneVerificationModal from './components/PhoneVerificationModal';
 import { FullScreenLoader, ErrorFallback, RouteErrorBoundary, RouteFallback } from './components/Feedback';
 import { lazyWithRetry } from './lib/lazyWithRetry';
-import { formatUzbekSum } from './lib/format';
 import { getRoleHomePath, isCustomerRole } from './lib/roles';
+import { useTelegramBackButton } from './hooks/useTelegramBackButton';
+import { BottomNav } from './components/navigation/BottomNav';
+import { FloatingCartBar } from './components/navigation/FloatingCartBar';
+import { getNavItems, ROOT_PATHS } from './components/navigation/navItems';
+import { BottomDock } from './components/ui/BottomDock';
+import { Button } from './components/ui/Button';
+import { buttonClasses } from './components/ui/buttonStyles';
+import { DialogHost } from './components/ui/DialogHost';
+import { MainButtonHost } from './components/ui/MainButtonHost';
 import type { User } from './types';
 
 // The customer's landing page is part of the entry bundle; every other page is its own chunk that is
@@ -65,9 +73,9 @@ interface AuthDebuggerProps {
 const AuthDebugger = ({ error, token, user, isAuthenticated }: AuthDebuggerProps) => {
   if (!isDebugMode) return null;
   return (
-    <div className="p-4 m-4 bg-secondary rounded-xl border border-hint/20 text-xs text-left">
-      <h2 className="font-bold mb-2">🛠 Debug Mode (VITE_APP_DEBUG=true)</h2>
-      {error && <p className="text-red-500 mb-2">Error: {error}</p>}
+    <div className="m-4 rounded-card border border-line bg-surface p-4 text-left text-caption">
+      <h2 className="mb-2 font-bold">🛠 Debug Mode (VITE_APP_DEBUG=true)</h2>
+      {error && <p className="mb-2 text-danger-soft-fg">Error: {error}</p>}
       <pre className="overflow-x-auto">
         {JSON.stringify({ isAuthenticated, user, token: token ? 'Bearer ******' : null }, null, 2)}
       </pre>
@@ -89,205 +97,30 @@ function HomeRoute() {
   return <Home />;
 }
 
-// Premium Navigation Component
-function BottomNavBar() {
-  const location = useLocation();
-  const { getTotalItems } = useCartStore();
-  const { t, language } = useLanguageStore();
+// Hide the navigation on these screens (the order confirmation has its own way out)
+const NAV_HIDDEN_PATHS = ['/success'];
+
+// Screens where the "view cart" bar is not shown: the cart itself, the customer's own pages, every staff screen
+const CART_BAR_HIDDEN_PREFIXES = ['/cart', '/success', '/orders', '/profile', '/complaints', '/notifications'];
+const isCartBarHidden = (pathname: string) =>
+  CART_BAR_HIDDEN_PREFIXES.some((prefix) => pathname.startsWith(prefix)) ||
+  pathname.includes('/admin') ||
+  pathname.includes('/superadmin') ||
+  pathname === '/courier' ||
+  pathname === '/manager';
+
+// What is fixed at the bottom, for every role: the in-page main button, the cart bar (shop screens) and the tabs.
+function AppDock() {
+  const { pathname } = useLocation();
   const { user } = useAuthStore();
-
-  // Hide BottomNavBar on the success page
-  const hidePaths = ['/success'];
-  if (hidePaths.includes(location.pathname)) return null;
-
-  const totalItems = getTotalItems();
-
-  if (user?.role === 'super_admin') {
-    return (
-      <nav className="fixed bottom-0 left-0 right-0 z-40 max-w-md mx-auto flex items-center justify-around py-3.5 border-t border-hint/10 bg-bg/85 backdrop-blur-md shadow-lg safe-area-bottom">
-        <NavLink 
-          to="/superadmin/dashboard" 
-          onClick={() => hapticFeedback('light')}
-          className={({ isActive }) => `flex flex-col items-center flex-1 py-1 transition-transform active:scale-95 ${isActive ? 'text-primary font-extrabold' : 'text-hint'}`}
-        >
-          <Activity className="w-5 h-5" />
-          <span className="text-[10px] font-bold mt-1">Asosiy</span>
-        </NavLink>
-
-        <NavLink 
-          to="/superadmin/stores" 
-          onClick={() => hapticFeedback('light')}
-          className={({ isActive }) => `flex flex-col items-center flex-1 py-1 transition-transform active:scale-95 ${isActive ? 'text-primary font-extrabold' : 'text-hint'}`}
-        >
-          <Building2 className="w-5 h-5" />
-          <span className="text-[10px] font-bold mt-1">Restoranlar</span>
-        </NavLink>
-
-        <NavLink 
-          to="/superadmin/stores/create" 
-          onClick={() => hapticFeedback('light')}
-          className={({ isActive }) => `flex flex-col items-center flex-1 py-1 transition-transform active:scale-95 ${isActive ? 'text-primary font-extrabold' : 'text-hint'}`}
-        >
-          <PlusCircle className="w-5 h-5" />
-          <span className="text-[10px] font-bold mt-1">Qo'shish</span>
-        </NavLink>
-
-        <NavLink 
-          to="/profile" 
-          onClick={() => hapticFeedback('light')}
-          className={({ isActive }) => `flex flex-col items-center flex-1 py-1 transition-transform active:scale-95 ${isActive ? 'text-primary font-extrabold' : 'text-hint'}`}
-        >
-          <UserIcon className="w-5 h-5" />
-          <span className="text-[10px] font-bold mt-1">Profil</span>
-        </NavLink>
-      </nav>
-    );
-  }
-
-  if (user?.role === 'owner') {
-    return (
-      <nav className="fixed bottom-0 left-0 right-0 z-40 max-w-md mx-auto flex items-center justify-around py-3.5 border-t border-hint/10 bg-bg/85 backdrop-blur-md shadow-lg safe-area-bottom">
-        <NavLink 
-          to="/admin/analytics" 
-          onClick={() => hapticFeedback('light')}
-          className={({ isActive }) => `flex flex-col items-center flex-1 py-1 transition-transform active:scale-95 ${isActive ? 'text-primary font-extrabold' : 'text-hint'}`}
-        >
-          <BarChart3 className="w-5 h-5" />
-          <span className="text-[10px] font-bold mt-1">{language === 'uz' ? 'Analitika' : 'Аналитика'}</span>
-        </NavLink>
-
-        <NavLink 
-          to="/admin/catalog" 
-          onClick={() => hapticFeedback('light')}
-          className={({ isActive }) => `flex flex-col items-center flex-1 py-1 transition-transform active:scale-95 ${isActive ? 'text-primary font-extrabold' : 'text-hint'}`}
-        >
-          <LayoutGrid className="w-5 h-5" />
-          <span className="text-[10px] font-bold mt-1">{language === 'uz' ? 'Katalog' : 'Меню'}</span>
-        </NavLink>
-
-        <NavLink 
-          to="/manager" 
-          onClick={() => hapticFeedback('light')}
-          className={({ isActive }) => `flex flex-col items-center flex-1 py-1 transition-transform active:scale-95 ${isActive ? 'text-primary font-extrabold' : 'text-hint'}`}
-        >
-          <ClipboardList className="w-5 h-5" />
-          <span className="text-[10px] font-bold mt-1">{language === 'uz' ? 'Buyurtmalar' : 'Заказы'}</span>
-        </NavLink>
-
-        <NavLink 
-          to="/admin/employees" 
-          onClick={() => hapticFeedback('light')}
-          className={({ isActive }) => `flex flex-col items-center flex-1 py-1 transition-transform active:scale-95 ${isActive ? 'text-primary font-extrabold' : 'text-hint'}`}
-        >
-          <Users className="w-5 h-5" />
-          <span className="text-[10px] font-bold mt-1">Xodimlar</span>
-        </NavLink>
-
-        <NavLink 
-          to="/profile" 
-          onClick={() => hapticFeedback('light')}
-          className={({ isActive }) => `flex flex-col items-center flex-1 py-1 transition-transform active:scale-95 ${isActive ? 'text-primary font-extrabold' : 'text-hint'}`}
-        >
-          <UserIcon className="w-5 h-5" />
-          <span className="text-[10px] font-bold mt-1">{language === 'uz' ? 'Profil' : 'Профиль'}</span>
-        </NavLink>
-      </nav>
-    );
-  }
-
-  if (user?.role === 'manager') {
-    return (
-      <nav className="fixed bottom-0 left-0 right-0 z-40 max-w-md mx-auto flex items-center justify-around py-3.5 border-t border-hint/10 bg-bg/85 backdrop-blur-md shadow-lg safe-area-bottom">
-        <NavLink 
-          to="/manager" 
-          onClick={() => hapticFeedback('light')}
-          className={({ isActive }) => `flex flex-col items-center flex-1 py-1 transition-transform active:scale-95 ${isActive ? 'text-primary font-extrabold' : 'text-hint'}`}
-        >
-          <ClipboardList className="w-5 h-5" />
-          <span className="text-[10px] font-bold mt-1">{language === 'uz' ? 'Buyurtmalar' : 'Заказы'}</span>
-        </NavLink>
-
-        <NavLink 
-          to="/profile" 
-          onClick={() => hapticFeedback('light')}
-          className={({ isActive }) => `flex flex-col items-center flex-1 py-1 transition-transform active:scale-95 ${isActive ? 'text-primary font-extrabold' : 'text-hint'}`}
-        >
-          <UserIcon className="w-5 h-5" />
-          <span className="text-[10px] font-bold mt-1">{language === 'uz' ? 'Profil' : 'Профиль'}</span>
-        </NavLink>
-      </nav>
-    );
-  }
-
-  if (user?.role === 'courier') {
-    return (
-      <nav className="fixed bottom-0 left-0 right-0 z-40 max-w-md mx-auto flex items-center justify-around py-3.5 border-t border-hint/10 bg-bg/85 backdrop-blur-md shadow-lg safe-area-bottom">
-        <NavLink 
-          to="/courier" 
-          onClick={() => hapticFeedback('light')}
-          className={({ isActive }) => `flex flex-col items-center flex-1 py-1 transition-transform active:scale-95 ${isActive ? 'text-primary font-extrabold' : 'text-hint'}`}
-        >
-          <ClipboardList className="w-5 h-5" />
-          <span className="text-[10px] font-bold mt-1">{language === 'uz' ? 'Yetkazmalar' : 'Доставки'}</span>
-        </NavLink>
-
-        <NavLink 
-          to="/profile" 
-          onClick={() => hapticFeedback('light')}
-          className={({ isActive }) => `flex flex-col items-center flex-1 py-1 transition-transform active:scale-95 ${isActive ? 'text-primary font-extrabold' : 'text-hint'}`}
-        >
-          <UserIcon className="w-5 h-5" />
-          <span className="text-[10px] font-bold mt-1">{language === 'uz' ? 'Profil' : 'Профиль'}</span>
-        </NavLink>
-      </nav>
-    );
-  }
-
+  const showNav = !NAV_HIDDEN_PATHS.includes(pathname);
+  const showCartBar = isCustomerRole(user?.role) && !isCartBarHidden(pathname);
   return (
-    <nav className="fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur-md border-t border-slate-100 pt-3.5 flex items-center justify-around z-40 max-w-md mx-auto shadow-[0_-6px_25px_rgba(0,0,0,0.03)] rounded-t-3xl safe-area-bottom">
-      <NavLink 
-        to="/" 
-        onClick={() => hapticFeedback('light')}
-        className={({ isActive }) => `flex flex-col items-center gap-1.5 relative flex-1 transition-all duration-200 active:scale-90 ${isActive ? 'text-amber-500 scale-105 font-black' : 'text-slate-400 hover:text-slate-600'}`}
-      >
-        <span className="leading-none"><HomeIcon className="w-5 h-5" /></span>
-        <span className="text-[10px] font-black">{t('catalog')}</span>
-      </NavLink>
-
-      <NavLink 
-        to="/cart" 
-        onClick={() => hapticFeedback('light')}
-        className={({ isActive }) => `flex flex-col items-center gap-1.5 relative flex-1 transition-all duration-200 active:scale-90 ${isActive ? 'text-amber-500 scale-105 font-black' : 'text-slate-400 hover:text-slate-600'}`}
-      >
-        <div className="relative">
-          <span className="leading-none"><ShoppingBag className="w-5 h-5" /></span>
-          {totalItems > 0 && (
-            <span className="absolute -top-1.5 -right-2 bg-red-500 text-white font-black text-[8px] w-[18px] h-[18px] rounded-full flex items-center justify-center border-2 border-white animate-pulse">
-              {totalItems}
-            </span>
-          )}
-        </div>
-        <span className="text-[10px] font-black">{t('cart')}</span>
-      </NavLink>
-
-      <NavLink 
-        to="/orders" 
-        onClick={() => hapticFeedback('light')}
-        className={({ isActive }) => `flex flex-col items-center gap-1.5 relative flex-1 transition-all duration-200 active:scale-90 ${isActive ? 'text-amber-500 scale-105 font-black' : 'text-slate-400 hover:text-slate-600'}`}
-      >
-        <span className="leading-none"><List className="w-5 h-5" /></span>
-        <span className="text-[10px] font-black">{t('myOrders')}</span>
-      </NavLink>
-
-      <NavLink 
-        to="/profile" 
-        onClick={() => hapticFeedback('light')}
-        className={({ isActive }) => `flex flex-col items-center gap-1.5 relative flex-1 transition-all duration-200 active:scale-90 ${isActive ? 'text-amber-500 scale-105 font-black' : 'text-slate-400 hover:text-slate-600'}`}
-      >
-        <span className="leading-none"><UserIcon className="w-5 h-5" /></span>
-        <span className="text-[10px] font-black">{language === 'uz' ? 'Profil' : 'Профиль'}</span>
-      </NavLink>
-    </nav>
+    <BottomDock withNav={showNav}>
+      <MainButtonHost />
+      {showCartBar && <FloatingCartBar />}
+      {showNav && <BottomNav items={getNavItems(user?.role)} />}
+    </BottomDock>
   );
 }
 
@@ -319,61 +152,21 @@ export const OnlyTelegramBlocker = () => {
   const botUsername = import.meta.env.VITE_BOT_USERNAME || 'rizqimbot';
   const botLink = `https://t.me/${botUsername}`;
 
+  // A plain browser: the app only works inside Telegram (it signs in with Telegram's launch data)
   return (
-    <div className="fixed inset-0 flex flex-col items-center justify-center bg-[#0e1621] p-6 text-center z-50 text-white select-none">
-      {/* Background Glow */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-72 h-72 rounded-full bg-primary/20 blur-[100px] pointer-events-none"></div>
-
-      <div className="bg-[#17212b]/80 border border-primary/20 backdrop-blur-xl rounded-[36px] p-8 shadow-2xl max-w-sm w-full flex flex-col gap-6 items-center relative overflow-hidden">
-        {/* Neon Border Glow */}
-        <div className="absolute inset-0 border border-primary/10 rounded-[36px] pointer-events-none"></div>
-
-        {/* Telegram 3D-Like Icon */}
-        <div className="w-20 h-20 bg-gradient-to-tr from-primary to-blue-400 rounded-full flex items-center justify-center shadow-lg shadow-primary/30 relative">
-          <svg className="w-10 h-10 text-white translate-x-[-1px] translate-y-[1px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="22" y1="2" x2="11" y2="13"></line>
-            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-          </svg>
-        </div>
-
-        {/* Text Details */}
-        <div className="flex flex-col gap-2.5">
-          <h2 className="text-xl font-black tracking-tight text-white">Telegram Mini App</h2>
-          <p className="text-xs text-gray-400 font-medium leading-relaxed px-2">
-            Ushbu tizim faqat **Telegram** ichida ishlashga mo'ljallangan! Brauzer orqali to'g'ridan-to'g'ri kirish taqiqlangan.
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-page p-6 text-center">
+      <div className="flex w-full max-w-sm flex-col items-center gap-5 rounded-sheet border border-line bg-surface p-8 shadow-xl">
+        <span className="flex size-16 items-center justify-center rounded-full bg-brand text-on-brand">
+          <Send aria-hidden="true" className="size-8" />
+        </span>
+        <div className="flex flex-col gap-2">
+          <h2 className="text-title font-bold text-fg">Telegram Mini App</h2>
+          <p className="text-body text-fg-muted">
+            Rizqim faqat Telegram ichida ishlaydi. Ilovani botimiz orqali oching.
           </p>
         </div>
-
-        {/* QR Code Graphic (SVG) */}
-        <div className="bg-white p-4 rounded-[28px] shadow-inner relative group border border-gray-700/10">
-          <svg className="w-36 h-36 text-[#0e1621]" viewBox="0 0 100 100" fill="currentColor">
-            {/* Elegant Custom Vector QR Mock with Telegram Logo inside */}
-            <path d="M5,5 h25 v25 h-25 z M10,10 h15 v15 h-15 z M17,17 h1 v1 h-1 z" />
-            <path d="M70,5 h25 v25 h-25 z M75,10 h15 v15 h-15 z M82,17 h1 v1 h-1 z" />
-            <path d="M5,70 h25 v25 h-25 z M10,75 h15 v15 h-15 z M17,82 h1 v1 h-1 z" />
-            <path d="M40,5 h10 v5 h-5 v10 h-5 z M45,20 h5 v5 h-5 z M55,5 h10 v5 h-10 z M60,15 h5 v10 h-5 z" />
-            <path d="M5,40 h10 v5 h-5 v10 h-5 z M20,45 h5 v5 h-5 z M35,40 h15 v5 h-10 v10 h-5 z" />
-            <path d="M70,40 h15 v5 h-10 v5 h5 v5 h-10 z M90,45 h5 v5 h-5 z" />
-            <path d="M40,60 h10 v10 h-5 v10 h-5 z M50,80 h15 v5 h-10 v10 h-5 z" />
-            <path d="M70,70 h15 v5 h-10 v10 h5 v10 h-10 z M90,80 h5 v5 h-5 z" />
-            <circle cx="50" cy="50" r="12" fill="#0088cc" />
-            <path d="M46,50 l6,3.5 l-1.5,1.5 l-4.5,-5 z" fill="white" />
-            <polygon points="45,50 55,46 51,52" fill="white" />
-          </svg>
-        </div>
-
-        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">
-          Telefoningiz orqali QR kodni skanerlang
-        </p>
-
-        {/* CTA Button */}
-        <a 
-          href={botLink}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="w-full bg-primary hover:bg-primary/90 text-white font-black text-xs py-4 rounded-2xl active:scale-95 transition-all shadow-lg shadow-primary/20 flex items-center justify-center gap-2"
-        >
-          <span>💬 Bot orqali ochish</span>
+        <a href={botLink} target="_blank" rel="noopener noreferrer" className={buttonClasses({ size: 'lg', fullWidth: true })}>
+          Bot orqali ochish
         </a>
       </div>
     </div>
@@ -388,46 +181,6 @@ const queryClient = new QueryClient({
     },
   },
 });
-
-function FloatingCartBar() {
-  const location = useLocation();
-  // Select the computed values, not the getter functions: a getter's reference never changes, so the bar would not
-  // re-render when items are added
-  const totalItems = useCartStore((state) => state.getTotalItems());
-  const totalAmount = useCartStore((state) => state.getSubtotal());
-
-  const hidePaths = ['/cart', '/success', '/orders', '/profile', '/complaints', '/notifications'];
-  const shouldHide = hidePaths.some(p => location.pathname.startsWith(p)) || 
-                     location.pathname.includes('/admin') || 
-                     location.pathname.includes('/superadmin') || 
-                     location.pathname === '/courier' || 
-                     location.pathname === '/manager';
-
-  if (totalItems === 0 || shouldHide) return null;
-
-  return (
-    <div className="fixed bottom-[74px] left-0 right-0 max-w-md mx-auto px-4 z-30 transform transition animate-scale-up">
-      <NavLink
-        to="/cart"
-        onClick={() => hapticFeedback('medium')}
-        className="w-full bg-amber-500 hover:bg-amber-600 text-white font-black py-3.5 px-5 rounded-2xl flex items-center justify-between shadow-lg shadow-amber-200 transition-all active:scale-[0.98] cursor-pointer"
-      >
-        <div className="flex items-center space-x-2.5">
-          <div className="bg-white/20 px-2.5 py-0.5 rounded-lg text-xs font-black relative flex items-center">
-            🛒 {totalItems}
-          </div>
-          <span className="text-xs tracking-wide font-extrabold">Savatchani ko'rish</span>
-        </div>
-        <div className="flex items-center space-x-1.5 text-xs">
-          <span className="font-black text-sm">
-            {formatUzbekSum(totalAmount)}
-          </span>
-          <span>➔</span>
-        </div>
-      </NavLink>
-    </div>
-  );
-}
 
 // Customers are likely to open these next from the catalog: fetch them once the app is idle so the tap is instant.
 function usePrefetchCustomerPages(enabled: boolean) {
@@ -448,26 +201,24 @@ function AppContent() {
   const location = useLocation();
   const isCustomer = isCustomerRole(user?.role);
 
+  const { t, language } = useLanguageStore();
+
+  // Screen readers and hyphenation follow the language the user picked
+  useEffect(() => {
+    document.documentElement.lang = language;
+  }, [language]);
+
   usePrefetchCustomerPages(isCustomer && isAuthenticated);
   useRealtimeOrders(); // order events over the socket, once signed in (a no-op without VITE_REVERB_APP_KEY)
+  useTelegramBackButton(ROOT_PATHS);
 
   useEffect(() => {
     initTelegramApp();
+    // Theme (data-theme + Telegram header/background colours), swipes; follows Telegram's theme changes
+    return startTelegramChrome();
   }, []);
 
-  useEffect(() => {
-    if (isCustomer) {
-      document.body.style.backgroundColor = '#f8fafc'; // bg-slate-50
-      document.body.style.color = '#0f172a'; // text-slate-900
-      document.documentElement.style.backgroundColor = '#f8fafc';
-    } else {
-      document.body.style.backgroundColor = ''; // Restore standard
-      document.body.style.color = '';
-      document.documentElement.style.backgroundColor = '';
-    }
-  }, [isCustomer]);
-
-  if (isAuthenticating) return <FullScreenLoader message="Connecting securely..." />;
+  if (isAuthenticating) return <FullScreenLoader message={t('connecting')} />;
   
   if (error && !isAuthenticated) {
     return (
@@ -479,7 +230,7 @@ function AppContent() {
   }
 
   return (
-    <div className={`min-h-screen pb-24 relative ${isCustomer ? 'bg-slate-50' : 'bg-bg'}`}>
+    <div className="relative min-h-screen pb-dock">
       <AuthDebugger error={error} token={token} user={user} isAuthenticated={isAuthenticated} />
       
       {/* Automatically Prompts User for Phone Number on first login if not yet provided */}
@@ -515,11 +266,27 @@ function AppContent() {
         </Suspense>
       </RouteErrorBoundary>
       
-      {/* Floating Sticky Cart Indicator Bar */}
-      <FloatingCartBar />
+      {/* Main button fallback, cart bar and navigation, stacked; content is padded by their height (pb-dock) */}
+      <AppDock />
 
-      {/* Native-style Sticky Bottom Navigation Bar */}
-      <BottomNavBar />
+      {/* In-app stand-ins for Telegram's popups (showAlert / showConfirm outside Telegram) */}
+      <DialogHost />
+    </div>
+  );
+}
+
+function OfflineScreen() {
+  const { t } = useLanguageStore();
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-page p-6 text-center animate-fade-in" role="alert">
+      <span className="flex size-14 items-center justify-center rounded-full bg-danger-soft text-danger-soft-fg">
+        <WifiOff aria-hidden="true" className="size-7" />
+      </span>
+      <h2 className="text-title font-bold text-fg">{t('offlineTitle')}</h2>
+      <p className="max-w-xs text-body text-fg-muted">{t('offlineText')}</p>
+      <Button icon={RotateCw} className="mt-3 w-full max-w-xs" onClick={() => window.location.reload()}>
+        {t('reload')}
+      </Button>
     </div>
   );
 }
@@ -541,23 +308,7 @@ function App() {
   }, []);
 
   if (isOffline) {
-    return (
-      <div className="fixed inset-0 flex flex-col items-center justify-center bg-bg p-6 text-center z-50 animate-fade-in">
-        <div className="text-4xl mb-4">📶</div>
-        <h2 className="text-xl font-black text-text-h mb-2">
-          Internet aloqasi mavjud emas
-        </h2>
-        <p className="text-xs text-hint mb-6 max-w-xs leading-relaxed font-semibold">
-          Iltimos, internet aloqasini tekshiring va qaytadan urining.
-        </p>
-        <button 
-          onClick={() => window.location.reload()} 
-          className="bg-primary hover:bg-primary/95 text-white px-6 py-3.5 rounded-2xl font-black text-xs w-full max-w-xs active:scale-95 transition-transform shadow-md shadow-primary/20 cursor-pointer"
-        >
-          Qayta yuklash
-        </button>
-      </div>
-    );
+    return <OfflineScreen />;
   }
 
   // Securely Block Direct Browser Access (Direct Web Open) in Production/Non-Dev Mode

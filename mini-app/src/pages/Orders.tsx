@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { NO_ORDERS, ORDERS_KEY, useOrderHistory, useOrders } from '../hooks/useOrders';
 import { useLanguageStore } from '../store/languageStore';
@@ -11,20 +11,14 @@ import { Link } from 'react-router-dom';
 import api from '../services/api';
 import { getApiErrorMessage, logApiError } from '../lib/apiError';
 import { toAmount } from '../lib/money';
-import { getOrderStatusLook } from '../lib/orderStatus';
-import type { Order, OrderStatus, PaymentStatus } from '../types';
+import { formatDateTime, formatMoney, formatOrderCode } from '../lib/format';
+import { getPaymentMethodLabel } from '../lib/paymentMethod';
+import { InlineError } from '../components/ui/InlineError';
+import { StatusBadge } from '../components/ui/StatusBadge';
+import type { Order, PaymentStatus } from '../types';
 import {
   ArrowLeft,
-  Ban,
-  Clock,
-  CheckCircle2,
-  Utensils,
-  Bike,
   CheckCircle,
-  PackageCheck,
-  UserCheck,
-  Undo2,
-  XCircle,
   ChevronDown,
   ChevronUp,
   MapPin,
@@ -40,22 +34,6 @@ const paymentStatusConfig: Record<PaymentStatus, { labelKey: `paymentStatus_${Pa
   cancelled: { labelKey: 'paymentStatus_cancelled', color: 'text-rose-500' },
   expired: { labelKey: 'paymentStatus_expired', color: 'text-slate-400' },
   refunded: { labelKey: 'paymentStatus_refunded', color: 'text-sky-500' },
-};
-
-// The icon of each order status; the label and the colours are in lib/orderStatus.ts. A status the app does not
-// know has no icon (undefined renders nothing).
-const statusIcon: Record<OrderStatus, ReactNode> = {
-  new: <Clock className="w-3.5 h-3.5" />,
-  accepted: <CheckCircle2 className="w-3.5 h-3.5" />,
-  preparing: <Utensils className="w-3.5 h-3.5" />,
-  ready: <PackageCheck className="w-3.5 h-3.5" />,
-  courier_assigned: <UserCheck className="w-3.5 h-3.5" />,
-  on_the_way: <Bike className="w-3.5 h-3.5" />,
-  delivery: <Bike className="w-3.5 h-3.5" />,
-  delivered: <CheckCircle className="w-3.5 h-3.5" />,
-  canceled: <XCircle className="w-3.5 h-3.5" />,
-  rejected: <Ban className="w-3.5 h-3.5" />,
-  refunded: <Undo2 className="w-3.5 h-3.5" />,
 };
 
 // Premium Inline Skeleton Loader for modern premium feel
@@ -86,7 +64,7 @@ export default function Orders() {
   const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null);
 
   // The open orders (polled / pushed) and, below them, the finished ones a page at a time
-  const { data: active, isLoading: isLoadingActive, error } = useOrders();
+  const { data: active, isLoading: isLoadingActive, error, refetch: refetchActive, isRefetching: isRefetchingActive } = useOrders();
   const history = useOrderHistory('customer', { enabled: isAuthenticated });
   const activeOrders = active?.orders ?? NO_ORDERS;
   const historyOrders = history.orders;
@@ -174,18 +152,7 @@ export default function Orders() {
     setExpandedOrderId(prev => (prev === orderId ? null : orderId));
   };
 
-  const formatDate = (dateStr: string) => {
-    const d = new Date(dateStr);
-    return d.toLocaleString(language === 'uz' ? 'uz-UZ' : language === 'ru' ? 'ru-RU' : 'en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
-
   const renderOrder = (order: Order) => {
-    const statusLook = getOrderStatusLook(order.status);
     const paymentConfig = paymentStatusConfig[order.payment_status]; // undefined for a status this app doesn't know yet
     const isExpanded = expandedOrderId === order.id;
 
@@ -200,19 +167,16 @@ export default function Orders() {
           className="flex justify-between items-center cursor-pointer"
         >
           <div className="flex flex-col gap-1">
-            <span className="text-[10px] font-black text-slate-400">#{order.uuid.substring(0, 8).toUpperCase()}</span>
-            <span className="font-extrabold text-xs text-slate-800">{formatDate(order.created_at)}</span>
+            <span className="text-[10px] font-black text-slate-400">{formatOrderCode(order)}</span>
+            <span className="font-extrabold text-xs text-slate-800">{formatDateTime(order.created_at, language)}</span>
             <span className="text-[10px] text-slate-400 uppercase font-bold flex items-center gap-1">
-              {order.type === 'delivery' ? '🛵 ' + t('delivery') : order.type === 'pickup' ? '🛍️ ' + t('pickup') : '🍽️ Dine-in'}
+              {order.type === 'delivery' ? '🛵 ' + t('delivery') : order.type === 'pickup' ? '🛍️ ' + t('pickup') : '🍽️ ' + t('dineIn')}
             </span>
           </div>
 
           <div className="flex flex-col items-end gap-2.5">
-            <span className={`text-[9px] px-3 py-1 rounded-full font-black flex items-center gap-1.5 ${statusLook.badge}`}>
-              {statusIcon[order.status]}
-              <span>{statusLook.labelKey ? t(statusLook.labelKey) : order.status}</span>
-            </span>
-            <span className="font-black text-xs text-amber-500">{toAmount(order.total_price).toLocaleString()} UZS</span>
+            <StatusBadge status={order.status} />
+            <span className="font-black text-xs text-amber-500">{formatMoney(order.total_price, language)}</span>
           </div>
         </div>
 
@@ -250,7 +214,7 @@ export default function Orders() {
                   </div>
                   <span className="text-slate-400 text-[10px] font-extrabold">x{item.quantity}</span>
                   <span className="font-extrabold text-slate-800">
-                    {(item.total_price ? toAmount(item.total_price) : toAmount(item.unit_price) * item.quantity).toLocaleString()} UZS
+                    {formatMoney(item.total_price ? toAmount(item.total_price) : toAmount(item.unit_price) * item.quantity, language)}
                   </span>
                 </div>
               ))}
@@ -273,7 +237,7 @@ export default function Orders() {
                 <CreditCard className="w-3.5 h-3.5 text-amber-500" />
                 <span>{language === 'uz' ? 'To\'lov turi' : 'Способ оплаты'}:</span>
               </span>
-              <span className="font-black text-slate-800 uppercase">{order.payment_method}</span>
+              <span className="font-black text-slate-800">{getPaymentMethodLabel(order.payment_method, t)}</span>
             </div>
 
             <div className="flex justify-between items-center text-xs px-1 text-slate-400 font-bold">
@@ -356,9 +320,13 @@ export default function Orders() {
       </header>
 
       {failed && !hasOrders ? (
-        <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-2xl text-center text-red-500 text-xs font-bold">
-          {language === 'uz' ? 'Xatolik yuz berdi. Iltimos qayta urinib ko\'ring.' : 'Error loading history. Please try again.'}
-        </div>
+        <InlineError
+          retrying={isRefetchingActive || history.isRefetching}
+          onRetry={() => {
+            void refetchActive();
+            void history.refetch();
+          }}
+        />
       ) : (isLoading && !hasOrders) ? (
         /* Butter-smooth Skeleton UI replaces harsh FullScreenLoader */
         <OrdersSkeleton />

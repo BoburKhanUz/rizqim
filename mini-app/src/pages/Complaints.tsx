@@ -4,7 +4,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../services/api';
 import { hapticFeedback } from '../lib/telegram';
 import { getApiErrorMessage } from '../lib/apiError';
-import { toAmount } from '../lib/money';
+import { formatMoney, formatOrderCode } from '../lib/format';
 import { mergeOrders, useOrderHistory, useOrders } from '../hooks/useOrders';
 import { useLanguageStore } from '../store/languageStore';
 import { useAuthStore } from '../store/authStore';
@@ -167,10 +167,10 @@ export default function Complaints() {
   const bgClass = isDark ? "bg-gradient-to-br from-bg via-bg to-primary/5 min-h-screen text-text" : "bg-slate-50 min-h-screen text-slate-800";
   const cardClass = isDark ? "bg-secondary border border-white/5 shadow-sm" : "bg-white border border-slate-100 shadow-sm";
   const headerBorderClass = isDark ? "border-white/5" : "border-slate-200";
-  const backBtnClass = isDark ? "bg-secondary text-text-h border border-white/5" : "bg-white text-slate-800 border border-slate-100";
-  const textTitleClass = isDark ? "text-text-h" : "text-slate-800";
+  const backBtnClass = isDark ? "bg-secondary text-fg border border-white/5" : "bg-white text-slate-800 border border-slate-100";
+  const textTitleClass = isDark ? "text-fg" : "text-slate-800";
   const textHintClass = isDark ? "text-hint" : "text-slate-400";
-  const inputClass = isDark ? "bg-bg border border-white/5 text-text-h outline-none focus:border-primary/50 focus:bg-secondary transition" : "bg-slate-50 border border-slate-200 text-slate-700 outline-none focus:border-amber-500 transition";
+  const inputClass = isDark ? "bg-bg border border-white/5 text-fg outline-none focus:border-primary/50 focus:bg-secondary transition" : "bg-slate-50 border border-slate-200 text-slate-700 outline-none focus:border-amber-500 transition";
   const innerCardClass = isDark ? "bg-bg/40 border border-white/5" : "bg-slate-50 border border-slate-100/50";
 
   return (
@@ -216,7 +216,7 @@ export default function Complaints() {
                 <option value="">-- Buyurtma tanlash --</option>
                 {orders.map((order) => (
                   <option key={order.id} value={order.id}>
-                    #{order.short_code || order.uuid.substring(0, 8)} ({toAmount(order.total_price).toLocaleString()} UZS)
+                    {formatOrderCode(order)} ({formatMoney(order.total_price, language)})
                   </option>
                 ))}
               </select>
@@ -305,7 +305,7 @@ export default function Complaints() {
                 </div>
 
                 <div className={`p-3 rounded-2xl border ${innerCardClass}`}>
-                  <p className={`text-xs font-semibold leading-relaxed ${isDark ? 'text-text-h' : 'text-slate-600'}`}>
+                  <p className={`text-xs font-semibold leading-relaxed ${isDark ? 'text-fg' : 'text-slate-600'}`}>
                     {complaint.description}
                   </p>
                 </div>

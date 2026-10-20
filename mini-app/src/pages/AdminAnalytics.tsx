@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useLanguageStore } from '../store/languageStore';
-import { ErrorFallback } from '../components/Feedback';
+import { formatMoney } from '../lib/format';
+import { InlineError } from '../components/ui/InlineError';
 import { 
   Clock, 
   Bike,
@@ -32,7 +33,7 @@ export default function AdminAnalytics() {
   const [timeframe, setTimeframe] = useState<AnalyticsTimeframe>('today');
 
   // The store's open orders (refreshed in the background while the screen is visible) and the finished ones of the timeframe
-  const { orders, isLoading, error, dataUpdatedAt, truncated, capped } = useOrdersForPeriod(timeframe);
+  const { orders, isLoading, error, dataUpdatedAt, truncated, capped, refetch, isRefetching } = useOrdersForPeriod(timeframe);
 
   // "Now" is the time of the last refresh, so the periods move on together with the data
   const analytics = useMemo(
@@ -41,7 +42,13 @@ export default function AdminAnalytics() {
   );
 
   // A failed background refresh keeps showing the last numbers; the error screen is only for "nothing to show"
-  if (error && orders.length === 0) return <ErrorFallback error="Failed to fetch analytics data." />;
+  if (error && orders.length === 0) {
+    return (
+      <div className="p-4">
+        <InlineError onRetry={refetch} retrying={isRefetching} />
+      </div>
+    );
+  }
 
   const { deliveredOrders, totalRevenue, cashRevenue, onlineRevenue, topProducts, topCouriers } = analytics;
 
@@ -69,7 +76,7 @@ export default function AdminAnalytics() {
               </span>
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
             </div>
-            <h1 className="text-sm font-black text-text-h">
+            <h1 className="text-sm font-black text-fg">
               {language === 'uz' ? 'Tizim Trendlari va Hisoboti' : 'Отчеты и Тренды Системы'}
             </h1>
           </div>
@@ -84,8 +91,8 @@ export default function AdminAnalytics() {
             onClick={() => setTimeframe(tab)}
             className={`flex-1 py-2 text-[10px] uppercase font-black rounded-xl transition-all ${
               timeframe === tab 
-                ? 'bg-primary text-white shadow-sm' 
-                : 'text-hint hover:text-text-h'
+                ? 'bg-primary text-on-brand shadow-sm' 
+                : 'text-hint hover:text-fg'
             }`}
           >
             {tab === 'today' ? (language === 'uz' ? 'Bugun' : 'Сегодня') :
@@ -100,7 +107,7 @@ export default function AdminAnalytics() {
       {capped && <PartialPeriodNotice />}
 
       {/* Hero Revenue Stats */}
-      <div className="bg-gradient-to-br from-primary to-primary-hover p-6 rounded-3xl text-white flex flex-col gap-1 shadow-lg shadow-primary/15 relative overflow-hidden">
+      <div className="bg-brand p-6 rounded-3xl text-on-brand flex flex-col gap-1 shadow-lg shadow-primary/15 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl pointer-events-none"></div>
         <span className="text-[10px] uppercase font-black tracking-wider opacity-80 flex items-center gap-1">
           <Calendar className="w-3.5 h-3.5" />
@@ -110,7 +117,7 @@ export default function AdminAnalytics() {
            (language === 'uz' ? 'Yillik umumiy savdo' : 'Продажи за год')}
         </span>
         <h2 className="text-2xl font-black mt-2 leading-none">
-          {renderValue(`${totalRevenue.toLocaleString()} UZS`, 'w-32')}
+          {renderValue(formatMoney(totalRevenue, language), 'w-32')}
         </h2>
         <p className="text-[10px] opacity-75 mt-1">
           {renderValue(
@@ -147,7 +154,7 @@ export default function AdminAnalytics() {
 
       {/* Payment methods splits */}
       <div className="bg-secondary p-5 rounded-3xl border border-hint/5 flex flex-col gap-4 shadow-sm">
-        <h3 className="text-xs font-black text-text-h flex items-center gap-1.5">
+        <h3 className="text-xs font-black text-fg flex items-center gap-1.5">
           <Wallet className="w-4 h-4 text-primary" />
           {language === 'uz' ? "To'lov turlari bo'yicha" : "По типам оплаты"}
         </h3>
@@ -157,7 +164,7 @@ export default function AdminAnalytics() {
           <div className="flex flex-col gap-1.5">
             <div className="flex justify-between items-center text-[11px] font-bold">
               <span className="text-hint">{language === 'uz' ? 'Karta orqali (Online):' : 'Картой (Онлайн):'}</span>
-              <span className="text-text-h">{renderValue(`${onlineRevenue.toLocaleString()} UZS`, 'w-24')}</span>
+              <span className="text-fg">{renderValue(formatMoney(onlineRevenue, language), 'w-24')}</span>
             </div>
             <div className="w-full h-2 rounded-full bg-bg overflow-hidden">
               <div 
@@ -171,7 +178,7 @@ export default function AdminAnalytics() {
           <div className="flex flex-col gap-1.5">
             <div className="flex justify-between items-center text-[11px] font-bold">
               <span className="text-hint">{language === 'uz' ? 'Naqd pul (Cash):' : 'Наличными (Cash):'}</span>
-              <span className="text-text-h">{renderValue(`${cashRevenue.toLocaleString()} UZS`, 'w-24')}</span>
+              <span className="text-fg">{renderValue(formatMoney(cashRevenue, language), 'w-24')}</span>
             </div>
             <div className="w-full h-2 rounded-full bg-bg overflow-hidden">
               <div 
@@ -185,7 +192,7 @@ export default function AdminAnalytics() {
 
       {/* ADVANCED BUSINESS TRENDS: Top Products sold */}
       <div className="bg-secondary p-5 rounded-3xl border border-hint/5 flex flex-col gap-4 shadow-sm">
-        <h3 className="text-xs font-black text-text-h flex items-center gap-1.5">
+        <h3 className="text-xs font-black text-fg flex items-center gap-1.5">
           <TrendingUp className="w-4 h-4 text-primary" />
           {language === 'uz' ? 'Eng ko\'p sotilgan burgerlar' : 'Популярные бургеры'}
         </h3>
@@ -207,7 +214,7 @@ export default function AdminAnalytics() {
           <div className="flex flex-col gap-2">
             {topProducts.map((p, index) => (
               <div key={p.name} className="flex justify-between items-center border-b border-hint/5 pb-2 last:border-0 last:pb-0">
-                <span className="text-[11px] font-bold text-text-h flex items-center gap-1.5">
+                <span className="text-[11px] font-bold text-fg flex items-center gap-1.5">
                   <span className="text-[10px] text-hint">#{index + 1}</span>
                   {p.name}
                 </span>
@@ -222,7 +229,7 @@ export default function AdminAnalytics() {
 
       {/* ADVANCED BUSINESS TRENDS: Top Couriers standings */}
       <div className="bg-secondary p-5 rounded-3xl border border-hint/5 flex flex-col gap-4 shadow-sm">
-        <h3 className="text-xs font-black text-text-h flex items-center gap-1.5">
+        <h3 className="text-xs font-black text-fg flex items-center gap-1.5">
           <Award className="w-4 h-4 text-primary" />
           {language === 'uz' ? 'Kuryerlar reytingi (Top)' : 'Рейтинг курьеров (Топ)'}
         </h3>
@@ -244,7 +251,7 @@ export default function AdminAnalytics() {
           <div className="flex flex-col gap-2">
             {topCouriers.map((c, index) => (
               <div key={c.name} className="flex justify-between items-center border-b border-hint/5 pb-2 last:border-0 last:pb-0">
-                <span className="text-[11px] font-bold text-text-h flex items-center gap-1.5">
+                <span className="text-[11px] font-bold text-fg flex items-center gap-1.5">
                   <span className="text-[10px] text-hint">#{index + 1}</span>
                   {c.name}
                 </span>

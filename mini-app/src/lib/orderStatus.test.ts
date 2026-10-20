@@ -44,7 +44,10 @@ describe('getOrderStatusLook: every status of the backend', () => {
     const look = getOrderStatusLook(status);
 
     expect(look.labelKey).toBe(`status_${status}`);
-    expect(look.badge).toMatch(/\bbg-\w+-\d+\/\d+ text-\w+-\d+ border border-\w+-\d+\/\d+/);
+    expect(look.staffLabelKey).toBe(`staffStatus_${status}`);
+    // design tokens only: a soft fill and its text colour, never a raw palette class
+    expect(look.badge).toMatch(/^bg-[\w-]+ text-[\w-]+$/);
+    expect(look.badge).not.toMatch(/slate|amber|white|\d{3}/);
   });
 
   it.each(LANGUAGES)('has a translated label for each one in %s', (language) => {
@@ -79,15 +82,40 @@ describe('getOrderStatusLook: every status of the backend', () => {
     expect(shared).toEqual([ALIASES]);
   });
 
-  it('colours each status differently, except the two names of the same stage', () => {
-    const statusesByBadge = new Map<string, OrderStatus[]>();
+  it('puts each status in one of four semantic groups (or neutral)', () => {
+    const tones = Object.fromEntries(STATUSES.map((status) => [status, getOrderStatusLook(status).tone]));
+    expect(tones).toEqual({
+      new: 'warning',
+      accepted: 'info',
+      preparing: 'info',
+      ready: 'info',
+      courier_assigned: 'info',
+      on_the_way: 'info',
+      delivery: 'info',
+      delivered: 'success',
+      canceled: 'danger',
+      rejected: 'danger',
+      refunded: 'neutral',
+    });
+  });
+
+  it('tells statuses of one colour apart by their icon, except the two names of the same stage', () => {
+    const statusesByIcon = new Map<unknown, OrderStatus[]>();
     for (const status of STATUSES) {
-      const { badge } = getOrderStatusLook(status);
-      statusesByBadge.set(badge, [...(statusesByBadge.get(badge) ?? []), status]);
+      const { icon } = getOrderStatusLook(status);
+      statusesByIcon.set(icon, [...(statusesByIcon.get(icon) ?? []), status]);
     }
 
-    const shared = [...statusesByBadge.values()].filter((group) => group.length > 1);
+    const shared = [...statusesByIcon.values()].filter((group) => group.length > 1);
     expect(shared).toEqual([ALIASES]);
+  });
+
+  it.each(LANGUAGES)('has a staff label for every status in %s', (language) => {
+    useLanguageStore.setState({ language });
+    for (const status of STATUSES) {
+      const { staffLabelKey } = getOrderStatusLook(status);
+      expect(useLanguageStore.getState().t(staffLabelKey!), `${status} in ${language}`).not.toMatch(/^staffStatus_/);
+    }
   });
 
   it.each(['ready', 'courier_assigned', 'on_the_way', 'delivery', 'rejected', 'refunded', 'canceled'] as const)(
@@ -96,7 +124,7 @@ describe('getOrderStatusLook: every status of the backend', () => {
       const pending = getOrderStatusLook('new');
 
       expect(getOrderStatusLook(status).labelKey).not.toBe(pending.labelKey);
-      expect(getOrderStatusLook(status).badge).not.toBe(pending.badge);
+      expect(getOrderStatusLook(status).tone).not.toBe(pending.tone);
       for (const language of LANGUAGES) {
         expect(labelOf(status, language), `${status} in ${language}`).not.toBe(labelOf('new', language));
       }
@@ -151,9 +179,10 @@ describe('getOrderStatusLook: a status the app does not know', () => {
     const look = getOrderStatusLook('awaiting_pickup');
 
     expect(look.labelKey).toBeNull();
-    expect(look.badge).toContain('slate');
+    expect(look.staffLabelKey).toBeNull();
+    expect(look.tone).toBe('neutral');
     for (const status of STATUSES) {
-      expect(look.badge).not.toBe(getOrderStatusLook(status).badge);
+      expect(look.icon).not.toBe(getOrderStatusLook(status).icon);
     }
   });
 

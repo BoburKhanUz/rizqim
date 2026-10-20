@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Bell, CheckCircle2, Clock, ShieldAlert, Sparkles, MessageSquare, Flame } from 'lucide-react';
 import { useLanguageStore } from '../store/languageStore';
+import { formatTime } from '../lib/format';
 import { useAuthStore } from '../store/authStore';
 import { hapticFeedback } from '../lib/telegram';
 import { useNotifications } from '../hooks/useNotifications';
@@ -68,7 +69,7 @@ export default function Notifications() {
   };
 
   return (
-    <div className={`min-h-screen pb-28 animate-fade-in flex flex-col ${isBusiness ? 'bg-bg text-text-h' : 'bg-slate-50 text-slate-800'}`}>
+    <div className={`min-h-screen pb-28 animate-fade-in flex flex-col ${isBusiness ? 'bg-bg text-fg' : 'bg-slate-50 text-slate-800'}`}>
       {/* Header */}
       <div className={`sticky top-0 px-4 py-4 flex items-center justify-between z-10 shadow-sm ${
         isBusiness 
@@ -80,14 +81,14 @@ export default function Notifications() {
             onClick={() => { hapticFeedback('light'); navigate(-1); }} 
             className={`w-10 h-10 rounded-2xl flex items-center justify-center active:scale-95 transition ${
               isBusiness 
-                ? 'bg-bg border border-white/5 text-text-h' 
-                : 'bg-slate-50 border border-slate-100 text-slate-805'
+                ? 'bg-bg border border-white/5 text-fg' 
+                : 'bg-slate-50 border border-slate-100 text-slate-800'
             }`}
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <h1 className={`text-sm font-black leading-none ${isBusiness ? 'text-text-h' : 'text-slate-800'}`}>
+            <h1 className={`text-sm font-black leading-none ${isBusiness ? 'text-fg' : 'text-slate-800'}`}>
               {language === 'uz' ? 'Bildirishnomalar' : 'Уведомления'}
             </h1>
             <p className={`text-[10px] font-bold mt-1 uppercase tracking-wider ${isBusiness ? 'text-hint' : 'text-slate-400'}`}>
@@ -122,7 +123,7 @@ export default function Notifications() {
               <Bell className="w-8 h-8 opacity-60" />
             </div>
             <div>
-              <h3 className={`text-sm font-black ${isBusiness ? 'text-text-h' : 'text-slate-800'}`}>
+              <h3 className={`text-sm font-black ${isBusiness ? 'text-fg' : 'text-slate-800'}`}>
                 {language === 'uz' ? 'Hozircha xabarlar yo\'q' : 'Уведомлений пока нет'}
               </h3>
               <p className={`text-[11px] font-medium mt-1.5 leading-relaxed max-w-[220px] mx-auto ${
@@ -150,18 +151,18 @@ export default function Notifications() {
                 <div className="text-left flex-1 min-w-0 space-y-1">
                   <div className="flex items-center justify-between gap-2">
                     <span className={`text-xs font-black truncate leading-none ${
-                      isBusiness ? 'text-text-h' : 'text-slate-850'
+                      isBusiness ? 'text-fg' : 'text-slate-800'
                     }`}>
                       {notif.title}
                     </span>
                     <span className={`text-[9px] font-bold whitespace-nowrap ${
                       isBusiness ? 'text-hint/80' : 'text-slate-400'
                     }`}>
-                      {new Date(notif.sent_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {formatTime(notif.sent_at)}
                     </span>
                   </div>
                   <span className={`text-[11px] font-medium block leading-relaxed ${
-                    isBusiness ? 'text-hint' : 'text-slate-505'
+                    isBusiness ? 'text-hint' : 'text-slate-500'
                   }`}>
                     {notif.message}
                   </span>

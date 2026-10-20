@@ -75,11 +75,11 @@ const LABELS: Record<Language, Record<OrderStatus, string>> = {
   },
 };
 
-// One order per status; the 8-letter code shown on a card is its id
+// One order per status; the code shown on a card (its short_code) is its id, 8 digits
 const codeOf = (id: number) => String(id).padStart(8, '0');
 function ordersOfEveryStatus(): Order[] {
   return STATUSES.map((status, index) =>
-    makeOrder({ id: index + 1, uuid: `${codeOf(index + 1)}-0000-4000-8000-000000000000`, status, payment_status: 'pending' }),
+    makeOrder({ id: index + 1, uuid: `${codeOf(index + 1)}-0000-4000-8000-000000000000`, short_code: codeOf(index + 1), status, payment_status: 'pending' }),
   );
 }
 
@@ -143,26 +143,25 @@ describe('Orders: status of each order', () => {
     }
   });
 
-  it('colours the badges that used to look like a pending order by their own meaning', async () => {
+  it('colours each badge by its semantic group (lib/orderStatus.ts), never like a pending order unless it is one', async () => {
     serveOrders(ordersOfEveryStatus());
 
     renderOrders();
     await screen.findByText(`#${codeOf(1)}`);
 
     const badge = (status: OrderStatus) => within(cardOf(STATUSES.indexOf(status) + 1)).getByText(LABELS.uz[status]).parentElement;
-    expect(badge('new')).toHaveClass('text-amber-500');
-    expect(badge('ready')).toHaveClass('text-teal-500');
-    expect(badge('courier_assigned')).toHaveClass('text-indigo-500');
-    expect(badge('on_the_way')).toHaveClass('text-orange-500');
-    expect(badge('delivery')).toHaveClass('text-orange-500');
-    expect(badge('rejected')).toHaveClass('text-rose-500');
-    expect(badge('refunded')).toHaveClass('text-sky-500');
-    expect(badge('canceled')).toHaveClass('text-red-500');
-    expect(badge('delivered')).toHaveClass('text-emerald-500');
+    expect(badge('new')).toHaveClass('text-warning-soft-fg');
+    for (const status of ['accepted', 'preparing', 'ready', 'courier_assigned', 'on_the_way', 'delivery'] as const) {
+      expect(badge(status), status).toHaveClass('text-info-soft-fg');
+    }
+    expect(badge('delivered')).toHaveClass('text-success-soft-fg');
+    expect(badge('canceled')).toHaveClass('text-danger-soft-fg');
+    expect(badge('rejected')).toHaveClass('text-danger-soft-fg');
+    expect(badge('refunded')).toHaveClass('text-fg-muted');
   });
 
   it('shows a status the app has never heard of as it came, not as "Pending"', async () => {
-    serveOrders([makeOrder({ id: 1, uuid: `${codeOf(1)}-0000-4000-8000-000000000000`, status: 'awaiting_pickup' as OrderStatus })]);
+    serveOrders([makeOrder({ id: 1, uuid: `${codeOf(1)}-0000-4000-8000-000000000000`, short_code: codeOf(1), status: 'awaiting_pickup' as OrderStatus })]);
 
     renderOrders();
     await screen.findByText(`#${codeOf(1)}`);
@@ -170,12 +169,12 @@ describe('Orders: status of each order', () => {
     const card = within(cardOf(1));
     expect(card.getByText('awaiting_pickup')).toBeInTheDocument();
     expect(card.queryByText(LABELS.uz.new)).not.toBeInTheDocument();
-    expect(card.getByText('awaiting_pickup').parentElement).toHaveClass('text-slate-500');
+    expect(card.getByText('awaiting_pickup').parentElement).toHaveClass('text-fg-muted');
   });
 });
 
 const ordersAt = (id: number, overrides: Partial<Order> = {}) =>
-  makeOrder({ id, uuid: `${codeOf(id)}-0000-4000-8000-000000000000`, payment_status: 'pending', ...overrides });
+  makeOrder({ id, uuid: `${codeOf(id)}-0000-4000-8000-000000000000`, short_code: codeOf(id), payment_status: 'pending', ...overrides });
 
 const expand = (id: number) => fireEvent.click(screen.getByText(`#${codeOf(id)}`));
 

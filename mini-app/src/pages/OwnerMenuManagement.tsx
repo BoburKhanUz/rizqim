@@ -6,7 +6,9 @@ import { hapticFeedback } from '../lib/telegram';
 import api from '../services/api';
 import { logApiError } from '../lib/apiError';
 import { toAmount } from '../lib/money';
-import { FullScreenLoader, ErrorFallback } from '../components/Feedback';
+import { formatMoney } from '../lib/format';
+import { FullScreenLoader } from '../components/Feedback';
+import { InlineError } from '../components/ui/InlineError';
 import type { ApiResponse, Product } from '../types';
 
 export default function OwnerMenuManagement() {
@@ -15,6 +17,7 @@ export default function OwnerMenuManagement() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0); // bumped by \"Qayta urinish\" after a failed load
   const [search, setSearch] = useState('');
   
   useEffect(() => {
@@ -37,7 +40,7 @@ export default function OwnerMenuManagement() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [reloadKey]);
 
   const toggleActive = async (id: number) => {
     hapticFeedback('light');
@@ -67,14 +70,23 @@ export default function OwnerMenuManagement() {
     }
   };
 
-  const formatMoney = (amount: number) => {
-    return new Intl.NumberFormat('uz-UZ', { style: 'currency', currency: 'UZS', maximumFractionDigits: 0 }).format(amount);
-  };
 
   const filteredProducts = products.filter(p => p.name.toLowerCase().includes(search.toLowerCase()));
 
   if (loading && products.length === 0) return <FullScreenLoader message="Menyu yuklanmoqda..." />;
-  if (error) return <ErrorFallback error={error} />;
+  if (error) {
+    return (
+      <div className="p-4">
+        <InlineError
+          onRetry={() => {
+            setLoading(true);
+            setError(null);
+            setReloadKey((key) => key + 1);
+          }}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 pb-24 animate-fade-in min-h-screen bg-gradient-to-br from-bg via-bg to-primary/5">
@@ -90,7 +102,7 @@ export default function OwnerMenuManagement() {
             hapticFeedback('light');
             navigate('/admin/catalog/create');
           }}
-          className="flex items-center gap-2 px-5 py-3 bg-primary text-white font-bold rounded-2xl active:scale-95 transition-all"
+          className="flex items-center gap-2 px-5 py-3 bg-primary text-on-brand font-bold rounded-2xl active:scale-95 transition-all"
         >
           <PlusCircle className="w-5 h-5" />
           <span className="text-sm">Qo'shish</span>
@@ -107,7 +119,7 @@ export default function OwnerMenuManagement() {
             placeholder="Mahsulot qidirish..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-transparent border-none text-text-h text-sm pl-3 pr-4 py-3.5 focus:ring-0 outline-none transition-all placeholder:text-hint/50 font-medium"
+            className="w-full bg-transparent border-none text-fg text-sm pl-3 pr-4 py-3.5 focus:ring-0 outline-none transition-all placeholder:text-hint/50 font-medium"
           />
         </div>
       </div>
@@ -142,7 +154,7 @@ export default function OwnerMenuManagement() {
                 <div className="flex-1 min-w-0 flex flex-col justify-between p-3">
                   <div>
                     <div className="flex justify-between items-start mb-1 gap-2">
-                      <h3 className="font-semibold text-sm text-text-h leading-tight line-clamp-2">{product.name}</h3>
+                      <h3 className="font-semibold text-sm text-fg leading-tight line-clamp-2">{product.name}</h3>
                       <button 
                         onClick={(e) => { e.stopPropagation(); toggleActive(product.id); }}
                         className={`shrink-0 p-1.5 rounded-full transition-colors active:scale-90 ${product.status === 'active' ? 'text-green-500 bg-green-500/10 hover:bg-green-500/20' : 'text-hint bg-bg'}`}
@@ -158,7 +170,7 @@ export default function OwnerMenuManagement() {
                   <div className="flex items-end justify-between mt-1">
                     <div className="flex items-center gap-1">
                       <span className="text-[10px] text-hint">dan</span>
-                      <p className="font-bold text-sm text-text-h">
+                      <p className="font-bold text-sm text-fg">
                         {formatMoney(startingPrice)}
                       </p>
                     </div>
@@ -166,7 +178,7 @@ export default function OwnerMenuManagement() {
                     <div className="flex gap-2">
                       <button 
                         onClick={(e) => { e.stopPropagation(); navigate(`/admin/catalog/edit/${product.id}`); }}
-                        className="p-2 bg-secondary text-text-h rounded-lg border border-white/5 active:bg-primary active:text-white transition-colors"
+                        className="p-2 bg-secondary text-fg rounded-lg border border-white/5 active:bg-primary active:text-on-brand transition-colors"
                       >
                         <Edit2 className="w-4 h-4" />
                       </button>
@@ -188,7 +200,7 @@ export default function OwnerMenuManagement() {
             <div className="w-24 h-24 bg-secondary/50 rounded-[32px] flex items-center justify-center mb-4 border border-white/5 shadow-inner">
               <Tag className="w-10 h-10 text-hint/30" />
             </div>
-            <p className="text-text-h font-bold text-lg mb-1">Hech narsa topilmadi</p>
+            <p className="text-fg font-bold text-lg mb-1">Hech narsa topilmadi</p>
             <p className="text-hint text-sm">Yangi mahsulot qo'shish uchun yuqoridagi tugmani bosing</p>
           </div>
         )}

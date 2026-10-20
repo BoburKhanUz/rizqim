@@ -3,11 +3,12 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLanguageStore } from '../store/languageStore';
 import { useAuthStore } from '../store/authStore';
 import { hapticFeedback } from '../lib/telegram';
-import { ErrorFallback } from '../components/Feedback';
+import { InlineError } from '../components/ui/InlineError';
 import { Phone, MapPin, CheckCircle, Navigation, Clock, ShieldCheck, DollarSign } from 'lucide-react';
 import api from '../services/api';
 import { getApiErrorMessage, logApiError } from '../lib/apiError';
 import { sumAmounts, toAmount } from '../lib/money';
+import { formatMoney, formatTime } from '../lib/format';
 import { POLL_INTERVAL_MS } from '../lib/polling';
 import { NO_ORDERS, ORDERS_KEY, useOrderHistory, useStaffOrders } from '../hooks/useOrders';
 import { TruncatedOrdersNotice } from '../components/OrderListParts';
@@ -22,7 +23,7 @@ export default function CourierDashboard() {
   const [activeTab, setActiveTab] = useState<'active' | 'completed'>('active');
 
   // Courier assigned orders: polled while the screen is visible (active deliveries change quickly) and pushed over the socket
-  const { data: activeData, isLoading, error, dataUpdatedAt } = useStaffOrders('courier', POLL_INTERVAL_MS.courierOrders);
+  const { data: activeData, isLoading, error, dataUpdatedAt, refetch: refetchActive, isRefetching: isRefetchingActive } = useStaffOrders('courier', POLL_INTERVAL_MS.courierOrders);
   const allOrders = activeData?.orders ?? NO_ORDERS;
 
   // What was delivered today: the finished orders, loaded back to the start of the day. "Today" is the day of the last
@@ -68,7 +69,13 @@ export default function CourierDashboard() {
   });
 
   // A failed background refresh keeps showing the last deliveries; the error screen is only for "nothing to show"
-  if (error && allOrders.length === 0) return <ErrorFallback error="Failed to fetch courier deliveries." />;
+  if (error && allOrders.length === 0) {
+    return (
+      <div className="p-4">
+        <InlineError onRetry={() => void refetchActive()} retrying={isRefetchingActive} />
+      </div>
+    );
+  }
 
   // Filter active and completed orders
   const activeOrders = allOrders.filter((order) => ACTIVE_STATUSES.includes(order.status));
@@ -80,9 +87,7 @@ export default function CourierDashboard() {
   // Compute statistics
   const todayTotalEarnings = sumAmounts(completedOrders.map((order) => order.delivery_price));
 
-  const formatPrice = (price: number) => {
-    return price.toLocaleString() + ' UZS';
-  };
+  const formatPrice = (price: number) => formatMoney(price, language);
 
   const handleOpenMap = (addressText: string | null) => {
     hapticFeedback('light');
@@ -126,7 +131,7 @@ export default function CourierDashboard() {
               </span>
               <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse"></span>
             </div>
-            <h1 className="text-sm font-black text-text-h">
+            <h1 className="text-sm font-black text-fg">
               {user?.name}
             </h1>
           </div>
@@ -142,7 +147,7 @@ export default function CourierDashboard() {
               {language === 'uz' ? 'Bugungi daromad' : 'Сегодня заработано'}
             </span>
           </div>
-          <span className="text-sm font-black text-text-h mt-1">
+          <span className="text-sm font-black text-fg mt-1">
             {formatPrice(todayTotalEarnings)}
           </span>
         </div>
@@ -153,7 +158,7 @@ export default function CourierDashboard() {
               {language === 'uz' ? 'Yetkazilganlar' : 'Доставлено'}
             </span>
           </div>
-          <span className="text-sm font-black text-text-h mt-1">
+          <span className="text-sm font-black text-fg mt-1">
             {completedOrders.length} {language === 'uz' ? 'ta' : 'шт'}
           </span>
         </div>
@@ -167,7 +172,7 @@ export default function CourierDashboard() {
           onClick={() => { hapticFeedback('light'); setActiveTab('active'); }}
           className={`flex-1 py-3 text-xs font-black rounded-xl transition-all ${
             activeTab === 'active' 
-              ? 'bg-primary text-white shadow-sm' 
+              ? 'bg-primary text-on-brand shadow-sm' 
               : 'text-hint'
           }`}
         >
@@ -177,7 +182,7 @@ export default function CourierDashboard() {
           onClick={() => { hapticFeedback('light'); setActiveTab('completed'); }}
           className={`flex-1 py-3 text-xs font-black rounded-xl transition-all ${
             activeTab === 'completed' 
-              ? 'bg-primary text-white shadow-sm' 
+              ? 'bg-primary text-on-brand shadow-sm' 
               : 'text-hint'
           }`}
         >
@@ -220,7 +225,7 @@ export default function CourierDashboard() {
                     <span className="text-[10px] font-black uppercase text-hint tracking-wider">
                       {language === 'uz' ? 'Buyurtma' : 'Заказ'}
                     </span>
-                    <span className="text-xs font-black text-text-h">
+                    <span className="text-xs font-black text-fg">
                       #{order.short_code}
                     </span>
                   </div>
@@ -235,7 +240,7 @@ export default function CourierDashboard() {
                 <div className="flex flex-col gap-3">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h4 className="text-xs font-black text-text-h">{order.user?.name}</h4>
+                      <h4 className="text-xs font-black text-fg">{order.user?.name}</h4>
                       <p className="text-[10px] text-hint mt-0.5">{order.user?.phone || (language === 'uz' ? 'Telefon kiritilmagan' : 'Телефон не указан')}</p>
                     </div>
                     {order.user?.phone && (
@@ -282,7 +287,7 @@ export default function CourierDashboard() {
                       <span>{item.product_name} x{item.quantity}</span>
                     </div>
                   ))}
-                  <div className="flex justify-between items-center text-[11px] font-black text-text-h border-t border-hint/5 pt-2 mt-1">
+                  <div className="flex justify-between items-center text-[11px] font-black text-fg border-t border-hint/5 pt-2 mt-1">
                     <span>{language === 'uz' ? 'Jami summa' : 'Итоговая сумма'}</span>
                     <span className="text-primary">{formatPrice(toAmount(order.total_price))}</span>
                   </div>
@@ -293,7 +298,7 @@ export default function CourierDashboard() {
                   <button
                     onClick={() => updateStatusMutation.mutate({ orderUuid: order.uuid, status: 'on_the_way' })}
                     disabled={updateStatusMutation.isPending}
-                    className="w-full bg-primary text-white font-extrabold text-xs py-4 rounded-2xl active:scale-95 transition-all shadow-md shadow-primary/20 flex items-center justify-center gap-2"
+                    className="w-full bg-primary text-on-brand font-extrabold text-xs py-4 rounded-2xl active:scale-95 transition-all shadow-md shadow-primary/20 flex items-center justify-center gap-2"
                   >
                     {updateStatusMutation.isPending ? (
                       <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
@@ -340,7 +345,7 @@ export default function CourierDashboard() {
                 className="bg-secondary p-4 rounded-3xl border border-hint/5 shadow-sm flex flex-col gap-3 opacity-80"
               >
                 <div className="flex justify-between items-center pb-2 border-b border-hint/5">
-                  <span className="text-xs font-black text-text-h">#{order.short_code}</span>
+                  <span className="text-xs font-black text-fg">#{order.short_code}</span>
                   <span className="bg-emerald-500/10 text-emerald-500 text-[9px] font-black px-2 py-0.5 rounded-md border border-emerald-500/10 uppercase flex items-center gap-1">
                     <CheckCircle className="w-3.5 h-3.5" />
                     {language === 'uz' ? 'Yetkazildi' : 'Доставлен'}
@@ -348,11 +353,11 @@ export default function CourierDashboard() {
                 </div>
                 <div className="flex justify-between items-center text-xs font-bold text-hint">
                   <span>{order.user?.name}</span>
-                  <span className="text-text-h">{formatPrice(toAmount(order.total_price))}</span>
+                  <span className="text-fg">{formatPrice(toAmount(order.total_price))}</span>
                 </div>
                 <div className="text-[10px] text-hint flex items-center gap-1.5">
                   <Clock className="w-3.5 h-3.5" />
-                  {new Date(order.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  {formatTime(order.updated_at)}
                 </div>
               </div>
             ))

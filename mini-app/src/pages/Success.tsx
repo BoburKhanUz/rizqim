@@ -47,7 +47,9 @@ export default function Success() {
     return <Navigate to="/" replace />;
   }
 
-  const orderId = orderUuid?.split('-')[0]?.toUpperCase() || 'NEW';
+  // The short code when the cart passed it (state.order_number), else the start of the uuid
+  const orderNumber = (location.state as { order_number?: unknown } | null)?.order_number;
+  const orderId = (typeof orderNumber === 'string' && orderNumber.trim()) || orderUuid?.split('-')[0]?.toUpperCase() || 'NEW';
 
   const steps = [
     { id: 1, title: language === 'uz' ? 'Tasdiqlandi' : 'Подтвержден', desc: language === 'uz' ? 'Buyurtma qabul qilindi' : 'Заказ принят', icon: <CheckCircle2 className="w-5 h-5" /> },

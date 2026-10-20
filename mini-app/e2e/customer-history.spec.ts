@@ -16,7 +16,7 @@ test('"Ko\'proq yuklash" loads the next page of the history and goes away on the
 
   await page.goto('/orders')
   const history = page.getByRole('region', { name: 'Buyurtmalar tarixi' })
-  const orders = history.getByText(/^#E2E\d{5}$/)
+  const orders = history.getByText(/^#E\d+$/)
   await expect(orders).toHaveCount(20)
 
   await page.getByRole('button', { name: "Ko'proq yuklash" }).click()
@@ -31,7 +31,7 @@ test('scrolling to the end of the history loads the next page by itself', async 
   seedHistory(api)
 
   await page.goto('/orders')
-  const orders = page.getByRole('region', { name: 'Buyurtmalar tarixi' }).getByText(/^#E2E\d{5}$/)
+  const orders = page.getByRole('region', { name: 'Buyurtmalar tarixi' }).getByText(/^#E\d+$/)
   await expect(orders).toHaveCount(20)
 
   await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight))

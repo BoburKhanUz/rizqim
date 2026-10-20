@@ -12,7 +12,7 @@ import { toLatLng } from '../features/address/coordinates';
 import type { AddressLocationValue } from '../features/address/types';
 import { classifyPhoneChange } from '../lib/phone';
 import { getApiFieldError, logApiError } from '../lib/apiError';
-import { toAmount } from '../lib/money';
+import { formatNumber } from '../lib/format';
 import { normalizeUser } from '../lib/user';
 import { fetchOrdersPage } from '../hooks/useOrders';
 import type { Amount, ApiResponse, AuthPayload } from '../types';
@@ -244,10 +244,7 @@ export default function CustomerProfile() {
     hapticFeedback('success');
   };
 
-  const formatBalance = (val: Amount | undefined) => {
-    const num = Math.round(toAmount(val));
-    return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
-  };
+  const formatBalance = (val: Amount | undefined) => formatNumber(val);
 
   return (
     <div className="p-4 space-y-4 pb-28 animate-fade-in bg-slate-50 min-h-screen">
@@ -270,7 +267,7 @@ export default function CustomerProfile() {
         </h1>
         <button
           onClick={() => { hapticFeedback('light'); navigate('/notifications'); }}
-          className="w-10 h-10 rounded-2xl bg-white border border-slate-100 flex items-center justify-center text-slate-605 hover:bg-slate-50 active:scale-95 transition relative shrink-0 shadow-sm"
+          className="w-10 h-10 rounded-2xl bg-white border border-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-50 active:scale-95 transition relative shrink-0 shadow-sm"
         >
           <Bell className="w-4.5 h-4.5" />
           <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-rose-500 rounded-full border border-white"></span>
@@ -289,7 +286,7 @@ export default function CustomerProfile() {
                   required
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
-                  className="w-full text-xs bg-slate-550 border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:border-amber-500 font-semibold"
+                  className="w-full text-xs bg-slate-500 border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:border-amber-500 font-semibold"
                 />
               </div>
               <div>
@@ -299,7 +296,7 @@ export default function CustomerProfile() {
                   value={editPhone}
                   onChange={(e) => { setEditPhone(e.target.value); setPhoneError(""); }}
                   placeholder="+998901234567"
-                  className="w-full text-xs bg-slate-550 border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:border-amber-500 font-semibold"
+                  className="w-full text-xs bg-slate-500 border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:border-amber-500 font-semibold"
                 />
                 {phoneError ? (
                   <p className="text-[10px] text-rose-500 font-bold mt-1 pl-1">{phoneError}</p>

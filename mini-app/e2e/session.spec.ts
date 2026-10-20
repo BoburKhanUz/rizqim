@@ -13,7 +13,7 @@ test('an expired token is renewed once and the failed requests are replayed', as
 
   // The page works as if nothing happened
   const active = page.getByRole('region', { name: 'Faol buyurtmalar' })
-  await expect(active.getByText(`#${order.uuid.slice(0, 8).toUpperCase()}`)).toBeVisible()
+  await expect(active.getByText(`#${order.short_code}`, { exact: true })).toBeVisible()
 
   // The stored token was refused first ...
   const rejected = api.calls.filter((call) => call.status === 401 && call.path !== '/auth/telegram')

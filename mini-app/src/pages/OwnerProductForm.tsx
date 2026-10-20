@@ -227,7 +227,7 @@ export default function OwnerProductForm() {
                 <h2 className="font-extrabold text-sm uppercase tracking-wide">Asosiy ma'lumotlar</h2>
               </div>
               <label className="flex items-center gap-2.5 cursor-pointer bg-bg/50 px-3 py-1.5 rounded-xl border border-white/5 shadow-inner">
-                <span className="text-xs font-bold text-text-h">Sotuvda</span>
+                <span className="text-xs font-bold text-fg">Sotuvda</span>
                 <input 
                   type="checkbox" 
                   checked={isActive} 
@@ -303,7 +303,7 @@ export default function OwnerProductForm() {
                         value={variant.name}
                         onChange={(e) => updateVariant(index, 'name', e.target.value)}
                         placeholder="Mini, Katta, 1 L..."
-                        className="bg-transparent border-none text-sm font-bold text-text-h w-full outline-none focus:ring-0 p-0 placeholder:text-hint/30"
+                        className="bg-transparent border-none text-sm font-bold text-fg w-full outline-none focus:ring-0 p-0 placeholder:text-hint/30"
                         required
                       />
                     </div>
@@ -345,7 +345,7 @@ export default function OwnerProductForm() {
         <button 
           type="submit" 
           disabled={saving}
-          className="w-full bg-primary text-white font-black text-base py-4 rounded-2xl active:scale-[0.98] transition-all flex items-center justify-center gap-2 mt-6 relative overflow-hidden"
+          className="w-full bg-primary text-on-brand font-black text-base py-4 rounded-2xl active:scale-[0.98] transition-all flex items-center justify-center gap-2 mt-6 relative overflow-hidden"
         >
           {saving && <div className="absolute inset-0 bg-black/10"></div>}
           {saving ? (

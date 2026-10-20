@@ -18,11 +18,11 @@ const THEME: Record<Variant, { sheet: string; title: string; text: string; field
   },
   staff: {
     sheet: 'bg-secondary border border-hint/10 text-text',
-    title: 'text-text-h',
+    title: 'text-fg',
     text: 'text-hint',
-    field: 'bg-bg border border-hint/15 text-text-h focus:border-primary',
+    field: 'bg-bg border border-hint/15 text-fg focus:border-primary',
     ghost: 'bg-bg text-hint border border-hint/10',
-    option: 'border border-hint/15 text-text-h',
+    option: 'border border-hint/15 text-fg',
     optionOn: 'border border-red-500/50 bg-red-500/10 text-red-500',
   },
 };

@@ -47,5 +47,12 @@ export function useOrdersForPeriod(timeframe: Timeframe, range?: DateRange) {
     dataUpdatedAt: Math.max(active.dataUpdatedAt, history.dataUpdatedAt, latest.dataUpdatedAt),
     truncated: active.data?.truncated === true,
     capped: history.capped,
+    // Loads everything again (the retry button of an error)
+    refetch: () => {
+      void active.refetch();
+      void history.refetch();
+      void latest.refetch();
+    },
+    isRefetching: active.isRefetching || history.isRefetching || latest.isRefetching,
   };
 }

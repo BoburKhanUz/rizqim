@@ -5,7 +5,7 @@ import { hapticFeedback } from '../lib/telegram';
 import { ArrowLeft, Search, X, Star, Heart } from 'lucide-react';
 import api from '../services/api';
 import { logApiError } from '../lib/apiError';
-import { formatUzbekSum } from '../lib/format';
+import { formatMoney } from '../lib/format';
 import { getLocationParams } from '../lib/location';
 import type { ApiResponse, StoreListItem } from '../types';
 
@@ -96,7 +96,7 @@ export default function Stores() {
           {searchQuery && (
             <button 
               onClick={() => setSearchQuery('')}
-              className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-650"
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600"
             >
               <X className="w-4 h-4" />
             </button>
@@ -138,7 +138,7 @@ export default function Stores() {
                   {/* Favorite Heart Trigger */}
                   <button 
                     onClick={(e) => toggleFavoriteStore(e, store.uuid)}
-                    className="absolute top-4 right-4 p-2 bg-slate-50 hover:bg-slate-100 rounded-full shadow-sm z-10 active:scale-75 transition text-slate-350"
+                    className="absolute top-4 right-4 p-2 bg-slate-50 hover:bg-slate-100 rounded-full shadow-sm z-10 active:scale-75 transition text-slate-300"
                   >
                     <Heart className={`w-4 h-4 ${isFav ? 'fill-rose-500 text-rose-500' : ''}`} />
                   </button>
@@ -174,7 +174,7 @@ export default function Stores() {
                         {store.delivery_time || "20-30 daqiqa"}
                       </span>
                       <span className="text-slate-400">
-                        Min: {formatUzbekSum(store.min_order !== undefined && store.min_order !== null ? store.min_order : 30000)}
+                        Min: {formatMoney(store.min_order !== undefined && store.min_order !== null ? store.min_order : 30000)}
                       </span>
                     </div>
                   </div>

@@ -183,7 +183,7 @@ export default function PhoneVerificationModal({ onVerified, onClose, initialPho
               <button
                 type="submit"
                 disabled={isSubmitting || phone.length !== 9}
-                className="w-full bg-primary text-white font-extrabold text-xs py-4 rounded-2xl active:scale-95 transition-all shadow-md shadow-primary/20 disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-2"
+                className="w-full bg-primary text-on-brand font-extrabold text-xs py-4 rounded-2xl active:scale-95 transition-all shadow-md shadow-primary/20 disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-2"
               >
                 {isSubmitting ? (
                   <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
@@ -223,7 +223,7 @@ export default function PhoneVerificationModal({ onVerified, onClose, initialPho
               <button
                 type="submit"
                 disabled={isSubmitting || code.length !== 6}
-                className="w-full bg-primary text-white font-extrabold text-xs py-4 rounded-2xl active:scale-95 transition-all shadow-md shadow-primary/20 disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-2"
+                className="w-full bg-primary text-on-brand font-extrabold text-xs py-4 rounded-2xl active:scale-95 transition-all shadow-md shadow-primary/20 disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-2"
               >
                 {isSubmitting ? (
                   <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>

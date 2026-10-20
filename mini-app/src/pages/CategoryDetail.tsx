@@ -8,7 +8,7 @@ import { ArrowLeft, Search, X, ShoppingBag } from 'lucide-react';
 import VariantSelectorModal from '../components/VariantSelectorModal';
 import api from '../services/api';
 import { logApiError } from '../lib/apiError';
-import { formatUzbekSum } from '../lib/format';
+import { formatMoney } from '../lib/format';
 import { buildCartItem, getProductBasePrice, getStoreInfo } from '../lib/catalog';
 import type { ApiResponse, Category, FeedCatalog, Product, ProductVariant } from '../types';
 
@@ -146,7 +146,7 @@ export default function CategoryDetail() {
           {searchQuery && (
             <button 
               onClick={() => setSearchQuery('')}
-              className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-650"
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600"
             >
               <X className="w-4 h-4" />
             </button>
@@ -198,7 +198,7 @@ export default function CategoryDetail() {
           </div>
         ) : filteredProducts.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 px-6 text-center gap-4">
-            <div className="w-16 h-16 bg-slate-100 border border-slate-200/50 rounded-full flex items-center justify-center text-slate-450">
+            <div className="w-16 h-16 bg-slate-100 border border-slate-200/50 rounded-full flex items-center justify-center text-slate-400">
               <ShoppingBag className="w-8 h-8 opacity-60" />
             </div>
             <div>
@@ -250,7 +250,7 @@ export default function CategoryDetail() {
                     <p className="text-[10px] text-slate-400 font-medium line-clamp-2 mt-1 leading-relaxed">{product.description}</p>
                   </div>
                   <div className="flex items-center justify-between mt-3.5 pt-2 border-t border-slate-50">
-                    <span className="text-[11px] font-black text-slate-800">{formatUzbekSum(price)}</span>
+                    <span className="text-[11px] font-black text-slate-800">{formatMoney(price)}</span>
                     <button 
                       aria-label="Savatga qo'shish"
                       onClick={(e) => handleAddToCart(e, product)} 

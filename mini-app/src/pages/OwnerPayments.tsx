@@ -7,6 +7,7 @@ import api from '../services/api';
 import { tg, hapticFeedback } from '../lib/telegram';
 import { getApiErrorMessage, getErrorMessage } from '../lib/apiError';
 import { parseAmount, sumAmounts, toAmount } from '../lib/money';
+import { formatDate, formatDateTime, formatMoney } from '../lib/format';
 import { POLL_INTERVAL_MS, pollingQueryOptions } from '../lib/polling';
 import type { Amount, ApiResponse, OwnerFinance, PayoutStatus, TopupInitiated } from '../types';
 
@@ -19,8 +20,8 @@ const TOPUP_PRESETS = [50_000, 100_000, 250_000, 500_000];
 
 const errorText = (err: unknown) => getApiErrorMessage(err) || getErrorMessage(err) || '';
 
-// Money arrives as floats and decimal strings alike: read it through toAmount before it is formatted.
-const formatPrice = (price: Amount) => toAmount(price).toLocaleString() + ' UZS';
+// Money arrives as floats and decimal strings alike: lib/format reads it through toAmount.
+const formatPrice = (price: Amount) => formatMoney(price);
 
 export default function OwnerPayments() {
   const { language } = useLanguageStore();
@@ -237,7 +238,7 @@ export default function OwnerPayments() {
       {/* Header */}
       <div className="pt-2 flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-black text-text-h">
+          <h1 className="text-3xl font-black text-fg">
             {language === 'uz' ? 'Balans va Moliya' : 'Баланс и Финансы'}
           </h1>
           <p className="text-xs text-hint font-medium mt-1">
@@ -258,7 +259,7 @@ export default function OwnerPayments() {
               {language === 'uz' ? 'Komissiya Qarzi' : 'Долг по комиссии'}
             </span>
           </div>
-          <span className="text-sm font-black text-text-h mt-1">
+          <span className="text-sm font-black text-fg mt-1">
             {formatPrice(currentDebt)}
           </span>
           <span className="text-[8px] text-hint font-medium">
@@ -275,7 +276,7 @@ export default function OwnerPayments() {
               {language === 'uz' ? 'Oldindan To\'lov' : 'Предоплата'}
             </span>
           </div>
-          <span className="text-sm font-black text-text-h mt-1">
+          <span className="text-sm font-black text-fg mt-1">
             {formatPrice(advancePayment)}
           </span>
           <span className="text-[8px] text-hint font-medium">
@@ -293,7 +294,7 @@ export default function OwnerPayments() {
                 {language === 'uz' ? 'Mavjud Limit (Kredit)' : 'Доступный лимит (Кредит)'}
               </span>
             </div>
-            <span className="text-2xl font-black text-text-h block">
+            <span className="text-2xl font-black text-fg block">
               {formatPrice(availableCredit)}
             </span>
             <span className="text-[9px] text-hint font-medium block">
@@ -309,7 +310,7 @@ export default function OwnerPayments() {
       {/* Top Up Button */}
       <button
         onClick={() => { hapticFeedback('light'); setShowTopupModal(true); }}
-        className="w-full bg-primary hover:bg-primary/95 text-white rounded-3xl py-3.5 text-xs font-black shadow-lg shadow-primary/15 flex items-center justify-center gap-1.5 transition-transform active:scale-95 cursor-pointer"
+        className="w-full bg-primary hover:bg-primary/95 text-on-brand rounded-3xl py-3.5 text-xs font-black shadow-lg shadow-primary/15 flex items-center justify-center gap-1.5 transition-transform active:scale-95 cursor-pointer"
       >
         💳 {language === 'uz' ? "Balansni To'ldirish (Card Top Up)" : "Пополнение баланса (Картой)"}
       </button>
@@ -356,7 +357,7 @@ export default function OwnerPayments() {
       {hasPlatformWallet && walletBalance > 0 && (
         <div className="bg-secondary p-5 rounded-3xl border border-hint/5 space-y-4">
           <div>
-            <h2 className="text-sm font-black text-text-h uppercase tracking-wider">
+            <h2 className="text-sm font-black text-fg uppercase tracking-wider">
               {language === 'uz' ? 'Mablag\'ni Yechib Olish' : 'Вывод средств'}
             </h2>
             <p className="text-[10px] text-hint mt-0.5">
@@ -380,7 +381,7 @@ export default function OwnerPayments() {
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 placeholder="Masalan: 50000"
-                className="w-full bg-bg border border-hint/10 focus:border-primary/40 focus:ring-0 rounded-2xl px-4 py-3 text-xs text-text-h font-black placeholder:font-medium placeholder:text-hint/40"
+                className="w-full bg-bg border border-hint/10 focus:border-primary/40 focus:ring-0 rounded-2xl px-4 py-3 text-xs text-fg font-black placeholder:font-medium placeholder:text-hint/40"
               />
             </div>
 
@@ -395,7 +396,7 @@ export default function OwnerPayments() {
                 onChange={(e) => setCardNumber(formatCardNumber(e.target.value))}
                 placeholder="0000 0000 0000 0000"
                 maxLength={19}
-                className="w-full bg-bg border border-hint/10 focus:border-primary/40 focus:ring-0 rounded-2xl px-4 py-3 text-xs text-text-h font-black placeholder:font-medium placeholder:text-hint/40"
+                className="w-full bg-bg border border-hint/10 focus:border-primary/40 focus:ring-0 rounded-2xl px-4 py-3 text-xs text-fg font-black placeholder:font-medium placeholder:text-hint/40"
               />
             </div>
 
@@ -409,7 +410,7 @@ export default function OwnerPayments() {
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder={language === 'uz' ? 'Qo\'shimcha izohlar...' : 'Дополнительные примечания...'}
-                className="w-full bg-bg border border-hint/10 focus:border-primary/40 focus:ring-0 rounded-2xl px-4 py-3 text-xs text-text-h font-black placeholder:font-medium placeholder:text-hint/40"
+                className="w-full bg-bg border border-hint/10 focus:border-primary/40 focus:ring-0 rounded-2xl px-4 py-3 text-xs text-fg font-black placeholder:font-medium placeholder:text-hint/40"
               />
             </div>
 
@@ -428,7 +429,7 @@ export default function OwnerPayments() {
             <button
               type="submit"
               disabled={payoutMutation.isPending}
-              className="w-full bg-primary hover:bg-primary/95 disabled:bg-primary/50 text-white rounded-2xl py-3 text-xs font-black shadow-sm shadow-primary/20 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+              className="w-full bg-primary hover:bg-primary/95 disabled:bg-primary/50 text-on-brand rounded-2xl py-3 text-xs font-black shadow-sm shadow-primary/20 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
             >
               <Send className="w-4 h-4" />
               {payoutMutation.isPending
@@ -442,7 +443,7 @@ export default function OwnerPayments() {
       {/* Payout History (Visible if hasPlatformWallet & requests exist) */}
       {hasPlatformWallet && payout_requests.length > 0 && (
         <div className="space-y-3">
-          <h2 className="text-sm font-black text-text-h uppercase tracking-wider pl-1">
+          <h2 className="text-sm font-black text-fg uppercase tracking-wider pl-1">
             {language === 'uz' ? 'Yechib Olish So\'rovlari' : 'Запросы на выплату'}
           </h2>
           <div className="space-y-2.5">
@@ -453,7 +454,7 @@ export default function OwnerPayments() {
                     {getPayoutStatusIcon(req.status)}
                   </div>
                   <div>
-                    <span className="text-[11px] font-black text-text-h uppercase tracking-wide block">
+                    <span className="text-[11px] font-black text-fg uppercase tracking-wide block">
                       {formatPrice(req.amount)}
                     </span>
                     <span className="text-[9px] text-hint font-bold block mt-0.5">
@@ -470,7 +471,7 @@ export default function OwnerPayments() {
                     {getPayoutStatusLabel(req.status)}
                   </span>
                   <span className="text-[8px] text-hint font-bold block mt-1">
-                    {new Date(req.created_at).toLocaleDateString()}
+                    {formatDate(req.created_at)}
                   </span>
                 </div>
               </div>
@@ -481,7 +482,7 @@ export default function OwnerPayments() {
 
       {/* Ledger Transactions (Debt / Top-up Logs) */}
       <div className="space-y-3">
-        <h2 className="text-sm font-black text-text-h uppercase tracking-wider pl-1">
+        <h2 className="text-sm font-black text-fg uppercase tracking-wider pl-1">
           {language === 'uz' ? 'Hisob-Kitoblar Tarixi' : 'История взаиморасчетов'}
         </h2>
         {ledger_transactions.length === 0 ? (
@@ -512,10 +513,10 @@ export default function OwnerPayments() {
                       {isCommission ? <TrendingUp className="w-4.5 h-4.5" /> : <TrendingDown className="w-4.5 h-4.5" />}
                     </div>
                     <div>
-                      <span className="text-[11px] font-black text-text-h uppercase tracking-wide block">
+                      <span className="text-[11px] font-black text-fg uppercase tracking-wide block">
                         {label}
                       </span>
-                      <span className="text-[9px] text-hint font-bold block mt-0.5">{new Date(tx.created_at).toLocaleString()}</span>
+                      <span className="text-[9px] text-hint font-bold block mt-0.5">{formatDateTime(tx.created_at)}</span>
                     </div>
                   </div>
                   <div className="text-right">
@@ -538,12 +539,12 @@ export default function OwnerPayments() {
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in animate-duration-200">
           <div className="bg-secondary w-full max-w-sm rounded-[32px] p-6 space-y-6 border border-hint/10 shadow-2xl animate-scale-up animate-duration-200">
             <div className="flex justify-between items-center">
-              <h3 className="text-base font-black text-text-h uppercase tracking-wide">
+              <h3 className="text-base font-black text-fg uppercase tracking-wide">
                 {language === 'uz' ? "Balansni To'ldirish" : "Пополнение баланса"}
               </h3>
               <button
                 onClick={() => { hapticFeedback('light'); setShowTopupModal(false); }}
-                className="w-7 h-7 rounded-full bg-hint/10 text-text-h font-bold text-xs flex items-center justify-center active:scale-90 transition-transform"
+                className="w-7 h-7 rounded-full bg-hint/10 text-fg font-bold text-xs flex items-center justify-center active:scale-90 transition-transform"
               >
                 ✕
               </button>
@@ -560,7 +561,7 @@ export default function OwnerPayments() {
                   value={topupAmount}
                   onChange={(e) => setTopupAmount(e.target.value)}
                   placeholder="Masalan: 50000"
-                  className="w-full bg-bg border border-hint/10 focus:border-primary/40 focus:ring-0 rounded-2xl px-4 py-3 text-xs text-text-h font-black placeholder:font-medium placeholder:text-hint/40"
+                  className="w-full bg-bg border border-hint/10 focus:border-primary/40 focus:ring-0 rounded-2xl px-4 py-3 text-xs text-fg font-black placeholder:font-medium placeholder:text-hint/40"
                 />
               </div>
 
@@ -572,7 +573,7 @@ export default function OwnerPayments() {
                     type="button"
                     onClick={() => { hapticFeedback('light'); setTopupAmount(String(preset)); }}
                     className={`py-2 px-1 rounded-xl text-[9px] font-black border transition-all ${
-                      topupValue === preset ? 'bg-primary text-white border-primary' : 'bg-bg text-text-h border-hint/10'
+                      topupValue === preset ? 'bg-primary text-on-brand border-primary' : 'bg-bg text-fg border-hint/10'
                     }`}
                   >
                     {(preset / 1000) + 'k'}
@@ -595,7 +596,7 @@ export default function OwnerPayments() {
                     }`}
                   >
                     <span className="text-lg">🔵</span>
-                    <span className="text-[10px] font-extrabold text-text-h">CLICK</span>
+                    <span className="text-[10px] font-extrabold text-fg">CLICK</span>
                   </button>
 
                   {/* Payme */}
@@ -607,7 +608,7 @@ export default function OwnerPayments() {
                     }`}
                   >
                     <span className="text-lg">🟢</span>
-                    <span className="text-[10px] font-extrabold text-text-h">Payme</span>
+                    <span className="text-[10px] font-extrabold text-fg">Payme</span>
                   </button>
                 </div>
               </div>
@@ -623,7 +624,7 @@ export default function OwnerPayments() {
                 });
               }}
               disabled={topupMutation.isPending || topupValue === null || topupValue < MIN_TOPUP}
-              className="w-full bg-primary hover:bg-primary/95 disabled:bg-primary/50 text-white rounded-2xl py-3.5 text-xs font-black shadow-lg shadow-primary/15 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+              className="w-full bg-primary hover:bg-primary/95 disabled:bg-primary/50 text-on-brand rounded-2xl py-3.5 text-xs font-black shadow-lg shadow-primary/15 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
             >
               {topupMutation.isPending ? (
                 <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>

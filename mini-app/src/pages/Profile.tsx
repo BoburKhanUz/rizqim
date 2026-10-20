@@ -153,14 +153,14 @@ export default function Profile() {
       )}
 
       <header className="flex justify-between items-center pb-2 border-b border-hint/10">
-        <h1 className="text-2xl font-bold text-text-h">
+        <h1 className="text-2xl font-bold text-fg">
           {isOwner 
             ? (language === 'uz' ? 'Do\'kon profili' : 'Профиль магазина')
             : (language === 'uz' ? 'Mening profilim' : language === 'ru' ? 'Мой профиль' : 'My Profile')}
         </h1>
         <button
           onClick={() => { hapticFeedback('light'); navigate('/notifications'); }}
-          className="w-10 h-10 rounded-2xl bg-secondary border border-white/5 flex items-center justify-center text-text-h active:scale-95 transition relative shrink-0 shadow-sm"
+          className="w-10 h-10 rounded-2xl bg-secondary border border-white/5 flex items-center justify-center text-fg active:scale-95 transition relative shrink-0 shadow-sm"
         >
           <Bell className="w-4.5 h-4.5" />
           <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-rose-500 rounded-full border-2 border-secondary"></span>
@@ -199,7 +199,7 @@ export default function Profile() {
 
           <div className="pt-4 px-2 flex justify-between items-start">
             <div>
-              <h2 className="text-xl font-black text-text-h">{storeInfo?.name || 'Do\'kon'}</h2>
+              <h2 className="text-xl font-black text-fg">{storeInfo?.name || 'Do\'kon'}</h2>
               <span className="text-[10px] text-hint font-medium">ID: #{storeInfo?.id}</span>
             </div>
             <div className="flex flex-col items-end gap-1">
@@ -232,7 +232,7 @@ export default function Profile() {
           <div className="w-16 h-16 bg-primary/10 border border-primary/20 rounded-full flex items-center justify-center text-primary text-2xl font-black mb-3">
             {name ? name.charAt(0).toUpperCase() : 'U'}
           </div>
-          <h3 className="font-bold text-text-h text-lg mb-0.5">{name || 'Foydalanuvchi'}</h3>
+          <h3 className="font-bold text-fg text-lg mb-0.5">{name || 'Foydalanuvchi'}</h3>
           <p className="text-xs text-hint">{telegram || '@telegram_user'}</p>
         </div>
       )}
@@ -249,7 +249,7 @@ export default function Profile() {
             disabled={!isEditing}
             value={name}
             onChange={(e) => setDraft((current) => current && { ...current, name: e.target.value })}
-            className="w-full px-4 py-3 rounded-2xl bg-bg border border-hint/15 font-bold text-xs text-text-h outline-none focus:border-primary disabled:opacity-75"
+            className="w-full px-4 py-3 rounded-2xl bg-bg border border-hint/15 font-bold text-xs text-fg outline-none focus:border-primary disabled:opacity-75"
           />
         </div>
 
@@ -264,7 +264,7 @@ export default function Profile() {
             placeholder="+998 (90) 123-45-67"
             value={phone}
             onChange={(e) => { setDraft((current) => current && { ...current, phone: e.target.value }); setPhoneError(''); }}
-            className="w-full px-4 py-3 rounded-2xl bg-bg border border-hint/15 font-bold text-xs text-text-h outline-none focus:border-primary disabled:opacity-75"
+            className="w-full px-4 py-3 rounded-2xl bg-bg border border-hint/15 font-bold text-xs text-fg outline-none focus:border-primary disabled:opacity-75"
           />
           {phoneError ? (
             <p className="text-[10px] text-rose-500 font-bold pl-1">{phoneError}</p>
@@ -286,7 +286,7 @@ export default function Profile() {
               placeholder={language === 'uz' ? 'Toshkent sh., Chilonzor tumani...' : 'Ташкент, Чиланзарский район...'}
               value={address}
               onChange={(e) => setDraft((current) => current && { ...current, address: e.target.value })}
-              className="w-full px-4 py-3 rounded-2xl bg-bg border border-hint/15 font-bold text-xs text-text-h outline-none focus:border-primary disabled:opacity-75 h-20 resize-none leading-relaxed"
+              className="w-full px-4 py-3 rounded-2xl bg-bg border border-hint/15 font-bold text-xs text-fg outline-none focus:border-primary disabled:opacity-75 h-20 resize-none leading-relaxed"
             />
           </div>
         )}
@@ -300,7 +300,7 @@ export default function Profile() {
             type="text"
             disabled={true}
             value={telegram}
-            className="w-full px-4 py-3 rounded-2xl bg-bg border border-hint/15 font-bold text-xs text-text-h outline-none opacity-60"
+            className="w-full px-4 py-3 rounded-2xl bg-bg border border-hint/15 font-bold text-xs text-fg outline-none opacity-60"
           />
         </div>
 
@@ -314,7 +314,7 @@ export default function Profile() {
             <select
               value={language}
               onChange={(e) => { hapticFeedback('light'); if (isLanguage(e.target.value)) setLanguage(e.target.value); }}
-              className="w-full px-4 py-3 rounded-2xl bg-bg border border-hint/15 font-bold text-xs text-text-h outline-none focus:border-primary appearance-none cursor-pointer"
+              className="w-full px-4 py-3 rounded-2xl bg-bg border border-hint/15 font-bold text-xs text-fg outline-none focus:border-primary appearance-none cursor-pointer"
             >
               <option value="uz">O'zbekcha (UZ)</option>
               <option value="ru">Русский (RU)</option>
@@ -331,7 +331,7 @@ export default function Profile() {
             <button
               onClick={handleSave}
               disabled={isSaving}
-              className="w-full bg-primary text-white font-extrabold text-xs py-3.5 rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-all shadow-md shadow-primary/20 disabled:opacity-75"
+              className="w-full bg-primary text-on-brand font-extrabold text-xs py-3.5 rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-all shadow-md shadow-primary/20 disabled:opacity-75"
             >
               {isSaving ? (
                 <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>

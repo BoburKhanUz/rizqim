@@ -78,7 +78,7 @@ function PaymentToggle({ title, enabled, onToggle, comingSoon = false }: Payment
   return (
     <div className={`flex items-center justify-between p-3 bg-bg/40 rounded-2xl border border-white/5 ${comingSoon ? 'opacity-60' : ''}`}>
       <div className="flex items-center gap-2">
-        <h4 className="text-xs font-bold text-text-h">{title}</h4>
+        <h4 className="text-xs font-bold text-fg">{title}</h4>
         {comingSoon && (
           <span className="text-[9px] font-black bg-amber-500/15 text-amber-600 px-2 py-0.5 rounded-full">
             Tez orada
@@ -125,21 +125,21 @@ export default function OwnerSettings() {
   if (!storeInfo) {
     return (
       <div className="p-6 flex flex-col items-center justify-center gap-3 min-h-screen bg-bg text-center">
-        <p className="text-sm font-bold text-text-h">
+        <p className="text-sm font-bold text-fg">
           {language === 'uz' ? "Sozlamalarni yuklab bo'lmadi" : 'Не удалось загрузить настройки'}
         </p>
         <div className="flex gap-2">
           <button
             type="button"
             onClick={() => { hapticFeedback('light'); navigate(-1); }}
-            className="px-4 py-2.5 rounded-2xl bg-secondary text-text-h text-xs font-bold border border-white/5 active:scale-95 transition"
+            className="px-4 py-2.5 rounded-2xl bg-secondary text-fg text-xs font-bold border border-white/5 active:scale-95 transition"
           >
             {language === 'uz' ? 'Orqaga' : 'Назад'}
           </button>
           <button
             type="button"
             onClick={() => { hapticFeedback('light'); refetch(); }}
-            className="px-4 py-2.5 rounded-2xl bg-primary text-white text-xs font-bold active:scale-95 transition"
+            className="px-4 py-2.5 rounded-2xl bg-primary text-on-brand text-xs font-bold active:scale-95 transition"
           >
             {language === 'uz' ? 'Qayta urinish' : 'Повторить'}
           </button>
@@ -332,12 +332,12 @@ function OwnerSettingsForm({ storeInfo }: { storeInfo: OwnerStoreSettings }) {
       <header className="flex items-center gap-4 pb-2 border-b border-white/5">
         <button 
           onClick={() => { hapticFeedback('light'); navigate(-1); }}
-          className="p-2 rounded-xl bg-secondary text-text-h flex items-center justify-center shadow-sm border border-white/5 active:scale-90 transition"
+          className="p-2 rounded-xl bg-secondary text-fg flex items-center justify-center shadow-sm border border-white/5 active:scale-90 transition"
         >
           <ArrowLeft className="w-5 h-5" />
         </button>
         <div>
-          <h1 className="text-xl font-bold text-text-h">
+          <h1 className="text-xl font-bold text-fg">
             {language === 'uz' ? 'Do\'kon sozlamalari' : 'Настройки магазина'}
           </h1>
           <span className="text-[10px] text-hint font-medium">
@@ -349,7 +349,7 @@ function OwnerSettingsForm({ storeInfo }: { storeInfo: OwnerStoreSettings }) {
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
         {/* Basic Info */}
         <section className="bg-secondary p-5 rounded-[24px] border border-white/5 shadow-sm flex flex-col gap-4">
-          <div className="flex items-center gap-2 text-text-h">
+          <div className="flex items-center gap-2 text-fg">
             <Store className="w-5 h-5 text-primary" />
             <h2 className="text-xs uppercase font-black tracking-wider">Asosiy ma'lumotlar</h2>
           </div>
@@ -386,7 +386,7 @@ function OwnerSettingsForm({ storeInfo }: { storeInfo: OwnerStoreSettings }) {
                   )}
                 </div>
                 <div className="flex flex-col gap-1">
-                  <label className="cursor-pointer bg-secondary border border-white/10 hover:border-primary/50 hover:text-primary px-4 py-2 rounded-xl text-xs font-bold text-text-h shadow-sm active:scale-95 transition-all text-center">
+                  <label className="cursor-pointer bg-secondary border border-white/10 hover:border-primary/50 hover:text-primary px-4 py-2 rounded-xl text-xs font-bold text-fg shadow-sm active:scale-95 transition-all text-center">
                     {language === 'uz' ? "Logo yuklash 📸" : "Загрузить лого 📸"}
                     <input 
                       type="file" 
@@ -421,7 +421,7 @@ function OwnerSettingsForm({ storeInfo }: { storeInfo: OwnerStoreSettings }) {
                   )}
                 </div>
                 <div className="flex items-center justify-between">
-                  <label className="cursor-pointer bg-secondary border border-white/10 hover:border-primary/50 hover:text-primary px-4 py-2 rounded-xl text-xs font-bold text-text-h shadow-sm active:scale-95 transition-all">
+                  <label className="cursor-pointer bg-secondary border border-white/10 hover:border-primary/50 hover:text-primary px-4 py-2 rounded-xl text-xs font-bold text-fg shadow-sm active:scale-95 transition-all">
                     {language === 'uz' ? "Banner yuklash 🖼️" : "Загрузить баннер 🖼️"}
                     <input 
                       type="file" 
@@ -442,7 +442,7 @@ function OwnerSettingsForm({ storeInfo }: { storeInfo: OwnerStoreSettings }) {
                 value={description} 
                 onChange={(e) => setDescription(e.target.value)} 
                 placeholder="Do'kon haqida qisqacha ma'lumot..."
-                className="bg-bg border border-white/5 p-3 rounded-2xl text-xs font-semibold text-text-h outline-none focus:border-primary/50 focus:bg-secondary transition resize-none"
+                className="bg-bg border border-white/5 p-3 rounded-2xl text-xs font-semibold text-fg outline-none focus:border-primary/50 focus:bg-secondary transition resize-none"
               />
             </div>
 
@@ -454,7 +454,7 @@ function OwnerSettingsForm({ storeInfo }: { storeInfo: OwnerStoreSettings }) {
                 value={address} 
                 onChange={(e) => setAddress(e.target.value)} 
                 placeholder="Masalan: Toshkent sh., Chilonzor tumani, 9-mavze, 23-uy..."
-                className="bg-bg border border-white/5 p-3 rounded-2xl text-xs font-semibold text-text-h outline-none focus:border-primary/50 focus:bg-secondary transition"
+                className="bg-bg border border-white/5 p-3 rounded-2xl text-xs font-semibold text-fg outline-none focus:border-primary/50 focus:bg-secondary transition"
               />
             </div>
 
@@ -467,7 +467,7 @@ function OwnerSettingsForm({ storeInfo }: { storeInfo: OwnerStoreSettings }) {
                   value={locationUrl} 
                   onChange={(e) => setLocationUrl(e.target.value)} 
                   placeholder="https://yandex.com/maps/... yoki https://maps.app.goo.gl/..."
-                  className="bg-bg border border-white/5 p-3 rounded-2xl text-xs font-semibold text-text-h outline-none focus:border-primary/50 focus:bg-secondary transition w-full"
+                  className="bg-bg border border-white/5 p-3 rounded-2xl text-xs font-semibold text-fg outline-none focus:border-primary/50 focus:bg-secondary transition w-full"
                 />
                 <button
                   type="button"
@@ -492,7 +492,7 @@ function OwnerSettingsForm({ storeInfo }: { storeInfo: OwnerStoreSettings }) {
 
             <div className="flex items-center justify-between p-3.5 bg-bg/40 rounded-2xl border border-white/5">
               <div>
-                <h4 className="text-xs font-bold text-text-h">Do'kon holati (Ochiq/Yopiq)</h4>
+                <h4 className="text-xs font-bold text-fg">Do'kon holati (Ochiq/Yopiq)</h4>
                 <p className="text-[9px] text-hint mt-0.5">Yopiq holatda buyurtma qabul qilinmaydi</p>
               </div>
               <button
@@ -508,7 +508,7 @@ function OwnerSettingsForm({ storeInfo }: { storeInfo: OwnerStoreSettings }) {
 
         {/* Operating Hours */}
         <section className="bg-secondary p-5 rounded-[24px] border border-white/5 shadow-sm flex flex-col gap-4">
-          <div className="flex items-center gap-2 text-text-h">
+          <div className="flex items-center gap-2 text-fg">
             <Clock className="w-5 h-5 text-primary" />
             <h2 className="text-xs uppercase font-black tracking-wider">Ish vaqti</h2>
           </div>
@@ -520,7 +520,7 @@ function OwnerSettingsForm({ storeInfo }: { storeInfo: OwnerStoreSettings }) {
                 type="time" 
                 value={openTime} 
                 onChange={(e) => setOpenTime(e.target.value)} 
-                className="bg-bg border border-white/5 p-3 rounded-2xl text-xs font-semibold text-text-h outline-none focus:border-primary/50 focus:bg-secondary transition"
+                className="bg-bg border border-white/5 p-3 rounded-2xl text-xs font-semibold text-fg outline-none focus:border-primary/50 focus:bg-secondary transition"
               />
             </div>
             <div className="flex flex-col gap-1">
@@ -529,7 +529,7 @@ function OwnerSettingsForm({ storeInfo }: { storeInfo: OwnerStoreSettings }) {
                 type="time" 
                 value={closeTime} 
                 onChange={(e) => setCloseTime(e.target.value)} 
-                className="bg-bg border border-white/5 p-3 rounded-2xl text-xs font-semibold text-text-h outline-none focus:border-primary/50 focus:bg-secondary transition"
+                className="bg-bg border border-white/5 p-3 rounded-2xl text-xs font-semibold text-fg outline-none focus:border-primary/50 focus:bg-secondary transition"
               />
             </div>
           </div>
@@ -537,7 +537,7 @@ function OwnerSettingsForm({ storeInfo }: { storeInfo: OwnerStoreSettings }) {
 
         {/* Payment Gateways */}
         <section className="bg-secondary p-5 rounded-[24px] border border-white/5 shadow-sm flex flex-col gap-4">
-          <div className="flex items-center gap-2 text-text-h">
+          <div className="flex items-center gap-2 text-fg">
             <CreditCard className="w-5 h-5 text-primary" />
             <h2 className="text-xs uppercase font-black tracking-wider">To'lov tizimlari</h2>
           </div>
@@ -563,7 +563,7 @@ function OwnerSettingsForm({ storeInfo }: { storeInfo: OwnerStoreSettings }) {
 
         {/* Logistics */}
         <section className="bg-secondary p-5 rounded-[24px] border border-white/5 shadow-sm flex flex-col gap-4">
-          <div className="flex items-center gap-2 text-text-h">
+          <div className="flex items-center gap-2 text-fg">
             <Truck className="w-5 h-5 text-primary" />
             <h2 className="text-xs uppercase font-black tracking-wider">Logistika va yetkazish</h2>
           </div>
@@ -571,7 +571,7 @@ function OwnerSettingsForm({ storeInfo }: { storeInfo: OwnerStoreSettings }) {
           <div className="flex flex-col gap-4">
             <div className="flex items-center justify-between p-3.5 bg-bg/40 rounded-2xl border border-white/5">
               <div>
-                <h4 className="text-xs font-bold text-text-h">Yetkazib berish (Delivery)</h4>
+                <h4 className="text-xs font-bold text-fg">Yetkazib berish (Delivery)</h4>
                 <p className="text-[9px] text-hint mt-0.5">Mijozlar uyiga buyurtma qilishlari mumkin</p>
               </div>
               <button
@@ -588,7 +588,7 @@ function OwnerSettingsForm({ storeInfo }: { storeInfo: OwnerStoreSettings }) {
 
             <div className="flex items-center justify-between p-3.5 bg-bg/40 rounded-2xl border border-white/5">
               <div>
-                <h4 className="text-xs font-bold text-text-h">Olib ketish (Takeaway/Pickup)</h4>
+                <h4 className="text-xs font-bold text-fg">Olib ketish (Takeaway/Pickup)</h4>
                 <p className="text-[9px] text-hint mt-0.5">Mijozlar restorandan borib olib ketishlari mumkin</p>
               </div>
               <button
@@ -610,7 +610,7 @@ function OwnerSettingsForm({ storeInfo }: { storeInfo: OwnerStoreSettings }) {
                 value={deliveryFee} 
                 onChange={(e) => setDeliveryFee(e.target.value)} 
                 placeholder="Masalan: 12000"
-                className="bg-bg border border-white/5 p-3 rounded-2xl text-xs font-semibold text-text-h outline-none focus:border-primary/50 focus:bg-secondary transition"
+                className="bg-bg border border-white/5 p-3 rounded-2xl text-xs font-semibold text-fg outline-none focus:border-primary/50 focus:bg-secondary transition"
               />
             </div>
 
@@ -621,7 +621,7 @@ function OwnerSettingsForm({ storeInfo }: { storeInfo: OwnerStoreSettings }) {
                 value={minOrderAmount} 
                 onChange={(e) => setMinOrderAmount(e.target.value)} 
                 placeholder="Masalan: 30000"
-                className="bg-bg border border-white/5 p-3 rounded-2xl text-xs font-semibold text-text-h outline-none focus:border-primary/50 focus:bg-secondary transition"
+                className="bg-bg border border-white/5 p-3 rounded-2xl text-xs font-semibold text-fg outline-none focus:border-primary/50 focus:bg-secondary transition"
               />
             </div>
           </div>
@@ -631,7 +631,7 @@ function OwnerSettingsForm({ storeInfo }: { storeInfo: OwnerStoreSettings }) {
         <button
           type="submit"
           disabled={saveSettings.isPending}
-          className="w-full bg-primary text-white py-4 rounded-3xl font-extrabold text-sm active:scale-95 transition shadow-lg shadow-primary/20 flex justify-center items-center gap-2 disabled:opacity-70 disabled:active:scale-100"
+          className="w-full bg-primary text-on-brand py-4 rounded-3xl font-extrabold text-sm active:scale-95 transition shadow-lg shadow-primary/20 flex justify-center items-center gap-2 disabled:opacity-70 disabled:active:scale-100"
         >
           {saveSettings.isPending ? (
             <Loader2 className="w-5 h-5 animate-spin" />

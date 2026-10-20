@@ -45,9 +45,9 @@ test('customer orders for pickup and sees the order among the active ones', asyn
   await page.getByRole('button', { name: 'Buyurtmani Kuzatish' }).click()
 
   const active = page.getByRole('region', { name: 'Faol buyurtmalar' })
-  await expect(active.getByText(`#${api.orders[0].uuid.slice(0, 8).toUpperCase()}`)).toBeVisible()
+  await expect(active.getByText(`#${api.orders[0].short_code}`, { exact: true })).toBeVisible()
   await expect(active.getByText('Kutilmoqda')).toBeVisible() // status "new"
-  await expect(active.getByText('25,000 UZS')).toBeVisible()
+  await expect(active.getByText("25 000 so'm")).toBeVisible()
   await expect(page.getByRole('region', { name: 'Buyurtmalar tarixi' })).toHaveCount(0)
 })
 
@@ -75,5 +75,5 @@ test('customer orders for delivery to a saved address', async ({ page, api }) =>
 
   await page.getByRole('button', { name: 'Buyurtmani Kuzatish' }).click()
   const active = page.getByRole('region', { name: 'Faol buyurtmalar' })
-  await expect(active.getByText('37,000 UZS')).toBeVisible() // 25 000 + the 12 000 delivery fee
+  await expect(active.getByText("37 000 so'm")).toBeVisible() // 25 000 + the 12 000 delivery fee
 })

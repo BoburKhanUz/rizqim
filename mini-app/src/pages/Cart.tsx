@@ -15,7 +15,9 @@ import { getAddBlockedMessage, getVariantStock, isProductSoldOut } from '../lib/
 import type { StockVariant } from '../lib/stock';
 import { getAllowedPaymentMethods, getAvailableOrderTypes, pickOrderType, pickPaymentMethod } from '../lib/checkout';
 import type { CartOrderType, CartPaymentMethod } from '../lib/checkout';
-import { formatUzbekSum } from '../lib/format';
+import { formatMoney } from '../lib/format';
+import { getPaymentMethodLabel } from '../lib/paymentMethod';
+import { useLanguageStore } from '../store/languageStore';
 import { parseAmount } from '../lib/money';
 import { buildCartItem, getProductBasePrice, getStoreInfo, parsePrice } from '../lib/catalog';
 import { ORDERS_KEY } from '../hooks/useOrders';
@@ -74,6 +76,7 @@ function getOrderDisplayNumber(order: OrderResponseData): string {
 
 export default function Cart() {
   const navigate = useNavigate();
+  const { t } = useLanguageStore();
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
   const { items, storeName, storeAddress, updateQuantity, removeItem, clearCart, getSubtotal, addItem } = useCartStore();
@@ -374,7 +377,7 @@ export default function Cart() {
       return;
     }
     if (isMinOrderNotMet) {
-      alert(`Minimal buyurtma summasi ${formatUzbekSum(minOrderLimit)}. Iltimos, yana taom qo'shing.`);
+      alert(`Minimal buyurtma summasi ${formatMoney(minOrderLimit)}. Iltimos, yana taom qo'shing.`);
       return;
     }
     // The server refuses an order its store does not take this way or with this payment
@@ -767,7 +770,7 @@ export default function Cart() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <h4 className="text-xs font-black text-slate-800 truncate">{item.name}</h4>
-                  <span className="text-[11px] font-black text-slate-800 block mt-1">{formatUzbekSum(item.price * item.quantity)}</span>
+                  <span className="text-[11px] font-black text-slate-800 block mt-1">{formatMoney(item.price * item.quantity)}</span>
                 </div>
                 <div className="flex items-center bg-white border border-slate-200 rounded-full p-1 shrink-0 scale-90">
                   <button 
@@ -824,7 +827,7 @@ export default function Cart() {
                   <div className="mt-2 flex-1 flex flex-col justify-between">
                     <div>
                       <h4 className="text-[10px] font-black text-slate-800 line-clamp-1 leading-tight">{product.name}</h4>
-                      <p className="text-[9px] font-black text-slate-800 mt-1">{formatUzbekSum(basePrice)}</p>
+                      <p className="text-[9px] font-black text-slate-800 mt-1">{formatMoney(basePrice)}</p>
                     </div>
                     <button
                       onClick={() => handleAddUpsellItem(product)}
@@ -882,7 +885,7 @@ export default function Cart() {
         <div role="group" aria-label="To'lov turi" className="grid grid-cols-3 gap-2">
           {availablePaymentMethods.map((method) => {
             const icon = method === 'click' ? '🔵' : method === 'payme' ? '🟢' : method === 'keshbek' ? '✨' : '💵';
-            const label = method === 'naqd' ? 'Naqd' : method === 'keshbek' ? 'Keshbek' : method.toUpperCase();
+            const label = getPaymentMethodLabel(method, t);
             const isDisabled = method === 'keshbek' && !isKeshbekAffordable;
             return (
               <button
@@ -902,7 +905,7 @@ export default function Cart() {
                 <span className="text-base leading-none">{icon}</span>
                 <span className="uppercase tracking-wider">{label}</span>
                 {method === 'keshbek' && balance !== undefined && (
-                  <span className="text-[8px] text-slate-400 font-bold lowercase">({formatUzbekSum(balance)})</span>
+                  <span className="text-[8px] text-slate-400 font-bold lowercase">({formatMoney(balance)})</span>
                 )}
               </button>
             );
@@ -936,30 +939,30 @@ export default function Cart() {
             <span className="text-sm">⚠️</span>
             <div>
               <p className="font-black">Minimal buyurtma miqdori yetarli emas!</p>
-              <p className="text-[9px] text-rose-500 font-semibold mt-0.5">Ushbu restorandan buyurtma berish uchun kamida {formatUzbekSum(minOrderLimit)} lik mahsulot qo'shishingiz kerak (Hozirgi summa: {formatUzbekSum(subtotal)}).</p>
+              <p className="text-[9px] text-rose-500 font-semibold mt-0.5">Ushbu restorandan buyurtma berish uchun kamida {formatMoney(minOrderLimit)} lik mahsulot qo'shishingiz kerak (Hozirgi summa: {formatMoney(subtotal)}).</p>
             </div>
           </div>
         )}
         <div className="space-y-2 text-xs font-semibold">
           <div className="flex justify-between text-slate-500">
             <span>Taomlar qiymati</span>
-            <span className="font-black text-slate-800">{formatUzbekSum(subtotal)}</span>
+            <span className="font-black text-slate-800">{formatMoney(subtotal)}</span>
           </div>
           {activePromo && (
             <div className="flex justify-between text-amber-600">
               <span>Promo-kod chegirmasi ({activePromo.amount}{activePromo.type === 'percentage' ? '%' : ' so\'m'})</span>
-              <span className="font-black">- {formatUzbekSum(discountAmount)}</span>
+              <span className="font-black">- {formatMoney(discountAmount)}</span>
             </div>
           )}
           {deliveryMethod === 'delivery' && (
             <div className="flex justify-between text-slate-500">
               <span>Kuryer xizmati</span>
-              <span className="font-black text-slate-800">{formatUzbekSum(deliveryFee)}</span>
+              <span className="font-black text-slate-800">{formatMoney(deliveryFee)}</span>
             </div>
           )}
           <div className="pt-2 border-t border-slate-100 flex justify-between text-sm font-black text-slate-800">
             <span>Jami</span>
-            <span className="text-amber-500 text-base">{formatUzbekSum(total)}</span>
+            <span className="text-amber-500 text-base">{formatMoney(total)}</span>
           </div>
         </div>
         
@@ -975,7 +978,7 @@ export default function Cart() {
           ) : isStoreLocked ? (
             <>Do'kon vaqtincha yopiq</>
           ) : (
-            <>Buyurtma berish - {formatUzbekSum(total)}</>
+            <>Buyurtma berish - {formatMoney(total)}</>
           )}
         </button>
         {deliveryMethod === null && (

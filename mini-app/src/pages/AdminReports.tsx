@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState, useEffect } from 'react';
 import { useLanguageStore } from '../store/languageStore';
-import { ErrorFallback } from '../components/Feedback';
+import { formatMoney } from '../lib/format';
+import { InlineError } from '../components/ui/InlineError';
 import { 
   Calendar, 
   FileSpreadsheet, 
@@ -42,7 +43,7 @@ export default function AdminReports() {
 
   // The store's open orders (refreshed in the background while the screen is visible) and the finished ones of the timeframe
   const dateRange = useMemo(() => ({ start: startDate, end: endDate }), [startDate, endDate]);
-  const { orders, isLoading, error, dataUpdatedAt, truncated, capped } = useOrdersForPeriod(timeframe, timeframe === 'custom' ? dateRange : undefined);
+  const { orders, isLoading, error, dataUpdatedAt, truncated, capped, refetch, isRefetching } = useOrdersForPeriod(timeframe, timeframe === 'custom' ? dateRange : undefined);
 
   const handleExportReport = async () => {
     setIsExporting(true);
@@ -82,7 +83,13 @@ export default function AdminReports() {
   }, [orders, timeframe, dateRange, dataUpdatedAt]);
 
   // A failed background refresh keeps showing the last numbers; the error screen is only for "nothing to show"
-  if (error && orders.length === 0) return <ErrorFallback error="Failed to fetch reports data." />;
+  if (error && orders.length === 0) {
+    return (
+      <div className="p-4">
+        <InlineError onRetry={refetch} retrying={isRefetching} />
+      </div>
+    );
+  }
 
   const successRate = filteredOrders.length > 0 
     ? Math.round((deliveredOrders.length / filteredOrders.length) * 100) 
@@ -112,7 +119,7 @@ export default function AdminReports() {
               </span>
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
             </div>
-            <h1 className="text-sm font-black text-text-h">
+            <h1 className="text-sm font-black text-fg">
               {language === 'uz' ? 'Excel Hisobotlar Markazi' : 'Центр Отчетов Excel'}
             </h1>
           </div>
@@ -128,7 +135,7 @@ export default function AdminReports() {
             className={`flex-1 min-w-[64px] py-2 text-[9px] uppercase font-black rounded-xl transition-all ${
               timeframe === tab 
                 ? 'bg-emerald-500 text-white shadow-sm' 
-                : 'text-hint hover:text-text-h'
+                : 'text-hint hover:text-fg'
             }`}
           >
             {tab === 'today' ? (language === 'uz' ? 'Bugun' : 'Сегодня') :
@@ -145,7 +152,7 @@ export default function AdminReports() {
         <div className="bg-secondary/40 p-4 rounded-3xl border border-hint/5 flex flex-col gap-3 animate-fadeIn">
           <div className="flex items-center gap-2 mb-1">
             <CalendarRange className="w-4 h-4 text-emerald-500" />
-            <span className="text-[10px] uppercase font-black text-text-h">
+            <span className="text-[10px] uppercase font-black text-fg">
               {language === 'uz' ? 'Davrni Tanlash' : 'Выбор периода'}
             </span>
           </div>
@@ -191,7 +198,7 @@ export default function AdminReports() {
            (language === 'uz' ? 'Tanlangan davr tushumi' : 'Выручка за выбранный период')}
         </span>
         <h2 className="text-2xl font-black mt-2 leading-none">
-          {renderValue(`${totalRevenue.toLocaleString()} UZS`, 'w-32')}
+          {renderValue(formatMoney(totalRevenue, language), 'w-32')}
         </h2>
       </div>
 
@@ -202,7 +209,7 @@ export default function AdminReports() {
             <FileSpreadsheet className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-xs font-black text-text-h">
+            <h3 className="text-xs font-black text-fg">
               {language === 'uz' ? 'Excel fayl yaratish' : 'Создать файл Excel'}
             </h3>
             <p className="text-[10px] text-hint">
@@ -250,7 +257,7 @@ export default function AdminReports() {
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
             {language === 'uz' ? 'Muvaffaqiyatli' : 'Успешные'}
           </span>
-          <span className="text-lg font-black text-text-h">
+          <span className="text-lg font-black text-fg">
             {renderValue(`${deliveredOrders.length} ta`, 'w-16')}
           </span>
         </div>
@@ -260,7 +267,7 @@ export default function AdminReports() {
             <XCircle className="w-3.5 h-3.5 text-red-500" />
             {language === 'uz' ? 'Bekor qilingan' : 'Отмененные'}
           </span>
-          <span className="text-lg font-black text-text-h">
+          <span className="text-lg font-black text-fg">
             {renderValue(`${canceledOrders.length} ta`, 'w-16')}
           </span>
         </div>
@@ -271,7 +278,7 @@ export default function AdminReports() {
             {language === 'uz' ? 'Muvaffaqiyat ko\'rsatkichi' : 'Процент успеха'}
           </span>
           <div className="flex items-center justify-between mt-1">
-            <span className="text-lg font-black text-text-h">
+            <span className="text-lg font-black text-fg">
               {renderValue(`${successRate}%`, 'w-16')}
             </span>
             <div className="w-24 h-1.5 bg-hint/10 rounded-full overflow-hidden">

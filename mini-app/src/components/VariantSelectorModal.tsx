@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Check } from 'lucide-react';
 import { hapticFeedback } from '../lib/telegram';
-import { formatUzbekSum } from '../lib/format';
+import { formatMoney } from '../lib/format';
 import { toAmount } from '../lib/money';
 import { isVariantActive, isVariantOutOfStock } from '../lib/stock';
 import type { Product, ProductVariant } from '../types';
@@ -86,7 +86,7 @@ function VariantSheet({ product, onClose, onAdd }: VariantSheetProps) {
           <div className="flex-1 min-w-0">
             <p className="text-xs text-slate-500 font-semibold line-clamp-2 leading-relaxed">{product.description || "Mazali taom variantini tanlang"}</p>
             <p className="text-xs font-black text-slate-800 mt-2">
-              Asosiy narx: {formatUzbekSum(
+              Asosiy narx: {formatMoney(
                 product.price && toAmount(product.price) > 0
                   ? toAmount(product.price)
                   : (variants.length > 0
@@ -112,7 +112,7 @@ function VariantSheet({ product, onClose, onAdd }: VariantSheetProps) {
                   isDisabled 
                     ? 'border-slate-100 bg-slate-50/50 opacity-50 cursor-not-allowed'
                     : isSelected
-                      ? 'border-amber-500 bg-amber-50/20 text-slate-850'
+                      ? 'border-amber-500 bg-amber-50/20 text-slate-800'
                       : 'border-slate-100 bg-white text-slate-600 hover:bg-slate-50'
                 }`}
               >
@@ -137,7 +137,7 @@ function VariantSheet({ product, onClose, onAdd }: VariantSheetProps) {
                   </div>
                 </div>
                 <span className="text-xs font-black text-slate-800">
-                  {formatUzbekSum(v.price)}
+                  {formatMoney(v.price)}
                 </span>
               </div>
             );
@@ -156,7 +156,7 @@ function VariantSheet({ product, onClose, onAdd }: VariantSheetProps) {
             }`}
           >
             {selectedVariant 
-              ? `Tasdiqlash — ${formatUzbekSum(selectedVariant.price)}`
+              ? `Tasdiqlash — ${formatMoney(selectedVariant.price)}`
               : "Variant tanlang"
             }
           </button>

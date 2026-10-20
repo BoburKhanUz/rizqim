@@ -3,13 +3,15 @@ import { Store, CheckCircle2, XCircle, Search, AlertTriangle, ExternalLink } fro
 import { hapticFeedback } from '../lib/telegram';
 import api from '../services/api';
 import { logApiError } from '../lib/apiError';
-import { FullScreenLoader, ErrorFallback } from '../components/Feedback';
+import { FullScreenLoader } from '../components/Feedback';
+import { InlineError } from '../components/ui/InlineError';
 import type { ApiResponse, SuperadminStore } from '../types';
 
 export default function SuperadminStores() {
   const [stores, setStores] = useState<SuperadminStore[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0); // bumped by \"Qayta urinish\" after a failed load
   const [search, setSearch] = useState('');
 
   useEffect(() => {
@@ -32,7 +34,7 @@ export default function SuperadminStores() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [reloadKey]);
 
   const copyToClipboard = (text: string) => {
     hapticFeedback('medium');
@@ -45,13 +47,25 @@ export default function SuperadminStores() {
   );
 
   if (loading && stores.length === 0) return <FullScreenLoader message="Restoranlar ro'yxati yuklanmoqda..." />;
-  if (error) return <ErrorFallback error={error} />;
+  if (error) {
+    return (
+      <div className="p-4">
+        <InlineError
+          onRetry={() => {
+            setLoading(true);
+            setError(null);
+            setReloadKey((key) => key + 1);
+          }}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 pb-24 animate-fade-in">
       <div className="flex justify-between items-center mb-4">
         <div>
-          <h1 className="text-2xl font-black text-text-h">Restoranlar</h1>
+          <h1 className="text-2xl font-black text-fg">Restoranlar</h1>
           <p className="text-xs text-hint font-medium">Barcha do'konlar ro'yxati ({stores.length})</p>
         </div>
       </div>
@@ -65,7 +79,7 @@ export default function SuperadminStores() {
           placeholder="Restoran qidirish..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full bg-secondary border border-hint/10 text-text-h text-sm rounded-2xl pl-11 pr-4 py-3.5 focus:border-primary/50 outline-none transition-all placeholder:text-hint/50 font-medium"
+          className="w-full bg-secondary border border-hint/10 text-fg text-sm rounded-2xl pl-11 pr-4 py-3.5 focus:border-primary/50 outline-none transition-all placeholder:text-hint/50 font-medium"
         />
       </div>
 
@@ -82,7 +96,7 @@ export default function SuperadminStores() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
-                    <h3 className="font-bold text-text-h truncate">{store.name}</h3>
+                    <h3 className="font-bold text-fg truncate">{store.name}</h3>
                     {store.is_active ? (
                       <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
                     ) : (
@@ -103,7 +117,7 @@ export default function SuperadminStores() {
                 {owner ? (
                   <div className="flex items-center justify-between">
                     <div className="flex flex-col">
-                      <span className="text-sm font-bold text-text-h">{owner.name}</span>
+                      <span className="text-sm font-bold text-fg">{owner.name}</span>
                       <span className="text-xs text-hint">{owner.phone}</span>
                     </div>
                   
@@ -116,7 +130,7 @@ export default function SuperadminStores() {
                       inviteLink ? (
                         <button 
                           onClick={() => copyToClipboard(inviteLink)}
-                          className="flex items-center gap-1.5 bg-primary/10 text-primary hover:bg-primary hover:text-white transition-colors px-3 py-1.5 rounded-xl border border-primary/20 active:scale-95"
+                          className="flex items-center gap-1.5 bg-primary/10 text-primary hover:bg-primary hover:text-on-brand transition-colors px-3 py-1.5 rounded-xl border border-primary/20 active:scale-95"
                         >
                           <ExternalLink className="w-3.5 h-3.5" />
                           <span className="text-[11px] font-bold">Nusxalash</span>

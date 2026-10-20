@@ -1,49 +1,66 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
+import { LockKeyhole, RotateCw, WifiOff } from 'lucide-react';
 import { logApiError } from '../lib/apiError';
+import { useLanguageStore } from '../store/languageStore';
+import { Button } from './ui/Button';
+import { Spinner } from './ui/Spinner';
 
-// Loading Skeleton / Spinner
-export const FullScreenLoader = ({ message = 'Connecting...' }) => (
-  <div className="fixed inset-0 flex flex-col items-center justify-center bg-bg z-50">
-    <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
-    <p className="text-hint font-medium">{message}</p>
-  </div>
-);
+// The whole screen while the app starts (signing in). Inside a page use a skeleton or RouteFallback instead.
+export const FullScreenLoader = ({ message }: { message?: string }) => {
+  const { t } = useLanguageStore();
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-page" role="status">
+      <Spinner className="size-10 border-4 text-brand" />
+      <p className="text-body font-medium text-fg-muted">{message ?? t('loading')}</p>
+    </div>
+  );
+};
 
-// Fallback UI for Auth Errors
-export const ErrorFallback = ({ error }: { error: string }) => (
-  <div className="fixed inset-0 flex flex-col items-center justify-center bg-bg p-6 text-center z-50">
-    <div className="text-4xl mb-4">⚠️</div>
-    <h2 className="text-xl font-bold text-text mb-2">Authentication Failed</h2>
-    <p className="text-hint mb-6">{error}</p>
-    <button onClick={() => window.location.reload()} className="bg-primary text-white px-6 py-2 rounded-xl font-medium w-full max-w-xs">
-      Try Again
-    </button>
-  </div>
-);
+// Signing in failed: the app cannot work at all. ONLY for that: a screen whose data failed to load shows
+// <InlineError onRetry={refetch} /> inside the page, so the navigation stays.
+export const ErrorFallback = ({ error }: { error?: string | null }) => {
+  const { t } = useLanguageStore();
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-page p-6 text-center" role="alert">
+      <span className="flex size-14 items-center justify-center rounded-full bg-danger-soft text-danger-soft-fg">
+        <LockKeyhole aria-hidden="true" className="size-7" />
+      </span>
+      <h2 className="text-title font-bold text-fg">{t('authErrorTitle')}</h2>
+      <p className="max-w-xs text-body text-fg-muted">{t('authErrorText')}</p>
+      {error && <p className="max-w-xs text-footnote text-fg-muted">{error}</p>}
+      <Button icon={RotateCw} className="mt-3 w-full max-w-xs" onClick={() => window.location.reload()}>
+        {t('retry')}
+      </Button>
+    </div>
+  );
+};
 
 // Shown inside the app shell (the navigation bars stay usable) while a lazily loaded page downloads.
-export const RouteFallback = () => (
-  <div className="flex items-center justify-center py-24" role="status" aria-label="Yuklanmoqda">
-    <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-  </div>
-);
+export const RouteFallback = () => {
+  const { t } = useLanguageStore();
+  return (
+    <div className="flex items-center justify-center py-24" role="status" aria-label={t('loading')}>
+      <Spinner className="size-8 border-4 text-brand" />
+    </div>
+  );
+};
 
 // A lazily loaded page could not be downloaded (offline, or a new deploy removed the old file).
-const RouteLoadError = () => (
-  <div className="flex flex-col items-center justify-center gap-3 px-6 py-24 text-center" role="alert">
-    <div className="text-4xl">📶</div>
-    <h2 className="text-lg font-black text-text-h">Sahifani yuklab bo'lmadi</h2>
-    <p className="text-xs text-hint font-semibold max-w-xs leading-relaxed">
-      Internet aloqasini tekshiring va qaytadan urining.
-    </p>
-    <button
-      onClick={() => window.location.reload()}
-      className="bg-primary text-white px-6 py-3 rounded-2xl font-black text-xs w-full max-w-xs active:scale-95 transition-transform"
-    >
-      Qayta yuklash
-    </button>
-  </div>
-);
+const RouteLoadError = () => {
+  const { t } = useLanguageStore();
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 px-6 py-24 text-center" role="alert">
+      <span className="flex size-12 items-center justify-center rounded-full bg-danger-soft text-danger-soft-fg">
+        <WifiOff aria-hidden="true" className="size-6" />
+      </span>
+      <h2 className="text-headline font-bold text-fg">{t('pageLoadErrorTitle')}</h2>
+      <p className="max-w-xs text-footnote text-fg-muted">{t('loadErrorText')}</p>
+      <Button icon={RotateCw} className="w-full max-w-xs" onClick={() => window.location.reload()}>
+        {t('reload')}
+      </Button>
+    </div>
+  );
+};
 
 interface RouteErrorBoundaryProps {
   children: ReactNode;

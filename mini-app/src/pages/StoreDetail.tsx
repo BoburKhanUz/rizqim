@@ -2,14 +2,13 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useCartStore, type PendingCartItem } from '../store/cartStore';
 import { hapticFeedback } from '../lib/telegram';
-import { ErrorFallback } from '../components/Feedback';
+import { InlineError } from '../components/ui/InlineError';
 import api from '../services/api';
 import { ArrowLeft, Heart, Star, Minus, Plus } from 'lucide-react';
 import VariantSelectorModal from '../components/VariantSelectorModal';
 import { getAddBlockedMessage, getVariantStock, isProductSoldOut, type StockVariant } from '../lib/stock';
-import { formatUzbekSum } from '../lib/format';
+import { formatDate, formatMoney } from '../lib/format';
 import { buildCartItem, getProductBasePrice, getStoreInfo } from '../lib/catalog';
-import { getErrorMessage } from '../lib/apiError';
 import type { ApiResponse, Category, Product, ProductVariant, StoreCatalog, StoreCatalogStore } from '../types';
 
 export default function StoreDetail() {
@@ -25,6 +24,7 @@ export default function StoreDetail() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>(null);
+  const [reloadKey, setReloadKey] = useState(0); // bumped by "Qayta urinish" after a failed load
 
   const [selectedParentCategoryId, setSelectedParentCategoryId] = useState<number | null>(null);
   const [selectedSubCategoryId, setSelectedSubCategoryId] = useState<number | null>(null);
@@ -36,6 +36,7 @@ export default function StoreDetail() {
     let cancelled = false;
     const fetchStoreCatalog = async () => {
       try {
+        setError(null);
         const res = await api.get<ApiResponse<StoreCatalog>>(`/catalog?store_id=${uuid}`);
         if (res.data.success && !cancelled) {
           setStore(res.data.data.store);
@@ -52,7 +53,7 @@ export default function StoreDetail() {
     return () => {
       cancelled = true;
     };
-  }, [uuid]);
+  }, [uuid, reloadKey]);
 
   // A promo banner links here with ?product_id=...: that product's selector opens once the menu has loaded,
   // until the customer closes it.
@@ -147,7 +148,18 @@ export default function StoreDetail() {
     removeItem(productId);
   };
 
-  if (error) return <ErrorFallback error={getErrorMessage(error) || "Do'konni yuklashda xatolik"} />;
+  if (error) {
+    return (
+      <div className="p-4">
+        <InlineError
+          onRetry={() => {
+            setLoading(true);
+            setReloadKey((key) => key + 1);
+          }}
+        />
+      </div>
+    );
+  }
   if (loading || !store) {
     return (
       <div className="pb-28 bg-white min-h-screen">
@@ -266,10 +278,10 @@ export default function StoreDetail() {
         <p className="text-xs text-slate-500 font-semibold leading-relaxed">{store.description || "Mazali taomlar"}</p>
         <div className="grid grid-cols-2 gap-2.5 text-[10px] text-center font-bold">
           <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 text-slate-600">
-            Minimal buyurtma: <span className="block font-black text-slate-800 mt-0.5">{formatUzbekSum(store.min_order !== undefined && store.min_order !== null ? store.min_order : 30000)}</span>
+            Minimal buyurtma: <span className="block font-black text-slate-800 mt-0.5">{formatMoney(store.min_order !== undefined && store.min_order !== null ? store.min_order : 30000)}</span>
           </div>
           <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 text-slate-600">
-            Kuryer xizmati: <span className="block font-black text-slate-800 mt-0.5">{formatUzbekSum(store.delivery_fee !== undefined && store.delivery_fee !== null ? store.delivery_fee : 10000)}</span>
+            Kuryer xizmati: <span className="block font-black text-slate-800 mt-0.5">{formatMoney(store.delivery_fee !== undefined && store.delivery_fee !== null ? store.delivery_fee : 10000)}</span>
           </div>
         </div>
       </div>
@@ -374,7 +386,7 @@ export default function StoreDetail() {
                         <div className="flex-1 min-w-0">
                           <h4 className="text-xs font-black text-slate-800 leading-tight">{product.name}</h4>
                           <p className="text-[10px] text-slate-400 font-medium line-clamp-2 mt-1 leading-relaxed">{product.description}</p>
-                          <span className="text-xs font-black text-slate-800 block mt-2">{formatUzbekSum(getProductBasePrice(product))}</span>
+                          <span className="text-xs font-black text-slate-800 block mt-2">{formatMoney(getProductBasePrice(product))}</span>
                         </div>
                         <div className="flex flex-col items-center gap-2 shrink-0">
                           <div className="w-16 h-16 rounded-2xl overflow-hidden relative border border-slate-100 bg-slate-50 flex items-center justify-center">
@@ -433,11 +445,7 @@ export default function StoreDetail() {
                   <div>
                     <p className="text-xs font-black text-slate-800">{rate.user?.name || "Mijoz"}</p>
                     <p className="text-[9px] text-slate-400 font-bold mt-0.5">
-                      {new Date(rate.created_at).toLocaleDateString('uz-UZ', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric'
-                      })}
+                      {formatDate(rate.created_at)}
                     </p>
                   </div>
                   <div className="flex items-center gap-0.5 bg-amber-50 px-2 py-1 rounded-xl">

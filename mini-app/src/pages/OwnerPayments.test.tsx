@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider, focusManager } from '@tanstack/react-
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import api from '../services/api';
+import { formatMoney } from '../lib/format';
 import { makeFinance, makeLedgerTransaction, makePayoutRequest } from '../test/factories';
 import { failedRequest } from '../test/httpErrors';
 import type { LedgerTransaction, OwnerFinance } from '../types';
@@ -20,9 +21,9 @@ let client: QueryClient;
 
 const settle = (ms = 0) => act(() => vi.advanceTimersByTimeAsync(ms));
 
-// How the page writes an amount. The digit grouping follows the locale of the device (a no-break space in some),
-// and Testing Library compares text with every kind of space turned into a plain one.
-const uzs = (value: number) => `${value.toLocaleString()} UZS`.replace(/\s+/g, ' ');
+// How the page writes an amount (lib/format.ts, in Uzbek: whole so'm, no-break spaces). Testing Library compares
+// text with every kind of space turned into a plain one.
+const uzs = (value: number) => formatMoney(value, 'uz').replace(/\s+/g, ' ');
 
 function serveFinance(finance: OwnerFinance) {
   get.mockImplementation(() => Promise.resolve({ data: { success: true, data: finance } }));

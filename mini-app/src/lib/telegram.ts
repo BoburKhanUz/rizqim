@@ -12,11 +12,8 @@ export const initTelegramApp = () => {
   if (typeof tg.expand === 'function') {
     tg.expand(); // Use maximum screen height
   }
-  
-  // Configure theme
-  if (tg.themeParams?.bg_color) {
-    document.body.style.backgroundColor = tg.themeParams.bg_color;
-  }
+  // Colours are not set here: the page background comes from the design tokens (index.css) and lib/twa.ts follows
+  // Telegram's theme (startTelegramChrome)
 };
 
 export const getTelegramUser = () => {

@@ -1,5 +1,6 @@
 import { Bell, CheckCircle2, Clock, ShieldAlert, Sparkles, MessageSquare, Flame } from 'lucide-react';
 import { useLanguageStore } from '../store/languageStore';
+import { formatTime } from '../lib/format';
 import { useNotifications } from '../hooks/useNotifications';
 
 export default function NotificationCenter() {
@@ -78,7 +79,7 @@ export default function NotificationCenter() {
                   {notif.message}
                 </span>
                 <span className="text-[8px] text-slate-400 font-bold block pt-0.5">
-                  {new Date(notif.sent_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  {formatTime(notif.sent_at)}
                 </span>
               </div>
             </div>

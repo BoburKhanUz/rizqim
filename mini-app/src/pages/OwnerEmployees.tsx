@@ -152,7 +152,7 @@ export default function OwnerEmployees() {
                   onClick={() => setNewRole('manager')}
                   className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all border ${
                     newRole === 'manager' 
-                      ? 'bg-primary text-white border-primary shadow-md shadow-primary/20' 
+                      ? 'bg-primary text-on-brand border-primary shadow-md shadow-primary/20' 
                       : 'bg-bg text-text border-white/5 active:bg-primary/10'
                   }`}
                 >
@@ -163,7 +163,7 @@ export default function OwnerEmployees() {
                   onClick={() => setNewRole('courier')}
                   className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all border ${
                     newRole === 'courier' 
-                      ? 'bg-primary text-white border-primary shadow-md shadow-primary/20' 
+                      ? 'bg-primary text-on-brand border-primary shadow-md shadow-primary/20' 
                       : 'bg-bg text-text border-white/5 active:bg-primary/10'
                   }`}
                 >
@@ -200,7 +200,7 @@ export default function OwnerEmployees() {
               <button
                 type="submit"
                 disabled={generating}
-                className="w-full py-3.5 bg-primary text-white font-bold rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-transform"
+                className="w-full py-3.5 bg-primary text-on-brand font-bold rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-transform"
               >
                 {generating ? <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span> : 'Taklifnoma Yaratish'}
               </button>
@@ -221,7 +221,7 @@ export default function OwnerEmployees() {
                 </button>
                 <button
                   onClick={shareLink}
-                  className="flex-1 py-3 bg-primary text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 active:scale-95 transition-transform shadow-md shadow-primary/20"
+                  className="flex-1 py-3 bg-primary text-on-brand rounded-xl font-bold text-xs flex items-center justify-center gap-2 active:scale-95 transition-transform shadow-md shadow-primary/20"
                 >
                   <Share2 className="w-4 h-4" />
                   Ulashish
@@ -240,7 +240,7 @@ export default function OwnerEmployees() {
       </div>
 
       <div className="space-y-3">
-        <h2 className="text-sm font-black text-text-h mb-3 uppercase tracking-wider pl-1">Barcha Xodimlar</h2>
+        <h2 className="text-sm font-black text-fg mb-3 uppercase tracking-wider pl-1">Barcha Xodimlar</h2>
         
         {employees.length === 0 ? (
           <div className="text-center py-10">
@@ -256,7 +256,7 @@ export default function OwnerEmployees() {
                 </div>
                 
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-bold text-sm text-text-h truncate">{emp.name}</h3>
+                  <h3 className="font-bold text-sm text-fg truncate">{emp.name}</h3>
                   <p className="text-[10px] text-hint mt-0.5">
                     {emp.role === 'manager' ? 'Menejer' : 'Kuryer'}
                     {branchSuffix(emp)}
