@@ -94,6 +94,36 @@ class StaffAccessPanelTest extends TestCase
         $this->assertNotNull($cashier->fresh()->pin_hash);
     }
 
+    public function test_the_staff_screen_follows_the_permission_layer(): void
+    {
+        $cashier = $this->makeStaff(UserRole::CASHIER, $this->branch);
+
+        // Role changes are the owner's (staff.manage), as in the API: a manager's edit keeps the role
+        $this->signIn($this->manager);
+        Livewire::test(ManageEmployees::class)
+            ->callTableAction('edit', $cashier, data: ['name' => 'Kassir Vali', 'role' => UserRole::WAITER->value, 'branch_id' => $this->branch->id])
+            ->assertHasNoTableActionErrors();
+        $this->assertSame('Kassir Vali', $cashier->fresh()->name);
+        $this->assertSame(UserRole::CASHIER, $cashier->fresh()->role);
+
+        $this->signIn($this->owner);
+        Livewire::test(ManageEmployees::class)
+            ->callTableAction('edit', $cashier->fresh(), data: ['name' => 'Kassir Vali', 'role' => UserRole::WAITER->value, 'branch_id' => $this->branch->id])
+            ->assertHasNoTableActionErrors();
+        $this->assertSame(UserRole::WAITER, $cashier->fresh()->role);
+
+        // The list needs staff.view and PINs staff.pin, with the store's overrides
+        $permissions = app(PermissionService::class);
+        $permissions->setOverride($this->store, UserRole::MANAGER, Permission::STAFF_PIN, false, $this->owner);
+        $this->signIn($this->manager->fresh());
+        Livewire::test(ManageEmployees::class)->assertTableActionHidden('setPin', $cashier->fresh());
+
+        $permissions->setOverride($this->store, UserRole::MANAGER, Permission::STAFF_VIEW, false, $this->owner);
+        $this->assertFalse(\App\Filament\Resources\Employees\EmployeeResource::canViewAny());
+        $this->signIn($this->owner);
+        $this->assertTrue(\App\Filament\Resources\Employees\EmployeeResource::canViewAny());
+    }
+
     public function test_devices_are_listed_paired_and_revoked_within_the_tenant(): void
     {
         ['device' => $ours] = $this->pairTerminal($this->owner, $this->branch);

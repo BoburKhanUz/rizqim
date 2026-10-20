@@ -52,7 +52,8 @@ class DevicePairingTest extends TestCase
             ->assertCreated()
             ->json('data');
 
-        $this->assertMatchesRegularExpression('/^\d{6}$/', $created['code']);
+        // Crockford base32 without I, L, O, U, shown as ABCD-EFGH
+        $this->assertMatchesRegularExpression('/^[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$/', $created['code']);
         $this->assertDatabaseMissing('device_pairing_codes', ['code_hash' => $created['code']]);
         $this->assertDatabaseHas('device_pairing_codes', ['code_hash' => DevicePairingService::hash($created['code'])]);
 
@@ -103,7 +104,7 @@ class DevicePairingTest extends TestCase
     public function test_expired_and_wrong_codes_get_the_same_answer(): void
     {
         $code = $this->createCode($this->owner)->assertCreated()->json('data.code');
-        $wrong = $code === '000000' ? '000001' : '000000';
+        $wrong = $code === '0000-0000' ? '0000-0001' : '0000-0000';
 
         $a = $this->pair($wrong)->assertUnprocessable()->json();
         $this->travel(11)->minutes();
@@ -115,13 +116,70 @@ class DevicePairingTest extends TestCase
         $this->assertSame(0, Device::count());
     }
 
-    public function test_pairing_is_rate_limited(): void
+    public function test_a_code_is_accepted_with_or_without_the_dash_in_any_case(): void
     {
-        for ($i = 0; $i < 10; $i++) {
-            $this->pair(str_pad((string) $i, 6, '9', STR_PAD_LEFT))->assertUnprocessable();
+        foreach (['strip' => fn (string $code) => str_replace('-', '', $code), 'lower' => 'strtolower', 'spaced' => fn (string $code) => ' ' . str_replace('-', ' ', $code) . ' '] as $form) {
+            $code = $this->createCode($this->owner)->assertCreated()->json('data.code');
+            $this->pair($form($code))->assertCreated();
+            $this->travel(61)->seconds(); // the per-person code creation limit
         }
 
-        $this->pair('123456')->assertStatus(429);
+        // Crockford: O reads as 0, I and L as 1
+        $code = DevicePairingService::normalize('0011-ABCD');
+        $this->assertSame('0011ABCD', $code);
+        $this->assertSame($code, DevicePairingService::normalize('oOiL-abcd'));
+        $this->assertNull(DevicePairingService::normalize('123456'));
+        $this->assertNull(DevicePairingService::normalize('ABCD-EFGU'));
+        $this->assertSame(3, Device::count());
+    }
+
+    public function test_pairing_is_rate_limited_per_address_and_per_subnet(): void
+    {
+        $pairFrom = fn (string $ip, string $code) => $this->withBearer(null)->withServerVariables(['REMOTE_ADDR' => $ip])
+            ->postJson('/api/v1/devices/pair', ['code' => $code]);
+
+        for ($i = 0; $i < 10; $i++) {
+            $pairFrom('203.0.113.1', 'ZZZZ-ZZZ' . $i)->assertUnprocessable();
+        }
+        $pairFrom('203.0.113.1', 'ZZZZ-ZZZZ')->assertStatus(429);
+
+        // The same /24 shares a bucket of 30
+        foreach (range(2, 3) as $host) {
+            for ($i = 0; $i < 10; $i++) {
+                $pairFrom("203.0.113.{$host}", 'ZZZZ-ZZZ' . $i)->assertUnprocessable();
+            }
+        }
+        $pairFrom('203.0.113.4', 'ZZZZ-ZZZZ')->assertStatus(429);
+
+        // IPv6: one /64
+        for ($i = 0; $i < 30; $i++) {
+            $pairFrom('2001:db8:1:2::' . dechex(intdiv($i, 10) + 1), 'ZZZZ-ZZZ' . ($i % 10))->assertUnprocessable();
+        }
+        $pairFrom('2001:db8:1:2::ff', 'ZZZZ-ZZZZ')->assertStatus(429);
+
+        // There is no platform-wide bucket: a terminal elsewhere still pairs
+        $code = $this->createCode($this->owner)->assertCreated()->json('data.code');
+        $pairFrom('198.51.100.7', $code)->assertCreated();
+    }
+
+    public function test_many_addresses_cannot_block_all_pairing_and_are_logged_instead(): void
+    {
+        config(['auth.pairing.alert_attempts_per_minute' => 50]);
+        \Illuminate\Support\Facades\Log::spy();
+
+        for ($net = 1; $net <= 12; $net++) {
+            for ($i = 0; $i < 10; $i++) {
+                $this->withBearer(null)->withServerVariables(['REMOTE_ADDR' => "10.0.{$net}.1"])
+                    ->postJson('/api/v1/devices/pair', ['code' => 'ZZZZ-ZZZ' . $i])->assertUnprocessable();
+            }
+        }
+
+        $code = $this->createCode($this->owner)->assertCreated()->json('data.code');
+        $this->withBearer(null)->withServerVariables(['REMOTE_ADDR' => '198.51.100.7'])
+            ->postJson('/api/v1/devices/pair', ['code' => $code])->assertCreated();
+
+        \Illuminate\Support\Facades\Log::shouldHaveReceived('warning')->once()
+            ->withArgs(fn (string $message, array $context) => str_contains($message, 'pairing attempts') && $context['attempts'] === 50);
     }
 
     public function test_code_creation_is_capped_and_rate_limited(): void
@@ -201,6 +259,46 @@ class DevicePairingTest extends TestCase
 
         // Floor staff do not manage devices at all
         $this->actingAs($this->makeStaff(UserRole::CASHIER, $this->branch), 'sanctum')->getJson('/api/v1/owner/devices')->assertForbidden();
+    }
+
+    public function test_staff_never_see_or_revoke_app_installs_of_people_ranked_as_high_or_higher(): void
+    {
+        $register = fn (User $user, string $type) => app(\App\Services\Auth\DeviceService::class)->register($user, ['type' => $type, 'name' => $user->name]);
+        $storeWideManager = $this->makeStaff(UserRole::MANAGER);
+        $cashier = $this->makeStaff(UserRole::CASHIER);
+
+        $ownerPhone = $register($this->owner, 'partner_mobile');
+        $otherManagerPhone = $register($this->manager, 'partner_mobile');
+        $ownPhone = $register($storeWideManager, 'partner_mobile');
+        $cashierPhone = $register($cashier, 'partner_mobile');
+        ['device' => $terminal] = $this->pairTerminal($this->owner);
+        $this->assertSame($this->store->id, $ownerPhone->store_id);
+
+        $list = $this->actingAs($storeWideManager, 'sanctum')->getJson('/api/v1/owner/devices')->assertOk()->json('data');
+        $this->assertEqualsCanonicalizing([$ownPhone->uuid, $cashierPhone->uuid, $terminal->uuid], array_column($list, 'uuid'));
+
+        foreach ([$ownerPhone, $otherManagerPhone] as $device) {
+            $this->actingAs($storeWideManager, 'sanctum')->patchJson("/api/v1/owner/devices/{$device->uuid}", ['name' => 'x'])->assertNotFound();
+            $this->actingAs($storeWideManager, 'sanctum')->postJson("/api/v1/owner/devices/{$device->uuid}/revoke")->assertNotFound();
+            $this->assertNull($device->fresh()->revoked_at);
+        }
+
+        $this->actingAs($storeWideManager, 'sanctum')->postJson("/api/v1/owner/devices/{$cashierPhone->uuid}/revoke")->assertOk();
+        $this->actingAs($storeWideManager, 'sanctum')->postJson("/api/v1/owner/devices/{$ownPhone->uuid}/revoke")->assertOk();
+        $this->actingAs($storeWideManager, 'sanctum')->patchJson("/api/v1/owner/devices/{$terminal->uuid}", ['name' => 'Kassa 9'])->assertOk();
+
+        // The owner sees and manages everybody's
+        $list = $this->actingAs($this->owner, 'sanctum')->getJson('/api/v1/owner/devices')->assertOk()->json('data');
+        $this->assertEqualsCanonicalizing([$ownerPhone->uuid, $otherManagerPhone->uuid, $terminal->uuid], array_column($list, 'uuid'));
+        $this->actingAs($this->owner, 'sanctum')->postJson("/api/v1/owner/devices/{$otherManagerPhone->uuid}/revoke")->assertOk();
+
+        // The panel follows the same rule
+        $this->actingAs($storeWideManager, 'web');
+        \Filament\Facades\Filament::setCurrentPanel('admin');
+        \Filament\Facades\Filament::setTenant($this->store);
+        $this->assertFalse(\App\Filament\Resources\Devices\DeviceResource::canManage($ownerPhone->fresh()));
+        $this->assertTrue(\App\Filament\Resources\Devices\DeviceResource::canManage($terminal->fresh()));
+        $this->assertNotContains($ownerPhone->id, \App\Filament\Resources\Devices\DeviceResource::getEloquentQuery()->pluck('id')->all());
     }
 
     public function test_users_register_update_list_and_revoke_their_own_devices(): void

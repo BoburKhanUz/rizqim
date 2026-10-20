@@ -26,10 +26,11 @@ Route::prefix('v1')->group(function () {
             ]);
         });
 
-        Route::post('/phone/send-code', [\App\Http\Controllers\Api\V1\Auth\PhoneVerificationController::class, 'sendCode'])->middleware('throttle:otp-send');
-        Route::post('/phone/verify-code', [\App\Http\Controllers\Api\V1\Auth\PhoneVerificationController::class, 'verifyCode'])->middleware('throttle:otp-verify');
+        // Phone and profile changes (and the account linking behind them): never from a staff PIN session on a terminal
+        Route::post('/phone/send-code', [\App\Http\Controllers\Api\V1\Auth\PhoneVerificationController::class, 'sendCode'])->middleware(['not-staff-session', 'throttle:otp-send']);
+        Route::post('/phone/verify-code', [\App\Http\Controllers\Api\V1\Auth\PhoneVerificationController::class, 'verifyCode'])->middleware(['not-staff-session', 'throttle:otp-verify']);
 
-        Route::post('/user/profile', function (Request $request) {
+        Route::middleware('not-staff-session')->post('/user/profile', function (Request $request) {
             $user = $request->user();
             $data = $request->validate([
                 'name' => 'required|string|max:255',
@@ -103,9 +104,10 @@ Route::prefix('v1')->group(function () {
         });
 
         // [P1-14] Server-side sales aggregates for the Mini App's analytics screen (a branch manager sees their branch only)
-        Route::get('/owner/analytics', [\App\Http\Controllers\Api\V1\Store\OwnerAnalyticsController::class, 'index'])->middleware('role:owner,manager');
+        Route::get('/owner/analytics', [\App\Http\Controllers\Api\V1\Store\OwnerAnalyticsController::class, 'index'])->middleware(['role:owner,manager', 'permission:reports.view']);
 
-        Route::middleware('role:owner')->group(function () {
+        // Staff, money and settings: not from a staff PIN session on a terminal (docs/AUTH.md)
+        Route::middleware(['role:owner', 'not-staff-session'])->group(function () {
             // Owner Employee Routes
             Route::get('/owner/employees', [\App\Http\Controllers\Api\V1\Store\OwnerEmployeeController::class, 'index']);
             Route::post('/owner/employees/invite', [\App\Http\Controllers\Api\V1\Store\OwnerEmployeeController::class, 'generateInvite']);

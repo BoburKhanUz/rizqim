@@ -9,7 +9,7 @@ yozilishini tushuntiradi (P1-12). Barcha endpointlar `/api/v1` ostida.
 |---|---|---|
 | Telegram Mini App | `POST /auth/telegram` (initData) | Bitta token, `SANCTUM_TOKEN_EXPIRATION` (30 kun). 401 bo'lsa initData bilan qayta kiradi |
 | Mobil ilova (mijoz, hamkor, kuryer) | `POST /auth/telegram` yoki `POST /auth/phone/verify`, `device` bilan | Qisqa access token (15 daqiqa) + refresh token (30 kun) |
-| POS/KDS terminal | `POST /devices/pair` (6 xonali kod) | Terminalning o'z tokeni (365 kun yoki o'chirilguncha) |
+| POS/KDS terminal | `POST /devices/pair` (8 belgili kod, `ABCD-EFGH`) | Terminalning o'z tokeni (365 kun yoki o'chirilguncha) |
 | Terminaldagi xodim | `POST /devices/{device}/staff-session` (PIN) | Qisqa xodim sessiyasi (12 soat), terminalga bog'langan |
 
 ## 1. Telegram va SMS kod bilan kirish
@@ -28,7 +28,11 @@ qurilma yaratiladi.
 1. `POST /auth/phone/send-code {phone}` — kod yuboriladi. Javob raqam ro'yxatdan o'tgan-o'tmaganidan qat'i nazar bir xil.
 2. `POST /auth/phone/verify {phone, code, device?}` — Telegram javobi bilan bir xil shakl, qo'shimcha `is_new_user`.
 
-Kod 5 daqiqa amal qiladi, 5 marta tekshirish mumkin, daqiqasiga 1 ta va soatiga 5 ta yuboriladi.
+Kod 5 daqiqa amal qiladi, 5 marta tekshirish mumkin, daqiqasiga 1 ta va soatiga 5 ta yuboriladi. Yangi kod so'ralsa,
+oldingisi o'chmaydi: muddati tugaguncha oxirgi **ikkita** kod qabul qilinadi (har birining o'z 5 ta urinishi bor), biri
+to'g'ri kelsa ikkalasi ham sarflanadi. Shunda begona odam qayta-qayta kod so'rab, egasi terayotgan kodni bekor qila
+olmaydi. Bitta raqam uchun barcha kodlar bo'yicha jami sutkasiga 30 ta urinish
+(`auth.phone_verification.max_attempts_per_day`), keyin "Bugun urinishlar soni tugadi" (422).
 
 **Telefonni tasdiqlash (kirgan foydalanuvchi uchun).** `POST /phone/send-code` va `POST /phone/verify-code` avvalgidek
 ishlaydi; tasdiqlangan raqam `users.phone_verified_at` bilan belgilanadi. Profilda kodsiz o'zgartirilgan raqam
@@ -61,6 +65,8 @@ odamning mobil kirishini o'z hisobiga tushirishi mumkin edi.
   Javob 401, `data.reason`: `refresh_reused`, `refresh_invalid` yoki `refresh_expired`.
 - Ilova bitta refresh so'rovini bir vaqtda faqat bir marta yuborishi kerak (single-flight), aks holda ikkinchi so'rov
   qayta ishlatish deb hisoblanadi.
+- Shu qurilmada qaytadan kirilsa (yangi oila boshlansa), qurilmaning eski oilalari bekor qilinadi: eski refresh token va
+  access token ishlamay qoladi.
 - `POST /auth/logout` — joriy sessiya (qurilma bo'lsa, uning refresh tokenlari ham). `POST /auth/logout-all` — barcha
   qurilmalardagi barcha sessiyalar (Mini App va xodim PIN sessiyalari ham).
 
@@ -82,17 +88,26 @@ odamning mobil kirishini o'z hisobiga tushirishi mumkin edi.
 Bitta foydalanuvchida ko'pi bilan 20 ta faol qurilma; ortig'i (eng eskisi) avtomatik o'chiriladi. Filialga biriktirilgan
 menejer faqat o'z filialining qurilmalarini ko'radi. Boshqa do'kon qurilmasi 404 bo'ladi.
 
+Xodimning shaxsiy ilovasini (`user_id` bor qurilma) faqat uning o'zi yoki undan yuqori rol ko'radi va boshqaradi
+(ega > menejer > boshqa xodimlar): menejer eganing yoki boshqa menejerning telefonini ko'rmaydi, o'chira olmaydi (404).
+Terminallar (`user_id` yo'q) uchun qoidalar o'zgarmagan. Panelda ham xuddi shunday.
+
 ## 4. POS/KDS terminalni ulash
 
 1. Ega yoki menejer `POST /owner/devices/pairing-codes {type: pos|kds, branch_id?, name?}` yoki panelda
-   "Qurilmalar → Terminal ulash" orqali 6 xonali kod oladi. Kod 10 daqiqa amal qiladi, bir marta ishlatiladi; bir
+   "Qurilmalar → Terminal ulash" orqali 8 belgili kod oladi (`ABCD-EFGH` ko'rinishida; Crockford base32: raqamlar va
+   I, L, O, U dan tashqari bosh harflar). Kod 10 daqiqa amal qiladi, bir marta ishlatiladi; bir
    do'konda bir vaqtda ko'pi bilan 5 ta faol kod; bir kishi daqiqasiga 5 ta, soatiga 30 ta kod yarata oladi. Filial
    menejeri faqat o'z filiali uchun kod yaratadi.
-2. Terminal `POST /devices/pair {code, name?, platform?, app_version?}` yuboradi (token kerak emas) va
+2. Terminal `POST /devices/pair {code, name?, platform?, app_version?}` yuboradi (kod chiziqcha bilan yoki usiz, katta-kichik
+   harf farqi yo'q; O → 0, I/L → 1 deb o'qiladi) (token kerak emas) va
    `{token, device, store, branch}` oladi. Bu terminalning o'z tokeni (`terminal` huquqi bilan): u foydalanuvchi emas,
    oddiy API'ga (`auth:sanctum`) kira olmaydi, faqat terminal endpointlariga (`auth:device`).
 3. Kod bazada faqat HMAC ko'rinishida (APP_KEY bilan) saqlanadi. Noto'g'ri, ishlatilgan yoki eskirgan kodga bir xil
-   javob: 422 `pairing_invalid`. Urinishlar bir IP'dan daqiqasiga 10 ta, butun platformada daqiqasiga 120 ta.
+   javob: 422 `pairing_invalid`. Urinishlar bir IP'dan daqiqasiga 10 ta, bir tarmoqdan (IPv4 /24, IPv6 /64) daqiqasiga
+   30 ta. Butun platforma uchun umumiy bloklash yo'q (aks holda kimdir hamma terminallarning ulanishini to'xtatib
+   qo'yishi mumkin edi): daqiqasiga 600 tadan ko'p urinish bo'lsa, log'ga ogohlantirish yoziladi
+   (`auth.pairing.alert_attempts_per_minute`).
 
 Terminal endpointlari (`Authorization: Bearer <terminal token>`):
 
@@ -121,12 +136,23 @@ tushirmang** — u barcha terminallarni uzib qo'yadi.
 - `POST /devices/{uuid}/staff-session {user_id | staff_code, pin}` — terminal tokeni bilan. Javob:
   `{token, expires_at, user, permissions}`. Bu xodimning o'z tokeni (oddiy API'ga kira oladi, xodim huquqlari bilan),
   terminalga bog'langan va `AUTH_STAFF_SESSION_TTL` (12 soat) amal qiladi.
+- **Xodim sessiyasi faqat buyurtma va kassa ishi uchun.** Token faqat `staff-session` huquqiga ega va quyidagi
+  endpointlar uni 403 bilan rad etadi (`data.reason = staff_session_not_allowed`, `not-staff-session` middleware): moliya
+  va pul yechish (`/owner/finance*`, `/owner/payouts`), sozlamalar (`/owner/settings*`), xodimlar (`/owner/employees*`),
+  ruxsatlar jadvali (`/owner/permissions`), PIN va rol (`/owner/staff/*`), qurilmalar va ulash kodlari (`/devices*`,
+  `/owner/devices*`), harakatlar jurnali (`/owner/audit-logs`), `POST /auth/logout-all`, profil va telefon
+  (`POST /user/profile`, `/phone/send-code`, `/phone/verify-code`). Ega va menejer terminalga PIN bilan kirib buyurtmalar
+  bilan ishlashi mumkin, lekin bu amallar uchun o'z ilovasi yoki panel orqali kiradi.
 - Terminalda yangi xodim kirsa, oldingisining sessiyasi yopiladi. PIN o'zgarsa yoki o'chirilsa, terminal o'chirilsa —
   sessiyalar darhol yopiladi.
 - Xodim boshqa filial terminaliga kira olmaydi (do'kon bo'yicha ishlaydigan xodim — istalgan filialga).
-- **Bloklash:** bitta terminalda bitta xodim uchun `AUTH_PIN_MAX_ATTEMPTS` (5) noto'g'ri urinishdan keyin
-  `AUTH_PIN_LOCKOUT_SECONDS` (60 soniya) bloklanadi, keyingi har bir xatoda vaqt ikki baravar oshadi (eng ko'pi 1 soat).
-  Javob 429 va `Retry-After`. Qo'shimcha: terminal bo'yicha daqiqasiga 20 ta urinish.
+- **Bloklash:** bitta terminalda bitta xodim uchun `AUTH_PIN_MAX_ATTEMPTS` (5) noto'g'ri urinishdan keyin, yoki
+  do'konning barcha terminallarida jami `AUTH_PIN_MAX_ATTEMPTS_PER_USER` (10) noto'g'ri urinishdan keyin (terminal
+  almashtirish hisobni nolga tushirmaydi) `AUTH_PIN_LOCKOUT_SECONDS` (60 soniya) bloklanadi, keyingi har bir xatoda vaqt
+  ikki baravar oshadi (eng ko'pi 1 soat). Hisob faqat to'g'ri PIN bilan nolga tushadi. Javob 429 va `Retry-After`.
+  Bitta xodim uchun urinishlar navbat bilan (cache lock ostida) tekshiriladi: bir vaqtda yuborilgan so'rovlar ham
+  bittadan hisoblanadi, chegaraga yetgach qolganlari PIN tekshirilmasdan 429 bilan rad etiladi. Qo'shimcha: terminal bo'yicha
+  daqiqasiga 10 ta, bir IP'dan 60 ta urinish.
 - Noto'g'ri PIN, mavjud bo'lmagan xodim, boshqa do'kon xodimi, PIN'i yo'q xodim — hammasiga bir xil javob va bir xil
   bcrypt ishi: terminal orqali kim borligini bilib bo'lmaydi.
 
@@ -175,7 +201,11 @@ superadmin uchun.
 panelda "Ruxsatlar" sahifasida menejer, kassir, ofitsiant, oshpaz va kuryer huquqlarini o'zgartira oladi (`null` —
 standartga qaytarish). Ega huquqlari o'zgarmaydi. Quyidagilarni boshqa rolga berib bo'lmaydi: `orders.refund`,
 `finance.manage`, `settings.manage`, `staff.manage`, `audit.view`, `permissions.manage`.
-`GET /owner/permissions` — joriy jadval va standartlar.
+`GET /owner/permissions` — joriy jadval va standartlar. Bu endpointlar chaqiruvchining o'z do'koni uchun: do'konsiz
+superadmin 403 (`data.reason = store_required`) oladi va do'kon ruxsatlarini panel orqali boshqaradi.
+
+**Hisobotlar.** `GET /owner/analytics` ega va menejer uchun, `reports.view` bilan (do'kon o'zgartirishlari hisobga
+olinadi): menejerdan `reports.view` olib qo'yilsa, 403.
 
 **Filial bo'yicha cheklov.** Filialga biriktirilgan xodim (ega bundan mustasno) faqat o'z filialidagi buyurtma, qurilma
 va xodimlar bilan ishlaydi. Filialsiz xodim butun do'konda ishlaydi.
@@ -190,12 +220,14 @@ bosqichida ochiladi.
 Ilova faqat ishlaydigan tugmalarni ko'rsatadi; server baribir har bir amalni o'zi tekshiradi.
 
 **Rolni o'zgartirish.** `PUT /owner/staff/{id}/role {role, branch_id?}` (faqat ega, `staff.manage`): menejer,
-kassir, ofitsiant, oshpaz yoki kuryer. Ega o'z rolini va boshqa egani o'zgartira olmaydi.
+kassir, ofitsiant, oshpaz yoki kuryer. Ega o'z rolini va boshqa egani o'zgartira olmaydi. Panelda ham xuddi shunday:
+"Xodimlar" ro'yxati `staff.view`, PIN tugmalari `staff.pin`, mavjud xodimning rolini o'zgartirish `staff.manage` bilan.
 
 ## 7. Harakatlar jurnali (audit log)
 
 `audit_logs`: do'kon, filial, kim (foydalanuvchi va/yoki terminal), harakat, obyekt (tur va id), oldin/keyin (faqat
-o'zgargan maydonlar), qo'shimcha ma'lumot (sabab va h.k.), IP, vaqt. Yoziladigan harakatlar:
+o'zgargan maydonlar), qo'shimcha ma'lumot (sabab va h.k.), IP, vaqt. IP faqat xodim yoki terminal harakatida
+yoziladi (mijozning manzili saqlanmaydi) va faqat ega hamda superadminga ko'rsatiladi. Yoziladigan harakatlar:
 
 | Harakat | Qachon |
 |---|---|
@@ -239,4 +271,5 @@ Hammasi joriy do'kon (tenant) bilan cheklangan, filial menejeri — o'z filiali 
 | `AUTH_STAFF_SESSION_TTL` | 720 | xodim PIN sessiyasi, daqiqa |
 | `AUTH_PAIRING_CODE_TTL` | 10 | ulash kodi, daqiqa |
 | `AUTH_PIN_MAX_ATTEMPTS` | 5 | bloklashgacha noto'g'ri PIN soni |
+| `AUTH_PIN_MAX_ATTEMPTS_PER_USER` | 10 | bitta xodim uchun barcha terminallarda jami noto'g'ri PIN soni |
 | `AUTH_PIN_LOCKOUT_SECONDS` | 60 | birinchi bloklash, soniya (keyin ikki baravar) |

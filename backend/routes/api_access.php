@@ -24,30 +24,34 @@ Route::post('/devices/pair', [TerminalController::class, 'pair'])->middleware('t
 // A signed-in user (Mini App, apps, staff PIN session)
 Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->group(function () {
     Route::post('/auth/logout', [TokenController::class, 'logout'])->middleware('throttle:auth-logout');
-    Route::post('/auth/logout-all', [TokenController::class, 'logoutAll'])->middleware('throttle:auth-logout');
     Route::get('/me/permissions', [PermissionController::class, 'show']);
 
-    Route::middleware('throttle:devices')->group(function () {
-        Route::get('/devices', [DeviceController::class, 'index']);
-        Route::post('/devices', [DeviceController::class, 'store']);
-        Route::delete('/devices/{uuid}', [DeviceController::class, 'destroy'])->whereUuid('uuid');
+    // Account-wide and administrative actions refuse a staff PIN session token: a terminal is for order work only
+    Route::middleware('not-staff-session')->group(function () {
+        Route::post('/auth/logout-all', [TokenController::class, 'logoutAll'])->middleware('throttle:auth-logout');
 
-        Route::get('/owner/devices', [StoreDeviceController::class, 'index'])->middleware('permission:devices.view');
-        Route::patch('/owner/devices/{uuid}', [StoreDeviceController::class, 'update'])->whereUuid('uuid')->middleware('permission:devices.manage');
-        Route::post('/owner/devices/{uuid}/revoke', [StoreDeviceController::class, 'revoke'])->whereUuid('uuid')->middleware('permission:devices.manage');
+        Route::middleware('throttle:devices')->group(function () {
+            Route::get('/devices', [DeviceController::class, 'index']);
+            Route::post('/devices', [DeviceController::class, 'store']);
+            Route::delete('/devices/{uuid}', [DeviceController::class, 'destroy'])->whereUuid('uuid');
+
+            Route::get('/owner/devices', [StoreDeviceController::class, 'index'])->middleware('permission:devices.view');
+            Route::patch('/owner/devices/{uuid}', [StoreDeviceController::class, 'update'])->whereUuid('uuid')->middleware('permission:devices.manage');
+            Route::post('/owner/devices/{uuid}/revoke', [StoreDeviceController::class, 'revoke'])->whereUuid('uuid')->middleware('permission:devices.manage');
+        });
+        Route::post('/owner/devices/pairing-codes', [StoreDeviceController::class, 'createPairingCode'])
+            ->middleware(['permission:devices.manage', 'throttle:pairing-code']);
+
+        Route::middleware('throttle:staff-admin')->group(function () {
+            Route::put('/owner/staff/{id}/pin', [StaffAccessController::class, 'setPin'])->whereNumber('id')->middleware('permission:staff.pin');
+            Route::delete('/owner/staff/{id}/pin', [StaffAccessController::class, 'resetPin'])->whereNumber('id')->middleware('permission:staff.pin');
+            Route::put('/owner/staff/{id}/role', [StaffAccessController::class, 'updateRole'])->whereNumber('id')->middleware('permission:staff.manage');
+            Route::get('/owner/permissions', [StaffAccessController::class, 'permissions'])->middleware('permission:permissions.manage');
+            Route::put('/owner/permissions', [StaffAccessController::class, 'updatePermission'])->middleware('permission:permissions.manage');
+        });
+
+        Route::get('/owner/audit-logs', [AuditLogController::class, 'index'])->middleware(['permission:audit.view', 'throttle:audit-logs']);
     });
-    Route::post('/owner/devices/pairing-codes', [StoreDeviceController::class, 'createPairingCode'])
-        ->middleware(['permission:devices.manage', 'throttle:pairing-code']);
-
-    Route::middleware('throttle:staff-admin')->group(function () {
-        Route::put('/owner/staff/{id}/pin', [StaffAccessController::class, 'setPin'])->whereNumber('id')->middleware('permission:staff.pin');
-        Route::delete('/owner/staff/{id}/pin', [StaffAccessController::class, 'resetPin'])->whereNumber('id')->middleware('permission:staff.pin');
-        Route::put('/owner/staff/{id}/role', [StaffAccessController::class, 'updateRole'])->whereNumber('id')->middleware('permission:staff.manage');
-        Route::get('/owner/permissions', [StaffAccessController::class, 'permissions'])->middleware('permission:permissions.manage');
-        Route::put('/owner/permissions', [StaffAccessController::class, 'updatePermission'])->middleware('permission:permissions.manage');
-    });
-
-    Route::get('/owner/audit-logs', [AuditLogController::class, 'index'])->middleware(['permission:audit.view', 'throttle:audit-logs']);
 });
 
 // A paired terminal's own token

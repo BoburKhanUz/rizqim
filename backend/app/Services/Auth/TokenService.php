@@ -23,6 +23,8 @@ class TokenService
 {
     public const ACCESS_TOKEN_NAME = 'device-access';
     public const STAFF_SESSION_NAME = 'staff-session';
+    // The only ability of a staff PIN session token: routes behind the `not-staff-session` middleware refuse it
+    public const STAFF_SESSION_ABILITY = 'staff-session';
     public const TERMINAL_TOKEN_NAME = 'terminal';
 
     public function issuePair(User $user, Device $device, ?string $familyId = null): IssuedTokens
@@ -30,6 +32,12 @@ class TokenService
         return DB::transaction(function () use ($user, $device, $familyId) {
             // One live access token per user and device
             $this->deviceTokens($user, $device)->where('name', self::ACCESS_TOKEN_NAME)->delete();
+
+            // A new sign-in on the device ends its older sessions: their refresh tokens stop working too
+            if ($familyId === null) {
+                RefreshToken::where('user_id', $user->id)->where('device_id', $device->id)->whereNull('revoked_at')
+                    ->update(['revoked_at' => now()]);
+            }
 
             $accessExpiresAt = now()->addMinutes(max(1, (int) config('auth.tokens.access_ttl', 15)));
             $access = $this->createDeviceToken($user, $device, self::ACCESS_TOKEN_NAME, ['*'], $accessExpiresAt);

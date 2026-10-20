@@ -24,7 +24,8 @@ use Illuminate\Database\Eloquent\Model;
 
 /**
  * The store's devices: paired POS/KDS terminals and the staff's app installs. Owners and managers (devices.view /
- * devices.manage; a branch manager only their branch's) make pairing codes, rename and revoke.
+ * devices.manage; a branch manager only their branch's) make pairing codes, rename and revoke; app installs of people
+ * ranked as high as the viewer or higher are not shown (DeviceService::withinRankOf).
  *
  * @extends Resource<Device>
  */
@@ -68,8 +69,7 @@ class DeviceResource extends Resource
     {
         $user = auth()->user();
 
-        return $user instanceof User && !$device->isRevoked()
-            && app(PermissionService::class)->allows($user, Permission::DEVICES_MANAGE, $device);
+        return $user instanceof User && app(DeviceService::class)->canManage($user, $device);
     }
 
     public static function getEloquentQuery(): Builder
@@ -82,10 +82,14 @@ class DeviceResource extends Resource
         }
 
         $user = auth()->user();
-        $branchScoped = $user instanceof User && app(PermissionService::class)->isBranchScoped($user);
+        if (!$user instanceof User) {
+            return $query->whereRaw('1 = 0');
+        }
 
-        return $query->where('store_id', $storeId)
-            ->when($branchScoped, fn (Builder $query) => $query->where('branch_id', $user->branch_id));
+        // Like the API: a branch manager's branch only, and no app installs of people ranked as high or higher
+        return app(DeviceService::class)->withinRankOf($query, $user)
+            ->where('store_id', $storeId)
+            ->when(app(PermissionService::class)->isBranchScoped($user), fn (Builder $query) => $query->where('branch_id', $user->branch_id));
     }
 
     public static function table(Table $table): Table

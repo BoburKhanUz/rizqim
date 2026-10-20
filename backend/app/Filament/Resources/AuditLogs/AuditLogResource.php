@@ -127,8 +127,10 @@ class AuditLogResource extends Resource
                     ->label("O'zgarish")
                     ->getStateUsing(fn (AuditLog $record) => static::describe($record))
                     ->wrap(),
+                // Staff and terminal addresses only (customers' are never stored); the owner's and superadmin's eyes only
                 TextColumn::make('ip')
                     ->label('IP')
+                    ->visible(fn () => in_array(auth()->user()?->role, [\App\Enums\UserRole::OWNER, \App\Enums\UserRole::SUPER_ADMIN], true))
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->defaultSort('id', 'desc')

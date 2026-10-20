@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1\Store;
 
+use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use Dedoc\Scramble\Attributes\Group;
 use Dedoc\Scramble\Attributes\Response as ApiDocResponse;
@@ -64,7 +65,8 @@ class AuditLogController extends Controller
             'before' => $log->before,
             'after' => $log->after,
             'meta' => $log->payload_json,
-            'ip' => $log->ip,
+            // Only staff and terminal addresses are stored; shown to the owner (and superadmin) only
+            'ip' => in_array($user->role, [UserRole::OWNER, UserRole::SUPER_ADMIN], true) ? $log->ip : null,
             'created_at' => $log->created_at->toIso8601String(),
         ]);
 

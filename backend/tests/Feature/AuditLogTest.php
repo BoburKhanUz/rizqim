@@ -79,6 +79,26 @@ class AuditLogTest extends TestCase
         $this->assertSame(3, AuditLog::count());
     }
 
+    public function test_only_staff_and_terminal_addresses_are_kept_and_only_owners_see_them(): void
+    {
+        $staffOrder = $this->makeOrder(OrderStatus::NEW);
+        $this->withServerVariables(['REMOTE_ADDR' => '203.0.113.10']);
+        $this->setStatus($staffOrder, $this->manager, 'accepted')->assertOk();
+
+        $own = $this->makeOrder(OrderStatus::NEW);
+        $this->withServerVariables(['REMOTE_ADDR' => '198.51.100.77']);
+        $this->actingAs($this->customer->fresh(), 'sanctum')->postJson("/api/v1/orders/{$own->uuid}/cancel", ['reason' => 'customer_request'])->assertOk();
+
+        $this->assertSame('203.0.113.10', AuditLog::where('model_id', $staffOrder->id)->sole()->ip);
+        $customerLog = AuditLog::where('model_id', $own->id)->where('user_id', $this->customer->id)->sole();
+        $this->assertNull($customerLog->ip);
+
+        $entries = collect($this->actingAs($this->owner, 'sanctum')->getJson('/api/v1/owner/audit-logs')->assertOk()->json('data.data'));
+        $this->assertSame('203.0.113.10', $entries->firstWhere('subject_id', $staffOrder->id)['ip']);
+        $this->assertNull($entries->firstWhere('subject_id', $own->id)['ip']);
+        $this->assertStringNotContainsString('198.51.100.77', $entries->toJson());
+    }
+
     public function test_refunds_are_logged(): void
     {
         $admin = User::create(['name' => 'Admin', 'role' => UserRole::SUPER_ADMIN->value, 'password' => bcrypt('password')]);

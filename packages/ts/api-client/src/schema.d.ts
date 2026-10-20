@@ -286,7 +286,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** POST /devices/pair {code, name?, platform?, app_version?} (no auth, rate limited) */
+        /**
+         * POST /devices/pair {code, name?, platform?, app_version?} (no auth, rate limited)
+         * @description `code` is the 8-character pairing code shown as ABCD-EFGH; the dash is optional and case does not matter.
+         */
         post: operations["terminal.pair"];
         delete?: never;
         options?: never;
@@ -699,7 +702,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** POST /owner/devices/pairing-codes {type: pos|kds, branch_id?, name?}: a one-time 6-digit code for a terminal */
+        /**
+         * POST /owner/devices/pairing-codes {type: pos|kds, branch_id?, name?}: a one-time code for a terminal
+         * @description `code` is 8 characters shown as ABCD-EFGH (digits and capitals without I, L, O, U); it lasts AUTH_PAIRING_CODE_TTL
+         *     minutes and works once.
+         */
         post: operations["storeDevice.createPairingCode"];
         delete?: never;
         options?: never;
@@ -1943,18 +1950,6 @@ export interface components {
     responses: {
         /** @description Unauthenticated */
         AuthenticationException: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": {
-                    /** @description Error overview. */
-                    message: string;
-                };
-            };
-        };
-        /** @description Authorization error */
-        AuthorizationException: {
             headers: {
                 [name: string]: unknown;
             };
@@ -3721,7 +3716,14 @@ export interface operations {
                 };
             };
             401: components["responses"]["AuthenticationException"];
-            403: components["responses"]["AuthorizationException"];
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             422: components["responses"]["ValidationException"];
         };
     };
@@ -4526,6 +4528,14 @@ export interface operations {
                 };
             };
             401: components["responses"]["AuthenticationException"];
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     "staffAccess.updatePermission": {
@@ -4563,6 +4573,14 @@ export interface operations {
                 };
             };
             401: components["responses"]["AuthenticationException"];
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             422: components["responses"]["ValidationException"];
         };
     };

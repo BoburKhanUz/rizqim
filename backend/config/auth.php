@@ -144,7 +144,10 @@ return [
 
     'phone_verification' => [
         'expose_code_in_response' => filter_var(env('SMS_EXPOSE_CODE_IN_RESPONSE', false), FILTER_VALIDATE_BOOLEAN),
+        // Guesses per code; a resend keeps the previous live code, so at most two codes are open at once
         'max_attempts' => 5,
+        // Guesses per phone in 24 hours, over all codes
+        'max_attempts_per_day' => 30,
     ],
 
     /*
@@ -171,13 +174,20 @@ return [
     'pairing' => [
         'ttl' => (int) env('AUTH_PAIRING_CODE_TTL', 10),
         'max_active' => 5,
-        'global_attempts_per_minute' => 120,
+        // POST /devices/pair per /24 (IPv6 /64) subnet; plus 10 per address
+        'subnet_attempts_per_minute' => 30,
+        // Platform-wide attempts in a minute that log a warning (never blocks)
+        'alert_attempts_per_minute' => 600,
     ],
 
     'pin' => [
         'max_attempts' => (int) env('AUTH_PIN_MAX_ATTEMPTS', 5),
         'lockout_seconds' => (int) env('AUTH_PIN_LOCKOUT_SECONDS', 60),
         'max_lockout_seconds' => 3600,
+        // Failures of one person on all terminals of the store before a lockout (moving terminals does not reset it)
+        'max_attempts_per_user' => (int) env('AUTH_PIN_MAX_ATTEMPTS_PER_USER', 10),
+        // How long a PIN attempt waits for the same person's attempt in progress elsewhere
+        'attempt_wait_seconds' => 10,
     ],
 
     /*

@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Laravel\Sanctum\Sanctum;
+use Symfony\Component\HttpFoundation\IpUtils;
 
 /**
  * P1-12 access layer: the `device` guard for paired terminals, device-bound token checks, the permission Gate, the
@@ -37,6 +38,7 @@ class AccessServiceProvider extends ServiceProvider
         $this->configureRateLimiting();
 
         $this->app['router']->aliasMiddleware('permission', \App\Http\Middleware\EnsureUserHasPermission::class);
+        $this->app['router']->aliasMiddleware('not-staff-session', \App\Http\Middleware\RejectStaffSession::class);
     }
 
     protected function configureGuards(): void
@@ -120,10 +122,12 @@ class AccessServiceProvider extends ServiceProvider
         // POST /auth/refresh: no user yet (the access token has expired)
         RateLimiter::for('auth-refresh', fn (Request $request) => Limit::perMinute(30)->by('ip:' . $request->ip()));
 
-        // POST /devices/pair: guessing a 6-digit code; also capped platform-wide so many addresses cannot add up
+        // POST /devices/pair: per address and per subnet (/24, IPv6 /64), never one platform-wide bucket that anybody
+        // could fill to stop every terminal pairing. An unusual total is logged (TerminalController::watchPairingVolume)
         RateLimiter::for('device-pair', fn (Request $request) => [
             Limit::perMinute(10)->by('ip:' . $request->ip()),
-            Limit::perMinute((int) config('auth.pairing.global_attempts_per_minute', 120))->by('global'),
+            Limit::perMinute((int) config('auth.pairing.subnet_attempts_per_minute', 30))
+                ->by('net:' . IpUtils::anonymize((string) $request->ip(), 1, 8)),
         ]);
 
         RateLimiter::for('pairing-code', fn (Request $request) => [
@@ -138,7 +142,7 @@ class AccessServiceProvider extends ServiceProvider
 
         // PIN sign-ins per terminal (the per person lockout is StaffPinService's)
         RateLimiter::for('staff-session', fn (Request $request) => [
-            Limit::perMinute(20)->by(($device = $request->user('device')) instanceof Device ? 'device:' . $device->id : 'ip:' . $request->ip()),
+            Limit::perMinute(10)->by(($device = $request->user('device')) instanceof Device ? 'device:' . $device->id : 'ip:' . $request->ip()),
             Limit::perMinute(60)->by('ip:' . $request->ip()),
         ]);
 

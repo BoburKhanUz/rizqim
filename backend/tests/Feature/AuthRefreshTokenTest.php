@@ -276,4 +276,23 @@ class AuthRefreshTokenTest extends TestCase
         $this->refresh($data['refresh_token'], $data['device']['uuid'])->assertOk();
         $this->assertSame(1, User::count());
     }
+
+    public function test_signing_in_again_on_a_device_ends_its_older_sessions(): void
+    {
+        $first = $this->deviceLogin();
+        $rotated = $this->refresh($first['refresh_token'], $first['device']['uuid'])->assertOk()->json('data');
+
+        // A new sign-in on the same device (the app sends its uuid back) starts a new family
+        $second = $this->telegramLogin(5550001, ['type' => 'customer_mobile', 'uuid' => $first['device']['uuid']])->assertOk()->json('data');
+        $this->assertSame($first['device']['uuid'], $second['device']['uuid']);
+
+        // The older family is over: its live refresh token and its access token no longer work
+        $this->refresh($rotated['refresh_token'], $first['device']['uuid'])->assertUnauthorized()->assertJsonPath('data.reason', 'refresh_invalid');
+        $this->bearerJson('GET', '/api/v1/me/permissions', $rotated['token'])->assertUnauthorized();
+        $this->assertSame(1, RefreshToken::whereNull('revoked_at')->whereNull('used_at')->count());
+
+        // The new one does
+        $this->bearerJson('GET', '/api/v1/me/permissions', $second['token'])->assertOk();
+        $this->refresh($second['refresh_token'], $second['device']['uuid'])->assertOk();
+    }
 }

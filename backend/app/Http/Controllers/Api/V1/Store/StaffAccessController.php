@@ -118,6 +118,9 @@ class StaffAccessController extends Controller
     {
         /** @var User $actor */
         $actor = $request->user();
+        if ($actor->store === null) {
+            return $this->noStore();
+        }
 
         return $this->success([
             'roles' => array_map(fn (UserRole $role) => [
@@ -149,6 +152,11 @@ class StaffAccessController extends Controller
 
         /** @var User $actor */
         $actor = $request->user();
+        $store = $actor->store;
+        if ($store === null) {
+            return $this->noStore();
+        }
+
         $role = UserRole::from($data['role']);
         $permission = Permission::from($data['permission']);
         $allowed = $data['allowed'] === null ? null : (bool) $data['allowed'];
@@ -157,10 +165,10 @@ class StaffAccessController extends Controller
             return $this->error("Bu ruxsatni faqat do'kon egasi bajaradi.", [], 422);
         }
 
-        $change = $this->permissions->setOverride($actor->store, $role, $permission, $allowed, $actor);
+        $change = $this->permissions->setOverride($store, $role, $permission, $allowed, $actor);
 
         if ($change['before'] !== $change['after']) {
-            $this->audit->record('permissions.changed', $actor->store, ['allowed' => $change['before']], ['allowed' => $change['after']], [
+            $this->audit->record('permissions.changed', $store, ['allowed' => $change['before']], ['allowed' => $change['after']], [
                 'role' => $role->value,
                 'permission' => $permission->value,
                 'reset_to_default' => $allowed === null,
@@ -172,6 +180,15 @@ class StaffAccessController extends Controller
             'permission' => $permission->value,
             'allowed' => $change['after'],
         ], "Ruxsat saqlandi.");
+    }
+
+    /**
+     * The permission matrix is the caller's own store's: a superadmin (no store) is refused here and changes a store's
+     * permissions in the panel instead.
+     */
+    private function noStore(): JsonResponse
+    {
+        return $this->error("Ruxsatlar jadvali faqat do'kon hisobidan boshqariladi.", ['reason' => 'store_required'], 403);
     }
 
     private function storeUser(User $actor, int $id): ?User

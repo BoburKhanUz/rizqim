@@ -23,7 +23,8 @@ use Illuminate\Validation\Rule;
 /**
  * A store's devices for its owner and managers (devices.view / devices.manage): the terminals and the staff's app
  * installs, pairing codes for new terminals, renaming and revoking. A branch manager sees and manages only their
- * branch's devices. Another store's device is simply not found.
+ * branch's devices, and nobody sees the app installs of people ranked as high as them or higher (a manager never
+ * sees the owner's phone). Another store's device is simply not found.
  */
 #[Group('Owner: devices', "Do'kon qurilmalari: terminal ulash kodi, nomini o'zgartirish, o'chirish (ega, menejer).")]
 class StoreDeviceController extends Controller
@@ -89,7 +90,10 @@ class StoreDeviceController extends Controller
     }
 
     /**
-     * POST /owner/devices/pairing-codes {type: pos|kds, branch_id?, name?}: a one-time 6-digit code for a terminal.
+     * POST /owner/devices/pairing-codes {type: pos|kds, branch_id?, name?}: a one-time code for a terminal.
+     *
+     * `code` is 8 characters shown as ABCD-EFGH (digits and capitals without I, L, O, U); it lasts AUTH_PAIRING_CODE_TTL
+     * minutes and works once.
      */
     #[ApiDocResponse(201, type: 'array{success: true, message: string, data: array{code: string, expires_at: string, type: string, branch_id: int|null}}')]
     public function createPairingCode(Request $request): JsonResponse
@@ -135,7 +139,7 @@ class StoreDeviceController extends Controller
      */
     private function visible(User $user): Builder
     {
-        return Device::query()
+        return $this->devices->withinRankOf(Device::query(), $user)
             ->where('store_id', $user->store_id)
             ->when($this->permissions->isBranchScoped($user), fn (Builder $query) => $query->where('branch_id', $user->branch_id));
     }
@@ -144,6 +148,6 @@ class StoreDeviceController extends Controller
     {
         $device = $this->visible($user)->where('uuid', $uuid)->whereNull('revoked_at')->first();
 
-        return $device && $this->permissions->allows($user, Permission::DEVICES_MANAGE, $device) ? $device : null;
+        return $device && $this->devices->canManage($user, $device) ? $device : null;
     }
 }

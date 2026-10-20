@@ -3,20 +3,64 @@
 namespace App\Services\Auth;
 
 use App\Enums\DeviceType;
+use App\Enums\Permission;
+use App\Enums\UserRole;
 use App\Models\Device;
 use App\Models\User;
 use App\Services\Audit\AuditLogger;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 
 /**
- * A person's own app installs (register / update / list) and revoking any device.
+ * A person's own app installs (register / update / list), revoking any device, and which store devices a manager may
+ * see and manage.
  */
 class DeviceService
 {
     public function __construct(
         protected TokenService $tokens,
         protected AuditLogger $audit,
+        protected PermissionService $permissions,
     ) {}
+
+    /**
+     * Narrow a query of store devices to those $actor may see: terminals (no user_id), the actor's own app installs
+     * and those of people ranked below them (owner > manager > other staff). A manager never sees the owner's phone.
+     *
+     * @param  Builder<Device>  $query
+     * @return Builder<Device>
+     */
+    public function withinRankOf(Builder $query, User $actor): Builder
+    {
+        $below = array_values(array_map(
+            fn (UserRole $role) => $role->value,
+            array_filter(UserRole::cases(), fn (UserRole $role) => $role->rank() < $actor->role->rank()),
+        ));
+
+        return $query->where(fn (Builder $query) => $query
+            ->whereNull('user_id')
+            ->orWhere('user_id', $actor->id)
+            ->orWhereHas('user', fn (Builder $query) => $query->whereIn('role', $below)));
+    }
+
+    /**
+     * Whether $actor may rename or revoke the device: devices.manage for it (store, branch) and, for a person's app
+     * install, being that person or ranked above them.
+     */
+    public function canManage(User $actor, Device $device): bool
+    {
+        if ($device->isRevoked() || !$this->permissions->allows($actor, Permission::DEVICES_MANAGE, $device)) {
+            return false;
+        }
+
+        if ($device->user_id === null || (int) $device->user_id === (int) $actor->id) {
+            return true;
+        }
+
+        $person = $device->user;
+
+        return $person !== null && $person->role->rank() < $actor->role->rank();
+    }
 
     /**
      * Register the app install the user is signing in from, or update it when `uuid` names one of their live devices

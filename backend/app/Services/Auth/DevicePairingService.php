@@ -13,12 +13,18 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Pairing a POS/KDS terminal: an owner or manager makes a one-time 6-digit code (valid AUTH_PAIRING_CODE_TTL minutes),
- * the terminal sends it to POST /devices/pair and gets its own long-lived token (ability "terminal"). Only an HMAC of
- * the code (keyed with APP_KEY) is stored; a wrong, used or expired code all get the same answer.
+ * Pairing a POS/KDS terminal: an owner or manager makes a one-time 8-character code (valid AUTH_PAIRING_CODE_TTL
+ * minutes), the terminal sends it to POST /devices/pair and gets its own long-lived token (ability "terminal"). Only an
+ * HMAC of the code (keyed with APP_KEY) is stored; a wrong, used or expired code all get the same answer.
+ *
+ * Codes use Crockford's base32 alphabet (digits and capitals without I, L, O, U: nothing to confuse when typing) and
+ * are shown grouped as ABCD-EFGH. A typed code may have the dash or not, any case, and O/I/L for 0/1/1.
  */
 class DevicePairingService
 {
+    public const CODE_ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+    public const CODE_LENGTH = 8;
+
     public function __construct(
         protected TokenService $tokens,
         protected AuditLogger $audit,
@@ -50,7 +56,7 @@ class DevicePairingService
 
             // A code must not collide with another store's live code: the terminal sends nothing else
             do {
-                $code = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+                $code = self::generateCode();
             } while (DevicePairingCode::where('code_hash', self::hash($code))->usable()->exists());
 
             $expiresAt = now()->addMinutes(max(1, (int) config('auth.pairing.ttl', 10)));
@@ -70,12 +76,12 @@ class DevicePairingService
                 'expires_at' => $expiresAt,
             ], ['actor' => $creator, 'store_id' => $store->id, 'branch_id' => $branch?->id]);
 
-            return ['code' => $code, 'expires_at' => $expiresAt, 'pairing' => $pairing];
+            return ['code' => self::format($code), 'expires_at' => $expiresAt, 'pairing' => $pairing];
         });
     }
 
     /**
-     * Spend a code and create the terminal with its token.
+     * Spend a code (as typed: ABCD-EFGH, abcdefgh, ...) and create the terminal with its token.
      *
      * @param  array{name?: ?string, platform?: ?string, app_version?: ?string}  $details
      * @return array{device: Device, token: string}
@@ -85,7 +91,8 @@ class DevicePairingService
     public function pair(string $code, array $details): array
     {
         return DB::transaction(function () use ($code, $details) {
-            $pairing = preg_match('/^\d{6}$/', $code)
+            $code = self::normalize($code);
+            $pairing = $code !== null
                 ? DevicePairingCode::where('code_hash', self::hash($code))->usable()->lockForUpdate()->first()
                 : null;
 
@@ -125,8 +132,39 @@ class DevicePairingService
         });
     }
 
+    /**
+     * The HMAC kept in the database, of the code in its canonical form (so ABCD-EFGH and abcdefgh hash alike).
+     */
     public static function hash(string $code): string
     {
-        return hash_hmac('sha256', $code, (string) config('app.key'));
+        return hash_hmac('sha256', self::normalize($code) ?? $code, (string) config('app.key'));
+    }
+
+    public static function generateCode(): string
+    {
+        $code = '';
+        for ($i = 0; $i < self::CODE_LENGTH; $i++) {
+            $code .= self::CODE_ALPHABET[random_int(0, strlen(self::CODE_ALPHABET) - 1)];
+        }
+
+        return $code;
+    }
+
+    /**
+     * A typed code in canonical form (8 capitals/digits, no dash), or null when it cannot be a pairing code.
+     */
+    public static function normalize(string $input): ?string
+    {
+        $code = strtr(strtoupper((string) preg_replace('/[\s\-]+/', '', $input)), ['O' => '0', 'I' => '1', 'L' => '1']);
+
+        return strlen($code) === self::CODE_LENGTH && strspn($code, self::CODE_ALPHABET) === self::CODE_LENGTH ? $code : null;
+    }
+
+    /**
+     * ABCDEFGH -> ABCD-EFGH, as shown to people.
+     */
+    public static function format(string $code): string
+    {
+        return implode('-', str_split($code, intdiv(self::CODE_LENGTH, 2)));
     }
 }

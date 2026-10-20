@@ -179,6 +179,57 @@ class StaffPinSessionTest extends TestCase
         $this->signIn($terminal, ['user_id' => $this->cashier->id, 'pin' => '0005'])->assertStatus(422);
     }
 
+    public function test_failures_on_all_terminals_add_up_per_person(): void
+    {
+        config(['auth.pin.max_attempts' => 3, 'auth.pin.max_attempts_per_user' => 5, 'auth.pin.lockout_seconds' => 60]);
+        $this->givePin($this->cashier, '4831');
+        $this->givePin($this->waiter, '5926');
+        [$a, $b, $c] = [$this->pairTerminal($this->owner, $this->branch), $this->pairTerminal($this->owner, $this->branch), $this->pairTerminal($this->owner)];
+
+        // Two wrong PINs on each terminal stay under the per-terminal limit, but the person's total reaches 5
+        foreach ([$a, $a, $b, $b] as $i => $terminal) {
+            $this->signIn($terminal, ['user_id' => $this->cashier->id, 'pin' => '000' . $i])->assertStatus(422);
+        }
+        $this->signIn($c, ['user_id' => $this->cashier->id, 'pin' => '0009'])->assertStatus(429)->assertHeader('Retry-After', '60');
+
+        // Locked everywhere, even with the right PIN; other people are not
+        $this->signIn($a, ['user_id' => $this->cashier->id, 'pin' => '4831'])->assertStatus(429);
+        $this->signIn($b, ['user_id' => $this->waiter->id, 'pin' => '5926'])->assertOk();
+
+        // After the wait the right PIN works and clears the person's count and that terminal's (not another
+        // terminal's, where somebody else may have been guessing)
+        $this->travel(61)->seconds();
+        $this->signIn($c, ['user_id' => $this->cashier->id, 'pin' => '4831'])->assertOk();
+        $this->signIn($c, ['user_id' => $this->cashier->id, 'pin' => '0010'])->assertStatus(422);
+        $this->signIn($c, ['user_id' => $this->cashier->id, 'pin' => '0011'])->assertStatus(422);
+        $this->signIn($a, ['user_id' => $this->cashier->id, 'pin' => '0012'])->assertStatus(429);
+    }
+
+    public function test_attempts_for_one_person_run_one_at_a_time(): void
+    {
+        // A parallel request for the same person holds the attempt lock: this one waits, then gives up without a guess
+        config(['auth.pin.attempt_wait_seconds' => 1]);
+        $this->givePin($this->cashier, '4831');
+        $terminal = $this->pairTerminal($this->owner, $this->branch);
+
+        $lock = \Illuminate\Support\Facades\Cache::lock('pin-attempt:u' . $this->cashier->id, 30);
+        $this->assertTrue($lock->get());
+        $this->signIn($terminal, ['user_id' => $this->cashier->id, 'pin' => '4831'])->assertStatus(429)->assertJsonPath('data.reason', 'pin_locked');
+        $lock->release();
+
+        $this->signIn($terminal, ['user_id' => $this->cashier->id, 'pin' => '4831'])->assertOk();
+    }
+
+    public function test_pin_sign_ins_are_limited_per_terminal(): void
+    {
+        $terminal = $this->pairTerminal($this->owner, $this->branch);
+
+        for ($i = 1; $i <= 10; $i++) {
+            $this->signIn($terminal, ['user_id' => 900000 + $i, 'pin' => '4831'])->assertStatus(422);
+        }
+        $this->signIn($terminal, ['user_id' => 900011, 'pin' => '4831'])->assertStatus(429)->assertJsonMissingPath('data.reason');
+    }
+
     public function test_unknown_people_are_locked_out_the_same_way(): void
     {
         config(['auth.pin.max_attempts' => 2]);
@@ -242,5 +293,68 @@ class StaffPinSessionTest extends TestCase
         $terminal = $this->pairTerminal($this->owner, $this->otherBranch);
 
         $this->signIn($terminal, ['user_id' => $this->owner->id, 'pin' => '4831'])->assertOk()->assertJsonPath('data.user.role', 'owner');
+    }
+
+    public function test_a_staff_session_token_is_for_order_work_not_administration(): void
+    {
+        $this->givePin($this->owner, '4826');
+        $terminal = $this->pairTerminal($this->owner);
+        $session = $this->signIn($terminal, ['user_id' => $this->owner->id, 'pin' => '4826'])->assertOk()->json('data.token');
+
+        $this->assertSame(['staff-session'], \Laravel\Sanctum\PersonalAccessToken::findToken($session)->abilities);
+
+        // POS and order work
+        $this->bearerJson('GET', '/api/v1/me/permissions', $session)->assertOk()->assertJsonPath('data.role', 'owner');
+        $this->bearerJson('GET', '/api/v1/orders', $session)->assertOk();
+        $this->bearerJson('GET', '/api/v1/owner/analytics', $session)->assertOk();
+
+        // Money, settings, permissions, staff and devices, the audit log, account-wide actions: refused
+        $refused = [
+            ['GET', '/api/v1/owner/finance'],
+            ['POST', '/api/v1/owner/payouts'],
+            ['GET', '/api/v1/owner/settings'],
+            ['GET', '/api/v1/owner/employees'],
+            ['GET', '/api/v1/owner/permissions'],
+            ['PUT', '/api/v1/owner/permissions'],
+            ['PUT', "/api/v1/owner/staff/{$this->cashier->id}/pin"],
+            ['PUT', "/api/v1/owner/staff/{$this->cashier->id}/role"],
+            ['GET', '/api/v1/owner/devices'],
+            ['POST', "/api/v1/owner/devices/{$terminal['device']->uuid}/revoke"],
+            ['POST', '/api/v1/owner/devices/pairing-codes'],
+            ['GET', '/api/v1/devices'],
+            ['GET', '/api/v1/owner/audit-logs'],
+            ['POST', '/api/v1/auth/logout-all'],
+            ['POST', '/api/v1/user/profile'],
+            ['POST', '/api/v1/phone/send-code'],
+            ['POST', '/api/v1/phone/verify-code'],
+        ];
+        foreach ($refused as [$method, $uri]) {
+            $this->bearerJson($method, $uri, $session)->assertForbidden()->assertJsonPath('data.reason', 'staff_session_not_allowed');
+        }
+        $this->assertNull($terminal['device']->fresh()->revoked_at);
+
+        // The owner's own sign-in still reaches them; a session from before the narrow ability ('*') is refused too
+        $this->bearerJson('GET', '/api/v1/owner/finance', $this->owner->createToken('app')->plainTextToken)->assertOk();
+        $legacy = app(\App\Services\Auth\TokenService::class)->createDeviceToken($this->owner, $terminal['device'], 'staff-session', ['*'], now()->addHour());
+        $this->bearerJson('GET', '/api/v1/owner/audit-logs', $legacy->plainTextToken)->assertForbidden();
+        $this->bearerJson('GET', '/api/v1/orders', $legacy->plainTextToken)->assertOk();
+    }
+
+    public function test_a_staff_code_taken_at_the_same_moment_is_retried(): void
+    {
+        // Another request gives the drawn code to somebody right after this one checked it was free
+        $checks = 0;
+        \Illuminate\Support\Facades\DB::listen(function ($query) use (&$checks) {
+            if (str_contains($query->sql, '"staff_code" = ?') && str_contains($query->sql, 'exists') && ++$checks === 1) {
+                $this->waiter->forceFill(['staff_code' => (string) end($query->bindings)])->saveQuietly();
+            }
+        });
+
+        // The unique index refuses the first save; a second code is drawn instead of a 500
+        $this->setPin($this->owner, $this->cashier, '4831')->assertOk();
+
+        $this->assertSame(2, $checks);
+        $this->assertMatchesRegularExpression('/^\d{4}$/', (string) $this->cashier->fresh()->staff_code);
+        $this->assertSame(1, \App\Models\AuditLog::where('action', 'staff.pin_set')->where('model_id', $this->cashier->id)->count());
     }
 }

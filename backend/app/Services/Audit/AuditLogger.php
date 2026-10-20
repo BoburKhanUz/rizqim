@@ -2,6 +2,7 @@
 
 namespace App\Services\Audit;
 
+use App\Enums\UserRole;
 use App\Models\AuditLog;
 use App\Models\Device;
 use App\Models\User;
@@ -44,8 +45,23 @@ class AuditLogger
             'before' => $before ? AuditRedactor::clean($before) : null,
             'after' => $after ? AuditRedactor::clean($after) : null,
             'payload_json' => $meta ? AuditRedactor::clean($meta) : null,
-            'ip' => app()->runningInConsole() && !app()->runningUnitTests() ? null : request()->ip(),
+            'ip' => $this->ipOf($actor, $device),
         ]);
+    }
+
+    /**
+     * The request's address when staff or a terminal acted. A customer's address (cancelling their own order, ...) is
+     * personal data the store's log has no use for, so it is never stored; nor is a webhook's or the system's.
+     */
+    private function ipOf(?User $actor, ?Device $device): ?string
+    {
+        if (app()->runningInConsole() && !app()->runningUnitTests()) {
+            return null;
+        }
+
+        $staff = $device !== null || ($actor !== null && $actor->role !== UserRole::CUSTOMER);
+
+        return $staff ? request()->ip() : null;
     }
 
     /**

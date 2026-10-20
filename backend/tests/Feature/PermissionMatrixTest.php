@@ -153,6 +153,37 @@ class PermissionMatrixTest extends TestCase
         $this->assertCount(count(Permission::cases()), $matrix['permissions']);
     }
 
+    public function test_a_superadmin_has_no_store_matrix_and_gets_a_clean_refusal(): void
+    {
+        $admin = User::create(['name' => 'Platform Admin', 'phone' => '+998900000001', 'password' => bcrypt('password'), 'role' => UserRole::SUPER_ADMIN->value]);
+
+        $this->actingAs($admin, 'sanctum')->putJson('/api/v1/owner/permissions', ['role' => 'waiter', 'permission' => 'orders.discount', 'allowed' => true])
+            ->assertForbidden()
+            ->assertJsonPath('data.reason', 'store_required');
+        $this->actingAs($admin, 'sanctum')->getJson('/api/v1/owner/permissions')
+            ->assertForbidden()
+            ->assertJsonPath('data.reason', 'store_required');
+        $this->assertDatabaseCount('role_permission_overrides', 0);
+    }
+
+    public function test_sales_analytics_follow_the_reports_permission(): void
+    {
+        $this->actingAs($this->manager, 'sanctum')->getJson('/api/v1/owner/analytics')->assertOk();
+
+        app(PermissionService::class)->setOverride($this->store, UserRole::MANAGER, Permission::REPORTS_VIEW, false, $this->owner);
+        $this->actingAs($this->manager, 'sanctum')->getJson('/api/v1/owner/analytics')->assertForbidden();
+        $this->actingAs($this->owner, 'sanctum')->getJson('/api/v1/owner/analytics')->assertOk();
+
+        // Reports without the order list: the figures are still theirs
+        app(PermissionService::class)->setOverride($this->store, UserRole::MANAGER, Permission::REPORTS_VIEW, null, $this->owner);
+        app(PermissionService::class)->setOverride($this->store, UserRole::MANAGER, Permission::ORDERS_VIEW, false, $this->owner);
+        $this->actingAs($this->manager, 'sanctum')->getJson('/api/v1/owner/analytics')->assertOk();
+
+        // The role check stays: a cashier given reports.view still has no analytics screen
+        app(PermissionService::class)->setOverride($this->store, UserRole::CASHIER, Permission::REPORTS_VIEW, true, $this->owner);
+        $this->actingAs($this->makeStaff(UserRole::CASHIER, $this->branch), 'sanctum')->getJson('/api/v1/owner/analytics')->assertForbidden();
+    }
+
     public function test_me_permissions(): void
     {
         $this->actingAs($this->manager, 'sanctum')->getJson('/api/v1/me/permissions')

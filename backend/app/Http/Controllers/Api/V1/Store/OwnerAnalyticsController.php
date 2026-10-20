@@ -2,9 +2,8 @@
 
 namespace App\Http\Controllers\Api\V1\Store;
 
-use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
-use App\Models\Order;
+use App\Services\Auth\PermissionService;
 use App\Services\Order\OwnerAnalyticsService;
 use App\Traits\ApiResponse;
 use Dedoc\Scramble\Attributes\Group;
@@ -12,7 +11,6 @@ use Dedoc\Scramble\Attributes\Response as ApiDocResponse;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Gate;
 
 #[Group('Owner analytics', "Ega va menejer uchun savdo ko'rsatkichlari (serverda hisoblangan).")]
 class OwnerAnalyticsController extends Controller
@@ -29,13 +27,13 @@ class OwnerAnalyticsController extends Controller
      * ones. All money is a number in UZS (two decimals at most). Cached for 60 s per store/branch and period.
      */
     #[ApiDocResponse(200, type: "array{success: true, message: string, data: array{period: array{key: 'today'|'week'|'month'|'year'|'custom', from: string, to: string, days: int, timezone: string, basis: 'created_at'}, summary: array{orders_count: int, delivered_count: int, canceled_count: int, refunded_count: int, active_count: int, revenue: float, average_check: float}, by_status: array<string, int>, by_payment_method: list<array{method: string, orders: int, revenue: float}>, by_order_type: list<array{type: string, orders: int, revenue: float}>, top_products: list<array{name: string, quantity: int|float, revenue: float}>, couriers: list<array{id: int, name: string, delivered_count: int}>, times: array{average_prep_seconds: int|null, average_delivery_seconds: int|null}, daily: list<array{date: string, orders: int, delivered: int, revenue: float}>, generated_at: string}}")]
-    public function index(Request $request, OwnerAnalyticsService $analytics): JsonResponse
+    public function index(Request $request, OwnerAnalyticsService $analytics, PermissionService $permissions): JsonResponse
     {
         $user = $request->user();
         if (!$user || !$user->store_id) {
             return $this->error('Ruxsat etilmagan.', [], 403);
         }
-        Gate::authorize('viewAny', Order::class);
+        // reports.view is checked by the route (with the store's overrides); the role check stays there too
 
         $maxDays = (int) config('orders.reports.max_custom_days', 93);
         $data = $request->validate([
@@ -74,7 +72,7 @@ class OwnerAnalyticsController extends Controller
         }
 
         // A branch manager sees their branch only; the owner (and a store-wide manager) the whole store
-        $branchId = $user->role === UserRole::MANAGER && $user->branch_id ? (int) $user->branch_id : null;
+        $branchId = $permissions->isBranchScoped($user) ? (int) $user->branch_id : null;
 
         return $this->success($analytics->forPeriod((int) $user->store_id, $branchId, $period, $data['from'] ?? null, $data['to'] ?? null));
     }

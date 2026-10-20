@@ -3,9 +3,11 @@
 namespace App\Filament\Resources\Employees;
 
 use App\Filament\Resources\Employees\Pages\ManageEmployees;
+use App\Enums\Permission;
 use App\Filament\Support\StorePanelScope;
 use App\Models\User;
 use App\Enums\UserRole;
+use App\Services\Auth\PermissionService;
 use BackedEnum;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
@@ -42,6 +44,28 @@ class EmployeeResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-users';
 
+    /**
+     * Like the API: the staff list needs staff.view (with the store's overrides), PINs staff.pin (StaffPinService),
+     * role changes staff.manage (owner only, see canChangeRole()).
+     */
+    public static function canViewAny(): bool
+    {
+        $user = auth()->user();
+
+        return $user instanceof User && app(PermissionService::class)->has($user, Permission::STAFF_VIEW);
+    }
+
+    /**
+     * Changing an existing person's role: staff.manage for them (the owner), never one's own or an owner's role.
+     */
+    public static function canChangeRole(User $record): bool
+    {
+        $actor = auth()->user();
+
+        return $actor instanceof User && !$actor->is($record) && $record->role !== UserRole::OWNER
+            && app(PermissionService::class)->allows($actor, Permission::STAFF_MANAGE, $record);
+    }
+
     public static function getNavigationLabel(): string
     {
         return auth()->user()->role === \App\Enums\UserRole::MANAGER ? 'Couriers' : 'Employees';
@@ -61,6 +85,8 @@ class EmployeeResource extends Resource
                         ->mapWithKeys(fn (UserRole $role) => [$role->value => $role->labelUz()])
                         ->all())
                     ->default(\App\Enums\UserRole::COURIER->value)
+                    // Editing someone's role is the owner's (staff.manage); a disabled field is not saved
+                    ->disabled(fn (string $operation, ?User $record) => $operation === 'edit' && $record !== null && !static::canChangeRole($record))
                     ->required(),
                 Select::make('branch_id')
                     ->label('Filial (Branch)')

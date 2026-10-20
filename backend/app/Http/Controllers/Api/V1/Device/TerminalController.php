@@ -13,6 +13,8 @@ use App\Services\Auth\StaffPinService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 
 /**
  * What a POS/KDS terminal itself calls: pairing with a code, its own details, the staff PIN pad and staff sessions.
@@ -31,6 +33,8 @@ class TerminalController extends Controller
 
     /**
      * POST /devices/pair {code, name?, platform?, app_version?} (no auth, rate limited).
+     *
+     * `code` is the 8-character pairing code shown as ABCD-EFGH; the dash is optional and case does not matter.
      */
     #[ApiDocResponse(201, type: 'array{success: true, message: string, data: array{token: string, device: array{uuid: string, type: string, name: string, platform: string|null, app_version: string|null, store_id: int|null, branch_id: int|null, user: array{id: int, name: string, role: string}|null, has_push_token: bool, last_seen_at: string|null, revoked_at: string|null, created_at: string|null}, store: array{id: int, name: string}|null, branch: array{id: int, name: string}|null}}')]
     public function pair(Request $request): JsonResponse
@@ -42,8 +46,10 @@ class TerminalController extends Controller
             'app_version' => 'nullable|string|max:32',
         ]);
 
+        $this->watchPairingVolume();
+
         try {
-            $result = $this->pairing->pair(preg_replace('/\D/', '', $data['code']) ?? '', $data);
+            $result = $this->pairing->pair((string) $data['code'], $data);
         } catch (AuthTokenException $e) {
             return $this->error($e->getMessage(), $e->data(), $e->status);
         }
@@ -148,6 +154,23 @@ class TerminalController extends Controller
         $this->pins->endSessionsOn($device);
 
         return $this->success(null, 'Xodim sessiyasi yopildi.');
+    }
+
+    /**
+     * Pairing attempts are limited per address and per subnet (the "device-pair" limiter), not platform-wide, so nobody
+     * can block every terminal's pairing. An unusual platform-wide volume is logged for the on-call instead.
+     */
+    private function watchPairingVolume(): void
+    {
+        $key = 'pairing-attempts:' . now()->format('YmdHi');
+        Cache::add($key, 0, 120);
+        $count = (int) Cache::increment($key);
+
+        if ($count === max(1, (int) config('auth.pairing.alert_attempts_per_minute', 600))) {
+            Log::warning('Unusually many terminal pairing attempts this minute: possible code guessing from many addresses.', [
+                'attempts' => $count,
+            ]);
+        }
     }
 
     private function device(Request $request): Device

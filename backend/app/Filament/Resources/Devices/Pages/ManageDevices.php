@@ -24,7 +24,7 @@ class ManageDevices extends ManageRecords
     protected function getHeaderActions(): array
     {
         return [
-            // A one-time 6-digit code; the terminal app asks for it on first start
+            // A one-time 8-character code (ABCD-EFGH); the terminal app asks for it on first start
             Action::make('pairingCode')
                 ->label('Terminal ulash')
                 ->icon('heroicon-m-qr-code')
