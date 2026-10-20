@@ -22,6 +22,8 @@ enum Permission: string
     case MENU_VIEW = 'menu.view';
     case MENU_MANAGE = 'menu.manage';
     case STOPLIST_MANAGE = 'stoplist.manage';
+    // P1-21: open, top up and close batches (kazan stock) of a branch
+    case BATCHES_MANAGE = 'batches.manage';
     case STAFF_VIEW = 'staff.view';
     case STAFF_MANAGE = 'staff.manage';
     case STAFF_PIN = 'staff.pin';
@@ -31,6 +33,8 @@ enum Permission: string
     case FINANCE_VIEW = 'finance.view';
     case FINANCE_MANAGE = 'finance.manage';
     case SETTINGS_MANAGE = 'settings.manage';
+    // P1-24: draw delivery zones and set their prices
+    case ZONES_MANAGE = 'zones.manage';
     case AUDIT_VIEW = 'audit.view';
     case PERMISSIONS_MANAGE = 'permissions.manage';
     case POS_OPEN_SHIFT = 'pos.open_shift';
@@ -55,6 +59,7 @@ enum Permission: string
             self::MENU_VIEW => "Menyuni ko'rish",
             self::MENU_MANAGE => 'Menyu va narxlarni tahrirlash',
             self::STOPLIST_MANAGE => 'Stop-list (tugadi belgisi)',
+            self::BATCHES_MANAGE => 'Qozon va partiya qoldig\'i',
             self::STAFF_VIEW => "Xodimlarni ko'rish",
             self::STAFF_MANAGE => 'Xodimlar va rollarni boshqarish',
             self::STAFF_PIN => "Xodim PIN kodini o'rnatish",
@@ -64,6 +69,7 @@ enum Permission: string
             self::FINANCE_VIEW => "Moliyani ko'rish",
             self::FINANCE_MANAGE => "Pul yechish va to'ldirish",
             self::SETTINGS_MANAGE => "Do'kon sozlamalari",
+            self::ZONES_MANAGE => 'Yetkazib berish hududlari va narxlari',
             self::AUDIT_VIEW => 'Harakatlar jurnali',
             self::PERMISSIONS_MANAGE => "Ruxsatlarni o'zgartirish",
             self::POS_OPEN_SHIFT => 'Smenani ochish',
@@ -84,6 +90,7 @@ enum Permission: string
             self::ORDERS_REFUND,
             self::FINANCE_MANAGE,
             self::SETTINGS_MANAGE,
+            self::ZONES_MANAGE,
             self::STAFF_MANAGE,
             self::AUDIT_VIEW,
             self::PERMISSIONS_MANAGE,

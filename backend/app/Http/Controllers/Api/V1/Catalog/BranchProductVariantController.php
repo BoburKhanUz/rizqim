@@ -125,6 +125,15 @@ class BranchProductVariantController extends Controller
             return $this->error('Product not found.', [], 404);
         }
 
+        // P1-21: the variant must be this product's (it could name another store's variant before)
+        if (!\App\Models\ProductVariant::where('product_id', $product->id)->whereKey($request->product_variant_id)->exists()) {
+            return $this->error('Product not found.', [], 404);
+        }
+
+        $wasActive = \App\Models\BranchProductVariant::where('branch_id', $branchId)
+            ->where('variant_id', $request->product_variant_id)
+            ->value('is_active') ?? true;
+
         // Update or Create override
         $variantOverride = \App\Models\BranchProductVariant::updateOrCreate(
             [
@@ -137,6 +146,13 @@ class BranchProductVariantController extends Controller
                 'sort_order' => $request->sort_order ?? 0,
             ]
         );
+
+        // P1-21: the menus listening on the branch see the switch at once
+        if ((bool) $wasActive !== (bool) $variantOverride->is_active) {
+            event(new \App\Events\Broadcast\MenuAvailabilityChangedBroadcast((int) $branch->store_id, (int) $branch->id, [
+                ['type' => 'variant', 'id' => (int) $variantOverride->variant_id, 'available' => (bool) $variantOverride->is_active],
+            ], 'branch_override'));
+        }
 
         return $this->success($variantOverride, 'Branch product variant status updated successfully.');
     }

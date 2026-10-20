@@ -1,0 +1,16 @@
+# Config of tool/generate.sh. The source is packages/api-spec/openapi.json, passed through tool/prepare_spec.dart.
+swagger_parser:
+  schema_path: .dart_tool/openapi.prepared.json
+  output_directory: lib/src/generated
+  language: dart
+  json_serializer: json_serializable
+  client_postfix: Api
+  root_client: true
+  root_client_name: RizqimApi
+  put_in_folder: true
+  squash_clients: false
+  enums_to_json: true
+  # Server-to-server endpoints (payment providers, Telegram): no app calls them, and their `oneOf` answers
+  # do not generate valid Dart.
+  exclude_tags:
+    - Webhooks

@@ -1,0 +1,29 @@
+// coverage:ignore-file
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: type=lint, unused_import, invalid_annotation_target, unnecessary_import
+
+import 'package:json_annotation/json_annotation.dart';
+
+import 'data26.dart';
+
+part 'post_v1_owner_batches_id_adjust_response.g.dart';
+
+@JsonSerializable()
+class PostV1OwnerBatchesIdAdjustResponse {
+  const PostV1OwnerBatchesIdAdjustResponse({
+    required this.success,
+    required this.message,
+    required this.data,
+  });
+
+  factory PostV1OwnerBatchesIdAdjustResponse.fromJson(
+    Map<String, Object?> json,
+  ) => _$PostV1OwnerBatchesIdAdjustResponseFromJson(json);
+
+  final bool success;
+  final String message;
+  final Data26 data;
+
+  Map<String, Object?> toJson() =>
+      _$PostV1OwnerBatchesIdAdjustResponseToJson(this);
+}

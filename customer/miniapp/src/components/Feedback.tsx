@@ -2,8 +2,7 @@ import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { LockKeyhole, RotateCw, WifiOff } from 'lucide-react';
 import { logApiError } from '../lib/apiError';
 import { useLanguageStore } from '../store/languageStore';
-import { Button } from './ui/Button';
-import { Spinner } from './ui/Spinner';
+import { Button, Spinner } from '@rizqim/ui';
 
 // The whole screen while the app starts (signing in). Inside a page use a skeleton or RouteFallback instead.
 export const FullScreenLoader = ({ message }: { message?: string }) => {

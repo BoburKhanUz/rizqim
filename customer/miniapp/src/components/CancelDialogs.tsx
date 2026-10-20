@@ -2,9 +2,8 @@ import { useId, useState } from 'react';
 import { useLanguageStore } from '../store/languageStore';
 import { CANCEL_NOTE_MAX_LENGTH, getStaffCancelReasonLabel, getStaffCancelReasons } from '../lib/cancelReasons';
 import { hapticFeedback } from '../lib/telegram';
-import { Button } from './ui/Button';
+import { Button, cx } from '@rizqim/ui';
 import { Dialog } from './ui/Dialog';
-import { cx } from './ui/cx';
 import type { CancelReason, Order } from '../types';
 
 // The two "cancel an order" dialogs: the customer's (an optional note) and the staff's (a reason is required). They

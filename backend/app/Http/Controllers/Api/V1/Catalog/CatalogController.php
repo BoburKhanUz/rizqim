@@ -23,6 +23,11 @@ class CatalogController extends Controller
      * categories, the promo banners and a highlighted product). With `store_id`: that store (branches, ratings) with
      * its active products and their categories; 404 for an unknown store, 403 when the store is unavailable.
      * Without a location the user's default address is used.
+     *
+     * P1-21 (docs/MENU.md), additive: variant `price` is the channel's price (`base_price` the variant's own), with
+     * `unit` (piece|kg|l), `quantity_step` and `min_quantity`; products carry `batch_tracked`, `image_thumb_urls` and
+     * `modifier_groups` (effective `min_select`/`max_select`/`is_required` for that product, active `modifiers` with
+     * `price_delta`); hidden products/variants of the channel are left out. Store mode adds `availability`.
      */
     #[QueryParameter('store_id', description: "The store's uuid (or numeric id): store menu instead of the global feed.", type: 'string')]
     #[QueryParameter('lat', description: 'Global feed: latitude of the delivery point (with `lng`).', type: 'float')]
@@ -30,6 +35,7 @@ class CatalogController extends Controller
     #[QueryParameter('region_id', description: 'Global feed without coordinates: stores with a branch in this region.', type: 'int')]
     #[QueryParameter('district_id', description: 'Global feed without coordinates: stores with a branch in this district.', type: 'int')]
     #[QueryParameter('category_id', description: 'Global feed: only this category and its subcategories.', type: 'int')]
+    #[QueryParameter('channel', description: "P1-21: whose prices and visibility to show: telegram (default) or mobile.", type: "'telegram'|'mobile'")]
     public function index(Request $request): JsonResponse
     {
         $storeUuid = $request->query('store_id');
@@ -116,10 +122,13 @@ class CatalogController extends Controller
             $products = $query->inRandomOrder()
             ->limit(50)
             ->get();
+
+            // P1-21: channel prices and visibility, units, modifier groups (additive fields)
+            $products = app(\App\Services\Catalog\CatalogPresenter::class)->present($products, $this->channel($request));
             
             $categories = Category::where('is_active', true)
                 ->orderBy('sort_order')
-                ->get(['id', 'uuid', 'name', 'slug', 'parent_id', 'image']);
+                ->get(['id', 'uuid', 'name', 'slug', 'parent_id', 'image', 'image_disk', 'image_thumbs']);
                 
             $promos = \App\Models\Promo::with(['store', 'product.store'])
                 ->where('is_active', true)
@@ -195,16 +204,19 @@ class CatalogController extends Controller
             ->where('store_id', $storeId)
             ->where('status', 'active')
             ->get();
+
+            // P1-21: channel prices and visibility, units, modifier groups (additive fields)
+            $products = app(\App\Services\Catalog\CatalogPresenter::class)->present($products, $this->channel($request));
             
         $categoryIds = $products->pluck('category_id')->unique()->toArray();
         $childCategories = Category::whereIn('id', $categoryIds)
             ->where('is_active', true)
-            ->get(['id', 'uuid', 'name', 'slug', 'parent_id', 'image']);
+            ->get(['id', 'uuid', 'name', 'slug', 'parent_id', 'image', 'image_disk', 'image_thumbs']);
             
         $parentIds = $childCategories->pluck('parent_id')->filter()->unique()->toArray();
         $parentCategories = Category::whereIn('id', $parentIds)
             ->where('is_active', true)
-            ->get(['id', 'uuid', 'name', 'slug', 'parent_id', 'image']);
+            ->get(['id', 'uuid', 'name', 'slug', 'parent_id', 'image', 'image_disk', 'image_thumbs']);
             
         $categories = $childCategories->merge($parentCategories)->sortBy('sort_order')->values();
 
@@ -212,6 +224,18 @@ class CatalogController extends Controller
             'store' => $store,
             'categories' => $categories,
             'products' => $products,
+            // P1-21: what is unavailable on each branch now (stop-list, sold-out batches); GET /catalog/availability
+            'availability' => app(\App\Services\Catalog\MenuAvailability::class)->forStore((int) $storeId),
         ]);
+    }
+
+    /**
+     * The channel whose prices and visibility the catalog shows: the Mini App's (telegram) unless `channel=mobile`.
+     */
+    private function channel(Request $request): \App\Enums\OrderChannel
+    {
+        return $request->query('channel') === \App\Enums\OrderChannel::MOBILE->value
+            ? \App\Enums\OrderChannel::MOBILE
+            : \App\Enums\OrderChannel::TELEGRAM;
     }
 }

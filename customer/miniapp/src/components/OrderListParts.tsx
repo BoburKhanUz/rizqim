@@ -1,7 +1,7 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { Info } from 'lucide-react';
 import { useLanguageStore } from '../store/languageStore';
-import { Button } from './ui/Button';
+import { Button } from '@rizqim/ui';
 
 // Pieces shared by the screens that list orders in the two scopes of GET /orders (open ones, finished ones by page).
 // The customer's and the staff's screens look the same: the tokens follow the theme, so `variant` is kept only so

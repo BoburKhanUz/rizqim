@@ -61,7 +61,7 @@ class OwnerFinanceController extends Controller
             'credit_limit' => (float) $store->credit_limit,
             'min_payout_reserve' => (float) ($store->min_payout_reserve ?? 100000.00),
             'payment_account_type' => $store->payment_account_type,
-            'commission_rate' => (float) $store->commission_rate,
+            'commission_rate' => (float) $store->commissionRate(), // P1-23: the rate actually charged (tariff plan or the store's own)
             'status' => $store->status->value ?? $store->status,
             'is_order_locked' => $store->is_order_locked,
             'ledger_transactions' => $ledgerTransactions,

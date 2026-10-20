@@ -11,6 +11,18 @@ use App\Models\User;
 use App\Enums\OrderStatus;
 use App\Enums\PaymentStatus;
 use App\Enums\OrderType;
+use App\Enums\MenuUnit;
+use App\Enums\OrderChannel;
+use App\Enums\StopListSubject;
+use App\Models\Branch;
+use App\Models\MenuBatch;
+use App\Services\Catalog\BatchService;
+use App\Services\Catalog\ChannelMenu;
+use App\Services\Catalog\MenuAvailability;
+use App\Services\Order\DiningFeeCalculator;
+use App\Services\Order\OrderLineBuilder;
+use App\Support\Quantity;
+use Illuminate\Support\Collection;
 use App\Services\Promo\InvalidPromoCodeException;
 use App\Services\Promo\PromoCodeService;
 use App\Support\Money;
@@ -21,7 +33,11 @@ use Exception;
 class CreateOrderAction
 {
     public function __construct(
-        protected PromoCodeService $promoCodes
+        protected PromoCodeService $promoCodes,
+        // P1-21: menu lines (units, modifiers, channel prices), batch stock, service charge / place fee
+        protected OrderLineBuilder $lines,
+        protected BatchService $batches,
+        protected DiningFeeCalculator $diningFees,
     ) {}
 
     /**
@@ -152,15 +168,20 @@ class CreateOrderAction
                 $branch = $closestBranch;
             }
 
-            // 3. Validate variants and calculate total securely
+            // 3. Validate variants and calculate total securely (P1-21: units, modifiers, channel prices, stop-list,
+            // batches; App\Services\Order\OrderLineBuilder, docs/MENU.md)
             $totalAmount = Money::zero();
             $orderItemsData = [];
-            
+            $channel = $payload['channel'] ?? OrderChannel::TELEGRAM;
+            $channel = $channel instanceof OrderChannel ? $channel : (OrderChannel::tryFrom((string) $channel) ?? OrderChannel::TELEGRAM);
+            $channelMenu = ChannelMenu::for((int) $storeId, $channel);
+            $lines = $this->lines->parse($items);
+
             // The same variant may be sent on several lines; stock is checked against the combined quantity
             $requestedQuantities = [];
-            foreach ($items as $item) {
-                $uuid = strtolower((string) $item['variant_id']);
-                $requestedQuantities[$uuid] = ($requestedQuantities[$uuid] ?? 0) + (int) $item['quantity'];
+            foreach ($lines as $line) {
+                $uuid = $line['variant_uuid'];
+                $requestedQuantities[$uuid] = ($requestedQuantities[$uuid] ?? Quantity::zero())->plus($line['quantity']);
             }
 
             // Fetch variants securely by uuid for the active store, locked in id order so concurrent orders can't oversell or deadlock
@@ -174,6 +195,8 @@ class CreateOrderAction
                 ->lockForUpdate()
                 ->get()
                 ->keyBy(fn ($variant) => strtolower($variant->uuid));
+
+            $stopList = $this->lines->stopList($branch);
 
             foreach ($requestedQuantities as $uuid => $quantity) {
                 $variant = $variants->get($uuid);
@@ -193,24 +216,49 @@ class CreateOrderAction
                         throw new Exception("Uzr, '{$variant->product->name} ({$variant->name})' mahsuloti ushbu filialda vaqtincha mavjud emas{$reason}.");
                     }
                 }
-                
-                if ($variant->stock < $quantity) {
-                    throw $this->outOfStock($variant, (int) $variant->stock);
+
+                $this->assertSellable($variant, $channelMenu, $stopList);
+
+                if (Quantity::of($variant->stock)->isLessThan($quantity)) {
+                    throw $this->outOfStock($variant, $variant->stock);
                 }
-                
-                $price = Money::of($variant->price);
-                $lineTotal = $price->times($quantity);
+            }
+
+            // Batch / kazan stock: the open batch of each line's product on the branch, locked in id order after the variants
+            $batchNeeds = $this->batchNeeds($lines, $variants, $branch);
+
+            $modifierRules = $this->lines->modifierRules($variants->map(fn ($variant) => (int) $variant->product_id)->unique()->values()->all());
+
+            foreach ($lines as $line) {
+                $variant = $variants->get($line['variant_uuid']);
+                $this->lines->checkQuantity($variant, $line['quantity'], $line['index']);
+                $modifiers = $this->lines->resolveModifiers(
+                    $variant,
+                    $line['modifiers'],
+                    $modifierRules[(int) $variant->product_id] ?? [],
+                    $stopList[StopListSubject::MODIFIER->value],
+                    $line['index'],
+                );
+
+                $price = $channelMenu->priceOf($variant);
+                $lineTotal = $this->lines->lineTotal($price, $line['quantity'], $modifiers['total'], $variant->unit);
                 
                 $totalAmount = $totalAmount->plus($lineTotal);
+                $batch = $batchNeeds['line_batches'][$line['index']] ?? null;
                 
                 // Prepare snapshot data
                 $orderItemsData[] = [
                     'product_variant_id' => $variant->id,
                     'product_name' => $variant->product->name,
                     'variant_name' => $variant->name,
-                    'quantity' => $quantity,
+                    'quantity' => $line['quantity'],
+                    'unit' => $variant->unit->value,
                     'unit_price' => $price->toString(),
+                    'modifiers' => $modifiers['snapshot'] ?: null,
+                    'modifiers_total' => $modifiers['total']->toString(),
                     'total_price' => $lineTotal->toString(),
+                    'batch_id' => $batch?->id,
+                    'batch_quantity' => $batch ? $line['quantity']->times(MenuAvailability::consumptionOf($variant))->toString() : null,
                     'variant_model' => $variant, // Temporary reference for stock deduction
                 ];
             }
@@ -260,10 +308,16 @@ class CreateOrderAction
                 $promoCodeId = $promo->id;
             }
 
-            $totalPrice = Money::max(Money::zero(), $totalAmount->minus($discount)->plus($deliveryFee));
+            // P1-21: service charge and place fee, separate lines for the POS hall; never on Telegram orders
+            $guests = isset($payload['guests_count']) ? (int) $payload['guests_count'] : null;
+            $diningFees = $this->diningFees->calculate((int) $storeId, $branch?->id, $channel, Money::max(Money::zero(), $totalAmount->minus($discount)), $guests);
+
+            $totalPrice = Money::max(Money::zero(), $totalAmount->minus($discount)->plus($deliveryFee))
+                ->plus($diningFees['service_charge'])
+                ->plus($diningFees['place_fee']);
 
             // Same base and rounding the ledger settles on, so the stored snapshot is exactly what gets charged
-            $commissionAmount = $totalPrice->percent($store->commission_rate ?? 10);
+            $commissionAmount = $totalPrice->percent($store->commissionRate()); // P1-23: the tariff plan's rate, else the store's own
 
             $paymentStatus = PaymentStatus::PENDING;
             if ($paymentMethod === 'keshbek') {
@@ -304,6 +358,11 @@ class CreateOrderAction
                     'longitude' => $payload['type'] === 'pickup' ? ($branch->longitude ?? null) : ($payload['longitude'] ?? null),
                 ],
                 'notes' => $payload['notes'] ?? null,
+                // P1-21: channel and the POS hall's fee lines (zero for the Mini App)
+                'channel' => $channel->value,
+                'service_charge_amount' => $diningFees['service_charge']->toString(),
+                'place_fee_amount' => $diningFees['place_fee']->toString(),
+                'guests_count' => $guests,
             ]);
 
             // Create initial payment log for consistent transaction records
@@ -321,17 +380,29 @@ class CreateOrderAction
                     'product_variant_id' => $data['product_variant_id'],
                     'product_name' => $data['product_name'],
                     'variant_name' => $data['variant_name'],
-                    'quantity' => $data['quantity'],
+                    'quantity' => $data['quantity']->toString(),
+                    'unit' => $data['unit'],
                     'unit_price' => $data['unit_price'],
+                    'modifiers' => $data['modifiers'],
+                    'modifiers_total' => $data['modifiers_total'],
                     'total_price' => $data['total_price'],
+                    'batch_id' => $data['batch_id'],
+                    'batch_quantity' => $data['batch_quantity'],
                 ]);
                 
-                // Deduct stock
+                // Deduct stock (conditional: never below zero, even if the row changed after it was read)
                 $deducted = ProductVariant::whereKey($data['product_variant_id'])
-                    ->where('stock', '>=', $data['quantity'])
-                    ->decrement('stock', $data['quantity']);
+                    ->where('stock', '>=', $data['quantity']->toString())
+                    ->decrement('stock', $data['quantity']->toString()); // @phpstan-ignore argument.type
                 if ($deducted !== 1) {
                     throw $this->outOfStock($data['variant_model']);
+                }
+            }
+
+            // Take each batch's portions at once, so two lines of one kazan are checked against their sum
+            foreach ($batchNeeds['batches'] as $need) {
+                if (!$this->batches->consume($need['batch'], $need['quantity'], $need['variants'])) {
+                    throw $this->soldOut($need['variants']->first(), $need['batch']);
                 }
             }
 
@@ -377,13 +448,121 @@ class CreateOrderAction
         });
     }
 
-    private function outOfStock(ProductVariant $variant, ?int $available = null): ValidationException
+    private function outOfStock(ProductVariant $variant, int|float|null $available = null): ValidationException
     {
         $name = $variant->product->name . ($variant->name ? " ({$variant->name})" : '');
-        $availableText = $available !== null ? " (mavjud: " . max(0, $available) . " ta)" : '';
+        $unit = $variant->unit->isMeasured() ? $variant->unit->label() : 'ta';
+        $availableText = $available !== null ? " (mavjud: " . Quantity::of(max(0, $available))->format() . " {$unit})" : '';
 
         return ValidationException::withMessages([
             'items' => "Uzr, '{$name}' mahsulotidan yetarli miqdorda qolmagan{$availableText}. Iltimos, savatni yangilang.",
+        ]);
+    }
+
+    /**
+     * Hidden on the order's channel, or on the branch's stop-list (P1-21): a 422 the app shows as is.
+     *
+     * @param  array<string, array<int, ?string>>  $stopList
+     */
+    private function assertSellable(ProductVariant $variant, ChannelMenu $channelMenu, array $stopList): void
+    {
+        $name = $this->lines->nameOf($variant);
+
+        if ($channelMenu->isVariantHidden($variant)) {
+            throw ValidationException::withMessages([
+                'items' => "Uzr, '{$name}' bu kanal orqali sotilmaydi. Iltimos, savatni yangilang.",
+            ]);
+        }
+
+        $product = $stopList[StopListSubject::PRODUCT->value];
+        $variants = $stopList[StopListSubject::VARIANT->value];
+        if (array_key_exists((int) $variant->product_id, $product) || array_key_exists((int) $variant->id, $variants)) {
+            $reason = $variants[(int) $variant->id] ?? $product[(int) $variant->product_id] ?? null;
+
+            throw ValidationException::withMessages([
+                'items' => "Uzr, '{$name}' hozir ushbu filialda mavjud emas" . ($reason ? " ({$reason})" : '') . ". Iltimos, savatni yangilang.",
+            ]);
+        }
+    }
+
+    /**
+     * The batches the order takes from (P1-21): for each line, the branch's open batch of its variant (else of its
+     * product), locked in id order after the variants; refused ("tugadi") when a batch-tracked product has no open
+     * batch or a batch has less left than its lines need. The decrement itself is conditional (BatchService::consume).
+     *
+     * @param  list<array{index: int, variant_uuid: string, quantity: Quantity, modifiers: array<string, int>}>  $lines
+     * @param  Collection<string, ProductVariant>  $variants
+     * @return array{line_batches: array<int, MenuBatch>, batches: list<array{batch: MenuBatch, quantity: Quantity, variants: Collection<int, ProductVariant>}>}
+     */
+    private function batchNeeds(array $lines, Collection $variants, ?Branch $branch): array
+    {
+        $none = ['line_batches' => [], 'batches' => []];
+        $productIds = $variants->map(fn (ProductVariant $variant) => (int) $variant->product_id)->unique()->values()->all();
+        if (!$branch || $productIds === []) {
+            return $none;
+        }
+
+        $open = MenuBatch::query()
+            ->where('branch_id', $branch->id)
+            ->whereIn('product_id', $productIds)
+            ->open()
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get();
+
+        $lineBatches = [];
+        $needs = [];
+        foreach ($lines as $line) {
+            $variant = $variants->get($line['variant_uuid']);
+            $batch = MenuAvailability::batchFor($variant, $open->where('product_id', $variant->product_id));
+
+            if ($batch === null) {
+                if ($variant->product->batch_tracked) {
+                    throw $this->soldOut($variant);
+                }
+                continue;
+            }
+
+            $lineBatches[$line['index']] = $batch;
+            $needs[$batch->id] ??= ['batch' => $batch, 'quantity' => Quantity::zero(), 'variants' => collect()];
+            $needs[$batch->id]['quantity'] = $needs[$batch->id]['quantity']->plus($line['quantity']->times(MenuAvailability::consumptionOf($variant)));
+            $needs[$batch->id]['variants']->push($variant);
+        }
+
+        ksort($needs);
+        foreach ($needs as $need) {
+            if ($need['batch']->left()->isLessThan($need['quantity'])) {
+                throw $this->soldOut($need['variants']->first(), $need['batch']);
+            }
+
+            // Every variant the batch serves, for the "now sold out" announcement
+            $need['variants'] = $need['batch']->product_variant_id !== null
+                ? $need['variants']->unique('id')->values()
+                : ProductVariant::where('product_id', $need['batch']->product_id)->get(['id', 'product_id', 'batch_consumption']);
+            $needs[$need['batch']->id] = $need;
+        }
+
+        return ['line_batches' => $lineBatches, 'batches' => array_values($needs)];
+    }
+
+    private function soldOut(ProductVariant $variant, ?MenuBatch $batch = null): ValidationException
+    {
+        $name = $this->lines->nameOf($variant);
+        $left = $batch ? $batch->left() : Quantity::zero();
+        $consumption = MenuAvailability::consumptionOf($variant);
+
+        // What is left, in this variant's units (e.g. 2 portions of 0.7 from 1.5 left)
+        $units = $consumption->isPositive() ? intdiv((int) $left->toBigDecimal()->multipliedBy(1000)->toInt(), max(1, (int) $consumption->toBigDecimal()->multipliedBy(1000)->toInt())) : 0;
+        if ($variant->unit->isMeasured()) {
+            $text = $left->isPositive() ? " (faqat {$left->format()} {$variant->unit->label()} qoldi)" : '';
+        } else {
+            $text = $units > 0 ? " (faqat {$units} ta qoldi)" : '';
+        }
+
+        return ValidationException::withMessages([
+            'items' => $units > 0 || ($variant->unit->isMeasured() && $left->isPositive())
+                ? "Uzr, '{$name}' yetarli emas{$text}. Iltimos, savatni yangilang."
+                : "Uzr, '{$name}' tugadi. Iltimos, savatni yangilang.",
         ]);
     }
 

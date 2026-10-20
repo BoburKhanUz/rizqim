@@ -47,3 +47,11 @@ Thumbs.db
 
 # PostgreSQL zaxiralari (scripts/backup.sh, docker-compose.yml `backup` xizmati): mijoz ma'lumotlari, hech qachon commit qilinmasin
 /backups/
+
+# Dart / Flutter (P1-26): pubspec.lock of the workspace root IS committed
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+pos/apps/*/build/
+packages/dart/*/build/
+**/.pub-cache/

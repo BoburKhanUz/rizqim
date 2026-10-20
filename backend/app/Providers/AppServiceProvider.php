@@ -94,5 +94,9 @@ class AppServiceProvider extends ServiceProvider
 
         // Address lookups behind /geocode/*: one shared bucket per user; the provider itself allows ~1 request/s for everybody
         RateLimiter::for('geocode', fn (Request $request) => Limit::perMinute(30)->by($byUser($request)));
+
+        // P1-24: public delivery zones and quotes; a customer dragging the map pin asks for a quote at every stop
+        RateLimiter::for('delivery-zones', fn (Request $request) => Limit::perMinute(120)->by('ip:' . $request->ip()));
+        RateLimiter::for('delivery-quote', fn (Request $request) => Limit::perMinute(60)->by('ip:' . $request->ip()));
     }
 }

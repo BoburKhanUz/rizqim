@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\V1\Auth\TokenController;
 use App\Http\Controllers\Api\V1\Device\DeviceController;
 use App\Http\Controllers\Api\V1\Device\StoreDeviceController;
 use App\Http\Controllers\Api\V1\Device\TerminalController;
+use App\Http\Controllers\Api\V1\User\NotificationPreferenceController;
 use App\Http\Controllers\Api\V1\Store\AuditLogController;
 use App\Http\Controllers\Api\V1\Store\StaffAccessController;
 use Illuminate\Support\Facades\Route;
@@ -30,10 +31,17 @@ Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->group(functi
     Route::middleware('not-staff-session')->group(function () {
         Route::post('/auth/logout-all', [TokenController::class, 'logoutAll'])->middleware('throttle:auth-logout');
 
+        // P1-22: which messages (order updates, promotions, new-order alerts…) come over Telegram and push
+        Route::get('/me/notification-preferences', [NotificationPreferenceController::class, 'show']);
+        Route::put('/me/notification-preferences', [NotificationPreferenceController::class, 'update']);
+
         Route::middleware('throttle:devices')->group(function () {
             Route::get('/devices', [DeviceController::class, 'index']);
             Route::post('/devices', [DeviceController::class, 'store']);
             Route::delete('/devices/{uuid}', [DeviceController::class, 'destroy'])->whereUuid('uuid');
+            // P1-22: the FCM token of this install (docs/PUSH.md)
+            Route::put('/devices/{uuid}/push-token', [DeviceController::class, 'updatePushToken'])->whereUuid('uuid');
+            Route::delete('/devices/{uuid}/push-token', [DeviceController::class, 'clearPushToken'])->whereUuid('uuid');
 
             Route::get('/owner/devices', [StoreDeviceController::class, 'index'])->middleware('permission:devices.view');
             Route::patch('/owner/devices/{uuid}', [StoreDeviceController::class, 'update'])->whereUuid('uuid')->middleware('permission:devices.manage');

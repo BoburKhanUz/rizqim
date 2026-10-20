@@ -44,11 +44,13 @@ class StoreLedgerTransactionsWidget extends BaseWidget
                     ->color(fn ($state): string => match ($state instanceof \BackedEnum ? $state->value : $state) {
                         'commission' => 'danger',
                         'topup' => 'success',
+                        'subscription' => 'warning', // P1-23
                         default => 'gray',
                     })
                     ->formatStateUsing(fn ($state) => match ($state instanceof \BackedEnum ? $state->value : $state) {
                         'commission' => 'KOMISSIYA',
                         'topup' => 'TO\'LDURILDI',
+                        'subscription' => 'OBUNA', // P1-23
                         default => strtoupper($state instanceof \BackedEnum ? $state->value : $state),
                     }),
 

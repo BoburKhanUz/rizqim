@@ -26,6 +26,8 @@ jobs:
       miniapp: ${{ steps.filter.outputs.miniapp }}
       infra: ${{ steps.filter.outputs.infra }}
       apiclient: ${{ steps.filter.outputs.apiclient }}
+      partnerweb: ${{ steps.filter.outputs.partnerweb }}
+      flutter: ${{ steps.filter.outputs.flutter }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -42,6 +44,8 @@ jobs:
               - '.github/workflows/ci.yml'
             miniapp:
               - 'customer/miniapp/**'
+              # P1-25: the design system the Mini App links from packages/ts/ui
+              - 'packages/ts/ui/**'
               - '.github/workflows/ci.yml'
             # P1-11: TypeScript packages and the spec their API client is generated from (api-client job)
             apiclient:
@@ -57,7 +61,29 @@ jobs:
               - 'scripts/**'
               - 'infra/**'
               - 'customer/miniapp/Dockerfile'
+              - 'customer/miniapp/Dockerfile.dockerignore'
               - 'customer/miniapp/docker/**'
+              # P1-25: the Mini App image is built from the repository root and includes packages/ts/ui
+              - 'packages/ts/ui/**'
+              - 'partner/web/Dockerfile'
+              - 'partner/web/Dockerfile.dockerignore'
+              - '.github/workflows/ci.yml'
+            # P1-25: the partner web (partner/web) and the TypeScript packages it links (packages/ts: ui, api-client)
+            partnerweb:
+              - 'partner/web/**'
+              - 'packages/ts/**'
+              - '.github/workflows/ci.yml'
+            # P1-26: the Dart workspace (pubspec.yaml at the root), the Flutter apps, and the spec the Dart client is
+            # generated from (flutter job at the end of this file)
+            flutter:
+              - 'packages/dart/**'
+              - 'packages/api-spec/**'
+              - 'pos/**'
+              - 'courier/**'
+              - 'partner/mobile/**'
+              - 'customer/mobile/**'
+              - 'pubspec*'
+              - 'analysis_options.yaml'
               - '.github/workflows/ci.yml'
 
   backend-tests:
@@ -301,6 +327,11 @@ jobs:
 
       - uses: hadolint/hadolint-action@v3.1.0
         with:
+          dockerfile: partner/web/Dockerfile
+          failure-threshold: error
+
+      - uses: hadolint/hadolint-action@v3.1.0
+        with:
           dockerfile: infra/backup/Dockerfile
           failure-threshold: error
 
@@ -351,3 +382,104 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  # --- P1-25 Partner web (runs when partner/web or packages/ts changed, see the `partnerweb` filter) ---------------
+  partner-web:
+    name: Partner web (lint, typecheck, tests, build)
+    needs: changes
+    if: needs.changes.outputs.partnerweb == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            partner/web/package-lock.json
+            packages/ts/api-client/package-lock.json
+
+      # partner/web links packages/ts/api-client (compiled to dist/, its "main") and packages/ts/ui (TypeScript source)
+      - name: Build the API client
+        working-directory: packages/ts/api-client
+        run: |
+          npm ci
+          npm run build
+
+      - name: Install dependencies
+        working-directory: partner/web
+        run: npm ci
+
+      - name: Lint
+        working-directory: partner/web
+        run: npm run lint
+
+      - name: Typecheck
+        working-directory: partner/web
+        run: npm run typecheck
+
+      - name: Tests
+        working-directory: partner/web
+        run: npm test
+
+      - name: Build
+        working-directory: partner/web
+        run: npm run build
+
+  # --- P1-26 Flutter / Dart workspace (runs when a Dart path or the OpenAPI spec changed, see the `flutter` filter) --
+  flutter:
+    name: Flutter (format, analyze, tests, generated client)
+    needs: changes
+    if: needs.changes.outputs.flutter == 'true'
+    runs-on: ubuntu-latest
+    env:
+      # Exact version, the same as in packages/dart/README.md (Dart 3.13.4). Raise both together.
+      FLUTTER_VERSION: 3.47.5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      # One pubspec.lock at the repository root for every Dart package (pub workspace); it must be committed up to date
+      - name: Install dependencies
+        run: flutter pub get --enforce-lockfile
+
+      - name: Format
+        run: dart format --output=none --set-exit-if-changed .
+
+      - name: Analyze
+        run: flutter analyze
+
+      # Packages without Flutter (rizqim_core, rizqim_api) run with `dart test`, the others with `flutter test`
+      - name: Tests
+        run: |
+          set -e
+          for dir in packages/dart/* pos/apps/* courier partner/mobile customer/mobile; do
+            [ -f "$dir/pubspec.yaml" ] && [ -d "$dir/test" ] || continue
+            echo "::group::$dir"
+            if grep -q 'sdk: flutter' "$dir/pubspec.yaml"; then
+              (cd "$dir" && flutter test)
+            else
+              (cd "$dir" && dart test)
+            fi
+            echo "::endgroup::"
+          done
+
+      # packages/dart/rizqim_api/lib/src/generated is committed; it must be what the spec generates
+      - name: Generated API client is up to date
+        run: |
+          bash packages/dart/rizqim_api/tool/generate.sh
+          if [ -n "$(git status --porcelain -- packages/dart/rizqim_api/lib)" ]; then
+            git status --short -- packages/dart/rizqim_api/lib | head -20
+            echo "::error file=packages/dart/rizqim_api/lib/src/generated::Dart klienti packages/api-spec/openapi.json ga mos emas. Yangilang: bash packages/dart/rizqim_api/tool/generate.sh; so'ng commit qiling."
+            exit 1
+          fi

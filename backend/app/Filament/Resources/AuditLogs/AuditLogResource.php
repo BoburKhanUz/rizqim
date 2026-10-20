@@ -89,6 +89,21 @@ class AuditLogResource extends Resource
             'device.renamed' => "Qurilma nomi o'zgardi",
             'device.revoked' => "Qurilma o'chirildi",
             'employee_transfer' => "Xodim boshqa filialga o'tkazildi",
+            // P1-21: menu
+            'menu.stop_list_added' => "Stop-listga qo'shildi",
+            'menu.stop_list_removed' => 'Stop-listdan olindi',
+            'menu.batch_opened' => 'Partiya (qozon) ochildi',
+            'menu.batch_adjusted' => "Partiya qoldig'i o'zgardi",
+            'menu.batch_closed' => 'Partiya yopildi',
+            'product.channel_prices_changed' => "Kanal narxlari o'zgardi",
+            'settings.service_fees_changed' => "Xizmat haqi sozlamalari o'zgardi",
+            // P1-23: tariffs (docs/BILLING.md)
+            'subscription.started' => 'Tarif biriktirildi',
+            'subscription.plan_change_scheduled' => "Tarif keyingi oydan o'zgaradi",
+            'subscription.plan_changed' => "Tarif o'zgardi",
+            'subscription.cancelled' => 'Obuna bekor qilindi',
+            'subscription_invoice.voided' => 'Hisob-faktura bekor qilindi',
+            'subscription_invoice.paid' => "Hisob-faktura to'landi",
         ];
     }
 

@@ -8,10 +8,16 @@ import { NOT_YET_MIGRATED } from './designSystemAllowlist';
 //
 // A line that really needs an exception (e.g. white text on a photo) ends with the comment `design-ok: <why>`.
 
-const sources = import.meta.glob<string>(['../**/*.tsx', '!../**/*.test.tsx'], { query: '?raw', import: 'default', eager: true });
+// The shared components of packages/ts/ui (@rizqim/ui) are held to the same rules as the app's own.
+const sources = import.meta.glob<string>(['../**/*.tsx', '!../**/*.test.tsx', '../../../../packages/ts/ui/src/**/*.tsx'], {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+});
 
-// '../pages/Home.tsx' -> 'src/pages/Home.tsx'
-const files = Object.entries(sources).map(([path, source]) => ({ path: path.replace(/^\.\.\//, 'src/'), source }));
+// '../pages/Home.tsx' -> 'src/pages/Home.tsx'; '../../../../packages/ts/ui/src/components/Button.tsx' -> 'packages/ts/ui/src/components/Button.tsx'
+const toPath = (key: string) => key.replace(/^(?:\.\.\/){4}/, '').replace(/^\.\.\//, 'src/');
+const files = Object.entries(sources).map(([path, source]) => ({ path: toPath(path), source }));
 
 const PALETTE =
   'slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose';
@@ -79,6 +85,7 @@ describe('design system guard', () => {
   it('finds the component files', () => {
     expect(files.length).toBeGreaterThan(20);
     expect(files.some((file) => file.path === 'src/App.tsx')).toBe(true);
+    expect(files.some((file) => file.path === 'packages/ts/ui/src/components/Button.tsx')).toBe(true);
   });
 
   it.each(files.filter((file) => !allowlisted.has(file.path)).map((file) => [file.path, file.source] as const))(
@@ -93,7 +100,7 @@ describe('design system guard', () => {
 
   it('lists only files that exist and still need migrating (delete a file from the list once it is clean)', () => {
     const paths = new Set(files.map((file) => file.path));
-    const stale = NOT_YET_MIGRATED.filter((path: string) => !paths.has(path) || violationsOf(sources[path.replace(/^src\//, '../')]).length === 0);
+    const stale = NOT_YET_MIGRATED.filter((path: string) => !paths.has(path) || violationsOf(files.find((file) => file.path === path)?.source ?? '').length === 0);
     expect(stale).toEqual([]);
   });
 

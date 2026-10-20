@@ -1,0 +1,18 @@
+# The ignore file of partner/web/Dockerfile (BuildKit reads <Dockerfile>.dockerignore next to the Dockerfile).
+# The build context is the repository root, so only what the build needs gets in: the app and the two linked packages.
+*
+!partner/web/
+!packages/ts/ui/
+!packages/ts/api-client/
+
+# ...minus what must not be baked into the image
+**/node_modules
+**/.git
+partner/web/.next
+partner/web/.env
+partner/web/.env.*
+!partner/web/.env.example
+partner/web/coverage
+packages/ts/api-client/dist
+**/*.log
+**/*.tsbuildinfo

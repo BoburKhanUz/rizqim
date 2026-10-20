@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Employees;
 
 use App\Filament\Resources\Employees\Pages\ManageEmployees;
+use App\Enums\CourierType;
 use App\Enums\Permission;
 use App\Filament\Support\StorePanelScope;
 use App\Models\User;
@@ -85,9 +86,18 @@ class EmployeeResource extends Resource
                         ->mapWithKeys(fn (UserRole $role) => [$role->value => $role->labelUz()])
                         ->all())
                     ->default(\App\Enums\UserRole::COURIER->value)
+                    ->live()
                     // Editing someone's role is the owner's (staff.manage); a disabled field is not saved
                     ->disabled(fn (string $operation, ?User $record) => $operation === 'edit' && $record !== null && !static::canChangeRole($record))
                     ->required(),
+                // P1-24: the restaurant's own courier or the Rizqim fleet; fleet couriers are assigned by the platform
+                Select::make('courier_type')
+                    ->label('Kuryer turi')
+                    ->options(CourierType::options())
+                    ->default(CourierType::OWN->value)
+                    ->visible(fn ($get) => $get('role') === UserRole::COURIER->value)
+                    ->disabled(fn () => auth()->user()?->role !== UserRole::SUPER_ADMIN)
+                    ->helperText("Rizqim kuryerlarini platforma biriktiradi."),
                 Select::make('branch_id')
                     ->label('Filial (Branch)')
                     // The tenant's branches; a branch manager may only place couriers in their own branch
@@ -145,6 +155,12 @@ class EmployeeResource extends Resource
                     ->label('Filial')
                     ->sortable()
                     ->badge(),
+                TextColumn::make('courier_type')
+                    ->label('Kuryer turi')
+                    ->badge()
+                    ->getStateUsing(fn (User $record) => $record->role === UserRole::COURIER ? $record->courier_type->labelUz() : null)
+                    ->placeholder('-')
+                    ->toggleable(),
                 \Filament\Tables\Columns\IconColumn::make('pin_set_at')
                     ->label('PIN')
                     ->boolean()

@@ -178,8 +178,36 @@ export interface paths {
          *     categories, the promo banners and a highlighted product). With `store_id`: that store (branches, ratings) with
          *     its active products and their categories; 404 for an unknown store, 403 when the store is unavailable.
          *     Without a location the user's default address is used.
+         *
+         *     P1-21 (docs/MENU.md), additive: variant `price` is the channel's price (`base_price` the variant's own), with
+         *     `unit` (piece|kg|l), `quantity_step` and `min_quantity`; products carry `batch_tracked`, `image_thumb_urls` and
+         *     `modifier_groups` (effective `min_select`/`max_select`/`is_required` for that product, active `modifiers` with
+         *     `price_delta`); hidden products/variants of the channel are left out. Store mode adds `availability`.
          */
         get: operations["catalog.index"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/catalog/availability": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Menu availability per branch
+         * @description What cannot be ordered right now on each active branch of the store (P1-21): `stopped` product/variant/modifier
+         *     ids (stop-list and branch switches, `stop_list` has reasons and `until`), `sold_out.variants` (batch stock:
+         *     "tugadi") and the open `batches` with what is left. Refetch it on the `menu.availability_changed` event (public
+         *     channel `menu.{store_id}`). The same data is in GET /catalog?store_id=… as `availability`.
+         */
+        get: operations["menuAvailability.index"];
         put?: never;
         post?: never;
         delete?: never;
@@ -260,6 +288,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/delivery/quote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Delivery quote for a point
+         * @description Which zone and branch would serve `lat`/`lng`, what delivery costs (the free-delivery rule applied when `subtotal`
+         *     is given) and the minimum order. 422 with `data.reason` when the point cannot be served:
+         *     `outside_zone` (hududdan tashqarida), `zones_not_configured` (the store has not drawn zones) or `branch_closed`.
+         *     Money is a string with two decimals.
+         */
+        get: operations["deliveryZone.quote"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/devices": {
         parameters: {
             query?: never;
@@ -326,6 +377,27 @@ export interface paths {
         put?: never;
         post?: never;
         delete: operations["device.destroy"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/devices/{uuid}/push-token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * PUT /devices/{uuid}/push-token: set the FCM token of one of the user's installs, or clear it with null. The token
+         *     is never shown back (the device only reports has_push_token)
+         */
+        put: operations["device.updatePushToken"];
+        post?: never;
+        /** DELETE /devices/{uuid}/push-token: stop pushes to this install (the app was signed out or notifications were turned off) */
+        delete: operations["device.clearPushToken"];
         options?: never;
         head?: never;
         patch?: never;
@@ -432,6 +504,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/me/notification-preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * GET /me/notification-preferences: the message types that fit the user's role, each with its channels. `available`
+         *     says whether the channel can reach the user at all (Telegram linked, an app with a push token registered)
+         */
+        get: operations["notificationPreference.show"];
+        /**
+         * PUT /me/notification-preferences: `{"preferences": {"order_updates": {"push": false}, "promotions": {"push": true}}}`.
+         *     Only what is sent changes. Order updates are on and promotions off until the user says otherwise
+         */
+        put: operations["notificationPreference.update"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/me/permissions": {
         parameters: {
             query?: never;
@@ -507,6 +603,13 @@ export interface paths {
          * @description Prices, stock, the promo code and the delivery fee are checked on the server. `payment_url` is set for online
          *     payment methods (Click, Payme): open it to pay; the order is cancelled when it stays unpaid. 400 with the reason
          *     when the order cannot be placed (store closed, item unavailable, minimum not reached...).
+         *
+         *     P1-21 (docs/MENU.md): `items.*.quantity` may be a fraction for items sold by weight (kg/l, at least
+         *     `min_quantity`, in `quantity_step` steps); `items.*.modifiers` lists the chosen modifiers as uuids or
+         *     `{id: uuid, quantity}`; prices always come from the server. 422 when a modifier rule is broken, the item is on
+         *     the branch's stop-list, its batch is sold out ("tugadi") or it is hidden on the channel. `channel` is
+         *     `telegram` (default) or `mobile`. An `Idempotency-Key` header makes retries safe: the same key with the same body
+         *     within 24 hours returns the first response (header `Idempotent-Replayed: true`), with another body 409.
          */
         post: operations["order.store"];
         delete?: never;
@@ -632,6 +735,74 @@ export interface paths {
         get: operations["auditLog.index"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/batches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A branch's batches
+         * @description Open batches first (with what is left), then the latest closed ones. Branch-bound staff always get their own
+         *     branch.
+         */
+        get: operations["batch.index"];
+        put?: never;
+        /**
+         * Open a batch
+         * @description What the branch cooked of a product (`product_variant_id` null: the batch serves every variant, each using its
+         *     `batch_consumption` per unit, e.g. 0.7 for a "0.7 porsiya"). One open batch per branch and product/variant: 422
+         *     otherwise.
+         */
+        post: operations["batch.store"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/batches/{id}/adjust": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Top up or correct a batch
+         * @description `add`: more was cooked (produced and left both grow). `quantity_left`: set what is left (a recount). One of
+         *     them is required.
+         */
+        post: operations["batch.adjust"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/batches/{id}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Close a batch
+         * @description A batch-tracked product is "tugadi" on the branch until a new batch opens. Closing a closed batch is a no-op.
+         */
+        post: operations["batch.close"];
         delete?: never;
         options?: never;
         head?: never;
@@ -848,6 +1019,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/owner/invoices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The store's subscription invoices, newest month first */
+        get: operations["ownerBilling.invoices"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/modifier-groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the store's modifier groups
+         * @description Every group with its modifiers (inactive ones included) and the ids of the products that offer it.
+         */
+        get: operations["modifierGroup.index"];
+        put?: never;
+        /**
+         * Create a modifier group with its modifiers
+         * @description `max_select` null means any number; `is_required` raises the minimum to 1. `price_delta` is added to the item's
+         *     price (per piece; once per line for items sold by weight). `product_variant_id` optionally links a modifier to a
+         *     variant of the store (for stock later).
+         */
+        post: operations["modifierGroup.store"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/modifier-groups/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update a modifier group
+         * @description `modifiers` replaces the list: an entry with `id` updates that modifier, one without creates it, and a modifier
+         *     left out is deleted (order history keeps its snapshot).
+         */
+        put: operations["modifierGroup.update"];
+        post?: never;
+        /**
+         * Delete a modifier group
+         * @description Products stop offering it; past orders keep their snapshot.
+         */
+        delete: operations["modifierGroup.destroy"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/owner/payouts": {
         parameters: {
             query?: never;
@@ -923,6 +1162,79 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/owner/products/{id}/channel-prices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A product's channel prices
+         * @description One row per channel and variant (`product_variant_id` null: the whole product, hidden only). No row: the
+         *     variant's own price, visible.
+         */
+        get: operations["channelPrice.index"];
+        /**
+         * Replace a product's channel prices
+         * @description `prices` replaces every row of the product. A row may set a variant's `price` on a channel and/or hide the
+         *     variant (`is_hidden`); a row without `product_variant_id` hides the whole product there (no price).
+         */
+        put: operations["channelPrice.update"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/products/{id}/modifier-groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set the modifier groups a product offers
+         * @description Replaces the product's groups. Per product, `min_select`, `max_select` and `is_required` override the group's own
+         *     rules (null: the group's); `sort_order` orders them.
+         */
+        put: operations["modifierGroup.syncProduct"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/service-fees": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Service charge and place fee settings
+         * @description The store's default (`branch_id` null) and the branch overrides. A channel list null means `["pos_hall"]`;
+         *     Telegram orders never get either fee.
+         */
+        get: operations["serviceFee.index"];
+        /**
+         * Set the service charge and place fee
+         * @description For the store (`branch_id` null) or one branch. `service_charge_percent` 0-30; `place_fee_mode` per_person
+         *     (× guests) or per_table. Channels default to pos_hall; telegram is not accepted.
+         */
+        put: operations["serviceFee.update"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/owner/settings": {
         parameters: {
             query?: never;
@@ -986,6 +1298,71 @@ export interface paths {
         get?: never;
         /** PUT /owner/staff/{id}/role {role, branch_id?}: owner only (staff.manage); never the owner's own account */
         put: operations["staffAccess.updateRole"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/stop-list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A branch's stop-list
+         * @description The entries in force (expired ones are not listed). Branch-bound staff always get their own branch.
+         */
+        get: operations["stopList.index"];
+        put?: never;
+        /**
+         * Put an item on the stop-list
+         * @description `type`: product, variant or modifier of the store; `until` (optional, ISO time in the future) ends it by
+         *     itself. Adding an item already there updates its reason and time. Broadcasts menu.availability_changed.
+         */
+        post: operations["stopList.store"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/stop-list/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Take an item off the stop-list
+         * @description Broadcasts menu.availability_changed.
+         */
+        delete: operations["stopList.destroy"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/subscription": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The current plan and period, the terminals counted so far and an estimate of the period's invoice.
+         *     `subscription` is null for a store on no plan (commission at the store's own rate, no monthly fee)
+         */
+        get: operations["ownerBilling.subscription"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -1147,6 +1524,27 @@ export interface paths {
          * @description One rating per order (400 when this order was already rated); returns the store's new average and count.
          */
         post: operations["storeRating.rate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/stores/{store}/zones": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Delivery zones of a store
+         * @description Active zones, highest priority first, without internal fields. `{store}` is the store's uuid (or numeric id).
+         *     `polygon` is a GeoJSON Polygon / MultiPolygon geometry with [lng, lat] positions. Money is a string with two decimals.
+         */
+        get: operations["deliveryZone.index"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1446,9 +1844,30 @@ export interface components {
             /** Format: date-time */
             deleted_at: string | null;
             image_url: string | null;
+            image_thumb_urls: {
+                sm: string | null;
+                md: string | null;
+            };
             parent?: components["schemas"]["Category"] | null;
             children?: components["schemas"]["Category"][];
             products?: components["schemas"]["Product"][];
+        };
+        /** ChannelPrice */
+        ChannelPrice: {
+            id: number;
+            store_id: number;
+            product_id: number;
+            product_variant_id: number | null;
+            channel: components["schemas"]["OrderChannel"];
+            price: string | null;
+            is_hidden: boolean;
+            /** Format: date-time */
+            created_at: string | null;
+            /** Format: date-time */
+            updated_at: string | null;
+            product?: components["schemas"]["Product"];
+            variant?: components["schemas"]["ProductVariant"] | null;
+            store?: components["schemas"]["Store"];
         };
         /** Complaint */
         Complaint: {
@@ -1470,6 +1889,12 @@ export interface components {
             user?: components["schemas"]["User"];
             resolver?: components["schemas"]["User"] | null;
         };
+        /**
+         * CourierType
+         * @description Whose courier it is: the restaurant's own staff or the platform's fleet. Dispatch by type comes in phase 4.
+         * @enum {string}
+         */
+        CourierType: "own" | "fleet";
         /** Device */
         Device: {
             uuid: string;
@@ -1545,6 +1970,88 @@ export interface components {
             to: number | null;
             total: number;
         };
+        /** MenuBatch */
+        MenuBatch: {
+            id: number;
+            uuid: string;
+            store_id: number;
+            branch_id: number;
+            product_id: number;
+            product_variant_id: number | null;
+            label: string | null;
+            quantity_produced: string;
+            quantity_left: string;
+            /** Format: date-time */
+            started_at: string;
+            /** Format: date-time */
+            sold_out_at: string | null;
+            /** Format: date-time */
+            closed_at: string | null;
+            opened_by: number | null;
+            closed_by: number | null;
+            /** Format: date-time */
+            created_at: string | null;
+            /** Format: date-time */
+            updated_at: string | null;
+            is_open: boolean;
+            store?: components["schemas"]["Store"];
+            branch?: components["schemas"]["Branch"];
+            product?: components["schemas"]["Product"];
+            variant?: components["schemas"]["ProductVariant"] | null;
+        };
+        /**
+         * MenuUnit
+         * @description How a product variant is sold (product_variants.unit): by the piece (portion, bottle) or by weight/volume, whose price is per kilogram or litre and whose quantity may be a fraction in steps of quantity_step (docs/MENU.md).
+         * @enum {string}
+         */
+        MenuUnit: "piece" | "kg" | "l";
+        /** Modifier */
+        Modifier: {
+            id: number;
+            uuid: string;
+            modifier_group_id: number;
+            name: string;
+            name_i18n: {
+                [key: string]: string;
+            } | null;
+            price_delta: string;
+            max_quantity: number;
+            product_variant_id: number | null;
+            sort_order: number;
+            is_active: boolean;
+            /** Format: date-time */
+            created_at: string | null;
+            /** Format: date-time */
+            updated_at: string | null;
+            /** Format: date-time */
+            deleted_at: string | null;
+            group?: components["schemas"]["ModifierGroup"];
+            variant?: components["schemas"]["ProductVariant"] | null;
+        };
+        /** ModifierGroup */
+        ModifierGroup: {
+            id: number;
+            uuid: string;
+            store_id: number;
+            name: string;
+            name_i18n: {
+                [key: string]: string;
+            } | null;
+            min_select: number;
+            max_select: number | null;
+            is_required: boolean;
+            sort_order: number;
+            is_active: boolean;
+            /** Format: date-time */
+            created_at: string | null;
+            /** Format: date-time */
+            updated_at: string | null;
+            /** Format: date-time */
+            deleted_at: string | null;
+            store?: components["schemas"]["Store"];
+            modifiers?: components["schemas"]["Modifier"][];
+            products?: components["schemas"]["Product"][];
+        };
         /** Order */
         Order: {
             id: number;
@@ -1585,6 +2092,13 @@ export interface components {
             cancel_reason: components["schemas"]["CancelReason"] | null;
             cancel_note: string | null;
             cancelled_by: (number | null) | (components["schemas"]["User"] | null);
+            channel: components["schemas"]["OrderChannel"];
+            external_id: string | null;
+            service_charge_amount: string;
+            place_fee_amount: string;
+            guests_count: number | null;
+            hall_ref: string | null;
+            table_ref: string | null;
             type: string;
             address: string | null;
             store?: components["schemas"]["Store"];
@@ -1597,6 +2111,12 @@ export interface components {
             payments?: components["schemas"]["Payment"][];
             promo_code?: components["schemas"]["PromoCode"] | null;
         };
+        /**
+         * OrderChannel
+         * @description Where an order came from (orders.channel). One Order model serves every channel (docs/ROADMAP.md): the kitchen sees them all, the stop-list reaches them all, and channel prices/visibility (channel_prices) differ per channel.
+         * @enum {string}
+         */
+        OrderChannel: "telegram" | "mobile" | "pos_hall" | "pos_takeaway" | "aggregator";
         /** OrderItem */
         OrderItem: {
             id: number;
@@ -1613,8 +2133,16 @@ export interface components {
             updated_at: string | null;
             /** Format: date-time */
             deleted_at: string | null;
+            unit: components["schemas"]["MenuUnit"];
+            modifiers: {
+                [key: string]: unknown;
+            }[] | null;
+            modifiers_total: string;
+            batch_id: number | null;
+            batch_quantity: string | null;
             order?: components["schemas"]["Order"];
             product_variant?: components["schemas"]["ProductVariant"] | null;
+            batch?: components["schemas"]["MenuBatch"] | null;
         };
         /**
          * OrderStatus
@@ -1692,7 +2220,7 @@ export interface components {
          * @description What a store staff member may do. Each role gets a default set (App\Services\Auth\RolePermissions) that an owner can adjust per store (role_permission_overrides); App\Services\Auth\PermissionService resolves the effective set, and the Gate answers `$user->can('orders.cancel', $order)` with it (branch scoping included).
          * @enum {string}
          */
-        Permission: "orders.view" | "orders.manage" | "orders.cancel" | "orders.discount" | "orders.void_item" | "orders.assign_courier" | "orders.refund" | "kitchen.manage" | "deliveries.manage" | "tables.manage" | "menu.view" | "menu.manage" | "stoplist.manage" | "staff.view" | "staff.manage" | "staff.pin" | "devices.view" | "devices.manage" | "reports.view" | "finance.view" | "finance.manage" | "settings.manage" | "audit.view" | "permissions.manage" | "pos.open_shift" | "pos.close_shift" | "pos.cash_in_out" | "pos.take_payment" | "pos.reprint_bill";
+        Permission: "orders.view" | "orders.manage" | "orders.cancel" | "orders.discount" | "orders.void_item" | "orders.assign_courier" | "orders.refund" | "kitchen.manage" | "deliveries.manage" | "tables.manage" | "menu.view" | "menu.manage" | "stoplist.manage" | "batches.manage" | "staff.view" | "staff.manage" | "staff.pin" | "devices.view" | "devices.manage" | "reports.view" | "finance.view" | "finance.manage" | "settings.manage" | "zones.manage" | "audit.view" | "permissions.manage" | "pos.open_shift" | "pos.close_shift" | "pos.cash_in_out" | "pos.take_payment" | "pos.reprint_bill";
         /** Product */
         Product: {
             id: number;
@@ -1714,11 +2242,36 @@ export interface components {
             /** Format: date-time */
             deleted_at: string | null;
             image: string | null;
+            batch_tracked: boolean;
             is_active: boolean;
             image_url: string | null;
+            image_thumb_urls: {
+                sm: string | null;
+                md: string | null;
+            };
             store?: components["schemas"]["Store"];
             category?: components["schemas"]["Category"];
             variants?: components["schemas"]["ProductVariant"][];
+            modifier_groups?: components["schemas"]["ModifierGroup"][];
+            modifier_group_links?: components["schemas"]["ProductModifierGroup"][];
+            channel_prices?: components["schemas"]["ChannelPrice"][];
+            batches?: components["schemas"]["MenuBatch"][];
+        };
+        /** ProductModifierGroup */
+        ProductModifierGroup: {
+            id: number;
+            product_id: number;
+            modifier_group_id: number;
+            min_select: number | null;
+            max_select: number | null;
+            is_required: boolean | null;
+            sort_order: number;
+            /** Format: date-time */
+            created_at: string | null;
+            /** Format: date-time */
+            updated_at: string | null;
+            product?: components["schemas"]["Product"];
+            modifier_group?: components["schemas"]["ModifierGroup"];
         };
         /** ProductVariant */
         ProductVariant: {
@@ -1739,7 +2292,12 @@ export interface components {
             updated_at: string | null;
             /** Format: date-time */
             deleted_at: string | null;
+            unit: components["schemas"]["MenuUnit"];
+            quantity_step: string | null;
+            min_quantity: string | null;
+            batch_consumption: string;
             product?: components["schemas"]["Product"];
+            channel_prices?: components["schemas"]["ChannelPrice"][];
         };
         /** PromoCode */
         PromoCode: {
@@ -1842,6 +2400,8 @@ export interface components {
             payout_requests?: components["schemas"]["PayoutRequest"][];
             wallet_transactions?: components["schemas"]["StoreWalletTransaction"][];
             ratings?: components["schemas"]["StoreRating"][];
+            subscriptions?: components["schemas"]["StoreSubscription"][];
+            subscription_invoices?: components["schemas"]["SubscriptionInvoice"][];
         };
         /** StoreRating */
         StoreRating: {
@@ -1864,6 +2424,34 @@ export interface components {
          * @enum {string}
          */
         StoreStatus: "pending" | "under_review" | "active" | "suspended" | "rejected" | "payment_required" | "finance_hold";
+        /** StoreSubscription */
+        StoreSubscription: {
+            id: number;
+            store_id: number;
+            tariff_plan_id: number;
+            status: components["schemas"]["SubscriptionStatus"];
+            /** Format: date-time */
+            started_at: string;
+            /** Format: date-time */
+            trial_ends_at: string | null;
+            /** Format: date-time */
+            current_period_start: string;
+            /** Format: date-time */
+            current_period_end: string;
+            next_tariff_plan_id: number | null;
+            cancel_at_period_end: boolean;
+            /** Format: date-time */
+            cancelled_at: string | null;
+            created_by: (number | null) | (components["schemas"]["User"] | null);
+            /** Format: date-time */
+            created_at: string | null;
+            /** Format: date-time */
+            updated_at: string | null;
+            store?: components["schemas"]["Store"];
+            plan?: components["schemas"]["TariffPlan"];
+            next_plan?: components["schemas"]["TariffPlan"] | null;
+            invoices?: components["schemas"]["SubscriptionInvoice"][];
+        };
         /** StoreTransaction */
         StoreTransaction: {
             id: number;
@@ -1886,7 +2474,7 @@ export interface components {
          * StoreTransactionType
          * @enum {string}
          */
-        StoreTransactionType: "commission" | "topup" | "settlement" | "payout" | "refund" | "adjustment";
+        StoreTransactionType: "commission" | "topup" | "settlement" | "payout" | "refund" | "adjustment" | "subscription";
         /** StoreWalletTransaction */
         StoreWalletTransaction: {
             id: number;
@@ -1906,6 +2494,77 @@ export interface components {
             updated_at: string | null;
             store?: components["schemas"]["Store"];
             order?: components["schemas"]["Order"] | null;
+        };
+        /** SubscriptionInvoice */
+        SubscriptionInvoice: {
+            id: number;
+            uuid: string;
+            number: string;
+            store_id: number;
+            store_subscription_id: number | null;
+            tariff_plan_id: number | null;
+            period: string;
+            /** Format: date-time */
+            period_start: string;
+            /** Format: date-time */
+            period_end: string;
+            terminals_count: number;
+            included_terminals: number;
+            base_fee: string;
+            fee_per_terminal: string;
+            lines: {
+                [key: string]: unknown;
+            }[];
+            amount: string;
+            status: components["schemas"]["SubscriptionInvoiceStatus"];
+            /** Format: date-time */
+            due_date: string;
+            /** Format: date-time */
+            issued_at: string;
+            /** Format: date-time */
+            paid_at: string | null;
+            /** Format: date-time */
+            voided_at: string | null;
+            voided_by: (number | null) | (components["schemas"]["User"] | null);
+            void_reason: string | null;
+            ledger_transaction_id: number | null;
+            void_transaction_id: number | null;
+            /** Format: date-time */
+            created_at: string | null;
+            /** Format: date-time */
+            updated_at: string | null;
+            store?: components["schemas"]["Store"];
+            subscription?: components["schemas"]["StoreSubscription"] | null;
+            plan?: components["schemas"]["TariffPlan"] | null;
+        };
+        /**
+         * SubscriptionInvoiceStatus
+         * @enum {string}
+         */
+        SubscriptionInvoiceStatus: "issued" | "paid" | "void";
+        /**
+         * SubscriptionStatus
+         * @description A store subscription's state (docs/BILLING.md). Only `cancelled` rows are history; every other status is the store's current subscription, whose plan sets its commission and monthly fee.
+         * @enum {string}
+         */
+        SubscriptionStatus: "trialing" | "active" | "past_due" | "cancelled";
+        /** TariffPlan */
+        TariffPlan: {
+            id: number;
+            name: string;
+            code: string;
+            is_active: boolean;
+            commission_percent: string | null;
+            monthly_base_fee: string | null;
+            monthly_fee_per_terminal: string | null;
+            included_terminals: number;
+            trial_days: number;
+            description: string | null;
+            /** Format: date-time */
+            created_at: string | null;
+            /** Format: date-time */
+            updated_at: string | null;
+            subscriptions?: components["schemas"]["StoreSubscription"][];
         };
         /** User */
         User: {
@@ -1935,6 +2594,7 @@ export interface components {
             /** Format: date-time */
             pin_set_at: string | null;
             staff_code: string | null;
+            courier_type: components["schemas"]["CourierType"];
             devices?: components["schemas"]["Device"][];
             store?: components["schemas"]["Store"] | null;
             branch?: components["schemas"]["Branch"] | null;
@@ -2490,6 +3150,8 @@ export interface operations {
                 district_id?: number;
                 /** @description Global feed: only this category and its subcategories. */
                 category_id?: number;
+                /** @description P1-21: whose prices and visibility to show: telegram (default) or mobile. */
+                channel?: "telegram" | "mobile";
             };
             header?: never;
             path?: never;
@@ -2508,14 +3170,16 @@ export interface operations {
                         data: {
                             store: components["schemas"]["Store"] | null;
                             categories: components["schemas"]["Category"][];
-                            products: components["schemas"]["Product"][];
+                            products: string;
+                            /** @description P1-21: what is unavailable on each branch now (stop-list, sold-out batches); GET /catalog/availability */
+                            availability: string;
                         };
                     } | {
                         success: boolean;
                         message: string;
                         data: {
                             categories: components["schemas"]["Category"][];
-                            products: components["schemas"]["Product"][];
+                            products: string;
                             promos: {
                                 id: number;
                                 title: string;
@@ -2523,7 +3187,7 @@ export interface operations {
                                 store_uuid: string;
                                 product_id: number | null;
                             }[];
-                            highlight_product: components["schemas"]["Product"] | null;
+                            highlight_product: string;
                         };
                     };
                 };
@@ -2537,6 +3201,76 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "menuAvailability.index": {
+        parameters: {
+            query: {
+                /** @description The store's uuid or numeric id. */
+                store_id: string;
+                /** @description Only this branch. */
+                branch_id?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            store_id: number;
+                            branches: {
+                                branch_id: string;
+                                stopped: unknown[];
+                                sold_out: {
+                                    variants: number[];
+                                };
+                                stop_list: ({
+                                    id: number;
+                                    type: string;
+                                    subject_id: number;
+                                    reason: string;
+                                    until: string | null;
+                                } | {
+                                    id: null;
+                                    type: string;
+                                    subject_id: number;
+                                    reason: string;
+                                    until: null;
+                                })[];
+                                batches: {
+                                    id: number;
+                                    uuid: string;
+                                    product_id: number;
+                                    product_variant_id: number | null;
+                                    label: string | null;
+                                    quantity_produced: number | null;
+                                    quantity_left: number | null;
+                                    started_at: string | null;
+                                }[];
+                            }[];
+                            generated_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -2730,12 +3464,84 @@ export interface operations {
                             phone: string | null;
                             telegram_username: string | null;
                             branch_id: number | null;
+                            /** @description P1-24: the restaurant's own courier or the Rizqim fleet */
+                            courier_type: string;
                         }[];
                     };
                 };
             };
             401: components["responses"]["AuthenticationException"];
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "deliveryZone.quote": {
+        parameters: {
+            query: {
+                /** @description Do'kon uuid yoki id. */
+                store: string;
+                /** @description Latitude of the delivery point. */
+                lat: number;
+                /** @description Longitude of the delivery point. */
+                lng: number;
+                /** @description Cart total before delivery; enables the free-delivery and minimum-order checks. */
+                subtotal?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            zone: {
+                                id: number;
+                                name: string;
+                                delivery_price: string;
+                                min_order_amount: string;
+                                free_delivery_from: string | null;
+                                eta_minutes: number | null;
+                            };
+                            branch: {
+                                id: number;
+                                name: string;
+                                distance_km: number;
+                            };
+                            delivery_price: string;
+                            min_order_amount: string;
+                            free_delivery_applies: boolean;
+                            meets_min_order: boolean | null;
+                            eta: {
+                                minutes: number;
+                            } | null;
+                        };
+                    };
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Manzilga yetkazib berib bo'lmaydi */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3031,6 +3837,115 @@ export interface operations {
             };
         };
     };
+    "device.updatePushToken": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    push_token: string | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            type: string;
+                            name: string;
+                            platform: string | null;
+                            app_version: string | null;
+                            store_id: number | null;
+                            branch_id: number | null;
+                            user: {
+                                id: number;
+                                name: string;
+                                role: string;
+                            } | null;
+                            has_push_token: boolean;
+                            last_seen_at: string | null;
+                            revoked_at: string | null;
+                            created_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "device.clearPushToken": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            type: string;
+                            name: string;
+                            platform: string | null;
+                            app_version: string | null;
+                            store_id: number | null;
+                            branch_id: number | null;
+                            user: {
+                                id: number;
+                                name: string;
+                                role: string;
+                            } | null;
+                            has_push_token: boolean;
+                            last_seen_at: string | null;
+                            revoked_at: string | null;
+                            created_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     "feature.index": {
         parameters: {
             query?: never;
@@ -3225,6 +4140,85 @@ export interface operations {
             401: components["responses"]["AuthenticationException"];
         };
     };
+    "notificationPreference.show": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            preferences: {
+                                type: string;
+                                label: string;
+                                description: string;
+                                channels: {
+                                    channel: string;
+                                    label: string;
+                                    enabled: boolean;
+                                    available: boolean;
+                                }[];
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "notificationPreference.update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    preferences: string[];
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            preferences: {
+                                type: string;
+                                label: string;
+                                description: string;
+                                channels: {
+                                    channel: string;
+                                    label: string;
+                                    enabled: boolean;
+                                    available: boolean;
+                                }[];
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
     "permission.show": {
         parameters: {
             query?: never;
@@ -3384,7 +4378,10 @@ export interface operations {
     "order.store": {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Optional, 1-255 visible characters (e.g. a UUID made per checkout attempt). Same key + same body within 24 hours: the first response is returned again; another body: 409. */
+                "Idempotency-Key"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -3395,8 +4392,12 @@ export interface operations {
                     items: {
                         /** Format: uuid */
                         variant_id: string;
+                        /** @description P1-21: a fraction for items sold by weight (0.5 kg, at most 3 decimals); pieces stay whole (checked per unit) */
                         quantity: number;
+                        modifiers?: string[] | null;
                     }[];
+                    /** @enum {string|null} */
+                    channel?: "telegram" | "mobile" | null;
                     /** @enum {string} */
                     type: "delivery" | "pickup" | "dine_in";
                     /** @enum {string} */
@@ -3690,6 +4691,11 @@ export interface operations {
                                 orders: number;
                                 revenue: number;
                             }[];
+                            by_channel: {
+                                channel: string;
+                                orders: number;
+                                revenue: number;
+                            }[];
                             top_products: {
                                 name: string;
                                 quantity: number;
@@ -3760,6 +4766,198 @@ export interface operations {
             };
             401: components["responses"]["AuthenticationException"];
             422: components["responses"]["ValidationException"];
+        };
+    };
+    "batch.index": {
+        parameters: {
+            query?: {
+                /** @description Required unless the caller is bound to a branch. */
+                branch_id?: number;
+                /** @description Also the last 50 closed batches. */
+                include_closed?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            branch_id: number;
+                            batches: {
+                                id: number;
+                                uuid: string;
+                                branch_id: number;
+                                product_id: number;
+                                product_name: string;
+                                product_variant_id: number | null;
+                                variant_name: string | null;
+                                unit: string | null;
+                                label: string | null;
+                                quantity_produced: number | null;
+                                quantity_left: number | null;
+                                is_open: boolean;
+                                started_at: string | null;
+                                sold_out_at: string | null;
+                                closed_at: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "batch.store": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    branch_id?: number | null;
+                    product_id: number;
+                    product_variant_id?: number | null;
+                    quantity: number;
+                    label?: string | null;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            uuid: string;
+                            branch_id: number;
+                            product_id: number;
+                            product_name: string;
+                            product_variant_id: number | null;
+                            variant_name: string | null;
+                            unit: string | null;
+                            label: string | null;
+                            quantity_produced: number | null;
+                            quantity_left: number | null;
+                            is_open: boolean;
+                            started_at: string | null;
+                            sold_out_at: string | null;
+                            closed_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "batch.adjust": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    add?: number | null;
+                    quantity_left?: number | null;
+                    reason?: string | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            uuid: string;
+                            branch_id: number;
+                            product_id: number;
+                            product_name: string;
+                            product_variant_id: number | null;
+                            variant_name: string | null;
+                            unit: string | null;
+                            label: string | null;
+                            quantity_produced: number | null;
+                            quantity_left: number | null;
+                            is_open: boolean;
+                            started_at: string | null;
+                            sold_out_at: string | null;
+                            closed_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "batch.close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            uuid: string;
+                            branch_id: number;
+                            product_id: number;
+                            product_name: string;
+                            product_variant_id: number | null;
+                            variant_name: string | null;
+                            unit: string | null;
+                            label: string | null;
+                            quantity_produced: number | null;
+                            quantity_left: number | null;
+                            is_open: boolean;
+                            started_at: string | null;
+                            sold_out_at: string | null;
+                            closed_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
         };
     };
     "branchProductVariant.index": {
@@ -4356,6 +5554,7 @@ export interface operations {
                             min_payout_reserve: number;
                             payment_account_type: string;
                             commission_rate: number;
+                            /** @description P1-23: the rate actually charged (tariff plan or the store's own) */
                             status: string | components["schemas"]["StoreStatus"];
                             is_order_locked: boolean;
                             ledger_transactions: components["schemas"]["StoreTransaction"][];
@@ -4434,6 +5633,288 @@ export interface operations {
                 };
             };
             422: components["responses"]["ValidationException"];
+        };
+    };
+    "ownerBilling.invoices": {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["SubscriptionInvoiceStatus"] | null;
+                period?: string | null;
+                per_page?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            current_page: number;
+                            data: {
+                                uuid: string;
+                                number: string;
+                                period: string;
+                                period_start: string;
+                                period_end: string;
+                                plan: {
+                                    code: string;
+                                    name: string;
+                                } | null;
+                                terminals_count: number;
+                                included_terminals: number;
+                                base_fee: number;
+                                fee_per_terminal: number;
+                                lines: {
+                                    type: string;
+                                    label: string;
+                                    quantity: number;
+                                    unit_price: number;
+                                    amount: number;
+                                }[];
+                                amount: number;
+                                status: string;
+                                due_date: string;
+                                issued_at: string;
+                                paid_at: string | null;
+                                voided_at: string | null;
+                            }[];
+                            per_page: number;
+                            total: number;
+                            last_page: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "modifierGroup.index": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            uuid: string;
+                            name: string;
+                            name_i18n: {
+                                [key: string]: string;
+                            } | null;
+                            min_select: number;
+                            max_select: number | null;
+                            is_required: boolean;
+                            sort_order: number;
+                            is_active: boolean;
+                            modifiers: {
+                                id: number;
+                                uuid: string;
+                                name: string;
+                                name_i18n: {
+                                    [key: string]: string;
+                                } | null;
+                                price_delta: string;
+                                max_quantity: number;
+                                product_variant_id: number | null;
+                                sort_order: number;
+                                is_active: boolean;
+                            }[];
+                            product_ids: number[];
+                            product_rules: {
+                                min_select: string;
+                                max_select: string;
+                                is_required: string;
+                                sort_order: number;
+                            };
+                        }[];
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "modifierGroup.store": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            uuid: string;
+                            name: string;
+                            name_i18n: {
+                                [key: string]: string;
+                            } | null;
+                            min_select: number;
+                            max_select: number | null;
+                            is_required: boolean;
+                            sort_order: number;
+                            is_active: boolean;
+                            modifiers: {
+                                id: number;
+                                uuid: string;
+                                name: string;
+                                name_i18n: {
+                                    [key: string]: string;
+                                } | null;
+                                price_delta: string;
+                                max_quantity: number;
+                                product_variant_id: number | null;
+                                sort_order: number;
+                                is_active: boolean;
+                            }[];
+                            product_ids: number[];
+                            product_rules: {
+                                min_select: string;
+                                max_select: string;
+                                is_required: string;
+                                sort_order: number;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "modifierGroup.update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            uuid: string;
+                            name: string;
+                            name_i18n: {
+                                [key: string]: string;
+                            } | null;
+                            min_select: number;
+                            max_select: number | null;
+                            is_required: boolean;
+                            sort_order: number;
+                            is_active: boolean;
+                            modifiers: {
+                                id: number;
+                                uuid: string;
+                                name: string;
+                                name_i18n: {
+                                    [key: string]: string;
+                                } | null;
+                                price_delta: string;
+                                max_quantity: number;
+                                product_variant_id: number | null;
+                                sort_order: number;
+                                is_active: boolean;
+                            }[];
+                            product_ids: number[];
+                            product_rules: {
+                                min_select: string;
+                                max_select: string;
+                                is_required: string;
+                                sort_order: number;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "modifierGroup.destroy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: null;
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     "ownerFinance.requestPayout": {
@@ -4648,8 +6129,12 @@ export interface operations {
                      * @description Max 5MB
                      */
                     image?: string | null;
-                    /** @description JSON array of variants: [{"name": "...", "price": 25000}, ...] */
+                    /**
+                     * @description JSON array of variants: [{"name": "...", "price": 25000}, ...]; P1-21 adds optional "unit" (piece|kg|l),
+                     *     "quantity_step", "min_quantity" (kg/l) and "batch_consumption"
+                     */
                     variants: string;
+                    batch_tracked?: boolean;
                 };
             };
         };
@@ -4723,9 +6208,10 @@ export interface operations {
                     image?: string | null;
                     /**
                      * @description JSON array of variants: [{"id": 1, "name": "...", "price": 25000}, ...]; one without an id is created,
-                     *     an existing one left out is deleted
+                     *     an existing one left out is deleted. P1-21: optional "unit", "quantity_step", "min_quantity", "batch_consumption"
                      */
                     variants: string;
+                    batch_tracked?: boolean;
                 };
             };
         };
@@ -4802,6 +6288,208 @@ export interface operations {
                     };
                 };
             };
+        };
+    };
+    "channelPrice.index": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            product_id: number;
+                            channels: unknown[];
+                            prices: {
+                                channel: string;
+                                product_variant_id: number | null;
+                                price: string | null;
+                                is_hidden: boolean;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "channelPrice.update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    prices: {
+                        /** @enum {string} */
+                        channel: "telegram" | "mobile" | "pos_hall" | "pos_takeaway" | "aggregator";
+                        product_variant_id?: number | null;
+                        price?: number | null;
+                        is_hidden?: boolean | null;
+                    }[];
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            product_id: number;
+                            prices: {
+                                channel: string;
+                                product_variant_id: number | null;
+                                price: string | null;
+                                is_hidden: boolean;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "modifierGroup.syncProduct": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    groups: {
+                        modifier_group_id: number;
+                        min_select?: number | null;
+                        max_select?: number | null;
+                        is_required?: boolean | null;
+                        sort_order?: number | null;
+                    }[];
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            product_id: number;
+                            modifier_groups: string;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "serviceFee.index": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            channels: unknown[];
+                            settings: {
+                                branch_id: number | null;
+                                service_charge_percent: string;
+                                service_charge_channels: string[] | null;
+                                place_fee_amount: string;
+                                place_fee_mode: string;
+                                place_fee_channels: string[] | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "serviceFee.update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    branch_id?: number | null;
+                    service_charge_percent: number;
+                    service_charge_channels?: ("mobile" | "pos_hall" | "pos_takeaway" | "aggregator")[] | null;
+                    place_fee_amount: number;
+                    /** @enum {string} */
+                    place_fee_mode: "per_person" | "per_table";
+                    place_fee_channels?: ("mobile" | "pos_hall" | "pos_takeaway" | "aggregator")[] | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            branch_id: number | null;
+                            service_charge_percent: string;
+                            service_charge_channels: string[] | null;
+                            place_fee_amount: string;
+                            place_fee_mode: string;
+                            place_fee_channels: string[] | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
         };
     };
     "ownerSettings.index": {
@@ -5100,6 +6788,214 @@ export interface operations {
                 };
             };
             422: components["responses"]["ValidationException"];
+        };
+    };
+    "stopList.index": {
+        parameters: {
+            query?: {
+                /** @description Required unless the caller is bound to a branch. */
+                branch_id?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            branch_id: number;
+                            entries: {
+                                id: number;
+                                branch_id: number;
+                                type: string;
+                                subject_id: number;
+                                subject_uuid: unknown;
+                                name: unknown;
+                                reason: string | null;
+                                until: string | null;
+                                created_by: number | null;
+                                created_at: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "stopList.store": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    branch_id?: number | null;
+                    /** @enum {string} */
+                    type: "product" | "variant" | "modifier";
+                    id: number;
+                    reason?: string | null;
+                    /** Format: date-time */
+                    until?: string | null;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            branch_id: number;
+                            type: string;
+                            subject_id: number;
+                            subject_uuid: unknown;
+                            name: unknown;
+                            reason: string | null;
+                            until: string | null;
+                            created_by: number | null;
+                            created_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "stopList.destroy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: null;
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "ownerBilling.subscription": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            subscription: {
+                                status: string;
+                                status_label: string;
+                                plan: {
+                                    code: string;
+                                    name: string;
+                                    description: string | null;
+                                    summary: string;
+                                    commission_percent: number | null;
+                                    monthly_base_fee: number;
+                                    monthly_fee_per_terminal: number;
+                                    included_terminals: number;
+                                    trial_days: number;
+                                };
+                                started_at: string;
+                                trial_ends_at: string | null;
+                                current_period: {
+                                    period: string;
+                                    start: string;
+                                    end: string;
+                                };
+                                next_plan: {
+                                    code: string;
+                                    name: string;
+                                    description: string | null;
+                                    summary: string;
+                                    commission_percent: number | null;
+                                    monthly_base_fee: number;
+                                    monthly_fee_per_terminal: number;
+                                    included_terminals: number;
+                                    trial_days: number;
+                                } | null;
+                                cancel_at_period_end: boolean;
+                            } | null;
+                            commission_rate: number;
+                            terminals: {
+                                active_now: number;
+                                counted: number | null;
+                            };
+                            next_invoice: {
+                                period: string;
+                                issued_on: string;
+                                trial: boolean;
+                                amount: number;
+                                lines: {
+                                    type: string;
+                                    label: string;
+                                    quantity: number;
+                                    unit_price: number;
+                                    amount: number;
+                                }[];
+                            } | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     "clickWebhook.handle": {
@@ -5659,6 +7555,51 @@ export interface operations {
             422: components["responses"]["ValidationException"];
         };
     };
+    "deliveryZone.index": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                store: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            name: string;
+                            polygon: {
+                                type: string;
+                                coordinates: unknown[];
+                            };
+                            delivery_price: string;
+                            min_order_amount: string;
+                            free_delivery_from: string | null;
+                            eta_minutes: number | null;
+                            priority: number;
+                        }[];
+                    };
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     "superadmin.dashboard": {
         parameters: {
             query?: never;
@@ -5681,14 +7622,14 @@ export interface operations {
                             payment_required_stores: number;
                             total_users: number;
                             total_gmv: string;
-                            total_commission: string;
+                            total_commission: number;
                             monthly_gmv: string;
-                            monthly_commission: string;
+                            monthly_commission: number;
                             last_30_days_gmv: string;
-                            last_30_days_commission: string;
+                            last_30_days_commission: number;
                             today_gmv: string;
                             today_orders: number;
-                            today_commission: string;
+                            today_commission: number;
                             pending_payouts: number;
                             total_store_debt: unknown;
                             total_cashback_balance: unknown;

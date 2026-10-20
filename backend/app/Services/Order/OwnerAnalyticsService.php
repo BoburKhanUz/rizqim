@@ -85,8 +85,8 @@ class OwnerAnalyticsService
 
         // Every figure but the rankings, the times and the daily series comes from these few groups
         $groups = $scope()
-            ->selectRaw('orders.status, orders.order_type, orders.payment_method, COUNT(*) AS orders, SUM(orders.total_price) AS total')
-            ->groupBy('orders.status', 'orders.order_type', 'orders.payment_method')
+            ->selectRaw('orders.status, orders.order_type, orders.payment_method, orders.channel, COUNT(*) AS orders, SUM(orders.total_price) AS total')
+            ->groupBy('orders.status', 'orders.order_type', 'orders.payment_method', 'orders.channel')
             ->get();
 
         $byStatus = [];
@@ -94,6 +94,7 @@ class OwnerAnalyticsService
         $ordersCount = 0;
         $payments = [];
         $types = [];
+        $channels = []; // P1-21
         foreach ($groups as $group) {
             $status = (string) $group->status;
             $count = (int) $group->orders;
@@ -114,6 +115,10 @@ class OwnerAnalyticsService
             $types[$type] ??= ['orders' => 0, 'revenue' => Money::zero()];
             $types[$type]['orders'] += $count;
             $types[$type]['revenue'] = $types[$type]['revenue']->plus($total);
+            $channel = (string) ($group->channel ?? 'telegram');
+            $channels[$channel] ??= ['orders' => 0, 'revenue' => Money::zero()];
+            $channels[$channel]['orders'] += $count;
+            $channels[$channel]['revenue'] = $channels[$channel]['revenue']->plus($total);
         }
 
         ksort($byStatus);
@@ -143,6 +148,8 @@ class OwnerAnalyticsService
             'by_status' => $byStatus === [] ? new \stdClass() : $byStatus,
             'by_payment_method' => $this->breakdown($payments, 'method'),
             'by_order_type' => $this->breakdown($types, 'type'),
+            // P1-21: delivered orders by sales channel (telegram, mobile, pos_hall, ...)
+            'by_channel' => $this->breakdown($channels, 'channel'),
             'top_products' => $this->topProducts($scope()),
             'couriers' => $this->couriers($scope()),
             'times' => $this->times($scope()),

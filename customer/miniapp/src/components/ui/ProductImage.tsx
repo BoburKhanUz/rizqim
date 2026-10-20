@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { UtensilsCrossed } from 'lucide-react';
 import { realImageUrl } from '../../lib/image';
-import { cx } from './cx';
+import { cx } from '@rizqim/ui';
 
 interface ProductImageProps {
   src: string | null | undefined;

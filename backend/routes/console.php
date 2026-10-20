@@ -32,3 +32,19 @@ Artisan::command('orders:retry-settlements {orders* : ids or uuids of delivered 
         }
     }
 })->purpose('Book again delivered orders whose ledger booking failed');
+
+// --- P1-23: monthly subscription invoices (docs/BILLING.md); daily so a missed 1st is caught up, idempotent ---
+Schedule::job(new \App\Jobs\BillSubscriptionsJob)->dailyAt('00:15')->timezone(config('billing.timezone', 'Asia/Tashkent'))->withoutOverlapping(60);
+
+Artisan::command('billing:run', function (\App\Services\Finance\SubscriptionService $subscriptions) {
+    $this->info($subscriptions->run() . ' invoice(s) issued');
+})->purpose('Bill ended subscription periods and update invoice / subscription statuses (safe to run again)');
+// --- end P1-23 ---
+
+// P1-21: stop-list entries whose `until` passed are removed (and the menus told) every minute; Idempotency-Key
+// responses are kept for 24 hours, then pruned
+Artisan::command('menu:expire-stop-list', function (\App\Services\Catalog\StopListService $stopList) {
+    $this->info($stopList->expire() . ' expired stop-list entries removed');
+})->purpose('Remove stop-list entries whose until time passed and broadcast the change');
+Schedule::command('menu:expire-stop-list')->everyMinute()->withoutOverlapping(5);
+Schedule::command('model:prune', ['--model' => [\App\Models\IdempotencyKey::class]])->daily();

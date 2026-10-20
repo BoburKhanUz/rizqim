@@ -252,7 +252,7 @@ class LedgerService
         // Charge the snapshot taken at order time as-is (0 is valid); the rate is only a fallback for an in-memory order without the attribute.
         $commissionAmount = isset($order->commission_amount)
             ? Money::of($order->commission_amount)
-            : Money::of($order->total_price)->percent($store->commission_rate ?? 10);
+            : Money::of($order->total_price)->percent($store->commissionRate()); // P1-23: same resolved rate as checkout
 
         // 1. Always deduct commission for every order to log the commission transaction
         if ($commissionAmount->isPositive() && !$this->hasCommission($order)) {
@@ -553,6 +553,110 @@ class LedgerService
             $lockedStore->forceFill(['wallet_balance' => $walletAfter->toString()])->save();
         }
     }
+
+    // --- P1-23: subscription invoices (docs/BILLING.md) ---
+
+    /**
+     * Post a subscription invoice to the store's debt ledger exactly once: a SUBSCRIPTION row (positive amount, debt
+     * up), never taken from the wallet, so the owner sees and settles it like the rest of the debt. The same rule as a
+     * commission blocks an active store whose debt goes over its credit limit (StoreBalanceLow after commit).
+     */
+    public function chargeSubscription(\App\Models\SubscriptionInvoice $invoice, ?int $performedBy = null): StoreTransaction
+    {
+        $amount = Money::of($invoice->amount);
+
+        if (!$amount->isPositive()) {
+            throw new \InvalidArgumentException("Subscription invoice {$invoice->number} has nothing to charge.");
+        }
+
+        return DB::transaction(function () use ($invoice, $amount, $performedBy) {
+            $store = Store::where('id', $invoice->store_id)->lockForUpdate()->firstOrFail();
+
+            $existing = $this->subscriptionRows($invoice)->where('amount', '>', 0)->first();
+            if ($existing) {
+                return $existing;
+            }
+
+            $before = Money::of($store->debt_balance);
+            $after = $before->plus($amount);
+
+            $transaction = StoreTransaction::create([
+                'store_id' => $store->id,
+                'type' => StoreTransactionType::SUBSCRIPTION->value,
+                'amount' => $amount->toString(),
+                'balance_before' => $before->toString(),
+                'balance_after' => $after->toString(),
+                'reference_id' => $invoice->uuid,
+                'performed_by' => $performedBy,
+                'notes' => "Subscription invoice {$invoice->number} for {$invoice->period}",
+            ]);
+
+            $update = ['debt_balance' => $after->toString()];
+            $blocked = $this->hasStatus($store, StoreStatus::ACTIVE) && $this->exceedsCreditLimit($store, $after);
+            if ($blocked) {
+                $update['status'] = StoreStatus::PAYMENT_REQUIRED->value;
+            }
+            $store->forceFill($update)->save();
+
+            if ($blocked) {
+                DB::afterCommit(fn () => event(new \App\Events\StoreBalanceLow($store)));
+            }
+
+            return $transaction;
+        });
+    }
+
+    /**
+     * Undo, exactly once, a voided invoice's charge: a negative SUBSCRIPTION row (debt down), unblocking the store
+     * once its debt is back within the credit limit, like a top-up. Null when the invoice was never charged.
+     */
+    public function reverseSubscriptionCharge(\App\Models\SubscriptionInvoice $invoice, ?int $performedBy = null, ?string $reason = null): ?StoreTransaction
+    {
+        return DB::transaction(function () use ($invoice, $performedBy, $reason) {
+            $store = Store::where('id', $invoice->store_id)->lockForUpdate()->firstOrFail();
+
+            $reversal = $this->subscriptionRows($invoice)->where('amount', '<', 0)->first();
+            $charge = $this->subscriptionRows($invoice)->where('amount', '>', 0)->first();
+            if ($reversal || !$charge) {
+                return $reversal;
+            }
+
+            $amount = Money::of($charge->amount);
+            $before = Money::of($store->debt_balance);
+            $after = $before->minus($amount);
+
+            $transaction = StoreTransaction::create([
+                'store_id' => $store->id,
+                'type' => StoreTransactionType::SUBSCRIPTION->value,
+                'amount' => $amount->negated()->toString(),
+                'balance_before' => $before->toString(),
+                'balance_after' => $after->toString(),
+                'reference_id' => $invoice->uuid,
+                'performed_by' => $performedBy,
+                'notes' => "Subscription invoice {$invoice->number} voided" . ($reason !== null && $reason !== '' ? ": {$reason}" : ''),
+            ]);
+
+            $update = ['debt_balance' => $after->toString()];
+            if ($this->hasStatus($store, StoreStatus::PAYMENT_REQUIRED) && !$this->exceedsCreditLimit($store, $after)) {
+                $update['status'] = StoreStatus::ACTIVE->value;
+            }
+            $store->forceFill($update)->save();
+
+            return $transaction;
+        });
+    }
+
+    /**
+     * @return \Illuminate\Database\Eloquent\Builder<StoreTransaction>
+     */
+    private function subscriptionRows(\App\Models\SubscriptionInvoice $invoice): \Illuminate\Database\Eloquent\Builder
+    {
+        return StoreTransaction::where('store_id', $invoice->store_id)
+            ->where('type', StoreTransactionType::SUBSCRIPTION->value)
+            ->where('reference_id', $invoice->uuid);
+    }
+
+    // --- end P1-23 ---
 
     private function minPayoutReserve(Store $store): Money
     {

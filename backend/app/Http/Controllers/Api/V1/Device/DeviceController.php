@@ -51,6 +51,44 @@ class DeviceController extends Controller
         return $this->success($device->toPublicArray(), "Qurilma saqlandi.", $device->wasRecentlyCreated ? 201 : 200);
     }
 
+    /**
+     * PUT /devices/{uuid}/push-token: set the FCM token of one of the user's installs, or clear it with null. The token
+     * is never shown back (the device only reports has_push_token).
+     */
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{uuid: string, type: string, name: string, platform: string|null, app_version: string|null, store_id: int|null, branch_id: int|null, user: array{id: int, name: string, role: string}|null, has_push_token: bool, last_seen_at: string|null, revoked_at: string|null, created_at: string|null}}')]
+    public function updatePushToken(Request $request, string $uuid): JsonResponse
+    {
+        $data = $request->validate([
+            'push_token' => 'present|nullable|string|min:8|max:4096',
+        ]);
+
+        return $this->changePushToken($request, $uuid, $data['push_token']);
+    }
+
+    /**
+     * DELETE /devices/{uuid}/push-token: stop pushes to this install (the app was signed out or notifications were turned off).
+     */
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{uuid: string, type: string, name: string, platform: string|null, app_version: string|null, store_id: int|null, branch_id: int|null, user: array{id: int, name: string, role: string}|null, has_push_token: bool, last_seen_at: string|null, revoked_at: string|null, created_at: string|null}}')]
+    public function clearPushToken(Request $request, string $uuid): JsonResponse
+    {
+        return $this->changePushToken($request, $uuid, null);
+    }
+
+    protected function changePushToken(Request $request, string $uuid, ?string $token): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        $device = Device::where('uuid', $uuid)->where('user_id', $user->id)->active()->first();
+        if (!$device) {
+            return $this->error('Qurilma topilmadi.', [], 404);
+        }
+
+        $this->devices->setPushToken($device, $token);
+
+        return $this->success($device->refresh()->toPublicArray(), $token === null ? "Push xabarlar o'chirildi." : 'Push token saqlandi.');
+    }
+
     public function destroy(Request $request, string $uuid): JsonResponse
     {
         /** @var User $user */

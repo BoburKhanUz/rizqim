@@ -2,7 +2,7 @@ import { NavLink } from 'react-router-dom';
 import { useCartStore } from '../../store/cartStore';
 import { useLanguageStore } from '../../store/languageStore';
 import { selectionChanged } from '../../lib/twa';
-import { cx } from '../ui/cx';
+import { cx } from '@rizqim/ui';
 import type { NavItem } from './navItems';
 
 // The tab bar at the bottom of the dock, for every role (the items come from navItems.ts). It pads itself by the

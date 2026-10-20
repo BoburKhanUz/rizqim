@@ -3,7 +3,7 @@ import { ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguageStore } from '../../store/languageStore';
 import { isTelegramHost } from '../../lib/twa';
-import { IconButton } from './IconButton';
+import { IconButton } from '@rizqim/ui';
 
 interface PageHeaderProps {
   title: ReactNode;

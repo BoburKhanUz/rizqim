@@ -30,7 +30,7 @@ class CourierListService
             });
         }
 
-        return $query->get(['id', 'name', 'phone', 'telegram_username', 'role', 'branch_id'])->map(function ($u) {
+        return $query->get(['id', 'name', 'phone', 'telegram_username', 'role', 'branch_id', 'courier_type'])->map(function ($u) {
             $roleLabel = match($u->role->value ?? $u->role) {
                 'owner' => 'Ega / Owner',
                 'manager' => 'Menejer',
@@ -41,7 +41,9 @@ class CourierListService
                 'name' => "{$u->name} ({$roleLabel})",
                 'phone' => $u->phone,
                 'telegram_username' => $u->telegram_username,
-                'branch_id' => $u->branch_id
+                'branch_id' => $u->branch_id,
+                // P1-24: the restaurant's own courier or the Rizqim fleet
+                'courier_type' => $u->courier_type->value,
             ];
         });
     }

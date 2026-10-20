@@ -10,4 +10,5 @@ enum StoreTransactionType: string
     case PAYOUT = 'payout';         // Platform pays store (wallet down)
     case REFUND = 'refund';         // Order refund
     case ADJUSTMENT = 'adjustment'; // Manual fix
+    case SUBSCRIPTION = 'subscription'; // P1-23: monthly tariff invoice (debt up); its void books a negative row (debt down)
 }

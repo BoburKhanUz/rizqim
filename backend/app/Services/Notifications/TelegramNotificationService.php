@@ -3,7 +3,10 @@
 namespace App\Services\Notifications;
 
 use App\Enums\CancelReason;
+use App\Enums\NotificationChannel;
+use App\Enums\NotificationType;
 use App\Models\Order;
+use App\Services\Push\OrderPushMessages;
 use App\Services\Telegram\TelegramMessenger;
 
 /**
@@ -13,7 +16,10 @@ use App\Services\Telegram\TelegramMessenger;
 class TelegramNotificationService
 {
     public function __construct(
-        protected TelegramMessenger $telegram
+        protected TelegramMessenger $telegram,
+        protected NotificationRouter $router,
+        protected NotificationPreferenceService $preferences,
+        protected OrderPushMessages $pushMessages,
     ) {}
 
     public function sendOrderCreated(Order $order): void
@@ -77,10 +83,11 @@ class TelegramNotificationService
     public function sendOrderStatusChanged(Order $order): void
     {
         $statusValue = $order->status->value ?? $order->status;
-        if (!$this->telegram->isConfigured()) return;
+        // P1-22: without the bot the customer can still get the push, so the Telegram parts are guarded one by one
+        $telegramReady = $this->telegram->isConfigured();
 
         // 1. Notify Customer about status change if they have a telegram_id (the only customer alert of a transition)
-        if ($order->user && $order->user->telegram_id) {
+        if ($order->user && $order->user->telegram_id && $telegramReady) {
             $canceledText = $this->cancelledText($order);
 
             if ($order->type !== 'delivery') {
@@ -145,17 +152,27 @@ class TelegramNotificationService
                 default => null,
             };
 
-            $this->telegram->sendMessage(
-                $order->user->telegram_id,
-                $customerMsg,
-                ['parse_mode' => 'Markdown', 'reply_markup' => $customerKeyboard],
-                $feedType ? ['user_id' => $order->user->id, 'order_id' => $order->id, 'type' => $feedType] : null
-            );
+            // Telegram and the app push, each only if the customer keeps that channel on for order updates
+            $this->router->send($order->user, new NotificationMessage(
+                NotificationType::ORDER_UPDATES,
+                telegram: new TelegramContent(
+                    $customerMsg,
+                    ['parse_mode' => 'Markdown', 'reply_markup' => $customerKeyboard],
+                    $feedType ? ['user_id' => $order->user->id, 'order_id' => $order->id, 'type' => $feedType] : null
+                ),
+                push: $this->pushMessages->forCustomer($order),
+            ));
+        } elseif ($order->user) {
+            // No Telegram to tell (not linked, or the bot is off): the app push alone
+            $this->router->send($order->user, new NotificationMessage(
+                NotificationType::ORDER_UPDATES,
+                push: $this->pushMessages->forCustomer($order),
+            ));
         }
 
         // 2. If the order is sent for delivery, notify courier (or fallback to managers/owners if no courier is assigned).
         //    An assignment (courier_assigned) is announced to the courier by the SendCourierAssignedAlert listener.
-        if ($statusValue === 'delivery' || $statusValue === 'on_the_way') {
+        if ($telegramReady && ($statusValue === 'delivery' || $statusValue === 'on_the_way')) {
             $recipients = [];
             
             if ($order->courier && $order->courier->telegram_id) {
@@ -323,8 +340,16 @@ class TelegramNotificationService
         $message .= "\n";
         
         foreach ($order->items as $item) {
-            $variant = $item->variant_name ? " ({$item->variant_name})" : "";
-            $message .= "🍔 {$item->quantity}x {$item->product_name}{$variant}\n";
+            // P1-21: "2x Osh (Qazi)", "1.5 kg Somsa": weight and modifiers as sold
+            $message .= "🍔 {$item->displayLine()}\n";
+        }
+
+        // P1-21: the POS hall's service charge and place fee, as their own lines when charged
+        foreach (['service_charge_amount' => '🧾 Xizmat haqi', 'place_fee_amount' => '🪑 Joy narxi'] as $column => $label) {
+            $amount = \App\Support\Money::of($order->{$column} ?? 0);
+            if ($amount->isPositive()) {
+                $message .= "{$label}: " . number_format($amount->toFloat(), 0, '.', ' ') . " UZS\n";
+            }
         }
         
         $message .= "\n⏰ " . $order->created_at->format('H:i');
@@ -471,7 +496,10 @@ class TelegramNotificationService
         }
 
         foreach ($staff as $user) {
-            $chatIds[] = (string) $user->telegram_id;
+            // Staff who switched Telegram off for new orders (P1-22) get the app push only
+            if ($this->preferences->allows($user, NotificationType::STAFF_NEW_ORDER, NotificationChannel::TELEGRAM)) {
+                $chatIds[] = (string) $user->telegram_id;
+            }
         }
 
         return array_values(array_unique($chatIds));

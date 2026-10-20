@@ -1,0 +1,14 @@
+# Dart workspace (pub workspaces, Dart >= 3.6): one pubspec.lock and one `dart pub get` for every Dart package.
+# New Flutter apps (cashier, waiter, customer_display, courier, partner/mobile, customer/mobile) are added to the
+# list below as they appear. See packages/dart/README.md.
+name: rizqim_workspace
+publish_to: none
+
+environment:
+  sdk: ^3.13.0
+
+workspace:
+  - packages/dart/rizqim_core
+  - packages/dart/rizqim_api
+  - packages/dart/rizqim_ui
+  - pos/apps/kds

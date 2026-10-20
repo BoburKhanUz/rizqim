@@ -1,0 +1,6 @@
+include: ../../../analysis_options.yaml
+
+analyzer:
+  errors:
+    # swagger_parser output (lib/src/generated) casts where Dart no longer needs to; errors there still fail the build
+    unnecessary_cast: ignore

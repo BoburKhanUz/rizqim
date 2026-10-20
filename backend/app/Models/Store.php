@@ -492,4 +492,46 @@ class Store extends Model
     {
         return $this->hasMany(StoreRating::class);
     }
+
+    // --- P1-23: tariffs and subscription billing (docs/BILLING.md) ---
+
+    /**
+     * The commission percentage charged on this store's online orders: the current tariff plan's when the plan sets
+     * one, otherwise the store's own commission_rate (10 when unset), exactly as before plans existed.
+     * CreateOrderAction snapshots it on each order and the ledger charges that snapshot.
+     *
+     * @return numeric-string
+     */
+    public function commissionRate(): string
+    {
+        $planRate = $this->exists
+            ? TariffPlan::query()
+                ->whereIn('id', StoreSubscription::query()->current()->where('store_id', $this->id)->select('tariff_plan_id'))
+                ->value('commission_percent')
+            : null;
+
+        $rate = (string) ($planRate ?? $this->commission_rate ?? 10);
+
+        return is_numeric($rate) ? $rate : '10';
+    }
+
+    /**
+     * Every subscription the store has had, the current one included.
+     *
+     * @return HasMany<StoreSubscription, $this>
+     */
+    public function subscriptions(): HasMany
+    {
+        return $this->hasMany(StoreSubscription::class);
+    }
+
+    /**
+     * @return HasMany<SubscriptionInvoice, $this>
+     */
+    public function subscriptionInvoices(): HasMany
+    {
+        return $this->hasMany(SubscriptionInvoice::class);
+    }
+
+    // --- end P1-23 ---
 }

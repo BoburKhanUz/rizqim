@@ -1,12 +1,18 @@
+# The build context is the REPOSITORY ROOT (docker-compose.yml: context ".", dockerfile customer/miniapp/Dockerfile),
+# because the app links the shared UI package from packages/ts/ui (package.json: "@rizqim/ui": "file:../../packages/ts/ui").
+# Which files enter the context: customer/miniapp/Dockerfile.dockerignore.
+
 # Node 22 LTS, as CI: the locked vitest 5 needs Node ^22.12 (npm ci warns on Node 20)
 FROM node:22-alpine AS build
-WORKDIR /app
+# Same layout as in the repository, so the relative file: link resolves
+WORKDIR /app/customer/miniapp
 
-COPY package.json package-lock.json ./
+COPY packages/ts/ui /app/packages/ts/ui
+COPY customer/miniapp/package.json customer/miniapp/package-lock.json ./
 # puppeteer (devDependency of the manual test-browser.js script only) would download Chrome during install
 RUN PUPPETEER_SKIP_DOWNLOAD=1 npm ci
 
-COPY . .
+COPY customer/miniapp ./
 
 ARG VITE_BOT_USERNAME=rizqimbot
 ARG VITE_API_URL=/api/v1
@@ -40,8 +46,8 @@ ENV VITE_REVERB_SCHEME="$VITE_REVERB_SCHEME"
 RUN npm run build
 
 FROM nginx:1.27-alpine
-COPY --from=build /app/dist /usr/share/nginx/html
-COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/customer/miniapp/dist /usr/share/nginx/html
+COPY customer/miniapp/docker/nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]

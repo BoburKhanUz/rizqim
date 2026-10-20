@@ -71,7 +71,8 @@ Route::prefix('v1')->group(function () {
         Route::get('/orders', [\App\Http\Controllers\Api\V1\Order\OrderController::class, 'index']);
         Route::get('/notifications', [\App\Http\Controllers\Api\V1\Order\OrderController::class, 'notifications']);
         Route::post('/notifications/read', [\App\Http\Controllers\Api\V1\Order\OrderController::class, 'markNotificationsRead']);
-        Route::post('/orders', [\App\Http\Controllers\Api\V1\Order\OrderController::class, 'store'])->middleware('throttle:orders');
+        // P1-21: an Idempotency-Key header makes a retried checkout return the first order instead of placing another
+        Route::post('/orders', [\App\Http\Controllers\Api\V1\Order\OrderController::class, 'store'])->middleware(['throttle:orders', \App\Http\Middleware\EnsureIdempotency::class . ':orders.store']);
         Route::post('/orders/{uuid}/complete', [\App\Http\Controllers\Api\V1\Order\OrderController::class, 'complete']);
         Route::post('/orders/{uuid}/cancel', [\App\Http\Controllers\Api\V1\Order\OrderController::class, 'cancel'])->middleware('throttle:order-cancel');
         Route::post('/orders/{uuid}/status', [\App\Http\Controllers\Api\V1\Order\OrderController::class, 'updateStatus']);
@@ -145,6 +146,16 @@ Route::prefix('v1')->group(function () {
     Route::post('/telegram/webhook', [\App\Http\Controllers\Api\V1\Telegram\TelegramWebhookController::class, 'handle'])
         ->middleware(\App\Http\Middleware\VerifyTelegramSecretToken::class);
 
+    // P1-24: delivery zones and the delivery quote (public, read-only; docs/ZONES.md)
+    Route::get('/stores/{store}/zones', [\App\Http\Controllers\Api\V1\Delivery\DeliveryZoneController::class, 'index'])->middleware('throttle:delivery-zones');
+    Route::get('/delivery/quote', [\App\Http\Controllers\Api\V1\Delivery\DeliveryZoneController::class, 'quote'])->middleware('throttle:delivery-quote');
+
     // P1-12: refresh tokens, devices, terminal pairing, staff PIN sessions, permissions, audit log
     require __DIR__ . '/api_access.php';
+
+    // P1-21: menu model: availability, modifiers, batches, stop-list, channel prices, service fees (docs/MENU.md)
+    require __DIR__ . '/api_menu.php';
+
+    // P1-23: tariff plan and subscription invoices for the owner (docs/BILLING.md)
+    require __DIR__ . '/api_billing.php';
 });

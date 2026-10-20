@@ -27,6 +27,10 @@ class ModelCastDocblocksTest extends TestCase
         Models\ProductVariant::class,
         Models\Store::class,
         Models\User::class,
+        // P1-23
+        Models\StoreSubscription::class,
+        Models\SubscriptionInvoice::class,
+        Models\TariffPlan::class,
     ];
 
     public function test_every_cast_from_a_casts_method_has_a_matching_property_tag(): void
