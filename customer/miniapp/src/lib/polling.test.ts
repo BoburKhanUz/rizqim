@@ -117,7 +117,7 @@ describe('pollingQueryOptions', () => {
       customerOrders: 10_000,
       managerOrders: 8_000,
       courierOrders: 15_000,
-      adminOrders: 15_000,
+      ownerAnalytics: 60_000,
       notifications: 15_000,
       ownerFinance: 10_000,
     });

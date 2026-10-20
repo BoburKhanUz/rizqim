@@ -10,7 +10,6 @@ import { failedRequest } from '../test/httpErrors';
 import { ordersResponse, serveOrdersApi } from '../test/ordersApi';
 import type { Order } from '../types';
 import { ORDERS_KEY, fetchActiveOrders, fetchOrdersPage, mergeOrders, refetchOrders, useOrderHistory, useOrders } from './useOrders';
-import { useOrdersForPeriod } from './useOrdersForPeriod';
 
 vi.mock('../lib/telegram', () => ({ hapticFeedback: vi.fn(), tg: { initDataUnsafe: {} } }));
 vi.mock('../services/api', () => ({ default: { get: vi.fn() } }));
@@ -202,48 +201,32 @@ describe('useOrderHistory', () => {
     get.mockImplementation(serveOrdersApi(finished(30)));
     const since = new Date(2026, 9, 14, 12 - 9, 0, 0).getTime() + 2 * 24 * 3600 * 1000;
 
-    const { result } = renderHook(() => useOrderHistory('admin', { pageSize: 5, since }), { wrapper });
+    const { result } = renderHook(() => useOrderHistory('manager', { pageSize: 5, since }), { wrapper });
     await settle(100);
 
     // pages hold hours 0-4, 5-9 (its oldest is exactly 03:00, not older) and 10-14 (older): loading stops after the third
     expect(result.current.orders).toHaveLength(15);
     expect(result.current.hasNextPage).toBe(true);
-    expect(result.current.capped).toBe(false);
     expect(callsWith('history')).toHaveLength(3);
   });
 
-  it('stops at its page limit and says it was capped', async () => {
+  it('stops at its page limit', async () => {
     get.mockImplementation(serveOrdersApi(finished(40)));
     const since = new Date(2020, 0, 1).getTime();
 
-    const { result } = renderHook(() => useOrderHistory('admin', { pageSize: 5, since, maxAutoPages: 3 }), { wrapper });
+    const { result } = renderHook(() => useOrderHistory('manager', { pageSize: 5, since, maxAutoPages: 3 }), { wrapper });
     await settle(100);
 
     expect(callsWith('history')).toHaveLength(3);
     expect(result.current.orders).toHaveLength(15);
-    expect(result.current.capped).toBe(true);
-  });
-
-  it('says the period is partial when loading stopped on an error before reaching `since`', async () => {
-    vi.spyOn(console, 'error').mockImplementation(() => {});
-    const orders = finished(30);
-    get.mockImplementation((_url, config) =>
-      (config?.params as { cursor?: string })?.cursor ? Promise.reject(failedRequest(500, {}, '/orders')) : Promise.resolve(ordersResponse(orders, config)),
-    );
-
-    const { result } = renderHook(() => useOrderHistory('admin', { pageSize: 5, since: new Date(2020, 0, 1).getTime() }), { wrapper });
-    await settle(10_000);
-
-    expect(result.current.isError).toBe(true);
-    expect(result.current.orders).toHaveLength(5);
-    expect(result.current.capped).toBe(true);
+    expect(result.current.hasNextPage).toBe(true);
   });
 
   it('does not keep loading after a failure', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     get.mockRejectedValue(failedRequest(500, {}, '/orders'));
 
-    renderHook(() => useOrderHistory('admin', { pageSize: 5, since: new Date(2020, 0, 1).getTime() }), { wrapper });
+    renderHook(() => useOrderHistory('manager', { pageSize: 5, since: new Date(2020, 0, 1).getTime() }), { wrapper });
     await settle(60_000);
 
     expect(callsWith('history').length).toBeLessThanOrEqual(2); // the request and its one retry
@@ -264,7 +247,7 @@ describe('useOrderHistory: refetches while pages load', () => {
 
   it('does not cancel a refetch of the loaded pages to load the next one', async () => {
     serveSlowly(30);
-    const { result } = renderHook(() => useOrderHistory('admin', { pageSize: 5, since: new Date(2020, 0, 1).getTime() }), { wrapper });
+    const { result } = renderHook(() => useOrderHistory('manager', { pageSize: 5, since: new Date(2020, 0, 1).getTime() }), { wrapper });
     await settle(350); // three pages in, the fourth on its way
 
     // The data changes and something refetches the orders (as a mutation does), cancelling the page on its way
@@ -323,33 +306,6 @@ describe('refetchOrders', () => {
     await act(() => refetchOrders(client, ORDERS_KEY));
 
     expect(callsWith('active')).toHaveLength(2);
-  });
-});
-
-describe('useOrdersForPeriod', () => {
-  it('puts the open orders and the finished ones of the period in one list', async () => {
-    const open = makeOrder({ id: 100, uuid: '99999999-9999-4999-8999-999999999999', status: 'preparing' });
-    get.mockImplementation(serveOrdersApi([open, ...finished(3)]));
-
-    const { result } = renderHook(() => useOrdersForPeriod('today'), { wrapper });
-    await settle(100);
-
-    expect(result.current.orders.map((o) => o.id).sort((a, b) => a - b)).toEqual([1, 2, 3, 100]);
-    expect(result.current.truncated).toBe(false);
-    expect(result.current.capped).toBe(false);
-  });
-
-  it('passes on that the open orders were cut off', async () => {
-    get.mockImplementation((_url, config) => {
-      const response = ordersResponse([], config);
-      if ((config?.params as { scope?: string })?.scope === 'active') response.data.meta = { truncated: true } as typeof response.data.meta;
-      return Promise.resolve(response);
-    });
-
-    const { result } = renderHook(() => useOrdersForPeriod('today'), { wrapper });
-    await settle(100);
-
-    expect(result.current.truncated).toBe(true);
   });
 });
 

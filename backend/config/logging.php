@@ -23,6 +23,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Incoming X-Request-Id
+    |--------------------------------------------------------------------------
+    |
+    | Off: every request gets a generated id and a client's X-Request-Id is ignored. On: an id set by a trusted proxy
+    | hop (the Mini App nginx sets it from its own $request_id) is kept, so its access log and the backend log share it.
+    | Turn it on only when every request reaches the backend through that proxy.
+    |
+    */
+
+    'trust_incoming_request_id' => (bool) env('TRUST_INCOMING_REQUEST_ID', false),
+
+    /*
+    |--------------------------------------------------------------------------
     | Deprecations Log Channel
     |--------------------------------------------------------------------------
     |

@@ -16,7 +16,6 @@ import { getApiFieldError, logApiError } from '../lib/apiError';
 import { formatMoney } from '../lib/format';
 import { showAlert, showConfirm } from '../lib/dialogs';
 import { NotificationBell } from '../components/catalog/NotificationBell';
-import { useCopy } from '../lib/customerCopy';
 import { useLanguageStore } from '../store/languageStore';
 import { Button, Card, IconButton, PageHeader, Section, cx, fieldClass } from '../components/ui';
 import { normalizeUser } from '../lib/user';
@@ -48,8 +47,8 @@ const EMPTY_LOCATION: AddressLocationValue = { address: '', lat: null, lng: null
 
 export default function CustomerProfile() {
   const navigate = useNavigate();
-  const c = useCopy();
   const language = useLanguageStore((state) => state.language);
+  const t = useLanguageStore((state) => state.t);
   const { user, updateUser, smsVerificationRequired, setSmsVerificationRequired } = useAuthStore();
   const { addresses, deleteAddress, addAddress, updateAddress, selectedAddressId, setSelectedAddressId } = useAddressStore();
 
@@ -117,7 +116,7 @@ export default function CustomerProfile() {
   }, [updateUser, setSmsVerificationRequired]);
 
   const username = user?.telegram_username ? `@${user.telegram_username}` : "";
-  const userFullName = user?.name || c('profileGuest');
+  const userFullName = user?.name || t('profileGuest');
 
   // `phoneToSave` is null when the saved phone must stay untouched (it only changes through the SMS flow)
   const saveProfile = async (phoneToSave: string | null) => {
@@ -140,7 +139,7 @@ export default function CustomerProfile() {
       if (phoneMessage) {
         setPhoneError(phoneMessage);
       } else {
-        void showAlert(c('profileSaveError'));
+        void showAlert(t('profileSaveError'));
       }
     } finally {
       setIsSavingProfile(false);
@@ -164,7 +163,7 @@ export default function CustomerProfile() {
     const change = classifyPhoneChange(editPhone, user?.phone);
     if (change.kind === 'invalid' || change.kind === 'cleared') {
       hapticFeedback('error');
-      setPhoneError(change.kind === 'invalid' ? c('profilePhoneInvalid') : c('profilePhoneCleared'));
+      setPhoneError(change.kind === 'invalid' ? t('profilePhoneInvalid') : t('profilePhoneCleared'));
       return;
     }
     if (change.kind === 'changed') {
@@ -244,7 +243,7 @@ export default function CustomerProfile() {
 
   const handleDeleteAddress = async (id: number) => {
     hapticFeedback('medium');
-    if (!(await showConfirm(c('addressDeleteConfirm'), { destructive: true, confirmText: c('addressDeleteAction') }))) return;
+    if (!(await showConfirm(t('addressDeleteConfirm'), { destructive: true, confirmText: t('addressDeleteAction') }))) return;
     if (editingAddressId === id) resetAddressForm();
     deleteAddress(id);
     hapticFeedback('success');
@@ -271,17 +270,17 @@ export default function CustomerProfile() {
       )}
 
       <PageHeader
-        title={c('profileTitle')}
+        title={t('profileTitle')}
         action={<NotificationBell />}
       />
 
       <Card>
         {isEditingProfile ? (
           <form onSubmit={handleUpdateProfile} className="flex flex-col gap-3">
-            <h2 className="text-headline font-bold text-fg">{c('profileInfo')}</h2>
+            <h2 className="text-headline font-bold text-fg">{t('profileInfo')}</h2>
             <div className="flex flex-col gap-1.5">
               <label htmlFor={nameFieldId} className="text-footnote font-bold text-fg-muted">
-                {c('profileName')}
+                {t('profileName')}
               </label>
               <input
                 id={nameFieldId}
@@ -295,7 +294,7 @@ export default function CustomerProfile() {
             </div>
             <div className="flex flex-col gap-1.5">
               <label htmlFor={phoneFieldId} className="text-footnote font-bold text-fg-muted">
-                {c('profilePhone')}
+                {t('profilePhone')}
               </label>
               <input
                 id={phoneFieldId}
@@ -315,7 +314,7 @@ export default function CustomerProfile() {
                   {phoneError}
                 </p>
               ) : (
-                smsVerificationRequired && <p className="text-footnote text-fg-muted">{c('profilePhoneHint')}</p>
+                smsVerificationRequired && <p className="text-footnote text-fg-muted">{t('profilePhoneHint')}</p>
               )}
             </div>
             <div className="flex gap-2 pt-1 [&>*]:flex-1">
@@ -328,10 +327,10 @@ export default function CustomerProfile() {
                   setEditPhone(user?.phone || '');
                 }}
               >
-                {c('cancel')}
+                {t('cancel')}
               </Button>
               <Button type="submit" loading={isSavingProfile}>
-                {isSavingProfile ? c('saving') : c('save')}
+                {isSavingProfile ? t('saving') : t('save')}
               </Button>
             </div>
           </form>
@@ -350,13 +349,13 @@ export default function CustomerProfile() {
               {completedOrdersCount >= 3 && (
                 <span className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-brand-soft px-2.5 py-1 text-caption font-bold text-brand-soft-fg">
                   <Crown aria-hidden="true" className="size-3.5" />
-                  {c('profilePremium')}
+                  {t('profilePremium')}
                 </span>
               )}
             </div>
             <IconButton
               icon={Pencil}
-              label={c('profileEdit')}
+              label={t('profileEdit')}
               variant="brand"
               onClick={() => {
                 hapticFeedback('light');
@@ -369,41 +368,41 @@ export default function CustomerProfile() {
 
       <div className="grid grid-cols-2 gap-3">
         <Card>
-          <span className="block text-footnote text-fg-muted">{c('profileCashback')}</span>
+          <span className="block text-footnote text-fg-muted">{t('profileCashback')}</span>
           <p className="mt-1 text-headline font-bold text-fg">{formatMoney(user?.balance ?? 0, language)}</p>
         </Card>
         <Card>
-          <span className="block text-footnote text-fg-muted">{c('profileOrdersLabel')}</span>
+          <span className="block text-footnote text-fg-muted">{t('profileOrdersLabel')}</span>
           <p className="mt-1 text-headline font-bold text-fg">
-            {c('profileOrdersCount', { n: `${completedOrdersCount}${hasMoreOrders ? '+' : ''}` })}
+            {t('profileOrdersCount', { n: `${completedOrdersCount}${hasMoreOrders ? '+' : ''}` })}
           </p>
         </Card>
       </div>
 
       <Card className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-3">
-          <h2 className="text-headline font-bold text-fg">{c('addressesTitle')}</h2>
+          <h2 className="text-headline font-bold text-fg">{t('addressesTitle')}</h2>
           <Button variant="secondary" icon={isAdding ? X : Plus} onClick={handleToggleAddressForm}>
-            {isAdding ? c('cancel') : c('addressNew')}
+            {isAdding ? t('cancel') : t('addressNew')}
           </Button>
         </div>
 
         {isAdding && (
           <form onSubmit={handleSaveAddressSubmit} className="flex flex-col gap-3 rounded-card bg-surface-2 p-4">
-            <h3 className="text-body font-bold text-fg">{editingAddressId !== null ? c('addressEditTitle') : c('addressNewTitle')}</h3>
+            <h3 className="text-body font-bold text-fg">{editingAddressId !== null ? t('addressEditTitle') : t('addressNewTitle')}</h3>
             <input
               type="text"
               required
-              aria-label={c('addressTitlePlaceholder')}
+              aria-label={t('addressTitlePlaceholder')}
               value={addressTitle}
               onChange={(e) => setAddressTitle(e.target.value)}
-              placeholder={c('addressTitlePlaceholder')}
+              placeholder={t('addressTitlePlaceholder')}
               className={fieldClass}
             />
 
             <select
               required
-              aria-label={c('addressRegion')}
+              aria-label={t('addressRegion')}
               disabled={activeRegions.length === 1}
               value={regionId}
               onChange={(e) => {
@@ -413,7 +412,7 @@ export default function CustomerProfile() {
               }}
               className={fieldClass}
             >
-              {activeRegions.length > 1 && <option value="">{c('addressRegion')}</option>}
+              {activeRegions.length > 1 && <option value="">{t('addressRegion')}</option>}
               {activeRegions.map((reg) => (
                 <option key={reg.id} value={reg.id}>
                   {reg.name}
@@ -423,7 +422,7 @@ export default function CustomerProfile() {
 
             <select
               required
-              aria-label={c('addressDistrict')}
+              aria-label={t('addressDistrict')}
               disabled={!regionId || activeDistsForRegion.length === 1}
               value={districtId}
               onChange={(e) => {
@@ -432,7 +431,7 @@ export default function CustomerProfile() {
               }}
               className={fieldClass}
             >
-              {activeDistsForRegion.length > 1 && <option value="">{c('addressDistrict')}</option>}
+              {activeDistsForRegion.length > 1 && <option value="">{t('addressDistrict')}</option>}
               {activeDistsForRegion.map((dist) => (
                 <option key={dist.id} value={dist.id}>
                   {dist.name}
@@ -445,28 +444,28 @@ export default function CustomerProfile() {
 
             <input
               type="text"
-              aria-label={c('addressApartment')}
+              aria-label={t('addressApartment')}
               value={apartmentValue}
               onChange={(e) => setApartmentValue(e.target.value)}
-              placeholder={c('addressApartment')}
+              placeholder={t('addressApartment')}
               className={fieldClass}
             />
             <input
               type="text"
-              aria-label={c('addressCourierNote')}
+              aria-label={t('addressCourierNote')}
               value={commentValue}
               onChange={(e) => setCommentValue(e.target.value)}
-              placeholder={c('addressCourierNote')}
+              placeholder={t('addressCourierNote')}
               className={fieldClass}
             />
             <Button type="submit" fullWidth disabled={!locationPoint}>
-              {editingAddressId !== null ? c('addressSaveChanges') : c('addressSave')}
+              {editingAddressId !== null ? t('addressSaveChanges') : t('addressSave')}
             </Button>
-            {!locationPoint && <p className="-mt-1 text-center text-footnote text-fg-muted">{c('addressPinHint')}</p>}
+            {!locationPoint && <p className="-mt-1 text-center text-footnote text-fg-muted">{t('addressPinHint')}</p>}
           </form>
         )}
 
-        {addresses.length === 0 && !isAdding && <p className="text-footnote text-fg-muted">{c('addressNone')}</p>}
+        {addresses.length === 0 && !isAdding && <p className="text-footnote text-fg-muted">{t('addressNone')}</p>}
 
         <ul className="flex flex-col gap-2">
           {addresses.map((addr) => {
@@ -482,7 +481,7 @@ export default function CustomerProfile() {
                 <button
                   type="button"
                   aria-pressed={selected}
-                  aria-label={`${c('addressSelect')}: ${addr.title}`}
+                  aria-label={`${t('addressSelect')}: ${addr.title}`}
                   onClick={() => {
                     selectionChanged();
                     setSelectedAddressId(addr.id);
@@ -498,21 +497,21 @@ export default function CustomerProfile() {
                       {addr.address}
                     </span>
                     {toLatLng(addr.lat, addr.lng) === null && (
-                      <span className="mt-1 block text-footnote font-medium text-danger-soft-fg">{c('addressNoPin')}</span>
+                      <span className="mt-1 block text-footnote font-medium text-danger-soft-fg">{t('addressNoPin')}</span>
                     )}
                   </span>
                 </button>
-                <IconButton icon={Pencil} label={c('addressEdit')} onClick={() => handleEditAddress(addr)} />
-                <IconButton icon={Trash2} label={c('addressDelete')} onClick={() => void handleDeleteAddress(addr.id)} />
+                <IconButton icon={Pencil} label={t('addressEdit')} onClick={() => handleEditAddress(addr)} />
+                <IconButton icon={Trash2} label={t('addressDelete')} onClick={() => void handleDeleteAddress(addr.id)} />
               </li>
             );
           })}
         </ul>
       </Card>
 
-      <Section title={c('inviteTitle')}>
+      <Section title={t('inviteTitle')}>
         <Card className="flex flex-col gap-3">
-          <p className="text-footnote text-fg">{c('inviteText', { amount: formatMoney(5000, language) })}</p>
+          <p className="text-footnote text-fg">{t('inviteText', { amount: formatMoney(5000, language) })}</p>
           {user?.id && (
             <div className="flex items-center justify-between gap-3 rounded-control bg-surface-2 py-1 pl-3 pr-1">
               <span className="select-text text-body font-medium text-fg-muted">rizqim_{user.id}</span>
@@ -523,7 +522,7 @@ export default function CustomerProfile() {
                   hapticFeedback('success');
                   const botUsername = import.meta.env.VITE_BOT_USERNAME || 'rizqimbot';
                   const refLink = `https://t.me/${botUsername}?start=rizqim_${user.id}`;
-                  const text = encodeURIComponent(c('inviteMessage'));
+                  const text = encodeURIComponent(t('inviteMessage'));
                   const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${text}`;
 
                   if (typeof window !== 'undefined' && window.Telegram?.WebApp) {
@@ -533,7 +532,7 @@ export default function CustomerProfile() {
                   }
                 }}
               >
-                {c('inviteShare')}
+                {t('inviteShare')}
               </Button>
             </div>
           )}
@@ -550,7 +549,7 @@ export default function CustomerProfile() {
           className="flex min-h-14 w-full cursor-pointer items-center gap-3 rounded-card px-4 text-left text-body font-medium text-fg focus-visible:outline-2 focus-visible:outline-brand"
         >
           <LifeBuoy aria-hidden="true" className="size-5 shrink-0 text-brand" />
-          <span className="flex-1">{c('supportRow')}</span>
+          <span className="flex-1">{t('supportRow')}</span>
           <ChevronRight aria-hidden="true" className="size-5 shrink-0 text-fg-muted" />
         </button>
       </Card>

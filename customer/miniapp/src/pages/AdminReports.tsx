@@ -7,10 +7,8 @@ import { Activity, CheckCircle2, Download, FileSpreadsheet, XCircle } from 'luci
 import api from '../services/api';
 import { getApiErrorMessage } from '../lib/apiError';
 import { notificationOccurred } from '../lib/twa';
-import { isInTimeframe, type Timeframe } from '../lib/analytics';
-import { sumAmounts } from '../lib/money';
-import { useOrdersForPeriod } from '../hooks/useOrdersForPeriod';
-import { PartialPeriodNotice, TruncatedOrdersNotice } from '../components/OrderListParts';
+import { MAX_CUSTOM_DAYS, toDateInputValue, type Timeframe } from '../lib/analytics';
+import { useOwnerAnalytics } from '../hooks/useOwnerAnalytics';
 import type { ApiResponse } from '../types';
 
 // POST /reports/export
@@ -24,8 +22,8 @@ export default function AdminReports() {
   const { language } = useLanguageStore();
   const uz = language === 'uz';
   const [timeframe, setTimeframe] = useState<Timeframe>('today');
-  const [startDate, setStartDate] = useState<string>(new Date().toISOString().split('T')[0]);
-  const [endDate, setEndDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [startDate, setStartDate] = useState<string>(() => toDateInputValue(new Date()));
+  const [endDate, setEndDate] = useState<string>(() => toDateInputValue(new Date()));
   const [isExporting, setIsExporting] = useState(false);
   const [exportMessage, setExportMessage] = useState<{ text: string; ok: boolean } | null>(null);
   const clearMessageTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -33,9 +31,9 @@ export default function AdminReports() {
   // The message disappears after a few seconds; the timer must not outlive the screen
   useEffect(() => () => clearTimeout(clearMessageTimer.current), []);
 
-  // The store's open orders (refreshed in the background while the screen is visible) and the finished ones of the timeframe
+  // The server's figures for the timeframe: one request, refreshed every minute while the screen is visible
   const dateRange = useMemo(() => ({ start: startDate, end: endDate }), [startDate, endDate]);
-  const { orders, isLoading, error, dataUpdatedAt, truncated, capped, refetch, isRefetching } = useOrdersForPeriod(timeframe, timeframe === 'custom' ? dateRange : undefined);
+  const { data, isLoading, error, refetch, isRefetching, rangeProblem } = useOwnerAnalytics(timeframe, timeframe === 'custom' ? dateRange : undefined);
 
   const handleExportReport = async () => {
     setIsExporting(true);
@@ -63,23 +61,11 @@ export default function AdminReports() {
     clearMessageTimer.current = setTimeout(() => setExportMessage(null), 6000);
   };
 
-  // Orders of the timeframe, measured from the time of the last refresh so the periods move on with the data
-  const { filteredOrders, deliveredOrders, canceledOrders, totalRevenue } = useMemo(() => {
-    const filtered = orders.filter((o) => isInTimeframe(o.updated_at, timeframe, dataUpdatedAt, dateRange));
-    const delivered = filtered.filter((o) => o.status === 'delivered');
-    return {
-      filteredOrders: filtered,
-      deliveredOrders: delivered,
-      canceledOrders: filtered.filter((o) => o.status === 'canceled'),
-      totalRevenue: sumAmounts(delivered.map((o) => o.total_price)),
-    };
-  }, [orders, timeframe, dateRange, dataUpdatedAt]);
-
   const title = uz ? 'Hisobotlar' : 'Отчёты';
   const subtitle = uz ? 'Tushum va Excel hisobot' : 'Выручка и отчёт Excel';
 
   // A failed background refresh keeps showing the last numbers; the error screen is only for "nothing to show"
-  if (error && orders.length === 0) {
+  if (error && !data) {
     return (
       <div className="flex flex-col gap-3 px-4 pt-2">
         <PageHeader title={title} subtitle={subtitle} />
@@ -88,11 +74,13 @@ export default function AdminReports() {
     );
   }
 
-  const successRate = filteredOrders.length > 0
-    ? Math.round((deliveredOrders.length / filteredOrders.length) * 100)
-    : 100;
+  const totalRevenue = data?.summary.revenue ?? 0;
+  const deliveredCount = data?.summary.delivered_count ?? 0;
+  const canceledCount = data?.summary.canceled_count ?? 0;
+  const ordersCount = data?.summary.orders_count ?? 0;
+  const successRate = ordersCount > 0 ? Math.round((deliveredCount / ordersCount) * 100) : 100;
 
-  const loading = isLoading && orders.length === 0;
+  const loading = isLoading && !data;
   // The value, or a grey block of the same size while the first load runs
   const renderValue = (value: ReactNode, widthClass = 'w-20') => (loading ? <Skeleton className={`inline-block h-5 ${widthClass}`} /> : value);
 
@@ -129,8 +117,15 @@ export default function AdminReports() {
         </Card>
       )}
 
-      {truncated && <TruncatedOrdersNotice />}
-      {capped && <PartialPeriodNotice />}
+      {rangeProblem && (
+        <p role="alert" className="rounded-card bg-warning-soft px-4 py-3 text-footnote text-warning-soft-fg">
+          {rangeProblem === 'too_long'
+            ? uz ? `Davr ko'pi bilan ${MAX_CUSTOM_DAYS} kun bo'lishi mumkin.` : `Период — не более ${MAX_CUSTOM_DAYS} дней.`
+            : rangeProblem === 'reversed'
+              ? uz ? "Tugash sanasi boshlanish sanasidan oldin bo'lishi mumkin emas." : 'Дата окончания не может быть раньше даты начала.'
+              : uz ? 'Davrning boshlanish va tugash sanalarini kiriting.' : 'Укажите даты начала и окончания периода.'}
+        </p>
+      )}
 
       {/* The revenue of the period */}
       <section aria-label={revenueLabel[timeframe]} className="flex flex-col gap-1 rounded-sheet bg-brand p-5 text-on-brand">
@@ -179,7 +174,7 @@ export default function AdminReports() {
             <CheckCircle2 aria-hidden="true" className="size-4 text-success" />
             {uz ? 'Muvaffaqiyatli' : 'Успешные'}
           </span>
-          <span className="text-title font-bold text-fg">{renderValue(`${deliveredOrders.length} ${uz ? 'ta' : 'шт'}`, 'w-16')}</span>
+          <span className="text-title font-bold text-fg">{renderValue(`${deliveredCount} ${uz ? 'ta' : 'шт'}`, 'w-16')}</span>
         </Card>
 
         <Card className="flex flex-col gap-1">
@@ -187,7 +182,7 @@ export default function AdminReports() {
             <XCircle aria-hidden="true" className="size-4 text-danger" />
             {uz ? 'Bekor qilingan' : 'Отмененные'}
           </span>
-          <span className="text-title font-bold text-fg">{renderValue(`${canceledOrders.length} ${uz ? 'ta' : 'шт'}`, 'w-16')}</span>
+          <span className="text-title font-bold text-fg">{renderValue(`${canceledCount} ${uz ? 'ta' : 'шт'}`, 'w-16')}</span>
         </Card>
 
         <Card className="col-span-2 flex flex-col gap-2">

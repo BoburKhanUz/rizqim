@@ -3,11 +3,13 @@
 namespace App\Http\Controllers\Api\V1\Telegram;
 
 use App\Http\Controllers\Controller;
+use Dedoc\Scramble\Attributes\Group;
 use App\Services\Telegram\TelegramCallbackHandler;
 use App\Services\Telegram\TelegramMessageHandler;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
+#[Group('Webhooks')]
 class TelegramWebhookController extends Controller
 {
     public function __construct(
@@ -15,6 +17,12 @@ class TelegramWebhookController extends Controller
         protected TelegramCallbackHandler $callbacks
     ) {}
 
+    /**
+     * Telegram bot updates
+     *
+     * Telegram Bot API webhook: messages (/start, shared contacts) and inline-button callbacks. Requires the
+     * `X-Telegram-Bot-Api-Secret-Token` header set when the webhook was registered.
+     */
     public function handle(Request $request)
     {
         $update = $request->all();

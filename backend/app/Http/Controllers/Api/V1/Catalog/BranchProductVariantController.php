@@ -3,17 +3,23 @@
 namespace App\Http\Controllers\Api\V1\Catalog;
 
 use App\Http\Controllers\Controller;
+use Dedoc\Scramble\Attributes\Group;
+use Dedoc\Scramble\Attributes\QueryParameter;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use App\Traits\ApiResponse;
 
+#[Group('Owner: branch availability', "Filial bo'yicha mahsulot variantlarini yoqish/o'chirish (ega, menejer).")]
 class BranchProductVariantController extends Controller
 {
     use ApiResponse;
 
     /**
      * List all products and variants with their branch override settings.
+     *
+     * A manager always gets their own branch; an owner must send `branch_id` (422 without it).
      */
+    #[QueryParameter('branch_id', description: 'Owner: the branch to list (required). Ignored for a manager.', type: 'int')]
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();

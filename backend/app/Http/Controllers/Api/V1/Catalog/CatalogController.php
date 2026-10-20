@@ -3,16 +3,33 @@
 namespace App\Http\Controllers\Api\V1\Catalog;
 
 use App\Http\Controllers\Controller;
+use Dedoc\Scramble\Attributes\Group;
+use Dedoc\Scramble\Attributes\QueryParameter;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use App\Traits\ApiResponse;
 use App\Models\Category;
 use App\Models\Product;
 
+#[Group('Catalog', "Mijoz uchun menyu: umumiy lenta yoki bitta do'kon menyusi.")]
 class CatalogController extends Controller
 {
     use ApiResponse;
 
+    /**
+     * Menu: global feed or one store
+     *
+     * Without `store_id`: the global feed (up to 50 random active products of open stores near the location, the
+     * categories, the promo banners and a highlighted product). With `store_id`: that store (branches, ratings) with
+     * its active products and their categories; 404 for an unknown store, 403 when the store is unavailable.
+     * Without a location the user's default address is used.
+     */
+    #[QueryParameter('store_id', description: "The store's uuid (or numeric id): store menu instead of the global feed.", type: 'string')]
+    #[QueryParameter('lat', description: 'Global feed: latitude of the delivery point (with `lng`).', type: 'float')]
+    #[QueryParameter('lng', description: 'Global feed: longitude of the delivery point (with `lat`).', type: 'float')]
+    #[QueryParameter('region_id', description: 'Global feed without coordinates: stores with a branch in this region.', type: 'int')]
+    #[QueryParameter('district_id', description: 'Global feed without coordinates: stores with a branch in this district.', type: 'int')]
+    #[QueryParameter('category_id', description: 'Global feed: only this category and its subcategories.', type: 'int')]
     public function index(Request $request): JsonResponse
     {
         $storeUuid = $request->query('store_id');

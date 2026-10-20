@@ -1,0 +1,92 @@
+# Rizqim STAGING: production bilan bir xil stek (bir xil Dockerfile'lar, bir xil deploy qadamlari), faqat staging sozlamalari.
+# Alohida server/domenda ishlatiladi; production serverda ishlatmang. docs/DEPLOY.md, 10-bo'lim.
+#
+# Ishga tushirish (staging serverda; .env va backend/.env — .env.staging.example va backend/.env.staging.example dan):
+#   docker compose -f docker-compose.yml -f docker-compose.staging.yml up -d --build
+# Yoki ildiz .env da COMPOSE_FILE=docker-compose.yml:docker-compose.staging.yml bo'lsa oddiy `docker compose up -d --build`.
+# Tekshirish: docker compose -f docker-compose.yml -f docker-compose.staging.yml config -q
+#
+# Bu fayl nimani o'zgartiradi:
+#  - loyiha va volume nomlari alohida (rizqim-staging, rizqim_staging_*): bir xostda production bilan ham aralashmaydi;
+#  - APP_ENV=staging (app:check-production staging'ni qabul qiladi va qolgan xavfsizlik shartlarini baribir tekshiradi),
+#    APP_DEBUG=false, Telegram mock-auth va SMS kodini javobda qaytarish o'chiq, e-pochta/SMS faqat logga;
+#  - qidiruv tizimlari indekslamasin: X-Robots-Tag noindex (Mini App va backend) va robots.txt Disallow;
+#  - kichikroq resurslar (xotira/CPU chegaralari, kichik Postgres sozlamasi).
+# Telegram test boti, to'lov tizimlarining TEST kalitlari va domenlar .env fayllarida (namunalar: .env.staging.example).
+
+name: rizqim-staging
+
+x-staging-environment: &staging-environment
+  APP_ENV: staging
+  APP_DEBUG: "false"
+  # backend/.env da noto'g'ri qiymat qolib ketsa ham staging xavfsiz bo'lsin (environment env_file dan ustun)
+  TELEGRAM_ALLOW_MOCK_AUTH: "false"
+  SMS_EXPOSE_CODE_IN_RESPONSE: "false"
+  MAIL_MAILER: log
+  SMS_DRIVER: log
+  SENTRY_ENVIRONMENT: staging
+
+services:
+  postgres:
+    mem_limit: 512m
+    cpus: 1.0
+    command: ["postgres", "-c", "shared_buffers=64MB", "-c", "max_connections=50"]
+
+  redis:
+    mem_limit: 256m
+    cpus: 0.5
+
+  backend:
+    environment:
+      <<: *staging-environment
+    mem_limit: 512m
+    cpus: 1.0
+    volumes:
+      # Mounted over the empty include in backend/docker/nginx.conf, and over Laravel's public/robots.txt
+      - ./infra/staging/robots-header.conf:/etc/nginx/rizqim-headers.conf:ro
+      - ./infra/staging/robots.txt:/var/www/html/public/robots.txt:ro
+
+  queue:
+    environment:
+      <<: *staging-environment
+    mem_limit: 256m
+    cpus: 0.5
+
+  # Hisobot ishchisi php -d memory_limit=768M bilan ishlaydi: konteyner chegarasi undan yuqori bo'lishi shart
+  queue-reports:
+    environment:
+      <<: *staging-environment
+    mem_limit: 1g
+    cpus: 0.5
+
+  scheduler:
+    environment:
+      <<: *staging-environment
+    mem_limit: 192m
+    cpus: 0.25
+
+  reverb:
+    environment:
+      <<: *staging-environment
+    mem_limit: 256m
+    cpus: 0.5
+
+  frontend:
+    mem_limit: 64m
+    cpus: 0.25
+    volumes:
+      # nginx:alpine entrypoint nginx'dan oldin /docker-entrypoint.d/*.sh ni bajaradi: skript X-Robots-Tag qo'shadi
+      - ./infra/staging/10-noindex.sh:/docker-entrypoint.d/10-noindex.sh:ro
+      - ./infra/staging/robots.txt:/usr/share/nginx/html/robots.txt:ro
+
+  backup:
+    mem_limit: 128m
+    cpus: 0.25
+
+volumes:
+  postgres_data:
+    name: rizqim_staging_postgres_data
+  redis_data:
+    name: rizqim_staging_redis_data
+  backend_storage:
+    name: rizqim_staging_backend_storage

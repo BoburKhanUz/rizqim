@@ -40,7 +40,9 @@ function FollowPosition({ lat, lng, lastPickRef }: { lat: number | null; lng: nu
     if (lat === null || lng === null) return;
     const picked = lastPickRef.current;
     if (picked && picked.lat === lat && picked.lng === lng) return;
-    map.setView([lat, lng], Math.max(map.getZoom(), PIN_ZOOM));
+    // Not animated: a map removed while it flies (the form closes right after a result was picked) throws in the next
+    // animation frame ("_leaflet_pos" of a removed pane)
+    map.setView([lat, lng], Math.max(map.getZoom(), PIN_ZOOM), { animate: false });
   }, [map, lat, lng, lastPickRef]);
 
   return null;

@@ -7,10 +7,9 @@ import { useAuthStore } from '../store/authStore';
 import { useRealtimeStore } from '../store/realtimeStore';
 import { echoFailure, echoInstances } from '../test/fakeEcho';
 import { makeOrder, makeStore, makeUser } from '../test/factories';
-import { ordersResponse, serveOrdersApi } from '../test/ordersApi';
 import type { Order } from '../types';
-import { useOrderHistory, useOrders } from './useOrders';
-import { useOrdersForPeriod } from './useOrdersForPeriod';
+import { ordersResponse, serveOrdersApi } from '../test/ordersApi';
+import { ordersKeys, useOrderHistory, useOrders } from './useOrders';
 import { useRealtimeOrders } from './useRealtimeOrders';
 
 // The hook that turns the server's order events into refetches, on a fake socket
@@ -82,17 +81,19 @@ describe('useRealtimeOrders: connecting', () => {
   });
 
   it.each([
-    [{ role: 'owner', store_id: 5 }, 'store.5'],
-    [{ role: 'manager', store_id: 5, branch_id: 8 }, 'branch.8'],
-    [{ role: 'manager', store_id: 5, branch_id: null }, 'store.5'],
-    [{ role: 'courier', store_id: 5 }, 'courier.42'],
-  ] as const)('subscribes %j to %s', async (user, channel) => {
+    [{ role: 'owner', store_id: 5 }, ['store.5', 'courier.42']],
+    [{ role: 'manager', store_id: 5, branch_id: 8 }, ['branch.8', 'courier.42']],
+    [{ role: 'manager', store_id: 5, branch_id: null }, ['store.5', 'courier.42']],
+    [{ role: 'courier', store_id: 5 }, ['courier.42']],
+    [{ role: 'customer', store_id: null }, ['user.42']],
+  ] as const)('subscribes %j to %j', async (user, channels) => {
     signIn(user);
 
     renderHook(() => useRealtimeOrders(), { wrapper });
     await settle();
 
-    expect(latestEcho().channel.name).toBe(channel);
+    expect(echoInstances).toHaveLength(1); // one socket for all of them
+    expect(latestEcho().channels.map((channel) => channel.name)).toEqual(channels);
   });
 
   it('opens no channel for a super admin', async () => {
@@ -312,73 +313,178 @@ describe('useRealtimeOrders: events', () => {
   });
 });
 
-describe('the analytics screen next to the socket', () => {
-  // The owner's open orders and a period of 15 full pages of finished ones; every request takes 50 ms
-  let served: Order[];
-  const today = new Date(2026, 9, 14, 12, 0, 0).toISOString();
-
-  async function mountAnalytics() {
-    vi.setSystemTime(new Date(2026, 9, 14, 15, 0, 0));
-    signIn({ role: 'owner', store_id: 5 });
-    const open = Array.from({ length: 10 }, (_, i) => makeOrder({ id: 10_000 + i, uuid: `open-${i}`, status: 'preparing', created_at: today }));
-    const done = Array.from({ length: 16 * 50 }, (_, i) => makeOrder({ id: i + 1, uuid: `done-${i}`, status: 'delivered', created_at: today, updated_at: today }));
-    served = [...open, ...done];
-    get.mockImplementation((_url, config) => new Promise((resolve) => setTimeout(() => resolve(ordersResponse(served, config)), 50)));
-
+describe('an owner or manager standing in as a courier', () => {
+  async function mountAs(user: Parameters<typeof makeUser>[0]) {
+    signIn(user);
     const view = renderHook(
       () => {
         useRealtimeOrders();
-        return useOrdersForPeriod('yearly');
+        return useOrders();
       },
       { wrapper },
     );
-    await settle(5000);
+    await settle();
     act(() => latestEcho().connectAndSubscribe());
-    await settle(5000);
-    get.mockClear();
+    await settle();
     return view;
   }
 
-  const finish = (i: number) => {
-    served = served.map((o) => (o.uuid === `open-${i}` ? { ...o, status: 'delivered' } : o));
-  };
+  it.each(['.order.assigned', '.order.status_changed'])('refetches the open orders on %s of their own courier channel', async (event) => {
+    await mountAs({ role: 'owner', store_id: 5 });
+    const before = activeCalls();
 
-  it('costs one request per event, never the pages of the period', async () => {
-    await mountAnalytics();
+    act(() => latestEcho().emit(event, { order: { ...order, courier_id: 42 } }, 'courier.42'));
+    await settle(400);
 
-    for (let i = 0; i < 10; i++) {
-      act(() => latestEcho().emit('.order.status_changed', { order }));
-      await settle(300);
-    }
-    await settle(5000);
-
-    expect(activeCalls()).toBe(10);
-    expect(historyCalls()).toBe(0);
+    expect(activeCalls()).toBe(before + 1);
   });
 
-  it('shows an order that finished at once, from the newest page alone', async () => {
-    const { result } = await mountAnalytics();
+  it('refetches once when the same change arrives on the store and on the courier channel', async () => {
+    await mountAs({ role: 'owner', store_id: 5 });
+    const before = activeCalls();
 
-    for (let i = 0; i < 10; i++) {
-      finish(i);
-      act(() => latestEcho().emit('.order.status_changed', { order }));
-      await settle(300);
-    }
-    await settle(5000);
+    act(() => {
+      latestEcho().emit('.order.assigned', { order: { ...order, courier_id: 42 } }, 'store.5');
+      latestEcho().emit('.order.assigned', { order: { ...order, courier_id: 42 } }, 'courier.42');
+    });
+    await settle(400);
 
-    expect(historyCalls()).toBeLessThanOrEqual(10); // the newest page, at most once per finished order
-    expect(callsWith('history').every(([, config]) => (config?.params as { cursor?: string }).cursor === undefined)).toBe(true);
-    const finished = result.current.orders.filter((o) => o.uuid.startsWith('open-'));
-    expect(finished).toHaveLength(10);
-    expect(finished.every((o) => o.status === 'delivered')).toBe(true);
+    expect(activeCalls()).toBe(before + 1);
   });
 
-  it('refreshes the pages of the period every few minutes instead', async () => {
-    await mountAnalytics();
+  it('keeps the slow polling while only the courier channel is refused', async () => {
+    await mountAs({ role: 'manager', store_id: 5, branch_id: 8 });
+    expect(useRealtimeStore.getState().connected).toBe(true);
 
-    await settle(5 * 60_000);
+    act(() => latestEcho().refuseSubscription('courier.42'));
 
-    expect(callsWith('history').filter(([, config]) => (config?.params as { per_page?: number }).per_page === 50)).toHaveLength(15);
+    expect(useRealtimeStore.getState().connected).toBe(true);
+  });
+
+  it('polls at its own pace again when the main channel is refused', async () => {
+    await mountAs({ role: 'manager', store_id: 5, branch_id: 8 });
+
+    act(() => latestEcho().refuseSubscription('branch.8'));
+
+    expect(useRealtimeStore.getState().connected).toBe(false);
+  });
+
+  it('refetches after the courier channel came back, since events may have been missed', async () => {
+    await mountAs({ role: 'owner', store_id: 5 });
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+
+    act(() => latestEcho().refuseSubscription('courier.42'));
+    await settle(5_000); // subscribed again after the retry delay
+    act(() => latestEcho().acceptSubscription('courier.42'));
+    await settle(400);
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['orders', 'history'] }, { cancelRefetch: false });
+  });
+});
+
+describe('an order already in the history that changes', () => {
+  const delivered = makeOrder({ id: 7, uuid: '77777777-7777-4777-8777-777777777777', status: 'delivered', payment_status: 'paid' });
+  const other = makeOrder({ id: 8, uuid: '88888888-8888-4888-8888-888888888888', status: 'delivered' });
+  const historyOrder = (uuid: string) => client.getQueryData<{ pages: Array<{ orders: Order[] }> }>([...ordersKeys.history('manager'), 20])?.pages.flatMap((p) => p.orders).find((o) => o.uuid === uuid);
+
+  async function mountHistory() {
+    signIn({ role: 'manager', store_id: 5, branch_id: 8 });
+    get.mockImplementation(serveOrdersApi([delivered, other, makeOrder({ id: 9, status: 'preparing' })]));
+    renderHook(
+      () => {
+        useRealtimeOrders();
+        return useOrderHistory('manager');
+      },
+      { wrapper },
+    );
+    await settle();
+    act(() => latestEcho().connectAndSubscribe());
+    await settle();
+  }
+
+  it('shows delivered -> refunded at once, without a request', async () => {
+    await mountHistory();
+    expect(historyOrder(delivered.uuid)?.status).toBe('delivered');
+    const history = historyCalls();
+
+    act(() => latestEcho().emit('.order.status_changed', { order: { ...order, uuid: delivered.uuid, status: 'refunded', updated_at: '2026-10-18T10:00:00.000000Z' } }, 'branch.8'));
+
+    expect(historyOrder(delivered.uuid)).toMatchObject({ status: 'refunded', updated_at: '2026-10-18T10:00:00.000000Z' });
+    expect(historyOrder(other.uuid)?.status).toBe('delivered'); // only that order
+    await settle(5_000);
+    expect(historyCalls()).toBe(history); // not a refetch of the pages
+  });
+
+  it('keeps the age of the list, so the staleness refetch still comes on time', async () => {
+    await mountHistory();
+    const query = client.getQueryCache().find({ queryKey: [...ordersKeys.history('manager'), 20] });
+    const updatedAt = query?.state.dataUpdatedAt;
+    await settle(10_000);
+
+    act(() => latestEcho().emit('.order.status_changed', { order: { ...order, uuid: delivered.uuid, status: 'refunded' } }, 'branch.8'));
+
+    expect(query?.state.dataUpdatedAt).toBe(updatedAt);
+  });
+
+  it('leaves the history alone for an order it does not hold, a status that is not final or the same status', async () => {
+    await mountHistory();
+    const before = client.getQueryData([...ordersKeys.history('manager'), 20]);
+
+    act(() => {
+      latestEcho().emit('.order.status_changed', { order: { ...order, uuid: 'not-in-history', status: 'refunded' } }, 'branch.8');
+      latestEcho().emit('.order.status_changed', { order: { ...order, uuid: delivered.uuid, status: 'preparing' } }, 'branch.8');
+      latestEcho().emit('.order.status_changed', { order: { ...order, uuid: delivered.uuid, status: 'delivered' } }, 'branch.8');
+      latestEcho().emit('.order.created', { order: { ...order, uuid: delivered.uuid, status: 'refunded' } }, 'branch.8');
+    });
+
+    expect(client.getQueryData([...ordersKeys.history('manager'), 20])).toBe(before);
+  });
+
+  it('refunds from the customer side too: the customer history shows it', async () => {
+    signIn({ role: 'customer', store_id: null });
+    get.mockImplementation(serveOrdersApi([delivered]));
+    renderHook(
+      () => {
+        useRealtimeOrders();
+        return useOrderHistory('customer');
+      },
+      { wrapper },
+    );
+    await settle();
+    act(() => latestEcho().connectAndSubscribe());
+    await settle();
+
+    act(() => latestEcho().emit('.order.status_changed', { order: { ...order, uuid: delivered.uuid, status: 'refunded' } }));
+
+    const cached = client.getQueryData<{ pages: Array<{ orders: Order[] }> }>([...ordersKeys.history('customer'), 20]);
+    expect(cached?.pages[0].orders[0].status).toBe('refunded');
+  });
+
+  it('does not turn a burst of events into a refetch of every loaded page', async () => {
+    signIn({ role: 'manager', store_id: 5, branch_id: 8 });
+    const many = Array.from({ length: 60 }, (_, i) => makeOrder({ id: i + 1, uuid: `00000000-0000-4000-8000-${String(i + 1).padStart(12, '0')}`, status: 'delivered' }));
+    get.mockImplementation(serveOrdersApi(many));
+    const { result } = renderHook(
+      () => {
+        useRealtimeOrders();
+        return useOrderHistory('manager', { pageSize: 20 });
+      },
+      { wrapper },
+    );
+    await settle();
+    act(() => latestEcho().connectAndSubscribe());
+    for (let i = 0; i < 2; i++) await act(async () => { await result.current.fetchNextPage(); });
+    await settle();
+    expect(result.current.orders).toHaveLength(60);
+    const history = historyCalls();
+
+    act(() => {
+      for (const o of many.slice(0, 40)) latestEcho().emit('.order.status_changed', { order: { ...order, uuid: o.uuid, status: 'refunded' } }, 'branch.8');
+    });
+    await settle(5_000);
+
+    expect(historyCalls()).toBe(history);
+    expect(result.current.orders.filter((o) => o.status === 'refunded')).toHaveLength(40);
   });
 });
 

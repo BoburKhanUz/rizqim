@@ -8,7 +8,6 @@ import { useAuthStore } from '../store/authStore';
 import { makeOrder, makeOrderItem, makeStore, makeUser } from '../test/factories';
 import { failedRequest } from '../test/httpErrors';
 import { ordersResponse, serveOrdersApi } from '../test/ordersApi';
-import AdminReports from './AdminReports';
 import CourierDashboard from './CourierDashboard';
 import ManagerDashboard from './ManagerDashboard';
 
@@ -165,27 +164,6 @@ describe('CourierDashboard', () => {
 
     expect(screen.getByText('#K100')).toBeInTheDocument();
     expect(screen.queryByText("Ma'lumotlarni yuklab bo'lmadi")).not.toBeInTheDocument();
-  });
-});
-
-describe('AdminReports', () => {
-  beforeEach(() => {
-    useAuthStore.getState().setAuth('token', makeUser({ role: 'owner' }), makeStore(), false);
-  });
-
-  it('reports the revenue of today\'s delivered orders, the sum of decimal strings', async () => {
-    const today = new Date(2026, 9, 14, 12, 0, 0).toISOString();
-    serveOrders([
-      makeOrder({ id: 1, status: 'delivered', total_price: '30000.00', updated_at: today }),
-      makeOrder({ id: 2, status: 'delivered', total_price: '12500.50', updated_at: today }),
-      makeOrder({ id: 3, status: 'canceled', total_price: '99999.00', updated_at: today }),
-      makeOrder({ id: 4, status: 'delivered', total_price: '77777.00', updated_at: new Date(2026, 9, 1).toISOString() }),
-    ]);
-
-    renderWithClient(<AdminReports />);
-    await settle();
-
-    expect(screen.getByText(/^42 501 so'm$/)).toBeInTheDocument();
   });
 });
 
@@ -443,55 +421,5 @@ describe('CourierDashboard: today\'s deliveries', () => {
     expect(callsOf('history').length).toBeGreaterThan(1);
     expect(callsOf('history').length).toBeLessThan(5); // not the whole history
     expect(screen.getByText(/^60 ta$/)).toBeInTheDocument();
-  });
-});
-
-describe('AdminReports: finished orders of the period', () => {
-  beforeEach(() => {
-    useAuthStore.getState().setAuth('token', makeUser({ role: 'owner' }), makeStore(), false);
-  });
-
-  it('adds the finished orders of later pages to the report', async () => {
-    const today = new Date(2026, 9, 14, 12, 0, 0).toISOString();
-    // 60 orders delivered today (three pages of 50 would hold them): each is 1 000 so'm
-    serveOrders(Array.from({ length: 60 }, (_, i) => makeOrder({ id: i + 1, status: 'delivered', total_price: '1000.00', created_at: today, updated_at: today })));
-
-    renderWithClient(<AdminReports />);
-    await settle(100);
-
-    expect(screen.getByText(/^60 000 so'm$/)).toBeInTheDocument();
-  });
-
-  it('says so when the period was not loaded in full', async () => {
-    // Every page is as new as today, so the history never reaches the start of the period before the page limit
-    const today = new Date(2026, 9, 14, 12, 0, 0).toISOString();
-    serveOrders(Array.from({ length: 16 * 50 }, (_, i) => makeOrder({ id: i + 1, status: 'delivered', created_at: today, updated_at: today })));
-
-    renderWithClient(<AdminReports />);
-    await settle(100);
-
-    // 15 pages of the period, and the newest page once more on its own (the part that is refetched when an order finishes)
-    expect(callsOf('history').filter(([, config]) => (config?.params as { per_page?: number }).per_page === 50)).toHaveLength(15);
-    expect(callsOf('history')).toHaveLength(16);
-    expect(screen.getByText(/to'liq yuklanmadi/)).toBeInTheDocument();
-  });
-
-  it('says so too when loading the period stopped on an error before its start', async () => {
-    // A month of orders, ten a day: the first page reaches back to the 10th, enough for today but not for the month
-    const day = (d: number) => new Date(2026, 9, d, 12, 0, 0).toISOString();
-    const orders = Array.from({ length: 150 }, (_, i) => makeOrder({ id: i + 1, status: 'delivered', created_at: day(14 - Math.floor(i / 10)), updated_at: day(14 - Math.floor(i / 10)) }));
-    get.mockImplementation((_url, config) => {
-      const params = (config?.params ?? {}) as { scope?: string; cursor?: string };
-      if (params.scope === 'history' && params.cursor) return Promise.reject(failedRequest(500, {}, '/orders'));
-      return Promise.resolve(ordersResponse(orders, config));
-    });
-    renderWithClient(<AdminReports />);
-    await settle(100);
-    expect(screen.queryByText(/to'liq yuklanmadi/)).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: /^Oy$/ }));
-    await settle(5000);
-
-    expect(screen.getByText(/to'liq yuklanmadi/)).toBeInTheDocument();
   });
 });

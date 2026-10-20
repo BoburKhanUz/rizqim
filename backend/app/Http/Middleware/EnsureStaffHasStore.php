@@ -9,8 +9,6 @@ use Symfony\Component\HttpFoundation\Response;
 
 class EnsureStaffHasStore
 {
-    private const STORE_ROLES = [UserRole::OWNER, UserRole::MANAGER, UserRole::COURIER];
-
     /**
      * Storeless staff would turn where('store_id', $user->store_id) into "IS NULL", matching every customer/super admin.
      *
@@ -20,7 +18,7 @@ class EnsureStaffHasStore
     {
         $user = $request->user();
 
-        if ($user && $user->store_id === null && in_array($user->role, self::STORE_ROLES, true)) {
+        if ($user && $user->store_id === null && in_array($user->role, UserRole::storeRoles(), true)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Hisobingiz hech qaysi do\'konga biriktirilmagan. Administratorga murojaat qiling.',

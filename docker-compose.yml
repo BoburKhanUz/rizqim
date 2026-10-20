@@ -176,6 +176,13 @@ services:
     command: ["php", "artisan", "reverb:start", "--host=0.0.0.0", "--port=8080"]
     expose:
       - "8080"
+    # Har WebSocket ulanishi bitta fayl deskriptori: konteynerning standart cheklovi (Docker'ga qarab 1024 bo'lishi mumkin)
+    # ko'p ulanishda "Too many open files" beradi. Event loop ext-uv (backend/Dockerfile) bilan stream_select ning ~1000
+    # ulanish chegarasi yo'q, shuning uchun nofile ni aniq oshiramiz. docs/OPERATIONS.md, 6-bo'lim
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     # Reverb'ning o'z GET /up yo'li (server ishlayapti va so'rovlarga javob beryapti)
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/up || exit 1"]
@@ -218,10 +225,12 @@ services:
 
   # PostgreSQL zaxirasi: har kuni BACKUP_TIME (UTC) da pg_dump (custom format) -> BACKUP_HOST_DIR (standart ./backups),
   # BACKUP_RETENTION_DAYS kundan eskilari o'chiriladi. Ishga tushganda ham bitta zaxira oladi. Tashqi nusxa: BACKUP_OFFSITE_CMD
-  # (ildizdagi .env.example). Tiklash: docker compose exec -it backup restore.sh /backups/<fayl>.dump <baza>. docs/OPERATIONS.md
+  # (ildizdagi .env.example) yoki BACKUP_S3_* (rclone, obraz infra/backup/Dockerfile). Tiklash: docker compose exec -it backup restore.sh /backups/<fayl>.dump <baza>. docs/OPERATIONS.md
   # Obraz postgres bilan bir xil versiya: pg_dump server versiyasidan eski bo'lmasligi shart.
   backup:
-    image: postgres:17-alpine
+    # postgres:17-alpine + rclone (infra/backup/Dockerfile): BACKUP_S3_* berilsa har dump S3-mos xotiraga ham yuklanadi
+    build:
+      context: ./infra/backup
     restart: unless-stopped
     depends_on:
       postgres:
@@ -236,6 +245,15 @@ services:
       BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
       BACKUP_TIME: ${BACKUP_TIME:-03:00}
       BACKUP_OFFSITE_CMD: ${BACKUP_OFFSITE_CMD:-}
+      # Server tashqarisiga nusxa (S3-mos: AWS S3, Cloudflare R2, Backblaze B2, MinIO). Bo'sh bo'lsa hech narsa qilinmaydi;
+      # endpoint, bucket, kalit va maxfiy kalit to'rttasi ham kerak. scripts/backup.sh, docs/OPERATIONS.md, 4-bo'lim
+      BACKUP_S3_ENDPOINT: ${BACKUP_S3_ENDPOINT:-}
+      BACKUP_S3_BUCKET: ${BACKUP_S3_BUCKET:-}
+      BACKUP_S3_ACCESS_KEY: ${BACKUP_S3_ACCESS_KEY:-}
+      BACKUP_S3_SECRET: ${BACKUP_S3_SECRET:-}
+      BACKUP_S3_REGION: ${BACKUP_S3_REGION:-}
+      BACKUP_S3_PREFIX: ${BACKUP_S3_PREFIX:-}
+      BACKUP_S3_RETENTION_DAYS: ${BACKUP_S3_RETENTION_DAYS:-}
     volumes:
       - ${BACKUP_HOST_DIR:-./backups}:/backups
       - ./scripts/backup.sh:/usr/local/bin/backup.sh:ro

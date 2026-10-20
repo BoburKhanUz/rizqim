@@ -21,14 +21,41 @@ class RequestIdTest extends TestCase
         $this->assertNotSame($id, $this->getJson('/up')->headers->get('X-Request-Id'));
     }
 
-    public function test_a_safe_incoming_request_id_is_kept(): void
+    public function test_a_client_supplied_request_id_is_ignored_by_default(): void
     {
+        $this->assertFalse(config('logging.trust_incoming_request_id'));
+
+        $response = $this->getJson('/up', ['X-Request-Id' => 'abc123-nginx.req_01'])->assertOk();
+
+        $this->assertNotSame('abc123-nginx.req_01', $response->headers->get('X-Request-Id'));
+        $this->assertMatchesRegularExpression('/^[0-9a-f-]{36}$/', (string) $response->headers->get('X-Request-Id'));
+    }
+
+    public function test_a_safe_id_from_a_trusted_proxy_is_kept_when_trusting_is_on(): void
+    {
+        config(['logging.trust_incoming_request_id' => true]);
+
+        // The test client is 127.0.0.1, one of bootstrap/app.php's trusted proxy hops
         $this->getJson('/up', ['X-Request-Id' => 'abc123-nginx.req_01'])
             ->assertHeader('X-Request-Id', 'abc123-nginx.req_01');
     }
 
+    public function test_an_id_from_an_untrusted_address_is_replaced_even_when_trusting_is_on(): void
+    {
+        config(['logging.trust_incoming_request_id' => true]);
+
+        $id = $this->withServerVariables(['REMOTE_ADDR' => '203.0.113.9'])
+            ->getJson('/up', ['X-Request-Id' => 'abc123-nginx.req_01'])
+            ->headers->get('X-Request-Id');
+
+        $this->assertNotSame('abc123-nginx.req_01', $id);
+        $this->assertMatchesRegularExpression('/^[0-9a-f-]{36}$/', (string) $id);
+    }
+
     public function test_an_unsafe_incoming_request_id_is_replaced(): void
     {
+        config(['logging.trust_incoming_request_id' => true]);
+
         foreach (["bad id with spaces", "x\"; drop", 'short', str_repeat('a', 65)] as $incoming) {
             $id = $this->getJson('/up', ['X-Request-Id' => $incoming])->headers->get('X-Request-Id');
 
@@ -49,10 +76,13 @@ class RequestIdTest extends TestCase
             return response()->json(['request_id' => Context::get('request_id')]);
         });
 
-        $response = $this->getJson('/__request-id-probe', ['X-Request-Id' => 'probe-request-1']);
+        $response = $this->getJson('/__request-id-probe');
 
-        $response->assertHeader('X-Request-Id', 'probe-request-1')->assertJsonPath('request_id', 'probe-request-1');
-        $this->assertSame('probe-request-1', $handler->getRecords()[0]->extra['request_id']);
+        // The same generated id is in the response header, the log context and the log line
+        $id = (string) $response->headers->get('X-Request-Id');
+        $this->assertMatchesRegularExpression('/^[0-9a-f-]{36}$/', $id);
+        $response->assertJsonPath('request_id', $id);
+        $this->assertSame($id, $handler->getRecords()[0]->extra['request_id']);
     }
 
     public function test_json_log_channel_writes_one_json_object_per_line_with_the_request_id(): void

@@ -139,6 +139,8 @@ class OrderStatusService
                 'notes' => $notes ? implode(' | ', $notes) : null,
             ]);
 
+            $this->audit($order, $from, $to, $actor, $cancellation, $courier, $options);
+
             if ($to === OrderStatus::DELIVERED) {
                 // In a savepoint: a failed booking is marked on the order, alerted and retried, never fails the delivery
                 $this->settlements->book($order, $actor?->id);
@@ -154,6 +156,45 @@ class OrderStatusService
 
             return new OrderTransitionResult($order, $from, true, $courier, $manualRefund);
         });
+    }
+
+    /**
+     * The audit log (P1-12): every cancellation/rejection with its reason, every refund, and status changes made by
+     * staff. A customer's or the system's other moves (payment landing, courier app) are in the status history only.
+     *
+     * @param  array{cancel_reason?: string, cancel_note?: ?string, cancelled_by?: ?int}  $cancellation
+     */
+    protected function audit(Order $order, OrderStatus $from, OrderStatus $to, ?User $actor, array $cancellation, ?User $courier, array $options): void
+    {
+        $byStaff = ($actor?->role?->isStoreStaff() ?? false) || $actor?->role === UserRole::SUPER_ADMIN;
+
+        $action = match (true) {
+            $to === OrderStatus::CANCELED => 'order.cancelled',
+            $to === OrderStatus::REJECTED => 'order.rejected',
+            $to === OrderStatus::REFUNDED => 'order.refunded',
+            $byStaff => 'order.status_changed',
+            default => null,
+        };
+
+        if ($action === null) {
+            return;
+        }
+
+        app(\App\Services\Audit\AuditLogger::class)->record(
+            $action,
+            $order,
+            ['status' => $from->value],
+            array_filter(['status' => $to->value, 'courier_id' => $courier?->id], fn ($value) => $value !== null),
+            array_filter([
+                'short_code' => $order->short_code,
+                'reason' => $cancellation['cancel_reason'] ?? null,
+                'note' => $cancellation['cancel_note'] ?? ($to === OrderStatus::REFUNDED ? ($options['notes'] ?? null) : null),
+                'refunded_by_provider' => $to === OrderStatus::REFUNDED ? !empty($options['refunded_by_provider']) : null,
+                'total_price' => in_array($to, [OrderStatus::CANCELED, OrderStatus::REJECTED, OrderStatus::REFUNDED], true) ? $order->total_price : null,
+                'payment_method' => $order->payment_method,
+            ], fn ($value) => $value !== null),
+            ['actor' => $actor],
+        );
     }
 
     /**

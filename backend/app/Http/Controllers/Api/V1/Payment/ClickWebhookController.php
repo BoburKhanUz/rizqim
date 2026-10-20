@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Payment;
 
 use App\Http\Controllers\Controller;
+use Dedoc\Scramble\Attributes\Group;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use App\Models\Order;
@@ -18,10 +19,14 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
+#[Group('Webhooks', "Tashqi xizmatlar chaqiradigan server-to-server endpointlar (Click, Payme, Telegram). Ilovalar ularni chaqirmaydi; javob formati provayderning protokoli.")]
 class ClickWebhookController extends Controller
 {
     /**
-     * Handle Click callback.
+     * Click: Prepare / Complete callback
+     *
+     * Click SHOP API (form fields `click_trans_id`, `merchant_trans_id`, `amount`, `action`, `sign_string`...);
+     * the signature is checked against the provider's secret key. Answers in Click's format (`error`, `error_note`).
      */
     public function handle(Request $request): JsonResponse
     {

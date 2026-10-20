@@ -35,20 +35,6 @@ export function TruncatedOrdersNotice({ variant }: { variant?: Variant }) {
   );
 }
 
-// A report built from fewer finished orders than its period holds (the history is loaded page by page, up to a limit).
-export function PartialPeriodNotice() {
-  const language = useLanguageStore((state) => state.language);
-  return (
-    <Notice>
-      {pick(language, {
-        uz: "Tanlangan davr uchun buyurtmalar to'liq yuklanmadi: ko'rsatkichlar eng yangi buyurtmalar bo'yicha hisoblangan.",
-        ru: 'Заказы за выбранный период загружены не полностью: показатели посчитаны по самым новым заказам.',
-        en: 'Orders for the selected period were not fully loaded: the figures cover the newest orders only.',
-      })}
-    </Notice>
-  );
-}
-
 interface LoadMoreProps {
   hasNextPage: boolean;
   isFetchingNextPage: boolean;

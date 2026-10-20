@@ -4,12 +4,23 @@ namespace App\Policies;
 
 use App\Enums\CancelReason;
 use App\Enums\OrderStatus;
+use App\Enums\Permission;
 use App\Enums\UserRole;
 use App\Models\Order;
 use App\Models\User;
+use App\Services\Auth\PermissionService;
 
+/**
+ * Store staff rights come from the permission layer (orders.view / orders.manage / orders.cancel /
+ * orders.assign_courier, scoped to the store and to a branch-tied member's branch); couriers and customers keep their
+ * own rules below. With the default permission map owners and managers behave exactly as before.
+ */
 class OrderPolicy
 {
+    public function __construct(
+        protected PermissionService $permissions,
+    ) {}
+
     public function before(User $user, string $ability): ?bool
     {
         if ($user->role === UserRole::SUPER_ADMIN) return true;
@@ -18,16 +29,21 @@ class OrderPolicy
 
     public function viewAny(User $user): bool
     {
-        return in_array($user->role, [UserRole::OWNER, UserRole::MANAGER], true);
+        return $this->permissions->has($user, Permission::ORDERS_VIEW);
     }
 
     public function view(User $user, Order $order): bool
     {
-        return match ($user->role) {
-            UserRole::OWNER, UserRole::MANAGER => $this->manages($user, $order),
-            UserRole::COURIER => $this->isAssignedCourier($user, $order),
-            default => (int) $order->user_id === (int) $user->id,
-        };
+        if ($user->role === UserRole::COURIER) {
+            return $this->isAssignedCourier($user, $order);
+        }
+
+        // Staff see their store's (branch's) orders, as staff; everyone else only their own
+        if ($this->permissions->has($user, Permission::ORDERS_VIEW)) {
+            return $this->permissions->allows($user, Permission::ORDERS_VIEW, $order);
+        }
+
+        return (int) $order->user_id === (int) $user->id;
     }
 
     public function create(User $user): bool
@@ -62,12 +78,14 @@ class OrderPolicy
                 && in_array($to, [OrderStatus::ON_THE_WAY, OrderStatus::DELIVERY, OrderStatus::DELIVERED], true);
         }
 
-        return $this->manages($user, $order);
+        // Cancelling or rejecting is its own permission (a cashier may run orders but not cancel them)
+        return $this->manages($user, $order)
+            && (!$to->isCancellation() || $this->permissions->allows($user, Permission::ORDERS_CANCEL, $order));
     }
 
     public function assignCourier(User $user, Order $order): bool
     {
-        return $this->manages($user, $order);
+        return $this->manages($user, $order) && $this->permissions->allows($user, Permission::ORDERS_ASSIGN_COURIER, $order);
     }
 
     /**
@@ -94,19 +112,13 @@ class OrderPolicy
     }
 
     /**
-     * Owner: any order of their store. Manager: their store, narrowed to their branch when they have one.
+     * orders.manage for this order: owner — any order of their store; other staff — their store, narrowed to their
+     * branch when they have one (PermissionService::allows).
      */
     protected function manages(User $user, Order $order): bool
     {
-        if (!in_array($user->role, [UserRole::OWNER, UserRole::MANAGER], true)
-            || !$user->store_id
-            || (int) $user->store_id !== (int) $order->store_id) {
-            return false;
-        }
-
-        return $user->role === UserRole::OWNER
-            || !$user->branch_id
-            || (int) $user->branch_id === (int) $order->branch_id;
+        return $user->role !== UserRole::COURIER
+            && $this->permissions->allows($user, Permission::ORDERS_MANAGE, $order);
     }
 
     protected function isOwnCancellableOrder(User $user, Order $order, OrderStatus $to, ?CancelReason $reason): bool

@@ -1,0 +1,31 @@
+{
+  "name": "@rizqim/api-client",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Rizqim backend API uchun TypeScript klient (packages/api-spec/openapi.json dan yaratiladi)",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "generate": "openapi-typescript ../../api-spec/openapi.json --output src/schema.d.ts",
+    "check:generated": "openapi-typescript ../../api-spec/openapi.json --output src/schema.d.ts --check",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc -p tsconfig.build.json && cp src/schema.d.ts dist/schema.d.ts"
+  },
+  "dependencies": {
+    "openapi-fetch": "0.17.0"
+  },
+  "devDependencies": {
+    "openapi-typescript": "7.13.0",
+    "typescript": "5.9.3"
+  }
+}

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Store;
 
 use App\Http\Controllers\Controller;
+use Dedoc\Scramble\Attributes\Group;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductVariant;
@@ -11,6 +12,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
+#[Group('Owner: catalog', "Do'kon menyusini boshqarish (ega). Kategoriya yaratish faqat superadmin uchun.")]
 class OwnerCatalogController extends Controller
 {
     /**
@@ -106,8 +108,10 @@ class OwnerCatalogController extends Controller
             'description' => 'nullable|string',
             'category_id' => 'required|exists:categories,id',
             'is_active' => 'boolean',
-            'image' => 'nullable|image|max:5120', // Max 5MB
-            'variants' => 'required|json', // Parse variants from JSON string
+            // Max 5MB
+            'image' => 'nullable|image|max:5120',
+            // JSON array of variants: [{"name": "...", "price": 25000}, ...]
+            'variants' => 'required|json',
         ]);
 
         try {
@@ -161,6 +165,9 @@ class OwnerCatalogController extends Controller
 
     /**
      * Update an existing product
+     *
+     * multipart/form-data (POST, so the image can be sent). With `toggle_active` (any value) only the product's
+     * active status is flipped and the other fields are not needed.
      */
     public function updateProduct(Request $request, $id)
     {
@@ -184,6 +191,8 @@ class OwnerCatalogController extends Controller
             'category_id' => 'required|exists:categories,id',
             'is_active' => 'boolean',
             'image' => 'nullable|image|max:5120',
+            // JSON array of variants: [{"id": 1, "name": "...", "price": 25000}, ...]; one without an id is created,
+            // an existing one left out is deleted
             'variants' => 'required|json',
         ]);
 

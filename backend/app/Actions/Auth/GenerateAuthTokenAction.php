@@ -27,9 +27,10 @@ class GenerateAuthTokenAction
             $expiration > 0 ? now()->addMinutes($expiration) : null
         )->plainTextToken;
 
-        // Keep only the most recent sessions (one per device is typical for the Mini App)
-        $keepIds = $user->tokens()->orderByDesc('id')->limit(self::MAX_ACTIVE_TOKENS)->pluck('id');
-        $user->tokens()->whereNotIn('id', $keepIds)->delete();
+        // Keep only the most recent sessions (one per device is typical for the Mini App). Device-bound tokens (staff
+        // PIN sessions, the apps' refreshable sessions) are managed per device by TokenService and left alone
+        $keepIds = $user->tokens()->whereNull('device_id')->orderByDesc('id')->limit(self::MAX_ACTIVE_TOKENS)->pluck('id');
+        $user->tokens()->whereNull('device_id')->whereNotIn('id', $keepIds)->delete();
 
         return $plainTextToken;
     }

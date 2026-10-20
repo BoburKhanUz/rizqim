@@ -19,9 +19,9 @@ class AssignUserRoleCommand extends Command
      */
     protected $signature = 'user:assign-role
         {telegram_id : Telegram user ID (the person must have opened the Mini App at least once)}
-        {role : super_admin, owner, manager, courier or customer}
-        {--store= : Store ID or UUID (required for owner, manager and courier)}
-        {--branch= : Branch ID inside that store (optional, for manager and courier)}';
+        {role : super_admin, owner, manager, cashier, waiter, cook, courier or customer}
+        {--store= : Store ID or UUID (required for store staff: owner, manager, cashier, waiter, cook, courier)}
+        {--branch= : Branch ID inside that store (optional, for staff other than the owner)}';
 
     /**
      * The console command description.
@@ -30,7 +30,6 @@ class AssignUserRoleCommand extends Command
      */
     protected $description = 'Explicitly assign a role to a Telegram user (audited bootstrap path for staff and super admins)';
 
-    private const STORE_ROLES = [UserRole::OWNER, UserRole::MANAGER, UserRole::COURIER];
 
     public function handle(): int
     {
@@ -49,7 +48,7 @@ class AssignUserRoleCommand extends Command
             return self::FAILURE;
         }
 
-        $needsStore = in_array($role, self::STORE_ROLES, true);
+        $needsStore = in_array($role, UserRole::storeRoles(), true);
         $store = null;
         $branch = null;
 
@@ -77,7 +76,7 @@ class AssignUserRoleCommand extends Command
                 }
             }
         } elseif (!blank($storeOption) || !blank($branchOption)) {
-            $this->error("--store/--branch faqat owner, manager va courier rollari uchun ishlatiladi.");
+            $this->error("--store/--branch faqat do'kon xodimlari (owner, manager, cashier, waiter, cook, courier) rollari uchun ishlatiladi.");
             return self::FAILURE;
         }
 
@@ -96,7 +95,7 @@ class AssignUserRoleCommand extends Command
         if (!$target && $needsStore) {
             // A store role without a store (left over from the removed login backdoor) is adopted, not duplicated
             $target = $accounts->first(fn (User $account) => $account->store_id === null
-                && in_array($account->role, self::STORE_ROLES, true));
+                && in_array($account->role, UserRole::storeRoles(), true));
         }
 
         $oldRole = $target?->role?->value;

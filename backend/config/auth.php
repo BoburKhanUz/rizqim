@@ -42,6 +42,18 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
+
+        // auth:sanctum accepts user tokens only (a paired terminal's token is not a user)
+        'sanctum' => [
+            'driver' => 'sanctum',
+            'provider' => 'users',
+        ],
+
+        // auth:device: a paired POS/KDS terminal's own token (App\Auth\DeviceTokenGuard)
+        'device' => [
+            'driver' => 'device-token',
+            'provider' => 'devices',
+        ],
     ],
 
     /*
@@ -65,6 +77,11 @@ return [
         'users' => [
             'driver' => 'eloquent',
             'model' => env('AUTH_MODEL', User::class),
+        ],
+
+        'devices' => [
+            'driver' => 'eloquent',
+            'model' => App\Models\Device::class,
         ],
 
         // 'users' => [
@@ -127,7 +144,50 @@ return [
 
     'phone_verification' => [
         'expose_code_in_response' => filter_var(env('SMS_EXPOSE_CODE_IN_RESPONSE', false), FILTER_VALIDATE_BOOLEAN),
+        // Guesses per code; a resend keeps the previous live code, so at most two codes are open at once
         'max_attempts' => 5,
+        // Guesses per phone in 24 hours, over all codes
+        'max_attempts_per_day' => 30,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Device sessions, terminals and staff PINs (docs/AUTH.md)
+    |--------------------------------------------------------------------------
+    |
+    | access_ttl: minutes an app's access token lives when it signed in with a
+    | device (it is renewed with the refresh token); refresh_ttl_days: how long
+    | a refresh token lives unused. The Mini App's tokens keep
+    | SANCTUM_TOKEN_EXPIRATION. device_ttl_days: a paired terminal's own token
+    | (0 = until revoked). staff_session_ttl: minutes of a PIN session.
+    |
+    */
+
+    'tokens' => [
+        'access_ttl' => (int) env('AUTH_ACCESS_TOKEN_TTL', 15),
+        'refresh_ttl_days' => (int) env('AUTH_REFRESH_TOKEN_TTL_DAYS', 30),
+        'device_ttl_days' => (int) env('AUTH_DEVICE_TOKEN_TTL_DAYS', 365),
+        'staff_session_ttl' => (int) env('AUTH_STAFF_SESSION_TTL', 720),
+        'max_devices_per_user' => 20,
+    ],
+
+    'pairing' => [
+        'ttl' => (int) env('AUTH_PAIRING_CODE_TTL', 10),
+        'max_active' => 5,
+        // POST /devices/pair per /24 (IPv6 /64) subnet; plus 10 per address
+        'subnet_attempts_per_minute' => 30,
+        // Platform-wide attempts in a minute that log a warning (never blocks)
+        'alert_attempts_per_minute' => 600,
+    ],
+
+    'pin' => [
+        'max_attempts' => (int) env('AUTH_PIN_MAX_ATTEMPTS', 5),
+        'lockout_seconds' => (int) env('AUTH_PIN_LOCKOUT_SECONDS', 60),
+        'max_lockout_seconds' => 3600,
+        // Failures of one person on all terminals of the store before a lockout (moving terminals does not reset it)
+        'max_attempts_per_user' => (int) env('AUTH_PIN_MAX_ATTEMPTS_PER_USER', 10),
+        // How long a PIN attempt waits for the same person's attempt in progress elsewhere
+        'attempt_wait_seconds' => 10,
     ],
 
     /*

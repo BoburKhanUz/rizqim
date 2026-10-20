@@ -100,3 +100,30 @@ export interface TopupInitiated {
   topup_uuid: string;
   payment_url: string;
 }
+
+// GET /owner/analytics?period=today|week|month|year, or ?period=custom&from=YYYY-MM-DD&to=YYYY-MM-DD (at most 93 days).
+// Server-side aggregates (App\Services\Order\OwnerAnalyticsService) of the store's orders created in the period
+// (Asia/Tashkent calendar days), or of the branch's for a branch manager. Money is in whole numbers or floats (UZS);
+// "revenue" is the total of the delivered orders.
+export type AnalyticsPeriod = 'today' | 'week' | 'month' | 'year' | 'custom';
+
+export interface OwnerAnalytics {
+  period: { key: AnalyticsPeriod; from: string; to: string; days: number; timezone: string; basis: 'created_at' };
+  summary: {
+    orders_count: number;
+    delivered_count: number;
+    canceled_count: number; // canceled and rejected
+    refunded_count: number;
+    active_count: number;
+    revenue: number;
+    average_check: number;
+  };
+  by_status: Partial<Record<string, number>>;
+  by_payment_method: Array<{ method: string; orders: number; revenue: number }>;
+  by_order_type: Array<{ type: string; orders: number; revenue: number }>;
+  top_products: Array<{ name: string; quantity: number; revenue: number }>;
+  couriers: Array<{ id: number; name: string; delivered_count: number }>;
+  times: { average_prep_seconds: number | null; average_delivery_seconds: number | null };
+  daily: Array<{ date: string; orders: number; delivered: number; revenue: number }>;
+  generated_at: string;
+}

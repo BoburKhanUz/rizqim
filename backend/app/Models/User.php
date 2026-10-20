@@ -23,6 +23,10 @@ use App\Traits\Auditable;
  *
  * @property \App\Enums\UserRole $role
  * @property \Illuminate\Support\Carbon|null $email_verified_at
+ * @property \Illuminate\Support\Carbon|null $pin_set_at
+ * @property \Illuminate\Support\Carbon|null $phone_verified_at
+ * @property string|null $pin_hash
+ * @property string|null $staff_code
  */
 class User extends Authenticatable implements FilamentUser, HasTenants
 {
@@ -57,6 +61,12 @@ class User extends Authenticatable implements FilamentUser, HasTenants
     protected $hidden = [
         'password',
         'remember_token',
+        // Terminal PIN (bcrypt); never leaves the server. pin_hash, staff_code and phone_verified_at are deliberately
+        // not mass assignable: StaffPinService and AccountLinkingService set them
+        'pin_hash',
+        // An unclaimed staff invite: whoever holds it becomes that employee. Only the owner's employee list shows it
+        // (OwnerEmployeeController::index makes it visible there)
+        'telegram_invite_token',
     ];
 
     /**
@@ -70,7 +80,32 @@ class User extends Authenticatable implements FilamentUser, HasTenants
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'role' => \App\Enums\UserRole::class,
+            'pin_set_at' => 'datetime',
+            'phone_verified_at' => 'datetime',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        // A phone changed without an SMS code (profile form, admin panel) is no longer a verified phone
+        static::saving(function (User $user) {
+            if ($user->isDirty('phone') && !$user->isDirty('phone_verified_at')) {
+                $user->phone_verified_at = null;
+            }
+        });
+    }
+
+    /**
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany<Device, $this>
+     */
+    public function devices(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(Device::class);
+    }
+
+    public function hasPin(): bool
+    {
+        return $this->pin_hash !== null;
     }
     
     /**

@@ -3,18 +3,20 @@
 namespace App\Http\Controllers\Api\V1\Store;
 
 use App\Http\Controllers\Controller;
+use Dedoc\Scramble\Attributes\Group;
 use Illuminate\Http\Request;
 use App\Models\User;
 use Illuminate\Support\Str;
 use App\Traits\ApiResponse;
 use App\Enums\UserRole;
 
+#[Group('Owner: employees', "Xodimlar: taklif havolasi, filialga o'tkazish, o'chirish (ega).")]
 class OwnerEmployeeController extends Controller
 {
     use ApiResponse;
 
     /**
-     * Get list of employees (Managers, Couriers) for the current store.
+     * Get list of employees (managers, cashiers, waiters, cooks, couriers) for the current store.
      */
     public function index(Request $request)
     {
@@ -25,10 +27,12 @@ class OwnerEmployeeController extends Controller
         }
 
         $employees = User::where('store_id', $user->store_id)
-            ->whereIn('role', [UserRole::MANAGER, UserRole::COURIER])
+            ->whereIn('role', UserRole::assignableStaffRoles())
             ->with('branch:id,name')
             ->orderBy('created_at', 'desc')
-            ->get();
+            ->get()
+            // The owner shares these invite links; everywhere else the token stays hidden (User::$hidden)
+            ->each->makeVisible('telegram_invite_token');
 
         return $this->success($employees);
     }
@@ -45,7 +49,7 @@ class OwnerEmployeeController extends Controller
         }
 
         $request->validate([
-            'role' => 'required|in:manager,courier',
+            'role' => 'required|in:' . implode(',', array_map(fn (UserRole $role) => $role->value, UserRole::assignableStaffRoles())),
             'name' => 'required|string|max:255',
             'branch_id' => 'required|exists:branches,id',
         ]);
@@ -169,12 +173,12 @@ class OwnerEmployeeController extends Controller
     }
 
     /**
-     * A manager/courier of the owner's own store: never the owner himself or a global (storeless) account.
+     * A staff member (not an owner) of the owner's own store: never the owner himself or a global (storeless) account.
      */
     private function storeEmployee(User $owner, mixed $employeeId): ?User
     {
         return User::where('store_id', $owner->store_id)
-            ->whereIn('role', [UserRole::MANAGER, UserRole::COURIER])
+            ->whereIn('role', UserRole::assignableStaffRoles())
             ->where('id', '!=', $owner->id)
             ->whereKey((int) $employeeId)
             ->first();

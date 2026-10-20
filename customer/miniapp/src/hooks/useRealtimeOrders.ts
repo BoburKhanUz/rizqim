@@ -1,20 +1,22 @@
 import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { getOrderChannelName, getRealtimeConfig, openOrderChannel } from '../lib/realtime';
+import { getOrderChannelNames, getRealtimeConfig, openOrderChannels } from '../lib/realtime';
 import { logApiError } from '../lib/apiError';
 import { useAuthStore } from '../store/authStore';
 import { useRealtimeStore } from '../store/realtimeStore';
-import { ordersKeys, refetchOrders } from './useOrders';
+import { applyFinishedOrderChange, ordersKeys, refetchOrders } from './useOrders';
 
 // Events of one burst (a status change usually comes with an assignment) cause one refetch: the first one waits this
 // long for the others. Not reset by each event, so a steady stream of them still refetches every REFETCH_DELAY_MS.
 const REFETCH_DELAY_MS = 300;
 
 // Keeps the order queries fresh from the server's events while the user is signed in:
-//  - connects after sign-in, to the one private channel of the user's role, and disconnects on logout or unmount;
+//  - connects after sign-in, to the private channel of the user's role (an owner or manager, who can also be handed an
+//    order as its courier, to their own courier channel as well), and disconnects on logout or unmount;
 //  - any order event refetches the lists of open orders that are on screen. Not the finished ones: an order that
-//    finished drops out of its open list, which then refetches the history of its screen (useActiveOrders), and the
-//    analytics screens refresh their many pages on a timer (useOrdersForPeriod), so an event costs a request or two;
+//    finished drops out of its open list, which then refetches the history of its screen (useActiveOrders), so an
+//    event costs a request or two. An order that is already in a loaded history and finishes differently (delivered ->
+//    refunded) is patched in place in those lists, without any request (applyFinishedOrderChange);
 //  - while the socket is up the screens poll slowly (useRealtimeStore.connected); when it drops they poll as before,
 //    and after a reconnect the histories on screen are refetched as well, since events may have been missed.
 // Without VITE_REVERB_APP_KEY, or when the connection cannot be made, nothing changes: the screens just poll.
@@ -26,14 +28,15 @@ export function useRealtimeOrders(): void {
   const storeId = useAuthStore((state) => state.user?.store_id ?? null);
   const branchId = useAuthStore((state) => state.user?.branch_id ?? null);
 
-  const channelName =
+  // One string, so the effect depends on the channels and not on a new array each render
+  const channelKey =
     isAuthenticated && role && userId !== undefined
-      ? getOrderChannelName({ id: userId, role, store_id: storeId, branch_id: branchId })
-      : null;
+      ? getOrderChannelNames({ id: userId, role, store_id: storeId, branch_id: branchId }).join(',')
+      : '';
 
   useEffect(() => {
     const config = getRealtimeConfig();
-    if (!config || !channelName) return;
+    if (!config || !channelKey) return;
 
     const { setConnected } = useRealtimeStore.getState();
     let disposed = false;
@@ -52,8 +55,11 @@ export function useRealtimeOrders(): void {
       }, REFETCH_DELAY_MS);
     };
 
-    openOrderChannel(config, channelName, () => useAuthStore.getState().token, {
-      onEvent: () => refetch(false),
+    openOrderChannels(config, channelKey.split(','), () => useAuthStore.getState().token, {
+      onEvent: (event) => {
+        if (event.order && event.name === 'order.status_changed') applyFinishedOrderChange(queryClient, event.order);
+        refetch(false);
+      },
       onConnectionChange: (connected) => {
         if (!disposed) setConnected(connected);
       },
@@ -74,5 +80,5 @@ export function useRealtimeOrders(): void {
       session?.close();
       setConnected(false);
     };
-  }, [channelName, queryClient]);
+  }, [channelKey, queryClient]);
 }

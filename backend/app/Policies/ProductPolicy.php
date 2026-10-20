@@ -30,7 +30,7 @@ class ProductPolicy
      */
     public function create(User $user): bool
     {
-        return $user->role === \App\Enums\UserRole::OWNER;
+        return app(\App\Services\Auth\PermissionService::class)->has($user, \App\Enums\Permission::MENU_MANAGE);
     }
 
     public function update(User $user, Product $product): bool
@@ -53,8 +53,11 @@ class ProductPolicy
         return $this->ownsCatalogOf($user, $product);
     }
 
+    /**
+     * menu.manage in the product's store (owners by default; PermissionService).
+     */
     private function ownsCatalogOf(User $user, Product $product): bool
     {
-        return $user->role === \App\Enums\UserRole::OWNER && $user->store_id === $product->store_id;
+        return app(\App\Services\Auth\PermissionService::class)->allows($user, \App\Enums\Permission::MENU_MANAGE, $product);
     }
 }

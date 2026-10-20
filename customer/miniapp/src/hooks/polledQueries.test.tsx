@@ -72,7 +72,7 @@ describe('useStaffOrders', () => {
   it('keeps the last orders on screen through failed polls and polls less often meanwhile', async () => {
     // Read through a component, as a screen does: that is what has to keep showing the orders
     function Probe() {
-      const { data, isError } = useStaffOrders('admin', 15_000);
+      const { data, isError } = useStaffOrders('manager', 15_000);
       return <p>{`orders:${data?.orders.length ?? 'none'} error:${isError}`}</p>;
     }
     render(<QueryClientProvider client={client}><Probe /></QueryClientProvider>);

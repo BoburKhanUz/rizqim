@@ -13,7 +13,7 @@ export const POLL_INTERVAL_MS = {
   customerOrders: 10_000,
   managerOrders: 8_000,
   courierOrders: 15_000,
-  adminOrders: 15_000, // analytics and reports share the query
+  ownerAnalytics: 60_000, // the server keeps each period's figures for 60 s: polling faster would only read the same numbers
   notifications: 15_000,
   ownerFinance: 10_000,
 } as const;

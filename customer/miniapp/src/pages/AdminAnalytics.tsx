@@ -1,43 +1,37 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useLanguageStore } from '../store/languageStore';
 import { formatMoney } from '../lib/format';
 import { Card, InlineError, PageHeader, Section, Skeleton } from '../components/ui';
 import { SegmentedControl } from '../components/staff/SegmentedControl';
 import { Award, Bike, ChefHat, TrendingUp } from 'lucide-react';
-import { computeOrderAnalytics } from '../lib/analytics';
-import { useOrdersForPeriod } from '../hooks/useOrdersForPeriod';
-import { PartialPeriodNotice, TruncatedOrdersNotice } from '../components/OrderListParts';
+import { useOwnerAnalytics } from '../hooks/useOwnerAnalytics';
 
 type AnalyticsTimeframe = 'today' | 'weekly' | 'monthly' | 'yearly';
 
 // "--" until there is data; seconds below a minute, whole minutes above
-const formatPrepTime = (ms: number | null) => {
-  if (ms === null) return '--';
-  const secs = ms / 1000;
+const formatPrepTime = (secs: number | null | undefined) => {
+  if (secs === null || secs === undefined) return '--';
   return secs < 60 ? `${Math.round(secs)}s` : `${Math.round(secs / 60)}m`;
 };
 
-const formatDeliveryTime = (ms: number | null) => (ms === null ? '--' : `${Math.round(ms / 60000)}m`);
+const formatDeliveryTime = (secs: number | null | undefined) => (secs === null || secs === undefined ? '--' : `${Math.round(secs / 60)}m`);
+
+// How many names a top list shows (the server sends more)
+const TOP_SHOWN = 3;
 
 export default function AdminAnalytics() {
   const { language } = useLanguageStore();
   const uz = language === 'uz';
   const [timeframe, setTimeframe] = useState<AnalyticsTimeframe>('today');
 
-  // The store's open orders (refreshed in the background while the screen is visible) and the finished ones of the timeframe
-  const { orders, isLoading, error, dataUpdatedAt, truncated, capped, refetch, isRefetching } = useOrdersForPeriod(timeframe);
-
-  // "Now" is the time of the last refresh, so the periods move on together with the data
-  const analytics = useMemo(
-    () => computeOrderAnalytics(orders, timeframe, dataUpdatedAt),
-    [orders, timeframe, dataUpdatedAt],
-  );
+  // The server's figures for the timeframe: one request, refreshed every minute while the screen is visible
+  const { data, isLoading, error, refetch, isRefetching } = useOwnerAnalytics(timeframe);
 
   const title = uz ? 'Analitika' : 'Аналитика';
   const subtitle = uz ? "Savdo va buyurtmalar ko'rsatkichlari" : 'Показатели продаж и заказов';
 
   // A failed background refresh keeps showing the last numbers; the error screen is only for "nothing to show"
-  if (error && orders.length === 0) {
+  if (error && !data) {
     return (
       <div className="flex flex-col gap-3 px-4 pt-2">
         <PageHeader title={title} subtitle={subtitle} />
@@ -46,8 +40,12 @@ export default function AdminAnalytics() {
     );
   }
 
-  const { deliveredOrders, totalRevenue, cashRevenue, onlineRevenue, topProducts, topCouriers } = analytics;
-  const loading = isLoading && orders.length === 0;
+  const totalRevenue = data?.summary.revenue ?? 0;
+  const deliveredCount = data?.summary.delivered_count ?? 0;
+  const cashRevenue = data?.by_payment_method.find((row) => row.method === 'cash')?.revenue ?? 0;
+  // Everything that is not cash (cards, wallets) is paid online
+  const onlineRevenue = (data?.by_payment_method ?? []).filter((row) => row.method !== 'cash').reduce((sum, row) => sum + row.revenue, 0);
+  const loading = isLoading && !data;
 
   // The value, or a grey block of the same size while the first load runs
   const renderValue = (value: ReactNode, widthClass = 'w-20') => (loading ? <Skeleton className={`inline-block h-5 ${widthClass}`} /> : value);
@@ -72,15 +70,12 @@ export default function AdminAnalytics() {
 
       <SegmentedControl segments={timeframes} value={timeframe} onChange={setTimeframe} label={uz ? 'Davr' : 'Период'} />
 
-      {truncated && <TruncatedOrdersNotice />}
-      {capped && <PartialPeriodNotice />}
-
       {/* The revenue of the period */}
       <section aria-label={revenueLabel[timeframe]} className="flex flex-col gap-1 rounded-sheet bg-brand p-5 text-on-brand">
         <p className="text-footnote font-medium">{revenueLabel[timeframe]}</p>
         <p className="text-display font-extrabold">{renderValue(formatMoney(totalRevenue, language), 'w-40')}</p>
         <p className="text-footnote">
-          {renderValue(uz ? `${deliveredOrders.length} ta muvaffaqiyatli buyurtmadan` : `Из ${deliveredOrders.length} успешных заказов`, 'w-32')}
+          {renderValue(uz ? `${deliveredCount} ta muvaffaqiyatli buyurtmadan` : `Из ${deliveredCount} успешных заказов`, 'w-32')}
         </p>
       </section>
 
@@ -90,14 +85,14 @@ export default function AdminAnalytics() {
             <ChefHat aria-hidden="true" className="size-4 text-info" />
             {uz ? "Tayyorlash (o'rtacha)" : 'Кухня (в среднем)'}
           </span>
-          <span className="text-title font-bold text-fg">{renderValue(formatPrepTime(analytics.averagePrepMs), 'w-12')}</span>
+          <span className="text-title font-bold text-fg">{renderValue(formatPrepTime(data?.times.average_prep_seconds), 'w-12')}</span>
         </Card>
         <Card className="flex flex-col gap-1.5">
           <span className="flex items-center gap-1.5 text-footnote font-medium text-fg-muted">
             <Bike aria-hidden="true" className="size-4 text-brand" />
             {uz ? "Yetkazish (o'rtacha)" : 'Доставка (в среднем)'}
           </span>
-          <span className="text-title font-bold text-fg">{renderValue(formatDeliveryTime(analytics.averageDeliveryMs), 'w-12')}</span>
+          <span className="text-title font-bold text-fg">{renderValue(formatDeliveryTime(data?.times.average_delivery_seconds), 'w-12')}</span>
         </Card>
       </div>
 
@@ -125,7 +120,7 @@ export default function AdminAnalytics() {
         title={uz ? "Eng ko'p sotilganlar" : 'Самые продаваемые'}
         empty={uz ? 'Sotuvlar mavjud emas' : 'Нет продаж'}
         loading={loading}
-        rows={topProducts.map((p) => ({ name: p.name, value: `${p.count} ${uz ? 'ta' : 'шт'}` }))}
+        rows={(data?.top_products ?? []).slice(0, TOP_SHOWN).map((p) => ({ name: p.name, value: `${p.quantity} ${uz ? 'ta' : 'шт'}` }))}
       />
 
       <RankList
@@ -133,7 +128,7 @@ export default function AdminAnalytics() {
         title={uz ? 'Kuryerlar reytingi' : 'Рейтинг курьеров'}
         empty={uz ? "Kuryerlar ro'yxati bo'sh" : 'Список курьеров пуст'}
         loading={loading}
-        rows={topCouriers.map((c) => ({ name: c.name, value: `${c.count} ${uz ? 'ta buyurtma' : 'заказов'}` }))}
+        rows={(data?.couriers ?? []).slice(0, TOP_SHOWN).map((c) => ({ name: c.name, value: `${c.delivered_count} ${uz ? 'ta buyurtma' : 'заказов'}` }))}
       />
     </div>
   );

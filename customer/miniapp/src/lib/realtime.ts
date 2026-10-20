@@ -53,21 +53,24 @@ export interface ChannelUser {
   branch_id: number | null;
 }
 
-// The private channel carrying the order events this user may see (routes/channels.php), or null when there is none:
+// The private channels carrying the order events this user may see (routes/channels.php), the main one first:
 // owner -> the store, manager -> their branch (the store when they have no branch), courier -> their own, customer ->
-// their own. Super admins have no order screen.
-export function getOrderChannelName(user: ChannelUser | null | undefined): string | null {
-  if (!user) return null;
+// their own. An owner or manager can also be handed an order as its courier (assignable staff), and its events go to
+// their own courier.{id} channel, which the channel rules let them join too: it comes second. Super admins have no
+// order screen.
+export function getOrderChannelNames(user: ChannelUser | null | undefined): string[] {
+  if (!user) return [];
+  const courierChannel = `courier.${user.id}`;
   switch (user.role) {
     case 'owner':
-      return user.store_id ? `store.${user.store_id}` : null;
+      return user.store_id ? [`store.${user.store_id}`, courierChannel] : [];
     case 'manager':
-      if (user.branch_id) return `branch.${user.branch_id}`;
-      return user.store_id ? `store.${user.store_id}` : null;
+      if (user.branch_id) return user.store_id ? [`branch.${user.branch_id}`, courierChannel] : [`branch.${user.branch_id}`];
+      return user.store_id ? [`store.${user.store_id}`, courierChannel] : [];
     case 'courier':
-      return `courier.${user.id}`;
+      return [courierChannel];
     default:
-      return isCustomerRole(user.role) ? `user.${user.id}` : null;
+      return isCustomerRole(user.role) ? [`user.${user.id}`] : [];
   }
 }
 
@@ -112,14 +115,24 @@ export interface OrderChannelSession {
 const RESUBSCRIBE_BASE_MS = 5_000;
 const RESUBSCRIBE_MAX_MS = 60_000;
 
-// Connects to Reverb and listens for the order events on `channelName`.
-//  - `getToken` is read every time the server asks to authorize the channel (the token can change after a re-login);
+interface ChannelState {
+  name: string;
+  subscribed: boolean;
+  everSubscribed: boolean;
+  failures: number;
+  retryTimer: ReturnType<typeof setTimeout> | undefined;
+}
+
+// Connects to Reverb and listens for the order events on `channelNames` (one socket, a subscription per channel).
+//  - `getToken` is read every time the server asks to authorize a channel (the token can change after a re-login);
 //  - pusher-js reconnects by itself; every reconnect re-subscribes and reports through onConnectionChange/onResync;
-//  - a refused subscription (expired token, 5xx) is retried with a growing delay until the session is closed.
+//  - a refused subscription (expired token, 5xx) is retried with a growing delay until the session is closed;
+//  - "connected" (which slows the polling down) means the socket is up and the FIRST channel is subscribed: the others
+//    are extra (an owner's own courier channel), so one of them being refused costs nothing but its own events.
 // Rejects when the libraries cannot be loaded or the client cannot be created: the caller keeps polling.
-export async function openOrderChannel(
+export async function openOrderChannels(
   config: RealtimeConfig,
-  channelName: string,
+  channelNames: readonly string[],
   getToken: () => string | null,
   handlers: OrderChannelHandlers,
 ): Promise<OrderChannelSession> {
@@ -146,23 +159,28 @@ export async function openOrderChannel(
     },
   });
 
+  const channels: ChannelState[] = [...new Set(channelNames)].map((name) => ({
+    name,
+    subscribed: false,
+    everSubscribed: false,
+    failures: 0,
+    retryTimer: undefined,
+  }));
+  const main = channels[0];
+
   let closed = false;
   let socketUp = false;
-  let subscribed = false;
-  let everSubscribed = false;
   let reported = false;
-  let failures = 0;
-  let retryTimer: ReturnType<typeof setTimeout> | undefined;
 
   const report = () => {
-    const connected = socketUp && subscribed;
+    const connected = socketUp && main !== undefined && main.subscribed;
     if (connected === reported) return;
     reported = connected;
     handlers.onConnectionChange(connected);
   };
 
-  const subscribe = () => {
-    const channel = echo.private(channelName);
+  const subscribe = (state: ChannelState) => {
+    const channel = echo.private(state.name);
     for (const name of ORDER_EVENTS) {
       channel.listen(`.${name}`, (payload: unknown) => {
         if (!closed) handlers.onEvent({ name, order: parseOrderPayload(payload) });
@@ -170,25 +188,25 @@ export async function openOrderChannel(
     }
     channel.subscribed(() => {
       if (closed) return;
-      failures = 0;
-      subscribed = true;
+      state.failures = 0;
+      state.subscribed = true;
       report();
-      if (everSubscribed) handlers.onResync();
-      everSubscribed = true;
+      if (state.everSubscribed) handlers.onResync();
+      state.everSubscribed = true;
     });
     channel.error(() => {
       if (closed) return;
-      subscribed = false;
+      state.subscribed = false;
       report();
       // pusher-js does not retry a refused subscription by itself
-      echo.leave(channelName);
-      const delay = Math.min(RESUBSCRIBE_BASE_MS * 2 ** failures, RESUBSCRIBE_MAX_MS);
-      failures += 1;
-      clearTimeout(retryTimer);
-      retryTimer = setTimeout(() => {
+      echo.leave(state.name);
+      const delay = Math.min(RESUBSCRIBE_BASE_MS * 2 ** state.failures, RESUBSCRIBE_MAX_MS);
+      state.failures += 1;
+      clearTimeout(state.retryTimer);
+      state.retryTimer = setTimeout(() => {
         if (!closed) {
-          everSubscribed = true; // whatever happened meanwhile was not heard
-          subscribe();
+          state.everSubscribed = true; // whatever happened meanwhile was not heard
+          subscribe(state);
         }
       }, delay);
     });
@@ -196,21 +214,23 @@ export async function openOrderChannel(
 
   const stopWatching = echo.connector.onConnectionChange((status) => {
     socketUp = status === 'connected';
-    if (!socketUp) subscribed = false; // pusher-js subscribes again on reconnect and says so
+    if (!socketUp) for (const state of channels) state.subscribed = false; // pusher-js subscribes again on reconnect and says so
     report();
   });
-  subscribe();
+  channels.forEach(subscribe);
 
   return {
     close: () => {
       if (closed) return;
       closed = true;
-      clearTimeout(retryTimer);
       stopWatching();
-      echo.leave(channelName);
+      for (const state of channels) {
+        clearTimeout(state.retryTimer);
+        echo.leave(state.name);
+        state.subscribed = false;
+      }
       echo.disconnect();
       socketUp = false;
-      subscribed = false;
       report();
     },
   };
