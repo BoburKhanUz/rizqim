@@ -40,8 +40,9 @@ class GlobalStoreForm
                                 \Filament\Forms\Components\TextInput::make('credit_limit')
                                     ->label('Credit Limit (UZS)')
                                     ->numeric()
-                                    ->default(0)
-                                    ->helperText('Owes platform maximum threshold (-50000)'),
+                                    // The column's own default; 0 here used to block every new store
+                                    ->default(-100000)
+                                    ->helperText("Do'kon platformaga ko'pi bilan qancha qarz bo'la olishi, minus ishorasi bilan: -100000 = 100 000 UZS gacha qarz. Qarz shundan oshgandagina do'kon bloklanadi; 0 = qarzga ruxsat yo'q, lekin qarzi yo'q do'kon ishlayveradi."),
                                 \Filament\Forms\Components\TextInput::make('min_payout_reserve')
                                     ->label('Min. Payout Reserve (UZS)')
                                     ->numeric()
@@ -77,7 +78,10 @@ class GlobalStoreForm
                                         'uzum' => 'Uzum Bank',
                                         'paynet' => 'Paynet',
                                     ])
-                                    ->default(['cash', 'click', 'payme', 'uzum', 'paynet'])
+                                    // Not offered yet: locked, and Store keeps what was saved for them
+                                    ->disableOptionWhen(fn (string $value) => !\App\Models\Store::isPaymentMethodAvailable($value))
+                                    ->descriptions(fn () => array_fill_keys(\App\Models\Store::unavailablePaymentMethods(), 'Tez orada'))
+                                    ->default(fn () => array_values(array_filter(['cash', 'click', 'payme', 'uzum', 'paynet'], fn ($method) => \App\Models\Store::isPaymentMethodAvailable($method))))
                                     ->required()
                                     ->columnSpanFull(),
                             ])->columns(2),
@@ -90,7 +94,7 @@ class GlobalStoreForm
                                         if (!$record) {
                                             return 'Restoran yaratilgandan so\'ng ulanish linki paydo bo\'ladi.';
                                         }
-                                        $botUsername = env('TELEGRAM_BOT_USERNAME', 'YourBotUsername');
+                                        $botUsername = config('services.telegram.bot_username');
                                         $link = "https://t.me/{$botUsername}?start=store_" . $record->uuid;
                                         return new \Illuminate\Support\HtmlString("
                                             <div class='flex flex-col gap-2'>

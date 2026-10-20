@@ -1,0 +1,32 @@
+/* The address map in the design system's colours, with zoom buttons big enough for a thumb (44px). */
+.rz-map .leaflet-bar {
+  border: 1px solid var(--rz-line);
+  border-radius: var(--radius-control);
+  box-shadow: none;
+  overflow: hidden;
+}
+.rz-map .leaflet-bar a,
+.rz-map .leaflet-touch .leaflet-bar a {
+  width: 44px;
+  height: 44px;
+  line-height: 44px;
+  background-color: var(--rz-surface);
+  color: var(--rz-fg);
+  border-bottom-color: var(--rz-line);
+  font-size: 20px;
+}
+.rz-map .leaflet-bar a:hover {
+  background-color: var(--rz-surface-2);
+}
+.rz-map .leaflet-bar a.leaflet-disabled {
+  background-color: var(--rz-surface-2);
+  color: var(--rz-fg-subtle);
+}
+.rz-map .leaflet-control-attribution {
+  background: var(--rz-surface);
+  color: var(--rz-fg-muted);
+  opacity: 0.9;
+}
+.rz-map .leaflet-control-attribution a {
+  color: var(--rz-brand);
+}

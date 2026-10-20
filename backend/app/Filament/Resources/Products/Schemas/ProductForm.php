@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Products\Schemas;
 
+use App\Filament\Support\StorePanelScope;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
@@ -45,7 +46,9 @@ class ProductForm
                                     ->afterStateUpdated(fn ($set, ?string $state) => $set('slug', Str::slug($state ?? ''))),
                                 \Filament\Forms\Components\Hidden::make('slug')
                                     ->required()
-                                    ->unique(ignoreRecord: true),
+                                    // Unique within the store: checked against every store, it refused a name another
+                                    // restaurant already used and so told the owner what that restaurant sells
+                                    ->scopedUnique(ignoreRecord: true, modifyQueryUsing: fn ($query) => $query->where('store_id', StorePanelScope::storeId())),
                                 Textarea::make('description')
                                     ->rows(4),
                             ])->columns(1),

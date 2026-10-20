@@ -1,65 +1,136 @@
-import { useState } from 'react';
-import { useOrders } from '../hooks/useOrders';
-import { useLanguageStore } from '../store/languageStore';
-import { hapticFeedback } from '../lib/telegram';
+import { useId, useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
+import { ChevronDown, ChevronUp, CreditCard, MapPin, MessageSquare, PackageOpen, Star, TriangleAlert, Wallet, X } from 'lucide-react';
+import { NO_ORDERS, ORDERS_KEY, useOrderHistory, useOrders } from '../hooks/useOrders';
+import { useLanguageStore } from '../store/languageStore';
+import { useAuthStore } from '../store/authStore';
+import { CustomerCancelDialog } from '../components/CancelDialogs';
+import { LoadMoreOrders, TruncatedOrdersNotice } from '../components/OrderListParts';
+import { Button, Card, Dialog, EmptyState, InlineError, PageHeader, Section, StatusBadge, buttonClasses, cx } from '../components/ui';
+import { getCancelErrorMessage, getCustomerCancelReasonLabel, isCancellableByCustomer } from '../lib/cancelReasons';
+import { hapticFeedback } from '../lib/telegram';
+import { selectionChanged } from '../lib/twa';
+import { showAlert } from '../lib/dialogs';
 import api from '../services/api';
-import {
-  ArrowLeft,
-  Clock,
-  CheckCircle2,
-  Utensils,
-  Bike,
-  CheckCircle,
-  XCircle,
-  ChevronDown,
-  ChevronUp,
-  MapPin,
-  CreditCard,
-  MessageSquare,
-  PackageOpen
-} from 'lucide-react';
+import { getApiErrorMessage, logApiError } from '../lib/apiError';
+import { toAmount } from '../lib/money';
+import { formatDateTime, formatMoney, formatOrderCode } from '../lib/format';
+import { getPaymentMethodLabel } from '../lib/paymentMethod';
+import { useCopy } from '../lib/customerCopy';
+import type { Order, PaymentStatus } from '../types';
 
-// Premium Inline Skeleton Loader for modern premium feel
-const OrdersSkeleton = () => (
-  <div className="flex flex-col gap-3.5 animate-pulse">
-    {[1, 2, 3].map(n => (
-      <div key={n} className="bg-white rounded-3xl p-4 border border-slate-100 flex flex-col gap-3">
-        <div className="flex justify-between items-center">
-          <div className="flex flex-col gap-2 w-1/2">
-            <div className="h-3 bg-slate-100 rounded-md w-16"></div>
-            <div className="h-4 bg-slate-100 rounded-md w-28"></div>
-            <div className="h-3 bg-slate-100 rounded-md w-20"></div>
+// The colour of the payment status text (a *-soft-fg token: readable on the card in both themes)
+const PAYMENT_STATUS_TEXT: Record<PaymentStatus, { labelKey: `paymentStatus_${PaymentStatus}`; color: string }> = {
+  pending: { labelKey: 'paymentStatus_pending', color: 'text-warning-soft-fg' },
+  paid: { labelKey: 'paymentStatus_paid', color: 'text-success-soft-fg' },
+  failed: { labelKey: 'paymentStatus_failed', color: 'text-danger-soft-fg' },
+  cancelled: { labelKey: 'paymentStatus_cancelled', color: 'text-danger-soft-fg' },
+  expired: { labelKey: 'paymentStatus_expired', color: 'text-fg-muted' },
+  refunded: { labelKey: 'paymentStatus_refunded', color: 'text-info-soft-fg' },
+};
+
+// The same height as an order card, so the page does not jump when the orders arrive
+function OrdersSkeleton() {
+  return (
+    <div className="flex flex-col gap-3 animate-pulse" aria-hidden="true">
+      {[1, 2, 3].map((n) => (
+        <Card key={n} className="flex flex-col gap-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex w-1/2 flex-col gap-2">
+              <div className="h-3 w-16 rounded-control bg-surface-2" />
+              <div className="h-4 w-28 rounded-control bg-surface-2" />
+              <div className="h-3 w-20 rounded-control bg-surface-2" />
+            </div>
+            <div className="flex w-1/3 flex-col items-end gap-2">
+              <div className="h-6 w-24 rounded-full bg-surface-2" />
+              <div className="h-4 w-16 rounded-control bg-surface-2" />
+            </div>
           </div>
-          <div className="flex flex-col items-end gap-2 w-1/3">
-            <div className="h-6 bg-slate-100 rounded-full w-20"></div>
-            <div className="h-4 bg-slate-100 rounded-md w-16"></div>
-          </div>
-        </div>
-      </div>
-    ))}
-  </div>
-);
+          <div className="h-11 rounded-control bg-surface-2" />
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+const chipClasses = (tone: 'neutral' | 'danger' | 'brand') =>
+  cx(
+    'inline-flex min-h-11 flex-1 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-card px-4 text-body font-bold',
+    'transition-transform motion-safe:active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand',
+    tone === 'neutral' && 'bg-surface-2 text-fg',
+    tone === 'danger' && 'bg-danger-soft text-danger-soft-fg',
+    tone === 'brand' && 'bg-brand-soft text-brand-soft-fg',
+  );
 
 export default function Orders() {
-  const { data: orders = [], isLoading, error } = useOrders();
   const { t, language } = useLanguageStore();
+  const c = useCopy();
+  const queryClient = useQueryClient();
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null);
+  const panelIdPrefix = useId();
 
-  // Rating States
+  // The open orders (polled / pushed) and, below them, the finished ones a page at a time
+  const { data: active, isLoading: isLoadingActive, error, refetch: refetchActive, isRefetching: isRefetchingActive } = useOrders();
+  const history = useOrderHistory('customer', { enabled: isAuthenticated });
+  const activeOrders = active?.orders ?? NO_ORDERS;
+  const historyOrders = history.orders;
+  const hasOrders = activeOrders.length > 0 || historyOrders.length > 0;
+  const isLoading = isLoadingActive || history.isLoading;
+  const failed = !!error || history.isError;
+
+  // Cancelling an order of one's own
+  const [cancelTarget, setCancelTarget] = useState<Order | null>(null);
+  const [cancelError, setCancelError] = useState<string | null>(null);
+  const cancelMutation = useMutation({
+    mutationFn: async ({ uuid, note }: { uuid: string; note: string }) => {
+      const response = await api.post(`/orders/${uuid}/cancel`, { reason: 'customer_request', ...(note ? { note } : {}) });
+      return response.data;
+    },
+    onSuccess: () => {
+      hapticFeedback('success');
+      setCancelTarget(null);
+      setCancelError(null);
+      void queryClient.invalidateQueries({ queryKey: ORDERS_KEY });
+    },
+    onError: (err) => {
+      logApiError('Failed to cancel order:', err);
+      hapticFeedback('error');
+      setCancelError(getCancelErrorMessage(err, language));
+      // The order may have moved on (accepted, paid) since the list was loaded: show what it is now
+      void queryClient.invalidateQueries({ queryKey: ORDERS_KEY });
+    },
+  });
+
+  const openCancelDialog = (order: Order) => {
+    hapticFeedback('light');
+    cancelMutation.reset();
+    setCancelError(null);
+    setCancelTarget(order);
+  };
+
+  const closeCancelDialog = () => {
+    if (cancelMutation.isPending) return;
+    setCancelTarget(null);
+    setCancelError(null);
+  };
+
+  // Rating
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [ratingStoreId, setRatingStoreId] = useState<number | null>(null);
   const [ratingOrderId, setRatingOrderId] = useState<number | null>(null);
   const [selectedRating, setSelectedRating] = useState(5);
-  const [ratingComment, setRatingComment] = useState("");
+  const [ratingComment, setRatingComment] = useState('');
   const [isSubmittingRating, setIsSubmittingRating] = useState(false);
+  const commentId = useId();
 
   const handleOpenRatingModal = (orderId: number, storeId: number) => {
     hapticFeedback('medium');
     setRatingOrderId(orderId);
     setRatingStoreId(storeId);
     setSelectedRating(5);
-    setRatingComment("");
+    setRatingComment('');
     setShowRatingModal(true);
   };
 
@@ -74,303 +145,268 @@ export default function Orders() {
         order_id: ratingOrderId,
       });
       hapticFeedback('success');
-      alert(language === 'uz' ? "Baho yuborildi! Rahmat." : "Baho yuborildi! Rahmat.");
       setShowRatingModal(false);
-    } catch (err: any) {
-      console.error(err);
+      void showAlert(c('rateThanks'));
+    } catch (err) {
+      logApiError('Failed to submit rating:', err);
       hapticFeedback('error');
-      alert(err.response?.data?.message || "Xatolik yuz berdi");
+      void showAlert(getApiErrorMessage(err) || c('genericError'));
     } finally {
       setIsSubmittingRating(false);
     }
   };
 
   const toggleExpand = (orderId: number) => {
-    hapticFeedback('light');
-    setExpandedOrderId(prev => (prev === orderId ? null : orderId));
+    selectionChanged();
+    setExpandedOrderId((prev) => (prev === orderId ? null : orderId));
   };
 
-  const formatDate = (dateStr: string) => {
-    const d = new Date(dateStr);
-    return d.toLocaleString(language === 'uz' ? 'uz-UZ' : language === 'ru' ? 'ru-RU' : 'en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+  // Tapping the summary opens the details, but not when the customer was selecting the number or address to copy it
+  const toggleFromSummary = (orderId: number) => {
+    if (window.getSelection()?.toString()) return;
+    toggleExpand(orderId);
   };
 
-  const statusConfig = {
-    new: {
-      bg: 'bg-amber-500/10 text-amber-500 border border-amber-500/20',
-      labelKey: 'status_new' as const,
-      icon: <Clock className="w-3.5 h-3.5" />,
-    },
-    accepted: {
-      bg: 'bg-blue-500/10 text-blue-500 border border-blue-500/20',
-      labelKey: 'status_accepted' as const,
-      icon: <CheckCircle2 className="w-3.5 h-3.5" />,
-    },
-    preparing: {
-      bg: 'bg-purple-500/10 text-purple-500 border border-purple-500/20 animate-pulse',
-      labelKey: 'status_preparing' as const,
-      icon: <Utensils className="w-3.5 h-3.5" />,
-    },
-    delivery: {
-      bg: 'bg-orange-500/10 text-orange-500 border border-orange-500/20',
-      labelKey: 'status_delivery' as const,
-      icon: <Bike className="w-3.5 h-3.5" />,
-    },
-    delivered: {
-      bg: 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20',
-      labelKey: 'status_delivered' as const,
-      icon: <CheckCircle className="w-3.5 h-3.5" />,
-    },
-    canceled: {
-      bg: 'bg-red-500/10 text-red-500 border border-red-500/20',
-      labelKey: 'status_canceled' as const,
-      icon: <XCircle className="w-3.5 h-3.5" />,
-    },
+  const renderOrder = (order: Order) => {
+    const paymentStatus = PAYMENT_STATUS_TEXT[order.payment_status]; // undefined for a status this app doesn't know yet
+    const isExpanded = expandedOrderId === order.id;
+    const code = formatOrderCode(order);
+    const panelId = `${panelIdPrefix}-${order.id}`;
+    const typeLabel = order.type === 'delivery' ? t('delivery') : order.type === 'pickup' ? t('pickup') : t('dineIn');
+    const hasReason = (order.status === 'canceled' || order.status === 'rejected') && (order.cancel_reason || order.cancel_note);
+
+    return (
+      <Card key={order.id} padded={false} className="p-4">
+        {/* Summary: tapping it toggles the details (the button below does the same for the keyboard and screen readers) */}
+        <div className="flex cursor-pointer items-start justify-between gap-3" onClick={() => toggleFromSummary(order.id)}>
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <span className="select-text text-footnote font-bold text-fg-muted">{code}</span>
+            <span className="text-body font-bold text-fg">{formatDateTime(order.created_at, language)}</span>
+            <span className="text-footnote text-fg-muted">{typeLabel}</span>
+          </div>
+
+          <div className="flex shrink-0 flex-col items-end gap-2">
+            <StatusBadge status={order.status} audience="customer" />
+            <span className="text-body font-bold text-brand">{formatMoney(order.total_price, language)}</span>
+          </div>
+        </div>
+
+        {/* Why a canceled or rejected order was */}
+        {hasReason && (
+          <div className="mt-3 flex flex-col gap-1 rounded-control bg-danger-soft p-3 text-footnote text-danger-soft-fg">
+            <span className="text-caption font-bold">{c(order.status === 'rejected' ? 'orderRejectReason' : 'orderCancelReason')}</span>
+            {order.cancel_reason && <span className="font-medium">{getCustomerCancelReasonLabel(order.cancel_reason, language)}</span>}
+            {order.cancel_note && <span className="select-text">"{order.cancel_note}"</span>}
+          </div>
+        )}
+
+        {isExpanded && (
+          <div id={panelId} className="mt-3 flex flex-col gap-3 border-t border-line pt-3 animate-fade-in">
+            {/* Items in three columns (name | x1 | price): the name wraps, the quantity and the price never do */}
+            <ul className="flex flex-col gap-2.5 rounded-control bg-surface-2 p-3 text-footnote">
+              {order.items?.map((item, idx) => (
+                <li key={idx} className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-baseline gap-x-3">
+                  <span className="min-w-0 break-words font-medium text-fg">
+                    {item.product_name || c('orderItemFallback')}
+                    {item.variant_name && <span className="block text-caption font-normal text-fg-muted">{item.variant_name}</span>}
+                  </span>
+                  <span className="whitespace-nowrap text-fg-muted">x{item.quantity}</span>
+                  <span className="whitespace-nowrap text-right font-bold text-fg">
+                    {formatMoney(item.total_price ? toAmount(item.total_price) : toAmount(item.unit_price) * item.quantity, language)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+
+            {order.address && (
+              <div className="flex items-start gap-2.5 rounded-control bg-surface-2 p-3">
+                <MapPin aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-brand" />
+                <div className="min-w-0">
+                  <span className="block text-caption text-fg-muted">{t('deliveryAddress')}</span>
+                  <span className="select-text break-words text-body text-fg">{order.address}</span>
+                </div>
+              </div>
+            )}
+
+            <dl className="flex flex-col gap-2 text-footnote">
+              <div className="flex items-center justify-between gap-3">
+                <dt className="flex items-center gap-1.5 text-fg-muted">
+                  <CreditCard aria-hidden="true" className="size-4 text-brand" />
+                  {c('orderPaymentMethod')}
+                </dt>
+                <dd className="font-bold text-fg">{getPaymentMethodLabel(order.payment_method, t)}</dd>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <dt className="flex items-center gap-1.5 text-fg-muted">
+                  <Wallet aria-hidden="true" className="size-4 text-brand" />
+                  {c('orderPaymentStatus')}
+                </dt>
+                <dd className={cx('font-bold', paymentStatus?.color ?? 'text-fg')}>
+                  {paymentStatus ? t(paymentStatus.labelKey) : order.payment_status}
+                </dd>
+              </div>
+            </dl>
+
+            {order.notes && (
+              <div className="flex items-start gap-2 rounded-control bg-brand-soft p-3 text-footnote text-brand-soft-fg">
+                <MessageSquare aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+                <span className="select-text break-words">"{order.notes}"</span>
+              </div>
+            )}
+
+            {/* Complaint, cancel and rating */}
+            <div className="flex flex-wrap gap-2">
+              <Link
+                to={`/complaints?orderId=${order.id}`}
+                state={{ orderId: order.id }}
+                onClick={() => hapticFeedback('light')}
+                className={chipClasses('neutral')}
+              >
+                <TriangleAlert aria-hidden="true" className="size-4" />
+                {c('orderComplain')}
+              </Link>
+
+              {isCancellableByCustomer(order) && (
+                <button type="button" onClick={() => openCancelDialog(order)} className={chipClasses('danger')}>
+                  <X aria-hidden="true" className="size-4" />
+                  {c('orderCancel')}
+                </button>
+              )}
+
+              {order.status === 'delivered' && (
+                <button type="button" onClick={() => handleOpenRatingModal(order.id, order.store_id)} className={chipClasses('brand')}>
+                  <Star aria-hidden="true" className="size-4" />
+                  {c('orderRate')}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        <div className="mt-3 border-t border-line">
+          <button
+            type="button"
+            aria-expanded={isExpanded}
+            aria-controls={isExpanded ? panelId : undefined}
+            aria-label={`${code}: ${isExpanded ? c('orderCollapse') : c('orderDetails')}`}
+            onClick={() => toggleExpand(order.id)}
+            className="mt-1 flex min-h-11 w-full cursor-pointer items-center justify-center gap-1 rounded-control text-footnote font-medium text-fg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+          >
+            {isExpanded ? c('orderCollapse') : c('orderDetails')}
+            {isExpanded ? <ChevronUp aria-hidden="true" className="size-4" /> : <ChevronDown aria-hidden="true" className="size-4" />}
+          </button>
+        </div>
+      </Card>
+    );
   };
 
   return (
-    <div className="p-4 flex flex-col gap-6 min-h-screen pb-28 bg-slate-50">
-      {/* Header */}
-      <header className="flex items-center gap-4 pb-2 border-b border-slate-100">
-        <Link
-          to="/"
-          onClick={() => hapticFeedback('light')}
-          className="p-2 rounded-xl bg-white border border-slate-200/60 shadow-sm active:scale-90 transition-transform"
-        >
-          <ArrowLeft className="w-5 h-5 text-slate-800" />
-        </Link>
-        <div>
-          <h1 className="text-xl font-bold text-slate-800">{t('myOrders')}</h1>
-          <span className="text-[10px] text-slate-400 font-medium">Buyurtmalar tarixi va holati</span>
-        </div>
-      </header>
+    <div className="flex flex-col gap-5 px-4 pb-4 pt-2">
+      <PageHeader title={t('myOrders')} subtitle={c('ordersSubtitle')} />
 
-      {error ? (
-        <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-2xl text-center text-red-500 text-xs font-bold">
-          {language === 'uz' ? 'Xatolik yuz berdi. Iltimos qayta urinib ko\'ring.' : 'Error loading history. Please try again.'}
-        </div>
-      ) : (isLoading && orders.length === 0) ? (
-        /* Butter-smooth Skeleton UI replaces harsh FullScreenLoader */
+      {failed && !hasOrders ? (
+        <InlineError
+          retrying={isRefetchingActive || history.isRefetching}
+          onRetry={() => {
+            void refetchActive();
+            void history.refetch();
+          }}
+        />
+      ) : isLoading && !hasOrders ? (
         <OrdersSkeleton />
-      ) : orders.length === 0 ? (
-        <div className="flex flex-col items-center justify-center gap-4 py-16 text-center">
-          <div className="p-4 rounded-full bg-amber-500/10 text-amber-500">
-            <PackageOpen className="w-12 h-12" />
-          </div>
-          <h2 className="text-base font-extrabold text-slate-800">
-            {language === 'uz' ? 'Buyurtmalar yo\'q' : language === 'ru' ? 'Заказов пока нет' : 'No orders yet'}
-          </h2>
-          <p className="text-slate-400 text-xs max-w-xs mb-2 leading-relaxed">
-            {language === 'uz'
-              ? 'Hali hech qanday buyurtma bermadingiz. Mazali taomlarimizni tatib ko\'ring!'
-              : language === 'ru'
-                ? 'Вы еще не сделали ни одного заказа. Самое время заказать вкусные блюда!'
-                : 'You haven\'t made any orders yet. Time to order delicious food!'}
-          </p>
-          <Link
-            to="/"
-            onClick={() => hapticFeedback('light')}
-            className="bg-amber-500 hover:bg-amber-600 text-white py-3 px-6 rounded-2xl font-bold text-xs active:scale-95 transition-transform shadow-lg shadow-amber-500/20"
-          >
-            {language === 'uz' ? 'Katalogga qaytish' : language === 'ru' ? 'В каталог' : 'Go to Catalog'}
-          </Link>
-        </div>
+      ) : !hasOrders ? (
+        <EmptyState
+          icon={PackageOpen}
+          title={c('ordersEmptyTitle')}
+          text={c('ordersEmptyText')}
+          action={
+            <Link to="/" onClick={() => hapticFeedback('light')} className={buttonClasses()}>
+              {c('ordersToCatalog')}
+            </Link>
+          }
+        />
       ) : (
-        <div className="flex flex-col gap-3.5">
-          {orders.map(order => {
-            const config = statusConfig[order.status] || statusConfig.new;
-            const isExpanded = expandedOrderId === order.id;
+        <div className="flex flex-col gap-5">
+          {active?.truncated && <TruncatedOrdersNotice variant="customer" />}
 
+          {activeOrders.length > 0 && <Section title={c('ordersActive')}>{activeOrders.map(renderOrder)}</Section>}
+
+          {historyOrders.length > 0 && (
+            <Section title={c('ordersHistory')} label={c('ordersHistoryLabel')}>
+              {historyOrders.map(renderOrder)}
+            </Section>
+          )}
+
+          <LoadMoreOrders
+            variant="customer"
+            hasNextPage={history.hasNextPage}
+            isFetchingNextPage={history.isFetchingNextPage}
+            isFetching={history.isFetching}
+            isError={history.isFetchNextPageError}
+            loadedCount={historyOrders.length}
+            onLoadMore={() => void history.fetchNextPage()}
+          />
+        </div>
+      )}
+
+      {cancelTarget && (
+        <CustomerCancelDialog
+          isPending={cancelMutation.isPending}
+          error={cancelError}
+          onClose={closeCancelDialog}
+          onConfirm={(note) => cancelMutation.mutate({ uuid: cancelTarget.uuid, note })}
+        />
+      )}
+
+      <Dialog
+        open={showRatingModal}
+        busy={isSubmittingRating}
+        onClose={() => {
+          hapticFeedback('light');
+          setShowRatingModal(false);
+        }}
+        title={c('rateTitle')}
+        footer={
+          <Button onClick={handleSubmitRating} loading={isSubmittingRating}>
+            {isSubmittingRating ? c('rateSending') : c('rateSend')}
+          </Button>
+        }
+      >
+        <div role="radiogroup" aria-label={c('rateTitle')} className="flex justify-center gap-1">
+          {[1, 2, 3, 4, 5].map((star) => {
+            const on = star <= selectedRating;
             return (
-              <div
-                key={order.id}
-                className="bg-white rounded-3xl p-4 border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.02)] transition-all duration-300"
+              <button
+                key={star}
+                type="button"
+                role="radio"
+                aria-checked={star === selectedRating}
+                aria-label={c('rateStars', { n: star })}
+                onClick={() => {
+                  selectionChanged();
+                  setSelectedRating(star);
+                }}
+                className="flex size-12 cursor-pointer items-center justify-center rounded-full focus-visible:outline-2 focus-visible:outline-brand"
               >
-                {/* Header Summary */}
-                <div
-                  onClick={() => toggleExpand(order.id)}
-                  className="flex justify-between items-center cursor-pointer"
-                >
-                  <div className="flex flex-col gap-1">
-                    <span className="text-[10px] font-black text-slate-400">#{order.uuid.substring(0, 8).toUpperCase()}</span>
-                    <span className="font-extrabold text-xs text-slate-800">{formatDate(order.created_at)}</span>
-                    <span className="text-[10px] text-slate-400 uppercase font-bold flex items-center gap-1">
-                      {order.type === 'delivery' ? '🛵 ' + t('delivery') : order.type === 'pickup' ? '🛍️ ' + t('pickup') : '🍽️ Dine-in'}
-                    </span>
-                  </div>
-
-                  <div className="flex flex-col items-end gap-2.5">
-                    <span className={`text-[9px] px-3 py-1 rounded-full font-black flex items-center gap-1.5 ${config.bg}`}>
-                      {config.icon}
-                      <span>{t(config.labelKey)}</span>
-                    </span>
-                    <span className="font-black text-xs text-amber-500">{Number(order.total_price).toLocaleString()} UZS</span>
-                  </div>
-                </div>
-
-                {/* Expanded Details */}
-                {isExpanded && (
-                  <div className="mt-4 pt-4 border-t border-slate-100 flex flex-col gap-3.5 animate-fade-in">
-                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
-                      {language === 'uz' ? 'Tafsilotlar' : language === 'ru' ? 'Детали' : 'Details'}
-                    </h4>
-
-                    {/* Order Items */}
-                    <div className="flex flex-col gap-2.5 bg-slate-50/50 p-3 rounded-2xl border border-slate-100">
-                      {order.items?.map((item, idx) => (
-                        <div key={idx} className="flex justify-between items-center text-xs">
-                          <div className="flex flex-col">
-                            <span className="font-bold text-slate-800">
-                              {item.product_name || 'Burger'}
-                            </span>
-                            {item.variant_name && (
-                              <span className="text-[10px] text-slate-400 font-medium">({item.variant_name})</span>
-                            )}
-                          </div>
-                          <span className="text-slate-400 text-[10px] font-extrabold">x{item.quantity}</span>
-                          <span className="font-extrabold text-slate-800">
-                            {Number(item.total_price || (Number(item.unit_price) * item.quantity)).toLocaleString()} UZS
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Delivery Address */}
-                    {order.address && (
-                      <div className="text-xs bg-slate-50/50 p-3.5 rounded-2xl border border-slate-100 flex gap-2.5 items-start">
-                        <MapPin className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-                        <div>
-                          <span className="font-black text-slate-400 text-[10px] block mb-0.5">{t('deliveryAddress')}:</span>
-                          <span className="text-slate-800 font-bold leading-relaxed">{order.address}</span>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Payment Info */}
-                    <div className="flex justify-between items-center text-xs px-1 text-slate-400 font-bold">
-                      <span className="flex items-center gap-1.5">
-                        <CreditCard className="w-3.5 h-3.5 text-amber-500" />
-                        <span>{language === 'uz' ? 'To\'lov turi' : 'Способ оплаты'}:</span>
-                      </span>
-                      <span className="font-black text-slate-800 uppercase">{order.payment_method}</span>
-                    </div>
-
-                    <div className="flex justify-between items-center text-xs px-1 text-slate-400 font-bold">
-                      <span className="flex items-center gap-1.5">
-                        <CheckCircle className="w-3.5 h-3.5 text-amber-500" />
-                        <span>{language === 'uz' ? 'To\'lov holati' : 'Статус оплаты'}:</span>
-                      </span>
-                      <span className={`font-black uppercase ${order.payment_status === 'paid' ? 'text-emerald-500' : 'text-amber-500'}`}>
-                        {order.payment_status}
-                      </span>
-                    </div>
-
-                    {/* Cook Notes */}
-                    {order.notes && (
-                      <div className="text-xs text-slate-400 italic bg-amber-500/5 p-3 rounded-2xl border border-amber-500/10 flex gap-2 items-start font-medium leading-relaxed">
-                        <MessageSquare className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
-                        <span>💬 "{order.notes}"</span>
-                      </div>
-                    )}
-
-                    {/* Buttons: Complaint & Rating */}
-                    <div className="flex justify-between items-center pt-2 border-t border-slate-100">
-                      <Link 
-                        to={`/complaints?orderId=${order.id}`}
-                        state={{ orderId: order.id }}
-                        onClick={() => hapticFeedback('light')}
-                        className="text-[10px] font-black text-rose-500 bg-rose-50 px-3.5 py-2 rounded-xl border border-rose-100 active:scale-95 transition"
-                      >
-                        ⚠️ {language === 'uz' ? 'Shikoyat qilish' : 'Подать жалобу'}
-                      </Link>
-
-                      {order.status === 'delivered' && (
-                        <button 
-                          onClick={() => handleOpenRatingModal(order.id, order.store_id)}
-                          className="text-[10px] font-black text-amber-600 bg-amber-50 px-3.5 py-2 rounded-xl border border-amber-100 active:scale-95 transition"
-                        >
-                          ⭐ {language === 'uz' ? 'Baholash' : 'Оценить'}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Expand Chevron trigger */}
-                <div
-                  onClick={() => toggleExpand(order.id)}
-                  className="flex justify-center mt-2.5 border-t border-slate-100 pt-1.5 cursor-pointer text-slate-400 hover:text-slate-800 transition-colors"
-                >
-                  {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                </div>
-              </div>
+                <Star aria-hidden="true" className={cx('size-9 transition-colors', on ? 'fill-accent text-accent' : 'text-fg-subtle')} />
+              </button>
             );
           })}
         </div>
-      )}
-      {/* Rating Modal */}
-      {showRatingModal && (
-        <div className="fixed inset-0 z-[110] bg-black/60 backdrop-blur-sm flex items-end justify-center animate-fade-in p-4">
-          <div className="bg-white w-full rounded-3xl p-6 space-y-5 shadow-2xl border border-slate-100 animate-slide-up max-w-sm mx-auto mb-10">
-            <div className="flex justify-between items-center">
-              <h3 className="text-xs font-black text-slate-800 uppercase tracking-wide">
-                {language === 'uz' ? "Restoranni baholang" : "Оценить ресторан"}
-              </h3>
-              <button 
-                onClick={() => {
-                  hapticFeedback('light');
-                  setShowRatingModal(false);
-                }}
-                className="text-slate-400 font-bold hover:text-slate-600 p-1"
-              >
-                ✕
-              </button>
-            </div>
 
-            <div className="flex justify-center gap-2 py-2">
-              {[1, 2, 3, 4, 5].map((star) => (
-                <button
-                  key={star}
-                  onClick={() => {
-                    hapticFeedback('light');
-                    setSelectedRating(star);
-                  }}
-                  className="p-1 focus:outline-none"
-                >
-                  <span className={`text-3xl transition-all ${star <= selectedRating ? 'text-amber-400 scale-110' : 'text-slate-200'}`}>
-                    ★
-                  </span>
-                </button>
-              ))}
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[10px] text-slate-400 font-black uppercase tracking-wider block">Fikringiz (Ixtiyoriy)</label>
-              <textarea
-                value={ratingComment}
-                onChange={(e) => setRatingComment(e.target.value)}
-                placeholder={language === 'uz' ? "Fikringizni shu yerda qoldiring..." : "Напишите ваш отзыв здесь..."}
-                className="w-full text-xs bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 h-20 focus:outline-none focus:border-amber-500 font-semibold"
-              />
-            </div>
-
-            <button
-              onClick={handleSubmitRating}
-              disabled={isSubmittingRating}
-              className="w-full bg-amber-500 hover:bg-amber-600 text-white font-black text-xs py-3 rounded-2xl transition disabled:opacity-50"
-            >
-              {isSubmittingRating 
-                ? (language === 'uz' ? "Yuborilmoqda..." : "Отправка...") 
-                : (language === 'uz' ? "Yuborish" : "Отправить")}
-            </button>
-          </div>
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor={commentId} className="text-footnote font-bold text-fg-muted">
+            {c('rateComment')}
+          </label>
+          <textarea
+            id={commentId}
+            value={ratingComment}
+            onChange={(event) => setRatingComment(event.target.value)}
+            placeholder={c('rateCommentPlaceholder')}
+            className="h-24 w-full resize-none rounded-control border border-line bg-surface-2 px-3 py-2.5 text-headline text-fg focus:border-brand focus:outline-none"
+          />
         </div>
-      )}
+      </Dialog>
     </div>
   );
 }

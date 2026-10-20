@@ -1,172 +1,133 @@
-import { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
-import { X, Check } from 'lucide-react';
+import { useState } from 'react';
+import { Check } from 'lucide-react';
 import { hapticFeedback } from '../lib/telegram';
-
-interface ProductVariant {
-  id: number;
-  uuid: string;
-  name: string;
-  price: string | number;
-  stock: number;
-  is_active: boolean;
-}
+import { nativeMainButton } from '../lib/twa';
+import { useMainButton } from '../hooks/useMainButton';
+import { formatMoney } from '../lib/format';
+import { toAmount } from '../lib/money';
+import { isVariantActive, isVariantOutOfStock } from '../lib/stock';
+import { Button, Dialog, ProductImage, cx } from './ui';
+import type { Product, ProductVariant } from '../types';
 
 interface VariantSelectorModalProps {
   isOpen: boolean;
   onClose: () => void;
-  product: any;
+  product: Product | null;
   onAdd: (variant: ProductVariant) => void;
 }
 
-function formatUzbekSum(value: number | string | undefined) {
-  if (value === undefined || value === null) return "0 so'm";
-  const numValue = Math.round(Number(value));
-  return numValue.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ") + " so'm";
-}
+// A variant the customer can pick: switched on by the store and not known to be sold out.
+const isSelectable = (variant: ProductVariant) => isVariantActive(variant) && !isVariantOutOfStock(variant);
 
 export default function VariantSelectorModal({ isOpen, onClose, product, onAdd }: VariantSelectorModalProps) {
-  const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
-
-  // Auto-select the first active variant on product change
-  useEffect(() => {
-    if (product && product.variants && product.variants.length > 0) {
-      const firstActive = product.variants.find((v: ProductVariant) => (v.is_active as any) !== false && (v.is_active as any) !== 0 && v.stock > 0);
-      setSelectedVariant(firstActive || product.variants[0]);
-    } else {
-      setSelectedVariant(null);
-    }
-  }, [product]);
-
   if (!isOpen || !product) return null;
 
+  // Keyed by product so every product starts with its own default selection
+  return <VariantSheet key={product.uuid} product={product} onClose={onClose} onAdd={onAdd} />;
+}
+
+interface VariantSheetProps {
+  product: Product;
+  onClose: () => void;
+  onAdd: (variant: ProductVariant) => void;
+}
+
+function VariantSheet({ product, onClose, onAdd }: VariantSheetProps) {
+  const variants = product.variants ?? [];
+  // Starts on the first variant that can be ordered; with none, nothing is selected and nothing can be added
+  const [selectedUuid, setSelectedUuid] = useState<string | null>(() => variants.find(isSelectable)?.uuid ?? null);
+  const selectedVariant = variants.find((v) => v.uuid === selectedUuid) ?? null;
+
   const handleSelect = (variant: ProductVariant) => {
-    if (!variant.is_active) return;
+    if (!isSelectable(variant)) return;
     hapticFeedback('light');
-    setSelectedVariant(variant);
+    setSelectedUuid(variant.uuid);
   };
 
   const handleConfirm = () => {
-    if (!selectedVariant) return;
+    if (!selectedVariant || !isSelectable(selectedVariant)) return;
     hapticFeedback('success');
     onAdd(selectedVariant);
     onClose();
   };
 
-  return createPortal(
-    <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/50 backdrop-blur-sm animate-fade-in">
-      {/* Backdrop Click */}
-      <div className="absolute inset-0" onClick={onClose}></div>
+  const confirmText = selectedVariant ? `Tasdiqlash · ${formatMoney(selectedVariant.price)}` : 'Variant tanlang';
 
-      {/* Sheet Container */}
-      <div 
-        onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-md bg-white rounded-t-[32px] p-6 shadow-2xl z-10 animate-slide-up border-t border-slate-100 flex flex-col max-h-[85vh] overflow-hidden pb-safe"
-      >
-        {/* Header indicator line */}
-        <div className="w-12 h-1 bg-slate-200 rounded-full mx-auto mb-4 shrink-0"></div>
+  // The confirm action is Telegram's MainButton; outside Telegram the button sits in the sheet itself (the page's
+  // own dock is behind the scrim)
+  const hasNativeButton = nativeMainButton() !== null;
+  useMainButton({ text: confirmText, onClick: handleConfirm, enabled: !!selectedVariant, visible: hasNativeButton });
 
-        {/* Title Block */}
-        <div className="flex justify-between items-start gap-4 mb-4 shrink-0">
-          <div className="min-w-0">
-            <h3 className="text-base font-black text-slate-800 leading-tight">{product.name}</h3>
-            <p className="text-[11px] text-slate-400 font-bold mt-1 uppercase tracking-wider">Tanlash majburiy</p>
-          </div>
-          <button 
-            onClick={onClose}
-            className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 active:scale-90 transition shrink-0"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
+  const basePrice =
+    product.price && toAmount(product.price) > 0
+      ? toAmount(product.price)
+      : variants.length > 0
+        ? Math.min(...variants.map((v) => toAmount(v.price)))
+        : 0;
 
-        {/* Product preview / Details */}
-        <div className="flex gap-4 p-3 bg-slate-50 rounded-2xl border border-slate-100 mb-4 shrink-0">
-          {product.image_url ? (
-            <img src={product.image_url} alt="" className="w-16 h-16 rounded-xl object-cover border border-slate-200 bg-white" />
-          ) : (
-            <div className="w-16 h-16 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-2xl">🍔</div>
-          )}
-          <div className="flex-1 min-w-0">
-            <p className="text-xs text-slate-500 font-semibold line-clamp-2 leading-relaxed">{product.description || "Mazali taom variantini tanlang"}</p>
-            <p className="text-xs font-black text-slate-800 mt-2">
-              Asosiy narx: {formatUzbekSum(
-                product.price && parseFloat(product.price) > 0 
-                  ? parseFloat(product.price)
-                  : (product.variants && product.variants.length > 0 
-                      ? Math.min(...product.variants.map((v: any) => parseFloat(v.price) || 0)) 
-                      : 0)
-              )}
-            </p>
-          </div>
-        </div>
-
-        {/* Scrollable Variants List */}
-        <div className="flex-1 overflow-y-auto no-scrollbar py-1 space-y-2.5">
-          {product.variants?.map((v: ProductVariant) => {
-            const isSelected = selectedVariant?.uuid === v.uuid;
-            const isOutOfStock = v.stock <= 0;
-            const isDisabled = ((v.is_active as any) === false || (v.is_active as any) === 0) || isOutOfStock;
-
-            return (
-              <div
-                key={v.id}
-                onClick={() => !isDisabled && handleSelect(v)}
-                className={`p-4 rounded-2xl border-2 flex items-center justify-between transition cursor-pointer ${
-                  isDisabled 
-                    ? 'border-slate-100 bg-slate-50/50 opacity-50 cursor-not-allowed'
-                    : isSelected
-                      ? 'border-amber-500 bg-amber-50/20 text-slate-850'
-                      : 'border-slate-100 bg-white text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  {/* Custom Radio Button */}
-                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition ${
-                    isDisabled 
-                      ? 'border-slate-200 bg-slate-100'
-                      : isSelected 
-                        ? 'border-amber-500 bg-amber-500 text-white' 
-                        : 'border-slate-300 bg-white'
-                  }`}>
-                    {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
-                  </div>
-                  <div>
-                    <p className="text-xs font-black leading-tight text-slate-800">
-                      {v.name}
-                    </p>
-                    {isOutOfStock && (
-                      <p className="text-[9px] text-red-500 font-extrabold mt-0.5">Tugagan</p>
-                    )}
-                  </div>
-                </div>
-                <span className="text-xs font-black text-slate-800">
-                  {formatUzbekSum(v.price)}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Footer CTA */}
-        <div className="pt-4 border-t border-slate-100 mt-4 shrink-0">
-          <button
-            onClick={handleConfirm}
-            disabled={!selectedVariant}
-            className={`w-full py-4 rounded-2xl font-black text-xs text-center text-white transition-all active:scale-[0.98] ${
-              selectedVariant 
-                ? 'bg-amber-500 hover:bg-amber-600 shadow-lg shadow-amber-500/20 cursor-pointer' 
-                : 'bg-slate-300 cursor-not-allowed shadow-none'
-            }`}
-          >
-            {selectedVariant 
-              ? `Tasdiqlash — ${formatUzbekSum(selectedVariant.price)}`
-              : "Variant tanlang"
-            }
-          </button>
+  return (
+    <Dialog
+      open
+      variant="sheet"
+      onClose={onClose}
+      title={product.name}
+      description="Variantni tanlang"
+      footer={!hasNativeButton ? (
+        <Button size="lg" disabled={!selectedVariant} onClick={handleConfirm}>
+          {confirmText}
+        </Button>
+      ) : undefined}
+    >
+      <div className="flex gap-3 rounded-card bg-surface-2 p-3">
+        <ProductImage src={product.image_url} className="size-16 rounded-control" />
+        <div className="min-w-0 flex-1">
+          <p className="line-clamp-2 text-footnote text-fg-muted">{product.description || "Mazali taom variantini tanlang"}</p>
+          <p className="mt-1 text-footnote font-bold text-fg">Asosiy narx: {formatMoney(basePrice)}</p>
         </div>
       </div>
-    </div>,
-    document.body
+
+      <div role="radiogroup" aria-label="Variantlar" className="flex flex-col gap-2">
+        {variants.map((v) => {
+          const isSelected = selectedVariant?.uuid === v.uuid;
+          const isOutOfStock = isVariantOutOfStock(v);
+          const isDisabled = !isSelectable(v);
+
+          return (
+            <button
+              key={v.id}
+              type="button"
+              role="radio"
+              aria-checked={isSelected}
+              disabled={isDisabled}
+              onClick={() => handleSelect(v)}
+              className={cx(
+                'flex min-h-14 w-full items-center gap-3 rounded-card border-2 px-3 py-2 text-left transition-colors',
+                'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand',
+                isDisabled
+                  ? 'cursor-not-allowed border-line bg-surface-2 opacity-60'
+                  : isSelected
+                    ? 'cursor-pointer border-brand bg-brand-soft'
+                    : 'cursor-pointer border-line bg-surface',
+              )}
+            >
+              <span
+                aria-hidden="true"
+                className={cx(
+                  'flex size-6 shrink-0 items-center justify-center rounded-full border-2',
+                  isSelected ? 'border-brand bg-brand text-on-brand' : 'border-fg-subtle bg-surface',
+                )}
+              >
+                {isSelected && <Check className="size-4 stroke-[3]" />}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-body font-bold text-fg">{v.name}</span>
+                {isOutOfStock && <span className="block text-caption font-bold text-danger-soft-fg">Tugagan</span>}
+              </span>
+              <span className="shrink-0 pl-2 text-body font-bold text-fg">{formatMoney(v.price)}</span>
+            </button>
+          );
+        })}
+      </div>
+    </Dialog>
   );
 }

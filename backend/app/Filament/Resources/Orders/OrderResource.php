@@ -3,10 +3,14 @@
 namespace App\Filament\Resources\Orders;
 
 use App\Filament\Resources\Orders\Pages;
+use App\Filament\Support\StorePanelScope;
 use App\Models\Order;
-use App\Models\OrderStatusHistory;
+use App\Enums\CancelReason;
 use App\Enums\OrderStatus;
 use App\Enums\PaymentStatus;
+use App\Services\Order\OrderStatusService;
+use App\Services\Order\OrderTransitionException;
+use Filament\Forms;
 use Filament\Schemas;
 use Filament\Schemas\Schema;
 use Filament\Resources\Resource;
@@ -46,7 +50,7 @@ class OrderResource extends Resource
 
                 Tables\Columns\TextColumn::make('user.name')
                     ->label('Customer')
-                    ->description(fn (Order $record) => $record->user?->phone ?? 'No phone')
+                    ->description(fn (Order $record) => $record->user->phone ?? 'No phone')
                     ->searchable()
                     ->sortable(),
 
@@ -134,7 +138,7 @@ class OrderResource extends Resource
                     ->tooltip('Accept')
                     ->color('info')
                     ->icon('heroicon-m-check-circle')
-                    ->visible(fn (Order $record) => ($record->status->value ?? $record->status) === 'new')
+                    ->visible(fn (Order $record) => static::canMoveTo($record, OrderStatus::ACCEPTED))
                     ->action(fn (Order $record) => static::updateStatus($record, OrderStatus::ACCEPTED)),
                     
                 Action::make('prepare')
@@ -142,7 +146,7 @@ class OrderResource extends Resource
                     ->tooltip('Prepare')
                     ->color('warning')
                     ->icon('heroicon-m-fire')
-                    ->visible(fn (Order $record) => ($record->status->value ?? $record->status) === 'accepted')
+                    ->visible(fn (Order $record) => static::canMoveTo($record, OrderStatus::PREPARING))
                     ->action(fn (Order $record) => static::updateStatus($record, OrderStatus::PREPARING)),
                     
                 Action::make('deliver')
@@ -150,79 +154,39 @@ class OrderResource extends Resource
                     ->tooltip('Send to Delivery')
                     ->color('primary')
                     ->icon('heroicon-m-truck')
-                    ->visible(function (Order $record) {
-                        $status = is_object($record->status) ? $record->status->value : $record->status;
-                        $type = is_object($record->order_type) ? $record->order_type->value : $record->order_type;
-                        return $status === 'preparing' && $type === 'delivery';
-                    })
+                    ->visible(fn (Order $record) => in_array($record->status, [OrderStatus::PREPARING, OrderStatus::READY], true)
+                        && static::canMoveTo($record, OrderStatus::DELIVERY))
                     ->form(function (Order $record) {
-                        $courierCount = \App\Models\User::where('store_id', $record->store_id)
+                        $couriers = app(OrderStatusService::class)->assignableStaff((int) $record->store_id, auth()->user())
                             ->where('role', \App\Enums\UserRole::COURIER->value)
-                            ->count();
+                            ->pluck('name', 'id');
 
-                        if ($courierCount <= 1) {
+                        if ($couriers->count() <= 1) {
                             return []; // Instant assignment with 1-click if only 1 courier exists!
                         }
+
+                        $leastLoaded = app(OrderStatusService::class)->leastLoadedCourier($record)?->id;
 
                         return [
                             Forms\Components\Select::make('courier_id')
                                 ->label('Select Courier')
-                                ->options(\App\Models\User::where('store_id', $record->store_id)
-                                    ->where('role', \App\Enums\UserRole::COURIER->value)
-                                    ->pluck('name', 'id')
-                                )
-                                ->default(\App\Models\User::where('store_id', $record->store_id)
-                                    ->where('role', \App\Enums\UserRole::COURIER->value)
-                                    ->first()?->id
-                                )
+                                ->options($couriers)
+                                ->default($couriers->has($leastLoaded) ? $leastLoaded : $couriers->keys()->first())
                                 ->required()
                                 ->placeholder('Select a courier...'),
                         ];
                     })
-                    ->action(function (Order $record, array $data) {
-                        $courierId = $data['courier_id'] ?? null;
+                    // Without a pick, OrderStatusService assigns the least busy courier
+                    ->action(fn (Order $record, array $data) => static::updateStatus($record, OrderStatus::DELIVERY, [
+                        'courier_id' => $data['courier_id'] ?? null,
+                    ])),
 
-                        if (!$courierId) {
-                            // Automatically assign the single available courier if modal was bypassed
-                            $courierId = \App\Models\User::where('store_id', $record->store_id)
-                                ->where('role', \App\Enums\UserRole::COURIER->value)
-                                ->first()?->id;
-                        }
-
-                        $record->update([
-                            'courier_id' => $courierId,
-                            'status' => OrderStatus::DELIVERY->value,
-                        ]);
-                        
-                        $courierName = 'Courier';
-                        if ($courierId) {
-                            $courierName = \App\Models\User::find($courierId)?->name ?? 'Courier';
-                        }
-
-                        OrderStatusHistory::create([
-                            'order_id' => $record->id,
-                            'user_id' => auth()->id() ?? $record->user_id,
-                            'status' => OrderStatus::DELIVERY->value,
-                            'note' => $courierId ? "Assigned to courier: {$courierName}. Order sent for delivery." : "Order sent for delivery.",
-                        ]);
-
-                        // Send dynamic Telegram notification to the assigned courier's private chat!
-                        app(\App\Services\Notifications\TelegramNotificationService::class)->sendOrderStatusChanged($record);
-
-                        $title = $courierId ? "Order assigned to {$courierName} and sent out for delivery!" : "Order sent out for delivery!";
-
-                        \Filament\Notifications\Notification::make()
-                            ->title($title)
-                            ->success()
-                            ->send();
-                    }),
-                    
                 Action::make('complete')
                     ->hiddenLabel()
                     ->tooltip('Complete')
                     ->color('success')
                     ->icon('heroicon-m-check-badge')
-                    ->visible(fn (Order $record) => in_array($record->status->value ?? $record->status, ['delivery', 'preparing']))
+                    ->visible(fn (Order $record) => static::canMoveTo($record, OrderStatus::DELIVERED))
                     ->action(fn (Order $record) => static::updateStatus($record, OrderStatus::DELIVERED)),
 
                 Action::make('collectCash')
@@ -250,27 +214,122 @@ class OrderResource extends Resource
                             ->send();
                     }),
 
+                // Cancelling (or rejecting a new order) needs a reason, as everywhere else
                 Action::make('cancel')
                     ->hiddenLabel()
                     ->tooltip('Cancel')
                     ->color('danger')
                     ->icon('heroicon-m-x-circle')
-                    ->requiresConfirmation()
-                    ->visible(fn (Order $record) => !in_array($record->status->value ?? $record->status, ['delivered', 'canceled']))
-                    ->action(fn (Order $record) => static::updateStatus($record, OrderStatus::CANCELED)),
+                    ->modalHeading('Buyurtmani bekor qilish')
+                    ->form(static::cancelReasonForm())
+                    ->visible(fn (Order $record) => static::canMoveTo($record, OrderStatus::CANCELED))
+                    ->action(fn (Order $record, array $data) => static::updateStatus($record, OrderStatus::CANCELED, [
+                        'cancel_reason' => $data['reason'] ?? null,
+                        'cancel_note' => $data['note'] ?? null,
+                    ])),
+
+                Action::make('reject')
+                    ->hiddenLabel()
+                    ->tooltip('Reject')
+                    ->color('danger')
+                    ->icon('heroicon-m-no-symbol')
+                    ->modalHeading('Buyurtmani rad etish')
+                    ->form(static::cancelReasonForm())
+                    ->visible(fn (Order $record) => static::canMoveTo($record, OrderStatus::REJECTED))
+                    ->action(fn (Order $record, array $data) => static::updateStatus($record, OrderStatus::REJECTED, [
+                        'cancel_reason' => $data['reason'] ?? null,
+                        'cancel_note' => $data['note'] ?? null,
+                    ])),
+
+                // Delivered -> refunded: super_admin only (OrderPolicy)
+                Action::make('refund')
+                    ->label('Qaytarish')
+                    ->color('danger')
+                    ->icon('heroicon-m-arrow-uturn-left')
+                    ->visible(fn (Order $record) => static::canMoveTo($record, OrderStatus::REFUNDED))
+                    ->modalHeading('Buyurtmani qaytarish')
+                    ->modalDescription("Komissiya do'konga qaytariladi, platforma yig'ib do'konga o'tkazgan pul qaytarib olinadi, keshbek mijozga qaytadi. Click/Payme to'lovini mijozga qo'lda qaytarish kerak bo'ladi.")
+                    ->form([
+                        Forms\Components\Textarea::make('reason')
+                            ->label('Sabab')
+                            ->required()
+                            ->maxLength(500),
+                    ])
+                    ->action(fn (Order $record, array $data) => static::refund($record, $data['reason'])),
             ]);
     }
 
-    protected static function updateStatus(Order $order, OrderStatus $newStatus)
+    /**
+     * @return array<\Filament\Forms\Components\Field>
+     */
+    protected static function cancelReasonForm(): array
     {
-        $order->update(['status' => $newStatus->value]);
-        
-        OrderStatusHistory::create([
-            'order_id' => $order->id,
-            'user_id' => auth()->id() ?? $order->user_id,
-            'status' => $newStatus->value,
-            'note' => 'Status updated via Admin Panel',
-        ]);
+        return [
+            Forms\Components\Select::make('reason')
+                ->label('Sabab')
+                // "Mijoz kelmadi" only for a pickup order already accepted (OrderStatusService refuses it otherwise)
+                ->options(fn (Order $record) => CancelReason::staffOptionsFor($record->order_type, $record->status))
+                ->required(),
+            Forms\Components\Textarea::make('note')
+                ->label('Izoh')
+                ->maxLength(500),
+        ];
+    }
+
+    protected static function canMoveTo(Order $order, OrderStatus $to): bool
+    {
+        return $order->status->canTransitionTo($to, $order->type)
+            && (bool) auth()->user()?->can('changeStatus', [$order, $to]);
+    }
+
+    /**
+     * Same path as the API: transition rules, permissions, stock/refund side effects, settlement and notifications.
+     */
+    protected static function updateStatus(Order $order, OrderStatus $newStatus, array $options = []): void
+    {
+        try {
+            $result = app(OrderStatusService::class)->transition($order, $newStatus, auth()->user(), $options + [
+                'notes' => 'Status updated via Admin Panel',
+            ]);
+        } catch (OrderTransitionException $e) {
+            \Filament\Notifications\Notification::make()
+                ->title($e->getMessage())
+                ->danger()
+                ->send();
+
+            return;
+        }
+
+        $title = "Buyurtma holati: {$newStatus->label()}";
+        if ($result->assignedCourier) {
+            $title .= " (Kuryer: {$result->assignedCourier->name})";
+        }
+
+        \Filament\Notifications\Notification::make()
+            ->title($title)
+            ->body($result->manualRefundRequired ? "To'lov mijozga qo'lda qaytarilishi kerak." : null)
+            ->success()
+            ->send();
+    }
+
+    protected static function refund(Order $order, string $reason): void
+    {
+        try {
+            $result = app(OrderStatusService::class)->refund($order, auth()->user(), $reason);
+        } catch (OrderTransitionException $e) {
+            \Filament\Notifications\Notification::make()
+                ->title($e->getMessage())
+                ->danger()
+                ->send();
+
+            return;
+        }
+
+        \Filament\Notifications\Notification::make()
+            ->title($result->changed ? 'Buyurtma qaytarildi' : 'Buyurtma allaqachon qaytarilgan')
+            ->body($result->manualRefundRequired ? "To'lov mijozga qo'lda qaytarilishi kerak." : null)
+            ->success()
+            ->send();
     }
 
     public static function infolist(Schema $schema): Schema
@@ -290,6 +349,21 @@ class OrderResource extends Resource
                                     ->label('Courier')
                                     ->icon('heroicon-m-truck')
                                     ->placeholder('No courier assigned yet 🛵'),
+                                \Filament\Infolists\Components\TextEntry::make('cancel_reason')
+                                    ->label('Bekor qilish sababi')
+                                    ->icon('heroicon-m-no-symbol')
+                                    ->color('danger')
+                                    ->formatStateUsing(fn ($state, Order $record) => $record->cancel_reason?->label()
+                                        . ($record->cancel_note ? " — {$record->cancel_note}" : ''))
+                                    ->visible(fn (Order $record) => $record->status->isCancellation() && $record->cancel_reason !== null),
+                                // Cancelled or refunded after Click/Payme (or cash) took the money: the payment stays "paid" until refunded by hand
+                                \Filament\Infolists\Components\TextEntry::make('manual_refund')
+                                    ->hiddenLabel()
+                                    ->icon('heroicon-m-exclamation-triangle')
+                                    ->color('danger')
+                                    ->state(fn (Order $record) => "To'lov qaytarilmagan: " . number_format((float) $record->total_price, 0, '.', ' ') . " UZS ({$record->payment_method}) mijozga qo'lda qaytarilishi kerak.")
+                                    ->visible(fn (Order $record) => ($record->status->isCancellation() || $record->status === OrderStatus::REFUNDED)
+                                        && $record->payment_status === PaymentStatus::PAID),
                             ])->columnSpan(1),
                             
                         \Filament\Schemas\Components\Section::make('Order Items')
@@ -323,7 +397,7 @@ class OrderResource extends Resource
                                     $histories = $record->statusHistories()->orderBy('created_at', 'asc')->get();
                                     foreach ($histories as $index => $history) {
                                         $isLast = $index === $histories->count() - 1;
-                                        $statusObj = is_object($history->status) ? $history->status->value : $history->status;
+                                        $statusObj = $history->status->value;
                                         $statusLabel = match($statusObj) {
                                             'new' => 'Created',
                                             'accepted' => 'Accepted',
@@ -381,8 +455,7 @@ class OrderResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        $storeId = \Filament\Facades\Filament::getTenant()?->id ?? auth()->user()?->store_id;
-        return parent::getEloquentQuery()
-            ->where('store_id', $storeId);
+        // Same scope as OrderPolicy: the tenant store, and a branch manager works with their branch's orders only
+        return StorePanelScope::scopeOrders(parent::getEloquentQuery());
     }
 }

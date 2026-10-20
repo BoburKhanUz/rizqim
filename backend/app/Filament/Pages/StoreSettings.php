@@ -11,6 +11,7 @@ use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Schemas\Schema;
 use Filament\Facades\Filament;
+use App\Filament\Support\StorePanelScope;
 use Filament\Notifications\Notification;
 
 class StoreSettings extends Page implements HasForms
@@ -38,12 +39,14 @@ class StoreSettings extends Page implements HasForms
     {
         $tenant = Filament::getTenant();
         if ($tenant) {
-            $data = $tenant->toArray();
-            
+            // Attributes (not the public toArray(), which drops internal fields such as telegram_admin_chat_id);
+            // secrets stay out of the page state and are kept on save by Store's settings merge.
+            $data = $tenant->attributesToArray();
+
             // Map old structure for the form if it exists
-            $settings = $data['payment_settings'] ?? [];
+            $settings = \App\Models\Store::normalizePaymentSettings(\App\Models\Store::withoutSecrets($data['payment_settings'] ?? []));
             if (isset($settings['allowed_methods'])) {
-                foreach (['cash', 'click', 'payme', 'uzum', 'paynet'] as $provider) {
+                foreach (\App\Models\Store::PAYMENT_PROVIDERS as $provider) {
                     if (!isset($settings[$provider])) {
                         $settings[$provider] = [];
                     }
@@ -51,9 +54,9 @@ class StoreSettings extends Page implements HasForms
                         $settings[$provider]['enabled'] = in_array($provider, $settings['allowed_methods']);
                     }
                 }
-                $data['payment_settings'] = $settings;
             }
-            
+            $data['payment_settings'] = \App\Models\Store::paymentSettingsForForm($settings);
+
             $this->form->fill($data);
         }
     }
@@ -128,9 +131,9 @@ class StoreSettings extends Page implements HasForms
                                 \Filament\Forms\Components\Placeholder::make('telegram_bot_link')
                                     ->label('Botga ulanish havolasi (Link)')
                                     ->content(function () {
-                                        $record = Filament::getTenant();
+                                        $record = StorePanelScope::store();
                                         if (!$record) return 'Restoran topilmadi.';
-                                        $botUsername = env('TELEGRAM_BOT_USERNAME', 'YourBotUsername');
+                                        $botUsername = config('services.telegram.bot_username');
                                         $link = "https://t.me/{$botUsername}?start=store_" . $record->uuid;
                                         return new \Illuminate\Support\HtmlString("
                                             <div class='flex flex-col gap-2'>
@@ -151,7 +154,7 @@ class StoreSettings extends Page implements HasForms
                             ->schema([
                                 \Filament\Forms\Components\Placeholder::make('payment_info')
                                     ->label('To\'lov Tizimi Turi')
-                                    ->content(fn () => Filament::getTenant()?->payment_account_type === 'platform_account' 
+                                    ->content(fn () => StorePanelScope::store()?->payment_account_type === 'platform_account' 
                                         ? new \Illuminate\Support\HtmlString('<div class="p-3 bg-emerald-500/10 text-emerald-700 text-xs rounded-xl border border-emerald-500/20 font-semibold leading-relaxed"><b>Platforma To\'lovi (Platform Account)</b>: Onlayn to\'lovlar platforma hisoblariga qabul qilinadi va hamyoningizga tushadi. Shaxsiy merchant ID va klyuchlarni sozlash shart emas.</div>') 
                                         : new \Illuminate\Support\HtmlString('<div class="p-3 bg-amber-500/10 text-amber-700 text-xs rounded-xl border border-amber-500/20 font-semibold leading-relaxed"><b>Shaxsiy Hisob (Own Account)</b>: Onlayn to\'lovlar to\'g\'ridan-to\'g\'ri restoraningiz hisobiga tushadi. Quyida Click/Payme shaxsiy merchant sozlamalarini to\'g\'ri kiritishingiz kerak.</div>')
                                     )
@@ -178,7 +181,7 @@ class StoreSettings extends Page implements HasForms
                                             ->label('Naqd (Cash) faol')
                                             ->default(true),
                                     ])
-                                    ->visible(fn () => in_array('cash', Filament::getTenant()?->active_payment_methods ?? ['cash', 'click', 'payme', 'uzum', 'paynet']))
+                                    ->visible(fn () => in_array('cash', StorePanelScope::store()->active_payment_methods ?? ['cash', 'click', 'payme', 'uzum', 'paynet']))
                                     ->columnSpanFull(),
 
                                 // Click Fieldset
@@ -191,18 +194,18 @@ class StoreSettings extends Page implements HasForms
                                             ->columnSpanFull(),
                                         TextInput::make('payment_settings.click.merchant_id')
                                             ->label('Click Merchant ID')
-                                            ->visible(fn ($get) => Filament::getTenant()?->payment_account_type === 'own_account' && $get('payment_settings.click.enabled')),
+                                            ->visible(fn ($get) => StorePanelScope::store()?->payment_account_type === 'own_account' && $get('payment_settings.click.enabled')),
                                         TextInput::make('payment_settings.click.service_id')
                                             ->label('Click Service ID')
-                                            ->visible(fn ($get) => Filament::getTenant()?->payment_account_type === 'own_account' && $get('payment_settings.click.enabled')),
+                                            ->visible(fn ($get) => StorePanelScope::store()?->payment_account_type === 'own_account' && $get('payment_settings.click.enabled')),
                                         TextInput::make('payment_settings.click.secret_key')
                                             ->label('Click Secret Key')
                                             ->password()
-                                            ->visible(fn ($get) => Filament::getTenant()?->payment_account_type === 'own_account' && $get('payment_settings.click.enabled'))
+                                            ->visible(fn ($get) => StorePanelScope::store()?->payment_account_type === 'own_account' && $get('payment_settings.click.enabled'))
                                             ->columnSpanFull(),
                                     ])
                                     ->columns(2)
-                                     ->visible(fn () => in_array('click', Filament::getTenant()?->active_payment_methods ?? ['cash', 'click', 'payme', 'uzum', 'paynet']))
+                                     ->visible(fn () => in_array('click', StorePanelScope::store()->active_payment_methods ?? ['cash', 'click', 'payme', 'uzum', 'paynet']))
                                     ->columnSpanFull(),
 
                                 // Payme Fieldset
@@ -215,59 +218,72 @@ class StoreSettings extends Page implements HasForms
                                             ->columnSpanFull(),
                                         TextInput::make('payment_settings.payme.merchant_id')
                                             ->label('Payme Merchant ID')
-                                            ->visible(fn ($get) => Filament::getTenant()?->payment_account_type === 'own_account' && $get('payment_settings.payme.enabled')),
+                                            ->visible(fn ($get) => StorePanelScope::store()?->payment_account_type === 'own_account' && $get('payment_settings.payme.enabled')),
                                         TextInput::make('payment_settings.payme.secret_key')
                                             ->label('Payme Secret Key')
                                             ->password()
-                                            ->visible(fn ($get) => Filament::getTenant()?->payment_account_type === 'own_account' && $get('payment_settings.payme.enabled')),
+                                            ->visible(fn ($get) => StorePanelScope::store()?->payment_account_type === 'own_account' && $get('payment_settings.payme.enabled')),
                                     ])
                                     ->columns(2)
-                                     ->visible(fn () => in_array('payme', Filament::getTenant()?->active_payment_methods ?? ['cash', 'click', 'payme', 'uzum', 'paynet']))
+                                     ->visible(fn () => in_array('payme', StorePanelScope::store()->active_payment_methods ?? ['cash', 'click', 'payme', 'uzum', 'paynet']))
                                     ->columnSpanFull(),
 
                                 // Uzum Fieldset
                                 \Filament\Schemas\Components\Fieldset::make('Uzum Bank')
                                     ->schema([
-                                        Toggle::make('payment_settings.uzum.enabled')
+                                        self::unlessUnavailable(Toggle::make('payment_settings.uzum.enabled')
                                             ->label('Uzum faol')
                                             ->live()
                                             ->default(true)
-                                            ->columnSpanFull(),
+                                            ->columnSpanFull(), 'uzum'),
                                         TextInput::make('payment_settings.uzum.merchant_id')
                                             ->label('Uzum Merchant ID')
-                                            ->visible(fn ($get) => Filament::getTenant()?->payment_account_type === 'own_account' && $get('payment_settings.uzum.enabled')),
+                                            ->visible(fn ($get) => StorePanelScope::store()?->payment_account_type === 'own_account' && $get('payment_settings.uzum.enabled')),
                                         TextInput::make('payment_settings.uzum.secret_key')
                                             ->label('Uzum Secret Key')
                                             ->password()
-                                            ->visible(fn ($get) => Filament::getTenant()?->payment_account_type === 'own_account' && $get('payment_settings.uzum.enabled')),
+                                            ->visible(fn ($get) => StorePanelScope::store()?->payment_account_type === 'own_account' && $get('payment_settings.uzum.enabled')),
                                     ])
                                     ->columns(2)
-                                     ->visible(fn () => in_array('uzum', Filament::getTenant()?->active_payment_methods ?? ['cash', 'click', 'payme', 'uzum', 'paynet']))
+                                     ->visible(fn () => !\App\Models\Store::isPaymentMethodAvailable('uzum') || in_array('uzum', StorePanelScope::store()->active_payment_methods ?? ['cash', 'click', 'payme', 'uzum', 'paynet']))
                                     ->columnSpanFull(),
 
                                 // Paynet Fieldset
                                 \Filament\Schemas\Components\Fieldset::make('Paynet')
                                     ->schema([
-                                        Toggle::make('payment_settings.paynet.enabled')
+                                        self::unlessUnavailable(Toggle::make('payment_settings.paynet.enabled')
                                             ->label('Paynet faol')
                                             ->live()
                                             ->default(true)
-                                            ->columnSpanFull(),
+                                            ->columnSpanFull(), 'paynet'),
                                         TextInput::make('payment_settings.paynet.merchant_id')
                                             ->label('Paynet Merchant ID')
-                                            ->visible(fn ($get) => Filament::getTenant()?->payment_account_type === 'own_account' && $get('payment_settings.paynet.enabled')),
+                                            ->visible(fn ($get) => StorePanelScope::store()?->payment_account_type === 'own_account' && $get('payment_settings.paynet.enabled')),
                                         TextInput::make('payment_settings.paynet.secret_key')
                                             ->label('Paynet Secret Key')
                                             ->password()
-                                            ->visible(fn ($get) => Filament::getTenant()?->payment_account_type === 'own_account' && $get('payment_settings.paynet.enabled')),
+                                            ->visible(fn ($get) => StorePanelScope::store()?->payment_account_type === 'own_account' && $get('payment_settings.paynet.enabled')),
                                     ])
                                     ->columns(2)
-                                     ->visible(fn () => in_array('paynet', Filament::getTenant()?->active_payment_methods ?? ['cash', 'click', 'payme', 'uzum', 'paynet']))
+                                     ->visible(fn () => !\App\Models\Store::isPaymentMethodAvailable('paynet') || in_array('paynet', StorePanelScope::store()->active_payment_methods ?? ['cash', 'click', 'payme', 'uzum', 'paynet']))
                                     ->columnSpanFull(),
                             ]),
                     ]),
             ])
             ->statePath('data');
+    }
+
+    /**
+     * A method not offered yet shows its toggle off and locked, and the toggle is never saved (its merchant fields stay
+     * hidden too), so what the store saved for that method is kept. Also used by the tenant profile page.
+     */
+    public static function unlessUnavailable(Toggle $toggle, string $method): Toggle
+    {
+        if (\App\Models\Store::isPaymentMethodAvailable($method)) {
+            return $toggle;
+        }
+
+        return $toggle->disabled()->dehydrated(false)->formatStateUsing(fn () => false)->helperText('Tez orada');
     }
 
     public function save(): void

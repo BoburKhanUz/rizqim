@@ -38,7 +38,7 @@ class PromoCodeResource extends Resource
                         TextInput::make('code')
                             ->label('Promo-kod (KODI)')
                             ->required()
-                            ->maxLength(255)
+                            ->maxLength(50)
                             ->dehydrateStateUsing(fn ($state) => strtoupper(trim($state)))
                             ->placeholder('YANGI2026')
                             ->unique(ignoreRecord: true)
@@ -80,6 +80,23 @@ class PromoCodeResource extends Resource
                             ->placeholder('Cheklanmagan')
                             ->nullable()
                             ->prefix('sum'),
+
+                        TextInput::make('usage_limit')
+                            ->label('Umumiy foydalanish limiti')
+                            ->integer()
+                            ->minValue(1)
+                            ->nullable()
+                            ->placeholder('Cheklanmagan')
+                            ->helperText("Barcha mijozlar bo'yicha jami necha marta ishlatish mumkin. Bekor qilingan buyurtmalar hisoblanmaydi."),
+
+                        TextInput::make('per_user_limit')
+                            ->label('Bir mijoz uchun limit')
+                            ->integer()
+                            ->minValue(1)
+                            ->nullable()
+                            ->default(1)
+                            ->placeholder('Cheklanmagan')
+                            ->helperText("Bitta mijoz necha marta ishlata oladi. Bo'sh qoldirilsa — cheklanmagan."),
 
                         Select::make('store_id')
                             ->label('Biriktirilgan Oshxona (Global uchun bo\'sh qoldiring)')
@@ -134,6 +151,12 @@ class PromoCodeResource extends Resource
                     ->sortable()
                     ->placeholder('Cheklanmagan')
                     ->formatStateUsing(fn ($state) => $state ? number_format($state, 0, '.', ' ') . ' UZS' : 'Cheklanmagan'),
+
+                Tables\Columns\TextColumn::make('redemptions_count')
+                    ->label('Ishlatilgan')
+                    ->counts('redemptions')
+                    ->description(fn (PromoCode $record) => 'Limit: ' . ($record->usage_limit ?? 'cheklanmagan') . ' / mijozga: ' . ($record->per_user_limit ?? 'cheklanmagan'))
+                    ->sortable(),
 
                 Tables\Columns\TextColumn::make('store.name')
                     ->label('Birlashgan Oshxona')

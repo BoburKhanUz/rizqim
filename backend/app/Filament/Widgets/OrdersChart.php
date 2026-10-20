@@ -2,6 +2,7 @@
 
 namespace App\Filament\Widgets;
 
+use App\Filament\Support\StorePanelScope;
 use Filament\Widgets\ChartWidget;
 
 class OrdersChart extends ChartWidget
@@ -12,10 +13,11 @@ class OrdersChart extends ChartWidget
 
     protected function getData(): array
     {
-        $new = \App\Models\Order::where('status', 'new')->count();
-        $prep = \App\Models\Order::where('status', 'preparing')->count();
-        $del = \App\Models\Order::where('status', 'delivery')->count();
-        $comp = \App\Models\Order::where('status', 'delivered')->count();
+        // The tenant store's orders (a branch manager's branch) only
+        $new = StorePanelScope::orders()->where('status', 'new')->count();
+        $prep = StorePanelScope::orders()->where('status', 'preparing')->count();
+        $del = StorePanelScope::orders()->where('status', 'delivery')->count();
+        $comp = StorePanelScope::orders()->where('status', 'delivered')->count();
         
         return [
             'datasets' => [

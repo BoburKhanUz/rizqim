@@ -1,30 +1,230 @@
 @import "tailwindcss";
 
+/*
+ * Rizqim design tokens: the single source of truth for colours, radii and type (docs/DESIGN.md).
+ *
+ * The --rz-* variables hold the values, per theme; @theme below turns them into Tailwind names (bg-surface,
+ * text-fg-muted, rounded-card, text-body ...). Telegram's own colours are used only for page, surface, fg and
+ * fg-subtle (Telegram's bg/text pairs are high-contrast); muted text, the brand and the status colours are Rizqim's
+ * and never come from Telegram.
+ *
+ * The theme follows Telegram (lib/telegram.ts sets <html data-theme="light|dark"> from WebApp.colorScheme and keeps
+ * it in sync); outside Telegram, without data-theme, it follows the system setting.
+ */
+
+:root {
+  color-scheme: light;
+
+  --rz-page: var(--tg-theme-secondary-bg-color, #f4f5f7);
+  --rz-surface: var(--tg-theme-section-bg-color, var(--tg-theme-bg-color, #ffffff));
+  --rz-surface-2: #f1f3f5;
+  --rz-line: rgba(15, 23, 42, 0.08);
+  --rz-fg: var(--tg-theme-text-color, #0f172a);
+  --rz-fg-muted: #5f6b7a;
+  --rz-fg-subtle: var(--tg-theme-hint-color, #94a3b8);
+  --rz-scrim: rgba(15, 23, 42, 0.5);
+
+  --rz-brand: #c2410c;
+  --rz-on-brand: #ffffff;
+  --rz-brand-soft: #fff1e6;
+  --rz-brand-soft-fg: #9a3412;
+  --rz-accent: #f59e0b;
+
+  --rz-success: #15803d;
+  --rz-on-success: #ffffff;
+  --rz-success-soft: #e8f6ee;
+  --rz-success-soft-fg: #166534;
+
+  --rz-warning: #b45309;
+  --rz-on-warning: #ffffff;
+  --rz-warning-soft: #fef3c7;
+  --rz-warning-soft-fg: #92400e;
+
+  --rz-danger: #dc2626;
+  --rz-on-danger: #ffffff;
+  --rz-danger-soft: #fdecec;
+  --rz-danger-soft-fg: #991b1b;
+
+  --rz-info: #2563eb;
+  --rz-on-info: #ffffff;
+  --rz-info-soft: #eaf1fe;
+  --rz-info-soft-fg: #1e40af;
+
+  /* Height of what is fixed at the bottom of the screen (bottom nav, cart bar, main button fallback), measured by
+     components/ui/BottomDock.tsx. Page content is padded by it. */
+  --rz-dock-height: 0px;
+  /* Telegram's own safe areas (Bot API 8.0+ sets --tg-content-safe-area-inset-*; older clients leave them unset) */
+  --rz-safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--tg-safe-area-inset-bottom, 0px));
+  --rz-inset-bottom: calc(var(--rz-safe-bottom) + var(--tg-content-safe-area-inset-bottom, 0px));
+}
+
+/* The dark palette: twice, for Telegram's dark theme and for a dark system without a Telegram theme. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --rz-page: var(--tg-theme-secondary-bg-color, #0e1621);
+  --rz-surface: var(--tg-theme-section-bg-color, var(--tg-theme-bg-color, #17212b));
+  --rz-surface-2: rgba(255, 255, 255, 0.06);
+  --rz-line: rgba(255, 255, 255, 0.08);
+  --rz-fg: var(--tg-theme-text-color, #f1f5f9);
+  --rz-fg-muted: #9aa8b6;
+  --rz-fg-subtle: var(--tg-theme-hint-color, #7d8b99);
+  --rz-scrim: rgba(0, 0, 0, 0.6);
+
+  --rz-brand: #fb923c;
+  --rz-on-brand: #1c1917;
+  --rz-brand-soft: rgba(251, 146, 60, 0.16);
+  --rz-brand-soft-fg: #fdba74;
+  --rz-accent: #fbbf24;
+
+  --rz-success: #4ade80;
+  --rz-on-success: #052e16;
+  --rz-success-soft: rgba(34, 197, 94, 0.16);
+  --rz-success-soft-fg: #86efac;
+
+  --rz-warning: #fbbf24;
+  --rz-on-warning: #1c1917;
+  --rz-warning-soft: rgba(251, 191, 36, 0.16);
+  --rz-warning-soft-fg: #fcd34d;
+
+  --rz-danger: #f87171;
+  --rz-on-danger: #1c1917;
+  --rz-danger-soft: rgba(239, 68, 68, 0.16);
+  --rz-danger-soft-fg: #fca5a5;
+
+  --rz-info: #60a5fa;
+  --rz-on-info: #0b1220;
+  --rz-info-soft: rgba(96, 165, 250, 0.16);
+  --rz-info-soft-fg: #93c5fd;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --rz-page: var(--tg-theme-secondary-bg-color, #0e1621);
+    --rz-surface: var(--tg-theme-section-bg-color, var(--tg-theme-bg-color, #17212b));
+    --rz-surface-2: rgba(255, 255, 255, 0.06);
+    --rz-line: rgba(255, 255, 255, 0.08);
+    --rz-fg: var(--tg-theme-text-color, #f1f5f9);
+    --rz-fg-muted: #9aa8b6;
+    --rz-fg-subtle: var(--tg-theme-hint-color, #7d8b99);
+    --rz-scrim: rgba(0, 0, 0, 0.6);
+
+    --rz-brand: #fb923c;
+    --rz-on-brand: #1c1917;
+    --rz-brand-soft: rgba(251, 146, 60, 0.16);
+    --rz-brand-soft-fg: #fdba74;
+    --rz-accent: #fbbf24;
+
+    --rz-success: #4ade80;
+    --rz-on-success: #052e16;
+    --rz-success-soft: rgba(34, 197, 94, 0.16);
+    --rz-success-soft-fg: #86efac;
+
+    --rz-warning: #fbbf24;
+    --rz-on-warning: #1c1917;
+    --rz-warning-soft: rgba(251, 191, 36, 0.16);
+    --rz-warning-soft-fg: #fcd34d;
+
+    --rz-danger: #f87171;
+    --rz-on-danger: #1c1917;
+    --rz-danger-soft: rgba(239, 68, 68, 0.16);
+    --rz-danger-soft-fg: #fca5a5;
+
+    --rz-info: #60a5fa;
+    --rz-on-info: #0b1220;
+    --rz-info-soft: rgba(96, 165, 250, 0.16);
+    --rz-info-soft-fg: #93c5fd;
+  }
+}
+
+/* `dark:` follows the same rule as the tokens (prefer tokens: they need no dark: variant at all). */
+@custom-variant dark {
+  &:where([data-theme="dark"], [data-theme="dark"] *) {
+    @slot;
+  }
+  @media (prefers-color-scheme: dark) {
+    &:where(:root:not([data-theme="light"]), :root:not([data-theme="light"]) *) {
+      @slot;
+    }
+  }
+}
+
 @theme {
-  --color-primary: var(--tg-theme-button-color, #2481cc);
-  --color-secondary: var(--tg-theme-secondary-bg-color, #efeff3);
-  --color-text: var(--tg-theme-text-color, #000000);
-  --color-hint: var(--tg-theme-hint-color, #999999);
-  --color-bg: var(--tg-theme-bg-color, #ffffff);
+  /* Colours */
+  --color-page: var(--rz-page);
+  --color-surface: var(--rz-surface);
+  --color-surface-2: var(--rz-surface-2);
+  --color-line: var(--rz-line);
+  --color-fg: var(--rz-fg);
+  --color-fg-muted: var(--rz-fg-muted);
+  --color-fg-subtle: var(--rz-fg-subtle);
+  --color-scrim: var(--rz-scrim);
+
+  --color-brand: var(--rz-brand);
+  --color-on-brand: var(--rz-on-brand);
+  --color-brand-soft: var(--rz-brand-soft);
+  --color-brand-soft-fg: var(--rz-brand-soft-fg);
+  --color-accent: var(--rz-accent);
+
+  --color-success: var(--rz-success);
+  --color-on-success: var(--rz-on-success);
+  --color-success-soft: var(--rz-success-soft);
+  --color-success-soft-fg: var(--rz-success-soft-fg);
+
+  --color-warning: var(--rz-warning);
+  --color-on-warning: var(--rz-on-warning);
+  --color-warning-soft: var(--rz-warning-soft);
+  --color-warning-soft-fg: var(--rz-warning-soft-fg);
+
+  --color-danger: var(--rz-danger);
+  --color-on-danger: var(--rz-on-danger);
+  --color-danger-soft: var(--rz-danger-soft);
+  --color-danger-soft-fg: var(--rz-danger-soft-fg);
+
+  --color-info: var(--rz-info);
+  --color-on-info: var(--rz-on-info);
+  --color-info-soft: var(--rz-info-soft);
+  --color-info-soft-fg: var(--rz-info-soft-fg);
+
+  /*
+   * LEGACY ALIASES (staff screens before the design system). They point at the new tokens so every page already
+   * follows the brand and the theme; wave B replaces them page by page (docs/DESIGN.md has the mapping) and then
+   * they are deleted. Do not use them in new code.
+   *   bg-bg -> bg-surface, bg-secondary -> bg-page, text-text / text-fg -> text-fg,
+   *   text-hint -> text-fg-muted (NOT Telegram's hint: it fails contrast), primary -> brand.
+   */
+  --color-bg: var(--rz-surface);
+  --color-secondary: var(--rz-page);
+  --color-text: var(--rz-fg);
+  --color-hint: var(--rz-fg-muted);
+  --color-primary: var(--rz-brand);
+
+  /* Radii: controls (inputs, chips, small buttons) / cards and buttons / sheets and large hero blocks */
+  --radius-control: 10px;
+  --radius-card: 16px;
+  --radius-sheet: 24px;
+
+  /* Type scale. Nothing smaller than 12px; staff action labels are at least 15px (text-body). */
+  --text-caption: 12px;
+  --text-caption--line-height: 16px;
+  --text-footnote: 13px;
+  --text-footnote--line-height: 18px;
+  --text-body: 15px;
+  --text-body--line-height: 20px;
+  --text-headline: 17px;
+  --text-headline--line-height: 22px;
+  --text-title: 20px;
+  --text-title--line-height: 26px;
+  --text-display: 28px;
+  --text-display--line-height: 34px;
 
   --animate-fade-in-up: fade-in-up 0.3s ease-out forwards;
   --animate-fade-in: fade-in 0.2s ease-out forwards;
   --animate-slide-up: slide-up 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   --animate-scale-up: scale-up 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   --animate-pulse-slow: pulse-slow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-  
-  --color-slate-450: #8c9fb5;
-  --color-slate-505: #64748b;
-  --color-slate-605: #475569;
-  --color-slate-705: #334155;
-  --color-slate-750: #293548;
-  --color-slate-805: #1e293b;
-  --color-slate-808: #1a2436;
-  --color-slate-855: #0f172a;
-  
-  --color-rose-505: #f43f5e;
-  
-  --color-amber-505: #f59e0b;
 }
 
 @keyframes scale-up {
@@ -50,24 +250,63 @@
 }
 
 @layer base {
+  html,
   body {
-    @apply bg-secondary text-text antialiased;
+    background-color: var(--rz-page);
+  }
+  html {
+    /* Focus and scrollIntoView keep what they reveal above the bottom dock */
+    scroll-padding-bottom: calc(var(--rz-dock-height) + 12px);
+  }
+  body {
+    @apply text-fg antialiased;
+    font-size: var(--text-body);
+    line-height: var(--text-body--line-height);
     /* Prevent text selection in Telegram Web App */
     user-select: none;
     -webkit-user-select: none;
     margin: 0;
+  }
+  input,
+  textarea,
+  [contenteditable="true"] {
+    user-select: text;
+    -webkit-user-select: text;
+  }
+  ::placeholder {
+    color: var(--rz-fg-subtle);
+  }
+}
+
+/* No motion for people who asked for less: animations end at once, pulses stop. */
+@media (prefers-reduced-motion: reduce) {
+  *:not(.animate-spin),
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
 
 /* Custom Utilities for safe areas in Telegram */
 @layer utilities {
   .pb-safe {
-    padding-bottom: env(safe-area-inset-bottom, 20px);
+    padding-bottom: var(--rz-inset-bottom);
   }
   .safe-area-bottom {
-    padding-bottom: calc(env(safe-area-inset-bottom, 20px) + 16px);
+    padding-bottom: calc(var(--rz-inset-bottom) + 16px);
   }
-  
+  /* Room for whatever the BottomDock holds (nav, cart bar, main button), so the end of a page is never hidden */
+  .pb-dock {
+    padding-bottom: calc(var(--rz-dock-height) + 16px);
+  }
+  /* Keeps a fixed element above the dock (toasts, floating buttons of a page) */
+  .bottom-dock {
+    bottom: calc(var(--rz-dock-height) + 12px);
+  }
+
   /* Hide scrollbar for category list */
   .scrollbar-hide::-webkit-scrollbar {
     display: none;

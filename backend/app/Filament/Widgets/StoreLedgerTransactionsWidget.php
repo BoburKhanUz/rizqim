@@ -29,7 +29,7 @@ class StoreLedgerTransactionsWidget extends BaseWidget
         return $table
             ->query(
                 StoreTransaction::query()
-                    ->where('store_id', $tenant?->id)
+                    ->where('store_id', $tenant?->getKey())
                     ->orderBy('created_at', 'desc')
             )
             ->columns([

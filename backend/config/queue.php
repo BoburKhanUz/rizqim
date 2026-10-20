@@ -40,7 +40,8 @@ return [
             'connection' => env('DB_QUEUE_CONNECTION'),
             'table' => env('DB_QUEUE_TABLE', 'jobs'),
             'queue' => env('DB_QUEUE', 'default'),
-            'retry_after' => (int) env('DB_QUEUE_RETRY_AFTER', 90),
+            // Must exceed the longest job timeout (SendOrderReport: 120 s), else a still-running job is handed to a second worker
+            'retry_after' => (int) env('DB_QUEUE_RETRY_AFTER', 180),
             'after_commit' => false,
         ],
 
@@ -68,9 +69,13 @@ return [
             'driver' => 'redis',
             'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
             'queue' => env('REDIS_QUEUE', 'default'),
-            'retry_after' => (int) env('REDIS_QUEUE_RETRY_AFTER', 90),
+            // Same rule as the database connection: longer than the longest job timeout (SendOrderReport: 120 s)
+            'retry_after' => (int) env('REDIS_QUEUE_RETRY_AFTER', 180),
             'block_for' => null,
-            'after_commit' => false,
+            // The database queue lives in the same Postgres as the order data, so a job pushed inside a transaction
+            // only became visible to workers on commit and vanished on rollback. Redis has no such link: without this,
+            // a worker could run a job before its transaction commits (stale rows) or after it rolled back.
+            'after_commit' => true,
         ],
 
         'deferred' => [

@@ -12,23 +12,31 @@ export interface CartItem {
   image?: string;
 }
 
+// The store the cart's items come from, as the cart screen shows it.
+export interface CartStoreInfo {
+  name: string;
+  address: string;
+}
+
+// An item that could not be added because the cart holds another store's items; kept until the customer decides.
+export interface PendingCartItem {
+  item: CartItem;
+  storeInfo?: CartStoreInfo;
+}
+
 interface CartState {
   items: CartItem[];
   storeName: string;
   storeAddress: string;
-  promoCode: string;
-  discountPercent: number;
   specialInstructions: string;
-  addItem: (item: CartItem, storeInfo?: { name: string, address: string }) => boolean;
-  forceClearAndAdd: (item: CartItem, storeInfo?: { name: string, address: string }) => void;
+  addItem: (item: CartItem, storeInfo?: CartStoreInfo) => boolean;
+  forceClearAndAdd: (item: CartItem, storeInfo?: CartStoreInfo) => void;
   removeItem: (id: string) => void;
   updateQuantity: (id: string, quantity: number) => void;
   clearCart: () => void;
   replaceCart: (item: CartItem) => void;
   getSubtotal: () => number;
   getTotalItems: () => number;
-  setPromoCode: (code: string) => void;
-  setDiscountPercent: (percent: number) => void;
   setSpecialInstructions: (instructions: string) => void;
 }
 
@@ -38,8 +46,6 @@ export const useCartStore = create<CartState>()(
       items: [],
       storeName: '',
       storeAddress: '',
-      promoCode: '',
-      discountPercent: 0,
       specialInstructions: '',
       
       addItem: (newItem, storeInfo) => {
@@ -86,8 +92,6 @@ export const useCartStore = create<CartState>()(
             items: [{ ...newItem, quantity: newItem.quantity || 1 }],
             storeName: storeInfo?.name || '',
             storeAddress: storeInfo?.address || 'Asosiy filial',
-            promoCode: '',
-            discountPercent: 0,
             specialInstructions: ''
          });
       },
@@ -111,7 +115,7 @@ export const useCartStore = create<CartState>()(
         });
       },
       
-      clearCart: () => set({ items: [], storeName: '', storeAddress: '', promoCode: '', discountPercent: 0, specialInstructions: '' }),
+      clearCart: () => set({ items: [], storeName: '', storeAddress: '', specialInstructions: '' }),
       
       replaceCart: (newItem) => set({ items: [{ ...newItem, quantity: newItem.quantity || 1 }] }),
       
@@ -123,10 +127,6 @@ export const useCartStore = create<CartState>()(
         return get().items.reduce((total, item) => total + item.quantity, 0);
       },
 
-      setPromoCode: (promoCode) => set({ promoCode }),
-      
-      setDiscountPercent: (discountPercent) => set({ discountPercent }),
-      
       setSpecialInstructions: (specialInstructions) => set({ specialInstructions })
     }),
     {

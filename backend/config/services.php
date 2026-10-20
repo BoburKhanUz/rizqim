@@ -23,6 +23,8 @@ return [
         'webhook_secret' => env('TELEGRAM_WEBHOOK_SECRET'),
         'bot_username' => env('TELEGRAM_BOT_USERNAME'),
         'webapp_url' => env('TELEGRAM_WEBAPP_URL'),
+        // Platform alerts for superadmins (e.g. a delivered order whose ledger booking failed); none when unset
+        'superadmin_chat_id' => env('TELEGRAM_SUPERADMIN_CHAT_ID'),
     ],
 
     'resend' => [
@@ -40,6 +42,41 @@ return [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),
             'channel' => env('SLACK_BOT_USER_DEFAULT_CHANNEL'),
         ],
+    ],
+
+    // Platform-level merchant credentials. Secrets deliberately have no default: webhooks fail closed when unset.
+    'click' => [
+        'secret_key' => env('CLICK_SECRET_KEY'),
+        'service_id' => env('CLICK_SERVICE_ID', '32104'),
+        'merchant_id' => env('CLICK_MERCHANT_ID', '24185'),
+    ],
+
+    'payme' => [
+        'secret_key' => env('PAYME_SECRET_KEY'),
+        'merchant_id' => env('PAYME_MERCHANT_ID', '65eb2b988f01b97b0a7c4912'),
+    ],
+
+    // Address search / reverse geocoding behind /api/v1/geocode/* (see App\Services\Geo). The Mini App never calls a
+    // geocoder directly: the server adds the identification, caching and rate limiting a provider's usage policy asks for.
+    'geocoding' => [
+        // Only "nominatim" is implemented; others are added in App\Services\Geo\GeocoderManager
+        'provider' => env('GEOCODING_PROVIDER', 'nominatim'),
+        // Seconds an answer is remembered (minimum one day, default a week)
+        'cache_ttl' => (int) env('GEOCODING_CACHE_TTL', 604800),
+    ],
+
+    'nominatim' => [
+        'base_url' => env('NOMINATIM_BASE_URL', 'https://nominatim.openstreetmap.org'),
+        // Contact put into the User-Agent as the usage policy of the public instance requires; falls back to APP_URL
+        'email' => env('NOMINATIM_EMAIL'),
+        'accept_language' => 'uz,ru',
+        'country_codes' => 'uz',
+        'timeout' => 5,
+        // The public instance allows 1 request per second for the whole platform. 0 turns the pause off (self-hosted Nominatim only)
+        'min_interval' => (float) env('NOMINATIM_MIN_INTERVAL', 1),
+        // Seconds a request may wait for the request slot before the API answers 503 (with Retry-After): short, so a
+        // queue of cache misses never ties up PHP workers
+        'lock_wait' => 0.5,
     ],
 
 ];

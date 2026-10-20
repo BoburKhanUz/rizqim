@@ -33,7 +33,7 @@ class DelayDetectionService
      */
     public static function isOrderDelayed(Order $order): bool
     {
-        $statusStr = $order->status instanceof \BackedEnum ? $order->status->value : $order->status;
+        $statusStr = $order->status->value;
         
         if (in_array($statusStr, ['delivered', 'canceled'])) {
             return false;
@@ -47,14 +47,12 @@ class DelayDetectionService
     }
 
     /**
-     * Get all active delayed orders scoped strictly to the current store (cached for 15s per store).
+     * Get all active delayed orders scoped strictly to the current store, or a branch manager's branch (cached for 15s).
      */
     public static function getDelayedOrdersCount(): int
     {
-        $storeId = OpsContext::getStoreId();
-        
-        return Cache::remember("ops:delayed_orders_count:store_{$storeId}", 15, function () use ($storeId) {
-            $activeOrders = Order::where('store_id', $storeId)
+        return Cache::remember(OpsContext::cacheKey('delayed_orders_count'), 15, function () {
+            $activeOrders = OpsContext::orders()
                 ->whereNotIn('status', ['delivered', 'canceled'])
                 ->get();
                 

@@ -1,0 +1,432 @@
+<?php
+
+namespace App\Services\Order;
+
+use App\Enums\CancelReason;
+use App\Enums\OrderStatus;
+use App\Enums\PaymentStatus;
+use App\Enums\UserRole;
+use App\Events\Broadcast\OrderAssignedBroadcast;
+use App\Events\Broadcast\OrderStatusChangedBroadcast;
+use App\Events\OrderCancelled;
+use App\Events\OrderStatusUpdated;
+use App\Models\Order;
+use App\Models\OrderAssignment;
+use App\Models\OrderStatusHistory;
+use App\Models\ProductVariant;
+use App\Models\User;
+use App\Services\Finance\LedgerService;
+use App\Services\Finance\SettlementRecoveryService;
+use App\Support\Money;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Log;
+
+class OrderStatusService
+{
+    public function __construct(
+        protected LedgerService $ledger,
+        protected SettlementRecoveryService $settlements
+    ) {}
+
+    /**
+     * The single place an order's status changes, under a row lock on the order. Options:
+     *  - courier_id: courier to (re)assign when the order goes to a courier (validated like assign-courier);
+     *  - from: statuses the caller's action was offered in (e.g. a Telegram button); the order must still be in one;
+     *  - notes: status history note;
+     *  - refunded_by_provider: a refund the payment provider already made (nothing is flagged for a manual refund);
+     *  - cancel_reason (CancelReason|string), required for canceled/rejected: staff pick any but payment_timeout,
+     *    which is the system's (null actor) own, and no_show only for a pickup order already accepted
+     *    (CancelReason::appliesTo); cancel_note: optional free text (max 500);
+     *  - customer: the actor cancels their own order (POST /orders/{uuid}/cancel): refused with 422 unless it is still
+     *    new and unpaid (or already cancelled by them: a retried cancel is the no-op), and only for customer_request.
+     * Requesting the current status is a no-op (changed = false), so retries never repeat side effects.
+     * A null actor is the system and skips the permission checks.
+     *
+     * @throws OrderTransitionException
+     */
+    public function transition(Order $order, OrderStatus $to, ?User $actor, array $options = []): OrderTransitionResult
+    {
+        return DB::transaction(function () use ($order, $to, $actor, $options) {
+            $order = Order::whereKey($order->getKey())->lockForUpdate()->firstOrFail();
+            $from = $order->status;
+            $previousCourierId = $order->courier_id !== null ? (int) $order->courier_id : null;
+            $courierId = isset($options['courier_id']) ? (int) $options['courier_id'] : null;
+
+            // Checked under the lock, so a store accepting (or a payment landing) a moment earlier wins with a 422. A
+            // retry of this customer's own successful cancel (a lost response) falls through to the no-op below
+            if (!empty($options['customer'])) {
+                if (!$order->isCancellableByCustomer() && !$this->cancelledByCustomer($order, $actor)) {
+                    throw OrderTransitionException::notCancellableByCustomer();
+                }
+                // Before OrderPolicy, which lets the customer cancel for customer_request only (a 403 otherwise)
+                if ($this->requestedReason($options) !== CancelReason::CUSTOMER_REQUEST) {
+                    throw OrderTransitionException::reasonNotAllowed();
+                }
+            }
+
+            if ($from === $to && ($courierId === null || $courierId === (int) $order->courier_id)) {
+                if ($actor && Gate::forUser($actor)->denies('view', $order)) {
+                    throw OrderTransitionException::forbidden();
+                }
+
+                return new OrderTransitionResult($order, $from, false);
+            }
+
+            if ($actor && Gate::forUser($actor)->denies('changeStatus', [$order, $to, $this->requestedReason($options)])) {
+                throw OrderTransitionException::forbidden();
+            }
+
+            if (isset($options['from']) && !in_array($from, $options['from'], true)) {
+                throw OrderTransitionException::stale($from, $to);
+            }
+
+            // Same status with another courier: only a waiting assignment can be handed to someone else
+            $reassign = $from === $to;
+            if (($reassign && $to !== OrderStatus::COURIER_ASSIGNED) || (!$reassign && !$from->canTransitionTo($to, $order->type))) {
+                throw OrderTransitionException::illegal($from, $to);
+            }
+
+            $cancellation = $to->isCancellation() ? $this->cancellation($order, $from, $actor, $options) : [];
+
+            $courier = $this->resolveCourier($order, $to, $actor, $courierId);
+
+            $order->update(array_filter([
+                'status' => $to->value,
+                'courier_id' => $courier?->id,
+            ]) + $cancellation);
+
+            if ($courier) {
+                $this->recordAssignment($order, $courier, $actor);
+            }
+
+            $notes = array_filter([$options['notes'] ?? null, $courier ? "Kuryer: {$courier->name}" : null]);
+            if ($cancellation) {
+                $notes[] = 'Sabab: ' . CancelReason::from($cancellation['cancel_reason'])->label()
+                    . ($cancellation['cancel_note'] !== null ? " ({$cancellation['cancel_note']})" : '');
+            }
+            $manualRefund = false;
+
+            if ($to->isCancellation()) {
+                $this->restoreStock($order);
+                $this->refundKeshbek($order);
+
+                if ($refundNote = $this->flagManualRefund($order, $to)) {
+                    $notes[] = $refundNote;
+                    $manualRefund = true;
+                }
+            }
+
+            if ($to === OrderStatus::REFUNDED) {
+                // The food was delivered, so no stock comes back; the store's ledger first, then the customer's keshbek
+                if ($ledgerNote = $this->reverseDelivery($order, $actor)) {
+                    $notes[] = $ledgerNote;
+                }
+                $this->refundKeshbek($order);
+
+                if (empty($options['refunded_by_provider']) && ($refundNote = $this->flagManualRefund($order, $to))) {
+                    $notes[] = $refundNote;
+                    $manualRefund = true;
+                }
+            }
+
+            OrderStatusHistory::create([
+                'order_id' => $order->id,
+                'user_id' => $actor?->id,
+                'from_status' => $from->value,
+                'status' => $to->value,
+                'notes' => $notes ? implode(' | ', $notes) : null,
+            ]);
+
+            if ($to === OrderStatus::DELIVERED) {
+                // In a savepoint: a failed booking is marked on the order, alerted and retried, never fails the delivery
+                $this->settlements->book($order, $actor?->id);
+            }
+
+            // Both events dispatch after commit (ShouldDispatchAfterCommit)
+            event($to->isCancellation() ? new OrderCancelled($order) : new OrderStatusUpdated($order));
+            // Real-time hints for the Mini App (Reverb; queued, after commit, ids and status only)
+            event(new OrderStatusChangedBroadcast($order, $previousCourierId));
+            if ($courier) {
+                event(new OrderAssignedBroadcast($order));
+            }
+
+            return new OrderTransitionResult($order, $from, true, $courier, $manualRefund);
+        });
+    }
+
+    /**
+     * The one way to refund a delivered order (super_admin; a null actor is the system, e.g. a refund Payme made).
+     * Calling it again is a no-op.
+     *
+     * @throws OrderTransitionException
+     */
+    public function refund(Order $order, ?User $actor, string $reason, bool $refundedByProvider = false): OrderTransitionResult
+    {
+        if (trim($reason) === '') {
+            throw new OrderTransitionException("Qaytarish sababini kiriting.", 422, 'reason');
+        }
+
+        return $this->transition($order, OrderStatus::REFUNDED, $actor, [
+            'notes' => trim($reason),
+            'refunded_by_provider' => $refundedByProvider,
+        ]);
+    }
+
+    /**
+     * Staff an order of this store may be handed to: couriers, managers and owners (who stand in for couriers);
+     * a branch manager only picks from their branch, store-wide staff or the owner. Invited couriers and managers
+     * count only once they joined; owners can always act from the admin panel.
+     *
+     * @return Builder<User>
+     */
+    public function assignableStaff(int $storeId, ?User $assigner): Builder
+    {
+        return User::query()
+            ->where('store_id', $storeId)
+            ->whereIn('role', [UserRole::COURIER->value, UserRole::MANAGER->value, UserRole::OWNER->value])
+            ->where(function (Builder $query) {
+                $query->where('role', UserRole::OWNER->value)
+                    ->orWhere(fn (Builder $query) => $this->joined($query));
+            })
+            ->when($assigner?->role === UserRole::MANAGER && $assigner->branch_id, function (Builder $query) use ($assigner) {
+                $query->where(function (Builder $query) use ($assigner) {
+                    $query->where('branch_id', $assigner->branch_id)
+                        ->orWhereNull('branch_id')
+                        ->orWhere('role', UserRole::OWNER->value);
+                });
+            });
+    }
+
+    /**
+     * The store's courier with the fewest orders in hand, preferring the order's branch, then store-wide couriers,
+     * then other branches; ties go to the lowest id. The owner stands in when the store has no courier.
+     */
+    public function leastLoadedCourier(Order $order): ?User
+    {
+        $inHand = array_map(fn (OrderStatus $status) => $status->value, OrderStatus::withCourier());
+
+        $courier = User::query()
+            ->where('store_id', $order->store_id)
+            ->where('role', UserRole::COURIER->value)
+            ->where(fn (Builder $query) => $this->joined($query))
+            ->addSelect(['active_orders' => Order::query()
+                ->selectRaw('count(*)')
+                ->whereColumn('orders.courier_id', 'users.id')
+                ->whereIn('orders.status', $inHand)])
+            ->orderByRaw('CASE WHEN users.branch_id = ? THEN 0 WHEN users.branch_id IS NULL THEN 1 ELSE 2 END', [$order->branch_id])
+            ->orderBy('active_orders')
+            ->orderBy('users.id')
+            ->first();
+
+        return $courier ?? User::where('store_id', $order->store_id)
+            ->where('role', UserRole::OWNER->value)
+            ->orderBy('id')
+            ->first();
+    }
+
+    /**
+     * Staff who claimed their invite: an unclaimed one still has a pending token and no real Telegram account
+     * ('temp_…' placeholder or none), so it could never see or move the order.
+     */
+    protected function joined(Builder $query): Builder
+    {
+        return $query->whereNull('telegram_invite_token')
+            ->whereNotNull('telegram_id')
+            ->where('telegram_id', 'not like', 'temp\\_%');
+    }
+
+    /**
+     * The cancel_reason option as a CancelReason, null when missing or unknown.
+     */
+    protected function requestedReason(array $options): ?CancelReason
+    {
+        $reason = $options['cancel_reason'] ?? null;
+
+        return $reason instanceof CancelReason ? $reason : CancelReason::tryFrom((string) $reason);
+    }
+
+    /**
+     * Whether the order is already cancelled by this customer themselves (customer_request, cancelled_by them).
+     */
+    protected function cancelledByCustomer(Order $order, ?User $actor): bool
+    {
+        return $actor !== null
+            && $order->status === OrderStatus::CANCELED
+            && $order->cancel_reason === CancelReason::CUSTOMER_REQUEST
+            && (int) $order->cancelled_by === (int) $actor->id;
+    }
+
+    /**
+     * The cancel_reason/cancel_note/cancelled_by columns of a cancellation, after checking the reason may be given.
+     *
+     * @return array{cancel_reason: string, cancel_note: ?string, cancelled_by: ?int}
+     */
+    protected function cancellation(Order $order, OrderStatus $from, ?User $actor, array $options): array
+    {
+        $reason = $this->requestedReason($options);
+
+        if (!$reason) {
+            throw OrderTransitionException::reasonRequired();
+        }
+
+        $allowed = match (true) {
+            !empty($options['customer']) => $reason === CancelReason::CUSTOMER_REQUEST,
+            $actor !== null => $reason !== CancelReason::PAYMENT_TIMEOUT,
+            default => true,
+        };
+        if (!$allowed) {
+            throw OrderTransitionException::reasonNotAllowed();
+        }
+        if (!$reason->appliesTo($order->order_type, $from)) {
+            throw OrderTransitionException::noShowNotApplicable();
+        }
+
+        $note = trim((string) ($options['cancel_note'] ?? ''));
+
+        return [
+            'cancel_reason' => $reason->value,
+            'cancel_note' => $note === '' ? null : mb_substr($note, 0, 500),
+            'cancelled_by' => $actor?->id,
+        ];
+    }
+
+    protected function resolveCourier(Order $order, OrderStatus $to, ?User $actor, ?int $courierId): ?User
+    {
+        if ($courierId !== null) {
+            if (!$to->isWithCourier()) {
+                throw OrderTransitionException::courierNotApplicable();
+            }
+
+            if ($actor && Gate::forUser($actor)->denies('assignCourier', $order)) {
+                throw OrderTransitionException::forbidden();
+            }
+
+            return $this->assignableStaff((int) $order->store_id, $actor)->whereKey($courierId)->first()
+                ?? throw OrderTransitionException::invalidCourier();
+        }
+
+        if (!$to->isWithCourier() || $order->courier_id) {
+            return null;
+        }
+
+        return $this->leastLoadedCourier($order) ?? throw OrderTransitionException::noCourier();
+    }
+
+    protected function recordAssignment(Order $order, User $courier, ?User $actor): void
+    {
+        OrderAssignment::where('order_id', $order->id)
+            ->where('is_current', true)
+            ->update(['is_current' => false, 'unassigned_at' => now()]);
+
+        if (!$order->branch_id) {
+            return; // assigned_branch_id is required
+        }
+
+        OrderAssignment::create([
+            'order_id' => $order->id,
+            'courier_id' => $courier->id,
+            'assigned_by' => $actor->id ?? $courier->id,
+            'assigned_branch_id' => $order->branch_id,
+            'is_current' => true,
+            'assigned_at' => now(),
+        ]);
+    }
+
+    protected function restoreStock(Order $order): void
+    {
+        $quantities = $order->items()
+            ->whereNotNull('product_variant_id')
+            ->get(['product_variant_id', 'quantity'])
+            ->groupBy('product_variant_id')
+            ->map(fn ($items) => (int) $items->sum('quantity'))
+            ->sortKeys();
+
+        // Variant id order, as CreateOrderAction locks them, so a cancel and a checkout cannot deadlock
+        foreach ($quantities as $variantId => $quantity) {
+            if ($quantity > 0) {
+                ProductVariant::withTrashed()->whereKey($variantId)->increment('stock', $quantity);
+            }
+        }
+    }
+
+    protected function refundKeshbek(Order $order): void
+    {
+        if ($order->payment_method !== 'keshbek' || $order->payment_status !== PaymentStatus::PAID) {
+            return;
+        }
+
+        $payment = $order->payments()
+            ->where('provider', 'keshbek')
+            ->where('status', PaymentStatus::PAID->value)
+            ->lockForUpdate()
+            ->first();
+        $amount = Money::of($payment->amount ?? $order->total_price);
+
+        if ($amount->isPositive()) {
+            // A numeric string keeps the amount exact; Laravel accepts it although the stub says float|int
+            User::whereKey($order->user_id)->increment('balance', $amount->toString()); // @phpstan-ignore argument.type
+        }
+
+        $payment?->update([
+            'status' => PaymentStatus::REFUNDED,
+            'cancelled_at' => now(),
+            'payload' => array_merge($payment->payload ?? [], [
+                'refunded_to_balance' => $amount->toFloat(),
+                'refunded_at' => now()->toIso8601String(),
+            ]),
+        ]);
+
+        $order->update(['payment_status' => PaymentStatus::REFUNDED->value]);
+    }
+
+    /**
+     * Money already taken by Click/Payme (or collected cash) cannot be returned from here: the payment stays
+     * paid and is flagged for a manual refund. Returns the history note, or null when nothing is owed.
+     */
+    protected function flagManualRefund(Order $order, OrderStatus $to): ?string
+    {
+        if ($order->payment_status !== PaymentStatus::PAID) {
+            return null;
+        }
+
+        $payments = $order->payments()->where('status', PaymentStatus::PAID->value)->lockForUpdate()->get();
+        foreach ($payments as $payment) {
+            $payment->update(['payload' => array_merge($payment->payload ?? [], [
+                'manual_refund_required' => true,
+                'manual_refund_reason' => "order_{$to->value}",
+                'manual_refund_flagged_at' => now()->toIso8601String(),
+            ])]);
+        }
+
+        $paid = Money::sum(...$payments->pluck('amount')->all());
+        $amount = $paid->isZero() ? Money::of($order->total_price) : $paid;
+
+        Log::warning("Manual refund required for {$to->value} order {$order->uuid}", [
+            'order_id' => $order->id,
+            'payment_method' => $order->payment_method,
+            'amount' => $amount->toString(),
+        ]);
+
+        return "To'lov avtomatik qaytarilmadi: " . number_format($amount->toFloat(), 0, '.', ' ')
+            . " UZS ({$order->payment_method}) mijozga qo'lda qaytarilishi kerak.";
+    }
+
+    /**
+     * Undoes what delivery booked to the store (LedgerService::reverseDeliveredOrder); returns the history note.
+     */
+    protected function reverseDelivery(Order $order, ?User $actor): ?string
+    {
+        $reversed = $this->ledger->reverseDeliveredOrder($order, $actor?->id);
+        $uzs = fn (Money $amount) => number_format($amount->toFloat(), 0, '.', ' ') . ' UZS';
+
+        $parts = array_filter([
+            $reversed['commission']->isPositive() ? "komissiya {$uzs($reversed['commission'])} qaytarildi" : null,
+            $reversed['settlement']->isPositive() ? "do'konga o'tkazilgan {$uzs($reversed['settlement'])} qaytarib olindi" : null,
+            $reversed['added_to_debt']->isPositive() ? "shundan {$uzs($reversed['added_to_debt'])} hamyonda yo'qligi uchun qarzga yozildi" : null,
+        ]);
+
+        return $parts ? 'Moliya: ' . implode(', ', $parts) . '.' : null;
+    }
+}

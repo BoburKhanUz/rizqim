@@ -2,7 +2,6 @@
 
 namespace App\Services\Ops;
 
-use App\Models\Order;
 use Illuminate\Support\Facades\Cache;
 
 class PaymentInsightService
@@ -12,10 +11,8 @@ class PaymentInsightService
      */
     public static function getAverageOrderValue(): float
     {
-        $storeId = OpsContext::getStoreId();
-        
-        return Cache::remember("ops:average_order_value:store_{$storeId}", 15, function () use ($storeId) {
-            return (float) Order::where('store_id', $storeId)->avg('total_price');
+        return Cache::remember(OpsContext::cacheKey('average_order_value'), 15, function () {
+            return (float) OpsContext::orders()->avg('total_price');
         });
     }
 
@@ -24,17 +21,15 @@ class PaymentInsightService
      */
     public static function getPaymentMethodDominance(): array
     {
-        $storeId = OpsContext::getStoreId();
-        
-        return Cache::remember("ops:payment_method_dominance:store_{$storeId}", 15, function () use ($storeId) {
-            $methods = Order::where('store_id', $storeId)
+        return Cache::remember(OpsContext::cacheKey('payment_method_dominance'), 15, function () {
+            $methods = OpsContext::orders()
                 ->select('payment_method')
                 ->selectRaw('COUNT(*) as count')
                 ->groupBy('payment_method')
                 ->orderBy('count', 'desc')
                 ->get();
 
-            $totalOrders = Order::where('store_id', $storeId)->count();
+            $totalOrders = OpsContext::orders()->count();
             
             if ($totalOrders > 0 && $methods->isNotEmpty()) {
                 $dominant = $methods->first();
@@ -61,10 +56,8 @@ class PaymentInsightService
      */
     public static function getFailedTransactionsCount(): int
     {
-        $storeId = OpsContext::getStoreId();
-        
-        return Cache::remember("ops:failed_transactions_count:store_{$storeId}", 15, function () use ($storeId) {
-            return Order::where('store_id', $storeId)->where('status', 'canceled')->count();
+        return Cache::remember(OpsContext::cacheKey('failed_transactions_count'), 15, function () {
+            return OpsContext::orders()->where('status', 'canceled')->count();
         });
     }
 
@@ -73,10 +66,8 @@ class PaymentInsightService
      */
     public static function getRushHourProfitability(): array
     {
-        $storeId = OpsContext::getStoreId();
-        
-        return Cache::remember("ops:rush_hour_profitability:store_{$storeId}", 15, function () use ($storeId) {
-            $orders = Order::where('store_id', $storeId)->select('created_at', 'total_price')->get();
+        return Cache::remember(OpsContext::cacheKey('rush_hour_profitability'), 15, function () {
+            $orders = OpsContext::orders()->select('created_at', 'total_price')->get();
 
             $lunchChecks = [];
             $nightChecks = [];

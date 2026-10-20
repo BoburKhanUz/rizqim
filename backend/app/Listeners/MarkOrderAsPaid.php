@@ -3,37 +3,67 @@
 namespace App\Listeners;
 
 use App\Events\PaymentPaid;
-use App\Models\OrderStatusHistory;
+use App\Models\Order;
 use App\Enums\OrderStatus;
 use App\Enums\PaymentStatus;
+use App\Services\Finance\LedgerService;
+use App\Services\Order\OrderStatusService;
+use App\Services\Order\OrderTransitionException;
+use Illuminate\Support\Facades\DB;
 
 class MarkOrderAsPaid
 {
+    public function __construct(
+        protected OrderStatusService $orderStatus,
+        protected LedgerService $ledger
+    ) {}
+
     /**
      * Handle the event.
      */
     public function handle(PaymentPaid $event): void
     {
         $payment = $event->payment;
-        $order = $payment->order;
+
+        if (!$payment->order_id) {
+            return;
+        }
+
+        $order = DB::transaction(function () use ($payment) {
+            $order = Order::whereKey($payment->order_id)->lockForUpdate()->first();
+
+            if (!$order) {
+                return null;
+            }
+
+            // 1. Update Order billing status
+            if ($order->payment_status !== PaymentStatus::PAID) {
+                $order->update(['payment_status' => PaymentStatus::PAID->value]);
+            }
+
+            // Paid only after delivery: delivery skipped the settlement, so credit the store now (idempotent).
+            if ($order->status === OrderStatus::DELIVERED) {
+                $this->ledger->settlePlatformOrder($order);
+
+                return null;
+            }
+
+            // 2. Only a still-new order is auto-accepted, so a repeated event never regresses or revives an order.
+            try {
+                $result = $this->orderStatus->transition($order, OrderStatus::ACCEPTED, null, [
+                    'from' => [OrderStatus::NEW],
+                    'notes' => "Payment verified via Webhook ({$payment->provider}). Order automatically Accepted.",
+                ]);
+            } catch (OrderTransitionException) {
+                return null;
+            }
+
+            return $result->changed ? $result->order : null;
+        });
 
         if (!$order) {
             return;
         }
-
-        // 1. Update Order billing status
-        $order->update([
-            'payment_status' => PaymentStatus::PAID->value,
-            'status' => OrderStatus::ACCEPTED->value, // Transition automatically to Accepted!
-        ]);
-
-        // 2. Register status transition history log
-        OrderStatusHistory::create([
-            'order_id' => $order->id,
-            'user_id' => $order->user_id,
-            'status' => OrderStatus::ACCEPTED->value,
-            'note' => "Payment verified via Webhook ({$payment->provider}). Order automatically Accepted.",
-        ]);
 
         // 3. Dispatch admin / kitchen telegram notifications
         try {

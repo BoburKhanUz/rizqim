@@ -2,26 +2,32 @@
 
 namespace App\Policies;
 
+use App\Enums\CancelReason;
+use App\Enums\OrderStatus;
+use App\Enums\UserRole;
 use App\Models\Order;
 use App\Models\User;
-use Illuminate\Auth\Access\Response;
 
 class OrderPolicy
 {
     public function before(User $user, string $ability): ?bool
     {
-        if ($user->role === \App\Enums\UserRole::SUPER_ADMIN) return true;
+        if ($user->role === UserRole::SUPER_ADMIN) return true;
         return null;
     }
 
     public function viewAny(User $user): bool
     {
-        return in_array($user->role, [\App\Enums\UserRole::OWNER, \App\Enums\UserRole::MANAGER]);
+        return in_array($user->role, [UserRole::OWNER, UserRole::MANAGER], true);
     }
 
     public function view(User $user, Order $order): bool
     {
-        return $user->store_id === $order->store_id;
+        return match ($user->role) {
+            UserRole::OWNER, UserRole::MANAGER => $this->manages($user, $order),
+            UserRole::COURIER => $this->isAssignedCourier($user, $order),
+            default => (int) $order->user_id === (int) $user->id,
+        };
     }
 
     public function create(User $user): bool
@@ -31,7 +37,45 @@ class OrderPolicy
 
     public function update(User $user, Order $order): bool
     {
-        return $user->store_id === $order->store_id;
+        return $this->manages($user, $order);
+    }
+
+    /**
+     * Owners/managers run the whole lifecycle of their store's (branch's) orders; a courier only moves
+     * the order assigned to them through the delivery phase; the customer may only cancel their own order while it is
+     * new and unpaid (Order::isCancellableByCustomer), and only for customer_request: $reason is the cancel reason asked
+     * for, so no caller can let a customer cancel with a store's reason. Refunds are super_admin only (before()).
+     */
+    public function changeStatus(User $user, Order $order, OrderStatus $to, ?CancelReason $reason = null): bool
+    {
+        if ($to === OrderStatus::REFUNDED) {
+            return false;
+        }
+
+        if ($this->isOwnCancellableOrder($user, $order, $to, $reason)) {
+            return true;
+        }
+
+        if ($user->role === UserRole::COURIER) {
+            return $this->isAssignedCourier($user, $order)
+                && in_array($order->status, OrderStatus::withCourier(), true)
+                && in_array($to, [OrderStatus::ON_THE_WAY, OrderStatus::DELIVERY, OrderStatus::DELIVERED], true);
+        }
+
+        return $this->manages($user, $order);
+    }
+
+    public function assignCourier(User $user, Order $order): bool
+    {
+        return $this->manages($user, $order);
+    }
+
+    /**
+     * POST /orders/{uuid}/complete is the courier app's "delivered" button.
+     */
+    public function complete(User $user, Order $order): bool
+    {
+        return $this->isAssignedCourier($user, $order);
     }
 
     public function delete(User $user, Order $order): bool
@@ -47,5 +91,37 @@ class OrderPolicy
     public function forceDelete(User $user, Order $order): bool
     {
         return false;
+    }
+
+    /**
+     * Owner: any order of their store. Manager: their store, narrowed to their branch when they have one.
+     */
+    protected function manages(User $user, Order $order): bool
+    {
+        if (!in_array($user->role, [UserRole::OWNER, UserRole::MANAGER], true)
+            || !$user->store_id
+            || (int) $user->store_id !== (int) $order->store_id) {
+            return false;
+        }
+
+        return $user->role === UserRole::OWNER
+            || !$user->branch_id
+            || (int) $user->branch_id === (int) $order->branch_id;
+    }
+
+    protected function isOwnCancellableOrder(User $user, Order $order, OrderStatus $to, ?CancelReason $reason): bool
+    {
+        return $to === OrderStatus::CANCELED
+            && $reason === CancelReason::CUSTOMER_REQUEST
+            && (int) $order->user_id === (int) $user->id
+            && $order->isCancellableByCustomer();
+    }
+
+    protected function isAssignedCourier(User $user, Order $order): bool
+    {
+        return $user->role === UserRole::COURIER
+            && $order->courier_id !== null
+            && (int) $order->courier_id === (int) $user->id
+            && (int) $user->store_id === (int) $order->store_id;
     }
 }

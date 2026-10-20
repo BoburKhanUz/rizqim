@@ -97,6 +97,10 @@ class OwnerCatalogController extends Controller
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
+        if (!$user->store_id) {
+            return response()->json(['error' => 'No store assigned'], 400);
+        }
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',

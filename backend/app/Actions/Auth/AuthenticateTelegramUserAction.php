@@ -5,27 +5,43 @@ namespace App\Actions\Auth;
 use App\Models\User;
 use App\Models\Store;
 use App\Enums\UserRole;
+use App\Services\Auth\ReferralService;
 
 class AuthenticateTelegramUserAction
 {
-    public function execute(array $telegramUser, Store $store, ?string $startParam = null): User
+    public function __construct(
+        protected ReferralService $referrals
+    ) {}
+
+    /**
+     * $botStore: the store whose OWN bot token signed the initData. Its owner holds that token and can sign any
+     * Telegram id, so such logins are limited to customers and that store's staff (null = refused).
+     */
+    public function execute(array $telegramUser, Store $store, ?string $startParam = null, ?Store $botStore = null): ?User
     {
         $telegramId = (string) $telegramUser['id'];
 
         // 1. Check if user is clicking an Invite Link (start_param = telegram_invite_token)
         if ($startParam) {
             $tokenWithoutPrefix = str_replace('invite_', '', $startParam);
+            // Storeless invites would match the person's global account via "store_id IS NULL" below
             $invitedEmployee = User::where(function ($q) use ($startParam, $tokenWithoutPrefix) {
                 $q->where('telegram_invite_token', $startParam)
                   ->orWhere('telegram_invite_token', $tokenWithoutPrefix);
-            })->first();
+            })
+                ->whereNotNull('store_id')
+                ->when($botStore, fn ($query) => $query->where('store_id', $botStore->id))
+                ->first();
 
             if ($invitedEmployee) {
                 // Unlink this telegram_id from any other user in other stores globally first to prevent conflicts
-                User::where('telegram_id', $telegramId)
-                    ->where('id', '!=', $invitedEmployee->id)
-                    ->where('store_id', '!=', $invitedEmployee->store_id)
-                    ->update(['telegram_id' => null]);
+                // (never through a store's own bot: it must not touch other stores' accounts)
+                if (!$botStore) {
+                    User::where('telegram_id', $telegramId)
+                        ->where('id', '!=', $invitedEmployee->id)
+                        ->where('store_id', '!=', $invitedEmployee->store_id)
+                        ->update(['telegram_id' => null]);
+                }
 
                 // Check if this telegram_id is already bound to this store
                 $alreadyExists = User::where('store_id', $invitedEmployee->store_id)
@@ -59,41 +75,24 @@ class AuthenticateTelegramUserAction
             }
         }
 
-        // 2. Fallback to normal login
-        // Auto-assign roles for developer mock/real test accounts
-        $role = UserRole::CUSTOMER;
-        if ($telegramId === '1328662483') {
-            $role = UserRole::OWNER;
-        } elseif ($telegramId === '999999999') {
-            $role = UserRole::MANAGER;
-        } elseif ($telegramId === '777777777') {
-            $role = UserRole::COURIER;
-        }
-
+        // 2. Fallback to normal login (never changes a stored role; staff roles come from invites or `user:assign-role`)
         // Fetch the user globally by telegram_id, prioritizing staff roles
         $user = User::where('telegram_id', $telegramId)
-            ->orderByRaw("CASE 
-                WHEN role = 'super_admin' THEN 1 
-                WHEN role = 'owner' THEN 2 
-                WHEN role = 'manager' THEN 3 
-                WHEN role = 'courier' THEN 4 
+            ->when($botStore, fn ($query) => $query->where(function ($q) use ($botStore) {
+                $q->where('store_id', $botStore->id)
+                    ->orWhere(fn ($q) => $q->whereNull('store_id')->where('role', UserRole::CUSTOMER->value));
+            }))
+            ->orderByRaw("CASE
+                WHEN role = 'super_admin' THEN 1
+                WHEN role = 'owner' THEN 2
+                WHEN role = 'manager' THEN 3
+                WHEN role = 'courier' THEN 4
                 ELSE 5 END")
             ->first();
 
-        // Parse referrer from startParam if it is a referral code
-        $referredBy = null;
-        if ($startParam && (
-            str_starts_with(strtolower($startParam), 'ref_') || 
-            str_starts_with(strtolower($startParam), 'referrer_') ||
-            str_starts_with(strtolower($startParam), 'rizqim_')
-        )) {
-            $parts = explode('_', $startParam);
-            $referrerId = end($parts);
-            if (is_numeric($referrerId)) {
-                if (User::where('id', $referrerId)->exists()) {
-                    $referredBy = (int) $referrerId;
-                }
-            }
+        // Only super admins / other stores' staff exist for this id: refuse instead of creating a shadow account
+        if (!$user && $botStore && User::where('telegram_id', $telegramId)->exists()) {
+            return null;
         }
 
         if ($user) {
@@ -101,19 +100,21 @@ class AuthenticateTelegramUserAction
                 'name' => ($telegramUser['first_name'] ?? 'Mijoz') . (isset($telegramUser['last_name']) ? ' ' . $telegramUser['last_name'] : ''),
                 'telegram_username' => $telegramUser['username'] ?? null,
                 'telegram_photo_url' => $telegramUser['photo_url'] ?? null,
-                // Only sync role if it's a mock dev account
-                'role' => in_array($telegramId, ['1328662483', '999999999', '777777777']) ? $role : $user->role,
             ]);
         } else {
-            $user = User::create([
+            $user = new User([
                 'telegram_id' => $telegramId,
                 'store_id' => null, // Customers are global, they don't belong to a specific store
                 'name' => ($telegramUser['first_name'] ?? 'Mijoz') . (isset($telegramUser['last_name']) ? ' ' . $telegramUser['last_name'] : ''),
                 'telegram_username' => $telegramUser['username'] ?? null,
                 'telegram_photo_url' => $telegramUser['photo_url'] ?? null,
-                'role' => $role,
-                'referred_by' => $referredBy,
+                'role' => UserRole::CUSTOMER,
             ]);
+            // Referral is set once, at registration: start_param first, then the referrer parked by the bot's /start
+            // (always consumed here, so a stale entry can never be applied later). Not mass assignable on purpose.
+            $user->referred_by = $this->referrals->referrerIdFromParam($startParam, $telegramId);
+            $user->save();
+            $this->referrals->applyPendingReferral($user, $telegramId);
         }
 
         return $user;

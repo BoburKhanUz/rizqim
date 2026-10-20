@@ -19,13 +19,14 @@ class OwnerEmployeeController extends Controller
     public function index(Request $request)
     {
         $user = $request->user();
-        
-        if ($user->role !== UserRole::OWNER) {
+
+        if (!$this->isStoreOwner($user)) {
             return $this->error('Ruxsat etilmagan', [], 403);
         }
 
         $employees = User::where('store_id', $user->store_id)
             ->whereIn('role', [UserRole::MANAGER, UserRole::COURIER])
+            ->with('branch:id,name')
             ->orderBy('created_at', 'desc')
             ->get();
 
@@ -38,8 +39,8 @@ class OwnerEmployeeController extends Controller
     public function generateInvite(Request $request)
     {
         $user = $request->user();
-        
-        if ($user->role !== UserRole::OWNER) {
+
+        if (!$this->isStoreOwner($user)) {
             return $this->error('Ruxsat etilmagan', [], 403);
         }
 
@@ -81,7 +82,7 @@ class OwnerEmployeeController extends Controller
             \Illuminate\Support\Facades\Log::error("Failed to send employee invite to Telegram: " . $e->getMessage());
         }
 
-        $botUsername = $user->store->telegram_bot_username ?? env('TELEGRAM_BOT_USERNAME');
+        $botUsername = $user->store->telegram_bot_username ?? config('services.telegram.bot_username');
         $inviteLink = "https://t.me/{$botUsername}?start=invite_{$token}";
 
         return $this->success([
@@ -96,8 +97,8 @@ class OwnerEmployeeController extends Controller
     public function updateBranch(Request $request, $employeeId)
     {
         $user = $request->user();
-        
-        if ($user->role !== UserRole::OWNER) {
+
+        if (!$this->isStoreOwner($user)) {
             return $this->error('Ruxsat etilmagan', [], 403);
         }
 
@@ -105,9 +106,7 @@ class OwnerEmployeeController extends Controller
             'branch_id' => 'required|exists:branches,id',
         ]);
 
-        $employee = User::where('store_id', $user->store_id)
-            ->where('id', $employeeId)
-            ->first();
+        $employee = $this->storeEmployee($user, $employeeId);
 
         if (!$employee) {
             return $this->error('Xodim topilmadi', [], 404);
@@ -148,14 +147,12 @@ class OwnerEmployeeController extends Controller
     public function destroy(Request $request, $id)
     {
         $user = $request->user();
-        
-        if ($user->role !== UserRole::OWNER) {
+
+        if (!$this->isStoreOwner($user)) {
             return $this->error('Ruxsat etilmagan', [], 403);
         }
 
-        $employee = User::where('store_id', $user->store_id)
-            ->where('id', $id)
-            ->first();
+        $employee = $this->storeEmployee($user, $id);
 
         if (!$employee) {
             return $this->error('Xodim topilmadi', [], 404);
@@ -164,5 +161,22 @@ class OwnerEmployeeController extends Controller
         $employee->delete();
 
         return $this->success(null, 'Xodim tizimdan o\'chirildi.');
+    }
+
+    private function isStoreOwner(User $user): bool
+    {
+        return $user->role === UserRole::OWNER && $user->store_id !== null;
+    }
+
+    /**
+     * A manager/courier of the owner's own store: never the owner himself or a global (storeless) account.
+     */
+    private function storeEmployee(User $owner, mixed $employeeId): ?User
+    {
+        return User::where('store_id', $owner->store_id)
+            ->whereIn('role', [UserRole::MANAGER, UserRole::COURIER])
+            ->where('id', '!=', $owner->id)
+            ->whereKey((int) $employeeId)
+            ->first();
     }
 }

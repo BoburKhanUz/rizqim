@@ -1,36 +1,49 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { PlusCircle, Search, Edit2, Trash2, Tag, CheckCircle2, XCircle } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, SearchX, PackageOpen } from 'lucide-react';
 
 import { hapticFeedback } from '../lib/telegram';
+import { notificationOccurred } from '../lib/twa';
+import { showAlert, showConfirm } from '../lib/dialogs';
 import api from '../services/api';
-import { FullScreenLoader, ErrorFallback } from '../App';
+import { logApiError } from '../lib/apiError';
+import { toAmount } from '../lib/money';
+import { formatMoney } from '../lib/format';
+import { Button, CardSkeletons, EmptyState, IconButton, InlineError, PageHeader, cx, fieldClass, ProductImage } from '../components/ui';
+import { Pill } from '../components/staff/Pill';
+import { Switch } from '../components/staff/Switch';
+import type { ApiResponse, Product } from '../types';
 
 export default function OwnerMenuManagement() {
   const navigate = useNavigate();
-  
-  const [products, setProducts] = useState<any[]>([]);
+
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0); // bumped by \"Qayta urinish\" after a failed load
   const [search, setSearch] = useState('');
-  
-  const fetchProducts = async () => {
-    try {
-      setLoading(true);
-      const res = await api.get('/owner/products');
-      setProducts(res.data.data);
-      setError(null);
-    } catch (err) {
-      console.error(err);
-      setError('Mahsulotlarni yuklashda xatolik yuz berdi');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   useEffect(() => {
+    let cancelled = false;
+    const fetchProducts = async () => {
+      try {
+        const res = await api.get<ApiResponse<Product[]>>('/owner/products');
+        if (cancelled) return;
+        setProducts(res.data.data);
+        setError(null);
+      } catch (err) {
+        if (cancelled) return;
+        logApiError('Failed to load products:', err);
+        setError('Mahsulotlarni yuklashda xatolik yuz berdi');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
     fetchProducts();
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadKey]);
 
   const toggleActive = async (id: number) => {
     hapticFeedback('light');
@@ -38,154 +51,149 @@ export default function OwnerMenuManagement() {
     setProducts(prev => prev.map(p => p.id === id ? { ...p, status: p.status === 'active' ? 'inactive' : 'active' } : p));
     try {
       await api.post(`/owner/products/${id}?toggle_active=1`);
-    } catch (err) {
+    } catch {
       // Revert on error
       setProducts(prev => prev.map(p => p.id === id ? { ...p, status: p.status === 'active' ? 'inactive' : 'active' } : p));
-      hapticFeedback('error');
+      notificationOccurred('error');
     }
   };
 
-  const deleteProduct = async (id: number) => {
-    const confirmDelete = window.confirm("Rostdan ham bu mahsulotni o'chirmoqchimisiz?");
-    if (!confirmDelete) return;
+  const deleteProduct = async (product: Product) => {
+    const confirmed = await showConfirm(`"${product.name}" mahsuloti o'chiriladi. Buni qaytarib bo'lmaydi.`, {
+      title: "Mahsulotni o'chirish",
+      confirmText: "O'chirish",
+      destructive: true,
+    });
+    if (!confirmed) return;
 
     hapticFeedback('medium');
     try {
-      await api.delete(`/owner/products/${id}`);
-      setProducts(prev => prev.filter(p => p.id !== id));
-      hapticFeedback('success');
-    } catch (err) {
-      alert("O'chirishda xatolik yuz berdi");
-      hapticFeedback('error');
+      await api.delete(`/owner/products/${product.id}`);
+      setProducts(prev => prev.filter(p => p.id !== product.id));
+      notificationOccurred('success');
+    } catch {
+      void showAlert("O'chirishda xatolik yuz berdi");
+      notificationOccurred('error');
     }
   };
 
-  const formatMoney = (amount: number) => {
-    return new Intl.NumberFormat('uz-UZ', { style: 'currency', currency: 'UZS', maximumFractionDigits: 0 }).format(amount);
-  };
 
   const filteredProducts = products.filter(p => p.name.toLowerCase().includes(search.toLowerCase()));
 
-  if (loading && products.length === 0) return <FullScreenLoader message="Menyu yuklanmoqda..." />;
-  if (error) return <ErrorFallback error={error} />;
+  if (loading && products.length === 0) {
+    return (
+      <div className="flex flex-col gap-4 px-4 pt-2">
+        <PageHeader title="Katalog" />
+        <CardSkeletons count={3} lines={3} label="Menyu yuklanmoqda" />
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="flex flex-col gap-4 px-4 pt-2">
+        <PageHeader title="Katalog" />
+        <InlineError
+          onRetry={() => {
+            setLoading(true);
+            setError(null);
+            setReloadKey((key) => key + 1);
+          }}
+        />
+      </div>
+    );
+  }
+
+  const addProduct = () => {
+    hapticFeedback('light');
+    navigate('/admin/catalog/create');
+  };
 
   return (
-    <div className="p-4 pb-24 animate-fade-in min-h-screen bg-gradient-to-br from-bg via-bg to-primary/5">
-      <div className="flex justify-between items-center mb-6 pt-2">
-        <div className="relative">
-          <h1 className="relative text-3xl font-black text-text">
-            Katalog
-          </h1>
-          <p className="text-xs text-hint font-medium mt-1">Jami {products.length} ta mahsulot</p>
-        </div>
-        <button 
-          onClick={() => {
-            hapticFeedback('light');
-            navigate('/admin/catalog/create');
-          }}
-          className="flex items-center gap-2 px-5 py-3 bg-primary text-white font-bold rounded-2xl active:scale-95 transition-all"
-        >
-          <PlusCircle className="w-5 h-5" />
-          <span className="text-sm">Qo'shish</span>
-        </button>
+    <div className="flex flex-col gap-4 px-4 pt-2 animate-fade-in">
+      <PageHeader
+        title="Katalog"
+        subtitle={`Jami ${products.length} ta mahsulot`}
+        action={
+          <Button icon={Plus} onClick={addProduct}>
+            Qo'shish
+          </Button>
+        }
+      />
+
+      <div className="relative">
+        <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 size-5 -translate-y-1/2 text-fg-muted" />
+        <input
+          type="search"
+          aria-label="Mahsulot qidirish"
+          placeholder="Mahsulot qidirish"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className={cx(fieldClass, 'bg-surface pl-10')}
+        />
       </div>
 
-      <div className="relative mb-8 group">
-        <div className="relative bg-secondary/80 backdrop-blur-xl border border-white/5 rounded-[24px] p-1 flex items-center shadow-inner">
-          <div className="pl-4">
-            <Search className="w-5 h-5 text-hint/50" />
-          </div>
-          <input
-            type="text"
-            placeholder="Mahsulot qidirish..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-transparent border-none text-text-h text-sm pl-3 pr-4 py-3.5 focus:ring-0 outline-none transition-all placeholder:text-hint/50 font-medium"
-          />
-        </div>
-      </div>
-
-      <div className="space-y-4">
+      <ul className="flex flex-col gap-3">
         {filteredProducts.map(product => {
-          const startingPrice = product.variants?.length > 0 
-            ? Math.min(...product.variants.map((v: any) => v.price))
+          const startingPrice = product.variants?.length > 0
+            ? Math.min(...product.variants.map((v) => toAmount(v.price)))
             : 0;
+          const active = product.status === 'active';
+          const edit = () => navigate(`/admin/catalog/edit/${product.id}`);
 
           return (
-            <div 
-              key={product.id} 
-              className="bg-secondary rounded-2xl overflow-hidden flex border border-white/5 shadow-sm relative group cursor-pointer"
-              onClick={() => navigate(`/admin/catalog/edit/${product.id}`)}
-            >
-              <div className="w-24 h-28 bg-bg/50 shrink-0 overflow-hidden relative">
-                {product.image_url ? (
-                  <img src={product.image_url} alt={product.name} className="w-full h-full object-cover transform hover:scale-110 transition duration-500" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-hint/30">
-                    <Tag className="w-8 h-8" />
-                  </div>
-                )}
-                {product.status !== 'active' && (
-                  <div className="absolute inset-0 bg-bg/60 backdrop-blur-sm flex items-center justify-center">
-                    <span className="text-[10px] font-bold tracking-widest uppercase text-white bg-red-500/90 px-2 py-0.5 rounded-md shadow-sm">Nofaol</span>
-                  </div>
-                )}
+            <li key={product.id} className="overflow-hidden rounded-card border border-line bg-surface">
+              <div className="flex">
+                {/* The picture fills the whole left side of the card; without one a neutral placeholder does */}
+                <div className={cx('relative w-28 shrink-0 self-stretch bg-surface-2', !active && 'opacity-60')}>
+                  <ProductImage src={product.image_url} className="absolute inset-0 size-full" />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={edit}
+                  className="flex min-w-0 flex-1 cursor-pointer flex-col gap-1.5 p-3 text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand"
+                >
+                  <span className="line-clamp-2 text-body font-bold text-fg">{product.name}</span>
+                  <span className="flex flex-wrap items-center gap-1.5">
+                    <Pill tone="brand">{product.category?.name || 'Kategoriyasiz'}</Pill>
+                    {!active && <Pill tone="danger">Nofaol</Pill>}
+                  </span>
+                  <span className="mt-auto text-footnote text-fg-muted">
+                    {/* "25 000 so'mdan": from the cheapest of several variants */}
+                    <span className="text-body font-bold text-brand">{formatMoney(startingPrice)}</span>
+                    {(product.variants?.length ?? 0) > 1 && 'dan'}
+                  </span>
+                </button>
               </div>
 
-                <div className="flex-1 min-w-0 flex flex-col justify-between p-3">
-                  <div>
-                    <div className="flex justify-between items-start mb-1 gap-2">
-                      <h3 className="font-semibold text-sm text-text-h leading-tight line-clamp-2">{product.name}</h3>
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); toggleActive(product.id); }}
-                        className={`shrink-0 p-1.5 rounded-full transition-colors active:scale-90 ${product.status === 'active' ? 'text-green-500 bg-green-500/10 hover:bg-green-500/20' : 'text-hint bg-bg'}`}
-                      >
-                        {product.status === 'active' ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
-                      </button>
-                    </div>
-                    <p className="text-[10px] text-primary/80 font-medium px-2 py-0.5 bg-primary/10 rounded border border-primary/20 inline-block mb-2">
-                      {product.category?.name || 'Kategoriyasiz'}
-                    </p>
-                  </div>
-                  
-                  <div className="flex items-end justify-between mt-1">
-                    <div className="flex items-center gap-1">
-                      <span className="text-[10px] text-hint">dan</span>
-                      <p className="font-bold text-sm text-text-h">
-                        {formatMoney(startingPrice)}
-                      </p>
-                    </div>
-                    
-                    <div className="flex gap-2">
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); navigate(`/admin/catalog/edit/${product.id}`); }}
-                        className="p-2 bg-secondary text-text-h rounded-lg border border-white/5 active:bg-primary active:text-white transition-colors"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); deleteProduct(product.id); }}
-                        className="p-2 bg-red-500/10 text-red-500 rounded-lg active:bg-red-500 active:text-white transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
+              {/* Actions: on/off, edit, and delete kept apart from edit so one is not tapped for the other */}
+              <div className="flex items-center gap-2 border-t border-line pl-3 pr-1">
+                <span className="text-footnote font-medium text-fg-muted">Sotuvda</span>
+                <Switch checked={active} onChange={() => toggleActive(product.id)} label={`Sotuvda: ${product.name}`} />
+                <span className="flex-1" />
+                <IconButton icon={Pencil} variant="surface" label={`${product.name}: tahrirlash`} onClick={edit} />
+                <IconButton icon={Trash2} variant="danger" label={`${product.name}: o'chirish`} onClick={() => deleteProduct(product)} className="ml-4" />
               </div>
+            </li>
           );
         })}
+      </ul>
 
-        {filteredProducts.length === 0 && (
-          <div className="text-center py-20 flex flex-col items-center">
-            <div className="w-24 h-24 bg-secondary/50 rounded-[32px] flex items-center justify-center mb-4 border border-white/5 shadow-inner">
-              <Tag className="w-10 h-10 text-hint/30" />
-            </div>
-            <p className="text-text-h font-bold text-lg mb-1">Hech narsa topilmadi</p>
-            <p className="text-hint text-sm">Yangi mahsulot qo'shish uchun yuqoridagi tugmani bosing</p>
-          </div>
-        )}
-      </div>
+      {filteredProducts.length === 0 &&
+        (products.length === 0 ? (
+          <EmptyState
+            icon={PackageOpen}
+            title="Katalog bo'sh"
+            text="Birinchi mahsulotni qo'shing: u mijozlarga shu zahoti ko'rinadi."
+            action={
+              <Button icon={Plus} onClick={addProduct}>
+                Mahsulot qo'shish
+              </Button>
+            }
+          />
+        ) : (
+          <EmptyState icon={SearchX} title="Hech narsa topilmadi" text="Boshqa so'z bilan qidirib ko'ring." />
+        ))}
     </div>
   );
 }

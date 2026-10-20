@@ -1,356 +1,313 @@
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Bike, CheckCircle2, Clock, MapPin, Navigation, PackageCheck, Phone, StickyNote, Wallet } from 'lucide-react';
 import { useLanguageStore } from '../store/languageStore';
 import { useAuthStore } from '../store/authStore';
 import { hapticFeedback } from '../lib/telegram';
-import { ErrorFallback } from '../App';
-import { Phone, MapPin, CheckCircle, Navigation, Clock, ShieldCheck, DollarSign } from 'lucide-react';
+import { notificationOccurred } from '../lib/twa';
+import { showAlert } from '../lib/dialogs';
+import { Button, CardSkeletons, EmptyState, InlineError, PageHeader, StatusBadge, cx } from '../components/ui';
+import { SegmentedControl } from '../components/staff/SegmentedControl';
+import { Pill } from '../components/staff/Pill';
+import { useMainButton } from '../hooks/useMainButton';
 import api from '../services/api';
+import { getApiErrorMessage, logApiError } from '../lib/apiError';
+import { sumAmounts, toAmount } from '../lib/money';
+import { formatMoney, formatOrderCode, formatTime } from '../lib/format';
+import { getPaymentMethodLabel } from '../lib/paymentMethod';
+import { cleanAddress, linkInAddress, mapRouteUrl, openExternalLink } from '../lib/openMap';
+import { POLL_INTERVAL_MS } from '../lib/polling';
+import { NO_ORDERS, ORDERS_KEY, useOrderHistory, useStaffOrders } from '../hooks/useOrders';
+import { TruncatedOrdersNotice } from '../components/OrderListParts';
+import type { ApiResponse, Order, OrderStatus } from '../types';
+
+const ACTIVE_STATUSES: readonly OrderStatus[] = ['courier_assigned', 'on_the_way', 'delivery'];
+
+// A delivery already on its way comes first (the courier is out with it), then the oldest waiting one
+const activeRank = (order: Order) => (order.status === 'courier_assigned' ? 1 : 0);
+const byDeliveryPriority = (a: Order, b: Order) => activeRank(a) - activeRank(b) || new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+
+interface DeliveryCardProps {
+  order: Order;
+  uz: boolean;
+  // The order the screen's main button (Telegram's MainButton) acts on: its action is not drawn in the card
+  isCurrent: boolean;
+  showCurrentMark: boolean;
+  onPickUp: (order: Order) => void;
+  onDeliver: (order: Order) => void;
+  busy: boolean;
+}
+
+function DeliveryCard({ order, uz, isCurrent, showCurrentMark, onPickUp, onDeliver, busy }: DeliveryCardProps) {
+  const { language, t } = useLanguageStore();
+  const code = formatOrderCode(order);
+  const address = cleanAddress(order.address, uz ? 'GPS lokatsiya' : 'GPS локация');
+  const mapUrl = mapRouteUrl(order.shipping_address?.latitude, order.shipping_address?.longitude) ?? linkInAddress(order.address);
+  const items = order.items ?? [];
+  const phone = order.user?.phone;
+  const waiting = order.status === 'courier_assigned';
+  const paid = order.payment_status === 'paid';
+
+  return (
+    <article
+      aria-label={`${uz ? 'Buyurtma' : 'Заказ'} ${code}`}
+      className={cx('flex flex-col gap-3 rounded-card border bg-surface p-3', isCurrent && showCurrentMark ? 'border-brand' : 'border-line')}
+    >
+      <div className="flex items-center gap-2">
+        <span className="text-headline font-bold text-fg">{code}</span>
+        <StatusBadge status={order.status} audience="staff" />
+        {isCurrent && showCurrentMark && <Pill tone="brand">{uz ? 'Hozirgi' : 'Текущий'}</Pill>}
+        <time dateTime={order.created_at} className="ml-auto text-footnote text-fg-muted">
+          {formatTime(order.created_at)}
+        </time>
+      </div>
+
+      <div className="flex items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <h2 className="truncate text-body font-bold text-fg">{order.user?.name}</h2>
+          <p className="truncate text-footnote text-fg-muted">{phone || (uz ? 'Telefon kiritilmagan' : 'Телефон не указан')}</p>
+        </div>
+        {phone && (
+          <a
+            href={`tel:${phone}`}
+            aria-label={`${uz ? "Qo'ng'iroq qilish" : 'Позвонить'}: ${order.user?.name ?? phone}`}
+            onClick={() => hapticFeedback('light')}
+            className="inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-brand-soft text-brand-soft-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+          >
+            <Phone aria-hidden="true" className="size-5" />
+          </a>
+        )}
+      </div>
+
+      {order.address && (
+        <div className="flex flex-col gap-2 rounded-control bg-surface-2 p-3">
+          <p className="flex items-start gap-2 text-body font-medium text-fg">
+            <MapPin aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-brand" />
+            <span className="line-clamp-3">{address}</span>
+          </p>
+          {mapUrl && (
+            <Button variant="secondary" icon={Navigation} onClick={() => { hapticFeedback('light'); openExternalLink(mapUrl); }} fullWidth>
+              {uz ? 'Xaritada ochish' : 'Открыть на карте'}
+            </Button>
+          )}
+        </div>
+      )}
+
+      {order.notes && (
+        <p className="flex items-start gap-1.5 text-footnote text-fg-muted">
+          <StickyNote aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
+          <span className="line-clamp-2">{order.notes}</span>
+        </p>
+      )}
+
+      {items.length > 0 && (
+        <ul aria-label={uz ? 'Mahsulotlar' : 'Содержимое'} className="flex flex-wrap gap-1.5">
+          {items.map((item, index) => (
+            <li key={index} className="rounded-control bg-surface-2 px-2 py-1 text-footnote text-fg">
+              {item.product_name} x{item.quantity}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="flex items-center justify-between gap-3 border-t border-line pt-2.5">
+        <span className="inline-flex items-center gap-1.5 text-footnote text-fg-muted">
+          <Wallet aria-hidden="true" className="size-3.5" />
+          {getPaymentMethodLabel(order.payment_method, t)}
+          {paid ? (
+            <Pill tone="success">{uz ? "To'langan" : 'Оплачено'}</Pill>
+          ) : order.payment_method === 'cash' ? (
+            <Pill tone="warning">{uz ? 'Naqd olinadi' : 'Оплата наличными'}</Pill>
+          ) : null}
+        </span>
+        <span className="shrink-0 text-headline font-bold text-brand">{formatMoney(toAmount(order.total_price), language)}</span>
+      </div>
+
+      {/* Every delivery but the current one has its own action; the current one is on the main button */}
+      {!isCurrent &&
+        (waiting ? (
+          <Button icon={Navigation} loading={busy} onClick={() => onPickUp(order)} fullWidth aria-label={`${uz ? "Olib ketdim (Yo'lga chiqdim)" : 'Забрал (В пути)'} ${code}`}>
+            {uz ? "Olib ketdim (Yo'lga chiqdim)" : 'Забрал (В пути)'}
+          </Button>
+        ) : (
+          <Button variant="success" icon={CheckCircle2} loading={busy} onClick={() => onDeliver(order)} fullWidth aria-label={`${uz ? 'Yetkazib berdim (Yakunlash)' : 'Доставил (Завершить)'} ${code}`}>
+            {uz ? 'Yetkazib berdim (Yakunlash)' : 'Доставил (Завершить)'}
+          </Button>
+        ))}
+    </article>
+  );
+}
 
 export default function CourierDashboard() {
   const { user } = useAuthStore();
   const { language } = useLanguageStore();
+  const uz = language === 'uz';
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<'active' | 'completed'>('active');
 
-  // Fetch courier assigned orders with shared caching and non-blocking background refetching
-  const { data: ordersResponse = [], isLoading, error } = useQuery<any[]>({
-    queryKey: ['courierOrders'],
-    queryFn: async () => {
-      const response = await api.get('/orders');
-      return response.data?.data || [];
-    },
-    refetchInterval: 15000, // Auto refresh every 15s for active courier deliveries!
-    staleTime: 1000 * 60 * 5, // 5 minutes stale time for instant transitions
-  });
+  // Courier assigned orders: polled while the screen is visible (active deliveries change quickly) and pushed over the socket
+  const { data: activeData, isLoading, error, dataUpdatedAt, refetch: refetchActive, isRefetching: isRefetchingActive } = useStaffOrders('courier', POLL_INTERVAL_MS.courierOrders);
+  const allOrders = activeData?.orders ?? NO_ORDERS;
+
+  // What was delivered today: the finished orders, loaded back to the start of the day. "Today" is the day of the last
+  // refresh, so a screen left open over midnight starts the new day with the next poll
+  const [openedAt] = useState(() => Date.now());
+  const startOfToday = new Date(Math.max(dataUpdatedAt, openedAt)).setHours(0, 0, 0, 0);
+  const history = useOrderHistory('courier', { since: startOfToday, pageSize: 50 });
 
   // Complete order mutation
   const completeMutation = useMutation({
     mutationFn: async (orderUuid: string) => {
       hapticFeedback('medium');
-      const response = await api.post(`/orders/${orderUuid}/complete`);
+      const response = await api.post<ApiResponse<Order>>(`/orders/${orderUuid}/complete`);
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['courierOrders'] });
-      hapticFeedback('medium');
+      queryClient.invalidateQueries({ queryKey: ORDERS_KEY });
+      notificationOccurred('success');
     },
     onError: (err) => {
-      console.error('Failed to complete order:', err);
-      alert(language === 'uz' ? 'Buyurtmani topshirishda xatolik yuz berdi!' : 'Ошибка при завершении заказа!');
+      logApiError('Failed to complete order:', err);
+      notificationOccurred('error');
+      void showAlert(uz ? 'Buyurtmani topshirishda xatolik yuz berdi!' : 'Ошибка при завершении заказа!');
     }
   });
 
   // Update status mutation (e.g. for marking as on_the_way)
   const updateStatusMutation = useMutation({
-    mutationFn: async ({ orderUuid, status }: { orderUuid: string; status: string }) => {
+    mutationFn: async ({ orderUuid, status }: { orderUuid: string; status: OrderStatus }) => {
       hapticFeedback('medium');
-      const response = await api.post(`/orders/${orderUuid}/status`, {
+      const response = await api.post<ApiResponse<Order>>(`/orders/${orderUuid}/status`, {
         status
       });
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['courierOrders'] });
-      hapticFeedback('medium');
+      queryClient.invalidateQueries({ queryKey: ORDERS_KEY });
+      notificationOccurred('success');
     },
-    onError: (err: any) => {
-      console.error('Failed to update status:', err);
-      alert(err.response?.data?.message || (language === 'uz' ? 'Holatni yangilashda xatolik yuz berdi!' : 'Ошибка!'));
+    onError: (err) => {
+      logApiError('Failed to update status:', err);
+      notificationOccurred('error');
+      void showAlert(getApiErrorMessage(err) || (uz ? 'Holatni yangilashda xatolik yuz berdi!' : 'Ошибка!'));
     }
   });
 
-  if (error) return <ErrorFallback error="Failed to fetch courier deliveries." />;
-
-  const allOrders = ordersResponse || [];
-  
   // Filter active and completed orders
-  const activeOrders = allOrders.filter((order: any) => 
-    ['courier_assigned', 'on_the_way', 'delivery'].includes(order.status)
+  const activeOrders = allOrders.filter((order) => ACTIVE_STATUSES.includes(order.status)).sort(byDeliveryPriority);
+  const completedOrders = history.orders.filter(
+    (order) => order.status === 'delivered' && new Date(order.updated_at).getTime() >= startOfToday,
   );
-  
-  const completedOrders = allOrders.filter((order: any) => 
-    ['delivered'].includes(order.status)
-  );
+  const hasNothingToShow = !!error && allOrders.length === 0;
+
+  const pickUp = (order: Order) => updateStatusMutation.mutate({ orderUuid: order.uuid, status: 'on_the_way' });
+  const deliver = (order: Order) => completeMutation.mutate(order.uuid);
+
+  // The screen's one main action is for the current delivery: always at the bottom, above the navigation, never
+  // scrolled away. With several deliveries it is the first card, marked "Hozirgi" (current).
+  const current = activeOrders[0];
+  const currentWaiting = current?.status === 'courier_assigned';
+  const mainText = currentWaiting ? (uz ? "Olib ketdim (Yo'lga chiqdim)" : 'Забрал (В пути)') : uz ? 'Yetkazib berdim (Yakunlash)' : 'Доставил (Завершить)';
+  useMainButton({
+    text: mainText,
+    onClick: () => {
+      if (!current) return;
+      if (currentWaiting) pickUp(current);
+      else deliver(current);
+    },
+    visible: activeTab === 'active' && !!current && !hasNothingToShow,
+    progress: updateStatusMutation.isPending || completeMutation.isPending,
+  });
 
   // Compute statistics
-  const todayTotalEarnings = completedOrders.reduce((sum: number, order: any) => sum + parseFloat(order.delivery_price || 0), 0);
+  const todayTotalEarnings = sumAmounts(completedOrders.map((order) => order.delivery_price));
 
-  const formatPrice = (price: number) => {
-    return price.toLocaleString() + ' UZS';
-  };
+  // A failed background refresh keeps showing the last deliveries; the error screen is only for "nothing to show"
+  if (hasNothingToShow) {
+    return (
+      <div className="flex flex-col gap-3 px-4 pt-2">
+        <PageHeader title={user?.name} subtitle={uz ? 'Kuryer kabineti' : 'Кабинет курьера'} />
+        <InlineError onRetry={() => void refetchActive()} retrying={isRefetchingActive} />
+      </div>
+    );
+  }
 
-  const handleOpenMap = (addressText: string) => {
-    hapticFeedback('light');
-    if (pregMatchUrl(addressText)) {
-      const url = getUrl(addressText);
-      window.open(url, '_blank');
-    }
-  };
-
-  const pregMatchUrl = (str: string) => {
-    return /(https?:\/\/[^\s]+)/.test(str);
-  };
-
-  const getUrl = (str: string) => {
-    const matches = str.match(/(https?:\/\/[^\s]+)/);
-    return matches ? matches[0] : '';
-  };
-
-  const getCleanAddress = (addressText: string) => {
-    if (pregMatchUrl(addressText)) {
-      const url = getUrl(addressText);
-      const clean = addressText.replace(/📍 Lokatsiya:|Lokatsiya:/g, '').replace(url, '').trim();
-      return clean || (language === 'uz' ? 'GPS lokatsiya' : 'GPS локация');
-    }
-    return addressText;
-  };
+  const tabs = [
+    { value: 'active' as const, label: uz ? `Faol (${activeOrders.length})` : `Активные (${activeOrders.length})` },
+    { value: 'completed' as const, label: uz ? `Topshirilganlar (${completedOrders.length})` : `Завершенные (${completedOrders.length})` },
+  ];
+  const busyUuid = updateStatusMutation.isPending ? updateStatusMutation.variables?.orderUuid : completeMutation.isPending ? completeMutation.variables : undefined;
 
   return (
-    <div className="p-4 flex flex-col gap-5 min-h-screen pb-24">
-      {/* Top Header Card */}
-      <header className="flex flex-col gap-1.5 bg-secondary/40 p-4 rounded-3xl border border-hint/5 backdrop-blur-md relative overflow-hidden">
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-48 h-48 rounded-full bg-purple-500/10 blur-[60px] pointer-events-none"></div>
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-500 text-xl font-bold shadow-sm">
-            🚴
-          </div>
-          <div>
-            <div className="flex items-center gap-1">
-              <span className="text-[9px] uppercase font-black text-purple-400 tracking-wider">
-                {language === 'uz' ? 'Kuryer Kabineti' : 'Кабинет курьера'}
-              </span>
-              <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse"></span>
-            </div>
-            <h1 className="text-sm font-black text-text-h">
-              {user?.name}
-            </h1>
-          </div>
-        </div>
-      </header>
+    <div className="flex flex-col gap-3 px-4 pt-2">
+      <PageHeader title={user?.name} subtitle={uz ? 'Kuryer kabineti' : 'Кабинет курьера'} />
 
-      {/* Analytics Stats Widgets */}
-      <div className="grid grid-cols-2 gap-3.5">
-        <div className="bg-secondary p-4 rounded-3xl border border-hint/5 flex flex-col gap-1 shadow-sm">
-          <div className="flex items-center gap-1.5 text-purple-500">
-            <DollarSign className="w-4 h-4" />
-            <span className="text-[9px] font-black uppercase tracking-wider text-hint">
-              {language === 'uz' ? 'Bugungi daromad' : 'Сегодня заработано'}
-            </span>
-          </div>
-          <span className="text-sm font-black text-text-h mt-1">
-            {formatPrice(todayTotalEarnings)}
+      <div className="grid grid-cols-2 gap-2">
+        <div className="flex flex-col gap-0.5 rounded-card border border-line bg-surface px-3 py-2.5">
+          <span className="flex items-center gap-1.5 text-caption font-medium text-fg-muted">
+            <Wallet aria-hidden="true" className="size-3.5 text-brand" />
+            {uz ? 'Bugungi daromad' : 'Сегодня заработано'}
           </span>
+          <span className="text-headline font-bold text-fg">{formatMoney(todayTotalEarnings, language)}</span>
         </div>
-        <div className="bg-secondary p-4 rounded-3xl border border-hint/5 flex flex-col gap-1 shadow-sm">
-          <div className="flex items-center gap-1.5 text-emerald-500">
-            <ShieldCheck className="w-4 h-4" />
-            <span className="text-[9px] font-black uppercase tracking-wider text-hint">
-              {language === 'uz' ? 'Yetkazilganlar' : 'Доставлено'}
-            </span>
-          </div>
-          <span className="text-sm font-black text-text-h mt-1">
-            {completedOrders.length} {language === 'uz' ? 'ta' : 'шт'}
+        <div className="flex flex-col gap-0.5 rounded-card border border-line bg-surface px-3 py-2.5">
+          <span className="flex items-center gap-1.5 text-caption font-medium text-fg-muted">
+            <PackageCheck aria-hidden="true" className="size-3.5 text-success" />
+            {uz ? 'Yetkazilganlar' : 'Доставлено'}
+          </span>
+          <span className="text-headline font-bold text-fg">
+            {completedOrders.length} {uz ? 'ta' : 'шт'}
           </span>
         </div>
       </div>
 
-      {/* Tabs Switcher */}
-      <div className="flex bg-secondary p-1 rounded-2xl border border-hint/5">
-        <button
-          onClick={() => { hapticFeedback('light'); setActiveTab('active'); }}
-          className={`flex-1 py-3 text-xs font-black rounded-xl transition-all ${
-            activeTab === 'active' 
-              ? 'bg-primary text-white shadow-sm' 
-              : 'text-hint'
-          }`}
-        >
-          {language === 'uz' ? `Faol (${activeOrders.length})` : `Активные (${activeOrders.length})`}
-        </button>
-        <button
-          onClick={() => { hapticFeedback('light'); setActiveTab('completed'); }}
-          className={`flex-1 py-3 text-xs font-black rounded-xl transition-all ${
-            activeTab === 'completed' 
-              ? 'bg-primary text-white shadow-sm' 
-              : 'text-hint'
-          }`}
-        >
-          {language === 'uz' ? `Topshirilganlar (${completedOrders.length})` : `Завершенные (${completedOrders.length})`}
-        </button>
-      </div>
+      {activeData?.truncated && <TruncatedOrdersNotice />}
 
-      {/* Orders List Container */}
-      <div className="flex flex-col gap-4">
-        {isLoading && (!ordersResponse || ordersResponse.length === 0) ? (
-          <div className="flex flex-col gap-4 animate-pulse">
-            {[1, 2].map((n) => (
-              <div key={n} className="bg-secondary p-5 rounded-3xl border border-hint/5 flex flex-col gap-3">
-                <div className="flex justify-between items-center">
-                  <div className="h-4 bg-hint/15 rounded w-24"></div>
-                  <div className="h-6 bg-hint/15 rounded-full w-20"></div>
-                </div>
-                <div className="h-3.5 bg-hint/10 rounded w-48 mt-1"></div>
-                <div className="h-3.5 bg-hint/10 rounded w-32"></div>
-              </div>
-            ))}
-          </div>
+      <SegmentedControl segments={tabs} value={activeTab} onChange={setActiveTab} label={uz ? "Buyurtmalar bo'limi" : 'Раздел заказов'} />
+
+      <div className="flex flex-col gap-3">
+        {(activeTab === 'active' ? isLoading && allOrders.length === 0 : history.isLoading) ? (
+          <CardSkeletons count={2} lines={3} label={uz ? 'Yuklanmoqda' : 'Загрузка'} />
         ) : activeTab === 'active' ? (
           activeOrders.length === 0 ? (
-            <div className="bg-secondary/40 p-8 rounded-3xl text-center border border-hint/5 flex flex-col items-center gap-2.5">
-              <span className="text-3xl">🛵</span>
-              <p className="text-xs text-hint font-medium">
-                {language === 'uz' ? 'Sizga hali buyurtma biriktirilmagan.' : 'У вас пока нет активных заказов.'}
-              </p>
-            </div>
+            <EmptyState
+              icon={Bike}
+              title={uz ? 'Sizga hali buyurtma biriktirilmagan' : 'У вас пока нет активных заказов'}
+              text={uz ? "Menejer buyurtmani biriktirsa, shu yerda paydo bo'ladi." : 'Когда менеджер назначит заказ, он появится здесь.'}
+            />
           ) : (
-            activeOrders.map((order: any) => (
-              <div 
+            activeOrders.map((order, index) => (
+              <DeliveryCard
                 key={order.id}
-                className="bg-secondary p-5 rounded-3xl border border-hint/5 shadow-sm flex flex-col gap-4 relative overflow-hidden"
-              >
-                {/* Order ID & Status Badge */}
-                <div className="flex justify-between items-center pb-3 border-b border-hint/5">
-                  <div className="flex flex-col">
-                    <span className="text-[10px] font-black uppercase text-hint tracking-wider">
-                      {language === 'uz' ? 'Buyurtma' : 'Заказ'}
-                    </span>
-                    <span className="text-xs font-black text-text-h">
-                      #{order.short_code}
-                    </span>
-                  </div>
-                  <span className="bg-amber-500/10 text-amber-500 text-[9px] font-black px-2.5 py-1 rounded-full border border-amber-500/20 uppercase">
-                    {order.status === 'courier_assigned' ? (language === 'uz' ? 'Kuryer kutilmoqda' : 'Ожидание курьера') :
-                     order.status === 'on_the_way' || order.status === 'delivery' ? (language === 'uz' ? 'Yo\'lda' : 'В пути') : 
-                     (language === 'uz' ? 'Tayyorlanmoqda' : 'Готовится')}
-                  </span>
-                </div>
-
-                {/* Customer Info */}
-                <div className="flex flex-col gap-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="text-xs font-black text-text-h">{order.user?.name}</h4>
-                      <p className="text-[10px] text-hint mt-0.5">{order.user?.phone || (language === 'uz' ? 'Telefon kiritilmagan' : 'Телефон не указан')}</p>
-                    </div>
-                    {order.user?.phone && (
-                      <a
-                        href={`tel:${order.user.phone}`}
-                        onClick={() => hapticFeedback('light')}
-                        className="w-9 h-9 bg-primary/10 border border-primary/20 text-primary rounded-full flex items-center justify-center shadow-sm"
-                      >
-                        <Phone className="w-4 h-4" />
-                      </a>
-                    )}
-                  </div>
-
-                  {/* Delivery Location / Address */}
-                  {order.address && (
-                    <div className="bg-bg/60 p-3.5 rounded-2xl border border-hint/5 flex flex-col gap-3">
-                      <div className="flex gap-2">
-                        <MapPin className="w-4 h-4 text-purple-500 shrink-0" />
-                        <span className="text-[11px] text-text font-bold leading-normal">
-                          {getCleanAddress(order.address)}
-                        </span>
-                      </div>
-
-                      {pregMatchUrl(order.address) && (
-                        <button
-                          onClick={() => handleOpenMap(order.address)}
-                          className="w-full bg-purple-500/10 border border-purple-500/20 text-purple-500 font-extrabold text-[11px] py-2.5 rounded-xl flex items-center justify-center gap-1.5 transition-all active:scale-95"
-                        >
-                          <Navigation className="w-3.5 h-3.5 fill-current" />
-                          <span>{language === 'uz' ? 'Navigatorda ochish' : 'Открыть в Навигаторе'}</span>
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Order Items Summary */}
-                <div className="bg-bg/40 p-3 rounded-2xl border border-hint/5 flex flex-col gap-1.5">
-                  <div className="text-[9px] font-black uppercase text-hint tracking-wider mb-1">
-                    {language === 'uz' ? 'Mahsulotlar' : 'Содержимое'}
-                  </div>
-                  {order.items?.map((item: any, idx: number) => (
-                    <div key={idx} className="flex justify-between items-center text-[11px] font-bold text-text">
-                      <span>{item.product_name} x{item.quantity}</span>
-                    </div>
-                  ))}
-                  <div className="flex justify-between items-center text-[11px] font-black text-text-h border-t border-hint/5 pt-2 mt-1">
-                    <span>{language === 'uz' ? 'Jami summa' : 'Итоговая сумма'}</span>
-                    <span className="text-primary">{formatPrice(parseFloat(order.total_price))}</span>
-                  </div>
-                </div>
-
-                {/* Status-specific Action Button */}
-                {order.status === 'courier_assigned' && (
-                  <button
-                    onClick={() => updateStatusMutation.mutate({ orderUuid: order.uuid, status: 'on_the_way' })}
-                    disabled={updateStatusMutation.isPending}
-                    className="w-full bg-primary text-white font-extrabold text-xs py-4 rounded-2xl active:scale-95 transition-all shadow-md shadow-primary/20 flex items-center justify-center gap-2"
-                  >
-                    {updateStatusMutation.isPending ? (
-                      <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                    ) : (
-                      <>
-                        <Navigation className="w-4 h-4" />
-                        <span>{language === 'uz' ? 'Olib ketdim (Yo\'lga chiqdim) 🚚' : 'Забрал (В пути) 🚚'}</span>
-                      </>
-                    )}
-                  </button>
-                )}
-
-                {(order.status === 'on_the_way' || order.status === 'delivery') && (
-                  <button
-                    onClick={() => completeMutation.mutate(order.uuid)}
-                    disabled={completeMutation.isPending}
-                    className="w-full bg-emerald-500 text-white font-extrabold text-xs py-4 rounded-2xl active:scale-95 transition-all shadow-md shadow-emerald-500/20 flex items-center justify-center gap-2 disabled:opacity-50 disabled:pointer-events-none"
-                  >
-                    {completeMutation.isPending ? (
-                      <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                    ) : (
-                      <>
-                        <CheckCircle className="w-4 h-4" />
-                        <span>{language === 'uz' ? 'Yetkazib berdim (Yakunlash) ✅' : 'Доставил (Завершить) ✅'}</span>
-                      </>
-                    )}
-                  </button>
-                )}
-              </div>
+                order={order}
+                uz={uz}
+                isCurrent={index === 0}
+                showCurrentMark={activeOrders.length > 1}
+                onPickUp={pickUp}
+                onDeliver={deliver}
+                busy={busyUuid === order.uuid}
+              />
             ))
           )
+        ) : completedOrders.length === 0 ? (
+          <EmptyState icon={CheckCircle2} title={uz ? "Bugun hali yetkazib berilgan buyurtmalar yo'q" : 'Сегодня еще нет доставленных заказов'} />
         ) : (
-          completedOrders.length === 0 ? (
-            <div className="bg-secondary/40 p-8 rounded-3xl text-center border border-hint/5 flex flex-col items-center gap-2.5">
-              <span className="text-3xl">🏁</span>
-              <p className="text-xs text-hint font-medium">
-                {language === 'uz' ? 'Bugun hali yetkazib berilgan buyurtmalar yo\'q.' : 'Сегодня еще нет доставленных заказов.'}
-              </p>
-            </div>
-          ) : (
-            completedOrders.map((order: any) => (
-              <div 
-                key={order.id}
-                className="bg-secondary p-4 rounded-3xl border border-hint/5 shadow-sm flex flex-col gap-3 opacity-80"
-              >
-                <div className="flex justify-between items-center pb-2 border-b border-hint/5">
-                  <span className="text-xs font-black text-text-h">#{order.short_code}</span>
-                  <span className="bg-emerald-500/10 text-emerald-500 text-[9px] font-black px-2 py-0.5 rounded-md border border-emerald-500/10 uppercase flex items-center gap-1">
-                    <CheckCircle className="w-3.5 h-3.5" />
-                    {language === 'uz' ? 'Yetkazildi' : 'Доставлен'}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center text-xs font-bold text-hint">
-                  <span>{order.user?.name}</span>
-                  <span className="text-text-h">{formatPrice(parseFloat(order.total_price))}</span>
-                </div>
-                <div className="text-[10px] text-hint flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5" />
-                  {new Date(order.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </div>
+          completedOrders.map((order) => (
+            <article key={order.id} aria-label={`${uz ? 'Buyurtma' : 'Заказ'} ${formatOrderCode(order)}`} className="flex flex-col gap-2 rounded-card border border-line bg-surface p-3">
+              <div className="flex items-center gap-2">
+                <span className="text-headline font-bold text-fg">{formatOrderCode(order)}</span>
+                <StatusBadge status={order.status} audience="staff" />
+                <span className="ml-auto inline-flex items-center gap-1 text-footnote text-fg-muted">
+                  <Clock aria-hidden="true" className="size-3.5" />
+                  {formatTime(order.updated_at)}
+                </span>
               </div>
-            ))
-          )
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="min-w-0 truncate text-body text-fg-muted">{order.user?.name}</span>
+                <span className="shrink-0 text-body font-bold text-fg">{formatMoney(toAmount(order.total_price), language)}</span>
+              </div>
+            </article>
+          ))
         )}
       </div>
     </div>

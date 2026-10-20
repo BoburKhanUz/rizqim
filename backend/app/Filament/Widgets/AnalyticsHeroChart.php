@@ -2,7 +2,7 @@
 
 namespace App\Filament\Widgets;
 
-use App\Models\Order;
+use App\Filament\Support\StorePanelScope;
 use Filament\Widgets\ChartWidget;
 
 class AnalyticsHeroChart extends ChartWidget
@@ -20,7 +20,7 @@ class AnalyticsHeroChart extends ChartWidget
 
         for ($i = 11; $i >= 0; $i--) {
             $time = now()->subHours($i);
-            $count = Order::where('created_at', '>=', $time->copy()->startOfHour())
+            $count = StorePanelScope::orders()->where('created_at', '>=', $time->copy()->startOfHour())
                 ->where('created_at', '<=', $time->copy()->endOfHour())
                 ->count();
             

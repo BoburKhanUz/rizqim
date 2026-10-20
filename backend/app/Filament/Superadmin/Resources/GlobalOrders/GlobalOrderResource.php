@@ -52,7 +52,7 @@ class GlobalOrderResource extends Resource
 
                 Tables\Columns\TextColumn::make('user.name')
                     ->label('Customer')
-                    ->description(fn (Order $record) => $record->user?->phone ?? 'No phone')
+                    ->description(fn (Order $record) => $record->user->phone ?? 'No phone')
                     ->searchable()
                     ->sortable(),
 
@@ -186,7 +186,7 @@ class GlobalOrderResource extends Resource
                                     $histories = $record->statusHistories()->orderBy('created_at', 'asc')->get();
                                     foreach ($histories as $index => $history) {
                                         $isLast = $index === $histories->count() - 1;
-                                        $statusObj = is_object($history->status) ? $history->status->value : $history->status;
+                                        $statusObj = $history->status->value;
                                         $statusLabel = match($statusObj) {
                                             'new' => 'Created',
                                             'accepted' => 'Accepted',

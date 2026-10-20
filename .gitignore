@@ -44,3 +44,6 @@ npm-debug.log*
 .vscode/
 *.swp
 Thumbs.db
+
+# PostgreSQL zaxiralari (scripts/backup.sh, docker-compose.yml `backup` xizmati): mijoz ma'lumotlari, hech qachon commit qilinmasin
+/backups/

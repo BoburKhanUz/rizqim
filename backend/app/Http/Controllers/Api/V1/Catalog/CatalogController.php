@@ -148,19 +148,14 @@ class CatalogController extends Controller
             }
         ])->where($queryField, $storeUuid)->first();
             
-        if (!$store || !$store->is_active || $store->status === \App\Enums\StoreStatus::PAYMENT_REQUIRED->value) {
+        if (!$store || !$store->is_active || ($store->status->value ?? $store->status) === \App\Enums\StoreStatus::PAYMENT_REQUIRED->value) {
             return $this->error('Store is currently unavailable.', [], 403);
         }
 
         $user = $request->user('sanctum') ?: $request->user();
         if ($user) {
-            $hasFailedCashPickup = \App\Models\Order::where('user_id', $user->id)
-                ->where('order_type', 'pickup')
-                ->where('payment_method', 'cash')
-                ->whereIn('status', ['canceled', 'rejected'])
-                ->exists();
-            
-            if ($hasFailedCashPickup) {
+            // Same rule checkout enforces, so cash is hidden exactly when an order would be refused
+            if (\App\Models\Order::cashPickupBanApplies($user->id)) {
                 $settings = $store->payment_settings ?? [];
                 if (isset($settings['cash'])) {
                     if (is_array($settings['cash'])) {

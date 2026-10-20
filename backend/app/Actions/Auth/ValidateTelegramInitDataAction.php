@@ -15,12 +15,12 @@ class ValidateTelegramInitDataAction
      */
     public function execute(string $initData, string $botToken): ?array
     {
-        // Developer mock bypass for local testing
-        if (config('app.env') === 'local' && str_starts_with($initData, 'mock_')) {
+        // Developer mock bypass: needs BOTH a local environment and an explicit opt-in flag
+        if (str_starts_with($initData, 'mock_') && app()->environment('local') && config('telegram.allow_mock_auth') === true) {
             Log::info('ValidateTelegramInitDataAction: Bypassing validation for local development mock data.');
             parse_str($initData, $parsedData);
             if (isset($parsedData['user'])) {
-                return json_decode($parsedData['user'], true);
+                return $this->decodeUser($parsedData['user']);
             }
         }
 
@@ -69,9 +69,16 @@ class ValidateTelegramInitDataAction
 
         // Successfully validated, return user data
         if (isset($parsedData['user'])) {
-            return json_decode($parsedData['user'], true);
+            return $this->decodeUser($parsedData['user']);
         }
-        
+
         return null;
+    }
+
+    private function decodeUser(mixed $userJson): ?array
+    {
+        $user = is_string($userJson) ? json_decode($userJson, true) : null;
+
+        return is_array($user) && isset($user['id']) && is_scalar($user['id']) ? $user : null;
     }
 }

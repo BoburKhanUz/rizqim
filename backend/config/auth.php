@@ -114,4 +114,35 @@ return [
 
     'password_timeout' => env('AUTH_PASSWORD_TIMEOUT', 10800),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Phone Verification (SMS OTP)
+    |--------------------------------------------------------------------------
+    |
+    | Returning the OTP in the API response is a local development aid only:
+    | it also requires APP_ENV=local. Send limits live in the "otp-send"
+    | rate limiter (AppServiceProvider).
+    |
+    */
+
+    'phone_verification' => [
+        'expose_code_in_response' => filter_var(env('SMS_EXPOSE_CODE_IN_RESPONSE', false), FILTER_VALIDATE_BOOLEAN),
+        'max_attempts' => 5,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Initial Super Admin (SuperAdminSeeder only)
+    |--------------------------------------------------------------------------
+    |
+    | Required outside local/testing; the password must be at least 12
+    | characters. An existing account with this email is never modified.
+    |
+    */
+
+    'superadmin' => [
+        'email' => env('SUPERADMIN_EMAIL'),
+        'password' => env('SUPERADMIN_PASSWORD'),
+    ],
+
 ];

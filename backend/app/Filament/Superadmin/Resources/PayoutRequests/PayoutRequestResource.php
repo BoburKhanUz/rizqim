@@ -29,16 +29,16 @@ class PayoutRequestResource extends Resource
                     ->schema([
                         \Filament\Forms\Components\Placeholder::make('store_name')
                             ->label('Restoran')
-                            ->content(fn ($record) => $record?->store?->name ?? 'Noma\'lum'),
+                            ->content(fn ($record) => $record->store->name ?? 'Noma\'lum'),
                         \Filament\Forms\Components\Placeholder::make('amount')
                             ->label('Summa')
-                            ->content(fn ($record) => number_format($record?->amount ?? 0) . ' UZS'),
+                            ->content(fn ($record) => number_format($record->amount ?? 0) . ' UZS'),
                         \Filament\Forms\Components\Placeholder::make('card_number')
                             ->label('Karta Raqami')
-                            ->content(fn ($record) => $record?->card_number ?? ''),
+                            ->content(fn ($record) => $record->card_number ?? ''),
                         \Filament\Forms\Components\Placeholder::make('notes')
                             ->label('Izoh (Restorandan)')
-                            ->content(fn ($record) => $record?->notes ?? 'Izohsiz'),
+                            ->content(fn ($record) => $record->notes ?? 'Izohsiz'),
                     ])->columns(2),
 
                 \Filament\Schemas\Components\Section::make('SuperAdmin Qarori')

@@ -18,6 +18,12 @@ use Filament\Panel;
 
 use App\Traits\Auditable;
 
+/**
+ * Cast attributes, declared because Larastan does not read casts from the casts() method:
+ *
+ * @property \App\Enums\UserRole $role
+ * @property \Illuminate\Support\Carbon|null $email_verified_at
+ */
 class User extends Authenticatable implements FilamentUser, HasTenants
 {
     /** @use HasFactory<UserFactory> */
@@ -67,21 +73,33 @@ class User extends Authenticatable implements FilamentUser, HasTenants
         ];
     }
     
+    /**
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<Store, $this>
+     */
     public function store(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(Store::class);
     }
 
+    /**
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<Branch, $this>
+     */
     public function branch(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(Branch::class);
     }
     
+    /**
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany<Order, $this>
+     */
     public function orders(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(Order::class);
     }
 
+    /**
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany<Address, $this>
+     */
     public function addresses(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(Address::class);
@@ -91,6 +109,11 @@ class User extends Authenticatable implements FilamentUser, HasTenants
     {
         if ($panel->getId() === 'superadmin') {
             return $this->role === \App\Enums\UserRole::SUPER_ADMIN;
+        }
+
+        // Store staff must belong to a store (tenant); storeless staff accounts are invalid
+        if ($this->role !== \App\Enums\UserRole::SUPER_ADMIN && $this->store_id === null) {
+            return false;
         }
 
         return in_array($this->role, [
@@ -115,6 +138,6 @@ class User extends Authenticatable implements FilamentUser, HasTenants
             return true;
         }
 
-        return $this->store_id === $tenant->id;
+        return $this->store_id === $tenant->getKey();
     }
 }

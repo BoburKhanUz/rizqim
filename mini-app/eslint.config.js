@@ -19,4 +19,15 @@ export default defineConfig([
       globals: globals.browser,
     },
   },
+  {
+    // Playwright specs and config run in Node. Fixtures hand the test body over with `use(...)`, which the React hooks
+    // rules would take for the React 19 `use` hook.
+    files: ['e2e/**/*.ts', 'playwright.config.ts'],
+    languageOptions: {
+      globals: globals.node,
+    },
+    rules: {
+      'react-hooks/rules-of-hooks': 'off',
+    },
+  },
 ])

@@ -34,7 +34,7 @@ class DailyOrdersChart extends ChartWidget
             $labels[] = Carbon::now()->subDays($i)->format('D, d M');
 
             // Count orders for that day
-            $count = Order::where('store_id', $tenant->id)
+            $count = Order::where('store_id', $tenant->getKey())
                 ->whereDate('created_at', $date)
                 ->count();
 

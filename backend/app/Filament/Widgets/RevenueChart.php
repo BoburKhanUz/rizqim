@@ -2,6 +2,7 @@
 
 namespace App\Filament\Widgets;
 
+use App\Filament\Support\StorePanelScope;
 use Filament\Widgets\ChartWidget;
 
 class RevenueChart extends ChartWidget
@@ -15,7 +16,8 @@ class RevenueChart extends ChartWidget
     {
         $days = collect(range(6, 0))->map(fn($day) => now()->subDays($day)->format('Y-m-d'));
         
-        $revenueData = \Illuminate\Support\Facades\DB::table('orders')
+        // The tenant store's revenue (a branch manager's branch) only: the raw orders table summed every store's sales
+        $revenueData = StorePanelScope::orders()
             ->selectRaw('DATE(created_at) as date, sum(total_price) as total')
             ->whereIn('status', ['accepted', 'preparing', 'delivery', 'delivered'])
             ->where('created_at', '>=', now()->subDays(6)->startOfDay())

@@ -27,7 +27,7 @@ class StoreSalesOverviewWidget extends BaseWidget
 
         $today = \Carbon\Carbon::today();
 
-        $todaysDeliveredOrders = Order::where('store_id', $tenant->id)
+        $todaysDeliveredOrders = Order::where('store_id', $tenant->getKey())
             ->where('status', OrderStatus::DELIVERED->value)
             ->whereDate('created_at', $today);
 

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Widgets;
 
+use App\Filament\Support\StorePanelScope;
 use App\Models\ProductVariant;
 use App\Services\Ops\InventoryVelocityService;
 use Filament\Tables;
@@ -18,7 +19,9 @@ class InventoryLowStockWidget extends BaseWidget
     {
         return $table
             ->query(
+                // Variants of the tenant store's products only; the bare query listed every store's stock
                 ProductVariant::query()
+                    ->whereHas('product', fn ($query) => $query->where('store_id', StorePanelScope::storeId()))
                     ->where('stock', '<', 10)
                     ->orderBy('stock', 'asc')
             )

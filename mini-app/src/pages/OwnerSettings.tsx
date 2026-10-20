@@ -1,97 +1,183 @@
-import React, { useState, useEffect } from 'react';
+import { useRef, useState } from 'react';
+import type { ChangeEvent, FormEvent, ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
+import { getApiErrorMessage, getApiFieldError, logApiError } from '../lib/apiError';
 import { hapticFeedback } from '../lib/telegram';
+import { notificationOccurred } from '../lib/twa';
+import { showAlert } from '../lib/dialogs';
+import { useMainButton } from '../hooks/useMainButton';
 import { useLanguageStore } from '../store/languageStore';
-import { 
-  ArrowLeft, 
-  Store, 
-  Clock, 
-  CreditCard, 
-  Truck, 
-  Save, 
-  Loader2 
-} from 'lucide-react';
+import { Button, Card, Field, InlineError, PageHeader, Section, Skeleton, Spinner, cx, fieldClass } from '../components/ui';
+import { FileButton } from '../components/staff/FileButton';
+import { Pill } from '../components/staff/Pill';
+import { Switch } from '../components/staff/Switch';
+import { Camera, Image as ImageIcon, MapPin, Store } from 'lucide-react';
+import type { ApiResponse, OwnerStoreSettings, PaymentProviderSettings, PaymentSettings } from '../types';
+
+// A provider of payment_settings: a settings object or (legacy data) a bare boolean. The API adds `available: false`
+// to a provider that is not integrated yet (Uzum, Paynet): it is shown but can't be switched on.
+type ProviderSetting = boolean | PaymentProviderSettings | null | undefined;
+
+// Cash is on unless the store switched it off
+function isCashOn(setting: ProviderSetting): boolean {
+  if (setting === undefined || setting === null) return true;
+  return typeof setting === 'boolean' ? setting : setting.enabled !== false;
+}
+
+// An online provider is on only when the store switched it on
+function isOnlineOn(setting: ProviderSetting): boolean {
+  if (setting === undefined || setting === null) return false;
+  return typeof setting === 'boolean' ? setting : setting.enabled === true;
+}
+
+function isProviderAvailable(setting: ProviderSetting): boolean {
+  return typeof setting === 'object' && setting !== null ? setting.available !== false : true;
+}
+
+// Body of POST /owner/settings
+interface OwnerSettingsPayload {
+  logo: string | null;
+  banner: string | null;
+  description: string | null;
+  address: string | null;
+  location_url: string | null;
+  is_open: boolean;
+  min_order_amount: number;
+  payment_settings: {
+    delivery_fee: number;
+    delivery_enabled: boolean;
+    pickup_enabled: boolean;
+    working_hours: { open: string; close: string };
+    cash: { enabled: boolean };
+    click: { enabled: boolean };
+    payme: { enabled: boolean };
+    uzum: { enabled: boolean };
+    paynet: { enabled: boolean };
+  };
+}
+
+interface UploadedFile {
+  path: string;
+  url: string;
+}
+
+// A row of the form with a switch: a title, what it does, the switch
+interface SwitchRowProps {
+  title: string;
+  description?: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  // The provider is not integrated yet: the switch stays off and can't be touched
+  comingSoon?: boolean;
+}
+
+function SwitchRow({ title, description, checked, onChange, comingSoon = false }: SwitchRowProps) {
+  return (
+    <div className={cx('flex items-center justify-between gap-3 rounded-card bg-surface-2 py-1 pl-4 pr-2', comingSoon && 'opacity-70')}>
+      <div className="min-w-0 py-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 className="text-body font-bold text-fg">{title}</h3>
+          {comingSoon && <Pill tone="warning">Tez orada</Pill>}
+        </div>
+        {description && <p className="text-footnote text-fg-muted">{description}</p>}
+      </div>
+      <Switch checked={checked && !comingSoon} onChange={onChange} label={title} disabled={comingSoon} />
+    </div>
+  );
+}
+
+const storageUrl = (path: string) => (path.startsWith('http') ? path : `/storage/${path}`);
 
 export default function OwnerSettings() {
-  const navigate = useNavigate();
   const { language } = useLanguageStore();
-  const queryClient = useQueryClient();
+  const uz = language === 'uz';
 
-  const [logo, setLogo] = useState('');
-  const [banner, setBanner] = useState('');
-  const [description, setDescription] = useState('');
-  const [address, setAddress] = useState('');
-  const [locationUrl, setLocationUrl] = useState('');
-  const [isOpen, setIsOpen] = useState(true);
+  // Fetch current store settings
+  const { data: storeInfo, isLoading, refetch, isRefetching } = useQuery({
+    queryKey: ['owner-settings'],
+    queryFn: async () => {
+      const res = await api.get<ApiResponse<OwnerStoreSettings>>('/owner/settings');
+      return res.data?.data || null;
+    }
+  });
+
+  const title = uz ? "Do'kon sozlamalari" : 'Настройки магазина';
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col gap-4 px-4 pt-2" role="status" aria-label={uz ? 'Yuklanmoqda' : 'Загрузка'}>
+        <PageHeader title={title} back />
+        <Skeleton className="h-72 rounded-card" />
+        <Skeleton className="h-32 rounded-card" />
+      </div>
+    );
+  }
+
+  // Without the stored settings the form would show (and could save) defaults over the real ones
+  if (!storeInfo) {
+    return (
+      <div className="flex flex-col gap-4 px-4 pt-2">
+        <PageHeader title={title} back />
+        <InlineError
+          title={uz ? "Sozlamalarni yuklab bo'lmadi" : 'Не удалось загрузить настройки'}
+          onRetry={() => void refetch()}
+          retrying={isRefetching}
+        />
+      </div>
+    );
+  }
+
+  return <OwnerSettingsForm storeInfo={storeInfo} />;
+}
+
+// Mounted once the settings are loaded, so every field starts from the stored value
+function OwnerSettingsForm({ storeInfo }: { storeInfo: OwnerStoreSettings }) {
+  const { language } = useLanguageStore();
+  const uz = language === 'uz';
+  const queryClient = useQueryClient();
+  const formRef = useRef<HTMLFormElement>(null);
+
+  const paySettings: PaymentSettings = storeInfo.payment_settings ?? {};
+  const hours: { open?: string; close?: string } = paySettings.working_hours ?? {};
+  const uzumAvailable = isProviderAvailable(paySettings.uzum);
+  const paynetAvailable = isProviderAvailable(paySettings.paynet);
+
+  const [logo, setLogo] = useState(storeInfo.logo || '');
+  const [banner, setBanner] = useState(storeInfo.banner || '');
+  const [description, setDescription] = useState(storeInfo.description || '');
+  const [address, setAddress] = useState(storeInfo.address || '');
+  const [locationUrl, setLocationUrl] = useState(storeInfo.location_url || '');
+  const [isOpen, setIsOpen] = useState(storeInfo.is_open);
 
   // Upload loading states
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const [isUploadingBanner, setIsUploadingBanner] = useState(false);
 
   // Settings state
-  const [deliveryFee, setDeliveryFee] = useState('0');
-  const [minOrderAmount, setMinOrderAmount] = useState('0');
-  const [openTime, setOpenTime] = useState('09:00');
-  const [closeTime, setCloseTime] = useState('22:00');
+  const [deliveryFee, setDeliveryFee] = useState(paySettings.delivery_fee?.toString() || '0');
+  const [minOrderAmount, setMinOrderAmount] = useState(storeInfo.min_order_amount?.toString() || '0');
+  const [openTime, setOpenTime] = useState(hours.open || '09:00');
+  const [closeTime, setCloseTime] = useState(hours.close || '22:00');
 
-  // Gateways status
-  const [cashEnabled, setCashEnabled] = useState(true);
-  const [clickEnabled, setClickEnabled] = useState(false);
-  const [paymeEnabled, setPaymeEnabled] = useState(false);
-  const [uzumEnabled, setUzumEnabled] = useState(false);
-  const [paynetEnabled, setPaynetEnabled] = useState(false);
+  // Gateways status. Uzum and Paynet are not integrated yet: whatever was stored, they start (and stay) off.
+  const [cashEnabled, setCashEnabled] = useState(isCashOn(paySettings.cash));
+  const [clickEnabled, setClickEnabled] = useState(isOnlineOn(paySettings.click));
+  const [paymeEnabled, setPaymeEnabled] = useState(isOnlineOn(paySettings.payme));
+  const [uzumEnabled, setUzumEnabled] = useState(uzumAvailable && isOnlineOn(paySettings.uzum));
+  const [paynetEnabled, setPaynetEnabled] = useState(paynetAvailable && isOnlineOn(paySettings.paynet));
 
   // Delivery type toggles
-  const [deliveryEnabled, setDeliveryEnabled] = useState(true);
-  const [pickupEnabled, setPickupEnabled] = useState(true);
-
-  // Fetch current store settings
-  const { data: storeInfo, isLoading } = useQuery({
-    queryKey: ['owner-settings'],
-    queryFn: async () => {
-      const res = await api.get('/owner/settings');
-      return res.data?.data || null;
-    }
-  });
-
-  // Populate state when data loads
-  useEffect(() => {
-    if (storeInfo) {
-      setLogo(storeInfo.logo || '');
-      setBanner(storeInfo.banner || '');
-      setDescription(storeInfo.description || '');
-      setAddress(storeInfo.address || '');
-      setLocationUrl(storeInfo.location_url || '');
-      setIsOpen(storeInfo.is_open);
-      setMinOrderAmount(storeInfo.min_order_amount?.toString() || '0');
-
-      const paySettings = storeInfo.payment_settings || {};
-      setDeliveryFee(paySettings.delivery_fee?.toString() || '0');
-      
-      const hours = paySettings.working_hours || {};
-      setOpenTime(hours.open || '09:00');
-      setCloseTime(hours.close || '22:00');
-
-      setCashEnabled(paySettings.cash === true || paySettings.cash?.enabled !== false);
-      setClickEnabled(paySettings.click === true || paySettings.click?.enabled === true);
-      setPaymeEnabled(paySettings.payme === true || paySettings.payme?.enabled === true);
-      setUzumEnabled(paySettings.uzum === true || paySettings.uzum?.enabled === true);
-      setPaynetEnabled(paySettings.paynet === true || paySettings.paynet?.enabled === true);
-
-      setDeliveryEnabled(paySettings.delivery_enabled !== false);
-      setPickupEnabled(paySettings.pickup_enabled !== false);
-    }
-  }, [storeInfo]);
+  const [deliveryEnabled, setDeliveryEnabled] = useState(paySettings.delivery_enabled !== false);
+  const [pickupEnabled, setPickupEnabled] = useState(paySettings.pickup_enabled !== false);
 
   const isMethodAllowed = (method: string) => {
-    const allowed = storeInfo?.allowed_methods || ['cash', 'click', 'payme', 'uzum', 'paynet'];
+    const allowed = storeInfo.allowed_methods || ['cash', 'click', 'payme', 'uzum', 'paynet'];
     return allowed.includes(method);
   };
 
   // File upload handler
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'banner') => {
+  const handleFileUpload = async (e: ChangeEvent<HTMLInputElement>, type: 'logo' | 'banner') => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -106,7 +192,7 @@ export default function OwnerSettings() {
     }
 
     try {
-      const res = await api.post('/owner/settings/upload', formData, {
+      const res = await api.post<ApiResponse<UploadedFile>>('/owner/settings/upload', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -117,11 +203,11 @@ export default function OwnerSettings() {
       } else {
         setBanner(data.path);
       }
-      hapticFeedback('success');
-    } catch (err: any) {
-      console.error(err);
-      hapticFeedback('rigid');
-      alert(err.response?.data?.message || 'Fayl yuklashda xatolik yuz berdi.');
+      notificationOccurred('success');
+    } catch (err) {
+      logApiError('Failed to upload file:', err);
+      notificationOccurred('error');
+      void showAlert(getApiErrorMessage(err) || 'Fayl yuklashda xatolik yuz berdi.');
     } finally {
       if (type === 'logo') {
         setIsUploadingLogo(false);
@@ -135,7 +221,7 @@ export default function OwnerSettings() {
 
   const handleGetCurrentLocation = () => {
     if (!navigator.geolocation) {
-      alert(language === 'uz' ? 'Brauzeringiz geolokatsiyani qo\'llab-quvvatlamaydi' : 'Ваш браузер не поддерживает геолокацию');
+      void showAlert(uz ? 'Brauzeringiz geolokatsiyani qo\'llab-quvvatlamaydi' : 'Ваш браузер не поддерживает геолокацию');
       return;
     }
 
@@ -147,21 +233,21 @@ export default function OwnerSettings() {
         const lat = position.coords.latitude;
         const lng = position.coords.longitude;
         const mapUrl = `https://yandex.com/maps/?pt=${lng},${lat}&z=16&l=map`;
-        
+
         setLocationUrl(mapUrl);
         if (!address) {
-          setAddress(language === 'uz' ? 'GPS Joylashuv 📍' : 'GPS Локация 📍');
+          setAddress(uz ? 'GPS joylashuv' : 'GPS локация');
         }
-        
-        hapticFeedback('success');
+
+        notificationOccurred('success');
         setIsGettingLocation(false);
-        alert(language === 'uz' ? 'Lokatsiya muvaffaqiyatli aniqlandi!' : 'Локация успешно определена!');
+        void showAlert(uz ? 'Lokatsiya muvaffaqiyatli aniqlandi!' : 'Локация успешно определена!');
       },
       (error) => {
-        console.error(error);
-        hapticFeedback('rigid');
+        logApiError('Failed to get location:', error);
+        notificationOccurred('error');
         setIsGettingLocation(false);
-        alert(language === 'uz' ? 'Joylashuvni aniqlash imkoni bo\'lmadi. Iltimos, ruxsat berilganligini tekshiring.' : 'Не удалось определить локацию. Проверьте разрешения.');
+        void showAlert(uz ? 'Joylashuvni aniqlash imkoni bo\'lmadi. Iltimos, ruxsat berilganligini tekshiring.' : 'Не удалось определить локацию. Проверьте разрешения.');
       },
       {
         enableHighAccuracy: true,
@@ -173,26 +259,27 @@ export default function OwnerSettings() {
 
   // Mutation to save settings
   const saveSettings = useMutation({
-    mutationFn: async (payload: any) => {
+    mutationFn: async (payload: OwnerSettingsPayload) => {
       const res = await api.post('/owner/settings', payload);
       return res.data;
     },
     onSuccess: () => {
-      hapticFeedback('success');
+      notificationOccurred('success');
       queryClient.invalidateQueries({ queryKey: ['owner-settings'] });
-      alert(language === 'uz' ? 'Sozlamalar muvaffaqiyatli saqlandi!' : 'Настройки успешно сохранены!');
+      void showAlert(uz ? 'Sozlamalar muvaffaqiyatli saqlandi!' : 'Настройки успешно сохранены!');
     },
-    onError: (err: any) => {
-      hapticFeedback('rigid');
-      alert(err.response?.data?.message || 'Xatolik yuz berdi.');
+    onError: (err: unknown) => {
+      notificationOccurred('error');
+      // 422 on payment_settings: a provider that can't be enabled (yet) was switched on
+      void showAlert(getApiFieldError(err, 'payment_settings') || getApiErrorMessage(err) || 'Xatolik yuz berdi.');
     }
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     hapticFeedback('medium');
 
-    const payload = {
+    const payload: OwnerSettingsPayload = {
       logo: logo.trim() || null,
       banner: banner.trim() || null,
       description: description.trim() || null,
@@ -211,396 +298,190 @@ export default function OwnerSettings() {
         cash: { enabled: cashEnabled },
         click: { enabled: clickEnabled },
         payme: { enabled: paymeEnabled },
-        uzum: { enabled: uzumEnabled },
-        paynet: { enabled: paynetEnabled },
+        // Never switched on from here while the provider is not integrated (the server refuses it)
+        uzum: { enabled: uzumAvailable && uzumEnabled },
+        paynet: { enabled: paynetAvailable && paynetEnabled },
       }
     };
 
     saveSettings.mutate(payload);
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex justify-center items-center min-h-screen bg-bg">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
+  // The one action of the screen, always at the bottom
+  useMainButton({
+    text: uz ? 'Sozlamalarni saqlash' : 'Сохранить настройки',
+    onClick: () => formRef.current?.requestSubmit(),
+    progress: saveSettings.isPending,
+  });
+
+  const uploadOverlay = (busy: boolean): ReactNode =>
+    busy && (
+      <span className="absolute inset-0 flex items-center justify-center bg-scrim text-on-brand">
+        <Spinner className="size-6" />
+      </span>
     );
-  }
 
   return (
-    <div className="p-4 pb-28 flex flex-col gap-6 bg-gradient-to-br from-bg via-bg to-primary/5 min-h-screen text-text">
-      {/* Header */}
-      <header className="flex items-center gap-4 pb-2 border-b border-white/5">
-        <button 
-          onClick={() => { hapticFeedback('light'); navigate(-1); }}
-          className="p-2 rounded-xl bg-secondary text-text-h flex items-center justify-center shadow-sm border border-white/5 active:scale-90 transition"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </button>
-        <div>
-          <h1 className="text-xl font-bold text-text-h">
-            {language === 'uz' ? 'Do\'kon sozlamalari' : 'Настройки магазина'}
-          </h1>
-          <span className="text-[10px] text-hint font-medium">
-            Logo, banner, ish vaqti va to'lov tizimlarini sozlash
-          </span>
-        </div>
-      </header>
+    <div className="flex flex-col gap-4 px-4 pt-2">
+      <PageHeader
+        title={uz ? "Do'kon sozlamalari" : 'Настройки магазина'}
+        subtitle={uz ? "Logo, banner, ish vaqti va to'lov tizimlari" : 'Логотип, баннер, часы работы и оплата'}
+        back
+      />
 
-      <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+      <form ref={formRef} onSubmit={handleSubmit} className="flex flex-col gap-5">
         {/* Basic Info */}
-        <section className="bg-secondary p-5 rounded-[24px] border border-white/5 shadow-sm flex flex-col gap-4">
-          <div className="flex items-center gap-2 text-text-h">
-            <Store className="w-5 h-5 text-primary" />
-            <h2 className="text-xs uppercase font-black tracking-wider">Asosiy ma'lumotlar</h2>
-          </div>
-
-          <div className="flex flex-col gap-3.5">
-            <div className="flex flex-col gap-1">
-              <label className="text-[9px] font-black text-hint uppercase">Do'kon nomi</label>
-              <input 
-                type="text" 
-                disabled 
-                value={storeInfo?.name || ''} 
-                className="bg-bg border border-white/5 p-3 rounded-2xl text-xs font-semibold text-hint outline-none opacity-60"
-              />
-            </div>
+        <Section title="Asosiy ma'lumotlar">
+          <Card className="flex flex-col gap-4">
+            <Field label="Do'kon nomi">
+              {(props) => <input {...props} type="text" disabled value={storeInfo?.name || ''} className={fieldClass} />}
+            </Field>
 
             {/* Logo Upload */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-[9px] font-black text-hint uppercase">Logo</label>
-              <div className="flex items-center gap-4 bg-bg/50 p-3.5 rounded-[20px] border border-white/5">
-                <div className="relative w-16 h-16 rounded-full bg-secondary border border-white/10 flex items-center justify-center overflow-hidden shrink-0 shadow-inner">
+              <span className="text-footnote font-bold text-fg-muted">Logo</span>
+              <div className="flex items-center gap-4 rounded-card bg-surface-2 p-3">
+                <div className="relative flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-full border border-line bg-surface text-fg-muted">
                   {logo ? (
-                    <img 
-                      src={logo.startsWith('http') ? logo : `/storage/${logo}`} 
-                      alt="Logo" 
-                      className="w-full h-full object-cover" 
-                    />
+                    <img src={storageUrl(logo)} alt="Logo" className="size-full object-cover" />
                   ) : (
-                    <span className="text-xl">🏪</span>
+                    <Store aria-hidden="true" className="size-7" />
                   )}
-                  {isUploadingLogo && (
-                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                      <Loader2 className="w-5 h-5 animate-spin text-primary" />
-                    </div>
-                  )}
+                  {uploadOverlay(isUploadingLogo)}
                 </div>
-                <div className="flex flex-col gap-1">
-                  <label className="cursor-pointer bg-secondary border border-white/10 hover:border-primary/50 hover:text-primary px-4 py-2 rounded-xl text-xs font-bold text-text-h shadow-sm active:scale-95 transition-all text-center">
-                    {language === 'uz' ? "Logo yuklash 📸" : "Загрузить лого 📸"}
-                    <input 
-                      type="file" 
-                      accept="image/*" 
-                      onChange={(e) => handleFileUpload(e, 'logo')} 
-                      className="hidden" 
-                    />
-                  </label>
-                  <span className="text-[8px] text-hint font-medium">PNG, JPG (maks. 5MB)</span>
+                <div className="flex min-w-0 flex-col gap-1">
+                  <FileButton label={uz ? 'Logo yuklash' : 'Загрузить лого'} icon={Camera} accept="image/*" onFile={(e) => handleFileUpload(e, 'logo')} disabled={isUploadingLogo} />
+                  <span className="text-caption text-fg-muted">PNG, JPG (maks. 5MB)</span>
                 </div>
               </div>
             </div>
 
             {/* Banner Upload */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-[9px] font-black text-hint uppercase">Muqova rasmi (Banner)</label>
-              <div className="flex flex-col gap-3 bg-bg/50 p-3.5 rounded-[20px] border border-white/5">
-                <div className="relative w-full h-32 rounded-xl bg-secondary border border-white/10 flex items-center justify-center overflow-hidden">
+              <span className="text-footnote font-bold text-fg-muted">Muqova rasmi</span>
+              <div className="flex flex-col gap-3 rounded-card bg-surface-2 p-3">
+                <div className="relative flex h-32 w-full items-center justify-center overflow-hidden rounded-control border border-line bg-surface text-fg-muted">
                   {banner ? (
-                    <img 
-                      src={banner.startsWith('http') ? banner : `/storage/${banner}`} 
-                      alt="Banner" 
-                      className="w-full h-full object-cover" 
-                    />
+                    <img src={storageUrl(banner)} alt="Banner" className="size-full object-cover" />
                   ) : (
-                    <span className="text-xl text-hint/30">Rasm yo'q</span>
+                    <span className="flex flex-col items-center gap-1 text-footnote">
+                      <ImageIcon aria-hidden="true" className="size-6" />
+                      Rasm yo'q
+                    </span>
                   )}
-                  {isUploadingBanner && (
-                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                      <Loader2 className="w-6 h-6 animate-spin text-primary" />
-                    </div>
-                  )}
+                  {uploadOverlay(isUploadingBanner)}
                 </div>
-                <div className="flex items-center justify-between">
-                  <label className="cursor-pointer bg-secondary border border-white/10 hover:border-primary/50 hover:text-primary px-4 py-2 rounded-xl text-xs font-bold text-text-h shadow-sm active:scale-95 transition-all">
-                    {language === 'uz' ? "Banner yuklash 🖼️" : "Загрузить баннер 🖼️"}
-                    <input 
-                      type="file" 
-                      accept="image/*" 
-                      onChange={(e) => handleFileUpload(e, 'banner')} 
-                      className="hidden" 
-                    />
-                  </label>
-                  <span className="text-[8px] text-hint font-medium">PNG, JPG (maks. 5MB)</span>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <FileButton label={uz ? 'Banner yuklash' : 'Загрузить баннер'} icon={ImageIcon} accept="image/*" onFile={(e) => handleFileUpload(e, 'banner')} disabled={isUploadingBanner} />
+                  <span className="text-caption text-fg-muted">PNG, JPG (maks. 5MB)</span>
                 </div>
               </div>
             </div>
 
-            <div className="flex flex-col gap-1">
-              <label className="text-[9px] font-black text-hint uppercase">Tavsif (Description)</label>
-              <textarea 
-                rows={3} 
-                value={description} 
-                onChange={(e) => setDescription(e.target.value)} 
-                placeholder="Do'kon haqida qisqacha ma'lumot..."
-                className="bg-bg border border-white/5 p-3 rounded-2xl text-xs font-semibold text-text-h outline-none focus:border-primary/50 focus:bg-secondary transition resize-none"
-              />
-            </div>
-
-            {/* Store Address */}
-            <div className="flex flex-col gap-1">
-              <label className="text-[9px] font-black text-hint uppercase">Do'kon manzili (Matn ko'rinishida)</label>
-              <input 
-                type="text" 
-                value={address} 
-                onChange={(e) => setAddress(e.target.value)} 
-                placeholder="Masalan: Toshkent sh., Chilonzor tumani, 9-mavze, 23-uy..."
-                className="bg-bg border border-white/5 p-3 rounded-2xl text-xs font-semibold text-text-h outline-none focus:border-primary/50 focus:bg-secondary transition"
-              />
-            </div>
-
-            {/* Location URL */}
-            <div className="flex flex-col gap-1">
-              <label className="text-[9px] font-black text-hint uppercase">Xarita havolasi (Google Maps yoki Yandex Maps)</label>
-              <div className="flex flex-col gap-2">
-                <input 
-                  type="text" 
-                  value={locationUrl} 
-                  onChange={(e) => setLocationUrl(e.target.value)} 
-                  placeholder="https://yandex.com/maps/... yoki https://maps.app.goo.gl/..."
-                  className="bg-bg border border-white/5 p-3 rounded-2xl text-xs font-semibold text-text-h outline-none focus:border-primary/50 focus:bg-secondary transition w-full"
+            <Field label="Tavsif">
+              {(props) => (
+                <textarea
+                  {...props}
+                  rows={3}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Do'kon haqida qisqacha ma'lumot..."
+                  className={cx(fieldClass, 'resize-none')}
                 />
-                <button
-                  type="button"
-                  disabled={isGettingLocation}
-                  onClick={handleGetCurrentLocation}
-                  className="w-full bg-primary/10 border border-primary/20 text-primary py-3 rounded-2xl font-bold text-xs active:scale-95 transition flex justify-center items-center gap-2"
-                >
-                  {isGettingLocation ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                      <span>{language === 'uz' ? 'Aniqlanmoqda...' : 'Определение...'}</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>📍</span>
-                      <span>{language === 'uz' ? 'Joriy joylashuvni aniqlash' : 'Определить текущую локацию'}</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
+              )}
+            </Field>
 
-            <div className="flex items-center justify-between p-3.5 bg-bg/40 rounded-2xl border border-white/5">
-              <div>
-                <h4 className="text-xs font-bold text-text-h">Do'kon holati (Ochiq/Yopiq)</h4>
-                <p className="text-[9px] text-hint mt-0.5">Yopiq holatda buyurtma qabul qilinmaydi</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => { hapticFeedback('light'); setIsOpen(!isOpen); }}
-                className={`w-12 h-6 rounded-full p-1 transition-colors duration-200 ${isOpen ? 'bg-emerald-500' : 'bg-hint/20'}`}
-              >
-                <div className={`w-4 h-4 rounded-full bg-white transition-transform duration-200 ${isOpen ? 'translate-x-6' : 'translate-x-0'}`} />
-              </button>
-            </div>
-          </div>
-        </section>
+            <Field label="Do'kon manzili">
+              {(props) => (
+                <input
+                  {...props}
+                  type="text"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  placeholder="Masalan: Toshkent sh., Chilonzor tumani, 9-mavze, 23-uy"
+                  className={fieldClass}
+                />
+              )}
+            </Field>
+
+            <Field label="Xarita havolasi" hint="Google Maps yoki Yandex Maps havolasi">
+              {(props) => (
+                <input
+                  {...props}
+                  type="text"
+                  inputMode="url"
+                  value={locationUrl}
+                  onChange={(e) => setLocationUrl(e.target.value)}
+                  placeholder="https://yandex.com/maps/..."
+                  className={fieldClass}
+                />
+              )}
+            </Field>
+            <Button variant="secondary" icon={MapPin} loading={isGettingLocation} onClick={handleGetCurrentLocation} fullWidth>
+              {isGettingLocation ? (uz ? 'Aniqlanmoqda...' : 'Определение...') : uz ? 'Joriy joylashuvni aniqlash' : 'Определить текущую локацию'}
+            </Button>
+
+            <SwitchRow
+              title="Do'kon ochiq"
+              description="Yopiq holatda buyurtma qabul qilinmaydi"
+              checked={isOpen}
+              onChange={setIsOpen}
+            />
+          </Card>
+        </Section>
 
         {/* Operating Hours */}
-        <section className="bg-secondary p-5 rounded-[24px] border border-white/5 shadow-sm flex flex-col gap-4">
-          <div className="flex items-center gap-2 text-text-h">
-            <Clock className="w-5 h-5 text-primary" />
-            <h2 className="text-xs uppercase font-black tracking-wider">Ish vaqti</h2>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="flex flex-col gap-1">
-              <label className="text-[9px] font-black text-hint uppercase">Ochilish vaqti</label>
-              <input 
-                type="time" 
-                value={openTime} 
-                onChange={(e) => setOpenTime(e.target.value)} 
-                className="bg-bg border border-white/5 p-3 rounded-2xl text-xs font-semibold text-text-h outline-none focus:border-primary/50 focus:bg-secondary transition"
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-[9px] font-black text-hint uppercase">Yopilish vaqti</label>
-              <input 
-                type="time" 
-                value={closeTime} 
-                onChange={(e) => setCloseTime(e.target.value)} 
-                className="bg-bg border border-white/5 p-3 rounded-2xl text-xs font-semibold text-text-h outline-none focus:border-primary/50 focus:bg-secondary transition"
-              />
-            </div>
-          </div>
-        </section>
+        <Section title="Ish vaqti">
+          <Card className="grid grid-cols-2 gap-4">
+            <Field label="Ochilish vaqti">
+              {(props) => <input {...props} type="time" value={openTime} onChange={(e) => setOpenTime(e.target.value)} className={fieldClass} />}
+            </Field>
+            <Field label="Yopilish vaqti">
+              {(props) => <input {...props} type="time" value={closeTime} onChange={(e) => setCloseTime(e.target.value)} className={fieldClass} />}
+            </Field>
+          </Card>
+        </Section>
 
         {/* Payment Gateways */}
-        <section className="bg-secondary p-5 rounded-[24px] border border-white/5 shadow-sm flex flex-col gap-4">
-          <div className="flex items-center gap-2 text-text-h">
-            <CreditCard className="w-5 h-5 text-primary" />
-            <h2 className="text-xs uppercase font-black tracking-wider">To'lov tizimlari</h2>
-          </div>
-
-          <div className="flex flex-col gap-3">
-            {/* Cash */}
-            {isMethodAllowed('cash') && (
-              <div className="flex items-center justify-between p-3 bg-bg/40 rounded-2xl border border-white/5">
-                <div>
-                  <h4 className="text-xs font-bold text-text-h">Naqd pul orqali (Cash)</h4>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => { hapticFeedback('light'); setCashEnabled(!cashEnabled); }}
-                  className={`w-10 h-5.5 rounded-full p-0.5 transition-colors duration-200 ${cashEnabled ? 'bg-primary' : 'bg-hint/20'}`}
-                >
-                  <div className={`w-4.5 h-4.5 rounded-full bg-white transition-transform duration-200 ${cashEnabled ? 'translate-x-4.5' : 'translate-x-0'}`} />
-                </button>
-              </div>
-            )}
-
-            {/* Click */}
-            {isMethodAllowed('click') && (
-              <div className="flex items-center justify-between p-3 bg-bg/40 rounded-2xl border border-white/5">
-                <div>
-                  <h4 className="text-xs font-bold text-text-h">CLICK Tizimi</h4>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => { hapticFeedback('light'); setClickEnabled(!clickEnabled); }}
-                  className={`w-10 h-5.5 rounded-full p-0.5 transition-colors duration-200 ${clickEnabled ? 'bg-primary' : 'bg-hint/20'}`}
-                >
-                  <div className={`w-4.5 h-4.5 rounded-full bg-white transition-transform duration-200 ${clickEnabled ? 'translate-x-4.5' : 'translate-x-0'}`} />
-                </button>
-              </div>
-            )}
-
-            {/* Payme */}
-            {isMethodAllowed('payme') && (
-              <div className="flex items-center justify-between p-3 bg-bg/40 rounded-2xl border border-white/5">
-                <div>
-                  <h4 className="text-xs font-bold text-text-h">Payme Tizimi</h4>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => { hapticFeedback('light'); setPaymeEnabled(!paymeEnabled); }}
-                  className={`w-10 h-5.5 rounded-full p-0.5 transition-colors duration-200 ${paymeEnabled ? 'bg-primary' : 'bg-hint/20'}`}
-                >
-                  <div className={`w-4.5 h-4.5 rounded-full bg-white transition-transform duration-200 ${paymeEnabled ? 'translate-x-4.5' : 'translate-x-0'}`} />
-                </button>
-              </div>
-            )}
-
-            {/* Uzum */}
-            {isMethodAllowed('uzum') && (
-              <div className="flex items-center justify-between p-3 bg-bg/40 rounded-2xl border border-white/5">
-                <div>
-                  <h4 className="text-xs font-bold text-text-h">Uzum Bank</h4>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => { hapticFeedback('light'); setUzumEnabled(!uzumEnabled); }}
-                  className={`w-10 h-5.5 rounded-full p-0.5 transition-colors duration-200 ${uzumEnabled ? 'bg-primary' : 'bg-hint/20'}`}
-                >
-                  <div className={`w-4.5 h-4.5 rounded-full bg-white transition-transform duration-200 ${uzumEnabled ? 'translate-x-4.5' : 'translate-x-0'}`} />
-                </button>
-              </div>
-            )}
-
-            {/* Paynet */}
-            {isMethodAllowed('paynet') && (
-              <div className="flex items-center justify-between p-3 bg-bg/40 rounded-2xl border border-white/5">
-                <div>
-                  <h4 className="text-xs font-bold text-text-h">Paynet</h4>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => { hapticFeedback('light'); setPaynetEnabled(!paynetEnabled); }}
-                  className={`w-10 h-5.5 rounded-full p-0.5 transition-colors duration-200 ${paynetEnabled ? 'bg-primary' : 'bg-hint/20'}`}
-                >
-                  <div className={`w-4.5 h-4.5 rounded-full bg-white transition-transform duration-200 ${paynetEnabled ? 'translate-x-4.5' : 'translate-x-0'}`} />
-                </button>
-              </div>
-            )}
-          </div>
-        </section>
+        <Section title="To'lov tizimlari">
+          <Card className="flex flex-col gap-3">
+            {isMethodAllowed('cash') && <SwitchRow title="Naqd pul" checked={cashEnabled} onChange={setCashEnabled} />}
+            {isMethodAllowed('click') && <SwitchRow title="Click" checked={clickEnabled} onChange={setClickEnabled} />}
+            {isMethodAllowed('payme') && <SwitchRow title="Payme" checked={paymeEnabled} onChange={setPaymeEnabled} />}
+            {isMethodAllowed('uzum') && <SwitchRow title="Uzum Bank" checked={uzumEnabled} onChange={setUzumEnabled} comingSoon={!uzumAvailable} />}
+            {isMethodAllowed('paynet') && <SwitchRow title="Paynet" checked={paynetEnabled} onChange={setPaynetEnabled} comingSoon={!paynetAvailable} />}
+          </Card>
+        </Section>
 
         {/* Logistics */}
-        <section className="bg-secondary p-5 rounded-[24px] border border-white/5 shadow-sm flex flex-col gap-4">
-          <div className="flex items-center gap-2 text-text-h">
-            <Truck className="w-5 h-5 text-primary" />
-            <h2 className="text-xs uppercase font-black tracking-wider">Logistika va yetkazish</h2>
-          </div>
+        <Section title="Yetkazish va olib ketish">
+          <Card className="flex flex-col gap-4">
+            <SwitchRow
+              title="Yetkazib berish"
+              description="Mijozlar uyiga buyurtma qilishlari mumkin"
+              checked={deliveryEnabled}
+              onChange={setDeliveryEnabled}
+            />
+            <SwitchRow
+              title="Olib ketish"
+              description="Mijozlar restorandan borib olib ketishlari mumkin"
+              checked={pickupEnabled}
+              onChange={setPickupEnabled}
+            />
 
-          <div className="flex flex-col gap-4">
-            <div className="flex items-center justify-between p-3.5 bg-bg/40 rounded-2xl border border-white/5">
-              <div>
-                <h4 className="text-xs font-bold text-text-h">Yetkazib berish (Delivery)</h4>
-                <p className="text-[9px] text-hint mt-0.5">Mijozlar uyiga buyurtma qilishlari mumkin</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => { hapticFeedback('light'); setDeliveryEnabled(!deliveryEnabled); }}
-                className={`w-12 h-6 rounded-full p-1 transition-colors duration-200 ${deliveryEnabled ? 'bg-primary' : 'bg-hint/20'}`}
-              >
-                <div className={`w-4 h-4 rounded-full bg-white transition-transform duration-200 ${deliveryEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
-              </button>
-            </div>
+            <Field label="Yetkazib berish narxi (so'm)">
+              {(props) => (
+                <input {...props} type="number" inputMode="numeric" value={deliveryFee} onChange={(e) => setDeliveryFee(e.target.value)} placeholder="Masalan: 12000" className={fieldClass} />
+              )}
+            </Field>
 
-            <div className="flex items-center justify-between p-3.5 bg-bg/40 rounded-2xl border border-white/5">
-              <div>
-                <h4 className="text-xs font-bold text-text-h">Olib ketish (Takeaway/Pickup)</h4>
-                <p className="text-[9px] text-hint mt-0.5">Mijozlar restorandan borib olib ketishlari mumkin</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => { hapticFeedback('light'); setPickupEnabled(!pickupEnabled); }}
-                className={`w-12 h-6 rounded-full p-1 transition-colors duration-200 ${pickupEnabled ? 'bg-primary' : 'bg-hint/20'}`}
-              >
-                <div className={`w-4 h-4 rounded-full bg-white transition-transform duration-200 ${pickupEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
-              </button>
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <label className="text-[9px] font-black text-hint uppercase">Yetkazib berish narxi (UZS)</label>
-              <input 
-                type="number" 
-                value={deliveryFee} 
-                onChange={(e) => setDeliveryFee(e.target.value)} 
-                placeholder="Masalan: 12000"
-                className="bg-bg border border-white/5 p-3 rounded-2xl text-xs font-semibold text-text-h outline-none focus:border-primary/50 focus:bg-secondary transition"
-              />
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <label className="text-[9px] font-black text-hint uppercase">Minimal buyurtma miqdori (UZS)</label>
-              <input 
-                type="number" 
-                value={minOrderAmount} 
-                onChange={(e) => setMinOrderAmount(e.target.value)} 
-                placeholder="Masalan: 30000"
-                className="bg-bg border border-white/5 p-3 rounded-2xl text-xs font-semibold text-text-h outline-none focus:border-primary/50 focus:bg-secondary transition"
-              />
-            </div>
-          </div>
-        </section>
-
-        {/* Submit */}
-        <button
-          type="submit"
-          disabled={saveSettings.isPending}
-          className="w-full bg-primary text-white py-4 rounded-3xl font-extrabold text-sm active:scale-95 transition shadow-lg shadow-primary/20 flex justify-center items-center gap-2 disabled:opacity-70 disabled:active:scale-100"
-        >
-          {saveSettings.isPending ? (
-            <Loader2 className="w-5 h-5 animate-spin" />
-          ) : (
-            <>
-              <Save className="w-4 h-4" />
-              <span>Sozlamalarni saqlash</span>
-            </>
-          )}
-        </button>
+            <Field label="Minimal buyurtma miqdori (so'm)">
+              {(props) => (
+                <input {...props} type="number" inputMode="numeric" value={minOrderAmount} onChange={(e) => setMinOrderAmount(e.target.value)} placeholder="Masalan: 30000" className={fieldClass} />
+              )}
+            </Field>
+          </Card>
+        </Section>
       </form>
     </div>
   );

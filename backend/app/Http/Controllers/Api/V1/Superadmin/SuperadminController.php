@@ -94,7 +94,7 @@ class SuperadminController extends Controller
 
         // Additional Platform Metrics
         $pendingPayouts = \App\Models\PayoutRequest::where('status', 'pending')->count();
-        $totalStoreDebt = Store::where('balance', '>', 0)->sum('balance');
+        $totalStoreDebt = Store::where('debt_balance', '>', 0)->sum('debt_balance');
         $totalCashbackBalance = User::where('role', \App\Enums\UserRole::CUSTOMER->value)->sum('balance');
 
         return response()->json([
@@ -132,7 +132,7 @@ class SuperadminController extends Controller
         $stores = Store::withCount('branches')->latest()->get()->map(function ($store) {
             $owner = User::where('store_id', $store->id)->where('role', 'owner')->first();
             
-            $botUsername = env('TELEGRAM_BOT_USERNAME', 'foods_order_test_bot');
+            $botUsername = config('services.telegram.bot_username');
             $inviteLink = null;
             if ($owner && $owner->telegram_invite_token) {
                 $inviteLink = "https://t.me/{$botUsername}?start=invite_{$owner->telegram_invite_token}";
@@ -142,6 +142,7 @@ class SuperadminController extends Controller
                 'id' => $store->id,
                 'uuid' => $store->uuid,
                 'name' => $store->name,
+                'phone' => $store->phone,
                 'slug' => $store->slug,
                 'is_active' => $store->is_active,
                 'commission_rate' => $store->commission_rate,
@@ -196,8 +197,10 @@ class SuperadminController extends Controller
                 'name' => $validated['name'],
                 'slug' => Str::slug($validated['name']) . '-' . rand(1000, 9999),
                 'uuid' => Str::uuid(),
-                'phone' => $validated['phone'],
+                'phone' => $validated['phone'] ?? null,
                 'commission_rate' => $validated['commission_rate'],
+                // What a store without settings got before (cash only), written out in full
+                'payment_settings' => Store::initialPaymentSettings(['cash']),
                 'is_active' => true,
             ]);
 
@@ -205,7 +208,7 @@ class SuperadminController extends Controller
             $ownerToken = Str::uuid()->toString();
             $owner = User::create([
                 'name' => $validated['owner_name'],
-                'phone' => $validated['owner_phone'],
+                'phone' => $validated['owner_phone'] ?? null,
                 'role' => 'owner',
                 'store_id' => $store->id,
                 'telegram_invite_token' => $ownerToken,
@@ -218,7 +221,7 @@ class SuperadminController extends Controller
                 'district_id' => $validated['branch_district_id'],
                 'name' => 'Asosiy Filial',
                 'address' => $validated['branch_address'],
-                'phone' => $validated['branch_phone'],
+                'phone' => $validated['branch_phone'] ?? null,
                 'latitude' => $validated['branch_lat'],
                 'longitude' => $validated['branch_lng'],
                 'radius_km' => $validated['branch_radius'],
@@ -229,38 +232,24 @@ class SuperadminController extends Controller
 
             DB::commit();
             
-            $botUsername = env('TELEGRAM_BOT_USERNAME', 'foods_order_test_bot');
+            $botUsername = config('services.telegram.bot_username');
             $inviteLink = "https://t.me/{$botUsername}?start=invite_{$ownerToken}";
 
             // Notify Super Admins via Telegram
-            try {
+            $telegram = app(\App\Services\Telegram\TelegramMessenger::class);
+            if ($telegram->isConfigured()) {
                 $superAdmins = User::where('role', \App\Enums\UserRole::SUPER_ADMIN)
                     ->whereNotNull('telegram_id')
                     ->get();
-                $botToken = env('TELEGRAM_BOT_TOKEN');
-                if ($botToken && $superAdmins->isNotEmpty()) {
-                    foreach ($superAdmins as $admin) {
-                        $response = \Illuminate\Support\Facades\Http::post("https://api.telegram.org/bot{$botToken}/sendMessage", [
-                            'chat_id' => $admin->telegram_id,
-                            'text' => "🏢 <b>Yangi do'kon qo'shildi!</b>\n\n" .
-                                      "Nomi: <b>" . htmlspecialchars($store->name) . "</b>\n" .
-                                      "Komissiya: <b>{$store->commission_rate}%</b>\n" .
-                                      "Egasi: <b>" . htmlspecialchars($owner->name) . "</b> (" . htmlspecialchars($owner->phone) . ")\n" .
-                                      "Filial: <b>" . htmlspecialchars($validated['branch_address']) . "</b>\n\n" .
-                                      "🔗 <b>Egasi uchun taklifnoma havolasi:</b>\n{$inviteLink}",
-                            'parse_mode' => 'HTML',
-                        ]);
-                        
-                        if (!$response->successful()) {
-                            \Illuminate\Support\Facades\Log::warning("Telegram Superadmin Notification Failed", [
-                                'response' => $response->json(),
-                                'chat_id' => $admin->telegram_id
-                            ]);
-                        }
-                    }
+
+                foreach ($superAdmins as $admin) {
+                    $telegram->sendMessage($admin->telegram_id, "🏢 <b>Yangi do'kon qo'shildi!</b>\n\n" .
+                        "Nomi: <b>" . htmlspecialchars($store->name) . "</b>\n" .
+                        "Komissiya: <b>{$store->commission_rate}%</b>\n" .
+                        "Egasi: <b>" . htmlspecialchars($owner->name) . "</b> (" . htmlspecialchars((string) $owner->phone) . ")\n" .
+                        "Filial: <b>" . htmlspecialchars($validated['branch_address']) . "</b>\n\n" .
+                        "🔗 <b>Egasi uchun taklifnoma havolasi:</b>\n{$inviteLink}", ['parse_mode' => 'HTML']);
                 }
-            } catch (\Exception $e) {
-                \Illuminate\Support\Facades\Log::error("Failed to notify superadmin via Telegram: " . $e->getMessage());
             }
 
             return response()->json([

@@ -33,7 +33,7 @@ class SelfPickupNotificationTest extends TestCase
             'name' => 'Test Cafe Name',
             'slug' => 'test-cafe-name',
             'address' => 'Test Cafe Main Address 456',
-            'balance' => 0,
+            'debt_balance' => 0,
             'wallet_balance' => 0,
             'credit_limit' => -100000,
             'status' => 'active',
@@ -78,6 +78,47 @@ class SelfPickupNotificationTest extends TestCase
                    str_contains($text, 'Test Cafe Name') &&
                    str_contains($text, 'Test Cafe Main Address 456') &&
                    str_contains($text, '+998909998877');
+        });
+    }
+
+    public function test_pickup_order_notification_gives_the_store_phone_when_the_branch_has_none(): void
+    {
+        Http::fake();
+
+        $this->store->update(['phone' => '+998712223344']);
+        $branch = Branch::create([
+            'store_id' => $this->store->id,
+            'name' => 'Yunusobod Branch',
+            'address' => 'Yunusobod 4, Cafe 7',
+            'status' => \App\Enums\BranchStatus::ACTIVE,
+        ]);
+        User::create([
+            'store_id' => $this->store->id,
+            'name' => 'Store Manager',
+            'phone' => '+998909998877',
+            'role' => UserRole::MANAGER,
+            'password' => bcrypt('password'),
+        ]);
+
+        $order = Order::create([
+            'store_id' => $this->store->id,
+            'branch_id' => $branch->id,
+            'user_id' => $this->customer->id,
+            'status' => OrderStatus::ACCEPTED,
+            'order_type' => 'pickup',
+            'total_price' => 40000,
+            'commission_amount' => 4000,
+        ]);
+
+        $this->notificationService->sendOrderStatusChanged($order);
+
+        // The store's own number before a staff member's personal one
+        Http::assertSent(function ($request) {
+            $text = $request['text'] ?? '';
+            return str_contains($text, 'Olib ketish manzili') &&
+                   str_contains($text, 'Yunusobod 4, Cafe 7') &&
+                   str_contains($text, '+998712223344') &&
+                   !str_contains($text, '+998909998877');
         });
     }
 

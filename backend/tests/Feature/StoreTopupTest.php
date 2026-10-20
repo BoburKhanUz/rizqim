@@ -20,10 +20,10 @@ class StoreTopupTest extends TestCase
     {
         parent::setUp();
 
-        $this->store = Store::create([
+        $this->store = Store::forceCreate([
             'name' => 'Test Restaurant',
             'slug' => 'test-restaurant',
-            'balance' => 150000.00, // owes 150,000 UZS
+            'debt_balance' => 150000.00, // owes 150,000 UZS
             'credit_limit' => -100000.00, // limit is 100,000 UZS debt
             'commission_rate' => 10,
             'status' => 'payment_required', // blocked due to debt limit exceeded
@@ -66,6 +66,8 @@ class StoreTopupTest extends TestCase
 
     public function test_click_webhook_prepares_and_completes_topup(): void
     {
+        config(['services.click.secret_key' => 'click_test_secret']);
+
         $topup = StoreTopupRequest::create([
             'store_id' => $this->store->id,
             'amount' => 250000.00,
@@ -77,12 +79,11 @@ class StoreTopupTest extends TestCase
         $signString = md5(
             '111222' .
             '32104' .
-            '333444' .
+            'click_test_secret' .
             'topup_' . $topup->uuid .
             '250000' .
             '0' .
-            '2026-06-06 12:00:00' .
-            'click_sandbox_secret'
+            '2026-06-06 12:00:00'
         );
 
         $prepareResponse = $this->postJson('/api/v1/payments/click/webhook', [
@@ -107,12 +108,12 @@ class StoreTopupTest extends TestCase
         $signStringComplete = md5(
             '111222' .
             '32104' .
-            '333444' .
+            'click_test_secret' .
             'topup_' . $topup->uuid .
+            $topup->id .
             '250000' .
             '1' .
-            '2026-06-06 12:00:00' .
-            'click_sandbox_secret'
+            '2026-06-06 12:00:00'
         );
 
         $completeResponse = $this->postJson('/api/v1/payments/click/webhook', [
@@ -120,6 +121,7 @@ class StoreTopupTest extends TestCase
             'service_id' => '32104',
             'click_paydoc_id' => '333444',
             'merchant_trans_id' => 'topup_' . $topup->uuid,
+            'merchant_prepare_id' => $topup->id,
             'amount' => '250000',
             'action' => 1,
             'error' => 0,
@@ -139,9 +141,9 @@ class StoreTopupTest extends TestCase
             'status' => 'paid',
         ]);
 
-        // Assert balance is updated (150,000 - 250,000 = -100,000 UZS debt/surplus)
+        // Assert debt_balance is updated (150,000 - 250,000 = -100,000 UZS debt/surplus)
         $this->store->refresh();
-        $this->assertEquals(-100000.00, $this->store->balance);
+        $this->assertEquals(-100000.00, $this->store->debt_balance);
 
         // Assert store is reactivated (debt is now <= -100,000 UZS)
         $this->assertEquals('active', $this->store->status->value);
@@ -157,10 +159,10 @@ class StoreTopupTest extends TestCase
     public function test_payout_respects_dynamic_min_payout_reserve(): void
     {
         // 1. Give store some wallet balance but set min_payout_reserve
-        $this->store->update([
+        $this->store->forceFill([
             'wallet_balance' => 200000.00,
             'min_payout_reserve' => 150000.00, // reserve is 150,000 UZS
-        ]);
+        ])->save();
 
         // 2. Request payout of 100,000 UZS (which would leave 100,000 UZS, below the 150,000 UZS reserve)
         $response = $this->actingAs($this->owner)
@@ -186,10 +188,10 @@ class StoreTopupTest extends TestCase
     public function test_superadmin_can_approve_payout_and_wallet_is_deducted(): void
     {
         // 1. Give store wallet balance and create a pending payout request
-        $this->store->update([
+        $this->store->forceFill([
             'wallet_balance' => 300000.00,
             'min_payout_reserve' => 100000.00,
-        ]);
+        ])->save();
 
         $payout = \App\Models\PayoutRequest::create([
             'store_id' => $this->store->id,

@@ -2,11 +2,13 @@
 
 namespace App\Services\Ops;
 
-use App\Models\Order;
 use App\Domain\Ops\KitchenState;
 use App\Domain\Ops\CourierPressure;
 use Illuminate\Support\Facades\Cache;
 
+/**
+ * Kitchen, courier and accept-queue load of the current store (a branch manager's branch, see OpsContext).
+ */
 class KitchenLoadService
 {
     /**
@@ -14,10 +16,8 @@ class KitchenLoadService
      */
     public static function getActivePrepCount(): int
     {
-        $storeId = OpsContext::getStoreId();
-        
-        return Cache::remember("ops:active_prep_count:store_{$storeId}", 15, function () use ($storeId) {
-            return Order::where('store_id', $storeId)
+        return Cache::remember(OpsContext::cacheKey('active_prep_count'), 15, function () {
+            return OpsContext::orders()
                 ->whereIn('status', ['accepted', 'preparing'])
                 ->count();
         });
@@ -28,10 +28,8 @@ class KitchenLoadService
      */
     public static function getActiveTransitCount(): int
     {
-        $storeId = OpsContext::getStoreId();
-        
-        return Cache::remember("ops:active_transit_count:store_{$storeId}", 15, function () use ($storeId) {
-            return Order::where('store_id', $storeId)
+        return Cache::remember(OpsContext::cacheKey('active_transit_count'), 15, function () {
+            return OpsContext::orders()
                 ->where('status', 'delivery')
                 ->count();
         });
@@ -42,10 +40,8 @@ class KitchenLoadService
      */
     public static function getPendingAcceptCount(): int
     {
-        $storeId = OpsContext::getStoreId();
-        
-        return Cache::remember("ops:pending_accept_count:store_{$storeId}", 15, function () use ($storeId) {
-            return Order::where('store_id', $storeId)
+        return Cache::remember(OpsContext::cacheKey('pending_accept_count'), 15, function () {
+            return OpsContext::orders()
                 ->where('status', 'new')
                 ->count();
         });
@@ -56,9 +52,7 @@ class KitchenLoadService
      */
     public static function getKitchenState(): KitchenState
     {
-        $storeId = OpsContext::getStoreId();
-        
-        return Cache::remember("ops:kitchen_state_object:store_{$storeId}", 15, function () {
+        return Cache::remember(OpsContext::cacheKey('kitchen_state_object'), 15, function () {
             return new KitchenState(self::getActivePrepCount());
         });
     }
@@ -68,9 +62,7 @@ class KitchenLoadService
      */
     public static function getCourierPressure(): CourierPressure
     {
-        $storeId = OpsContext::getStoreId();
-        
-        return Cache::remember("ops:courier_pressure_object:store_{$storeId}", 15, function () {
+        return Cache::remember(OpsContext::cacheKey('courier_pressure_object'), 15, function () {
             return new CourierPressure(self::getActiveTransitCount());
         });
     }
@@ -80,9 +72,7 @@ class KitchenLoadService
      */
     public static function getOperatorStateMap(): array
     {
-        $storeId = OpsContext::getStoreId();
-        
-        return Cache::remember("ops:operator_state_map:store_{$storeId}", 15, function () {
+        return Cache::remember(OpsContext::cacheKey('operator_state_map'), 15, function () {
             $count = self::getPendingAcceptCount();
             if ($count >= 5) {
                 return [

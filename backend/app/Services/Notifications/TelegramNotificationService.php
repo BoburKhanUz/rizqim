@@ -2,12 +2,20 @@
 
 namespace App\Services\Notifications;
 
+use App\Enums\CancelReason;
 use App\Models\Order;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
+use App\Services\Telegram\TelegramMessenger;
 
+/**
+ * Order cards (with one-time action buttons), customer status alerts and employee invites. Messages and their
+ * TelegramAction tokens are built here; sending is queued through TelegramMessenger.
+ */
 class TelegramNotificationService
 {
+    public function __construct(
+        protected TelegramMessenger $telegram
+    ) {}
+
     public function sendOrderCreated(Order $order): void
     {
         $store = $order->store;
@@ -16,108 +24,100 @@ class TelegramNotificationService
             return;
         }
 
-        $botToken = config('services.telegram.bot_token');
-        if (!$botToken) {
+        if (!$this->telegram->isConfigured()) {
             return;
         }
 
         list($message, $keyboard) = $this->buildMessageAndKeyboard($order);
 
-        $sentChatIds = [];
-
-        // 1. Send to store admin chat if set
-        if ($store->telegram_admin_chat_id) {
-            $this->sendMessage($botToken, $store->telegram_admin_chat_id, $message, $keyboard);
-            $sentChatIds[] = $store->telegram_admin_chat_id;
+        // The store's order chat, and the managers who may act on the order (else its owners), so no button answers
+        // "ruxsat yo'q"
+        foreach ($this->orderCardChatIds($order) as $chatId) {
+            $this->sendMessage($chatId, $message, $keyboard);
         }
+    }
 
-        // 2. Query managers of the store who have a telegram_id
-        $managers = \App\Models\User::where('store_id', $store->id)
+    /**
+     * Managers with Telegram whom OrderPolicy lets act on the order: its branch's managers and store-wide managers.
+     */
+    protected function managersForOrder(Order $order): \Illuminate\Support\Collection
+    {
+        return \App\Models\User::where('store_id', $order->store_id)
             ->where('role', \App\Enums\UserRole::MANAGER->value)
             ->whereNotNull('telegram_id')
+            ->where(function ($query) use ($order) {
+                $query->whereNull('branch_id')
+                    ->when($order->branch_id, fn ($query) => $query->orWhere('branch_id', $order->branch_id));
+            })
             ->get();
-
-        if ($managers->isNotEmpty()) {
-            // If managers are registered, send to them
-            foreach ($managers as $manager) {
-                if (!in_array($manager->telegram_id, $sentChatIds)) {
-                    $this->sendMessage($botToken, $manager->telegram_id, $message, $keyboard);
-                    $sentChatIds[] = $manager->telegram_id;
-                }
-            }
-        } else {
-            // Otherwise, send to owners
-            $owners = \App\Models\User::where('store_id', $store->id)
-                ->where('role', \App\Enums\UserRole::OWNER->value)
-                ->whereNotNull('telegram_id')
-                ->get();
-
-            foreach ($owners as $owner) {
-                if (!in_array($owner->telegram_id, $sentChatIds)) {
-                    $this->sendMessage($botToken, $owner->telegram_id, $message, $keyboard);
-                    $sentChatIds[] = $owner->telegram_id;
-                }
-            }
-        }
     }
 
     public function sendEmployeeInvite(\App\Models\User $employee, \App\Models\User $owner): void
     {
-        $botToken = config('services.telegram.bot_token');
         $chatId = $owner->telegram_id;
 
-        if (!$botToken || !$chatId) {
+        if (!$this->telegram->isConfigured() || !$chatId) {
             return;
         }
 
-        $botUsername = config('services.telegram.bot_username') ?: env('TELEGRAM_BOT_USERNAME', 'rizqimbot');
+        $botUsername = config('services.telegram.bot_username');
         $inviteLink = "https://t.me/{$botUsername}?start=invite_{$employee->telegram_invite_token}";
 
         $message = "👤 <b>Yangi xodim qo'shildi!</b>\n\n" .
                    "Ismi: <b>" . htmlspecialchars($employee->name) . "</b>\n" .
                    "Roli: <b>" . htmlspecialchars(strtoupper($employee->role->value ?? $employee->role)) . "</b>\n" .
-                   "Filial: <b>" . htmlspecialchars($employee->branch?->name ?? 'Biriktirilmagan') . "</b>\n\n" .
+                   "Filial: <b>" . htmlspecialchars($employee->branch->name ?? 'Biriktirilmagan') . "</b>\n\n" .
                    "🔗 <b>Ushbu linkni xodimga yuboring:</b>\n" .
                    "{$inviteLink}\n\n" .
                    "<i>Xodim ushbu link ustiga bosib botga kirishi bilan tizimga ulanadi.</i>";
 
-        $this->sendMessage($botToken, $chatId, $message, [], 'HTML');
+        $this->sendMessage($chatId, $message, [], 'HTML');
     }
     
     public function sendOrderStatusChanged(Order $order): void
     {
         $statusValue = $order->status->value ?? $order->status;
-        $botToken = config('services.telegram.bot_token');
-        if (!$botToken) return;
+        if (!$this->telegram->isConfigured()) return;
 
-        // 1. Notify Customer about status change if they have a telegram_id
+        // 1. Notify Customer about status change if they have a telegram_id (the only customer alert of a transition)
         if ($order->user && $order->user->telegram_id) {
+            $canceledText = $this->cancelledText($order);
+
             if ($order->type !== 'delivery') {
                 $statusTexts = [
                     'new' => "🆕 *Buyurtmangiz muvaffaqiyatli qabul qilindi!*\n🆔 ID: #{$order->short_code}",
                     'accepted' => "✅ *Buyurtmangiz qabul qilindi!*\n🆔 ID: #{$order->short_code}\n👨‍🍳 Oshxonamiz tez orada uni tayyorlashni boshlaydi.",
                     'preparing' => "🍳 *Buyurtmangiz tayyorlanmoqda!*\n🆔 ID: #{$order->short_code}\n🔥 Oshpazlarimiz siz uchun eng shirin taomlarni tayyorlashmoqda.",
                     'delivered' => "🎉 *Buyurtmangiz tayyor, olib ketishingiz mumkin!*\n🆔 ID: #{$order->short_code}\n🏪 Biz sizni kutmoqdamiz!",
-                    'canceled' => "❌ *Buyurtmangiz bekor qilindi.*\n🆔 ID: #{$order->short_code}\n😔 Agar xatolik bo'lgan bo'lsa, iltimos biz bilan bog'laning."
+                    'canceled' => $canceledText,
+                    'rejected' => $canceledText,
+                    'refunded' => $this->refundText($order),
                 ];
             } else {
+                $courier = in_array($statusValue, ['delivery', 'on_the_way'], true) ? $order->courier : null;
+                $onTheWay = "🚚 *Buyurtmangiz yo'lga chiqdi!*\n🆔 ID: #{$order->short_code}\n🚴 Kuryerimiz uni sizga yetkazish uchun tezlikda yo'lga chiqdi."
+                    . ($courier ? "\n👤 *Kuryer:* {$courier->name}" . ($courier->phone ? " ({$courier->phone})" : '') : '');
+
                 $statusTexts = [
                     'new' => "🆕 *Buyurtmangiz muvaffaqiyatli qabul qilindi!*\n🆔 ID: #{$order->short_code}",
                     'accepted' => "✅ *Buyurtmangiz qabul qilindi!*\n🆔 ID: #{$order->short_code}\n👨‍🍳 Oshxonamiz tez orada uni tayyorlashni boshlaydi.",
                     'preparing' => "🍳 *Buyurtmangiz tayyorlanmoqda!*\n🆔 ID: #{$order->short_code}\n🔥 Oshpazlarimiz siz uchun eng shirin taomlarni tayyorlashmoqda.",
-                    'delivery' => "🚚 *Buyurtmangiz yo'lga chiqdi!*\n🆔 ID: #{$order->short_code}\n🚴 Kuryerimiz uni sizga yetkazish uchun tezlikda yo'lga chiqdi.",
-                    'on_the_way' => "🚚 *Buyurtmangiz yo'lga chiqdi!*\n🆔 ID: #{$order->short_code}\n🚴 Kuryerimiz uni sizga yetkazish uchun tezlikda yo'lga chiqdi.",
+                    'delivery' => $onTheWay,
+                    'on_the_way' => $onTheWay,
                     'delivered' => "🎉 *Buyurtmangiz muvaffaqiyatli yetkazildi!*\n🆔 ID: #{$order->short_code}\n😋 Yoqimli ishtaha tilaymiz! Bizni tanlaganingiz uchun rahmat!",
-                    'canceled' => "❌ *Buyurtmangiz bekor qilindi.*\n🆔 ID: #{$order->short_code}\n😔 Agar xatolik bo'lgan bo'lsa, iltimos biz bilan bog'laning."
+                    'canceled' => $canceledText,
+                    'rejected' => $canceledText,
+                    'refunded' => $this->refundText($order),
                 ];
             }
 
             $customerMsg = $statusTexts[$statusValue] ?? "🔔 *Buyurtmangiz holati o'zgardi:* " . strtoupper($statusValue);
 
-            if ($order->type !== 'delivery' && $statusValue !== 'canceled') {
-                $cafeName = $order->branch?->name ?: ($order->store?->name ?? 'Kafe');
+            if ($order->type !== 'delivery' && !in_array($statusValue, ['canceled', 'rejected', 'refunded'], true)) {
+                $cafeName = $order->branch?->name ?: ($order->store->name ?? 'Kafe');
                 $cafeAddress = $order->branch?->address ?: ($order->store?->address ?: 'Ko\'rsatilmagan');
-                $cafePhone = $order->branch?->phone;
+                // The branch's number, else the store's own, else a manager's/owner's
+                $cafePhone = $order->branch?->phone ?: $order->store?->phone;
                 if (!$cafePhone) {
                     $manager = \App\Models\User::where('store_id', $order->store_id)
                         ->whereIn('role', [\App\Enums\UserRole::MANAGER->value, \App\Enums\UserRole::OWNER->value])
@@ -132,31 +132,37 @@ class TelegramNotificationService
                 $customerMsg .= "📞 Tel: {$cafePhone}";
             }
             
-            // Add a button to open the webapp to track or view
-            $webAppUrl = env('TELEGRAM_WEBAPP_URL', 'https://chatty-bikes-say.loca.lt');
-            $customerKeyboard = [
-                'inline_keyboard' => [
-                    [
-                        ['text' => '📱 Buyurtmani ko\'rish (Ilova)', 'web_app' => ['url' => $webAppUrl]]
-                    ]
-                ]
-            ];
+            // A button to open the Mini App to track or view the order (none without a configured Mini App URL)
+            $appButton = $this->telegram->webAppButton('📱 Buyurtmani ko\'rish (Ilova)');
+            $customerKeyboard = $appButton ? ['inline_keyboard' => [[$appButton]]] : [];
 
-            $this->sendMessage($botToken, $order->user->telegram_id, $customerMsg, $customerKeyboard);
+            // These statuses also land in the customer's in-app feed, under the types it has always shown
+            $feedType = match ($statusValue) {
+                'accepted' => 'telegram_customer_accepted',
+                'delivery', 'on_the_way' => 'telegram_customer_on_the_way',
+                'delivered' => 'telegram_customer_delivered',
+                'canceled', 'rejected' => 'telegram_customer_canceled',
+                default => null,
+            };
+
+            $this->telegram->sendMessage(
+                $order->user->telegram_id,
+                $customerMsg,
+                ['parse_mode' => 'Markdown', 'reply_markup' => $customerKeyboard],
+                $feedType ? ['user_id' => $order->user->id, 'order_id' => $order->id, 'type' => $feedType] : null
+            );
         }
 
-        // 2. If the order is sent for delivery, notify courier (or fallback to managers/owners if no courier is assigned)
+        // 2. If the order is sent for delivery, notify courier (or fallback to managers/owners if no courier is assigned).
+        //    An assignment (courier_assigned) is announced to the courier by the SendCourierAssignedAlert listener.
         if ($statusValue === 'delivery' || $statusValue === 'on_the_way') {
             $recipients = [];
             
             if ($order->courier && $order->courier->telegram_id) {
                 $recipients[] = $order->courier;
             } else {
-                // Find managers with telegram_id
-                $managers = \App\Models\User::where('store_id', $order->store_id)
-                    ->where('role', \App\Enums\UserRole::MANAGER->value)
-                    ->whereNotNull('telegram_id')
-                    ->get();
+                // Find managers with telegram_id who may complete this order
+                $managers = $this->managersForOrder($order);
                     
                 if ($managers->isNotEmpty()) {
                     foreach ($managers as $manager) {
@@ -176,30 +182,22 @@ class TelegramNotificationService
             }
 
             if (!empty($recipients)) {
-                $courierAction = ($statusValue === 'courier_assigned') ? 'take' : 'complete';
-                $courierButtonText = ($statusValue === 'courier_assigned') ? '🚴 Yo\'lga chiqdim' : '✅ Yetkazildi / Topshirdim';
-
                 $token = \Illuminate\Support\Str::random(32);
                 \App\Models\TelegramAction::create([
                     'order_id' => $order->id,
-                    'action' => $courierAction,
+                    'action' => 'complete',
                     'token' => $token,
                     'expires_at' => now()->addHours(24),
                 ]);
 
                 foreach ($recipients as $recipient) {
                     $isFallback = !($order->courier && $order->courier->id === $recipient->id);
-                    if ($statusValue === 'courier_assigned') {
-                        $message = "🚴 *Sizga yangi buyurtma biriktirildi!* " . 
-                            ($isFallback ? "_(Kuryer yo'qligi sababli sizga yuborildi)_" : "") . "\n\n";
-                    } else {
-                        $message = "🚚 *Buyurtma yo'lda!* " . 
-                            ($isFallback ? "_(Kuryer yo'qligi sababli sizga yuborildi)_" : "") . "\n\n";
-                    }
+                    $message = "🚚 *Buyurtma yo'lda!* " .
+                        ($isFallback ? "_(Kuryer yo'qligi sababli sizga yuborildi)_" : "") . "\n\n";
                     $message .= "🆔 *Buyurtma:* #{$order->short_code}\n";
                     $message .= "👤 *Mijoz:* " . ($order->user->name ?? 'Mijoz') . "\n";
                     $message .= "📞 *Telefon:* " . ($order->user->phone ?? 'Kiritilmagan') . "\n";
-                    $message .= "💰 *Jami summa:* " . number_format($order->total_price, 0, '.', ' ') . " UZS\n";
+                    $message .= "💰 *Jami summa:* " . number_format((float) $order->total_price, 0, '.', ' ') . " UZS\n";
                     
                     $paymentMethodText = match(strtolower($order->payment_method ?? 'cash')) {
                         'cash' => 'Naqd pul 💵',
@@ -245,13 +243,12 @@ class TelegramNotificationService
                     }
 
                     $buttons[] = [
-                        ['text' => $courierButtonText, 'callback_data' => $token]
+                        ['text' => '✅ Yetkazildi / Topshirdim', 'callback_data' => $token]
                     ];
 
                     $keyboard = ['inline_keyboard' => $buttons];
 
                     $this->sendMessage(
-                        $botToken,
                         $recipient->telegram_id,
                         $message,
                         $keyboard
@@ -263,30 +260,16 @@ class TelegramNotificationService
 
     public function updateOrderTelegramMessage(Order $order, ?string $actorName = null, ?string $messageId = null, ?string $chatId = null): void
     {
-        $botToken = config('services.telegram.bot_token');
-        if (!$botToken || !$chatId || !$messageId) {
+        if (!$this->telegram->isConfigured() || !$chatId || !$messageId) {
             return;
         }
 
         list($message, $keyboard) = $this->buildMessageAndKeyboard($order, $actorName);
 
-        try {
-            $url = "https://api.telegram.org/bot{$botToken}/editMessageText";
-            
-            $response = Http::timeout(5)->post($url, [
-                'chat_id' => $chatId,
-                'message_id' => $messageId,
-                'text' => $message,
-                'parse_mode' => 'Markdown',
-                'reply_markup' => json_encode($keyboard)
-            ]);
-
-            if (!$response->successful()) {
-                Log::warning("Telegram editMessageText Failed", ['response' => $response->json()]);
-            }
-        } catch (\Exception $e) {
-            Log::error("Telegram Edit Message Failed: " . $e->getMessage());
-        }
+        $this->telegram->editMessageText($chatId, $messageId, $message, [
+            'parse_mode' => 'Markdown',
+            'reply_markup' => $keyboard,
+        ]);
     }
 
     public function buildMessageAndKeyboard(Order $order, ?string $actorName = null): array
@@ -302,32 +285,35 @@ class TelegramNotificationService
             'on_the_way' => "🚚 *Yo'lga chiqdi #{$order->short_code}*",
             'delivered' => "🎉 *Yetkazildi #{$order->short_code}*",
             'canceled' => "❌ *Bekor qilindi #{$order->short_code}*",
+            'rejected' => "❌ *Rad etildi #{$order->short_code}*",
             default => "*Buyurtma #{$order->short_code}*",
         };
 
         $message = "{$statusHeader}\n\n";
         $message .= "👤 {$order->user->name}\n";
-        $message .= "💰 *" . number_format($order->total_price, 0, '.', ' ') . " UZS*\n";
+        $message .= "💰 *" . number_format((float) $order->total_price, 0, '.', ' ') . " UZS*\n";
         $message .= $order->type === 'delivery' ? "🚚 Yetkazib berish\n" : "🏪 Olib ketish\n";
         
-        if ($order->type === 'delivery' && $order->delivery_address) {
-            $addressText = $order->delivery_address;
+        // The address line; a pin without an address text (GPS only) still shows as one
+        if ($order->type === 'delivery') {
+            $addressText = (string) $order->delivery_address;
             $lat = $order->shipping_address['latitude'] ?? null;
             $lng = $order->shipping_address['longitude'] ?? null;
+            $displayAddress = null;
 
             if ($lat && $lng) {
-                $url = "https://yandex.com/maps/?pt={$lng},{$lat}&z=16&l=map";
-                $displayAddress = $addressText ?: "GPS lokatsiya";
+                $displayAddress = $addressText !== '' ? $addressText : "GPS lokatsiya";
             } elseif (preg_match('/(https?:\/\/[^\s]+)/', $addressText, $matches)) {
-                $url = $matches[1];
-                $cleanAddress = trim(str_replace(['📍 Lokatsiya:', 'Lokatsiya:', $url], '', $addressText));
+                $cleanAddress = trim(str_replace(['📍 Lokatsiya:', 'Lokatsiya:', $matches[1]], '', $addressText));
                 $cleanAddress = trim(preg_replace('/\s+/', ' ', $cleanAddress));
                 $displayAddress = $cleanAddress ?: "GPS lokatsiya";
-            } else {
-                $url = "https://yandex.com/maps/?text=" . urlencode($addressText);
+            } elseif ($addressText !== '') {
                 $displayAddress = $addressText;
             }
-            $message .= "📍 {$displayAddress}\n";
+
+            if ($displayAddress !== null) {
+                $message .= "📍 {$displayAddress}\n";
+            }
         }
         
         if ($order->notes) {
@@ -342,6 +328,11 @@ class TelegramNotificationService
         }
         
         $message .= "\n⏰ " . $order->created_at->format('H:i');
+
+        if ($order->status->isCancellation() && $order->cancel_reason) {
+            $message .= "\n🚫 *Sabab:* {$order->cancel_reason->label()}"
+                . ($order->cancel_note ? "\n💬 " . $this->escapeMarkdown($order->cancel_note) : '');
+        }
         
         if ($actorName) {
             $message .= "\n\n👤 *Last Action by:* {$actorName}";
@@ -372,6 +363,10 @@ class TelegramNotificationService
                 $buttons[] = [
                     ['text' => '🍳 Tayyorlashni boshlash', 'callback_data' => $createToken('prepare')]
                 ];
+                // "Bekor qilish" after acceptance (e.g. a pickup the customer never collects): asks for the reason first
+                $buttons[] = [
+                    ['text' => '❌ Bekor qilish', 'callback_data' => $createToken('abort')]
+                ];
                 break;
             case 'preparing':
                 if ($order->type === 'delivery') {
@@ -383,6 +378,9 @@ class TelegramNotificationService
                         ['text' => '✅ Olib ketishga tayyor', 'callback_data' => $createToken('complete')]
                     ];
                 }
+                $buttons[] = [
+                    ['text' => '❌ Bekor qilish', 'callback_data' => $createToken('abort')]
+                ];
                 break;
             case 'courier_assigned':
                 $buttons[] = [
@@ -418,40 +416,128 @@ class TelegramNotificationService
             }
         }
 
-        // Always add open in mini app link at the bottom
-        $webAppUrl = env('TELEGRAM_WEBAPP_URL', 'https://chatty-bikes-say.loca.lt');
-        $buttons[] = [
-            ['text' => '📱 Mini ilovada ochish', 'web_app' => ['url' => rtrim($webAppUrl, '/') . '/manager']]
-        ];
+        // Open in the Mini App, at the bottom (left out without a configured Mini App URL)
+        $appButton = $this->telegram->webAppButton('📱 Mini ilovada ochish', 'manager');
+        if ($appButton) {
+            $buttons[] = [$appButton];
+        }
 
         $keyboard = ['inline_keyboard' => $buttons];
 
         return [$message, $keyboard];
     }
 
-    protected function sendMessage(string $botToken, string $chatId, string $text, array $replyMarkup = [], string $parseMode = 'Markdown'): void
+    /**
+     * The reasons to pick from after "Rad etish"/"Bekor qilish" was pressed, two per row, and a way back to the card.
+     * Each button's callback data is the pressed button's own token plus ":<reason>" (at most 32 + 1 + 19 bytes,
+     * within Telegram's 64), so the choice is checked and authorised exactly like the button itself.
+     *
+     * @param list<CancelReason> $reasons
+     */
+    public function cancelReasonKeyboard(string $token, array $reasons): array
     {
-        try {
-            $url = "https://api.telegram.org/bot{$botToken}/sendMessage";
-            
-            $payload = [
-                'chat_id' => $chatId,
-                'text' => $text,
-                'parse_mode' => $parseMode,
-            ];
-            
-            if (!empty($replyMarkup)) {
-                $payload['reply_markup'] = json_encode($replyMarkup);
-            }
-            
-            $response = Http::timeout(5)->post($url, $payload);
-            
-            if (!$response->successful()) {
-                Log::warning("Telegram Notification Failed", ['response' => $response->json()]);
-            }
-        } catch (\Exception $e) {
-            // Non-blocking
-            Log::error("Telegram Notification Exception: " . $e->getMessage());
+        $buttons = array_map(fn (CancelReason $reason) => [
+            'text' => $reason->label(),
+            'callback_data' => "{$token}:{$reason->value}",
+        ], $reasons);
+
+        $rows = array_chunk($buttons, 2);
+        $rows[] = [['text' => '⬅️ Orqaga', 'callback_data' => "{$token}:back"]];
+
+        return ['inline_keyboard' => $rows];
+    }
+
+    /**
+     * Staff on whom a new order's card lands: the store's order chat, and the managers who may act on it (else its
+     * owners). Telegram chat ids, without repeats.
+     *
+     * @return list<string>
+     */
+    public function orderCardChatIds(Order $order): array
+    {
+        $store = $order->store;
+        if (!$store) {
+            return [];
         }
+
+        $chatIds = $store->telegram_admin_chat_id ? [(string) $store->telegram_admin_chat_id] : [];
+
+        $staff = $this->managersForOrder($order);
+        if ($staff->isEmpty()) {
+            $staff = \App\Models\User::where('store_id', $store->id)
+                ->where('role', \App\Enums\UserRole::OWNER->value)
+                ->whereNotNull('telegram_id')
+                ->get();
+        }
+
+        foreach ($staff as $user) {
+            $chatIds[] = (string) $user->telegram_id;
+        }
+
+        return array_values(array_unique($chatIds));
+    }
+
+    /**
+     * Tells the staff who got the new order's card that the customer cancelled it themselves.
+     */
+    public function sendCustomerCancelled(Order $order): void
+    {
+        if (!$this->telegram->isConfigured()) {
+            return;
+        }
+
+        $message = "❌ *Mijoz buyurtmani bekor qildi #{$order->short_code}*\n\n"
+            . "👤 " . $this->escapeMarkdown((string) ($order->user->name ?? 'Mijoz')) . "\n"
+            . "💰 *" . number_format((float) $order->total_price, 0, '.', ' ') . " UZS*\n"
+            . "🚫 *Sabab:* " . ($order->cancel_reason?->label() ?? CancelReason::CUSTOMER_REQUEST->label())
+            . ($order->cancel_note ? "\n💬 " . $this->escapeMarkdown($order->cancel_note) : '');
+
+        foreach ($this->orderCardChatIds($order) as $chatId) {
+            $this->sendMessage($chatId, $message);
+        }
+    }
+
+    /**
+     * The customer's cancellation message, with the reason (and the store's note) when one was recorded.
+     */
+    protected function cancelledText(Order $order): string
+    {
+        $reason = $order->cancel_reason;
+
+        return "❌ *Buyurtmangiz bekor qilindi.*\n🆔 ID: #{$order->short_code}"
+            . ($reason ? "\n📝 *Sabab:* {$reason->customerLabel()}" : '')
+            . ($order->cancel_note && $reason !== CancelReason::CUSTOMER_REQUEST ? "\n💬 " . $this->escapeMarkdown($order->cancel_note) : '')
+            . ($reason === CancelReason::CUSTOMER_REQUEST ? '' : "\n😔 Agar xatolik bo'lgan bo'lsa, iltimos biz bilan bog'laning.");
+    }
+
+    /**
+     * Free text inside a (legacy) Markdown message: its markup characters are escaped so it cannot break the message.
+     */
+    protected function escapeMarkdown(string $text): string
+    {
+        return str_replace(['_', '*', '`', '['], ['\\_', '\\*', '\\`', '\\['], $text);
+    }
+
+    /**
+     * "Returned" only once the money is back: Payme refunded it (refunded_by_provider) or it went to the keshbek
+     * balance, both leaving the payment refunded. Cash, and a card payment flagged for a manual refund, are still to
+     * be returned.
+     */
+    protected function refundText(Order $order): string
+    {
+        $amount = (float) $order->total_price;
+        $returned = $order->payment_method !== 'cash' && $order->payment_status === \App\Enums\PaymentStatus::REFUNDED;
+
+        return "💸 *Buyurtmangiz bo'yicha pul " . ($returned ? 'qaytarildi' : 'qaytariladi') . "*\n🆔 ID: #{$order->short_code}"
+            . ($amount > 0 ? "\n💰 Summa: *" . number_format($amount, 0, '.', ' ') . " UZS*" : '')
+            . ($returned && $order->payment_method === 'keshbek' ? "\n👛 Mablag' keshbek balansingizga qaytarildi." : '');
+    }
+
+    protected function sendMessage(string $chatId, string $text, array $replyMarkup = [], string $parseMode = 'Markdown'): void
+    {
+        $this->telegram->sendMessage($chatId, $text, [
+            'parse_mode' => $parseMode,
+            'reply_markup' => $replyMarkup,
+        ]);
     }
 }

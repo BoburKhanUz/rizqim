@@ -23,7 +23,7 @@ class PhoneVerificationController extends Controller
         ]);
 
         $phone = $request->phone;
-        $code = (string) rand(100000, 999999);
+        $code = (string) random_int(100000, 999999);
 
         // Deactivate any previous verification codes for this phone
         PhoneVerification::where('phone', $phone)
@@ -52,8 +52,8 @@ class PhoneVerificationController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Verification code sent.',
-            // Return code in debug mode so front-end developers can bypass real SMS easily
-            'code' => config('app.debug') ? $code : null,
+            // Local development aid only: requires APP_ENV=local AND SMS_EXPOSE_CODE_IN_RESPONSE=true
+            'code' => app()->environment('local') && config('auth.phone_verification.expose_code_in_response') === true ? $code : null,
         ]);
     }
 
@@ -70,6 +70,7 @@ class PhoneVerificationController extends Controller
         $verification = PhoneVerification::where('phone', $phone)
             ->whereNull('verified_at')
             ->where('expires_at', '>', now())
+            ->latest('id')
             ->first();
 
         if (!$verification) {
@@ -79,14 +80,17 @@ class PhoneVerificationController extends Controller
             ], 422);
         }
 
-        if ($verification->attempts >= 5) {
+        // Atomic check-and-increment so parallel requests cannot exceed the per-code attempt limit
+        $attemptClaimed = PhoneVerification::whereKey($verification->id)
+            ->where('attempts', '<', (int) config('auth.phone_verification.max_attempts', 5))
+            ->increment('attempts');
+
+        if (!$attemptClaimed) {
             return response()->json([
                 'success' => false,
                 'message' => 'Urinishlar soni tugadi. Iltimos, kodni qaytadan so\'rang.',
             ], 422);
         }
-
-        $verification->increment('attempts');
 
         if (!Hash::check($code, $verification->code_hash)) {
             return response()->json([

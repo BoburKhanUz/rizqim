@@ -30,7 +30,7 @@ class StoreController extends Controller
         }
 
         $query = Store::query()
-            ->select('id', 'uuid', 'name', 'address', 'logo', 'banner', 'description', 'is_open', 'is_premium', 'review_count', 'payment_settings', 'status', 'balance', 'credit_limit', 'open_time', 'close_time', 'min_order_amount')
+            ->select('id', 'uuid', 'name', 'phone', 'address', 'logo', 'banner', 'description', 'is_open', 'is_premium', 'review_count', 'payment_settings', 'status', 'debt_balance', 'credit_limit', 'open_time', 'close_time', 'min_order_amount')
             ->where('is_active', true)
             ->where('status', '!=', \App\Enums\StoreStatus::PAYMENT_REQUIRED->value)
             ->with(['branches' => function ($q) {
@@ -81,13 +81,8 @@ class StoreController extends Controller
 
         $user = $request->user('sanctum') ?: $request->user();
         if ($user) {
-            $hasFailedCashPickup = \App\Models\Order::where('user_id', $user->id)
-                ->where('order_type', 'pickup')
-                ->where('payment_method', 'cash')
-                ->whereIn('status', ['canceled', 'rejected'])
-                ->exists();
-            
-            if ($hasFailedCashPickup) {
+            // Same rule checkout enforces, so cash is hidden exactly when an order would be refused
+            if (\App\Models\Order::cashPickupBanApplies($user->id)) {
                 $stores->each(function ($store) {
                     $settings = $store->payment_settings ?? [];
                     if (isset($settings['cash'])) {

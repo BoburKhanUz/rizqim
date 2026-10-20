@@ -41,7 +41,7 @@ class TopRestaurantsTableWidget extends BaseWidget
                     ->label('Umumiy Sotuv (GMV)')
                     ->money('UZS')
                     ->sortable(),
-                Tables\Columns\TextColumn::make('balance')
+                Tables\Columns\TextColumn::make('debt_balance')
                     ->label('Bizga qarzi')
                     ->money('UZS')
                     ->color('danger')

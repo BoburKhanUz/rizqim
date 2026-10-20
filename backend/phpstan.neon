@@ -1,0 +1,14 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+    - phpstan-baseline.neon
+
+parameters:
+    level: 5
+    paths:
+        - app/
+        - config/
+        - database/
+        - routes/
+    # The baseline was written from the CI error table, not by a local run: an entry the code no longer produces is
+    # not an error
+    reportUnmatchedIgnoredErrors: false
