@@ -72,8 +72,15 @@ export class FakeEcho {
 
   // --- the server's side ---
 
+  // The latest subscription of a channel by name (a re-subscription is a new entry), the first channel asked for by default
+  channelNamed(name?: string): FakeChannel {
+    const wanted = name ?? this.channels[0]?.name;
+    const found = this.channels.filter((channel) => channel.name === wanted);
+    return found[found.length - 1];
+  }
+
   get channel(): FakeChannel {
-    return this.channels[this.channels.length - 1];
+    return this.channelNamed();
   }
 
   get watchers(): number {
@@ -84,22 +91,22 @@ export class FakeEcho {
     for (const callback of [...this.connectionCallbacks]) callback(status);
   }
 
-  acceptSubscription() {
-    for (const callback of this.channel.subscribedCallbacks) callback();
+  acceptSubscription(name?: string) {
+    for (const callback of this.channelNamed(name).subscribedCallbacks) callback();
   }
 
-  refuseSubscription() {
-    for (const callback of this.channel.errorCallbacks) callback();
+  refuseSubscription(name?: string) {
+    for (const callback of this.channelNamed(name).errorCallbacks) callback();
   }
 
-  emit(event: string, payload: unknown) {
-    for (const callback of this.channel.listeners.get(event) ?? []) (callback as (payload: unknown) => void)(payload);
+  emit(event: string, payload: unknown, name?: string) {
+    for (const callback of this.channelNamed(name).listeners.get(event) ?? []) (callback as (payload: unknown) => void)(payload);
   }
 
-  // The usual start: the socket connects, then the channel is accepted.
+  // The usual start: the socket connects, then every channel is accepted.
   connectAndSubscribe() {
     this.setConnection('connected');
-    this.acceptSubscription();
+    for (const name of new Set(this.channels.map((channel) => channel.name))) this.acceptSubscription(name);
   }
 }
 

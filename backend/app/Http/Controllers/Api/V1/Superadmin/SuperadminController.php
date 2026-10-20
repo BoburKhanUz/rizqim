@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Superadmin;
 
 use App\Http\Controllers\Controller;
+use Dedoc\Scramble\Attributes\Group;
 use App\Models\Store;
 use App\Models\User;
 use App\Models\Order;
@@ -11,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
+#[Group('Superadmin', "Platforma boshqaruvi (faqat superadmin).")]
 class SuperadminController extends Controller
 {
     /**

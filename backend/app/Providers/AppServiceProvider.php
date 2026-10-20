@@ -30,6 +30,9 @@ class AppServiceProvider extends ServiceProvider
         }
 
         $this->configureRateLimiting();
+
+        // Feature flags (Pennant): definitions live in app/Features
+        \App\Features\Features::register();
     }
 
     protected function configureRateLimiting(): void

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Payment;
 
 use App\Http\Controllers\Controller;
+use Dedoc\Scramble\Attributes\Group;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use App\Models\Order;
@@ -19,13 +20,18 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
+#[Group('Webhooks')]
 class PaymeWebhookController extends Controller
 {
     // Payme Merchant API: a transaction that is not performed within 12 hours is cancelled with reason 4.
     private const TRANSACTION_TIMEOUT_MS = 43200000;
 
     /**
-     * Handle Payme JSON-RPC 2.0 Callbacks.
+     * Payme: Merchant API (JSON-RPC 2.0)
+     *
+     * Payme Merchant API methods (CheckPerformTransaction, CreateTransaction, PerformTransaction, CancelTransaction,
+     * CheckTransaction, GetStatement) with HTTP Basic auth of the merchant key. Always HTTP 200; errors are JSON-RPC
+     * `error` objects.
      */
     public function handle(Request $request): JsonResponse
     {

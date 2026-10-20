@@ -87,6 +87,7 @@ class AuthenticateTelegramUserAction
                 WHEN role = 'owner' THEN 2
                 WHEN role = 'manager' THEN 3
                 WHEN role = 'courier' THEN 4
+                WHEN role IN ('cashier', 'waiter', 'cook') THEN 4
                 ELSE 5 END")
             ->first();
 

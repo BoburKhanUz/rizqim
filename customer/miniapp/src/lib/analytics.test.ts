@@ -1,185 +1,46 @@
 import { describe, expect, it } from 'vitest';
-import { makeOrder, makeOrderItem, makeUser } from '../test/factories';
-import { computeOrderAnalytics, getTimeframeStart, isInTimeframe } from './analytics';
-import type { Order, OrderStatus } from '../types';
+import { MAX_CUSTOM_DAYS, getCustomRangeProblem, toAnalyticsPeriod, toDateInputValue } from './analytics';
 
-// Wednesday 2026-10-14 15:00 local time. The tests build timestamps relative to it, so they hold in any time zone.
-const NOW = new Date(2026, 9, 14, 15, 0, 0).getTime();
-const HOUR = 60 * 60 * 1000;
-const DAY = 24 * HOUR;
-const ago = (ms: number) => new Date(NOW - ms).toISOString();
-
-describe('getTimeframeStart', () => {
-  it('matches what isInTimeframe counts as inside', () => {
-    const range = { start: '2026-10-01', end: '2026-10-05' };
-    for (const timeframe of ['today', 'weekly', 'monthly', 'yearly', 'custom'] as const) {
-      const start = getTimeframeStart(timeframe, NOW, range);
-      expect(start, timeframe).not.toBeNull();
-      expect(isInTimeframe(new Date(start as number).toISOString(), timeframe, NOW, range), `${timeframe}: the start itself`).toBe(true);
-      expect(isInTimeframe(new Date((start as number) - 1).toISOString(), timeframe, NOW, range), `${timeframe}: just before`).toBe(false);
-    }
-  });
-
-  it('has no start for a custom timeframe without dates', () => {
-    expect(getTimeframeStart('custom', NOW)).toBeNull();
+describe('toAnalyticsPeriod', () => {
+  it('names the timeframes the way GET /owner/analytics does', () => {
+    expect(toAnalyticsPeriod('today')).toBe('today');
+    expect(toAnalyticsPeriod('weekly')).toBe('week');
+    expect(toAnalyticsPeriod('monthly')).toBe('month');
+    expect(toAnalyticsPeriod('yearly')).toBe('year');
+    expect(toAnalyticsPeriod('custom')).toBe('custom');
   });
 });
 
-describe('isInTimeframe', () => {
-  it('"today" is the calendar day of now, not the last 24 hours', () => {
-    expect(isInTimeframe(new Date(2026, 9, 14, 0, 5).toISOString(), 'today', NOW)).toBe(true);
-    expect(isInTimeframe(new Date(2026, 9, 14, 23, 59).toISOString(), 'today', NOW)).toBe(true);
-    expect(isInTimeframe(new Date(2026, 9, 13, 23, 59).toISOString(), 'today', NOW)).toBe(false);
-    expect(isInTimeframe(new Date(2026, 9, 15, 0, 1).toISOString(), 'today', NOW)).toBe(false);
+describe('getCustomRangeProblem', () => {
+  it('accepts one day and up to the longest period the server serves', () => {
+    expect(getCustomRangeProblem({ start: '2026-10-05', end: '2026-10-05' })).toBeNull();
+    expect(MAX_CUSTOM_DAYS).toBe(93);
+    expect(getCustomRangeProblem({ start: '2026-06-01', end: '2026-09-01' })).toBeNull(); // 93 days, both ends counted
   });
 
-  it('weekly, monthly and yearly look back 7, 30 and 365 days from now', () => {
-    expect(isInTimeframe(ago(7 * DAY - HOUR), 'weekly', NOW)).toBe(true);
-    expect(isInTimeframe(ago(7 * DAY + HOUR), 'weekly', NOW)).toBe(false);
-    expect(isInTimeframe(ago(29 * DAY), 'monthly', NOW)).toBe(true);
-    expect(isInTimeframe(ago(31 * DAY), 'monthly', NOW)).toBe(false);
-    expect(isInTimeframe(ago(364 * DAY), 'yearly', NOW)).toBe(true);
-    expect(isInTimeframe(ago(366 * DAY), 'yearly', NOW)).toBe(false);
+  it('refuses a period of 94 days', () => {
+    expect(getCustomRangeProblem({ start: '2026-06-01', end: '2026-09-02' })).toBe('too_long');
   });
 
-  it('"custom" covers both end days completely', () => {
-    const range = { start: '2026-10-10', end: '2026-10-12' };
-
-    expect(isInTimeframe(new Date(2026, 9, 10, 0, 0, 1).toISOString(), 'custom', NOW, range)).toBe(true);
-    expect(isInTimeframe(new Date(2026, 9, 12, 23, 59, 58).toISOString(), 'custom', NOW, range)).toBe(true);
-    expect(isInTimeframe(new Date(2026, 9, 9, 23, 59).toISOString(), 'custom', NOW, range)).toBe(false);
-    expect(isInTimeframe(new Date(2026, 9, 13, 0, 1).toISOString(), 'custom', NOW, range)).toBe(false);
+  it('refuses an end before the start', () => {
+    expect(getCustomRangeProblem({ start: '2026-10-05', end: '2026-10-04' })).toBe('reversed');
   });
 
-  it('"custom" without a range does not filter', () => {
-    expect(isInTimeframe(ago(500 * DAY), 'custom', NOW)).toBe(true);
+  it('refuses a missing or half-typed date', () => {
+    expect(getCustomRangeProblem(undefined)).toBe('missing');
+    expect(getCustomRangeProblem({ start: '', end: '2026-10-04' })).toBe('missing');
+    expect(getCustomRangeProblem({ start: '2026-10-05', end: '2026-1' })).toBe('missing');
   });
 
-  it('is pure: the same answer for the same now, whatever the real clock says', () => {
-    const timestamp = ago(2 * HOUR);
-    expect(isInTimeframe(timestamp, 'today', NOW)).toBe(isInTimeframe(timestamp, 'today', NOW));
+  it('counts days across a change of the clocks the same as any other', () => {
+    expect(getCustomRangeProblem({ start: '2026-03-01', end: '2026-05-31' })).toBeNull(); // 92 days over a DST change in many zones
   });
 });
 
-function order(status: OrderStatus, overrides: Partial<Order> = {}): Order {
-  return makeOrder({ status, updated_at: ago(HOUR), ...overrides });
-}
-
-describe('computeOrderAnalytics', () => {
-  it('counts only finished orders of the timeframe', () => {
-    const orders = [
-      order('delivered', { id: 1 }),
-      order('canceled', { id: 2 }),
-      order('preparing', { id: 3 }), // still open
-      order('new', { id: 4 }),
-      order('delivered', { id: 5, updated_at: ago(3 * DAY) }), // not today
-    ];
-
-    const today = computeOrderAnalytics(orders, 'today', NOW);
-    expect(today.periodOrders.map((o) => o.id)).toEqual([1, 2]);
-    expect(today.deliveredOrders.map((o) => o.id)).toEqual([1]);
-
-    const weekly = computeOrderAnalytics(orders, 'weekly', NOW);
-    expect(weekly.periodOrders.map((o) => o.id)).toEqual([1, 2, 5]);
-  });
-
-  it('adds up the revenue of delivered orders and splits cash from online payments', () => {
-    const orders = [
-      order('delivered', { id: 1, total_price: '30000.00', payment_method: 'cash' }),
-      order('delivered', { id: 2, total_price: '45000.50', payment_method: 'click' }),
-      order('delivered', { id: 3, total_price: '20000.00', payment_method: 'payme' }),
-      order('canceled', { id: 4, total_price: '99999.00', payment_method: 'cash' }),
-    ];
-
-    const result = computeOrderAnalytics(orders, 'today', NOW);
-
-    expect(result.totalRevenue).toBeCloseTo(95000.5);
-    expect(result.cashRevenue).toBe(30000);
-    expect(result.onlineRevenue).toBeCloseTo(65000.5);
-  });
-
-  it('is empty and null-safe without orders', () => {
-    expect(computeOrderAnalytics([], 'today', NOW)).toEqual({
-      periodOrders: [],
-      deliveredOrders: [],
-      totalRevenue: 0,
-      cashRevenue: 0,
-      onlineRevenue: 0,
-      averagePrepMs: null,
-      averageDeliveryMs: null,
-      topProducts: [],
-      topCouriers: [],
-    });
-  });
-
-  it('averages preparation (accepted -> preparing) and delivery (delivery or preparing -> delivered) times', () => {
-    const at = (minutesAgo: number) => ago(minutesAgo * 60 * 1000);
-    const history = (status: OrderStatus, minutesAgo: number) => ({
-      id: 0, order_id: 1, user_id: null, status, notes: null, created_at: at(minutesAgo), updated_at: at(minutesAgo),
-    });
-    const orders = [
-      // prep 4 min, delivery 30 min (from "delivery")
-      order('delivered', {
-        id: 1,
-        status_histories: [history('accepted', 60), history('preparing', 56), history('delivery', 40), history('delivered', 10)],
-      }),
-      // prep 10 min, delivery 20 min (no "delivery" status: counted from "preparing")
-      order('delivered', {
-        id: 2,
-        status_histories: [history('accepted', 50), history('preparing', 40), history('delivered', 20)],
-      }),
-      // no history: ignored
-      order('delivered', { id: 3 }),
-    ];
-
-    const result = computeOrderAnalytics(orders, 'today', NOW);
-
-    expect(result.averagePrepMs).toBe(7 * 60 * 1000);
-    expect(result.averageDeliveryMs).toBe(25 * 60 * 1000);
-  });
-
-  it('counts on_the_way (what couriers set) and delivery (legacy) alike as the start of the delivery', () => {
-    const at = (minutesAgo: number) => ago(minutesAgo * 60 * 1000);
-    const history = (status: OrderStatus, minutesAgo: number) => ({
-      id: 0, order_id: 1, user_id: null, status, notes: null, created_at: at(minutesAgo), updated_at: at(minutesAgo),
-    });
-    const timeline = (enRoute: OrderStatus) => [history('preparing', 60), history(enRoute, 40), history('delivered', 30)];
-
-    // 10 minutes en route; measured from "preparing" it would be 30
-    for (const enRoute of ['on_the_way', 'delivery'] as const) {
-      const result = computeOrderAnalytics([order('delivered', { id: 1, status_histories: timeline(enRoute) })], 'today', NOW);
-      expect(result.averageDeliveryMs, enRoute).toBe(10 * 60 * 1000);
-    }
-
-    const mixed = computeOrderAnalytics([
-      order('delivered', { id: 1, status_histories: timeline('on_the_way') }),
-      order('delivered', { id: 2, status_histories: timeline('delivery') }),
-    ], 'today', NOW);
-    expect(mixed.averageDeliveryMs).toBe(10 * 60 * 1000);
-  });
-
-  it('ranks the three best-selling products and couriers of delivered orders', () => {
-    const items = (...entries: [string, number][]) => entries.map(([product_name, quantity], i) => makeOrderItem({ id: i, product_name, quantity }));
-    const ali = makeUser({ id: 10, name: 'Ali' });
-    const vali = makeUser({ id: 11, name: 'Vali' });
-    const orders = [
-      order('delivered', { id: 1, courier: ali, items: items(['Lavash', 3], ['Cola', 1]) }),
-      order('delivered', { id: 2, courier: ali, items: items(['Lavash', 2], ['Osh', 4], ['Choy', 1]) }),
-      order('delivered', { id: 3, courier: vali, items: items(['Cola', 5]) }),
-      order('canceled', { id: 4, courier: vali, items: items(['Pitsa', 99]) }), // canceled: not counted
-      order('delivered', { id: 5, items: items(['', 1]) }), // unnamed product (counted as "Burger"), no courier
-    ];
-
-    const result = computeOrderAnalytics(orders, 'today', NOW);
-
-    expect(result.topProducts).toEqual([
-      { name: 'Cola', count: 6 },
-      { name: 'Lavash', count: 5 },
-      { name: 'Osh', count: 4 },
-    ]);
-    expect(result.topCouriers).toEqual([
-      { name: 'Ali', count: 2 },
-      { name: 'Vali', count: 1 },
-    ]);
+describe('toDateInputValue', () => {
+  it('is the local calendar day, not the UTC one', () => {
+    expect(toDateInputValue(new Date(2026, 9, 5, 0, 30))).toBe('2026-10-05');
+    expect(toDateInputValue(new Date(2026, 9, 5, 23, 30))).toBe('2026-10-05');
+    expect(toDateInputValue(new Date(2026, 0, 9))).toBe('2026-01-09');
   });
 });

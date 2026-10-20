@@ -70,6 +70,20 @@ const CATEGORY: Category = {
   image_url: null,
 }
 
+// A place the geocoder knows: what GET /geocode/search lists and GET /geocode/reverse answers
+export interface FakePlace {
+  address: string
+  lat: number
+  lng: number
+}
+
+// Distance in km between two points on the globe (the backend's CreateOrderAction does the same to pick a branch)
+function distanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const rad = (degrees: number) => (degrees * Math.PI) / 180
+  const h = Math.sin(rad(b.lat - a.lat) / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(rad(b.lng - a.lng) / 2) ** 2
+  return 2 * 6371 * Math.asin(Math.sqrt(h))
+}
+
 const reply = (status: number, body: unknown): ApiReply => ({ status, body })
 const ok = (data: unknown, extra: Record<string, unknown> = {}): ApiReply => reply(200, { success: true, message: '', data, ...extra })
 const fail = (status: number, message: string, errors?: Record<string, string[]>): ApiReply =>
@@ -99,6 +113,14 @@ export class FakeApi {
   ]
 
   orders: Order[] = [] // newest first, like the API lists them
+
+  /** What GET /geocode/search finds: the places whose address contains the query (case-insensitive). */
+  places: FakePlace[] = []
+  /** What GET /geocode/reverse answers for any point; null = "no address there" (404), like the real endpoint. */
+  reverseAddress: string | null = 'Bunyodkor ko\'chasi, 12-uy'
+  /** The geocoding provider is down: both endpoints answer 503, as the real ones do. */
+  geocoderDown = false
+
   calls: ApiCall[] = []
   /** Calls that matched no endpoint of the fake: a test fails when the app starts using one it does not know. */
   unhandled: string[] = []
@@ -188,6 +210,8 @@ export class FakeApi {
     // The unread badge of the home screen's bell: no notifications
     if (method === 'GET' && path === '/notifications') return ok({ items: [], unread_count: 0, pagination: { current_page: 1, last_page: 1, per_page: 20, total: 0 } })
     if (method === 'POST' && path === '/notifications/read') return ok(null)
+    if (method === 'GET' && path === '/geocode/search') return this.geocodeSearch(query)
+    if (method === 'GET' && path === '/geocode/reverse') return this.geocodeReverse(query)
     if (method === 'GET' && path === '/orders') return this.listOrders(query)
     if (method === 'POST' && path === '/orders') return this.placeOrder(body ?? {})
 
@@ -252,6 +276,24 @@ export class FakeApi {
     return makeUser({ id: order.user_id, name: 'Mijoz Test', phone: '+998909998877', role: 'customer' })
   }
 
+  // GET /geocode/search?q=
+  private geocodeSearch(query: Record<string, string>): ApiReply {
+    if (this.geocoderDown) return reply(503, { success: false, message: 'Manzil qidirish xizmati hozir ishlamayapti.', data: [] })
+    const q = (query.q ?? '').trim().toLowerCase()
+    if (q.length < 3) return fail(422, 'The given data was invalid.', { q: ['The q field must be at least 3 characters.'] })
+    return ok(this.places.filter((place) => place.address.toLowerCase().includes(q)))
+  }
+
+  // GET /geocode/reverse?lat=&lng=
+  private geocodeReverse(query: Record<string, string>): ApiReply {
+    if (this.geocoderDown) return reply(503, { success: false, message: 'Manzil qidirish xizmati hozir ishlamayapti.', data: [] })
+    const lat = Number(query.lat)
+    const lng = Number(query.lng)
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return fail(422, 'The given data was invalid.', { lat: ['The lat field is required.'] })
+    if (this.reverseAddress === null) return fail(404, "Bu nuqta uchun manzil topilmadi. Manzilni qo'lda kiriting.")
+    return ok({ address: this.reverseAddress, lat, lng })
+  }
+
   // GET /orders?scope=active | history
   private listOrders(query: Record<string, string>): ApiReply {
     const visible = this.visibleOrders()
@@ -290,6 +332,13 @@ export class FakeApi {
     if (items.length === 0) return fail(422, 'The given data was invalid.', { items: ['Savat bo\'sh.'] })
 
     const isDelivery = body.type === 'delivery'
+    // A delivery order is routed to the branch whose service radius holds the point, and refused (400, like the backend's
+    // CreateOrderAction) when none does
+    if (isDelivery && typeof body.latitude === 'number' && typeof body.longitude === 'number') {
+      if (distanceKm({ lat: body.latitude, lng: body.longitude }, { lat: Number(BRANCH.latitude), lng: Number(BRANCH.longitude) }) > BRANCH.radius_km) {
+        return fail(400, 'Uzr, siz kiritgan manzil ushbu restoranning yetkazib berish hududidan tashqarida joylashgan.')
+      }
+    }
     const subtotal = items.reduce((sum, item) => sum + Number(item.total_price), 0)
     const deliveryPrice = isDelivery ? this.store.delivery_fee : 0
     const address = typeof body.address === 'string' ? body.address : null

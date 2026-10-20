@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo } from 'react';
-import { useInfiniteQuery, useQuery, useQueryClient, type QueryClient, type QueryKey } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery, useQueryClient, type InfiniteData, type QueryClient, type QueryKey } from '@tanstack/react-query';
 import api from '../services/api';
 import { useAuthStore } from '../store/authStore';
 import { useRealtimeStore } from '../store/realtimeStore';
 import { POLL_INTERVAL_MS, getPollInterval, pollingQueryOptions } from '../lib/polling';
-import type { ActiveOrdersMeta, ApiResponse, HistoryOrdersMeta, Order } from '../types';
+import type { ActiveOrdersMeta, ApiResponse, HistoryOrdersMeta, Order, OrderStatus } from '../types';
 
 export type { Order, OrderItem, PaymentStatus } from '../types';
 
@@ -15,16 +15,13 @@ export type { Order, OrderItem, PaymentStatus } from '../types';
 
 export const ORDERS_KEY = ['orders'] as const;
 
-export type OrdersScope = 'customer' | 'manager' | 'courier' | 'admin';
+export type OrdersScope = 'customer' | 'manager' | 'courier';
 
 export const ordersKeys = {
   allActive: ['orders', 'active'] as const,
   allHistory: ['orders', 'history'] as const,
   active: (scope: OrdersScope) => ['orders', 'active', scope] as const,
   history: (scope: OrdersScope) => ['orders', 'history', scope] as const,
-  // The finished orders of a whole period (analytics, reports): up to DEFAULT_MAX_AUTO_PAGES pages, so they are kept
-  // apart from the history lists and refreshed on their own slower schedule, never on events.
-  period: (scope: OrdersScope) => ['orders', 'period', scope] as const,
 };
 
 export const HISTORY_PAGE_SIZE = 20;
@@ -109,9 +106,6 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 // day before the period can end inside it.
 const SINCE_MARGIN_MS = 2 * DAY_MS;
 const DEFAULT_MAX_AUTO_PAGES = 15;
-// How often the finished orders of a period are refetched (all their pages), and how old they may be when the user
-// comes back to the app before they are.
-export const PERIOD_REFRESH_MS = 5 * 60_000;
 
 export interface OrderHistoryOptions {
   enabled?: boolean;
@@ -119,24 +113,20 @@ export interface OrderHistoryOptions {
   // Keep loading older pages by itself until the orders are older than this (epoch ms), up to `maxAutoPages`.
   since?: number;
   maxAutoPages?: number;
-  // The orders of a whole period (see ordersKeys.period): refreshed every PERIOD_REFRESH_MS instead of whenever an
-  // order of the screen finishes.
-  period?: boolean;
 }
 
 // The finished orders of a screen, newest first, a page at a time. The cursor lives in the infinite query.
 export function useOrderHistory(scope: OrdersScope, options: OrderHistoryOptions = {}) {
-  const { enabled = true, pageSize = HISTORY_PAGE_SIZE, since, maxAutoPages = DEFAULT_MAX_AUTO_PAGES, period = false } = options;
+  const { enabled = true, pageSize = HISTORY_PAGE_SIZE, since, maxAutoPages = DEFAULT_MAX_AUTO_PAGES } = options;
   const size = Math.min(Math.max(1, pageSize), HISTORY_MAX_PAGE_SIZE);
 
   const query = useInfiniteQuery({
-    queryKey: [...(period ? ordersKeys.period(scope) : ordersKeys.history(scope)), size],
+    queryKey: [...ordersKeys.history(scope), size],
     queryFn: ({ pageParam }) => fetchOrdersPage(pageParam, size),
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
     enabled,
-    staleTime: period ? PERIOD_REFRESH_MS : 30_000,
-    refetchInterval: period ? PERIOD_REFRESH_MS : false,
+    staleTime: 30_000,
     retry: 1,
   });
 
@@ -172,10 +162,51 @@ export function useOrderHistory(scope: OrdersScope, options: OrderHistoryOptions
     refetch: query.refetch,
     isRefetching: query.isRefetching,
     dataUpdatedAt: query.dataUpdatedAt,
-    // `since` was not reached, within `maxAutoPages` pages or before loading stopped on an error: the screen is
-    // showing only the newest part of its period
-    capped: since !== undefined && hasNextPage && !reachedSince && (hitCap || isError),
   };
+}
+
+const FINISHED_STATUSES: readonly OrderStatus[] = ['delivered', 'canceled', 'rejected', 'refunded'];
+const isFinished = (status: OrderStatus) => FINISHED_STATUSES.includes(status);
+
+// What an order event says about the order (lib/realtime.ts OrderEventOrder): its id and state.
+export interface FinishedOrderChange {
+  uuid: string;
+  status: OrderStatus;
+  updated_at?: string | null;
+}
+
+// An order that is already in a history list can still change (delivered -> refunded). The event says so, and the lists
+// show it at once instead of after their next staleness refetch: the cached copy takes the new status in place. No
+// request at all, so a burst of events cannot become a refetch of every loaded page (which is what refetching a paged
+// history costs). Only an order that is finished before and after is touched: one that has just finished is the open
+// list's business (it drops out of it and the history is refetched, useActiveOrders). `updatedAt` of each query is kept,
+// so patching never makes older pages look fresher than they are. Returns whether any list had the order.
+export function applyFinishedOrderChange(queryClient: QueryClient, change: FinishedOrderChange): boolean {
+  if (!isFinished(change.status)) return false;
+
+  const changes = (order: Order) => order.uuid === change.uuid && isFinished(order.status) && order.status !== change.status;
+
+  let patched = false;
+  for (const query of queryClient.getQueryCache().findAll({ queryKey: ordersKeys.allHistory })) {
+    const data = query.state.data as InfiniteData<OrdersPage> | undefined;
+    if (!data?.pages.some((page) => page.orders.some(changes))) continue;
+
+    patched = true;
+    queryClient.setQueryData<InfiniteData<OrdersPage>>(
+      query.queryKey,
+      {
+        ...data,
+        pages: data.pages.map((page) => ({
+          ...page,
+          orders: page.orders.map((order) =>
+            changes(order) ? { ...order, status: change.status, updated_at: change.updated_at ?? order.updated_at } : order,
+          ),
+        })),
+      },
+      { updatedAt: query.state.dataUpdatedAt },
+    );
+  }
+  return patched;
 }
 
 // Open orders and finished ones in one list (finished versions win: an order that finished between two requests is

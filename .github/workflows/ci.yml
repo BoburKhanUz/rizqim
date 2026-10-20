@@ -24,6 +24,8 @@ jobs:
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
       miniapp: ${{ steps.filter.outputs.miniapp }}
+      infra: ${{ steps.filter.outputs.infra }}
+      apiclient: ${{ steps.filter.outputs.apiclient }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -35,9 +37,27 @@ jobs:
           filters: |
             backend:
               - 'backend/**'
+              # P1-11: the committed OpenAPI spec is checked against the code in backend-tests
+              - 'packages/api-spec/**'
               - '.github/workflows/ci.yml'
             miniapp:
               - 'customer/miniapp/**'
+              - '.github/workflows/ci.yml'
+            # P1-11: TypeScript packages and the spec their API client is generated from (api-client job)
+            apiclient:
+              - 'packages/ts/**'
+              - 'packages/api-spec/**'
+              - '.github/workflows/ci.yml'
+            # P1-13: compose files, images and shell scripts (infra job at the end of this file)
+            infra:
+              - 'docker-compose*.yml'
+              - '.env*.example'
+              - 'backend/Dockerfile'
+              - 'backend/docker/**'
+              - 'scripts/**'
+              - 'infra/**'
+              - 'customer/miniapp/Dockerfile'
+              - 'customer/miniapp/docker/**'
               - '.github/workflows/ci.yml'
 
   backend-tests:
@@ -50,7 +70,8 @@ jobs:
         working-directory: backend
     services:
       postgres:
-        image: postgres:16
+        # Same major version as docker-compose.yml (postgres:17-alpine) and the backup image (infra/backup/Dockerfile)
+        image: postgres:17
         env:
           POSTGRES_DB: testing
           POSTGRES_USER: rizqim
@@ -105,6 +126,16 @@ jobs:
 
       - name: Run tests
         run: php artisan test
+
+      # P1-11: packages/api-spec/openapi.json must be what the code generates (model schemas come from the migrated
+      # database, hence the migrate)
+      - name: OpenAPI spec is up to date
+        run: |
+          php artisan migrate --force --no-interaction
+          if ! php artisan api-spec:export --check; then
+            echo "::error file=packages/api-spec/openapi.json::OpenAPI spetsifikatsiyasi koddan orqada. Yangilang: cd backend && php artisan migrate && php artisan api-spec:export; cd packages/ts/api-client && npm run generate; so'ng commit qiling."
+            exit 1
+          fi
 
   backend-static-analysis:
     name: Backend static analysis (PHPStan)
@@ -222,3 +253,101 @@ jobs:
             customer/miniapp/playwright-report
             customer/miniapp/test-results
           retention-days: 7
+
+  # --- P1-13 infra checks (runs only when an infra path changed, see the `infra` filter above) ---------------------
+  infra:
+    name: Infra (compose, shellcheck, images)
+    needs: changes
+    if: needs.changes.outputs.infra == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      # compose reads env_file ./backend/.env, so it must exist even for `config`
+      - name: Compose files are valid (production and staging)
+        run: |
+          cp .env.example .env
+          cp backend/.env.example backend/.env
+          docker compose config -q
+          docker compose -f docker-compose.yml -f docker-compose.staging.yml config -q
+          cp .env.staging.example .env
+          cp backend/.env.staging.example backend/.env
+          docker compose config -q
+
+      - name: Shellcheck
+        run: |
+          shellcheck scripts/*.sh backend/docker/entrypoint.sh infra/staging/*.sh
+
+      # The script edits the Mini App nginx config at container start; fail here if that config changes shape
+      - name: Staging noindex script still matches the Mini App nginx config
+        run: |
+          cp customer/miniapp/docker/nginx.conf "$RUNNER_TEMP/nginx.conf"
+          NGINX_CONF="$RUNNER_TEMP/nginx.conf" sh infra/staging/10-noindex.sh
+          NGINX_CONF="$RUNNER_TEMP/nginx.conf" sh infra/staging/10-noindex.sh
+          # one header in the server block, plus one in every location that sets its own add_header (idempotent on a second run)
+          test "$(grep -c 'X-Robots-Tag' "$RUNNER_TEMP/nginx.conf")" -eq "$(( $(grep -c 'add_header Cache-Control' "$RUNNER_TEMP/nginx.conf") + 1 ))"
+
+      - uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: backend/Dockerfile
+          failure-threshold: error
+
+      - uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: customer/miniapp/Dockerfile
+          failure-threshold: error
+
+      - uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: infra/backup/Dockerfile
+          failure-threshold: error
+
+      # The build itself fails if redis/uv do not load (backend/Dockerfile); then check Reverb really gets the libuv loop
+      - name: Backend image has ext-uv and Reverb uses it
+        run: |
+          docker build -t rizqim-backend:ci backend
+          docker run --rm --entrypoint php rizqim-backend:ci -m | grep -qx uv
+          test "$(docker run --rm --entrypoint php rizqim-backend:ci -r 'require "vendor/autoload.php"; echo get_class(React\EventLoop\Loop::get());')" = 'React\EventLoop\ExtUvLoop'
+
+      - name: Backup image has pg_dump 17 and rclone
+        run: |
+          docker build -t rizqim-backup:ci infra/backup
+          docker run --rm rizqim-backup:ci sh -c 'pg_dump --version | grep -q "(PostgreSQL) 17" && rclone version'
+
+  # --- P1-11 TypeScript API client (runs when packages/ts or the OpenAPI spec changed, see the `apiclient` filter) --
+  api-client:
+    name: TS API client (generated types, typecheck, build)
+    needs: changes
+    if: needs.changes.outputs.apiclient == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/ts/api-client
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: packages/ts/api-client/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generated types match the OpenAPI spec
+        run: |
+          if ! npm run check:generated; then
+            echo "::error file=packages/ts/api-client/src/schema.d.ts::TypeScript turlari packages/api-spec/openapi.json ga mos emas. Yangilang: cd packages/ts/api-client && npm run generate; so'ng commit qiling."
+            exit 1
+          fi
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build

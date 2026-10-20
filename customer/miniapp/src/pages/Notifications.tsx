@@ -7,7 +7,7 @@ import { useNotifications } from '../hooks/useNotifications';
 import { formatDateTime } from '../lib/format';
 import { isCustomerRole } from '../lib/roles';
 import { NOTIFICATION_TILE, getNotificationLook } from '../lib/notificationLook';
-import { useCopy } from '../lib/customerCopy';
+import { useLanguageStore } from '../store/languageStore';
 import api from '../services/api';
 
 function NotificationsSkeleton() {
@@ -28,7 +28,7 @@ function NotificationsSkeleton() {
 
 // The customer's and the staff's notification feed (GET /notifications): the same list, the theme does the rest.
 export default function Notifications() {
-  const c = useCopy();
+  const { t } = useLanguageStore();
   const queryClient = useQueryClient();
   const role = useAuthStore((state) => state.user?.role);
   const isStaff = !isCustomerRole(role);
@@ -46,7 +46,7 @@ export default function Notifications() {
 
   return (
     <div className="flex flex-col gap-4 px-4 pb-4 pt-2 animate-fade-in">
-      <PageHeader title={c('notificationsTitle')} subtitle={notifications.length > 0 ? c('notificationsCount', { n: notifications.length }) : undefined} back />
+      <PageHeader title={t('notificationsTitle')} subtitle={notifications.length > 0 ? t('notificationsCount', { n: notifications.length }) : undefined} back />
 
       {isLoading ? (
         <NotificationsSkeleton />
@@ -55,8 +55,8 @@ export default function Notifications() {
       ) : notifications.length === 0 ? (
         <EmptyState
           icon={Bell}
-          title={c('notificationsEmptyTitle')}
-          text={isStaff ? c('notificationsEmptyStaff') : c('notificationsEmptyCustomer')}
+          title={t('notificationsEmptyTitle')}
+          text={isStaff ? t('notificationsEmptyStaff') : t('notificationsEmptyCustomer')}
         />
       ) : (
         <ul className="flex flex-col gap-3">

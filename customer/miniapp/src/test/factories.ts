@@ -5,6 +5,7 @@ import type {
   LedgerTransaction,
   Order,
   OrderItem,
+  OwnerAnalytics,
   OwnerFinance,
   PayoutRequest,
   Product,
@@ -229,6 +230,29 @@ export function makeFinance(overrides: Partial<OwnerFinance> = {}): OwnerFinance
     ledger_transactions: [],
     wallet_transactions: [],
     payout_requests: [],
+    ...overrides,
+  };
+}
+
+// GET /owner/analytics for a day with a few sales: 3 delivered orders (130 000, 90 000 of it cash), 2 canceled, 1 open.
+export function makeAnalytics(overrides: Partial<OwnerAnalytics> = {}): OwnerAnalytics {
+  return {
+    period: { key: 'today', from: '2026-10-18', to: '2026-10-18', days: 1, timezone: 'Asia/Tashkent', basis: 'created_at' },
+    summary: { orders_count: 6, delivered_count: 3, canceled_count: 2, refunded_count: 0, active_count: 1, revenue: 130000, average_check: 43333.33 },
+    by_status: { delivered: 3, canceled: 1, rejected: 1, preparing: 1 },
+    by_payment_method: [
+      { method: 'cash', orders: 2, revenue: 90000 },
+      { method: 'click', orders: 1, revenue: 40000 },
+    ],
+    by_order_type: [{ type: 'delivery', orders: 3, revenue: 130000 }],
+    top_products: [
+      { name: 'Cheeseburger', quantity: 5, revenue: 100000 },
+      { name: 'Cola', quantity: 3, revenue: 30000 },
+    ],
+    couriers: [{ id: 7, name: 'Sardor', delivered_count: 2 }],
+    times: { average_prep_seconds: 150, average_delivery_seconds: 1500 },
+    daily: [{ date: '2026-10-18', orders: 6, delivered: 3, revenue: 130000 }],
+    generated_at: '2026-10-18T07:00:00+00:00',
     ...overrides,
   };
 }

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Store;
 
 use App\Http\Controllers\Controller;
+use Dedoc\Scramble\Attributes\Group;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use App\Traits\ApiResponse;
@@ -10,6 +11,7 @@ use App\Models\Store;
 use App\Enums\UserRole;
 use Illuminate\Validation\ValidationException;
 
+#[Group('Owner: settings', "Do'kon sozlamalari va fayl yuklash (ega).")]
 class OwnerSettingsController extends Controller
 {
     use ApiResponse;

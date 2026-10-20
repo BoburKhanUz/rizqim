@@ -39,10 +39,11 @@ trait Auditable
                 'action' => 'superadmin_override',
                 'model_type' => get_class($model),
                 'model_id' => $model->id,
-                'payload_json' => [
+                // No secrets or clear phone numbers in the log (P1-12)
+                'payload_json' => \App\Services\Audit\AuditRedactor::clean([
                     'event' => $action,
                     'changes' => $action === 'updated' ? $model->getChanges() : $model->toArray(),
-                ],
+                ]),
             ]);
         }
     }

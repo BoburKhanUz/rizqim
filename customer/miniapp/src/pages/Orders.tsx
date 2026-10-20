@@ -17,7 +17,6 @@ import { getApiErrorMessage, logApiError } from '../lib/apiError';
 import { toAmount } from '../lib/money';
 import { formatDateTime, formatMoney, formatOrderCode } from '../lib/format';
 import { getPaymentMethodLabel } from '../lib/paymentMethod';
-import { useCopy } from '../lib/customerCopy';
 import type { Order, PaymentStatus } from '../types';
 
 // The colour of the payment status text (a *-soft-fg token: readable on the card in both themes)
@@ -65,7 +64,6 @@ const chipClasses = (tone: 'neutral' | 'danger' | 'brand') =>
 
 export default function Orders() {
   const { t, language } = useLanguageStore();
-  const c = useCopy();
   const queryClient = useQueryClient();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null);
@@ -146,11 +144,11 @@ export default function Orders() {
       });
       hapticFeedback('success');
       setShowRatingModal(false);
-      void showAlert(c('rateThanks'));
+      void showAlert(t('rateThanks'));
     } catch (err) {
       logApiError('Failed to submit rating:', err);
       hapticFeedback('error');
-      void showAlert(getApiErrorMessage(err) || c('genericError'));
+      void showAlert(getApiErrorMessage(err) || t('genericError'));
     } finally {
       setIsSubmittingRating(false);
     }
@@ -194,7 +192,7 @@ export default function Orders() {
         {/* Why a canceled or rejected order was */}
         {hasReason && (
           <div className="mt-3 flex flex-col gap-1 rounded-control bg-danger-soft p-3 text-footnote text-danger-soft-fg">
-            <span className="text-caption font-bold">{c(order.status === 'rejected' ? 'orderRejectReason' : 'orderCancelReason')}</span>
+            <span className="text-caption font-bold">{t(order.status === 'rejected' ? 'orderRejectReason' : 'orderCancelReason')}</span>
             {order.cancel_reason && <span className="font-medium">{getCustomerCancelReasonLabel(order.cancel_reason, language)}</span>}
             {order.cancel_note && <span className="select-text">"{order.cancel_note}"</span>}
           </div>
@@ -207,7 +205,7 @@ export default function Orders() {
               {order.items?.map((item, idx) => (
                 <li key={idx} className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-baseline gap-x-3">
                   <span className="min-w-0 break-words font-medium text-fg">
-                    {item.product_name || c('orderItemFallback')}
+                    {item.product_name || t('orderItemFallback')}
                     {item.variant_name && <span className="block text-caption font-normal text-fg-muted">{item.variant_name}</span>}
                   </span>
                   <span className="whitespace-nowrap text-fg-muted">x{item.quantity}</span>
@@ -232,14 +230,14 @@ export default function Orders() {
               <div className="flex items-center justify-between gap-3">
                 <dt className="flex items-center gap-1.5 text-fg-muted">
                   <CreditCard aria-hidden="true" className="size-4 text-brand" />
-                  {c('orderPaymentMethod')}
+                  {t('orderPaymentMethod')}
                 </dt>
                 <dd className="font-bold text-fg">{getPaymentMethodLabel(order.payment_method, t)}</dd>
               </div>
               <div className="flex items-center justify-between gap-3">
                 <dt className="flex items-center gap-1.5 text-fg-muted">
                   <Wallet aria-hidden="true" className="size-4 text-brand" />
-                  {c('orderPaymentStatus')}
+                  {t('orderPaymentStatus')}
                 </dt>
                 <dd className={cx('font-bold', paymentStatus?.color ?? 'text-fg')}>
                   {paymentStatus ? t(paymentStatus.labelKey) : order.payment_status}
@@ -263,20 +261,20 @@ export default function Orders() {
                 className={chipClasses('neutral')}
               >
                 <TriangleAlert aria-hidden="true" className="size-4" />
-                {c('orderComplain')}
+                {t('orderComplain')}
               </Link>
 
               {isCancellableByCustomer(order) && (
                 <button type="button" onClick={() => openCancelDialog(order)} className={chipClasses('danger')}>
                   <X aria-hidden="true" className="size-4" />
-                  {c('orderCancel')}
+                  {t('orderCancel')}
                 </button>
               )}
 
               {order.status === 'delivered' && (
                 <button type="button" onClick={() => handleOpenRatingModal(order.id, order.store_id)} className={chipClasses('brand')}>
                   <Star aria-hidden="true" className="size-4" />
-                  {c('orderRate')}
+                  {t('orderRate')}
                 </button>
               )}
             </div>
@@ -288,11 +286,11 @@ export default function Orders() {
             type="button"
             aria-expanded={isExpanded}
             aria-controls={isExpanded ? panelId : undefined}
-            aria-label={`${code}: ${isExpanded ? c('orderCollapse') : c('orderDetails')}`}
+            aria-label={`${code}: ${isExpanded ? t('orderCollapse') : t('orderDetails')}`}
             onClick={() => toggleExpand(order.id)}
             className="mt-1 flex min-h-11 w-full cursor-pointer items-center justify-center gap-1 rounded-control text-footnote font-medium text-fg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
           >
-            {isExpanded ? c('orderCollapse') : c('orderDetails')}
+            {isExpanded ? t('orderCollapse') : t('orderDetails')}
             {isExpanded ? <ChevronUp aria-hidden="true" className="size-4" /> : <ChevronDown aria-hidden="true" className="size-4" />}
           </button>
         </div>
@@ -302,7 +300,7 @@ export default function Orders() {
 
   return (
     <div className="flex flex-col gap-5 px-4 pb-4 pt-2">
-      <PageHeader title={t('myOrders')} subtitle={c('ordersSubtitle')} />
+      <PageHeader title={t('myOrders')} subtitle={t('ordersSubtitle')} />
 
       {failed && !hasOrders ? (
         <InlineError
@@ -317,11 +315,11 @@ export default function Orders() {
       ) : !hasOrders ? (
         <EmptyState
           icon={PackageOpen}
-          title={c('ordersEmptyTitle')}
-          text={c('ordersEmptyText')}
+          title={t('ordersEmptyTitle')}
+          text={t('ordersEmptyText')}
           action={
             <Link to="/" onClick={() => hapticFeedback('light')} className={buttonClasses()}>
-              {c('ordersToCatalog')}
+              {t('ordersToCatalog')}
             </Link>
           }
         />
@@ -329,10 +327,10 @@ export default function Orders() {
         <div className="flex flex-col gap-5">
           {active?.truncated && <TruncatedOrdersNotice variant="customer" />}
 
-          {activeOrders.length > 0 && <Section title={c('ordersActive')}>{activeOrders.map(renderOrder)}</Section>}
+          {activeOrders.length > 0 && <Section title={t('ordersActive')}>{activeOrders.map(renderOrder)}</Section>}
 
           {historyOrders.length > 0 && (
-            <Section title={c('ordersHistory')} label={c('ordersHistoryLabel')}>
+            <Section title={t('ordersHistory')} label={t('ordersHistoryLabel')}>
               {historyOrders.map(renderOrder)}
             </Section>
           )}
@@ -365,14 +363,14 @@ export default function Orders() {
           hapticFeedback('light');
           setShowRatingModal(false);
         }}
-        title={c('rateTitle')}
+        title={t('rateTitle')}
         footer={
           <Button onClick={handleSubmitRating} loading={isSubmittingRating}>
-            {isSubmittingRating ? c('rateSending') : c('rateSend')}
+            {isSubmittingRating ? t('rateSending') : t('rateSend')}
           </Button>
         }
       >
-        <div role="radiogroup" aria-label={c('rateTitle')} className="flex justify-center gap-1">
+        <div role="radiogroup" aria-label={t('rateTitle')} className="flex justify-center gap-1">
           {[1, 2, 3, 4, 5].map((star) => {
             const on = star <= selectedRating;
             return (
@@ -381,7 +379,7 @@ export default function Orders() {
                 type="button"
                 role="radio"
                 aria-checked={star === selectedRating}
-                aria-label={c('rateStars', { n: star })}
+                aria-label={t('rateStars', { n: star })}
                 onClick={() => {
                   selectionChanged();
                   setSelectedRating(star);
@@ -396,13 +394,13 @@ export default function Orders() {
 
         <div className="flex flex-col gap-1.5">
           <label htmlFor={commentId} className="text-footnote font-bold text-fg-muted">
-            {c('rateComment')}
+            {t('rateComment')}
           </label>
           <textarea
             id={commentId}
             value={ratingComment}
             onChange={(event) => setRatingComment(event.target.value)}
-            placeholder={c('rateCommentPlaceholder')}
+            placeholder={t('rateCommentPlaceholder')}
             className="h-24 w-full resize-none rounded-control border border-line bg-surface-2 px-3 py-2.5 text-headline text-fg focus:border-brand focus:outline-none"
           />
         </div>

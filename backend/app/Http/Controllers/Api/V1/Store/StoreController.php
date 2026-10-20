@@ -3,12 +3,26 @@
 namespace App\Http\Controllers\Api\V1\Store;
 
 use App\Http\Controllers\Controller;
+use Dedoc\Scramble\Attributes\Group;
+use Dedoc\Scramble\Attributes\QueryParameter;
 use Illuminate\Http\Request;
 
 use App\Models\Store;
 
+#[Group('Stores', "Do'konlar ro'yxati va baholash.")]
 class StoreController extends Controller
 {
+    /**
+     * Stores near the customer
+     *
+     * Active stores with a branch that delivers to the point (nearest first, `min_distance` in km), or with a branch
+     * in the region/district. Without parameters the user's default address is used. Cash is shown as disabled when
+     * the customer may not pay cash.
+     */
+    #[QueryParameter('lat', description: 'Latitude of the delivery point (with `lng`).', type: 'float')]
+    #[QueryParameter('lng', description: 'Longitude of the delivery point (with `lat`).', type: 'float')]
+    #[QueryParameter('region_id', description: 'Without coordinates: stores with a branch in this region.', type: 'int')]
+    #[QueryParameter('district_id', description: 'Without coordinates: stores with a branch in this district.', type: 'int')]
     public function index(Request $request)
     {
         $user = $request->user('sanctum') ?: $request->user();

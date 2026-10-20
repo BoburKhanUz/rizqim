@@ -3,16 +3,27 @@
 namespace App\Http\Controllers\Api\V1\User;
 
 use App\Http\Controllers\Controller;
+use Dedoc\Scramble\Attributes\Group;
+use Dedoc\Scramble\Attributes\Response as ApiDocResponse;
 use Illuminate\Http\Request;
 
+#[Group('Addresses', "Mijozning saqlangan manzillari.")]
 class AddressController extends Controller
 {
+    /**
+     * List saved addresses (default first)
+     */
     public function index(Request $request)
     {
         $addresses = $request->user()->addresses()->orderBy('is_default', 'desc')->get();
         return response()->json(['success' => true, 'data' => $addresses]);
     }
 
+    /**
+     * Save an address
+     *
+     * `is_default: true` makes it the only default address.
+     */
     public function store(Request $request)
     {
         $data = $request->validate([
@@ -39,6 +50,10 @@ class AddressController extends Controller
         return response()->json(['success' => true, 'data' => $address]);
     }
 
+    /**
+     * Update an address
+     */
+    #[ApiDocResponse(200, type: 'array{success: true, data: \\App\\Models\\Address}')]
     public function update(Request $request, $id)
     {
         $address = $request->user()->addresses()->findOrFail($id);
@@ -67,6 +82,9 @@ class AddressController extends Controller
         return response()->json(['success' => true, 'data' => $address]);
     }
 
+    /**
+     * Delete an address
+     */
     public function destroy(Request $request, $id)
     {
         $address = $request->user()->addresses()->findOrFail($id);

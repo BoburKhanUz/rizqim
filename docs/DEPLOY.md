@@ -41,6 +41,7 @@ Hammasining ma'nosi va standarti: [backend/README.md](../backend/README.md), [cu
 | `CLICK_SECRET_KEY`, `PAYME_SECRET_KEY` (+ `CLICK_SERVICE_ID`, `CLICK_MERCHANT_ID`, `PAYME_MERCHANT_ID`) | merchant ma'lumotlari. Standart id'lar `config/services.php` dagi namunalar |
 | `SUPERADMIN_EMAIL`, `SUPERADMIN_PASSWORD` | `SuperAdminSeeder` uchun, parol kamida 12 belgi |
 | `CORS_ALLOWED_ORIGINS` | faqat Mini App API'ga boshqa domendan murojaat qilsa |
+| `AUTH_*` (`AUTH_ACCESS_TOKEN_TTL`, `AUTH_REFRESH_TOKEN_TTL_DAYS`, `AUTH_DEVICE_TOKEN_TTL_DAYS`, `AUTH_STAFF_SESSION_TTL`, `AUTH_PAIRING_CODE_TTL`, `AUTH_PIN_MAX_ATTEMPTS`, `AUTH_PIN_LOCKOUT_SECONDS`) | mobil ilovalar va POS terminallari uchun token muddatlari va PIN cheklovlari; standart qiymatlar yaxshi, ma'nosi `backend/.env.example` va `docs/AUTH.md` da. Mini App tokenlariga ta'sir qilmaydi (`SANCTUM_TOKEN_EXPIRATION`) |
 | `LOG_LEVEL` | `warning` tavsiya etiladi: Click, Payme va Telegram webhook payload'lari `info` darajasida to'liq logga yoziladi (shaxsiy ma'lumot bo'lishi mumkin) |
 
 **Ildizdagi `.env`** (compose o'qiydi): `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD` (postgres ham, backend ham shundan oladi va `backend/.env` dagilarni bekor qiladi), `REDIS_PASSWORD` (`$` belgisiz), `BACKEND_PORT` (8000), `FRONTEND_PORT` (8080), `VITE_BOT_USERNAME`, `VITE_API_URL`, `VITE_MAP_TILE_URL`, `VITE_MAP_ATTRIBUTION`, real-time uchun `BROADCAST_CONNECTION` (standart `null`; kalitlar bilan `reverb`), `REVERB_APP_ID`, `REVERB_APP_KEY`, `REVERB_APP_SECRET`, `REVERB_ALLOWED_ORIGINS` va `VITE_REVERB_*` (9-bo'lim; bular `backend/.env` dagilarni bekor qiladi). Ildizdagi `.env.example` ning pastki qismidagi `APP_ENV`, `CACHE_STORE`, `SUPERADMIN_*` kabi qatorlar faqat eslatma: konteyner ularni `backend/.env` dan o'qiydi, ildizdagi `.env` dan emas.
@@ -70,7 +71,7 @@ curl -fsS http://127.0.0.1:8000/up
 - **Fayl yuklash chegaralari.** Zanjir: Mini App nginx `client_max_body_size 10m` (API rasmni 5 MB bilan cheklaydi) → backend nginx `16m` → PHP `post_max_size=16M` ≥ `upload_max_filesize=12M` (`backend/docker/php.ini`; 12 MB — Filament panel yuklashlari chegarasi). Standart nginx (1 MB) va PHP (2 MB) chegaralari rasmlarni rad etardi; chegarani oshirsangiz, uchalasini birga oshiring.
 - **Backend manzili qayta yaratilganda.** Mini App nginx'i `backend` nomini Docker DNS (`127.0.0.11`) orqali har so'rovda qayta aniqlaydi (5 s keshlanadi), shuning uchun `docker compose up -d --build backend` dan keyin frontend'ni qayta ishga tushirish shart emas. Backend tayyor bo'lgunicha `/api/` va `/storage/` 502 qaytaradi.
 - **Mini App keshi.** `index.html` har safar qayta tekshiriladi (`Cache-Control: no-cache`), `/assets/*` (nomida hash bor) bir yil `immutable` keshlanadi: deploydan keyin eski `index.html` yo'q bo'lib ketgan bo'laklarni so'ramaydi.
-- **Versiyalar.** `php:8.3-fpm-alpine`, `postgres:17-alpine`, `redis:7-alpine`, Mini App build'i uchun Node 22. Redis'da parol ixtiyoriy (ildiz `REDIS_PASSWORD`), portlari yopiq.
+- **Versiyalar.** `php:8.3-fpm-alpine` (+ `ext-redis` va Reverb uchun `ext-uv`), `postgres:17-alpine` (CI ham 17; eski deployment'ni 17 ga o'tkazish: `docs/OPERATIONS.md`, 7-bo'lim), `redis:7-alpine`, Mini App build'i uchun Node 22. Redis'da parol ixtiyoriy (ildiz `REDIS_PASSWORD`), portlari yopiq.
 - **`VITE_*` qiymatlari** ildizdagi `.env` dan build argument sifatida o'tadi: o'zgartirgandan keyin `docker compose up -d --build frontend`.
 - Birinchi ishga tushishdan keyingi qadamlar (super admin, birinchi do'kon) 5-bo'limda.
 
@@ -151,6 +152,7 @@ Kodni qaytarish: eski commit'ni checkout qilib `docker compose up -d --build` (y
 | Sozlamalarni qayta tekshirish | `php artisan app:check-production`. `.env` ni o'zgartirgandan keyin konteynerni qayta yarating (`docker compose up -d --force-recreate backend queue queue-reports scheduler`) |
 | Rol berish | `php artisan user:assign-role <telegram_id> <rol> [--store=<id_yoki_uuid>] [--branch=<id>]` |
 | Webhook | `php artisan telegram:set-webhook [--url=...]` |
+| Eski tokenlarni tozalash | Scheduler o'zi `auth:prune-tokens` ni ishga tushiradi. **`php artisan sanctum:prune-expired` ni hech qachon qo'lda ishga tushirmang:** u `SANCTUM_TOKEN_EXPIRATION` dan eski BARCHA tokenlarni, shu jumladan POS/KDS terminal tokenlarini o'chiradi va hamma terminallar ulanishdan chiqib ketadi (qayta ulash kodi kerak bo'ladi). Tafsilot: `docs/AUTH.md` |
 
 ## 9. Real-time: Laravel Reverb (WebSocket)
 
@@ -187,8 +189,89 @@ echo "REVERB_APP_SECRET=$(openssl rand -hex 32)"   # faqat serverda; Mini App'ga
 
 `reverb` xizmati (`php artisan reverb:start --host=0.0.0.0 --port=8080`) tashqariga port ochmaydi; healthcheck Reverb'ning `GET /up` yo'li. `REVERB_HOST=reverb`, `REVERB_PORT=8080`, `REVERB_SCHEME=http` ni compose backend/queue/scheduler'ga o'zi beradi. Mini App build argumentlari: `VITE_REVERB_APP_KEY` (bo'sh bo'lsa `REVERB_APP_KEY`), `VITE_REVERB_HOST` (bo'sh = `window.location.hostname`), `VITE_REVERB_PORT` (`443`), `VITE_REVERB_SCHEME` (`https`) — brauzer ko'radigan tashqi HTTPS manzil. `REVERB_ALLOWED_ORIGINS` ga Mini App hostini yozing (masalan `mini.example.uz`; standart `*` — kanallar baribir imzolanadi, lekin `app:check-production` ogohlantiradi). Kalitni almashtirsangiz backend ham, frontend ham qayta build/yaratilishi kerak.
 
+**Katta yuklama.** Backend obrazida `ext-uv` (libuv) o'rnatilgan: Reverb uni o'zi tanlaydi va `stream_select()` ning ~1000 ulanish chegarasidan chiqadi; `reverb` xizmatida `nofile` = 65536. Tekshirish va chegaralar: `docs/OPERATIONS.md`, 6-bo'lim.
+
 **Tashqi TLS proksi.** Compose oldidagi nginx/Caddy/Cloudflare `/app/` uchun WebSocket upgrade'ni o'tkazishi va bo'sh ulanishni kamida 120 s ushlab turishi kerak (Reverb har 60 s ping yuboradi). nginx misoli: `proxy_http_version 1.1; proxy_set_header Upgrade $http_upgrade; proxy_set_header Connection "upgrade"; proxy_read_timeout 3600s;`.
 
 **O'chirish.** `BROADCAST_CONNECTION=null` (yoki `log`, eventlar logga yoziladi) — ildiz `.env` da, so'ng `docker compose up -d --force-recreate backend queue queue-reports scheduler`. Mini App `VITE_REVERB_APP_KEY` bo'sh build qilinsa ulanishga urinmaydi ham.
 
 **Tekshirish.** `docker compose ps reverb` (healthy); `docker compose exec reverb wget -qO- http://127.0.0.1:8080/up`; brauzerning DevTools > Network > WS da `wss://<domen>/app/<key>` `101` va `pusher:connection_established`; buyurtma holatini o'zgartirib `order.status_changed` kelishini ko'ring. Muammo bo'lsa: `docker compose logs --tail=100 reverb queue`, `php artisan queue:failed` (`BroadcastEvent` joblari — backend Reverb'ga yoza olmadi; qayta urinilmaydi, eskirgan eventni `queue:retry` qilish shart emas). Kanal obunasi `403` bo'lsa foydalanuvchining roli/do'koni/filiali kanalga mos emas (yuqoridagi jadval).
+
+## 10. Staging va production'ga ko'tarish
+
+Staging production bilan **bir xil stek** (bir xil Dockerfile'lar va deploy qadamlari), faqat `docker-compose.staging.yml` qo'shiladi. Maqsad: har bir o'zgarishni (migratsiya, Reverb, to'lov oqimi, yangi feature flag) mijozlarga tegmasdan haqiqiy muhitda sinash. Production serverda staging faylini **ishlatmang**.
+
+| | Production | Staging |
+|---|---|---|
+| Server/domen | asosiy | **alohida** server (yoki alohida domen/portlar), masalan `staging.example.uz` |
+| `APP_ENV` / `APP_DEBUG` | `production` / `false` | `staging` / `false` (compose majburlaydi) |
+| Baza, volume'lar | `rizqimbot`, `<loyiha>_postgres_data` | `rizqim_staging`, `rizqim_staging_postgres_data` (loyiha nomi `rizqim-staging`) |
+| Telegram | haqiqiy bot | alohida **test bot** (BotFather), alohida webhook va `TELEGRAM_WEBHOOK_SECRET` |
+| To'lov (Click/Payme) | haqiqiy merchant | faqat **test (sandbox)** merchant kalitlari |
+| E-pochta / SMS | haqiqiy | `MAIL_MAILER=log`, `SMS_DRIVER=log` (compose majburlaydi): hech kimga xabar ketmaydi |
+| Qidiruv tizimlari | ochiq | `X-Robots-Tag: noindex` (Mini App va backend) va `robots.txt` `Disallow: /` |
+| Resurslar | cheklovsiz | xotira/CPU chegaralari, kichik Postgres (`shared_buffers=64MB`) |
+| Zaxira | 14 kun + S3 | 3 kun; S3 ixtiyoriy (production bucket'iga yozmang) |
+| Sentry | `production` | alohida loyiha yoki `staging` environment |
+
+### Ishga tushirish (alohida serverda)
+
+```bash
+git clone <repo-url> rizqim && cd rizqim
+cp .env.staging.example .env                    # compose uchun; ichida COMPOSE_FILE=docker-compose.yml:docker-compose.staging.yml
+cp backend/.env.staging.example backend/.env    # ilova uchun
+# Ikkala faylni to'ldiring: DB paroli, APP_KEY (echo "base64:$(openssl rand -base64 32)"), TELEGRAM_BOT_TOKEN (TEST bot),
+# TELEGRAM_WEBAPP_URL va APP_URL (staging domeni, https), TELEGRAM_WEBHOOK_SECRET (openssl rand -hex 32), Reverb kalitlari
+# (3-bo'lim va 9-bo'lim), CLICK_*/PAYME_* (faqat test), SUPERADMIN_* (production parolidan farqli)
+docker compose config -q                         # staging fayli ham o'qilganini tekshiring: docker compose config | head -1  ->  name: rizqim-staging
+docker compose up -d --build
+docker compose ps
+curl -fsS http://127.0.0.1:8100/up
+docker compose exec -u www-data backend php artisan db:seed --class=SuperAdminSeeder --force
+docker compose exec -u www-data backend php artisan db:seed --class=LocationSeeder --force
+```
+
+`COMPOSE_FILE` bo'lmasa har buyruqqa `-f docker-compose.yml -f docker-compose.staging.yml` qo'shing. Domen va HTTPS: 4-bo'limdagidek, staging domeniga alohida sertifikat va tashqi proksi (Mini App `FRONTEND_PORT`=8180 ga, `/admin` va `/superadmin` `BACKEND_PORT`=8100 ga). Telegram test botida Mini App manzili `TELEGRAM_WEBAPP_URL`; deploy `telegram:set-webhook` ni o'zi ishga tushiradi. Birinchi do'kon va superadmin: 5-bo'lim (test ma'lumotlari bilan). Faqat bitta xostda ishlatsangiz, `.env` dagi portlar (8100/8180) productionnikidan farq qilsin; loyiha va volume nomlari allaqachon alohida.
+
+**`app:check-production` staging'da.** Buyruq `APP_ENV=production` **yoki** `staging` ni qabul qiladi. Qolgan hamma shartlar staging'da ham o'zgarishsiz tekshiriladi (debug o'chiq, `APP_KEY`, Telegram secret va HTTPS manzil, Reverb kalitlari, standart super admin paroli yo'q): staging internetda turadi, shuning uchun "staging deb" zaiflashtirilmaydi. Production-only shart bitta: `APP_ENV` qiymatining o'zi (`local`/`testing` va boshqalar ikkalasida ham rad etiladi). Muvaffaqiyatli bo'lsa chiqadi: "Staging sozlamalari tekshiruvdan o'tdi".
+
+**Production ma'lumotlarini staging'ga ko'chirmang.** Zarur bo'lsa faqat anonimlashtirilgan dump yuklang va keyin: `Superadmin > Tizim Sozlamalari` da `sms_driver=log` (bazadagi qiymat env'dan ustun, aks holda haqiqiy mijozlarga SMS ketadi), do'konlarning Telegram bot tokenlari va to'lov kalitlarini test qiymatlarga almashtiring.
+
+### Staging'da tekshiruv ro'yxati
+
+1. `docker compose ps`: hamma xizmat `healthy`; `docker compose logs backend | grep -i "tekshiruvdan o'tdi"`.
+2. `curl -I https://<staging-domen>/` va `/superadmin/login`: `X-Robots-Tag: noindex, nofollow, noarchive`; `/robots.txt` — `Disallow: /`.
+3. Superadmin'ga kirish, test do'kon va mahsulot yaratish; test bot orqali Mini App'dan buyurtma berish; holatni o'zgartirganda real-time yangilanishi (9-bo'lim).
+4. Click/Payme sandbox to'lovi (webhook'lar `https://<staging-domen>/api/v1/payments/...`).
+5. Yangi migratsiyalar toza bazada ham, oldingi release ma'lumotlari ustida ham o'tdi (`docker compose logs backend`).
+6. Yangi feature flag bo'lsa: Superadmin > Sozlamalar > Feature flaglar da bitta test do'konda yoqib, `GET /api/v1/features` ni tekshiring.
+
+### Build'ni production'ga ko'tarish (promote)
+
+Qoida: production'ga **staging'da sinalgan aniq commit** boradi, shuning uchun u git tegi bilan belgilanadi (tegni bir marta qo'yasiz, ikkala serverda shu teg olinadi). Obrazlar har serverda shu commit'dan yig'iladi (bir xil Dockerfile va `composer.lock`). Mini App build'i `VITE_*` qiymatlarni (bot, Reverb kaliti, Sentry) ichiga yozadi, shuning uchun `frontend` obrazi staging va production uchun baribir alohida yig'iladi (staging obrazini production'ga ko'chirib bo'lmaydi).
+
+```bash
+# 1. Staging: commit'ni joylab sinab ko'ring
+git fetch && git checkout <commit-yoki-branch> && docker compose up -d --build
+#    ... tekshiruv ro'yxati (yuqorida) o'tdi ...
+git rev-parse --short HEAD                        # masalan 3fa9c1e: Sentry release va tegga nom
+
+# 2. Tegni qo'ying (staging'da yoki lokal, so'ng push)
+git tag -a release-2026-10-21-1 -m "staging'da sinalgan: 3fa9c1e" <commit>
+git push origin release-2026-10-21-1
+
+# 3. Production: kam yuklangan vaqtda
+git fetch --tags
+docker compose exec backup sh /usr/local/bin/backup.sh       # migratsiya oldidan zaxira (7-bo'lim)
+git checkout release-2026-10-21-1
+# backend/.env: SENTRY_RELEASE=3fa9c1e; ildiz .env: VITE_SENTRY_RELEASE=3fa9c1e (build argumenti)
+docker compose up -d --build                                  # production fayli faqat docker-compose.yml
+docker compose ps && curl -fsS https://<domen>/api/v1/health
+```
+
+- **Production serverda `COMPOSE_FILE` bo'lmasin** va `.env` ga `.env.staging.example` ni nusxalamang: staging fayli production'da resurslarni cheklab, `APP_ENV=staging` qilib qo'yadi.
+- **Migratsiyalar orqaga mos bo'lsin.** Orqaga qaytishda eski kod yangi sxemada ishlab qoladi (7-bo'lim), shuning uchun ustunni o'chirish yoki nomini o'zgartirishni ikki release'ga bo'ling: avval kod eski va yangi ustunni birga qo'llaydi, keyingi release'da eskisi o'chiriladi.
+- **Yangi imkoniyatni xavfsiz yoyish.** Katta o'zgarishni feature flag orqasida chiqaring (`docs/OPERATIONS.md`, 8-bo'lim): production'ga flag o'chiq holda tushadi, so'ng Superadmin > Feature flaglar da avval bitta restoranda, keyin boshqalarda yoqiladi. Muammo bo'lsa kod qaytarilmaydi, flag o'chiriladi.
+- **Orqaga qaytarish:** oldingi tegga `git checkout <eski-teg> && docker compose up -d --build` (7-bo'lim: migratsiya `down()` lari va zaxiradan tiklash).
+- Production'dan keyin tegni va commit'ni jamoaga yozib qo'ying (Sentry release nomi bilan bir xil), shunda xato qaysi release'dan boshlanganini topish oson bo'ladi.
+

@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { echoInstances, type FakeEcho } from '../test/fakeEcho';
 import {
-  getOrderChannelName,
+  getOrderChannelNames,
   getRealtimeConfig,
-  openOrderChannel,
+  openOrderChannels,
   parseOrderPayload,
   type OrderChannelHandlers,
   type RealtimeConfig,
@@ -46,23 +46,25 @@ describe('getRealtimeConfig', () => {
   });
 });
 
-describe('getOrderChannelName', () => {
+describe('getOrderChannelNames', () => {
   it.each([
-    [{ id: 7, role: 'owner', store_id: 3, branch_id: null }, 'store.3'],
-    [{ id: 7, role: 'owner', store_id: 3, branch_id: 9 }, 'store.3'],
-    [{ id: 7, role: 'manager', store_id: 3, branch_id: 9 }, 'branch.9'],
-    [{ id: 7, role: 'manager', store_id: 3, branch_id: null }, 'store.3'],
-    [{ id: 7, role: 'courier', store_id: 3, branch_id: null }, 'courier.7'],
-    [{ id: 7, role: 'customer', store_id: null, branch_id: null }, 'user.7'],
-    [{ id: 7, role: 'user', store_id: null, branch_id: null }, 'user.7'],
-    [{ id: 7, role: 'super_admin', store_id: null, branch_id: null }, null],
-    [{ id: 7, role: 'owner', store_id: null, branch_id: null }, null],
-  ])('%j -> %s', (user, expected) => {
-    expect(getOrderChannelName(user)).toBe(expected);
+    // Staff who can be handed an order as its courier listen on their own courier channel too (routes/channels.php)
+    [{ id: 7, role: 'owner', store_id: 3, branch_id: null }, ['store.3', 'courier.7']],
+    [{ id: 7, role: 'owner', store_id: 3, branch_id: 9 }, ['store.3', 'courier.7']],
+    [{ id: 7, role: 'manager', store_id: 3, branch_id: 9 }, ['branch.9', 'courier.7']],
+    [{ id: 7, role: 'manager', store_id: 3, branch_id: null }, ['store.3', 'courier.7']],
+    [{ id: 7, role: 'courier', store_id: 3, branch_id: null }, ['courier.7']],
+    [{ id: 7, role: 'customer', store_id: null, branch_id: null }, ['user.7']],
+    [{ id: 7, role: 'user', store_id: null, branch_id: null }, ['user.7']],
+    [{ id: 7, role: 'super_admin', store_id: null, branch_id: null }, []],
+    [{ id: 7, role: 'owner', store_id: null, branch_id: null }, []],
+    [{ id: 7, role: 'manager', store_id: null, branch_id: null }, []],
+  ])('%j -> %j', (user, expected) => {
+    expect(getOrderChannelNames(user)).toEqual(expected);
   });
 
   it('has no channel for nobody', () => {
-    expect(getOrderChannelName(null)).toBeNull();
+    expect(getOrderChannelNames(null)).toEqual([]);
   });
 });
 
@@ -80,19 +82,21 @@ describe('parseOrderPayload', () => {
   );
 });
 
-describe('openOrderChannel', () => {
+describe('openOrderChannels', () => {
   const CONFIG: RealtimeConfig = { key: 'app-key', host: 'ws.example.uz', port: 443, forceTLS: true, authEndpoint: '/api/broadcasting/auth' };
   let token: string | null;
+  let channels: string[];
   let handlers: { [K in keyof OrderChannelHandlers]: ReturnType<typeof vi.fn> };
 
   const open = async () => {
-    const session = await openOrderChannel(CONFIG, 'store.3', () => token, handlers as unknown as OrderChannelHandlers);
+    const session = await openOrderChannels(CONFIG, channels, () => token, handlers as unknown as OrderChannelHandlers);
     return { session, echo: echoInstances[echoInstances.length - 1] as FakeEcho };
   };
 
   beforeEach(() => {
     echoInstances.length = 0;
     token = 'token-1';
+    channels = ['store.3'];
     handlers = { onEvent: vi.fn(), onConnectionChange: vi.fn(), onResync: vi.fn() };
   });
 
@@ -235,5 +239,96 @@ describe('openOrderChannel', () => {
     session.close();
 
     expect(echo.left).toEqual(['store.3']);
+  });
+  describe('with more than one channel', () => {
+    const order = { uuid: 'u1', status: 'accepted', store_id: 3, branch_id: null, courier_id: 7, updated_at: 't' };
+
+    beforeEach(() => {
+      channels = ['store.3', 'courier.7'];
+    });
+
+    it('subscribes each channel on the one socket, with the three order events', async () => {
+      const { echo } = await open();
+
+      expect(echoInstances).toHaveLength(1);
+      expect(echo.channels.map((channel) => channel.name)).toEqual(['store.3', 'courier.7']);
+      expect([...echo.channelNamed('courier.7').listeners.keys()].sort()).toEqual(['.order.assigned', '.order.created', '.order.status_changed']);
+    });
+
+    it('passes on the events of every channel', async () => {
+      const { echo } = await open();
+
+      echo.emit('.order.assigned', { order }, 'courier.7');
+      echo.emit('.order.status_changed', { order }, 'store.3');
+
+      expect(handlers.onEvent).toHaveBeenNthCalledWith(1, { name: 'order.assigned', order });
+      expect(handlers.onEvent).toHaveBeenNthCalledWith(2, { name: 'order.status_changed', order });
+    });
+
+    it('is connected once the first channel is accepted, whether or not the others are', async () => {
+      const { echo } = await open();
+      echo.setConnection('connected');
+
+      echo.acceptSubscription('courier.7');
+      expect(handlers.onConnectionChange).not.toHaveBeenCalled();
+
+      echo.acceptSubscription('store.3');
+      expect(handlers.onConnectionChange).toHaveBeenCalledExactlyOnceWith(true);
+      expect(handlers.onResync).not.toHaveBeenCalled();
+    });
+
+    it('stays connected when only the extra channel is refused, and retries just that one', async () => {
+      vi.useFakeTimers();
+      const { echo } = await open();
+      echo.connectAndSubscribe();
+      handlers.onConnectionChange.mockClear();
+
+      echo.refuseSubscription('courier.7');
+
+      expect(echo.left).toEqual(['courier.7']);
+      expect(handlers.onConnectionChange).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(5_000);
+      expect(echo.channels.filter((channel) => channel.name === 'courier.7')).toHaveLength(2);
+      expect(echo.channels.filter((channel) => channel.name === 'store.3')).toHaveLength(1);
+
+      echo.acceptSubscription('courier.7');
+      expect(handlers.onResync).toHaveBeenCalledOnce(); // events were missed meanwhile
+    });
+
+    it('is not connected while the first channel is refused', async () => {
+      vi.useFakeTimers();
+      const { echo } = await open();
+      echo.connectAndSubscribe();
+
+      echo.refuseSubscription('store.3');
+
+      expect(handlers.onConnectionChange).toHaveBeenLastCalledWith(false);
+    });
+
+    it('leaves every channel and stops every retry when closed', async () => {
+      vi.useFakeTimers();
+      const { session, echo } = await open();
+      echo.connectAndSubscribe();
+      echo.refuseSubscription('courier.7');
+
+      session.close();
+      vi.advanceTimersByTime(120_000);
+
+      expect(echo.left).toEqual(expect.arrayContaining(['store.3', 'courier.7']));
+      expect(echo.disconnected).toBe(true);
+      expect(echo.channels.filter((channel) => channel.name === 'courier.7')).toHaveLength(1);
+    });
+
+    it('asks to refetch when the socket came back and re-subscribed both channels', async () => {
+      const { echo } = await open();
+      echo.connectAndSubscribe();
+
+      echo.setConnection('disconnected');
+      echo.setConnection('connected');
+      echo.acceptSubscription('store.3');
+      echo.acceptSubscription('courier.7');
+
+      expect(handlers.onResync).toHaveBeenCalledTimes(2);
+    });
   });
 });

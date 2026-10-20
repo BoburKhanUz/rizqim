@@ -189,4 +189,112 @@ class HealthEndpointTest extends TestCase
         HealthReport::beat();
         $this->artisan('health:scheduler')->assertSuccessful();
     }
+
+    // --- Public vs. internal detail ---------------------------------------------------------------------------------
+
+    private function publicGet(string $uri = '/health', array $headers = [])
+    {
+        return $this->withServerVariables(['REMOTE_ADDR' => '203.0.113.9'])->getJson($uri, $headers);
+    }
+
+    public function test_a_public_request_gets_only_a_verdict_per_component(): void
+    {
+        HealthReport::beat();
+        config(['health.queue_backlog_warn' => 10, 'orders.reports.queue' => 'reports']);
+        Queue::shouldReceive('size')->with('default')->andReturn(11);
+        Queue::shouldReceive('size')->with('reports')->andReturn(2);
+
+        $response = $this->publicGet()->assertOk();
+
+        $this->assertSame([
+            'status' => 'degraded',
+            'checks' => [
+                'database' => ['status' => 'ok'],
+                'redis' => ['status' => 'ok'],
+                'queue' => ['status' => 'degraded'],
+                'scheduler' => ['status' => 'ok'],
+            ],
+        ], $response->json());
+        $this->assertStringNotContainsString('backlog', strtolower($response->getContent()));
+        $this->assertStringNotContainsString('latency', $response->getContent());
+        $this->assertStringNotContainsString('age_seconds', $response->getContent());
+    }
+
+    public function test_a_public_request_still_gets_503_when_a_component_fails(): void
+    {
+        HealthReport::beat();
+        DB::shouldReceive('select')->andThrow(new RuntimeException('connection refused'));
+
+        $this->publicGet()
+            ->assertStatus(503)
+            ->assertExactJson(['status' => 'fail', 'checks' => [
+                'database' => ['status' => 'fail'],
+                'redis' => ['status' => 'ok'],
+                'queue' => ['status' => 'ok'],
+                'scheduler' => ['status' => 'ok'],
+            ]]);
+    }
+
+    public function test_the_public_form_is_the_same_on_the_api_prefix(): void
+    {
+        HealthReport::beat();
+
+        $this->publicGet('/api/v1/health')->assertOk()->assertJsonMissingPath('checks.queue.default_backlog');
+    }
+
+    public function test_internal_addresses_see_the_numbers(): void
+    {
+        HealthReport::beat();
+
+        foreach (['127.0.0.1', '10.1.2.3', '172.20.0.5', '192.168.1.10'] as $address) {
+            $this->withServerVariables(['REMOTE_ADDR' => $address])->getJson('/health')
+                ->assertOk()
+                ->assertJsonPath('checks.queue.default_backlog', 0)
+                ->assertJsonPath('checks.database.status', 'ok')
+                ->assertJsonStructure(['checks' => ['database' => ['latency_ms'], 'scheduler' => ['last_heartbeat_age_seconds']]]);
+        }
+    }
+
+    public function test_a_public_client_behind_the_proxy_does_not_get_the_numbers_even_with_a_spoofed_forwarded_for(): void
+    {
+        HealthReport::beat();
+
+        // nginx (a trusted private hop) appends the real client address to whatever the client sent
+        $this->withServerVariables(['REMOTE_ADDR' => '172.20.0.5'])
+            ->getJson('/health', ['X-Forwarded-For' => '10.0.0.7, 203.0.113.9'])
+            ->assertOk()
+            ->assertJsonMissingPath('checks.queue.default_backlog');
+    }
+
+    public function test_an_internal_client_behind_the_proxy_gets_the_numbers(): void
+    {
+        HealthReport::beat();
+
+        $this->withServerVariables(['REMOTE_ADDR' => '172.20.0.5'])
+            ->getJson('/health', ['X-Forwarded-For' => '192.168.1.20'])
+            ->assertOk()
+            ->assertJsonPath('checks.queue.default_backlog', 0);
+    }
+
+    public function test_the_health_token_unlocks_the_numbers_for_a_public_request(): void
+    {
+        HealthReport::beat();
+        config(['health.token' => 'monitor-secret-123']);
+
+        $this->publicGet('/health', ['X-Health-Token' => 'monitor-secret-123'])
+            ->assertOk()
+            ->assertJsonPath('checks.queue.default_backlog', 0);
+        $this->publicGet('/health', ['X-Health-Token' => 'wrong'])
+            ->assertOk()
+            ->assertJsonMissingPath('checks.queue.default_backlog');
+        $this->publicGet()->assertJsonMissingPath('checks.queue.default_backlog');
+    }
+
+    public function test_an_unset_token_never_matches_an_empty_header(): void
+    {
+        HealthReport::beat();
+        config(['health.token' => '']);
+
+        $this->publicGet('/health', ['X-Health-Token' => ''])->assertJsonMissingPath('checks.queue.default_backlog');
+    }
 }

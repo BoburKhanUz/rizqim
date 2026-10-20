@@ -21,16 +21,24 @@ class CheckProductionConfigCommand extends Command
      *
      * @var string
      */
-    protected $description = 'Fail (exit 1) on production-unsafe settings: APP_ENV, APP_DEBUG, APP_KEY, TELEGRAM_ALLOW_MOCK_AUTH, TELEGRAM_WEBHOOK_SECRET, TELEGRAM_WEBAPP_URL, Reverb keys, default super admin password';
+    protected $description = 'Fail (exit 1) on production-unsafe settings (APP_ENV production or staging): APP_DEBUG, APP_KEY, TELEGRAM_ALLOW_MOCK_AUTH, TELEGRAM_WEBHOOK_SECRET, TELEGRAM_WEBAPP_URL, Reverb keys, default super admin password';
 
     private const DEFAULT_SEED_PASSWORD = '12345678';
+
+    /**
+     * Deployed environments (Docker). Staging runs the same image and passes every check below; the only
+     * production-only rule is the APP_ENV value itself ("production"). Everything else (debug off, APP_KEY, Telegram
+     * secrets, HTTPS Mini App URL, Reverb keys, no default super admin password) is enforced on staging as well, because
+     * staging is reachable from the internet and holds real-looking test data.
+     */
+    private const DEPLOYED_ENVIRONMENTS = ['production', 'staging'];
 
     public function handle(): int
     {
         $problems = [];
 
-        if (config('app.env') !== 'production') {
-            $problems[] = 'APP_ENV="' . config('app.env') . '" — "production" bo\'lishi shart';
+        if (!in_array(config('app.env'), self::DEPLOYED_ENVIRONMENTS, true)) {
+            $problems[] = 'APP_ENV="' . config('app.env') . '" — "production" (staging serverida "staging") bo\'lishi shart';
         }
 
         if (config('app.debug')) {
@@ -62,6 +70,11 @@ class CheckProductionConfigCommand extends Command
             $problems[] = 'TELEGRAM_WEBAPP_URL https:// bilan boshlanishi kerak — Telegram Mini App\'ni faqat HTTPS manzildan ochadi';
         }
 
+        // Public API docs (Scramble) are fine on staging but list every endpoint to anyone on production
+        if (config('app.env') === 'production' && config('scramble.access.public') === true) {
+            $this->warn('OGOHLANTIRISH: API_DOCS_PUBLIC=true — /docs/api va spetsifikatsiya hammaga ochiq; productionda o\'chiring (faqat superadmin ko\'radi).');
+        }
+
         $problems = array_merge($problems, $this->reverbProblems(), $this->accountProblems());
 
         if ($problems !== []) {
@@ -74,7 +87,9 @@ class CheckProductionConfigCommand extends Command
             return self::FAILURE;
         }
 
-        $this->info('Production sozlamalari tekshiruvdan o\'tdi.');
+        $this->info(config('app.env') === 'staging'
+            ? 'Staging sozlamalari tekshiruvdan o\'tdi (production bilan bir xil xavfsizlik shartlari).'
+            : 'Production sozlamalari tekshiruvdan o\'tdi.');
 
         return self::SUCCESS;
     }

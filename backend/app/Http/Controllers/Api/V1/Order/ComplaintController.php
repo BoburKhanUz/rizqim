@@ -3,12 +3,14 @@
 namespace App\Http\Controllers\Api\V1\Order;
 
 use App\Http\Controllers\Controller;
+use Dedoc\Scramble\Attributes\Group;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use App\Models\Complaint;
 use App\Models\Order;
 use App\Traits\ApiResponse;
 
+#[Group('Complaints', "Shikoyatlar: mijoz yuboradi, ega yoki menejer javob beradi, mijoz moderatorga yuboradi.")]
 class ComplaintController extends Controller
 {
     use ApiResponse;

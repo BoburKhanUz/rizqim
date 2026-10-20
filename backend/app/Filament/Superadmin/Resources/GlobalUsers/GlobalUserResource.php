@@ -257,6 +257,6 @@ class GlobalUserResource extends Resource
     {
         $value = $role instanceof UserRole ? $role->value : $role;
 
-        return in_array($value, [UserRole::OWNER->value, UserRole::MANAGER->value, UserRole::COURIER->value], true);
+        return in_array($value, array_map(fn (UserRole $role) => $role->value, UserRole::storeRoles()), true);
     }
 }

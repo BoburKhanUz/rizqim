@@ -42,6 +42,18 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
+
+        // auth:sanctum accepts user tokens only (a paired terminal's token is not a user)
+        'sanctum' => [
+            'driver' => 'sanctum',
+            'provider' => 'users',
+        ],
+
+        // auth:device: a paired POS/KDS terminal's own token (App\Auth\DeviceTokenGuard)
+        'device' => [
+            'driver' => 'device-token',
+            'provider' => 'devices',
+        ],
     ],
 
     /*
@@ -65,6 +77,11 @@ return [
         'users' => [
             'driver' => 'eloquent',
             'model' => env('AUTH_MODEL', User::class),
+        ],
+
+        'devices' => [
+            'driver' => 'eloquent',
+            'model' => App\Models\Device::class,
         ],
 
         // 'users' => [
@@ -128,6 +145,39 @@ return [
     'phone_verification' => [
         'expose_code_in_response' => filter_var(env('SMS_EXPOSE_CODE_IN_RESPONSE', false), FILTER_VALIDATE_BOOLEAN),
         'max_attempts' => 5,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Device sessions, terminals and staff PINs (docs/AUTH.md)
+    |--------------------------------------------------------------------------
+    |
+    | access_ttl: minutes an app's access token lives when it signed in with a
+    | device (it is renewed with the refresh token); refresh_ttl_days: how long
+    | a refresh token lives unused. The Mini App's tokens keep
+    | SANCTUM_TOKEN_EXPIRATION. device_ttl_days: a paired terminal's own token
+    | (0 = until revoked). staff_session_ttl: minutes of a PIN session.
+    |
+    */
+
+    'tokens' => [
+        'access_ttl' => (int) env('AUTH_ACCESS_TOKEN_TTL', 15),
+        'refresh_ttl_days' => (int) env('AUTH_REFRESH_TOKEN_TTL_DAYS', 30),
+        'device_ttl_days' => (int) env('AUTH_DEVICE_TOKEN_TTL_DAYS', 365),
+        'staff_session_ttl' => (int) env('AUTH_STAFF_SESSION_TTL', 720),
+        'max_devices_per_user' => 20,
+    ],
+
+    'pairing' => [
+        'ttl' => (int) env('AUTH_PAIRING_CODE_TTL', 10),
+        'max_active' => 5,
+        'global_attempts_per_minute' => 120,
+    ],
+
+    'pin' => [
+        'max_attempts' => (int) env('AUTH_PIN_MAX_ATTEMPTS', 5),
+        'lockout_seconds' => (int) env('AUTH_PIN_LOCKOUT_SECONDS', 60),
+        'max_lockout_seconds' => 3600,
     ],
 
     /*

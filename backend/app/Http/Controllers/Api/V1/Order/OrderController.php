@@ -20,11 +20,15 @@ use App\Services\Order\OrderTransitionException;
 use App\Services\Order\PaymentLinkService;
 use App\Services\Notifications\TelegramNotificationService;
 use App\Services\Telegram\TelegramMessenger;
+use Dedoc\Scramble\Attributes\Group;
+use Dedoc\Scramble\Attributes\QueryParameter;
+use Dedoc\Scramble\Attributes\Response as ApiDocResponse;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
+#[Group('Orders', 'Buyurtmalar: mijoz, ega, menejer va kuryer uchun.')]
 class OrderController extends Controller
 {
     use ApiResponse;
@@ -37,6 +41,18 @@ class OrderController extends Controller
         protected PaymentLinkService $paymentLinks,
     ) {}
 
+    /**
+     * List orders
+     *
+     * The orders the user may see: a customer's own, a courier's deliveries, the store's (owner) or the branch's
+     * (manager), newest first, with the relations the apps show. Without `scope`: every order, unpaginated (kept for
+     * app versions from before scopes). `scope=active`: the orders still in progress (at most 200; `meta.truncated`
+     * says more exist). `scope=history`: finished orders (delivered, canceled, rejected, refunded), keyset-paginated:
+     * send `meta.next_cursor` back as `cursor` until it is null.
+     */
+    #[QueryParameter('scope', description: 'Omit for the full legacy list.', type: "'active'|'history'")]
+    #[QueryParameter('per_page', description: 'Only with `scope=history`: page size, 1-50 (larger values are capped at 50).', type: 'int', default: OrderQueryService::HISTORY_DEFAULT_PER_PAGE)]
+    #[QueryParameter('cursor', description: 'Only with `scope=history`: `meta.next_cursor` of the previous page.', type: 'string')]
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -98,6 +114,12 @@ class OrderController extends Controller
         ]);
     }
 
+    /**
+     * Mark an order delivered (courier)
+     *
+     * 403/422 when the order's status or the user's role does not allow it.
+     */
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: Order}')]
     public function complete(Request $request, string $uuid): JsonResponse
     {
         $user = $request->user();
@@ -130,6 +152,13 @@ class OrderController extends Controller
         return $this->success($result->order, 'Order delivered successfully.');
     }
 
+    /**
+     * Place an order (checkout)
+     *
+     * Prices, stock, the promo code and the delivery fee are checked on the server. `payment_url` is set for online
+     * payment methods (Click, Payme): open it to pay; the order is cancelled when it stays unpaid. 400 with the reason
+     * when the order cannot be placed (store closed, item unavailable, minimum not reached...).
+     */
     public function store(Request $request): JsonResponse
     {
         $request->validate([
@@ -171,6 +200,13 @@ class OrderController extends Controller
         }
     }
 
+    /**
+     * Change an order's status (owner, manager, courier)
+     *
+     * Only the transitions the order's state machine allows; cancelling or rejecting needs a `reason`. Answers 200
+     * with the unchanged order when it is already in that status; 403/422 when the transition is not allowed.
+     */
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: Order}')]
     public function updateStatus(Request $request, string $uuid): JsonResponse
     {
         $user = $request->user();
@@ -229,10 +265,13 @@ class OrderController extends Controller
     }
 
     /**
+     * Cancel own order (customer)
+     *
      * The customer cancels their own order: only while it is new and unpaid (Order::isCancellableByCustomer), always
      * with the reason customer_request. Stock, promo use and the like come back as with any cancellation; a payment
      * arriving afterwards is refused by the payment webhooks. Returns the order as GET /orders lists it.
      */
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: Order}')]
     public function cancel(Request $request, string $uuid, TelegramNotificationService $telegram): JsonResponse
     {
         $user = $request->user();
@@ -276,6 +315,13 @@ class OrderController extends Controller
         return $this->success($result->order->load(['items.variant.product']), 'Buyurtma bekor qilindi.');
     }
 
+    /**
+     * Couriers an order can be assigned to (owner, manager)
+     *
+     * The store's couriers (and staff who deliver), with a label for their role.
+     */
+    #[Group('Couriers')]
+    #[QueryParameter('branch_id', description: "Owner only: that branch's couriers plus those of no branch. A manager always gets their own branch.", type: 'int')]
     public function couriers(Request $request, CourierListService $couriers): JsonResponse
     {
         $user = $request->user();
@@ -291,6 +337,12 @@ class OrderController extends Controller
         return $this->success($couriers->forAssigner($user, $request->only('branch_id')));
     }
 
+    /**
+     * Assign a courier to an order (owner, manager)
+     *
+     * 403/422 when the order's status does not allow it or the courier is not the store's.
+     */
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: Order}')]
     public function assignCourier(Request $request, string $uuid): JsonResponse
     {
         $user = $request->user();
@@ -325,6 +377,13 @@ class OrderController extends Controller
         return $this->success($result->order->load(['items.variant.product', 'user', 'courier']), 'Courier assigned successfully.');
     }
 
+    /**
+     * Send a sales report to the user's Telegram (owner, manager)
+     *
+     * Built by a queue worker and sent as a file to the user's (or the store's) Telegram chat; the response only says
+     * it was queued. A custom period needs both dates and is at most 93 days.
+     */
+    #[Group('Reports')]
     public function exportReport(Request $request, OrderReportService $reports, TelegramMessenger $telegram): JsonResponse
     {
         $user = $request->user();
@@ -381,6 +440,13 @@ class OrderController extends Controller
         return $this->success(null, 'Hisobot Telegramingizga muvaffaqiyatli yuborildi! 🚀');
     }
 
+    /**
+     * In-app notifications
+     *
+     * The user's notification feed, newest first, 20 per page, with the unread count.
+     */
+    #[Group('Notifications')]
+    #[QueryParameter('page', description: 'Page number (Laravel pagination).', type: 'int', default: 1)]
     public function notifications(Request $request, NotificationFeedService $feed): JsonResponse
     {
         $user = $request->user();
@@ -391,6 +457,10 @@ class OrderController extends Controller
         return $this->success($feed->page($user));
     }
 
+    /**
+     * Mark all notifications read
+     */
+    #[Group('Notifications')]
     public function markNotificationsRead(Request $request, NotificationFeedService $feed): JsonResponse
     {
         $user = $request->user();

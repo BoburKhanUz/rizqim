@@ -3,17 +3,23 @@
 namespace App\Http\Controllers\Api\V1\Auth;
 
 use App\Http\Controllers\Controller;
-use App\Models\PhoneVerification;
-use App\Services\Sms\SmsServiceInterface;
+use Dedoc\Scramble\Attributes\Group;
+use Dedoc\Scramble\Attributes\Response as ApiDocResponse;
+use App\Services\Auth\AccountLinkConflictException;
+use App\Services\Auth\AccountLinkingService;
+use App\Services\Auth\PhoneOtpService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Log;
 
+/**
+ * Proving a phone number for the signed-in user (the Mini App's profile). Signing in by phone is PhoneLoginController.
+ */
+#[Group('Auth')]
 class PhoneVerificationController extends Controller
 {
     public function __construct(
-        protected SmsServiceInterface $smsService
+        protected PhoneOtpService $otp,
+        protected AccountLinkingService $linking,
     ) {}
 
     public function sendCode(Request $request): JsonResponse
@@ -22,27 +28,9 @@ class PhoneVerificationController extends Controller
             'phone' => 'required|string|regex:/^\+998\d{9}$/',
         ]);
 
-        $phone = $request->phone;
-        $code = (string) random_int(100000, 999999);
+        $sent = $this->otp->send($request->phone);
 
-        // Deactivate any previous verification codes for this phone
-        PhoneVerification::where('phone', $phone)
-            ->whereNull('verified_at')
-            ->delete();
-
-        // Create new verification record
-        PhoneVerification::create([
-            'phone' => $phone,
-            'code_hash' => Hash::make($code),
-            'expires_at' => now()->addMinutes(5),
-            'attempts' => 0,
-        ]);
-
-        // Send SMS
-        $message = "FastFood tasdiqlash kodi: {$code}";
-        $sent = $this->smsService->send($phone, $message);
-
-        if (!$sent) {
+        if (!$sent['sent']) {
             return response()->json([
                 'success' => false,
                 'message' => 'SMS sending failed.',
@@ -52,8 +40,7 @@ class PhoneVerificationController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Verification code sent.',
-            // Local development aid only: requires APP_ENV=local AND SMS_EXPOSE_CODE_IN_RESPONSE=true
-            'code' => app()->environment('local') && config('auth.phone_verification.expose_code_in_response') === true ? $code : null,
+            'code' => PhoneOtpService::exposeCode($sent['code']),
         ]);
     }
 
@@ -65,57 +52,36 @@ class PhoneVerificationController extends Controller
         ]);
 
         $phone = $request->phone;
-        $code = $request->code;
 
-        $verification = PhoneVerification::where('phone', $phone)
-            ->whereNull('verified_at')
-            ->where('expires_at', '>', now())
-            ->latest('id')
-            ->first();
-
-        if (!$verification) {
+        if ($error = $this->otp->verify($phone, $request->code)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Tasdiqlash kodi muddati tugagan yoki noto\'g\'ri.',
+                'message' => $error,
             ], 422);
         }
 
-        // Atomic check-and-increment so parallel requests cannot exceed the per-code attempt limit
-        $attemptClaimed = PhoneVerification::whereKey($verification->id)
-            ->where('attempts', '<', (int) config('auth.phone_verification.max_attempts', 5))
-            ->increment('attempts');
-
-        if (!$attemptClaimed) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Urinishlar soni tugadi. Iltimos, kodni qaytadan so\'rang.',
-            ], 422);
-        }
-
-        if (!Hash::check($code, $verification->code_hash)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Tasdiqlash kodi noto\'g\'ri.',
-            ], 422);
-        }
-
-        // Mark as verified
-        $verification->update([
-            'verified_at' => now()
-        ]);
-
-        // Link/update phone of current user
+        // Store the verified phone; a customer whose phone already belongs to another customer is linked to that
+        // account when nothing can be lost, else refused with 409 (AccountLinkingService)
         $user = $request->user();
+        $linked = false;
         if ($user) {
-            $user->update([
-                'phone' => $phone
-            ]);
+            try {
+                ['user' => $user, 'linked' => $linked] = $this->linking->attachVerifiedPhone($user, $phone);
+            } catch (AccountLinkConflictException $e) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                    'data' => ['reason' => 'phone_linked_to_another_account'],
+                ], 409);
+            }
         }
 
-        return response()->json([
+        return response()->json(array_merge([
             'success' => true,
-            'message' => 'Telefon raqamingiz muvaffaqiyatli tasdiqlandi.',
-            'user' => $user
-        ]);
+            'message' => $linked
+                ? 'Telefon raqamingiz tasdiqlandi va hisoblaringiz birlashtirildi.'
+                : 'Telefon raqamingiz muvaffaqiyatli tasdiqlandi.',
+            'user' => $user,
+        ], $linked ? ['account_linked' => true] : []));
     }
 }

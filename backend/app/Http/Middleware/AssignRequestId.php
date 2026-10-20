@@ -10,19 +10,26 @@ use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Gives every request an id, returns it in the X-Request-Id response header and adds it to the log context, so one
- * support ticket ("X-Request-Id: ...") finds every log line of that request. An id sent by a proxy or client is kept
- * when it looks safe (the same id then ties the Mini App nginx log to the backend log); anything else is replaced.
+ * support ticket ("X-Request-Id: ...") finds every log line of that request. The id is always generated here, so a
+ * client cannot choose what ends up in the logs (forged ids, log injection, colliding with another request's id).
+ * The one exception is an id set by a trusted proxy (the Mini App nginx sets it from its own $request_id, replacing
+ * whatever the client sent) when logging.trust_incoming_request_id is on: the same id then ties the nginx log to the
+ * backend log. It must look safe and come from a trusted proxy hop; otherwise it is replaced.
  * The Laravel Context also travels with queued jobs, so a job's log lines carry the id of the request that queued it.
  */
 class AssignRequestId
 {
     public const HEADER = 'X-Request-Id';
 
+    private const ATTRIBUTE = 'request_id';
+
     public function handle(Request $request, Closure $next): Response
     {
-        $incoming = $request->header(self::HEADER);
-        $id = is_string($incoming) && preg_match('/^[A-Za-z0-9._-]{8,64}$/', $incoming) ? $incoming : (string) Str::uuid();
+        // Already assigned when the middleware also runs as a route middleware: one request, one id
+        $assigned = $request->attributes->get(self::ATTRIBUTE);
+        $id = is_string($assigned) ? $assigned : ($this->trustedIncomingId($request) ?? (string) Str::uuid());
 
+        $request->attributes->set(self::ATTRIBUTE, $id);
         $request->headers->set(self::HEADER, $id);
         Context::add('request_id', $id);
 
@@ -36,5 +43,16 @@ class AssignRequestId
         $response->headers->set(self::HEADER, $id);
 
         return $response;
+    }
+
+    private function trustedIncomingId(Request $request): ?string
+    {
+        if (!config('logging.trust_incoming_request_id', false) || !$request->isFromTrustedProxy()) {
+            return null;
+        }
+
+        $incoming = $request->headers->get(self::HEADER);
+
+        return is_string($incoming) && preg_match('/^[A-Za-z0-9._-]{8,64}$/', $incoming) ? $incoming : null;
     }
 }

@@ -37,7 +37,7 @@ class EmployeeResource extends Resource
 
     protected static ?string $modelLabel = 'Employee';
     protected static ?string $pluralModelLabel = 'Employees';
-    protected static string|\UnitEnum|null $navigationGroup = null;
+    protected static string|\UnitEnum|null $navigationGroup = 'Xodimlar va ruxsatlar';
     protected static ?int $navigationSort = 4;
 
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-users';
@@ -56,15 +56,10 @@ class EmployeeResource extends Resource
                     ->maxLength(255)
                     ->label('Ismi'),
                 Select::make('role')
-                    ->options(function () {
-                        if (auth()->user()->role === \App\Enums\UserRole::MANAGER) {
-                            return [\App\Enums\UserRole::COURIER->value => 'Courier'];
-                        }
-                        return [
-                            \App\Enums\UserRole::MANAGER->value => 'Manager',
-                            \App\Enums\UserRole::COURIER->value => 'Courier',
-                        ];
-                    })
+                    // A manager adds the staff ranked below them; the owner any staff role (UserRole::assignableStaffRoles)
+                    ->options(fn () => collect(static::assignableRoles())
+                        ->mapWithKeys(fn (UserRole $role) => [$role->value => $role->labelUz()])
+                        ->all())
                     ->default(\App\Enums\UserRole::COURIER->value)
                     ->required(),
                 Select::make('branch_id')
@@ -91,14 +86,13 @@ class EmployeeResource extends Resource
 
         $query->where('store_id', $storeId);
 
+        // A branch manager: the staff below them (couriers, cashiers, waiters, cooks) of their branch and the store-wide
+        // ones, as the API's courier list; the owner: every staff member
+        $query->whereIn('role', array_map(fn (UserRole $role) => $role->value, static::assignableRoles()));
         if (auth()->user()->role === UserRole::MANAGER) {
-            // A branch manager: their branch's couriers and the store-wide ones, as the API's courier list
-            $query->where('role', UserRole::COURIER->value)
-                ->when(StorePanelScope::branchId(), fn ($query, int $branchId) => $query->where(
-                    fn ($query) => $query->where('branch_id', $branchId)->orWhereNull('branch_id')
-                ));
-        } else {
-            $query->whereIn('role', [UserRole::MANAGER->value, UserRole::COURIER->value]);
+            $query->when(StorePanelScope::branchId(), fn ($query, int $branchId) => $query->where(
+                fn ($query) => $query->where('branch_id', $branchId)->orWhereNull('branch_id')
+            ));
         }
         
         return $query;
@@ -117,10 +111,19 @@ class EmployeeResource extends Resource
                     ->searchable()
                     ->sortable()
                     ->weight('bold'),
+                TextColumn::make('role')
+                    ->label('Rol')
+                    ->badge()
+                    ->formatStateUsing(fn ($state) => $state instanceof UserRole ? $state->labelUz() : (string) $state),
                 TextColumn::make('branch.name')
                     ->label('Filial')
                     ->sortable()
                     ->badge(),
+                \Filament\Tables\Columns\IconColumn::make('pin_set_at')
+                    ->label('PIN')
+                    ->boolean()
+                    ->getStateUsing(fn (User $record) => $record->pin_set_at !== null)
+                    ->tooltip(fn (User $record) => $record->staff_code ? "Xodim kodi: {$record->staff_code}" : null),
                 TextColumn::make('telegram_invite_token')
                     ->label('Taqlif Linki (Invite)')
                     ->formatStateUsing(fn ($state) => $state ? "https://t.me/" . config('services.telegram.bot_username') . "?start=invite_" . $state : 'Bog\'langan')
@@ -190,6 +193,8 @@ class EmployeeResource extends Resource
                     ->slideOver()
                     ->modalWidth('4xl'),
                 EditAction::make(),
+                static::setPinAction(),
+                static::resetPinAction(),
                 DeleteAction::make(),
             ])
             ->toolbarActions([
@@ -290,6 +295,82 @@ class EmployeeResource extends Resource
     protected static function ordersOf(User $record): Builder
     {
         return StorePanelScope::scopeOrders($record->orders()->getQuery());
+    }
+
+    /**
+     * Roles the signed-in panel user may give: the owner (and a super admin) any staff role, a manager those below.
+     *
+     * @return list<UserRole>
+     */
+    public static function assignableRoles(): array
+    {
+        $role = auth()->user()?->role;
+
+        return array_values(array_filter(
+            UserRole::assignableStaffRoles(),
+            fn (UserRole $candidate) => $role !== UserRole::MANAGER || $candidate->rank() < $role->rank()
+        ));
+    }
+
+    /**
+     * "PIN o'rnatish": the person signs in on POS/KDS terminals with it (StaffPinService checks who may set whose).
+     */
+    public static function setPinAction(): \Filament\Actions\Action
+    {
+        return \Filament\Actions\Action::make('setPin')
+            ->label(fn (User $record) => $record->hasPin() ? "PIN'ni almashtirish" : "PIN o'rnatish")
+            ->icon('heroicon-m-key')
+            ->color('gray')
+            ->modalHeading("Terminal uchun PIN kod")
+            ->modalDescription("4-6 xonali raqam. 0000, 1234 kabi oddiy kodlar qabul qilinmaydi. PIN o'zgarsa, xodimning terminaldagi sessiyalari yopiladi.")
+            ->visible(fn (User $record) => auth()->user() instanceof User
+                && app(\App\Services\Auth\StaffPinService::class)->canManagePin(auth()->user(), $record))
+            ->schema([
+                TextInput::make('pin')
+                    ->label('PIN')
+                    ->password()
+                    ->required()
+                    ->rule(fn () => function (string $attribute, $value, \Closure $fail) {
+                        if ($reason = \App\Services\Auth\StaffPinService::weakness((string) $value)) {
+                            $fail($reason);
+                        }
+                    }),
+                TextInput::make('pin_confirmation')
+                    ->label('PIN (takroran)')
+                    ->password()
+                    ->required()
+                    ->same('pin'),
+            ])
+            ->action(function (User $record, array $data) {
+                $actor = auth()->user();
+                abort_unless($actor instanceof User && app(\App\Services\Auth\StaffPinService::class)->canManagePin($actor, $record), 403);
+                app(\App\Services\Auth\StaffPinService::class)->setPin($record, (string) $data['pin'], $actor);
+
+                \Filament\Notifications\Notification::make()
+                    ->title("PIN o'rnatildi")
+                    ->body("Xodim kodi: {$record->staff_code}")
+                    ->success()
+                    ->send();
+            });
+    }
+
+    public static function resetPinAction(): \Filament\Actions\Action
+    {
+        return \Filament\Actions\Action::make('resetPin')
+            ->label("PIN'ni o'chirish")
+            ->icon('heroicon-m-no-symbol')
+            ->color('danger')
+            ->requiresConfirmation()
+            ->modalDescription("Xodim terminallarga kira olmaydi va undagi sessiyalari yopiladi.")
+            ->visible(fn (User $record) => $record->hasPin() && auth()->user() instanceof User
+                && app(\App\Services\Auth\StaffPinService::class)->canManagePin(auth()->user(), $record))
+            ->action(function (User $record) {
+                $actor = auth()->user();
+                abort_unless($actor instanceof User && app(\App\Services\Auth\StaffPinService::class)->canManagePin($actor, $record), 403);
+                app(\App\Services\Auth\StaffPinService::class)->resetPin($record, $actor);
+
+                \Filament\Notifications\Notification::make()->title("PIN o'chirildi")->success()->send();
+            });
     }
 
     public static function getPages(): array

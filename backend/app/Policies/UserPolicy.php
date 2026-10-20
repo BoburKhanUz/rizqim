@@ -35,8 +35,13 @@ class UserPolicy
         if ($user->store_id !== $model->store_id) return false;
         
         if ($user->role === \App\Enums\UserRole::MANAGER) {
-            // Manager can only update Couriers belonging to their branch
-            return $model->role === \App\Enums\UserRole::COURIER && $user->branch_id === $model->branch_id;
+            // Manager can only update couriers (and the floor staff: cashier, waiter, cook) belonging to their branch
+            return in_array($model->role, [
+                \App\Enums\UserRole::COURIER,
+                \App\Enums\UserRole::CASHIER,
+                \App\Enums\UserRole::WAITER,
+                \App\Enums\UserRole::COOK,
+            ], true) && $user->branch_id === $model->branch_id;
         }
         
         return in_array($user->role, [\App\Enums\UserRole::OWNER]);

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Store;
 
 use App\Http\Controllers\Controller;
+use Dedoc\Scramble\Attributes\Group;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use App\Traits\ApiResponse;
@@ -14,6 +15,7 @@ use App\Services\Finance\LedgerService;
 use App\Support\Money;
 use App\Enums\UserRole;
 
+#[Group('Owner: finance', "Balans, tranzaksiyalar, pul yechish va to'ldirish (ega).")]
 class OwnerFinanceController extends Controller
 {
     use ApiResponse;

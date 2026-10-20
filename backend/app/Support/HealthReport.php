@@ -75,6 +75,31 @@ class HealthReport
         ];
     }
 
+    /**
+     * The public form of report(): one verdict per component (ok, degraded or fail) and no numbers, so a stranger
+     * learns nothing about queue sizes, latency or the scheduler's timing. The overall status and the HTTP code are
+     * the detailed report's.
+     *
+     * @param  array{status: string, checks: array<string, array<string, mixed>>}  $report
+     * @return array{status: string, checks: array<string, array{status: string}>}
+     */
+    public static function summarize(array $report): array
+    {
+        $checks = [];
+        foreach ($report['checks'] as $name => $check) {
+            $status = (string) ($check['status'] ?? 'fail');
+            // not_used (Redis is not part of this deployment) is as good as ok; backlog, unknown, stale and missing
+            // are the "works, but look at it" states
+            $checks[$name] = ['status' => match ($status) {
+                'ok', 'not_used' => 'ok',
+                'fail' => 'fail',
+                default => 'degraded',
+            }];
+        }
+
+        return ['status' => $report['status'], 'checks' => $checks];
+    }
+
     /** @return array<string, mixed> */
     private function database(): array
     {

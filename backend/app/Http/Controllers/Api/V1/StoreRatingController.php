@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use Dedoc\Scramble\Attributes\Group;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use App\Traits\ApiResponse;
@@ -10,10 +11,16 @@ use App\Models\Store;
 use App\Models\StoreRating;
 use Illuminate\Support\Facades\DB;
 
+#[Group('Stores')]
 class StoreRatingController extends Controller
 {
     use ApiResponse;
 
+    /**
+     * Rate a store
+     *
+     * One rating per order (400 when this order was already rated); returns the store's new average and count.
+     */
     public function rate(Request $request, int $storeId): JsonResponse
     {
         $request->validate([

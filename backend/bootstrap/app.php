@@ -27,7 +27,8 @@ return Application::configure(basePath: dirname(__DIR__))
     ])
     ->withSchedule(function (Schedule $schedule) {
         $schedule->job(new \App\Jobs\CheckUnacceptedAssignmentsJob)->everyMinute();
-        $schedule->command('sanctum:prune-expired --hours=24')->daily();
+        // P1-12: instead of sanctum:prune-expired, which would also delete paired POS/KDS terminals' long-lived tokens
+        $schedule->command('auth:prune-tokens --hours=24')->daily();
         // Scheduler yurak urishi: /health va `php artisan health:scheduler` o'lik scheduler'ni shu bo'yicha aniqlaydi
         $schedule->call([\App\Support\HealthReport::class, 'beat'])->name('health-heartbeat')->everyMinute();
     })

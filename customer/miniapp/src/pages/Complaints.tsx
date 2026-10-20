@@ -10,9 +10,8 @@ import { getApiErrorMessage } from '../lib/apiError';
 import { formatDateTime, formatMoney, formatOrderCode } from '../lib/format';
 import { TONE_BADGE, type StatusTone } from '../lib/orderStatus';
 import { mergeOrders, useOrderHistory, useOrders } from '../hooks/useOrders';
-import { useLanguageStore } from '../store/languageStore';
+import { useLanguageStore, type TranslationKey } from '../store/languageStore';
 import { useAuthStore } from '../store/authStore';
-import { useCopy, type CopyKey } from '../lib/customerCopy';
 import { Button, Card, EmptyState, InlineError, PageHeader, Section, cx } from '../components/ui';
 import type { ApiResponse, Complaint, ComplaintType, NewComplaint } from '../types';
 
@@ -42,10 +41,10 @@ function getOrderIdFromState(state: unknown): string | undefined {
 }
 
 function ComplaintStatusBadge({ status }: { status: string }) {
-  const c = useCopy();
+  const { t } = useLanguageStore();
   const look = STATUS_LOOK[status] ?? { tone: 'neutral' as const, icon: Clock };
-  const key = `complaintStatus_${status}` as CopyKey;
-  const label = status in STATUS_LOOK ? c(key) : status;
+  const key = `complaintStatus_${status}` as TranslationKey;
+  const label = status in STATUS_LOOK ? t(key) : status;
   const Icon = look.icon;
   return (
     <span className={cx('inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-1 text-caption font-bold', BADGE[look.tone])}>
@@ -77,8 +76,7 @@ function ComplaintsSkeleton() {
 // The customer's complaints and the form to send one; the owner and the manager read and answer them here.
 export default function Complaints() {
   const location = useLocation();
-  const { language } = useLanguageStore();
-  const c = useCopy();
+  const { language, t } = useLanguageStore();
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
   const orderFieldId = useId();
@@ -126,11 +124,11 @@ export default function Complaints() {
       setDescription('');
       setSelectedOrderId('');
       void queryClient.invalidateQueries({ queryKey: ['complaints'] });
-      void showAlert(c('complaintSent'));
+      void showAlert(t('complaintSent'));
     },
     onError: (err) => {
       hapticFeedback('rigid');
-      void showAlert(getApiErrorMessage(err) || c('genericError'));
+      void showAlert(getApiErrorMessage(err) || t('genericError'));
     },
   });
 
@@ -143,11 +141,11 @@ export default function Complaints() {
       hapticFeedback('success');
       setReplyText((prev) => ({ ...prev, [variables.id]: '' }));
       void queryClient.invalidateQueries({ queryKey: ['complaints'] });
-      void showAlert(c('complaintReplySaved'));
+      void showAlert(t('complaintReplySaved'));
     },
     onError: (err) => {
       hapticFeedback('rigid');
-      void showAlert(getApiErrorMessage(err) || c('genericError'));
+      void showAlert(getApiErrorMessage(err) || t('genericError'));
     },
   });
 
@@ -159,22 +157,22 @@ export default function Complaints() {
     onSuccess: () => {
       hapticFeedback('success');
       void queryClient.invalidateQueries({ queryKey: ['complaints'] });
-      void showAlert(c('complaintEscalated'));
+      void showAlert(t('complaintEscalated'));
     },
     onError: (err) => {
       hapticFeedback('rigid');
-      void showAlert(getApiErrorMessage(err) || c('genericError'));
+      void showAlert(getApiErrorMessage(err) || t('genericError'));
     },
   });
 
   const handleCreateComplaint = (e: FormEvent) => {
     e.preventDefault();
     if (!selectedOrderId) {
-      void showAlert(c('complaintPickOrder'));
+      void showAlert(t('complaintPickOrder'));
       return;
     }
     if (!description.trim()) {
-      void showAlert(c('complaintEnterText'));
+      void showAlert(t('complaintEnterText'));
       return;
     }
     submitComplaint.mutate({
@@ -185,14 +183,14 @@ export default function Complaints() {
   };
 
   const handleEscalate = async (id: number) => {
-    if (await showConfirm(c('complaintEscalateAsk'), { confirmText: c('complaintEscalate') })) escalateComplaint.mutate(id);
+    if (await showConfirm(t('complaintEscalateAsk'), { confirmText: t('complaintEscalate') })) escalateComplaint.mutate(id);
   };
 
   return (
     <div className="flex flex-col gap-5 px-4 pb-4 pt-2">
       <PageHeader
-        title={isBusinessUser ? c('complaintsTitleStaff') : c('complaintsTitleCustomer')}
-        subtitle={isBusinessUser ? c('complaintsSubtitleStaff') : c('complaintsSubtitleCustomer')}
+        title={isBusinessUser ? t('complaintsTitleStaff') : t('complaintsTitleCustomer')}
+        subtitle={isBusinessUser ? t('complaintsSubtitleStaff') : t('complaintsSubtitleCustomer')}
         back
       />
 
@@ -201,16 +199,16 @@ export default function Complaints() {
         <Card className="flex flex-col gap-4">
           <div className="flex items-center gap-2">
             <TriangleAlert aria-hidden="true" className="size-5 text-brand" />
-            <h2 className="text-headline font-bold text-fg">{c('complaintSend')}</h2>
+            <h2 className="text-headline font-bold text-fg">{t('complaintSend')}</h2>
           </div>
 
           <form onSubmit={handleCreateComplaint} className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
               <label htmlFor={orderFieldId} className="text-footnote font-bold text-fg-muted">
-                {c('complaintOrder')}
+                {t('complaintOrder')}
               </label>
               <select id={orderFieldId} value={selectedOrderId} onChange={(e) => setSelectedOrderId(e.target.value)} className={FIELD}>
-                <option value="">{c('complaintOrderPlaceholder')}</option>
+                <option value="">{t('complaintOrderPlaceholder')}</option>
                 {orders.map((order) => (
                   <option key={order.id} value={order.id}>
                     {formatOrderCode(order)} ({formatMoney(order.total_price, language)})
@@ -221,7 +219,7 @@ export default function Complaints() {
 
             <div className="flex flex-col gap-1.5">
               <span id={`${orderFieldId}-type`} className="text-footnote font-bold text-fg-muted">
-                {c('complaintType')}
+                {t('complaintType')}
               </span>
               <div role="radiogroup" aria-labelledby={`${orderFieldId}-type`} className="grid grid-cols-2 gap-2">
                 {COMPLAINT_TYPES.map((type) => {
@@ -242,7 +240,7 @@ export default function Complaints() {
                         selected ? 'border-brand bg-brand text-on-brand' : 'border-line bg-surface-2 text-fg',
                       )}
                     >
-                      {c(`complaintType_${type}`)}
+                      {t(`complaintType_${type}` as TranslationKey)}
                     </button>
                   );
                 })}
@@ -251,26 +249,26 @@ export default function Complaints() {
 
             <div className="flex flex-col gap-1.5">
               <label htmlFor={descriptionId} className="text-footnote font-bold text-fg-muted">
-                {c('complaintDescription')}
+                {t('complaintDescription')}
               </label>
               <textarea
                 id={descriptionId}
                 rows={3}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder={c('complaintPlaceholder')}
+                placeholder={t('complaintPlaceholder')}
                 className={cx(FIELD, 'resize-none')}
               />
             </div>
 
             <Button type="submit" size="lg" fullWidth icon={Send} loading={submitComplaint.isPending}>
-              {c('complaintSubmit')}
+              {t('complaintSubmit')}
             </Button>
           </form>
         </Card>
       )}
 
-      <Section title={isBusinessUser ? c('complaintListStaff') : c('complaintListCustomer')}>
+      <Section title={isBusinessUser ? t('complaintListStaff') : t('complaintListCustomer')}>
         {loadingComplaints ? (
           <ComplaintsSkeleton />
         ) : complaintsFailed && complaints.length === 0 ? (
@@ -278,8 +276,8 @@ export default function Complaints() {
         ) : complaints.length === 0 ? (
           <EmptyState
             icon={MessageSquareWarning}
-            title={c('complaintsEmptyTitle')}
-            text={isBusinessUser ? c('complaintsEmptyStaff') : c('complaintsEmptyCustomer')}
+            title={t('complaintsEmptyTitle')}
+            text={isBusinessUser ? t('complaintsEmptyStaff') : t('complaintsEmptyCustomer')}
             className="py-8"
           />
         ) : (
@@ -294,7 +292,7 @@ export default function Complaints() {
                         {complaint.order?.short_code ? formatOrderCode(complaint.order) : `#${complaint.order_id}`}
                         <span className="font-normal"> · {formatDateTime(complaint.created_at, language)}</span>
                       </span>
-                      <span className="text-body font-bold text-fg">{c(`complaintType_${complaint.type}`)}</span>
+                      <span className="text-body font-bold text-fg">{t(`complaintType_${complaint.type}` as TranslationKey)}</span>
                     </div>
                     <ComplaintStatusBadge status={complaint.status} />
                   </div>
@@ -305,7 +303,7 @@ export default function Complaints() {
                     <div className="flex flex-col gap-1 rounded-control bg-info-soft p-3 text-info-soft-fg">
                       <span className="flex items-center gap-1 text-caption font-bold">
                         <MessageSquare aria-hidden="true" className="size-3.5" />
-                        {c('complaintReplyBy')}
+                        {t('complaintReplyBy')}
                       </span>
                       <p className="select-text break-words text-footnote">{complaint.reply}</p>
                     </div>
@@ -313,10 +311,10 @@ export default function Complaints() {
                     <div className="flex flex-col gap-2 border-t border-line pt-3">
                       <textarea
                         rows={2}
-                        aria-label={c('complaintReplyPlaceholder')}
+                        aria-label={t('complaintReplyPlaceholder')}
                         value={reply}
                         onChange={(e) => setReplyText((prev) => ({ ...prev, [complaint.id]: e.target.value }))}
-                        placeholder={c('complaintReplyPlaceholder')}
+                        placeholder={t('complaintReplyPlaceholder')}
                         className={cx(FIELD, 'resize-none')}
                       />
                       <Button
@@ -329,18 +327,18 @@ export default function Complaints() {
                           replyComplaint.mutate({ id: complaint.id, reply: reply.trim() });
                         }}
                       >
-                        {c('complaintReplySend')}
+                        {t('complaintReplySend')}
                       </Button>
                     </div>
                   ) : (
-                    <p className="text-footnote text-fg-muted">{c('complaintWaiting')}</p>
+                    <p className="text-footnote text-fg-muted">{t('complaintWaiting')}</p>
                   )}
 
                   {/* The customer may take an answered complaint to a moderator */}
                   {!isBusinessUser && complaint.status === 'owner_replied' && (
                     <div className="flex justify-end border-t border-line pt-3">
                       <Button variant="secondary" icon={ShieldAlert} onClick={() => void handleEscalate(complaint.id)} disabled={escalateComplaint.isPending}>
-                        {c('complaintEscalate')}
+                        {t('complaintEscalate')}
                       </Button>
                     </div>
                   )}

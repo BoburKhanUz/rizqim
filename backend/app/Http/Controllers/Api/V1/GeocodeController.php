@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use Dedoc\Scramble\Attributes\Group;
+use Dedoc\Scramble\Attributes\Response as ApiDocResponse;
 use App\Services\Geo\GeocodedPlace;
 use App\Services\Geo\GeocoderInterface;
 use App\Services\Geo\GeocodingException;
@@ -14,6 +16,7 @@ use Illuminate\Support\Facades\Log;
 /**
  * Lets the Mini App turn a map pin into an address and an address into a pin without talking to a geocoder itself.
  */
+#[Group('Geocoding', "Xarita nuqtasi va manzil o'rtasida (server orqali).")]
 class GeocodeController extends Controller
 {
     use ApiResponse;
@@ -23,7 +26,10 @@ class GeocodeController extends Controller
     public function __construct(private readonly GeocoderInterface $geocoder) {}
 
     /**
-     * GET /geocode/reverse?lat=&lng=  ->  {success, data: {address, lat, lng}}
+     * Address of a map point
+     *
+     * GET /geocode/reverse?lat=&lng=  ->  {success, data: {address, lat, lng}}. 404 when the point has no address,
+     * 503 (maybe with Retry-After) when the geocoding provider does not answer: let the customer type the address.
      */
     public function reverse(Request $request): JsonResponse
     {
@@ -46,8 +52,12 @@ class GeocodeController extends Controller
     }
 
     /**
+     * Search addresses
+     *
      * GET /geocode/search?q=  ->  {success, data: [{address, lat, lng}, ...]}  (best match first, empty when nothing matches)
+     * 503 (maybe with Retry-After) when the geocoding provider does not answer.
      */
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: list<array{address: string, lat: float, lng: float}>}')]
     public function search(Request $request): JsonResponse
     {
         $input = $request->validate([

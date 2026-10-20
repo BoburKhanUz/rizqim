@@ -162,7 +162,7 @@ php artisan test --filter=OrderLifecycle
 - Qolgan ulanish sozlamalari (`DB_CONNECTION`, `DB_HOST`, `DB_PORT`, `DB_USERNAME`, `DB_PASSWORD`) `.env` dan olinadi, shuning uchun `.env` PostgreSQL'ga ishora qilishi (`DB_CONNECTION=pgsql`) va `APP_KEY` bo'lishi kerak. Baza nomi `phpunit.xml` dagi `testing` bo'lgani uchun ishlab chiqish bazangizga tegilmaydi.
 - Testlar `RefreshDatabase` bilan har safar migratsiyalarni qayta yuritadi. `config:cache` qilingan bo'lsa avval `php artisan config:clear` (`composer test` buni o'zi qiladi).
 - `tests/Unit/NoEnvOutsideConfigTest` `app/`, `routes/`, `database/` da `env()` chaqirilmasligini tekshiradi (`config:cache` dan keyin `env()` `null` qaytaradi): yangi o'zgaruvchi uchun `config/` ga kalit qo'shing.
-- CI (`.github/workflows/ci.yml`): PostgreSQL 16 servisi, `.env.example` dan `.env` (`sed` bilan `APP_ENV=testing` va `DB_*`), `key:generate`, `php artisan test`.
+- CI (`.github/workflows/ci.yml`): PostgreSQL 17 servisi (docker-compose.yml bilan bir xil major versiya), `.env.example` dan `.env` (`sed` bilan `APP_ENV=testing` va `DB_*`), `key:generate`, `php artisan test`.
 
 ## Statik tahlil (PHPStan / Larastan)
 
