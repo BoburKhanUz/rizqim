@@ -1,0 +1,28 @@
+// coverage:ignore-file
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: type=lint, unused_import, invalid_annotation_target, unnecessary_import
+
+import 'package:json_annotation/json_annotation.dart';
+
+import 'data35.dart';
+
+part 'post_v1_owner_finance_top_up_response.g.dart';
+
+@JsonSerializable()
+class PostV1OwnerFinanceTopUpResponse {
+  const PostV1OwnerFinanceTopUpResponse({
+    required this.success,
+    required this.message,
+    required this.data,
+  });
+
+  factory PostV1OwnerFinanceTopUpResponse.fromJson(Map<String, Object?> json) =>
+      _$PostV1OwnerFinanceTopUpResponseFromJson(json);
+
+  final bool success;
+  final String message;
+  final Data35 data;
+
+  Map<String, Object?> toJson() =>
+      _$PostV1OwnerFinanceTopUpResponseToJson(this);
+}
