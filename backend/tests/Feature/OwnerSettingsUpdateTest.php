@@ -24,7 +24,7 @@ class OwnerSettingsUpdateTest extends TestCase
     }
 
     /**
-     * The page's payload (OwnerSettingsPayload in mini-app/src/pages/OwnerSettings.tsx).
+     * The page's payload (OwnerSettingsPayload in customer/miniapp/src/pages/OwnerSettings.tsx).
      */
     private function save(array $settings = [], array $fields = [])
     {

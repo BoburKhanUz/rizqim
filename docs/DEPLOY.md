@@ -25,7 +25,7 @@ Production uchun yagona yo'l: Docker Compose (`docker-compose.yml`). Backend dep
 
 ## 2. Muhit o'zgaruvchilari
 
-Hammasining ma'nosi va standarti: [backend/README.md](../backend/README.md), [mini-app/README.md](../mini-app/README.md). Production uchun majburiylari (`backend/.env`):
+Hammasining ma'nosi va standarti: [backend/README.md](../backend/README.md), [customer/miniapp/README.md](../customer/miniapp/README.md). Production uchun majburiylari (`backend/.env`):
 
 | O'zgaruvchi | Qiymat |
 |---|---|
@@ -79,7 +79,7 @@ curl -fsS http://127.0.0.1:8000/up
 - Mini App `VITE_API_URL=/api/v1` bilan same-origin ishlaydi: o'z domenidagi `/api/` backendga uzatilishi kerak (compose'dagi `frontend` buni qiladi), shunda CORS kerak emas. Telegram va to'lov webhooklari ham `/api/...` ostida.
 - `/admin` va `/superadmin` (Livewire/Filament aktivlari bilan) backend portida (`BACKEND_PORT`) xizmat qilinadi. Mini App nginx'i `/api/` va `/storage/` ni backendga uzatadi (yo'lni o'zgartirmasdan); boshqa yo'llar SPA uchun `index.html` ga qaytadi, `/assets/` dagi yo'q fayl 404 beradi.
 - Yuklangan rasm havolalari (`logo_url`, `image_url`) `asset('storage/...')` bilan **so'rov Host'idan** quriladi, `APP_URL` dan emas. Compose'dagi `frontend` `/storage/` ni ham backendga uzatadi va `Host` ni o'zgartirmaydi, shuning uchun havolalar Mini App domenida ochiladi. Boshqa nginx/proksi qo'ysangiz, `/storage/` ni ham yo'naltiring (yoki `/api/` proksisida `Host` ni backend domeniga o'zgartiring), aks holda rasmlar `index.html` qaytaradi. Deploydan keyin API javobidagi rasm URL'ini oching: `200` va `image/*` bo'lishi kerak.
-- Backend `X-Forwarded-Proto: https` bo'lsagina `https` havolalar quradi va faqat xususiy tarmoq manzillaridan kelgan `X-Forwarded-For`/`X-Forwarded-Proto` ga ishonadi. `mini-app/docker/nginx.conf` kelgan `X-Forwarded-Proto` ni o'zgartirmay uzatadi va faqat u yo'q so'rovlarda o'zining `$scheme` ini qo'yadi. Shuning uchun TLS'ni compose'dan tashqaridagi proksi tugatsa, u `X-Forwarded-Proto: https` yuborishi shart, aks holda `$scheme` `http` bo'ladi: rasm URL'lari `https://` bilan boshlanishini tekshiring.
+- Backend `X-Forwarded-Proto: https` bo'lsagina `https` havolalar quradi va faqat xususiy tarmoq manzillaridan kelgan `X-Forwarded-For`/`X-Forwarded-Proto` ga ishonadi. `customer/miniapp/docker/nginx.conf` kelgan `X-Forwarded-Proto` ni o'zgartirmay uzatadi va faqat u yo'q so'rovlarda o'zining `$scheme` ini qo'yadi. Shuning uchun TLS'ni compose'dan tashqaridagi proksi tugatsa, u `X-Forwarded-Proto: https` yuborishi shart, aks holda `$scheme` `http` bo'ladi: rasm URL'lari `https://` bilan boshlanishini tekshiring.
 
 ## 5. Birinchi ishga tushishdan keyin
 
@@ -156,7 +156,7 @@ Kodni qaytarish: eski commit'ni checkout qilib `docker compose up -d --build` (y
 
 Buyurtma yaratilganda, holati o'zgarganda va kuryer biriktirilganda Mini App sahifani yangilamasdan bilib oladi. Reverb o'chiq yoki ishlamay qolsa hech narsa buzilmaydi: buyurtma yaratish va holat o'zgartirish so'rovlari muvaffaqiyatli tugaydi (yuborilmagan event faqat Sentry/logga yoziladi), Mini App so'rov (polling) bilan yangilanishda davom etadi.
 
-**Zanjir.** `OrderStatusService` / `CreateOrderAction` → event (tranzaksiya commit bo'lgandan keyin, `queue` ishchisining `broadcasts` navbati orqali, bir urinish) → backend Reverb'ning HTTP API'siga yozadi (`REVERB_HOST:REVERB_PORT`, Docker'da `http://reverb:8080`) → Reverb private kanal obunachilariga WebSocket orqali yuboradi. Brauzer Mini App'ning o'z origin'iga ulanadi: `wss://<domen>/app/<REVERB_APP_KEY>`; `mini-app/docker/nginx.conf` faqat `/app/` ni (WebSocket, `Upgrade`/`Connection` sarlavhalari, 1 soatlik timeout) `reverb:8080` ga uzatadi. Reverb'ning HTTP API'si (`/apps/`) internetga ochilmagan: unga faqat backend ichki tarmoq orqali yozadi.
+**Zanjir.** `OrderStatusService` / `CreateOrderAction` → event (tranzaksiya commit bo'lgandan keyin, `queue` ishchisining `broadcasts` navbati orqali, bir urinish) → backend Reverb'ning HTTP API'siga yozadi (`REVERB_HOST:REVERB_PORT`, Docker'da `http://reverb:8080`) → Reverb private kanal obunachilariga WebSocket orqali yuboradi. Brauzer Mini App'ning o'z origin'iga ulanadi: `wss://<domen>/app/<REVERB_APP_KEY>`; `customer/miniapp/docker/nginx.conf` faqat `/app/` ni (WebSocket, `Upgrade`/`Connection` sarlavhalari, 1 soatlik timeout) `reverb:8080` ga uzatadi. Reverb'ning HTTP API'si (`/apps/`) internetga ochilmagan: unga faqat backend ichki tarmoq orqali yozadi.
 
 **Kanallar va ruxsat** (`backend/routes/channels.php`, OrderPolicy bilan bir xil doira). Obuna `POST /api/broadcasting/auth` (`Authorization: Bearer <Sanctum token>`) bilan imzolanadi (foydalanuvchiga daqiqada 60 ta, ortig'i `429`); mehmonga `401`, ruxsatsizga `403`:
 

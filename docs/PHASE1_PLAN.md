@@ -1,6 +1,6 @@
 # 1-bosqich: Poydevor — ish tartibi
 
-Holati: **qoralama, egasi tasdiqlashi kerak.** Tasdiqlangandan keyin ishlar shu hujjat bo'yicha boradi; o'zgarish bo'lsa, avval shu yerda yangilanadi.
+Holati: **tasdiqlangan (20.10.2026).** Ishlar shu hujjat bo'yicha boradi; o'zgarish bo'lsa, avval shu yerda yangilanadi.
 
 Har bir ishning kodi bor (masalan, `P1-12`). Hisobotlar, commit xabarlari va PR'larda shu kod ishlatiladi, shuning uchun qaysi ish qayerda ekani doim ko'rinib turadi.
 

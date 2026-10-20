@@ -186,7 +186,7 @@ services:
 
   frontend:
     build:
-      context: ./mini-app
+      context: ./customer/miniapp
       args:
         VITE_BOT_USERNAME: ${VITE_BOT_USERNAME:-rizqimbot}
         VITE_API_URL: ${VITE_API_URL:-/api/v1}

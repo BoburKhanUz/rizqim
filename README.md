@@ -5,8 +5,34 @@ O'zbekiston uchun ko'p do'konli (multi-store) ovqat buyurtma va yetkazib berish 
 | Qism | Texnologiya | Hujjat |
 |---|---|---|
 | `backend/` | Laravel 12, PHP 8.3, PostgreSQL, Redis, Sanctum, Filament (`/admin`, `/superadmin`) | [backend/README.md](backend/README.md) |
-| `mini-app/` | React 19, TypeScript, Vite 8, Tailwind 4, TanStack Query, zustand | [mini-app/README.md](mini-app/README.md) |
+| `customer/miniapp/` | React 19, TypeScript, Vite 8, Tailwind 4, TanStack Query, zustand | [customer/miniapp/README.md](customer/miniapp/README.md) |
 | Deploy | Docker Compose | [docs/DEPLOY.md](docs/DEPLOY.md) |
+
+## Papkalar tuzilmasi
+
+Hozir ishlayotgan qismlar: `backend/` va `customer/miniapp/`. Qolgan papkalar kelajakdagi ilovalar uchun ajratilgan (hozircha faqat README); qaysi bosqichda nima qurilishi [docs/ROADMAP.md](docs/ROADMAP.md) da.
+
+```
+rizqim/
+├── backend/                Laravel API (ishlayapti)
+├── customer/
+│   ├── miniapp/            React: Telegram Mini App (ishlayapti)
+│   └── mobile/             Flutter: mijoz ilovasi (6-bosqich)
+├── partner/
+│   ├── web/                Next.js: hamkor boshqaruv paneli (2-bosqich)
+│   └── mobile/             Flutter: ega va menejer (5-bosqich)
+├── courier/                Flutter: kuryer ilovasi (4-bosqich)
+├── pos/
+│   ├── apps/               cashier, waiter, kds, customer_display (2–3-bosqich)
+│   └── packages/           pos_core, pos_sync, pos_hardware, pos_fiscal, pos_ui (3-bosqich)
+├── packages/
+│   ├── dart/               umumiy Dart paketlari
+│   └── ts/                 umumiy TypeScript paketlari
+├── services/               Python servislari (7-bosqich)
+├── infra/                  docker, nginx, deploy (keyinroq shu yerga ko'chadi)
+├── scripts/                zaxira nusxa va tiklash skriptlari
+└── docs/                   hujjatlar
+```
 
 ## Arxitektura
 
@@ -126,5 +152,5 @@ backend      --- geokodlash proksisi ------> Nominatim   (Mini App unga o'zi mur
 ## Tezkor boshlash
 
 - Production-ga o'xshash ishga tushirish: `cp .env.example .env`, `cp backend/.env.example backend/.env`, ikkalasini to'ldiring (`APP_KEY` va `https://` li `TELEGRAM_WEBAPP_URL` ni oldindan yozing), `docker compose up -d --build` — batafsil [docs/DEPLOY.md](docs/DEPLOY.md). Konteynerda artisan buyruqlari: `docker compose exec -u www-data backend php artisan ...`.
-- Lokal ishlab chiqish (Docker'siz): [backend/README.md](backend/README.md) va [mini-app/README.md](mini-app/README.md). Docker konteynerlari `APP_ENV=production` bo'lmasa ishga tushmaydi.
+- Lokal ishlab chiqish (Docker'siz): [backend/README.md](backend/README.md) va [customer/miniapp/README.md](customer/miniapp/README.md). Docker konteynerlari `APP_ENV=production` bo'lmasa ishga tushmaydi.
 - Sifat nazorati (`.github/workflows/ci.yml`): backend testlari (PostgreSQL, `php artisan test`), PHPStan/Larastan (level 5; hozircha ogohlantiruvchi job), Mini App (`eslint`, `vitest`, `build`).

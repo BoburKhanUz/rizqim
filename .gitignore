@@ -29,10 +29,10 @@ backend/.phpunit.result.cache
 backend/auth.json
 
 # Frontend (Vite/React)
-mini-app/node_modules/
-mini-app/dist/
-mini-app/dist-ssr/
-mini-app/*.local
+customer/miniapp/node_modules/
+customer/miniapp/dist/
+customer/miniapp/dist-ssr/
+customer/miniapp/*.local
 
 # Logs
 *.log

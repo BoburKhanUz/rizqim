@@ -7,7 +7,7 @@ Telegram Mini App: React 19, TypeScript, Vite 8, Tailwind CSS 4, TanStack Query,
 Node.js 22 (CI shu versiyada ishlaydi; Vite 8 uchun kamida 20.19, Vitest 5 uchun 22.12) va npm kerak.
 
 ```bash
-cd mini-app
+cd customer/miniapp
 npm ci
 npm run dev        # http://localhost:5173
 ```
@@ -18,7 +18,7 @@ Dev server `/api` so'rovlarini `http://127.0.0.1:8000` ga proksilaydi (`vite.con
 
 ## Muhit o'zgaruvchilari (`VITE_*`)
 
-Build vaqtida bundle ichiga yoziladi; o'zgartirgandan keyin qayta build qiling. Docker'da qiymatlar ildizdagi `.env` dan build argument sifatida uzatiladi (`docker compose up -d --build frontend`; `.dockerignore` `.env.*` fayllarni image'ga kiritmaydi). Docker'siz qo'lda build qilsangiz (`npm run build`), qiymatlarni `mini-app/.env.production` ga yozing (git e'tiborsiz qoldiradi).
+Build vaqtida bundle ichiga yoziladi; o'zgartirgandan keyin qayta build qiling. Docker'da qiymatlar ildizdagi `.env` dan build argument sifatida uzatiladi (`docker compose up -d --build frontend`; `.dockerignore` `.env.*` fayllarni image'ga kiritmaydi). Docker'siz qo'lda build qilsangiz (`npm run build`), qiymatlarni `customer/miniapp/.env.production` ga yozing (git e'tiborsiz qoldiradi).
 
 | O'zgaruvchi | Standart | Ma'nosi |
 |---|---|---|
@@ -80,7 +80,7 @@ Ro'yxatlar so'rov (polling) bilan yangilanadi (`lib/polling.ts`): mijoz buyurtma
 - Vitest 5 + jsdom + Testing Library (`vitest.config.ts`: `src/**/*.test.{ts,tsx}`, `css: false`, har testdan oldin mock/spy/stub'lar tiklanadi). Testlar kodning yonida (`foo.ts` — `foo.test.ts`).
 - `src/test/setup.ts`: jest-dom matcherlari, har testdan keyin `cleanup()` va `localStorage.clear()`. `factories.ts` — API JSON shaklidagi tipli fixture'lar (`makeUser`, `makeStore`, `makeOrder`, ...). `httpErrors.ts` — haqiqiy axios xatosini yasaydi va konsolga/ekranga token, OTP, telefon, `initData` chiqib ketmasligini tekshirish uchun.
 - Tarmoq haqiqiy ishlatilmaydi: `services/api.test.ts` o'z axios adapterini beradi va modulni har testda yangidan yuklaydi (qayta autentifikatsiya holati modul darajasida turgani uchun); polling va taymerlar soxta vaqt bilan tekshiriladi; sahifa testlari (`pages/*.test.tsx`) API'ni mock qiladi.
-- CI (`.github/workflows/ci.yml`, `mini-app/` papkasida, Node 22): `frontend` job — `npm ci`, `npx eslint .`, `npm test`, `npm run build`; alohida `e2e` job — `npx playwright install --with-deps chromium`, `npm run test:e2e`.
+- CI (`.github/workflows/ci.yml`, `customer/miniapp/` papkasida, Node 22): `frontend` job — `npm ci`, `npx eslint .`, `npm test`, `npm run build`; alohida `e2e` job — `npx playwright install --with-deps chromium`, `npm run test:e2e`.
 
 ## E2E testlar
 

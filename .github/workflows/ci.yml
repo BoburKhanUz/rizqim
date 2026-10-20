@@ -12,8 +12,38 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Decides which jobs below are needed: a job runs only when a path it depends on changed. A change to this workflow
+  # file runs everything. Skipped jobs count as passed for branch protection (unlike a workflow-level `paths:` filter,
+  # which would leave required checks pending). Add a filter here when a new app gets its own job.
+  changes:
+    name: Changed paths
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      miniapp: ${{ steps.filter.outputs.miniapp }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: dorny/paths-filter@v4
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+              - '.github/workflows/ci.yml'
+            miniapp:
+              - 'customer/miniapp/**'
+              - '.github/workflows/ci.yml'
+
   backend-tests:
     name: Backend tests
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -78,6 +108,8 @@ jobs:
 
   backend-static-analysis:
     name: Backend static analysis (PHPStan)
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -117,10 +149,12 @@ jobs:
 
   frontend:
     name: Mini App (lint, tests, build)
+    needs: changes
+    if: needs.changes.outputs.miniapp == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: mini-app
+        working-directory: customer/miniapp
     env:
       # Only the manual test-browser.js script uses puppeteer; CI never needs its Chrome download
       PUPPETEER_SKIP_DOWNLOAD: 'true'
@@ -133,7 +167,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: mini-app/package-lock.json
+          cache-dependency-path: customer/miniapp/package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -149,10 +183,12 @@ jobs:
 
   e2e:
     name: Mini App e2e (Playwright)
+    needs: changes
+    if: needs.changes.outputs.miniapp == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: mini-app
+        working-directory: customer/miniapp
     env:
       # Only the manual test-browser.js script uses puppeteer; CI never needs its Chrome download
       PUPPETEER_SKIP_DOWNLOAD: 'true'
@@ -165,7 +201,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: mini-app/package-lock.json
+          cache-dependency-path: customer/miniapp/package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -183,6 +219,6 @@ jobs:
         with:
           name: playwright-report
           path: |
-            mini-app/playwright-report
-            mini-app/test-results
+            customer/miniapp/playwright-report
+            customer/miniapp/test-results
           retention-days: 7
