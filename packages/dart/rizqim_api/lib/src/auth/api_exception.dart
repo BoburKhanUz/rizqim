@@ -7,6 +7,8 @@ abstract final class AuthReason {
   static const String refreshExpired = 'refresh_expired';
   static const String pairingInvalid = 'pairing_invalid';
   static const String staffSessionNotAllowed = 'staff_session_not_allowed';
+  static const String pinInvalid = 'pin_invalid';
+  static const String pinLocked = 'pin_locked';
 
   /// Refresh token endi hech qachon ishlamaydi: foydalanuvchi qaytadan kirishi kerak.
   static const Set<String> refreshDead = <String>{

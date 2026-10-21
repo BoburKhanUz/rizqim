@@ -5,6 +5,8 @@ import 'auth/auth_remote.dart';
 import 'auth/auth_session.dart';
 import 'auth/token_storage.dart';
 import 'generated/rizqim_api.dart';
+import 'kitchen/kitchen_service.dart';
+import 'realtime/channel_auth.dart';
 
 /// Ilova uchun tayyor to'plam: sozlangan [Dio] (token qo'yish va 401 da yangilash bilan), kirish holati ([auth]) va
 /// OpenAPI'dan yaratilgan klient ([api]).
@@ -38,14 +40,24 @@ class RizqimClient {
       refreshSkew: refreshSkew,
     );
     http.interceptors.add(AuthInterceptor(http, auth));
-    return RizqimClient._(http, auth);
+    return RizqimClient._(http, auth, clock);
   }
 
-  RizqimClient._(this.dio, this.auth) : api = RizqimApi(dio);
+  RizqimClient._(this.dio, this.auth, DateTime Function()? clock)
+    : api = RizqimApi(dio),
+      channelAuth = ChannelAuth(dio) {
+    kitchen = KitchenService(api, clock: clock);
+  }
 
   final Dio dio;
   final AuthSession auth;
 
   /// OpenAPI'dan yaratilgan klientlar (`api.terminal`, `api.orders`, ...).
   final RizqimApi api;
+
+  /// Oshxona ekrani: chiptalar, qatorni "tayyor" deb belgilash va qaytarish (xodim PIN sessiyasi bilan).
+  late final KitchenService kitchen;
+
+  /// Real-time private kanal imzosi (`POST /api/broadcasting/auth`).
+  final ChannelAuth channelAuth;
 }
