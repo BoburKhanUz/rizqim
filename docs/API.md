@@ -4,13 +4,6 @@ Bu hujjat ilova yozuvchi uchun: API'ga qanday kirish, ruxsatlar qanday ishlashi,
 so'rov, sahifalash, cheklovlar va real-time. Har bir endpoint'ning to'liq tavsifi OpenAPI spetsifikatsiyasida
 (10-bo'lim). Umumiy arxitektura: [ARCHITECTURE.md](ARCHITECTURE.md).
 
-Ikki joy hozir o'zgarmoqda (to'lqin 3), ular haqida bu hujjat faqat qisqa eslatma beradi:
-
-- **Xodimlarning SMS orqali kirishi** (P1-36): hamkor paneliga ega va menejer telefon + SMS kod bilan kiradigan bo'ladi,
-  kuryerni Telegramsiz tayinlash. Hozirgi holat — 2-bo'limda; o'zgarish tugagach [AUTH.md](AUTH.md) yangilanadi.
-- **Buyurtma yaratishda hududlar** (P1-32): `POST /orders` da yetkazish narxi, minimal summa va filial yetkazish
-  hududidan olinadi, yangi 422 sabablari qo'shiladi. Hozirgi holat — [ZONES.md](ZONES.md) va README.
-
 ## 1. Asosiy qoidalar
 
 - **Manzil:** `https://<domen>/api/v1/...`. Mini App o'z domenidagi `/api/` orqali (same-origin), hamkor paneli va
@@ -51,8 +44,9 @@ Muhim qoidalar:
   rollar, qurilmalar, harakatlar jurnali, profil va telefon endpointlari uni 403 bilan rad etadi
   (`data.reason = staff_session_not_allowed`).
 - **Chiqish:** `POST /auth/logout` (joriy sessiya), `POST /auth/logout-all` (hamma qurilmalar).
-- **Hozirgi holat (P1-36 dan oldin):** SMS bilan kirish mijoz hisoblarini telefon bo'yicha topadi; xodim hisoblarida
-  telefon faqat aloqa ma'lumoti. Xodimlarning SMS orqali kirishi **to'lqin 3 da o'zgarmoqda**.
+- **Xodimlar (P1-36):** `POST /auth/phone/verify` da `account=staff` faqat tasdiqlangan login telefoni bor xodim
+  hisoblarini topadi; bir odam bir nechta do'konda bo'lsa `POST /auth/phone/select-account` bilan tanlaydi.
+  Batafsil: [AUTH.md](AUTH.md).
 - Filament panellari (`/admin`, `/superadmin`) API emas: ular email/telefon + parol bilan, cookie sessiyasida ishlaydi.
 
 ## 3. Ruxsatlar
@@ -125,7 +119,7 @@ Xato (`ApiResponse::error`):
 | `branch_in_use` | 422 | `DELETE /owner/branches/{id}` | filialda buyurtmalar bor yoki u do'konning yagona filiali (P2-12) |
 | `too_many_rows` | 422 | `/owner/reports/export` | davrda CSV uchun buyurtmalar juda ko'p (`data.limit`), qisqaroq davr tanlang (P2-12) |
 
-P1-32 tugagach `outside_zone` va boshqa hudud sabablari `POST /orders` da ham qaytadi (**to'lqin 3 da o'zgarmoqda**).
+`outside_zone` va boshqa hudud sabablari `POST /orders` da ham qaytadi (P1-32), narx taklifi bilan bir xil.
 
 ## 5. Takroriy so'rov (Idempotency-Key)
 

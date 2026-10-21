@@ -3,8 +3,7 @@
 Bu hujjat butun platformani bir joyda ko'rsatadi: qaysi ilova nima qiladi, ular qanday bog'langan, ma'lumotlar qanday
 saqlanadi va tizim qanday ishga tushadi. Tafsilotlar alohida hujjatlarda, bu yerda faqat umumiy rasm va havolalar.
 
-Holati: 1-bosqich, to'lqin 3 (oktabr 2026). Kod qanday bo'lsa, shunday yozilgan. Hozir o'zgarayotgan joylar
-**"to'lqin 3 da o'zgarmoqda"** deb belgilangan edi; 1-bosqich tugagach (PR #5) bu belgilar olib tashlandi.
+Holati: 1-bosqich tugagan, 2-bosqich davom etmoqda (oktabr 2026). Kod qanday bo'lsa, shunday yozilgan.
 
 | Mavzu | Batafsil hujjat |
 |---|---|
