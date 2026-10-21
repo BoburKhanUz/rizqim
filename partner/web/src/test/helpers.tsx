@@ -1,9 +1,11 @@
 import type { ReactElement } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render } from '@testing-library/react';
+import { StaffApiProvider } from '@rizqim/staff';
 import { vi } from 'vitest';
 import { I18nProvider } from '@/components/I18nProvider';
 import { ApiConfigContext } from '@/lib/apiConfig';
+import { getStaffApi } from '@/lib/session/client';
 import type { Language } from '@/i18n';
 
 export const API = 'http://api.test/api';
@@ -14,7 +16,9 @@ export function renderPage(ui: ReactElement, language: Language = 'uz') {
   return render(
     <I18nProvider language={language}>
       <ApiConfigContext.Provider value={{ apiBaseUrl: API }}>
-        <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>
+        <StaffApiProvider api={getStaffApi(API)}>
+          <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>
+        </StaffApiProvider>
       </ApiConfigContext.Provider>
     </I18nProvider>,
   );

@@ -2,11 +2,10 @@ import { QueryClient, QueryClientProvider, focusManager } from '@tanstack/react-
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import api from '../services/api';
 import { formatMoney } from '../lib/format';
 import { useLanguageStore } from '../store/languageStore';
 import { makeAnalytics } from '../test/factories';
-import { failedRequest } from '../test/httpErrors';
+import { reply, stubStaffApi, success, type FakeCall } from '../test/staffFetch';
 import type { OwnerAnalytics } from '../types';
 import AdminAnalytics from './AdminAnalytics';
 import AdminReports from './AdminReports';
@@ -15,10 +14,10 @@ import AdminReports from './AdminReports';
 // never a page-by-page walk through the orders
 
 vi.mock('../lib/telegram', () => ({ hapticFeedback: vi.fn(), tg: { initDataUnsafe: {} } }));
-vi.mock('../services/api', () => ({ default: { get: vi.fn(), post: vi.fn() } }));
 
-const get = vi.mocked(api.get);
-const calls = () => get.mock.calls.map(([url, config]) => ({ url, params: (config as { params?: Record<string, string> } | undefined)?.params }));
+let fakeCalls: FakeCall[];
+let answer: (call: FakeCall) => unknown;
+const calls = () => fakeCalls.map((call) => ({ url: call.path, params: call.query }));
 
 let client: QueryClient;
 
@@ -26,9 +25,7 @@ const settle = (ms = 0) => act(() => vi.advanceTimersByTimeAsync(ms));
 const uzs = (value: number) => formatMoney(value, 'uz').replace(/\s+/g, ' ');
 
 function serve(analytics: OwnerAnalytics | ((params?: Record<string, string>) => OwnerAnalytics)) {
-  get.mockImplementation((_url, config) =>
-    Promise.resolve({ data: { success: true, data: typeof analytics === 'function' ? analytics((config as { params?: Record<string, string> }).params) : analytics } }),
-  );
+  answer = (call) => success(typeof analytics === 'function' ? analytics(call.query) : analytics);
 }
 
 async function renderScreen(Screen: () => React.JSX.Element) {
@@ -47,7 +44,8 @@ beforeEach(() => {
   vi.setSystemTime(new Date(2026, 9, 18, 12, 0, 0));
   useLanguageStore.setState({ language: 'uz' });
   client = new QueryClient();
-  get.mockReset();
+  ({ calls: fakeCalls } = stubStaffApi((call) => answer(call)));
+  answer = () => reply(500);
   vi.spyOn(console, 'error').mockImplementation(() => {});
 });
 
@@ -133,7 +131,7 @@ describe('AdminAnalytics', () => {
   });
 
   it('shows an error with a retry when there is nothing to show, and recovers', async () => {
-    get.mockRejectedValue(failedRequest(500, {}, '/owner/analytics'));
+    answer = () => reply(500);
     await renderScreen(AdminAnalytics);
     await settle(5_000);
     expect(screen.getByRole('alert')).toBeInTheDocument();
@@ -151,7 +149,7 @@ describe('AdminAnalytics', () => {
 
     await settle(5 * 60_000);
 
-    expect(get).toHaveBeenCalledTimes(6);
+    expect(fakeCalls).toHaveLength(6);
   });
 });
 
@@ -176,11 +174,11 @@ describe('AdminReports', () => {
 
     // The default custom period is today
     expect(calls().at(-1)).toEqual({ url: '/owner/analytics', params: { period: 'custom', from: '2026-10-18', to: '2026-10-18' } });
-    const before = get.mock.calls.length;
+    const before = fakeCalls.length;
 
     fireEvent.change(screen.getByLabelText('Boshlanish sanasi'), { target: { value: '2026-01-01' } });
     await settle();
-    expect(get).toHaveBeenCalledTimes(before); // 291 days
+    expect(fakeCalls).toHaveLength(before); // 291 days
     expect(screen.getByRole('alert')).toHaveTextContent("Davr ko'pi bilan 93 kun bo'lishi mumkin.");
 
     fireEvent.change(screen.getByLabelText('Boshlanish sanasi'), { target: { value: '2026-10-10' } });

@@ -23,7 +23,8 @@ use RuntimeException;
 use Tests\TestCase;
 
 /**
- * order.created / order.status_changed / order.assigned reach exactly the channels of routes/channels.php, carry only
+ * order.created / order.status_changed / order.assigned reach exactly the channels of routes/channels.php (P2-11: plus
+ * pos-branch.{id} wherever branch.{id} is), carry only
  * the order's ids and status, go through the queue and are sent only once the change has committed.
  */
 class BroadcastOrderEventsTest extends TestCase
@@ -92,7 +93,7 @@ class BroadcastOrderEventsTest extends TestCase
 
         $event = $this->only(OrderCreatedBroadcast::class);
         $this->assertSame('order.created', $event->broadcastAs());
-        $this->assertChannels(["private-store.{$this->store->id}", "private-branch.{$this->branch->id}"], $event);
+        $this->assertChannels(["private-store.{$this->store->id}", "private-branch.{$this->branch->id}", "private-pos-branch.{$this->branch->id}"], $event);
         $this->assertMinimalPayload($order, $event);
         $this->assertSame('new', $event->broadcastWith()['order']['status']);
         Event::assertNotDispatched(OrderStatusChangedBroadcast::class);
@@ -128,6 +129,7 @@ class BroadcastOrderEventsTest extends TestCase
         $this->assertChannels([
             "private-store.{$this->store->id}",
             "private-branch.{$this->branch->id}",
+            "private-pos-branch.{$this->branch->id}",
             "private-user.{$this->customer->id}",
         ], $event);
         $this->assertMinimalPayload($order, $event);
@@ -161,6 +163,7 @@ class BroadcastOrderEventsTest extends TestCase
             "private-courier.{$this->courier->id}",
             "private-store.{$this->store->id}",
             "private-branch.{$this->branch->id}",
+            "private-pos-branch.{$this->branch->id}",
         ], $assigned);
         $this->assertMinimalPayload($order, $assigned);
         $this->assertSame($this->courier->id, $assigned->broadcastWith()['order']['courier_id']);
@@ -169,6 +172,7 @@ class BroadcastOrderEventsTest extends TestCase
         $this->assertChannels([
             "private-store.{$this->store->id}",
             "private-branch.{$this->branch->id}",
+            "private-pos-branch.{$this->branch->id}",
             "private-user.{$this->customer->id}",
             "private-courier.{$this->courier->id}",
         ], $changed);
@@ -187,10 +191,12 @@ class BroadcastOrderEventsTest extends TestCase
             "private-courier.{$next->id}",
             "private-store.{$this->store->id}",
             "private-branch.{$this->branch->id}",
+            "private-pos-branch.{$this->branch->id}",
         ], $this->only(OrderAssignedBroadcast::class));
         $this->assertChannels([
             "private-store.{$this->store->id}",
             "private-branch.{$this->branch->id}",
+            "private-pos-branch.{$this->branch->id}",
             "private-user.{$this->customer->id}",
             "private-courier.{$next->id}",
             "private-courier.{$this->courier->id}",
@@ -320,7 +326,7 @@ class BroadcastOrderEventsTest extends TestCase
         $order->refresh();
 
         $this->assertSame(['order.created', 'order.status_changed'], array_column($sent, 0));
-        $this->assertSame(["private-store.{$this->store->id}", "private-branch.{$this->branch->id}"], $sent[0][1]);
+        $this->assertSame(["private-store.{$this->store->id}", "private-branch.{$this->branch->id}", "private-pos-branch.{$this->branch->id}"], $sent[0][1]);
         $this->assertSame(['order' => [
             'uuid' => $order->uuid,
             'status' => 'accepted',

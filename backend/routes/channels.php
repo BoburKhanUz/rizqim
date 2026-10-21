@@ -1,8 +1,12 @@
 <?php
 
+use App\Enums\Permission;
 use App\Enums\UserRole;
 use App\Models\Branch;
+use App\Models\Device;
 use App\Models\User;
+use App\Services\Order\StaffOrderScope;
+use App\Support\RowId;
 use Illuminate\Support\Facades\Broadcast;
 
 /*
@@ -58,3 +62,28 @@ Broadcast::channel('courier.{userId}', function (User $user, string $userId) use
 Broadcast::channel('user.{userId}', function (User $user, string $userId) {
     return ctype_digit($userId) && (int) $user->id === (int) $userId;
 }, $guards);
+
+/*
+| P2-11: everyone working in a branch (docs/API.md §8): staff who may see its orders (orders.view there: the owner,
+| store-wide staff, the branch's own manager, cashier, waiter, cook; a staff PIN session only for its terminal's
+| branch) and the branch's paired POS/KDS terminals, which sign the subscription with their own terminal token (the
+| `device` guard; a terminal paired without a branch serves every branch of its store). Couriers and customers keep
+| their own channels.
+*/
+Broadcast::channel('pos-branch.{branchId}', function (User|Device $actor, string $branchId) {
+    $id = RowId::parse($branchId);
+    $branch = $id !== null ? Branch::find($id) : null;
+    if ($branch === null) {
+        return false;
+    }
+
+    if ($actor instanceof Device) {
+        return $actor->user_id === null
+            && $actor->isTerminal()
+            && !$actor->isRevoked()
+            && (int) $actor->store_id === (int) $branch->store_id
+            && ($actor->branch_id === null || (int) $actor->branch_id === (int) $branch->id);
+    }
+
+    return app(StaffOrderScope::class)->allowsBranch($actor, Permission::ORDERS_VIEW, $branch);
+}, ['guards' => ['sanctum', 'device']]);

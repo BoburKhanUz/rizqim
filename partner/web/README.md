@@ -3,7 +3,8 @@
 Restoran egasi va menejeri uchun veb-panel (kompyuter va planshet). Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS 4,
 TanStack Query. Biznes mantiq faqat backend'da: panel API'dan o'qiydi va ko'rsatadi ([docs/ROADMAP.md](../../docs/ROADMAP.md)).
 Dizayn tizimi — [`@rizqim/ui`](../../packages/ts/ui/README.md) (Mini App bilan umumiy), API klienti —
-[`@rizqim/api-client`](../../packages/ts/api-client/README.md) (OpenAPI'dan yaratilgan).
+[`@rizqim/api-client`](../../packages/ts/api-client/README.md) (OpenAPI'dan yaratilgan), xodim ekranlari uchun umumiy kod (status nomlari, formatlar, API funksiyalari va hook'lar; Mini App xodim sahifalari bilan umumiy) —
+[`@rizqim/staff`](../../packages/ts/staff/README.md). Hozir `Buyurtmalar` sahifasi va status/tur/to'lov nomlari shu paketdan.
 
 Hozir (P1-25, skelet): telefon + SMS kod bilan kirish, yon menyu, **Boshqaruv paneli** (bugungi ko'rsatkichlar,
 `GET /api/v1/owner/analytics`) va **Buyurtmalar** (faol buyurtmalar, faqat ko'rish, `GET /api/v1/orders?scope=active`). Menyu,
@@ -12,7 +13,7 @@ Matnlar `uz` (asosiy), `ru`, `en` (`src/i18n/`); mavzu (yorug'/qorong'i) tizim s
 
 ## Ishga tushirish (mahalliy)
 
-Node.js 22 va npm kerak. Panel `file:` orqali ikkita paketni ulaydi; `@rizqim/api-client` `dist/` ga yig'ilgan bo'lishi kerak.
+Node.js 22 va npm kerak. Panel `file:` orqali uchta paketni ulaydi (`ui`, `staff` — manba kod; `api-client`); `@rizqim/api-client` `dist/` ga yig'ilgan bo'lishi kerak.
 
 ```bash
 cd packages/ts/api-client && npm ci && npm run build      # bir marta (API o'zgarsa qayta)

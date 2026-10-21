@@ -4,56 +4,30 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'data25.dart';
+
 part 'data26.g.dart';
 
 @JsonSerializable()
 class Data26 {
   const Data26({
-    required this.id,
-    required this.uuid,
-    required this.branchId,
-    required this.productId,
-    required this.productName,
-    required this.productVariantId,
-    required this.variantName,
-    required this.unit,
-    required this.label,
-    required this.quantityProduced,
-    required this.quantityLeft,
-    required this.isOpen,
-    required this.startedAt,
-    required this.soldOutAt,
-    required this.closedAt,
+    required this.data,
+    required this.currentPage,
+    required this.lastPage,
+    required this.perPage,
+    required this.total,
   });
 
   factory Data26.fromJson(Map<String, Object?> json) => _$Data26FromJson(json);
 
-  final int id;
-  final String uuid;
-  @JsonKey(name: 'branch_id')
-  final int branchId;
-  @JsonKey(name: 'product_id')
-  final int productId;
-  @JsonKey(name: 'product_name')
-  final String productName;
-  @JsonKey(name: 'product_variant_id')
-  final int? productVariantId;
-  @JsonKey(name: 'variant_name')
-  final String? variantName;
-  final String? unit;
-  final String? label;
-  @JsonKey(name: 'quantity_produced')
-  final num? quantityProduced;
-  @JsonKey(name: 'quantity_left')
-  final num? quantityLeft;
-  @JsonKey(name: 'is_open')
-  final bool isOpen;
-  @JsonKey(name: 'started_at')
-  final String? startedAt;
-  @JsonKey(name: 'sold_out_at')
-  final String? soldOutAt;
-  @JsonKey(name: 'closed_at')
-  final String? closedAt;
+  final List<Data25> data;
+  @JsonKey(name: 'current_page')
+  final int currentPage;
+  @JsonKey(name: 'last_page')
+  final int lastPage;
+  @JsonKey(name: 'per_page')
+  final int perPage;
+  final int total;
 
   Map<String, Object?> toJson() => _$Data26ToJson(this);
 }

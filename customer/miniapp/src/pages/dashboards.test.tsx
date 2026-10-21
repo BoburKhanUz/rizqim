@@ -3,23 +3,29 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import api from '../services/api';
 import { useAuthStore } from '../store/authStore';
 import { makeOrder, makeOrderItem, makeStore, makeUser } from '../test/factories';
-import { failedRequest } from '../test/httpErrors';
-import { ordersResponse, serveOrdersApi } from '../test/ordersApi';
+import { ordersResponse } from '../test/ordersApi';
+import { callsTo, reply, stubStaffApi, success, type FakeCall } from '../test/staffFetch';
 import CourierDashboard from './CourierDashboard';
 import ManagerDashboard from './ManagerDashboard';
 
 // The staff dashboards on a fake API and a controlled clock: they poll, and money arrives as decimal strings
 
 vi.mock('../lib/telegram', () => ({ hapticFeedback: vi.fn(), tg: { initDataUnsafe: {} } }));
-vi.mock('../services/api', () => ({ default: { get: vi.fn(), post: vi.fn() } }));
 
-const get = vi.mocked(api.get);
-const post = vi.mocked(api.post);
-const callsOf = (scope: string) =>
-  get.mock.calls.filter(([url, config]) => url === '/orders' && (config?.params as { scope?: string })?.scope === scope);
+// The staff screens talk to the API through @rizqim/staff, over fetch: this is the fake backend behind it
+let calls: FakeCall[];
+let served: ReturnType<typeof makeOrder>[];
+let ordersStatus: number | null; // an error status the orders answer with, or null
+let ordersTruncated: boolean;
+let postAnswer: unknown;
+const callsOf = (scope: string) => callsTo(calls, '/orders').filter((call) => call.query.scope === scope);
+const ordersCalls = () => callsTo(calls, '/orders').length;
+const posts = () => calls.filter((call) => call.method === 'POST').map((call) => [call.path, call.body]);
+const failOrders = (status: number) => {
+  ordersStatus = status;
+};
 
 let client: QueryClient;
 
@@ -34,13 +40,26 @@ function renderWithClient(ui: ReactNode) {
 const settle = (ms = 0) => act(() => vi.advanceTimersByTimeAsync(ms));
 
 function serveOrders(orders: ReturnType<typeof makeOrder>[]) {
-  get.mockImplementation(serveOrdersApi(orders));
+  served = orders;
+  ordersStatus = null;
 }
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'] });
   vi.setSystemTime(new Date(2026, 9, 14, 15, 0, 0));
   client = new QueryClient();
+  served = [];
+  ordersStatus = null;
+  ordersTruncated = false;
+  postAnswer = success({});
+  ({ calls } = stubStaffApi((call) => {
+    if (call.method === 'POST') return postAnswer;
+    if (call.path !== '/orders') return success([]); // GET /couriers
+    if (ordersStatus !== null) return reply(ordersStatus);
+    const body = ordersResponse(served, { params: call.query }).data as { meta?: unknown };
+    if (call.query.scope === 'active' && ordersTruncated) body.meta = { truncated: true };
+    return body;
+  }));
   vi.spyOn(console, 'error').mockImplementation(() => {});
 });
 
@@ -76,7 +95,7 @@ describe('ManagerDashboard', () => {
     await settle();
     expect(screen.getByText('#A100')).toBeInTheDocument();
 
-    get.mockRejectedValue(failedRequest(502, {}, '/orders'));
+    failOrders(502);
     await settle(8000 + 2000); // the next poll fails, and so does its retry
 
     expect(screen.getByText('#A100')).toBeInTheDocument();
@@ -84,7 +103,7 @@ describe('ManagerDashboard', () => {
   });
 
   it('shows the error screen when the very first load fails: there is nothing else to show', async () => {
-    get.mockRejectedValue(failedRequest(502, {}, '/orders'));
+    failOrders(502);
 
     renderWithClient(<ManagerDashboard />);
     await settle(5000);
@@ -94,7 +113,7 @@ describe('ManagerDashboard', () => {
   });
 
   it('recovers by itself once the server answers again', async () => {
-    get.mockRejectedValue(failedRequest(502, {}, '/orders'));
+    failOrders(502);
     renderWithClient(<ManagerDashboard />);
     await settle(5000);
     expect(screen.getByRole('alert')).toHaveTextContent("Ma'lumotlarni yuklab bo'lmadi");
@@ -111,12 +130,12 @@ describe('ManagerDashboard', () => {
     serveOrders([makeOrder({ id: 1, status: 'new' })]);
     renderWithClient(<ManagerDashboard />);
     await settle();
-    const callsAfterLoad = get.mock.calls.filter(([url]) => url === '/orders').length;
+    const callsAfterLoad = ordersCalls();
 
     focusManager.setFocused(false);
     await settle(5 * 60_000);
 
-    expect(get.mock.calls.filter(([url]) => url === '/orders')).toHaveLength(callsAfterLoad);
+    expect(ordersCalls()).toBe(callsAfterLoad);
   });
 });
 
@@ -159,7 +178,7 @@ describe('CourierDashboard', () => {
     await settle();
     expect(screen.getByText('#K100')).toBeInTheDocument();
 
-    get.mockRejectedValue(failedRequest(503, {}, '/orders'));
+    failOrders(503);
     await settle(15_000 + 2000);
 
     expect(screen.getByText('#K100')).toBeInTheDocument();
@@ -184,7 +203,7 @@ describe('ManagerDashboard: open orders and the archive', () => {
     await settle();
     expect(callsOf('active')).toHaveLength(1);
     expect(callsOf('history')).toHaveLength(0);
-    expect(get.mock.calls.every(([url, config]) => url !== '/orders' || !!(config?.params as { scope?: string })?.scope)).toBe(true);
+    expect(callsTo(calls, '/orders').every((call) => !!call.query.scope)).toBe(true);
 
     fireEvent.click(archiveTab());
     await settle();
@@ -228,11 +247,8 @@ describe('ManagerDashboard: open orders and the archive', () => {
   });
 
   it('warns when there are more open orders than the server sent', async () => {
-    get.mockImplementation((url, config) => {
-      const response = ordersResponse([makeOrder({ id: 1, short_code: 'A100', status: 'new' })], config);
-      if ((config?.params as { scope?: string })?.scope === 'active') (response.data as { meta: unknown }).meta = { truncated: true };
-      return Promise.resolve(url === '/orders' ? response : { data: { success: true, data: [] } });
-    });
+    serveOrders([makeOrder({ id: 1, short_code: 'A100', status: 'new' })]);
+    ordersTruncated = true;
 
     renderWithClient(<ManagerDashboard />);
     await settle();
@@ -242,14 +258,13 @@ describe('ManagerDashboard: open orders and the archive', () => {
 
   it('sends a plain status change without a reason', async () => {
     serveOrders([makeOrder({ id: 1, uuid: 'uuid-1', short_code: 'A100', status: 'new' })]);
-    post.mockResolvedValue({ data: { success: true, data: {} } });
     renderWithClient(<ManagerDashboard />);
     await settle();
 
     fireEvent.click(screen.getByRole('button', { name: /Qabul qilish/ }));
     await settle();
 
-    expect(post).toHaveBeenCalledExactlyOnceWith('/orders/uuid-1/status', { status: 'accepted' });
+    expect(posts()).toEqual([['/orders/uuid-1/status', { status: 'accepted' }]]);
   });
 });
 
@@ -268,14 +283,13 @@ describe('ManagerDashboard: cancelling and rejecting', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Rad etish' }));
     const dialog = screen.getByRole('dialog');
 
-    expect(post).not.toHaveBeenCalled();
+    expect(posts()).toEqual([]);
     expect(within(dialog).getByRole('button', { name: 'Rad etish' })).toBeDisabled();
     expect(reasonLabels()).toEqual(["Mijoz so'rovi", 'Mahsulot qolmagan', "Do'kon yopiq", "Kuryer yo'q", 'Boshqa sabab']);
   });
 
   it('rejects with the chosen reason and note, then closes', async () => {
     serveOrders([makeOrder({ id: 1, uuid: 'uuid-1', short_code: 'A100', status: 'new' })]);
-    post.mockResolvedValue({ data: { success: true, data: {} } });
     renderWithClient(<ManagerDashboard />);
     await settle();
 
@@ -286,13 +300,12 @@ describe('ManagerDashboard: cancelling and rejecting', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Rad etish' }));
     await settle();
 
-    expect(post).toHaveBeenCalledExactlyOnceWith('/orders/uuid-1/status', { status: 'rejected', reason: 'out_of_stock', note: 'Lavash tugadi' });
+    expect(posts()).toEqual([['/orders/uuid-1/status', { status: 'rejected', reason: 'out_of_stock', note: 'Lavash tugadi' }]]);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('leaves the note out when there is none', async () => {
     serveOrders([makeOrder({ id: 1, uuid: 'uuid-1', status: 'new' })]);
-    post.mockResolvedValue({ data: { success: true, data: {} } });
     renderWithClient(<ManagerDashboard />);
     await settle();
 
@@ -301,7 +314,7 @@ describe('ManagerDashboard: cancelling and rejecting', () => {
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Rad etish' }));
     await settle();
 
-    expect(post).toHaveBeenCalledWith('/orders/uuid-1/status', { status: 'rejected', reason: 'store_closed' });
+    expect(posts()).toContainEqual(['/orders/uuid-1/status', { status: 'rejected', reason: 'store_closed' }]);
   });
 
   it('offers "Mijoz kelmadi" only for a pickup order and "Kuryer yo\'q" only for a delivery order', async () => {
@@ -332,7 +345,6 @@ describe('ManagerDashboard: cancelling and rejecting', () => {
 
   it('cancels an accepted order with status canceled and a reason', async () => {
     serveOrders([makeOrder({ id: 1, uuid: 'p-acc', status: 'preparing', order_type: 'pickup' })]);
-    post.mockResolvedValue({ data: { success: true, data: {} } });
     renderWithClient(<ManagerDashboard />);
     await settle();
 
@@ -341,13 +353,13 @@ describe('ManagerDashboard: cancelling and rejecting', () => {
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Bekor qilish' }));
     await settle();
 
-    expect(post).toHaveBeenCalledWith('/orders/p-acc/status', { status: 'canceled', reason: 'no_show' });
+    expect(posts()).toContainEqual(['/orders/p-acc/status', { status: 'canceled', reason: 'no_show' }]);
   });
 
   it('shows the reason error of a 422 in the dialog and keeps it open', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     serveOrders([makeOrder({ id: 1, uuid: 'uuid-1', status: 'new' })]);
-    post.mockRejectedValue(failedRequest(422, { message: 'The given data was invalid.', errors: { reason: ['Bekor qilish sababini tanlang.'] } }, '/orders/uuid-1/status'));
+    postAnswer = reply(422, { message: 'The given data was invalid.', errors: { reason: ['Bekor qilish sababini tanlang.'] } });
     renderWithClient(<ManagerDashboard />);
     await settle();
 

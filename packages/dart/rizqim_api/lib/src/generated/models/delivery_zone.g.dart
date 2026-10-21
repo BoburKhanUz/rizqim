@@ -11,7 +11,7 @@ DeliveryZone _$DeliveryZoneFromJson(Map<String, dynamic> json) => DeliveryZone(
   storeId: (json['store_id'] as num).toInt(),
   branchId: (json['branch_id'] as num?)?.toInt(),
   name: json['name'] as String,
-  polygon: Polygon2.fromJson(json['polygon'] as Map<String, dynamic>),
+  polygon: Polygon6.fromJson(json['polygon'] as Map<String, dynamic>),
   minLat: json['min_lat'] as String,
   maxLat: json['max_lat'] as String,
   minLng: json['min_lng'] as String,

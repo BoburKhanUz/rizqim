@@ -3,8 +3,7 @@
 Bu hujjat butun platformani bir joyda ko'rsatadi: qaysi ilova nima qiladi, ular qanday bog'langan, ma'lumotlar qanday
 saqlanadi va tizim qanday ishga tushadi. Tafsilotlar alohida hujjatlarda, bu yerda faqat umumiy rasm va havolalar.
 
-Holati: 1-bosqich, to'lqin 3 (oktabr 2026). Kod qanday bo'lsa, shunday yozilgan. Hozir o'zgarayotgan joylar
-**"to'lqin 3 da o'zgarmoqda"** deb belgilangan.
+Holati: 1-bosqich tugagan, 2-bosqich davom etmoqda (oktabr 2026). Kod qanday bo'lsa, shunday yozilgan.
 
 | Mavzu | Batafsil hujjat |
 |---|---|
@@ -69,10 +68,10 @@ marta). Yangi Flutter ilovalar shu ro'yxatga qo'shiladi.
 
 | Ilova | Kim ishlatadi | Qanday kiradi | Holati |
 |---|---|---|---|
-| Telegram Mini App (`customer/miniapp`) | mijoz; ega, menejer, kuryer, superadmin uchun ham ekranlar bor | Telegram `initData` | ishlayapti. **To'lqin 3 da o'zgarmoqda** (P1-31: yangi menyu — modifikator, kg, "tugadi", stop-list real-time; checkout'da hudud narxi) |
+| Telegram Mini App (`customer/miniapp`) | mijoz; ega, menejer, kuryer, superadmin uchun ham ekranlar bor | Telegram `initData` | ishlayapti: yangi menyu (modifikator, kg, "tugadi", stop-list real-time), checkout'da hudud narxi, idempotent buyurtma. Xodim ekranlari Mini App'da **qoladi** (2-bosqichda web panelda ham quriladi, umumiy kod `packages/ts/staff`) |
 | Do'kon paneli `/admin` (Filament) | ega, menejer | email/telefon + parol | ishlayapti |
 | Superadmin paneli `/superadmin` (Filament) | Rizqim jamoasi | email/telefon + parol | ishlayapti |
-| Hamkor veb-paneli (`partner/web`) | ega, menejer | telefon + SMS kod | skelet: kirish, dashboard, faol buyurtmalar. **To'lqin 3 da o'zgarmoqda** (P1-36: xodimlarning SMS orqali kirishi, CORS, docker-compose'ga qo'shilishi) |
+| Hamkor veb-paneli (`partner/web`) | ega, menejer | telefon + SMS kod | skelet: xodimlar SMS bilan kiradi (bir nechta do'kon bo'lsa akkaunt tanlanadi), docker-compose'da `panel.<domen>`. To'liq ekranlar 2-bosqichda ([PHASE2_PLAN.md](PHASE2_PLAN.md)) |
 | Oshxona ekrani (`pos/apps/kds`) | oshpaz | terminal ulash kodi, keyin PIN | skelet: ulash ekrani va bo'sh ro'yxat |
 | Telegram bot | mijoz, xodimlar | webhook | ishlayapti: `/start` havolalari, buyurtma kartochkalari va tugmalari |
 | Kassa, ofitsiant, mijoz ekrani | kassir, ofitsiant | terminal + PIN | hali yo'q, [POS_SPEC.md](POS_SPEC.md) |
@@ -120,7 +119,7 @@ Laravel 12, PHP 8.3. Kod `backend/app` ostida, vazifa bo'yicha:
 |---|---|
 | `Http/Controllers/Api/V1/*` | API controllerlari: `Auth`, `Device`, `Catalog`, `Menu`, `Order`, `Payment`, `Store` (ega ekranlari), `Delivery`, `Billing`, `Telegram`, `Superadmin`, `User` |
 | `Http/Middleware` | `permission`, `role`, `staff.store`, `not-staff-session`, `EnsureIdempotency`, `AssignRequestId`, Telegram webhook secret |
-| `Actions/Order/CreateOrderAction` | buyurtma yaratish: bitta tranzaksiya, narx va zaxira serverda. **To'lqin 3 da o'zgarmoqda** (P1-32: yetkazish narxi, minimal summa va filial hududdan olinadi) |
+| `Actions/Order/CreateOrderAction` | buyurtma yaratish: bitta tranzaksiya, narx va zaxira serverda; yetkazish narxi, minimal summa va filial hududdan (`DeliveryQuoter`), hudud buyurtmada snapshot qilinadi |
 | `Services/Order` | `OrderStatusService` (yagona holat o'tish joyi), `OrderLineBuilder`, `DiningFeeCalculator`, so'rovlar, hisobotlar |
 | `Services/Catalog` | mavjudlik (`MenuAvailability`), stop-list, qozon/partiya (`BatchService`), kanal menyusi, rasmlar |
 | `Services/Finance` | `LedgerService` (komissiya, hisob-kitob, qarz/hamyon), obuna va hisob-fakturalar, daromad hisoboti |
@@ -264,7 +263,7 @@ da.)
 
 `delivery_zones` — ko'pburchak (GeoJSON, `jsonb`), chegara to'rtburchagi indekslangan, narx, minimal buyurtma, bepul
 yetkazish chegarasi, ustuvorlik, ixtiyoriy filial. PostGIS ishlatilmaydi. Batafsil: [ZONES.md](ZONES.md).
-**To'lqin 3 da o'zgarmoqda:** hududni buyurtma yaratishga ulash (P1-32).
+Buyurtma yaratish ham shu `DeliveryQuoter` dan foydalanadi (P1-32), shuning uchun narx taklifi va buyurtma doim bir xil.
 
 ### Xabarlar va boshqalar
 
@@ -382,9 +381,7 @@ Avval `changes` job o'zgargan papkalarni aniqlaydi, keyin faqat kerakli joblar i
 | `reverb` | WebSocket serveri (`ext-uv`, `nofile` 65536) |
 | `frontend` | Mini App statikasi; `/api/`, `/storage/` → backend, `/app/` → reverb |
 | `backup` | Postgres zaxirasi (14 kun, ixtiyoriy S3) |
-
-Hamkor veb-paneli (`partner/web`) uchun alohida image bor (`partner/web/Dockerfile`). **To'lqin 3 da o'zgarmoqda**
-(P1-36): uni docker-compose'ga qo'shish.
+| `partner-web` | Hamkor veb-paneli (Next.js), `panel.<domen>`; port faqat `127.0.0.1` ga ochiladi, tashqi proksi orqali |
 
 Staging — xuddi shu stek + `docker-compose.staging.yml` (alohida server, test bot, sandbox to'lov, SMS va e-pochta
 `log`). Batafsil: [DEPLOY.md](DEPLOY.md), monitoring va zaxira: [OPERATIONS.md](OPERATIONS.md).

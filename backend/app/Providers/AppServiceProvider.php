@@ -90,7 +90,10 @@ class AppServiceProvider extends ServiceProvider
         ]);
 
         // POST /api/broadcasting/auth signs one private channel per call: a few per (re)connect of the Mini App
-        RateLimiter::for('broadcast-auth', fn (Request $request) => Limit::perMinute(60)->by($byUser($request)));
+        // P2-11: a paired terminal (device guard) has a bucket of its own, never a user's with the same id
+        RateLimiter::for('broadcast-auth', fn (Request $request) => Limit::perMinute(60)->by(
+            $request->user() instanceof \App\Models\Device ? 'device:' . $request->user()->getAuthIdentifier() : $byUser($request)
+        ));
 
         // Address lookups behind /geocode/*: one shared bucket per user; the provider itself allows ~1 request/s for everybody
         RateLimiter::for('geocode', fn (Request $request) => Limit::perMinute(30)->by($byUser($request)));
@@ -98,5 +101,11 @@ class AppServiceProvider extends ServiceProvider
         // P1-24: public delivery zones and quotes; a customer dragging the map pin asks for a quote at every stop
         RateLimiter::for('delivery-zones', fn (Request $request) => Limit::perMinute(120)->by('ip:' . $request->ip()));
         RateLimiter::for('delivery-quote', fn (Request $request) => Limit::perMinute(60)->by('ip:' . $request->ip()));
+
+        // P2-12: CSV report downloads from the partner web panel (streamed, but a period's orders are read in full)
+        RateLimiter::for('report-csv', fn (Request $request) => [
+            Limit::perMinute(6)->by('minute:' . $byUser($request)),
+            Limit::perDay(100)->by('day:' . $byUser($request)),
+        ]);
     }
 }

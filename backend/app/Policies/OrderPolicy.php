@@ -78,9 +78,23 @@ class OrderPolicy
                 && in_array($to, [OrderStatus::ON_THE_WAY, OrderStatus::DELIVERY, OrderStatus::DELIVERED], true);
         }
 
+        // P2-11: the kitchen's own two moves (start cooking, ready) with kitchen.manage: a cook has no orders.manage
+        if ($this->isKitchenMove($order, $to) && $this->permissions->allows($user, Permission::KITCHEN_MANAGE, $order)) {
+            return true;
+        }
+
         // Cancelling or rejecting is its own permission (a cashier may run orders but not cancel them)
         return $this->manages($user, $order)
             && (!$to->isCancellation() || $this->permissions->allows($user, Permission::ORDERS_CANCEL, $order));
+    }
+
+    /**
+     * accepted -> preparing and preparing -> ready: what the kitchen display does (docs/API.md, P2-11).
+     */
+    public static function isKitchenMove(Order $order, OrderStatus $to): bool
+    {
+        return ($order->status === OrderStatus::ACCEPTED && $to === OrderStatus::PREPARING)
+            || ($order->status === OrderStatus::PREPARING && $to === OrderStatus::READY);
     }
 
     public function assignCourier(User $user, Order $order): bool

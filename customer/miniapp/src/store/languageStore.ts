@@ -1,10 +1,18 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { ORDER_STATUSES, PAYMENT_METHODS, PAYMENT_METHOD_LABELS, STAFF_STATUS_LABELS, type OrderStatus, type PaymentMethodId } from '@rizqim/staff';
 import { tg } from '../lib/telegram';
 
 export type Language = 'uz' | 'ru' | 'en';
 
 export const isLanguage = (value: string): value is Language => value === 'uz' || value === 'ru' || value === 'en';
+
+// The words the staff screens share with the partner web (packages/ts/staff/src/i18n/messages.ts), as entries of this table
+const staffWords = (language: Language) => ({
+  ...(Object.fromEntries(PAYMENT_METHODS.map((method) => [`paymentMethod_${method}`, PAYMENT_METHOD_LABELS[method][language]])) as Record<`paymentMethod_${PaymentMethodId}`, string>),
+  ...(Object.fromEntries(ORDER_STATUSES.map((status) => [`staffStatus_${status}`, STAFF_STATUS_LABELS[status][language]])) as Record<`staffStatus_${OrderStatus}`, string>),
+});
+const STAFF_WORDS = { uz: staffWords('uz'), ru: staffWords('ru'), en: staffWords('en') };
 
 // Every phrase of the app in uz, ru and en: the one translation table (exported for the parity test)
 export const translations = {
@@ -75,26 +83,9 @@ export const translations = {
     nav_employees: 'Xodimlar',
     nav_deliveries: 'Yetkazmalar',
     nav_profile: 'Profil',
-    // Payment methods (Order.payment_method)
-    paymentMethod_cash: 'Naqd pul',
-    paymentMethod_card: 'Plastik karta',
-    paymentMethod_click: 'Click',
-    paymentMethod_payme: 'Payme',
-    paymentMethod_uzum: 'Uzum',
-    paymentMethod_paynet: 'Paynet',
-    paymentMethod_keshbek: 'Keshbek',
-    // Order statuses as the staff sees them (StatusBadge audience="staff")
-    staffStatus_new: 'Yangi',
-    staffStatus_accepted: 'Qabul qilindi',
-    staffStatus_preparing: 'Tayyorlanmoqda',
-    staffStatus_ready: 'Tayyor',
-    staffStatus_courier_assigned: 'Kuryer kutilmoqda',
-    staffStatus_on_the_way: "Yo'lda",
-    staffStatus_delivery: "Yo'lda",
-    staffStatus_delivered: 'Yetkazildi',
-    staffStatus_canceled: 'Bekor qilindi',
-    staffStatus_rejected: 'Rad etildi',
-    staffStatus_refunded: 'Qaytarildi',
+    // Payment methods (Order.payment_method) and order statuses as the staff sees them (StatusBadge audience="staff"):
+    // the words are @rizqim/staff's, shared with the partner web
+    ...STAFF_WORDS.uz,
     // Customer screens: orders (merged from the former lib/customerCopy.ts)
     ordersSubtitle: 'Buyurtmalar tarixi va holati',
     ordersActive: 'Faol buyurtmalar',
@@ -272,24 +263,8 @@ export const translations = {
     nav_employees: 'Сотрудники',
     nav_deliveries: 'Доставки',
     nav_profile: 'Профиль',
-    paymentMethod_cash: 'Наличные',
-    paymentMethod_card: 'Карта',
-    paymentMethod_click: 'Click',
-    paymentMethod_payme: 'Payme',
-    paymentMethod_uzum: 'Uzum',
-    paymentMethod_paynet: 'Paynet',
-    paymentMethod_keshbek: 'Кешбэк',
-    staffStatus_new: 'Новый',
-    staffStatus_accepted: 'Принят',
-    staffStatus_preparing: 'Готовится',
-    staffStatus_ready: 'Готов',
-    staffStatus_courier_assigned: 'Ожидание курьера',
-    staffStatus_on_the_way: 'В пути',
-    staffStatus_delivery: 'В пути',
-    staffStatus_delivered: 'Доставлен',
-    staffStatus_canceled: 'Отменен',
-    staffStatus_rejected: 'Отклонен',
-    staffStatus_refunded: 'Возвращен',
+    // Payment methods and staff order statuses: @rizqim/staff's words
+    ...STAFF_WORDS.ru,
     // Customer screens: orders (merged from the former lib/customerCopy.ts)
     ordersSubtitle: 'История и статус заказов',
     ordersActive: 'Активные заказы',
@@ -467,24 +442,8 @@ export const translations = {
     nav_employees: 'Staff',
     nav_deliveries: 'Deliveries',
     nav_profile: 'Profile',
-    paymentMethod_cash: 'Cash',
-    paymentMethod_card: 'Card',
-    paymentMethod_click: 'Click',
-    paymentMethod_payme: 'Payme',
-    paymentMethod_uzum: 'Uzum',
-    paymentMethod_paynet: 'Paynet',
-    paymentMethod_keshbek: 'Cashback',
-    staffStatus_new: 'New',
-    staffStatus_accepted: 'Accepted',
-    staffStatus_preparing: 'Preparing',
-    staffStatus_ready: 'Ready',
-    staffStatus_courier_assigned: 'Waiting for courier',
-    staffStatus_on_the_way: 'On the way',
-    staffStatus_delivery: 'On the way',
-    staffStatus_delivered: 'Delivered',
-    staffStatus_canceled: 'Cancelled',
-    staffStatus_rejected: 'Rejected',
-    staffStatus_refunded: 'Refunded',
+    // Payment methods and staff order statuses: @rizqim/staff's words
+    ...STAFF_WORDS.en,
     // Customer screens: orders (merged from the former lib/customerCopy.ts)
     ordersSubtitle: 'Order history and status',
     ordersActive: 'Active orders',

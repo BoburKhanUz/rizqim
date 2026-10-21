@@ -1,13 +1,16 @@
 # The ignore file of customer/miniapp/Dockerfile (BuildKit reads <Dockerfile>.dockerignore next to the Dockerfile).
-# The build context is the repository root, so only what the build needs gets in: the app and the shared UI package.
+# The build context is the repository root, so only what the build needs gets in: the app and the shared packages it links.
 *
 !customer/miniapp/
 !packages/ts/ui/
+!packages/ts/staff/
+!packages/ts/api-client/
 
 # ...minus what must not be baked into the image (patterns without a leading path match at any depth)
 **/node_modules
 **/.git
 customer/miniapp/dist
+packages/ts/api-client/dist
 customer/miniapp/playwright-report
 customer/miniapp/test-results
 customer/miniapp/.env

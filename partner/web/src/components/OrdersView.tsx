@@ -1,35 +1,19 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
 import { ClipboardCheck } from 'lucide-react';
 import { Card, CardSkeletons, EmptyState, formatDateTime, formatMoney, formatOrderCode, InlineError, StatusBadge } from '@rizqim/ui';
-import type { Schema } from '@rizqim/api-client';
-import { useApi } from '@/lib/apiConfig';
+import { useActiveOrders, type Order } from '@rizqim/staff';
 import { orderTypeLabel, paymentLabel, statusLabel } from '@/lib/labels';
 import { useI18n } from './I18nProvider';
 import { PageHeader } from './PageHeader';
 
-type Order = Schema<'Order'>;
-
-// GET /v1/orders?scope=active: the orders still in progress (the store's for an owner, the branch's for a manager),
-// newest first, at most 200. Read-only: changing an order's status comes with the live board (stage 2).
-function useActiveOrders() {
-  const api = useApi();
-  return useQuery({
-    queryKey: ['orders', 'active'],
-    refetchInterval: 30_000,
-    queryFn: async () => {
-      const { data } = await api.GET('/v1/orders', { params: { query: { scope: 'active' } } });
-      if (!data) throw new Error('orders');
-      const meta = 'meta' in data ? (data.meta as { truncated?: boolean }) : undefined;
-      return { orders: data.data, truncated: meta?.truncated === true };
-    },
-  });
-}
+// GET /v1/orders?scope=active (@rizqim/staff): the orders still in progress (the store's for an owner, the branch's for a
+// manager), newest first, at most 200. Read-only: changing an order's status comes with the live board (stage 2).
+const ACTIVE_ORDERS_OPTIONS = { refetchInterval: 30_000 };
 
 export function OrdersView() {
   const { t } = useI18n();
-  const query = useActiveOrders();
+  const query = useActiveOrders('orders', ACTIVE_ORDERS_OPTIONS);
 
   return (
     <>
@@ -73,11 +57,11 @@ function OrdersTable({ orders }: { orders: Order[] }) {
               <tr key={order.uuid}>
                 <td className="whitespace-nowrap px-4 py-3 font-bold text-fg">{formatOrderCode(order)}</td>
                 <td className="px-4 py-3">
-                  <StatusBadge status={order.status} label={statusLabel(t, order.status)} />
+                  <StatusBadge status={order.status} label={statusLabel(language, order.status)} />
                 </td>
                 <td className="px-4 py-3 text-fg">{order.user?.name || t('guest')}</td>
-                <td className="px-4 py-3 text-fg">{orderTypeLabel(t, order.order_type ?? order.type)}</td>
-                <td className="px-4 py-3 text-fg">{paymentLabel(t, order.payment_method)}</td>
+                <td className="px-4 py-3 text-fg">{orderTypeLabel(language, order.order_type ?? order.type)}</td>
+                <td className="px-4 py-3 text-fg">{paymentLabel(language, order.payment_method)}</td>
                 <td className="whitespace-nowrap px-4 py-3 text-right font-bold text-fg">{formatMoney(order.total_price, language)}</td>
                 <td className="whitespace-nowrap px-4 py-3 text-right text-fg-muted">{formatDateTime(order.created_at, language)}</td>
               </tr>
@@ -93,10 +77,10 @@ function OrdersTable({ orders }: { orders: Order[] }) {
             <Card className="flex flex-col gap-2">
               <div className="flex items-center justify-between gap-3">
                 <span className="font-bold text-fg">{formatOrderCode(order)}</span>
-                <StatusBadge status={order.status} label={statusLabel(t, order.status)} />
+                <StatusBadge status={order.status} label={statusLabel(language, order.status)} />
               </div>
               <p className="text-footnote text-fg-muted">
-                {order.user?.name || t('guest')} · {orderTypeLabel(t, order.order_type ?? order.type)} · {paymentLabel(t, order.payment_method)}
+                {order.user?.name || t('guest')} · {orderTypeLabel(language, order.order_type ?? order.type)} · {paymentLabel(language, order.payment_method)}
               </p>
               <div className="flex items-center justify-between gap-3">
                 <span className="font-bold text-fg">{formatMoney(order.total_price, language)}</span>

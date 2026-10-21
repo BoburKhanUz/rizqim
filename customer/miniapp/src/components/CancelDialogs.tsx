@@ -4,7 +4,8 @@ import { CANCEL_NOTE_MAX_LENGTH, getStaffCancelReasonLabel, getStaffCancelReason
 import { hapticFeedback } from '../lib/telegram';
 import { Button, cx } from '@rizqim/ui';
 import { Dialog } from './ui/Dialog';
-import type { CancelReason, Order } from '../types';
+import type { StaffCancelReason } from '@rizqim/staff';
+import type { Order } from '../types';
 
 // The two "cancel an order" dialogs: the customer's (an optional note) and the staff's (a reason is required). They
 // look the same: colours come from the tokens, so they are right in both themes and for both audiences.
@@ -107,14 +108,14 @@ interface StaffCancelDialogProps {
   mode: 'cancel' | 'reject';
   isPending: boolean;
   error: string | null;
-  onConfirm: (payload: { reason: CancelReason; note: string }) => void;
+  onConfirm: (payload: { reason: StaffCancelReason; note: string }) => void;
   onClose: () => void;
 }
 
 // The reason picker for staff who cancel or reject an order: a reason is required, a note is optional.
 export function StaffCancelDialog({ order, mode, isPending, error, onConfirm, onClose }: StaffCancelDialogProps) {
   const language = useLanguageStore((state) => state.language);
-  const [reason, setReason] = useState<CancelReason | null>(null);
+  const [reason, setReason] = useState<StaffCancelReason | null>(null);
   const [note, setNote] = useState('');
   const noteId = useId();
   const groupName = useId();

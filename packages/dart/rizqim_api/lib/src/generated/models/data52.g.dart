@@ -7,15 +7,19 @@ part of 'data52.dart';
 // **************************************************************************
 
 Data52 _$Data52FromJson(Map<String, dynamic> json) => Data52(
-  id: (json['id'] as num).toInt(),
-  name: json['name'] as String,
-  role: UserRole.fromJson(json['role'] as String),
-  branchId: (json['branch_id'] as num?)?.toInt(),
+  currentPage: (json['current_page'] as num).toInt(),
+  data: (json['data'] as List<dynamic>)
+      .map((e) => Data51.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  perPage: (json['per_page'] as num).toInt(),
+  total: (json['total'] as num).toInt(),
+  lastPage: (json['last_page'] as num).toInt(),
 );
 
 Map<String, dynamic> _$Data52ToJson(Data52 instance) => <String, dynamic>{
-  'id': instance.id,
-  'name': instance.name,
-  'role': instance.role,
-  'branch_id': instance.branchId,
+  'current_page': instance.currentPage,
+  'data': instance.data,
+  'per_page': instance.perPage,
+  'total': instance.total,
+  'last_page': instance.lastPage,
 };

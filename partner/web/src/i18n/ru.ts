@@ -84,28 +84,6 @@ export const ru: Messages = {
   ordersTruncated: 'Список ограничен 200 последними заказами.',
   guest: 'Клиент',
 
-  status_new: 'Новый',
-  status_accepted: 'Принят',
-  status_preparing: 'Готовится',
-  status_ready: 'Готов',
-  status_courier_assigned: 'Ожидание курьера',
-  status_on_the_way: 'В пути',
-  status_delivery: 'В пути',
-  status_delivered: 'Доставлен',
-  status_canceled: 'Отменён',
-  status_rejected: 'Отклонён',
-  status_refunded: 'Возвращён',
-
-  type_delivery: 'Доставка',
-  type_pickup: 'Самовывоз',
-  type_dine_in: 'В зале',
-  payment_cash: 'Наличные',
-  payment_click: 'Click',
-  payment_payme: 'Payme',
-  payment_uzum: 'Uzum',
-  payment_paynet: 'Paynet',
-  payment_keshbek: 'Кешбэк',
-
   // Роли
   role_owner: 'Владелец',
   role_manager: 'Менеджер',

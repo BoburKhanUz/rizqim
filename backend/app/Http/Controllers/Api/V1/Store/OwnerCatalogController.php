@@ -115,6 +115,8 @@ class OwnerCatalogController extends Controller
             // "quantity_step", "min_quantity" (kg/l) and "batch_consumption"
             'variants' => 'required|json',
             'batch_tracked' => 'boolean',
+            // P2-12: position in the menu, as the panel's product form sets it (left out = 0 / kept)
+            'sort_order' => 'nullable|integer|between:0,100000',
         ]);
         $this->validateVariantUnits($validated['variants']);
 
@@ -137,7 +139,7 @@ class OwnerCatalogController extends Controller
                 'type' => 'physical',
                 'has_variants' => true,
                 'batch_tracked' => (bool) ($validated['batch_tracked'] ?? false),
-            ]);
+            ] + (isset($validated['sort_order']) ? ['sort_order' => (int) $validated['sort_order']] : []));
             app(MenuImageService::class)->queueThumbnails($product);
 
             $variantsData = json_decode($validated['variants'], true);
@@ -200,6 +202,7 @@ class OwnerCatalogController extends Controller
             // an existing one left out is deleted. P1-21: optional "unit", "quantity_step", "min_quantity", "batch_consumption"
             'variants' => 'required|json',
             'batch_tracked' => 'boolean',
+            'sort_order' => 'nullable|integer|between:0,100000', // P2-12
         ]);
         $this->validateVariantUnits($validated['variants'], $product);
 
@@ -219,6 +222,9 @@ class OwnerCatalogController extends Controller
             ];
             if (array_key_exists('batch_tracked', $validated)) {
                 $updateData['batch_tracked'] = (bool) $validated['batch_tracked'];
+            }
+            if (isset($validated['sort_order'])) {
+                $updateData['sort_order'] = (int) $validated['sort_order']; // P2-12
             }
             $product->update($updateData);
 

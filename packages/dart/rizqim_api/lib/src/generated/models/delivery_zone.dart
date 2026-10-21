@@ -5,7 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'branch.dart';
-import 'polygon2.dart';
+import 'polygon6.dart';
 import 'store.dart';
 
 part 'delivery_zone.g.dart';
@@ -44,7 +44,7 @@ class DeliveryZone {
   @JsonKey(name: 'branch_id')
   final int? branchId;
   final String name;
-  final Polygon2 polygon;
+  final Polygon6 polygon;
   @JsonKey(name: 'min_lat')
   final String minLat;
   @JsonKey(name: 'max_lat')

@@ -42,6 +42,8 @@ enum Permission: string
     case POS_CASH_IN_OUT = 'pos.cash_in_out';
     case POS_TAKE_PAYMENT = 'pos.take_payment';
     case POS_REPRINT_BILL = 'pos.reprint_bill';
+    // P2-12: edit branches (address, location, working hours, open/closed); a branch-bound manager only their own
+    case BRANCHES_MANAGE = 'branches.manage';
 
     public function label(): string
     {
@@ -77,6 +79,7 @@ enum Permission: string
             self::POS_CASH_IN_OUT => 'Kassaga pul kiritish va chiqarish',
             self::POS_TAKE_PAYMENT => "To'lov qabul qilish",
             self::POS_REPRINT_BILL => 'Schyotni qayta chiqarish',
+            self::BRANCHES_MANAGE => 'Filiallar va ish vaqti', // P2-12
         };
     }
 

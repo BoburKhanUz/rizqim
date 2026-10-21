@@ -37,12 +37,26 @@ Bog'liq hujjatlar: [ROADMAP.md](ROADMAP.md) (3-bosqich), [ARCHITECTURE.md](ARCHI
 
 **Yo'q (shu spetsifikatsiya bo'yicha quriladi):**
 
-- POS buyurtma endpointlari: hozir `POST /orders` faqat mijoz kanallari (`telegram`, `mobile`) uchun, `/orders/*`
-  faqat ega, menejer, kuryer va mijozga ochiq. Kassir, ofitsiant, oshpaz buyurtmani ko'ra olmaydi.
-- Terminal va kassir/ofitsiant/oshpaz uchun real-time kanal (hozirgi kanallar faqat ega va menejerga).
+- POS buyurtma endpointlari: hozir `POST /orders` faqat mijoz kanallari (`telegram`, `mobile`) uchun. ~~Kassir,
+  ofitsiant, oshpaz buyurtmani ko'ra olmaydi~~ — **yopildi (P2-11)**, pastda 1.1.
+- ~~Terminal va kassir/ofitsiant/oshpaz uchun real-time kanal~~ — **yopildi (P2-11)**, pastda 1.1.
 - Zal va stollar, smena va kassa qutisi, schyot va hisobni bo'lish, POS to'lov turlari, printerlar va oshxona
   sexlari, qaytarish, offline navbat — jadvallar ham, API ham yo'q (10-bo'lim).
 - Ilovalar: `pos/apps/cashier`, `waiter`, `customer_display` va `pos/packages/*` hali bo'sh.
+
+### 1.1. 2-bosqichda yopilgan bo'shliqlar (P2-11)
+
+- **Xodimlar buyurtmani ko'radi va oshxona ishini qiladi.** `GET /staff/orders` (filtrlar, kursor), `GET
+  /staff/orders/{uuid}`, `POST /staff/orders/{uuid}/status` (rolga qarab), `GET /staff/kitchen/tickets`, taom qatorini
+  "tayyor" deb belgilash va qaytarish (`order_items.kitchen_status`, `ready_at`). Oddiy kirish va terminaldagi PIN
+  sessiyasi bilan ishlaydi; filial bo'yicha ajratilgan. Batafsil: [API.md](API.md), 9.1-bo'lim. Yangi buyurtma holati
+  qo'shilmadi; 3-bo'limdagi qoida bajariladi (zal buyurtmasi hamma qator tayyor bo'lsa ham `preparing` da qoladi).
+  12.1 dagi `/pos/*` endpointlari (buyurtma ochish, schyot, to'lov, smena) 3-bosqichda.
+- **Filial real-time kanali.** `private-pos-branch.{branchId}` (12.2 dagi taklif): shu filialda `orders.view` bor xodim
+  va shu filialning terminali (terminal tokeni bilan, `/api/broadcasting/auth` `auth:device` ni ham qabul qiladi).
+  Hodisalar: `order.created`, `order.status_changed` (bekor qilish ham), `order.assigned`,
+  `kitchen.item_status_changed`, `menu.availability_changed`; mazmuni faqat id va holat. `order.items_changed` va
+  `shift.changed` 3-bosqichda.
 
 ## 2. Umumiy yadro (barcha formatlar uchun)
 

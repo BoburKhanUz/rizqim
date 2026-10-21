@@ -5,13 +5,13 @@ import { hapticFeedback } from '../lib/telegram';
 import { notificationOccurred } from '../lib/twa';
 import { showAlert } from '../lib/dialogs';
 import { useMainButton } from '../hooks/useMainButton';
-import api from '../services/api';
+import { createStore, fetchLocations as loadLocations, type CreateStoreInput, type DistrictItem, type LocationItem } from '@rizqim/staff';
+import { staffApi } from '../services/staffApi';
 import { logApiError } from '../lib/apiError';
 import { Card, Field, PageHeader, Section, fieldClass } from '../components/ui';
 import AddressLocationField from '../features/address/AddressLocationField';
 import { toLatLng } from '../features/address/coordinates';
 import type { AddressLocationValue } from '../features/address/types';
-import type { ApiResponse, CreatedStore, CreateStorePayload, District, Locations, Region } from '../types';
 
 // The text inputs of the form (their `name` is the field they edit). The branch's address is part of the location field.
 const TEXT_FIELDS = [
@@ -23,7 +23,11 @@ const isTextField = (name: string): name is TextField => (TEXT_FIELDS as readonl
 
 // The form before it is sent: the branch's address and point come from the location field, whose pin stays empty until
 // the superadmin has placed it (a store is routed to by its coordinates, so none are ever made up)
-type StoreDraft = Omit<CreateStorePayload, 'branch_address' | 'branch_lat' | 'branch_lng'>;
+type StoreDraft = Omit<CreateStoreInput, 'branch_address' | 'branch_lat' | 'branch_lng' | 'phone' | 'owner_phone' | 'branch_phone'> & {
+  phone: string;
+  owner_phone: string;
+  branch_phone: string;
+};
 
 const EMPTY_LOCATION: AddressLocationValue = { address: '', lat: null, lng: null };
 
@@ -32,8 +36,8 @@ export default function SuperadminCreateStore() {
   const formRef = useRef<HTMLFormElement>(null);
 
   const [loading, setLoading] = useState(false);
-  const [regions, setRegions] = useState<Region[]>([]);
-  const [districts, setDistricts] = useState<District[]>([]);
+  const [regions, setRegions] = useState<LocationItem[]>([]);
+  const [districts, setDistricts] = useState<DistrictItem[]>([]);
 
   const [formData, setFormData] = useState<StoreDraft>({
     name: '',
@@ -66,11 +70,9 @@ export default function SuperadminCreateStore() {
   useEffect(() => {
     const fetchLocations = async () => {
       try {
-        const res = await api.get<ApiResponse<Locations>>('/superadmin/locations');
-        if (res.data.success) {
-          setRegions(res.data.data.regions || []);
-          setDistricts(res.data.data.districts || []);
-        }
+        const locations = await loadLocations(staffApi);
+        setRegions(locations.regions || []);
+        setDistricts(locations.districts || []);
       } catch (err) {
         logApiError('Failed to fetch locations', err);
       }
@@ -105,7 +107,7 @@ export default function SuperadminCreateStore() {
 
     try {
       setLoading(true);
-      const payload: CreateStorePayload = {
+      const payload: CreateStoreInput = {
         ...formData,
         branch_region_id: branchRegionId,
         branch_district_id: branchDistrictId,
@@ -113,12 +115,10 @@ export default function SuperadminCreateStore() {
         branch_lat: branchPoint.lat,
         branch_lng: branchPoint.lng,
       };
-      const res = await api.post<ApiResponse<CreatedStore>>('/superadmin/stores', payload);
-      if (res.data.success) {
-        notificationOccurred('success');
-        await showAlert('Restoran muvaffaqiyatli yaratildi!\n\nLink: ' + res.data.data.invite_link);
-        navigate('/superadmin/stores');
-      }
+      const created = await createStore(staffApi, payload);
+      notificationOccurred('success');
+      await showAlert('Restoran muvaffaqiyatli yaratildi!\n\nLink: ' + created.invite_link);
+      navigate('/superadmin/stores');
     } catch (err) {
       logApiError('Failed to create store:', err);
       notificationOccurred('error');

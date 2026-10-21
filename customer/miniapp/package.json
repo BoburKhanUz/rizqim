@@ -13,6 +13,8 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@rizqim/api-client": "file:../../packages/ts/api-client",
+    "@rizqim/staff": "file:../../packages/ts/staff",
     "@rizqim/ui": "file:../../packages/ts/ui",
     "@sentry/react": "^11.8.0",
     "@tanstack/react-query": "^5.100.14",

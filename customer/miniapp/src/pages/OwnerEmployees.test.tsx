@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import api from '../services/api';
+import { stubStaffApi, success } from '../test/staffFetch';
 import { useAuthStore } from '../store/authStore';
 import { makeEmployee, makeStore, makeUser } from '../test/factories';
 import type { Employee } from '../types';
@@ -10,12 +10,9 @@ import OwnerEmployees from './OwnerEmployees';
 // The owner's staff list names the branch of each employee: "Filialsiz" is only for one that has none
 
 vi.mock('../lib/telegram', () => ({ hapticFeedback: vi.fn(), tg: { initDataUnsafe: {} } }));
-vi.mock('../services/api', () => ({ default: { get: vi.fn(), post: vi.fn(), delete: vi.fn() } }));
-
-const get = vi.mocked(api.get);
 
 function serveEmployees(employees: Employee[]) {
-  get.mockResolvedValue({ data: { success: true, data: employees } });
+  stubStaffApi(() => success(employees));
 }
 
 beforeEach(() => {

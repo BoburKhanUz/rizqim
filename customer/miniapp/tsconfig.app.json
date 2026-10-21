@@ -7,14 +7,18 @@
     "types": ["vite/client"],
     "skipLibCheck": true,
 
-    /* @rizqim/ui is linked from packages/ts/ui and compiled as source: its imports of react, react-dom and lucide-react
-       resolve to this app's copies (one React, one set of types) instead of failing next to the real path */
+    /* @rizqim/ui and @rizqim/staff are linked from packages/ts/ and compiled as source: their imports of react, react-dom,
+       lucide-react, @tanstack/react-query and the sibling packages resolve to this app's copies (one React, one set of
+       types) instead of failing next to the real path */
     "paths": {
       "react": ["./node_modules/@types/react"],
       "react/*": ["./node_modules/@types/react/*"],
       "react-dom": ["./node_modules/@types/react-dom"],
       "react-dom/*": ["./node_modules/@types/react-dom/*"],
-      "lucide-react": ["./node_modules/lucide-react"]
+      "lucide-react": ["./node_modules/lucide-react"],
+      "@tanstack/react-query": ["./node_modules/@tanstack/react-query"],
+      "@rizqim/api-client": ["./node_modules/@rizqim/api-client"],
+      "@rizqim/ui": ["./node_modules/@rizqim/ui/src/index.ts"]
     },
 
     /* Bundler mode */

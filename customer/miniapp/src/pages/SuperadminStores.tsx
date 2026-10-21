@@ -3,11 +3,11 @@ import { Store, CheckCircle2, XCircle, Search, AlertTriangle, Copy } from 'lucid
 import { hapticFeedback } from '../lib/telegram';
 import { notificationOccurred } from '../lib/twa';
 import { showAlert } from '../lib/dialogs';
-import api from '../services/api';
+import { fetchSuperadminStores, type SuperadminStore } from '@rizqim/staff';
+import { staffApi } from '../services/staffApi';
 import { logApiError } from '../lib/apiError';
 import { Button, CardSkeletons, EmptyState, InlineError, PageHeader, fieldClass } from '../components/ui';
 import { Pill } from '../components/staff/Pill';
-import type { ApiResponse, SuperadminStore } from '../types';
 
 export default function SuperadminStores() {
   const [stores, setStores] = useState<SuperadminStore[]>([]);
@@ -20,9 +20,9 @@ export default function SuperadminStores() {
     let cancelled = false;
     const fetchStores = async () => {
       try {
-        const res = await api.get<ApiResponse<SuperadminStore[]>>('/superadmin/stores');
+        const data = await fetchSuperadminStores(staffApi);
         if (cancelled) return;
-        setStores(res.data.data);
+        setStores(data);
         setError(null);
       } catch (err) {
         if (cancelled) return;

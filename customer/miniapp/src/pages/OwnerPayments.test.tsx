@@ -2,10 +2,9 @@ import { QueryClient, QueryClientProvider, focusManager } from '@tanstack/react-
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import api from '../services/api';
 import { formatMoney } from '../lib/format';
 import { makeFinance, makeLedgerTransaction, makePayoutRequest } from '../test/factories';
-import { failedRequest } from '../test/httpErrors';
+import { callsTo, reply, stubStaffApi, success, type FakeCall } from '../test/staffFetch';
 import type { LedgerTransaction, OwnerFinance } from '../types';
 import OwnerPayments from './OwnerPayments';
 
@@ -13,10 +12,12 @@ import OwnerPayments from './OwnerPayments';
 // as decimal strings
 
 vi.mock('../lib/telegram', () => ({ hapticFeedback: vi.fn(), tg: { initDataUnsafe: {} } }));
-vi.mock('../services/api', () => ({ default: { get: vi.fn(), post: vi.fn() } }));
 
-const get = vi.mocked(api.get);
-const post = vi.mocked(api.post);
+let calls: FakeCall[];
+let finance: OwnerFinance | undefined;
+let financeFails = false;
+let postAnswer: unknown;
+const posts = () => calls.filter((call) => call.method === 'POST').map((call) => [call.path, call.body]);
 
 let client: QueryClient;
 
@@ -26,11 +27,16 @@ const settle = (ms = 0) => act(() => vi.advanceTimersByTimeAsync(ms));
 // text with every kind of space turned into a plain one.
 const uzs = (value: number) => formatMoney(value, 'uz').replace(/\s+/g, ' ');
 
-function serveFinance(finance: OwnerFinance) {
-  get.mockImplementation(() => Promise.resolve({ data: { success: true, data: finance } }));
+function serveFinance(next: OwnerFinance) {
+  finance = next;
+  financeFails = false;
 }
 
-const financeCalls = () => get.mock.calls.filter(([url]) => url === '/owner/finance').length;
+const failFinance = () => {
+  financeFails = true;
+};
+
+const financeCalls = () => callsTo(calls, '/owner/finance').length;
 
 async function renderPage() {
   render(
@@ -47,6 +53,9 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'] });
   vi.setSystemTime(new Date(2026, 9, 18, 12, 0, 0));
   client = new QueryClient();
+  financeFails = false;
+  postAnswer = success(null);
+  ({ calls } = stubStaffApi((call) => (call.method === 'GET' ? (financeFails ? reply(502) : success(finance)) : postAnswer)));
   vi.spyOn(console, 'error').mockImplementation(() => {});
 });
 
@@ -158,7 +167,7 @@ describe('OwnerPayments: polling', () => {
     await renderPage();
     expect(screen.getAllByText(uzs(150000))).not.toHaveLength(0);
 
-    get.mockRejectedValue(failedRequest(502, {}, '/owner/finance'));
+    failFinance();
     await settle(40_000); // the polls fail, and so do their retries: the query is in its error state by now
 
     expect(client.getQueryState(['ownerFinance'])?.status).toBe('error');
@@ -171,7 +180,7 @@ describe('OwnerPayments: polling', () => {
     await renderPage();
     const callsAfterLoad = financeCalls();
 
-    get.mockRejectedValue(failedRequest(502, {}, '/owner/finance'));
+    failFinance();
     await settle(5 * 60_000);
 
     const requestsDuringOutage = financeCalls() - callsAfterLoad;
@@ -184,7 +193,7 @@ describe('OwnerPayments: polling', () => {
   });
 
   it('shows the error when the very first load fails: there is nothing else to show', async () => {
-    get.mockRejectedValue(failedRequest(502, {}, '/owner/finance'));
+    failFinance();
 
     await renderPage();
     await settle(5_000);
@@ -205,14 +214,14 @@ describe('OwnerPayments: payout request', () => {
   });
 
   it('sends the amount as a number and the card number without spaces', async () => {
-    post.mockResolvedValue({ data: { success: true, data: makePayoutRequest() } });
+    postAnswer = success(makePayoutRequest());
     await renderPage();
 
     fillPayout('50000');
     submitPayout();
     await settle();
 
-    expect(post).toHaveBeenCalledWith('/owner/payouts', { amount: 50000, card_number: '8600123456781234', notes: undefined });
+    expect(posts()).toEqual([['/owner/payouts', { amount: 50000, card_number: '8600123456781234' }]]);
     expect(screen.getByText('Yechib olish so\'rovi muvaffaqiyatli yuborildi!')).toBeInTheDocument();
     expect(financeCalls()).toBe(2); // the balances are fetched again
   });
@@ -225,7 +234,7 @@ describe('OwnerPayments: payout request', () => {
     await settle();
 
     expect(screen.getByText(new RegExp(`Maksimal yechish summasi: ${uzs(400000)}`))).toBeInTheDocument();
-    expect(post).not.toHaveBeenCalled();
+    expect(posts()).toEqual([]);
   });
 
   it('asks for an amount and for the whole card number before sending anything', async () => {
@@ -238,7 +247,7 @@ describe('OwnerPayments: payout request', () => {
     fillPayout('50000', '8600 1234');
     submitPayout();
     expect(screen.getByText('Karta raqamini to\'liq kiriting')).toBeInTheDocument();
-    expect(post).not.toHaveBeenCalled();
+    expect(posts()).toEqual([]);
   });
 });
 
@@ -254,7 +263,7 @@ describe('OwnerPayments: balance top-up', () => {
   });
 
   it('starts the payment for the chosen amount, as a number', async () => {
-    post.mockResolvedValue({ data: { success: true, data: { topup_uuid: 'abc', payment_url: 'https://my.click.uz/pay' } } });
+    postAnswer = success({ topup_uuid: 'abc', payment_url: 'https://my.click.uz/pay' });
     const open = vi.spyOn(window, 'open').mockImplementation(() => null);
     await openTopup();
 
@@ -263,7 +272,7 @@ describe('OwnerPayments: balance top-up', () => {
     fireEvent.click(payButton());
     await settle();
 
-    expect(post).toHaveBeenCalledWith('/owner/finance/top-up', { amount: 250000, provider: 'click' });
+    expect(posts()).toEqual([['/owner/finance/top-up', { amount: 250000, provider: 'click' }]]);
     expect(open).toHaveBeenCalledWith('https://my.click.uz/pay', '_blank');
   });
 
@@ -278,6 +287,6 @@ describe('OwnerPayments: balance top-up', () => {
     expect(payButton()).toBeDisabled();
     fireEvent.change(amountInput, { target: { value: '1000' } });
     expect(payButton()).toBeEnabled();
-    expect(post).not.toHaveBeenCalled();
+    expect(posts()).toEqual([]);
   });
 });

@@ -81,6 +81,22 @@ function reauthenticate(): Promise<string | null> {
   return reauthPromise;
 }
 
+// A token to replay a request that was refused with a 401, or null when the session cannot be renewed. `sentWith` is the
+// token that request carried. Shared by this client's interceptor below and by the fetch the staff screens' API layer
+// (@rizqim/staff, services/staffApi.ts) is given, so there is one re-authentication, one cool-down, for both.
+export function recoverToken(sentWith: string | null): Promise<string | null> {
+  const currentToken = useAuthStore.getState().token;
+  if (currentToken && currentToken !== sentWith) {
+    // Another request already renewed the token while this one was in flight
+    return Promise.resolve(currentToken);
+  }
+  if (Date.now() - lastReauthFailureAt < REAUTH_COOLDOWN_MS) {
+    // A re-authentication just failed: don't hammer the (rate limited) login endpoint
+    return Promise.resolve(null);
+  }
+  return reauthenticate();
+}
+
 // Response Interceptor for generic error handling
 api.interceptors.response.use(
   (response) => response,
@@ -96,17 +112,7 @@ api.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    const currentToken = useAuthStore.getState().token;
-    let token: string | null;
-    if (currentToken && currentToken !== config._authToken) {
-      // Another request already renewed the token while this one was in flight
-      token = currentToken;
-    } else if (Date.now() - lastReauthFailureAt < REAUTH_COOLDOWN_MS) {
-      // A re-authentication just failed: don't hammer the (rate limited) login endpoint
-      token = null;
-    } else {
-      token = await reauthenticate();
-    }
+    const token = await recoverToken(config._authToken ?? null);
 
     if (!token) {
       // Can't renew the session: fall back to the previous behaviour

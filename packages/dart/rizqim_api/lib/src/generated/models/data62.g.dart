@@ -7,11 +7,15 @@ part of 'data62.dart';
 // **************************************************************************
 
 Data62 _$Data62FromJson(Map<String, dynamic> json) => Data62(
-  storeId: (json['store_id'] as num).toInt(),
-  inviteLink: json['invite_link'] as String,
+  productId: (json['product_id'] as num).toInt(),
+  channels: json['channels'] as List<dynamic>,
+  prices: (json['prices'] as List<dynamic>)
+      .map((e) => Prices.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data62ToJson(Data62 instance) => <String, dynamic>{
-  'store_id': instance.storeId,
-  'invite_link': instance.inviteLink,
+  'product_id': instance.productId,
+  'channels': instance.channels,
+  'prices': instance.prices,
 };

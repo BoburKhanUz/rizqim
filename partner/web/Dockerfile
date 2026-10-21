@@ -1,4 +1,4 @@
-# Hamkor veb-panel (Next.js, standalone output). The build context is the REPOSITORY ROOT, because the app links two
+# Hamkor veb-panel (Next.js, standalone output). The build context is the REPOSITORY ROOT, because the app links three
 # packages from packages/ts/ (package.json: file: dependencies). Which files enter the context: Dockerfile.dockerignore.
 #   docker build -f partner/web/Dockerfile -t rizqim-partner-web .
 # Served by docker-compose.yml as the `partner-web` service (P1-36; host, CORS origin and env: docs/DEPLOY.md, section 4).
@@ -8,8 +8,9 @@
 FROM node:22-alpine AS build
 WORKDIR /app
 
-# The shared UI package ships TypeScript source: nothing to build
+# The shared UI and staff packages ship TypeScript source: nothing to build
 COPY packages/ts/ui /app/packages/ts/ui
+COPY packages/ts/staff /app/packages/ts/staff
 
 # The API client is compiled to dist/ (its package.json "main"), then the app is built against it
 COPY packages/ts/api-client/package.json packages/ts/api-client/package-lock.json /app/packages/ts/api-client/

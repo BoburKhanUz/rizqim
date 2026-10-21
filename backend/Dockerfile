@@ -18,7 +18,11 @@ FROM php:8.3-fpm-alpine
 # ext-uv (libuv) is the event loop for Reverb (ReactPHP picks it automatically when loaded): without it Reverb falls back to
 # stream_select(), which cannot hold more than ~1000 open WebSocket connections. `libuv` is the runtime library and must
 # stay after `apk del $PHPIZE_DEPS`. The last command fails the build if either extension did not load.
+# Both are built from the PECL release archives kept in docker/ext (checked against docker/ext/SHA256SUMS), not with
+# `pecl install`: a pecl.php.net outage must never stop an image build or a deploy. To upgrade, replace the archive
+# (https://pecl.php.net/get/<name>-<version>.tgz) and its line in SHA256SUMS, and the version below.
 # su-exec: entrypoint.sh runs artisan and the queue/scheduler processes as www-data (like php-fpm), not as root
+COPY docker/ext/ /tmp/ext/
 RUN apk add --no-cache \
     nginx \
     supervisor \
@@ -34,6 +38,12 @@ RUN apk add --no-cache \
     libuv-dev \
     libuv \
     $PHPIZE_DEPS \
+    && (cd /tmp/ext && sha256sum -c SHA256SUMS) \
+    && docker-php-source extract \
+    && tar -xzf /tmp/ext/redis-6.3.0.tgz -C /tmp/ext \
+    && tar -xzf /tmp/ext/uv-0.3.0.tgz -C /tmp/ext \
+    && mv /tmp/ext/redis-6.3.0 /usr/src/php/ext/redis \
+    && mv /tmp/ext/uv-0.3.0 /usr/src/php/ext/uv \
     && docker-php-ext-configure gd --with-jpeg --with-freetype \
     && docker-php-ext-install -j$(nproc) \
         pdo_pgsql \
@@ -44,11 +54,11 @@ RUN apk add --no-cache \
         zip \
         pcntl \
         opcache \
-    && pecl install redis-6.3.0 \
-    && pecl install uv-0.3.0 \
-    && docker-php-ext-enable redis uv \
+        redis \
+        uv \
+    && docker-php-source delete \
     && apk del $PHPIZE_DEPS \
-    && rm -rf /tmp/pear \
+    && rm -rf /tmp/ext \
     && php -r 'exit(extension_loaded("redis") && extension_loaded("uv") ? 0 : 1);'
 
 WORKDIR /var/www/html

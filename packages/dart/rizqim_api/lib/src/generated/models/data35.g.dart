@@ -7,35 +7,39 @@ part of 'data35.dart';
 // **************************************************************************
 
 Data35 _$Data35FromJson(Map<String, dynamic> json) => Data35(
-  debtBalance: json['debt_balance'] as num,
-  walletBalance: json['wallet_balance'] as num,
-  creditLimit: json['credit_limit'] as num,
-  minPayoutReserve: json['min_payout_reserve'] as num,
-  paymentAccountType: json['payment_account_type'] as String,
-  commissionRate: json['commission_rate'] as num,
-  status: json['status'],
-  isOrderLocked: json['is_order_locked'] as bool,
-  ledgerTransactions: (json['ledger_transactions'] as List<dynamic>)
-      .map((e) => StoreTransaction.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  walletTransactions: (json['wallet_transactions'] as List<dynamic>)
-      .map((e) => StoreWalletTransaction.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  payoutRequests: (json['payout_requests'] as List<dynamic>)
-      .map((e) => PayoutRequest.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  id: (json['id'] as num).toInt(),
+  name: json['name'] as String,
+  phone: json['phone'] as String?,
+  address: json['address'] as String?,
+  regionId: (json['region_id'] as num?)?.toInt(),
+  districtId: (json['district_id'] as num?)?.toInt(),
+  latitude: json['latitude'] as num?,
+  longitude: json['longitude'] as num?,
+  radiusKm: json['radius_km'] as num,
+  status: json['status'] as String,
+  isActive: json['is_active'] as bool,
+  workingHours: WorkingHours4.fromJson(
+    json['working_hours'] as Map<String, dynamic>,
+  ),
+  isOpenNow: json['is_open_now'] as bool,
+  createdAt: json['created_at'] as String?,
+  updatedAt: json['updated_at'] as String?,
 );
 
 Map<String, dynamic> _$Data35ToJson(Data35 instance) => <String, dynamic>{
-  'debt_balance': instance.debtBalance,
-  'wallet_balance': instance.walletBalance,
-  'credit_limit': instance.creditLimit,
-  'min_payout_reserve': instance.minPayoutReserve,
-  'payment_account_type': instance.paymentAccountType,
-  'commission_rate': instance.commissionRate,
+  'id': instance.id,
+  'name': instance.name,
+  'phone': instance.phone,
+  'address': instance.address,
+  'region_id': instance.regionId,
+  'district_id': instance.districtId,
+  'latitude': instance.latitude,
+  'longitude': instance.longitude,
+  'radius_km': instance.radiusKm,
   'status': instance.status,
-  'is_order_locked': instance.isOrderLocked,
-  'ledger_transactions': instance.ledgerTransactions,
-  'wallet_transactions': instance.walletTransactions,
-  'payout_requests': instance.payoutRequests,
+  'is_active': instance.isActive,
+  'working_hours': instance.workingHours,
+  'is_open_now': instance.isOpenNow,
+  'created_at': instance.createdAt,
+  'updated_at': instance.updatedAt,
 };

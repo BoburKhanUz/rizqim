@@ -27,6 +27,7 @@ jobs:
       infra: ${{ steps.filter.outputs.infra }}
       apiclient: ${{ steps.filter.outputs.apiclient }}
       partnerweb: ${{ steps.filter.outputs.partnerweb }}
+      staffpkg: ${{ steps.filter.outputs.staffpkg }}
       flutter: ${{ steps.filter.outputs.flutter }}
     steps:
       - uses: actions/checkout@v7
@@ -46,6 +47,9 @@ jobs:
               - 'customer/miniapp/**'
               # P1-25: the design system the Mini App links from packages/ts/ui
               - 'packages/ts/ui/**'
+              # P2-13: the staff screens' shared package and the API client it is built on
+              - 'packages/ts/staff/**'
+              - 'packages/ts/api-client/**'
               - '.github/workflows/ci.yml'
             # P1-11: TypeScript packages and the spec their API client is generated from (api-client job)
             apiclient:
@@ -71,6 +75,13 @@ jobs:
             partnerweb:
               - 'partner/web/**'
               - 'packages/ts/**'
+              - '.github/workflows/ci.yml'
+            # P2-13: the shared staff package (packages/ts/staff) and what it is built on (staff-package job)
+            staffpkg:
+              - 'packages/ts/staff/**'
+              - 'packages/ts/ui/**'
+              - 'packages/ts/api-client/**'
+              - 'packages/api-spec/**'
               - '.github/workflows/ci.yml'
             # P1-26: the Dart workspace (pubspec.yaml at the root), the Flutter apps, and the spec the Dart client is
             # generated from (flutter job at the end of this file)
@@ -223,7 +234,16 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: customer/miniapp/package-lock.json
+          cache-dependency-path: |
+            customer/miniapp/package-lock.json
+            packages/ts/api-client/package-lock.json
+
+      # P2-13: the Mini App links packages/ts/api-client (compiled to dist/, its "main") and packages/ts/staff (source)
+      - name: Build the API client
+        working-directory: packages/ts/api-client
+        run: |
+          npm ci
+          npm run build
 
       - name: Install dependencies
         run: npm ci
@@ -257,7 +277,16 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: customer/miniapp/package-lock.json
+          cache-dependency-path: |
+            customer/miniapp/package-lock.json
+            packages/ts/api-client/package-lock.json
+
+      # P2-13: the Mini App links packages/ts/api-client (compiled to dist/, its "main") and packages/ts/staff (source)
+      - name: Build the API client
+        working-directory: packages/ts/api-client
+        run: |
+          npm ci
+          npm run build
 
       - name: Install dependencies
         run: npm ci
@@ -443,6 +472,48 @@ jobs:
       - name: Build
         working-directory: partner/web
         run: npm run build
+
+  # --- P2-13 Staff package (runs when packages/ts/staff or what it builds on changed, see the `staffpkg` filter) ---
+  staff-package:
+    name: Staff package (lint, typecheck, tests)
+    needs: changes
+    if: needs.changes.outputs.staffpkg == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            packages/ts/staff/package-lock.json
+            packages/ts/api-client/package-lock.json
+
+      # The package types its API layer from the generated client (compiled to dist/) and links packages/ts/ui (source)
+      - name: Build the API client
+        working-directory: packages/ts/api-client
+        run: |
+          npm ci
+          npm run build
+
+      - name: Install dependencies
+        working-directory: packages/ts/staff
+        run: npm ci
+
+      - name: Lint
+        working-directory: packages/ts/staff
+        run: npm run lint
+
+      - name: Typecheck
+        working-directory: packages/ts/staff
+        run: npm run typecheck
+
+      - name: Tests
+        working-directory: packages/ts/staff
+        run: npm test
 
   # --- P1-26 Flutter / Dart workspace (runs when a Dart path or the OpenAPI spec changed, see the `flutter` filter) --
   flutter:

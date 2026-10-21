@@ -6,9 +6,9 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
-    // @rizqim/ui is linked from packages/ts/ui and compiled as source: its imports of react and lucide-react must resolve to
-    // this app's copies (one React)
-    dedupe: ['react', 'react-dom', 'lucide-react'],
+    // @rizqim/ui and @rizqim/staff are linked from packages/ts/ and compiled as source: their imports of react, lucide-react,
+    // @tanstack/react-query and the sibling packages must resolve to this app's copies (one React, one query context)
+    dedupe: ['react', 'react-dom', 'lucide-react', '@tanstack/react-query', '@rizqim/api-client', '@rizqim/ui'],
   },
   test: {
     environment: 'jsdom',

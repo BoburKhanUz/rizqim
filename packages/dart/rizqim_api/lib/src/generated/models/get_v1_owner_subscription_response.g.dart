@@ -11,7 +11,7 @@ GetV1OwnerSubscriptionResponse _$GetV1OwnerSubscriptionResponseFromJson(
 ) => GetV1OwnerSubscriptionResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data55.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data78.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1OwnerSubscriptionResponseToJson(

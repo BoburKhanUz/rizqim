@@ -77,7 +77,7 @@ class MenuStopListTest extends TestCase
 
             return $event->broadcastAs() === 'menu.availability_changed'
                 && $event->broadcastQueue() === 'broadcasts'
-                && $channels === ["private:private-store.{$this->store->id}", "private:private-branch.{$this->branch->id}", "public:menu.{$this->store->id}"]
+                && $channels === ["private:private-store.{$this->store->id}", "private:private-branch.{$this->branch->id}", "private:private-pos-branch.{$this->branch->id}", "public:menu.{$this->store->id}"]
                 && $event->broadcastWith()['items'] === [['type' => 'variant', 'id' => $this->variant->id, 'available' => false]]
                 && $event->broadcastWith()['reason'] === 'stop_list';
         });

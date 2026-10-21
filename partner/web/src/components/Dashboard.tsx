@@ -114,7 +114,7 @@ function DashboardBody({ data }: { data: Analytics }) {
             <ul className="divide-y divide-line">
               {statuses.map(([status, count]) => (
                 <li key={status} className="flex items-center justify-between gap-3 py-2.5">
-                  <StatusBadge status={status} label={statusLabel(t, status)} />
+                  <StatusBadge status={status} label={statusLabel(language, status)} />
                   <span className="text-body font-bold text-fg">{formatNumber(count, language)}</span>
                 </li>
               ))}
@@ -137,7 +137,7 @@ function DashboardBody({ data }: { data: Analytics }) {
           <Card className="py-2">
             <ul className="divide-y divide-line">
               {data.by_payment_method.map((row) => (
-                <Row key={row.method} left={paymentLabel(t, row.method)} right={`${t('ordersShort', { n: formatNumber(row.orders, language) })} · ${formatMoney(row.revenue, language)}`} />
+                <Row key={row.method} left={paymentLabel(language, row.method)} right={`${t('ordersShort', { n: formatNumber(row.orders, language) })} · ${formatMoney(row.revenue, language)}`} />
               ))}
             </ul>
           </Card>
@@ -148,7 +148,7 @@ function DashboardBody({ data }: { data: Analytics }) {
             <Card className="py-2">
               <ul className="divide-y divide-line">
                 {data.by_order_type.map((row) => (
-                  <Row key={row.type} left={orderTypeLabel(t, row.type)} right={`${t('ordersShort', { n: formatNumber(row.orders, language) })} · ${formatMoney(row.revenue, language)}`} />
+                  <Row key={row.type} left={orderTypeLabel(language, row.type)} right={`${t('ordersShort', { n: formatNumber(row.orders, language) })} · ${formatMoney(row.revenue, language)}`} />
                 ))}
               </ul>
             </Card>

@@ -30,15 +30,6 @@ export interface ApiUser {
 // The signed-in user kept in the auth store: the API user with `balance` normalised to a number.
 export type User = Omit<ApiUser, 'balance'> & { balance?: number };
 
-// Courier/manager/owner an order can be assigned to (GET /couriers).
-export interface AssignableStaff {
-  id: number;
-  name: string; // already carries the role label, e.g. "Ali (Kuryer)"
-  phone: string | null;
-  telegram_username: string | null;
-  branch_id: number | null;
-}
-
 // GET /user
 export interface AuthPayload {
   user: ApiUser;

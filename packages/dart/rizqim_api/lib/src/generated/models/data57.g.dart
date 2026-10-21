@@ -7,11 +7,23 @@ part of 'data57.dart';
 // **************************************************************************
 
 Data57 _$Data57FromJson(Map<String, dynamic> json) => Data57(
-  rating: json['rating'] as String,
-  reviewCount: (json['review_count'] as num).toInt(),
+  data: (json['data'] as List<dynamic>)
+      .map((e) => Data56.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  currentPage: (json['current_page'] as num).toInt(),
+  lastPage: (json['last_page'] as num).toInt(),
+  perPage: (json['per_page'] as num).toInt(),
+  total: (json['total'] as num).toInt(),
+  from: (json['from'] as num?)?.toInt(),
+  to: (json['to'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$Data57ToJson(Data57 instance) => <String, dynamic>{
-  'rating': instance.rating,
-  'review_count': instance.reviewCount,
+  'data': instance.data,
+  'current_page': instance.currentPage,
+  'last_page': instance.lastPage,
+  'per_page': instance.perPage,
+  'total': instance.total,
+  'from': instance.from,
+  'to': instance.to,
 };

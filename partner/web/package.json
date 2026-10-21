@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@rizqim/api-client": "file:../../packages/ts/api-client",
+    "@rizqim/staff": "file:../../packages/ts/staff",
     "@rizqim/ui": "file:../../packages/ts/ui",
     "@tanstack/react-query": "5.103.2",
     "lucide-react": "1.48.0",

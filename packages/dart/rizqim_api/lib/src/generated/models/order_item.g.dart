@@ -31,6 +31,10 @@ OrderItem _$OrderItemFromJson(Map<String, dynamic> json) => OrderItem(
   modifiersTotal: json['modifiers_total'] as String,
   batchId: (json['batch_id'] as num?)?.toInt(),
   batchQuantity: json['batch_quantity'] as String?,
+  kitchenStatus: KitchenItemStatus.fromJson(json['kitchen_status'] as String),
+  readyAt: json['ready_at'] == null
+      ? null
+      : DateTime.parse(json['ready_at'] as String),
   order: json['order'] == null
       ? null
       : Order.fromJson(json['order'] as Map<String, dynamic>),
@@ -61,6 +65,8 @@ Map<String, dynamic> _$OrderItemToJson(OrderItem instance) => <String, dynamic>{
   'modifiers_total': instance.modifiersTotal,
   'batch_id': instance.batchId,
   'batch_quantity': instance.batchQuantity,
+  'kitchen_status': instance.kitchenStatus,
+  'ready_at': instance.readyAt?.toIso8601String(),
   'order': instance.order,
   'product_variant': instance.productVariant,
   'batch': instance.batch,

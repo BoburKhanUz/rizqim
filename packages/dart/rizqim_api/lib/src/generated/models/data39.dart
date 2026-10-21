@@ -4,8 +4,9 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'modifiers.dart';
-import 'product_rules.dart';
+import 'branch6.dart';
+import 'polygon4.dart';
+import 'bbox4.dart';
 
 part 'data39.g.dart';
 
@@ -13,41 +14,47 @@ part 'data39.g.dart';
 class Data39 {
   const Data39({
     required this.id,
-    required this.uuid,
     required this.name,
-    required this.nameI18n,
-    required this.minSelect,
-    required this.maxSelect,
-    required this.isRequired,
-    required this.sortOrder,
-    required this.isActive,
-    required this.modifiers,
-    required this.productIds,
-    required this.productRules,
+    required this.branchId,
+    required this.branch,
+    required this.polygon,
+    required this.bbox,
+    required this.areaKm2,
+    required this.deliveryPrice,
+    required this.minOrderAmount,
+    required this.freeDeliveryFrom,
+    required this.etaMinutes,
+    required this.priority,
+    required this.active,
+    required this.createdAt,
+    required this.updatedAt,
   });
 
   factory Data39.fromJson(Map<String, Object?> json) => _$Data39FromJson(json);
 
   final int id;
-  final String uuid;
   final String name;
-  @JsonKey(name: 'name_i18n')
-  final Map<String, String>? nameI18n;
-  @JsonKey(name: 'min_select')
-  final int minSelect;
-  @JsonKey(name: 'max_select')
-  final int? maxSelect;
-  @JsonKey(name: 'is_required')
-  final bool isRequired;
-  @JsonKey(name: 'sort_order')
-  final int sortOrder;
-  @JsonKey(name: 'is_active')
-  final bool isActive;
-  final List<Modifiers> modifiers;
-  @JsonKey(name: 'product_ids')
-  final List<int> productIds;
-  @JsonKey(name: 'product_rules')
-  final ProductRules productRules;
+  @JsonKey(name: 'branch_id')
+  final int? branchId;
+  final Branch6? branch;
+  final Polygon4 polygon;
+  final Bbox4 bbox;
+  @JsonKey(name: 'area_km2')
+  final String areaKm2;
+  @JsonKey(name: 'delivery_price')
+  final String deliveryPrice;
+  @JsonKey(name: 'min_order_amount')
+  final String minOrderAmount;
+  @JsonKey(name: 'free_delivery_from')
+  final String? freeDeliveryFrom;
+  @JsonKey(name: 'eta_minutes')
+  final int? etaMinutes;
+  final int priority;
+  final bool active;
+  @JsonKey(name: 'created_at')
+  final String? createdAt;
+  @JsonKey(name: 'updated_at')
+  final String? updatedAt;
 
   Map<String, Object?> toJson() => _$Data39ToJson(this);
 }

@@ -21,9 +21,10 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     // Real-time updates (Laravel Reverb): POST /api/broadcasting/auth signs private channel subscriptions for a Sanctum
     // Bearer token (60 per minute per user, AppServiceProvider); who may join which channel is in routes/channels.php
+    // P2-11: a paired POS/KDS terminal's own token (auth:device) too, for its branch's pos-branch.{id} channel only
     ->withBroadcasting(__DIR__.'/../routes/channels.php', [
         'prefix' => 'api',
-        'middleware' => ['auth:sanctum', 'throttle:broadcast-auth'],
+        'middleware' => ['auth:sanctum,device', 'throttle:broadcast-auth'],
     ])
     ->withSchedule(function (Schedule $schedule) {
         $schedule->job(new \App\Jobs\CheckUnacceptedAssignmentsJob)->everyMinute();

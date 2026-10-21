@@ -17,7 +17,7 @@ use Carbon\CarbonInterface;
  */
 class ZoneResolver
 {
-    private const DEFAULT_TIMEZONE = 'Asia/Tashkent';
+    public const DEFAULT_TIMEZONE = 'Asia/Tashkent';
 
     /**
      * The active zone of the store that covers the point: highest priority first, then the smallest, then the oldest.

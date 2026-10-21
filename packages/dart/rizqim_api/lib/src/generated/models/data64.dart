@@ -8,23 +8,14 @@ part 'data64.g.dart';
 
 @JsonSerializable()
 class Data64 {
-  const Data64({
-    required this.id,
-    required this.name,
-    required this.role,
-    required this.staffCode,
-    required this.photoUrl,
-  });
+  const Data64({required this.productId, required this.modifierGroups});
 
   factory Data64.fromJson(Map<String, Object?> json) => _$Data64FromJson(json);
 
-  final int id;
-  final String name;
-  final String role;
-  @JsonKey(name: 'staff_code')
-  final String? staffCode;
-  @JsonKey(name: 'photo_url')
-  final String? photoUrl;
+  @JsonKey(name: 'product_id')
+  final int productId;
+  @JsonKey(name: 'modifier_groups')
+  final String modifierGroups;
 
   Map<String, Object?> toJson() => _$Data64ToJson(this);
 }

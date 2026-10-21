@@ -12,7 +12,7 @@ use Illuminate\Contracts\Events\ShouldDispatchAfterCommit;
  * menu.availability_changed: something on a branch's menu became unavailable or available again (stop-list entry
  * added, removed or expired; a batch opened, sold out, refilled or closed; a branch override switched). P1-21.
  *
- * Sent to the staff channels (store.{id}, branch.{id}, like the order events) and to the public `menu.{storeId}`
+ * Sent to the staff channels (store.{id}, branch.{id}, pos-branch.{id}, like the order events) and to the public `menu.{storeId}`
  * channel the customer apps listen on: availability is public anyway (it is in GET /catalog). The payload says what
  * changed; clients refetch GET /catalog/availability for the full picture. Queued on `broadcasts`, after commit,
  * tried once and rescued, exactly like OrderBroadcast: a hint must never fail the request that caused it.
@@ -55,6 +55,8 @@ class MenuAvailabilityChangedBroadcast implements ShouldBroadcast, ShouldDispatc
 
         if ($this->branchId !== null) {
             $channels[] = new PrivateChannel("branch.{$this->branchId}");
+            // P2-11: the branch's floor staff and paired terminals (stop-list on the till and the kitchen display)
+            $channels[] = new PrivateChannel("pos-branch.{$this->branchId}");
         }
 
         $channels[] = new Channel("menu.{$this->storeId}");

@@ -2,16 +2,15 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import api from '../services/api';
 import { makeAnalytics } from '../test/factories';
-import { failedRequest } from '../test/httpErrors';
+import { callsTo, reply, stubStaffApi, success, type FakeCall } from '../test/staffFetch';
 import { useOwnerAnalytics } from './useOwnerAnalytics';
 
 vi.mock('../lib/telegram', () => ({ hapticFeedback: vi.fn(), tg: { initDataUnsafe: {} } }));
-vi.mock('../services/api', () => ({ default: { get: vi.fn() } }));
 
-const get = vi.mocked(api.get);
-const analyticsCalls = () => get.mock.calls.filter(([url]) => url === '/owner/analytics');
+let calls: FakeCall[];
+let serve: () => unknown;
+const analyticsCalls = () => callsTo(calls, '/owner/analytics');
 
 let client: QueryClient;
 
@@ -24,8 +23,8 @@ const settle = (ms = 0) => act(() => vi.advanceTimersByTimeAsync(ms));
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'] });
   client = new QueryClient();
-  get.mockReset();
-  get.mockImplementation(() => Promise.resolve({ data: { success: true, data: makeAnalytics() } }));
+  serve = () => success(makeAnalytics());
+  ({ calls } = stubStaffApi(() => serve()));
   vi.spyOn(console, 'error').mockImplementation(() => {});
 });
 
@@ -39,8 +38,8 @@ describe('useOwnerAnalytics', () => {
     const { result } = renderHook(() => useOwnerAnalytics('yearly'), { wrapper });
     await settle();
 
-    expect(analyticsCalls()).toEqual([['/owner/analytics', { params: { period: 'year' } }]]);
-    expect(get).toHaveBeenCalledTimes(1);
+    expect(analyticsCalls().map((call) => call.query)).toEqual([{ period: 'year' }]);
+    expect(calls).toHaveLength(1);
     expect(result.current.data?.summary.revenue).toBe(130000);
   });
 
@@ -48,7 +47,7 @@ describe('useOwnerAnalytics', () => {
     for (const [timeframe, period] of [['today', 'today'], ['weekly', 'week'], ['monthly', 'month']] as const) {
       renderHook(() => useOwnerAnalytics(timeframe), { wrapper });
       await settle();
-      expect(analyticsCalls().at(-1)?.[1]).toEqual({ params: { period } });
+      expect(analyticsCalls().at(-1)?.query).toEqual({ period });
     }
   });
 
@@ -56,7 +55,7 @@ describe('useOwnerAnalytics', () => {
     renderHook(() => useOwnerAnalytics('custom', { start: '2026-10-01', end: '2026-10-10' }), { wrapper });
     await settle();
 
-    expect(analyticsCalls()[0][1]).toEqual({ params: { period: 'custom', from: '2026-10-01', to: '2026-10-10' } });
+    expect(analyticsCalls()[0]!.query).toEqual({ period: 'custom', from: '2026-10-01', to: '2026-10-10' });
   });
 
   it('does not ask for a custom period the server would refuse, and says why', async () => {
@@ -66,7 +65,7 @@ describe('useOwnerAnalytics', () => {
     });
     await settle();
 
-    expect(get).not.toHaveBeenCalled();
+    expect(calls).toHaveLength(0);
     expect(result.current.rangeProblem).toBe('too_long');
 
     rerender({ end: '2025-12-31' });
@@ -105,7 +104,7 @@ describe('useOwnerAnalytics', () => {
     const { result } = renderHook(() => useOwnerAnalytics('today'), { wrapper });
     await settle();
 
-    get.mockRejectedValue(failedRequest(500, {}, '/owner/analytics'));
+    serve = () => reply(500);
     await settle(60_000 + 5_000);
 
     expect(result.current.isError).toBe(true);

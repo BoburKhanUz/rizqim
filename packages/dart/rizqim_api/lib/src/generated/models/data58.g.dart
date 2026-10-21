@@ -8,22 +8,22 @@ part of 'data58.dart';
 
 Data58 _$Data58FromJson(Map<String, dynamic> json) => Data58(
   id: (json['id'] as num).toInt(),
-  name: json['name'] as String,
-  polygon: Polygon.fromJson(json['polygon'] as Map<String, dynamic>),
-  deliveryPrice: json['delivery_price'] as String,
-  minOrderAmount: json['min_order_amount'] as String,
-  freeDeliveryFrom: json['free_delivery_from'] as String?,
-  etaMinutes: (json['eta_minutes'] as num?)?.toInt(),
-  priority: (json['priority'] as num).toInt(),
+  amount: json['amount'] as String,
+  card: json['card'] as String,
+  status: json['status'] as String,
+  notes: json['notes'] as String?,
+  resolutionNotes: json['resolution_notes'] as String?,
+  processedAt: json['processed_at'] as String?,
+  createdAt: json['created_at'] as String,
 );
 
 Map<String, dynamic> _$Data58ToJson(Data58 instance) => <String, dynamic>{
   'id': instance.id,
-  'name': instance.name,
-  'polygon': instance.polygon,
-  'delivery_price': instance.deliveryPrice,
-  'min_order_amount': instance.minOrderAmount,
-  'free_delivery_from': instance.freeDeliveryFrom,
-  'eta_minutes': instance.etaMinutes,
-  'priority': instance.priority,
+  'amount': instance.amount,
+  'card': instance.card,
+  'status': instance.status,
+  'notes': instance.notes,
+  'resolution_notes': instance.resolutionNotes,
+  'processed_at': instance.processedAt,
+  'created_at': instance.createdAt,
 };
