@@ -5,9 +5,9 @@ Flutter ilovalari uchun umumiy Dart paketlari. Hammasi bitta **Dart workspace**d
 
 | Paket | Nima | Flutter kerakmi |
 |---|---|---|
-| `rizqim_core` | Pul (`Money`, butun so'm, `25 000 so'm` ajralmas bo'shliq bilan), sana (`19-okt, 20:12`), buyurtma holatlari va rang guruhlari. Mini App (`customer/miniapp/src/lib/format.ts`, `orderStatus.ts`) bilan bir xil natija | yo'q (`dart test`) |
-| `rizqim_api` | OpenAPI'dan yaratilgan klient + qo'lda yozilgan kirish qatlami (terminalni ulash, xodim PIN sessiyasi, refresh token aylanishi) | yo'q (`dart test`) |
-| `rizqim_ui` | Material 3 mavzusi (Rizqim tokenlari, yorug' va qorong'i), `RzButton`, `StatusBadge`, `EmptyState`, `InlineError` | ha (`flutter test`) |
+| `rizqim_core` | Pul (`Money`, butun so'm, `25 000 so'm` ajralmas bo'shliq bilan), sana (`19-okt, 20:12`), davomiylik (`formatDuration`: `4:05`), buyurtma holatlari va rang guruhlari, buyurtma turi va kanali (`OrderType.shortLabel`: "Zal", `OrderChannel`), xodim rollari (`StaffRole`: "Oshpaz"). Mini App (`customer/miniapp/src/lib/format.ts`, `orderStatus.ts`) bilan bir xil natija | yo'q (`dart test`) |
+| `rizqim_api` | OpenAPI'dan yaratilgan klient + qo'lda yozilgan kirish qatlami (terminalni ulash, xodim PIN sessiyasi, refresh token aylanishi, PIN xatolari `PinFailure`), oshxona ekrani (`KitchenService`, `KitchenTicket`), Reverb real-time klienti (`PusherClient`, `ChannelAuth`) | yo'q (`dart test`) |
+| `rizqim_ui` | Material 3 mavzusi (Rizqim tokenlari, yorug' va qorong'i), `RzButton`, `StatusBadge`, `EmptyState`, `InlineError`; terminal ilovalari uchun `RzPinEntry`/`RzPinPad`, `RzStaffTile`, `RzOfflineBanner` ("Aloqa yo'q"), `RzIdleDetector` (harakatsizlikda chiqarish) | ha (`flutter test`) |
 
 Namunaviy ilova: [`pos/apps/kds`](../../pos/apps/kds/README.md).
 
@@ -26,7 +26,8 @@ flutter precache --linux                                 # kerakli platformalar 
 flutter doctor
 ```
 
-Linux'da ilovani yig'ish uchun: `sudo apt install clang cmake ninja-build pkg-config libgtk-3-dev libsecret-1-dev libjsoncpp-dev`.
+Linux'da ilovani yig'ish uchun: `sudo apt install clang cmake ninja-build pkg-config libgtk-3-dev libsecret-1-dev libjsoncpp-dev`
+(KDS ovozi uchun yana `libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev gstreamer1.0-plugins-base gstreamer1.0-plugins-good`).
 Android uchun Android SDK kerak (testlar va `flutter analyze` uchun kerak emas).
 
 ## Kundalik buyruqlar (repozitoriy ildizidan)
@@ -91,7 +92,40 @@ final orders = await client.api.orders.orderIndex();   // xodim tokeni o'zi qo'y
 * **Xatolar:** `ApiException` (`message` backend matni, `reason`, `errors`, `retryAfter`). `AuthReason` ichida
   `pairing_invalid`, `refresh_reused` va boshqalar.
 
+* **PIN xatolari:** `PinFailure.from(apiException)` — o'zbekcha matn va bloklangan bo'lsa qancha kutish (`lockedFor`,
+  `Retry-After` dan): `pin_invalid`, `pin_locked` (429), tarmoq, 401/403.
+
 Mini App hech narsani o'zgartirmaydi: u bitta tokenli `POST /auth/telegram` bilan ishlashda davom etadi.
+
+### Oshxona ekrani: `KitchenService`
+
+`client.kitchen` — yaratilgan `api.kitchen`/`api.staffOrders` ustida (xodim PIN sessiyasi tokeni bilan):
+`tickets({branchId, includeReady})` → `KitchenTicketList`, `bumpLine(uuid, lineId)`, `recallLine(uuid, lineId)` →
+yangilangan `KitchenTicket` (server amalni bajarib, javobni o'qib bo'lmasa `null`: ro'yxatni qayta yuklang),
+`markOrderReady(uuid)`. `KitchenTicket` yaratilgan `Data80`/`Data83` nomlariga bog'liq emas: `code` (`#E101`), `lines`
+(`quantityLabel`, `modifiers`, `isReady`), `waitingAt(now)` — kutish vaqti serverning `waiting_seconds` va javob kelgan
+paytdan sanaladi (planshet soati noto'g'ri bo'lsa ham to'g'ri). Qaysi buyurtma qachon "tayyor" bo'lishi — serverda.
+
+### Real-time: `PusherClient`
+
+Laravel Reverb (Pusher protokoli 7) uchun kichik klient (`web_socket_channel` ustida). Nega o'zimizniki: bizga bitta
+private kanal, imzo **terminal tokeni** bilan, boshqariladigan qayta ulanish va testlarda soxta soket kerak; tayyor Pusher
+paketlari buni (ayniqsa imzo va soxta ulanishni) qiyinlashtiradi.
+
+```dart
+final PusherClient rt = PusherClient(
+  uri: realtimeUri(apiBaseUrl: 'https://api.example.uz/api', appKey: reverbKey),   // wss://api.example.uz/app/<key>?protocol=7
+  headers: {'Origin': originOf('https://api.example.uz/api')},                    // Reverb allowed_origins
+  connector: ioRealtimeConnector,
+  authorize: client.channelAuth.terminal,          // POST /api/broadcasting/auth, terminal tokeni bilan
+)..subscribe('private-pos-branch.3')..connect();
+rt.events.listen((e) => refetch());                // hodisada faqat id va holat: ro'yxatni API'dan qayta so'rang
+rt.statuses.listen((s) { if (s == RealtimeStatus.connected) refetch(); });   // qayta ulanganda ham
+```
+
+Uzilsa `Backoff` bo'yicha (1, 2, 4 ... 30 s, ±20%) o'zi qayta ulanadi va kanallarga qayta obuna bo'ladi; server
+`activity_timeout` jim tursa `pusher:ping`, 30 s ichida javob bo'lmasa ulanishni yangilaydi; imzo olinmasa obunani
+qayta so'raydi. Real-time kafolat emas (docs/API.md, 8-bo'lim): ilova baribir polling ham qiladi.
 
 ## Mavzu va rang
 

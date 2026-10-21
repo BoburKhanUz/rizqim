@@ -91,3 +91,19 @@ export * from './hooks/orders';
 export * from './hooks/menu';
 export * from './hooks/team';
 export * from './hooks/business';
+
+// P2-24: sales reports, CSV download and the money history of the partner web panel
+export * from './api/reports';
+export * from './hooks/reports';
+
+// P2-22: modifier groups, channel prices, branch overrides and the branch list of the partner web menu screens
+export * from './api/menuAdmin';
+export * from './hooks/menuAdmin';
+
+// P2-23: staff, branches and working hours, delivery zones, store settings, service fees and terminals of the partner web management screens
+export * from './api/management';
+export * from './hooks/management';
+
+// P2-21: the live orders board (GET /staff/orders*, POST /staff/orders/{uuid}/status, branch list for the picker)
+export * from './api/board';
+export * from './hooks/board';

@@ -5,11 +5,13 @@ import { hapticFeedback } from '../lib/telegram';
 import { notificationOccurred } from '../lib/twa';
 import { showAlert } from '../lib/dialogs';
 import { useMainButton } from '../hooks/useMainButton';
-import { fetchOwnerCategories, fetchOwnerProducts, productFormData, saveProduct, type Category } from '@rizqim/staff';
+import { fetchOwnerCategories, fetchOwnerProducts, productFormData, saveProduct, useModifierGroups, type Category, type ProductVariant } from '@rizqim/staff';
 import { staffApi } from '../services/staffApi';
 import { getApiErrorMessage, logApiError } from '../lib/apiError';
 import { Button, Card, Field, IconButton, PageHeader, Section, Skeleton, cx, fieldClass } from '../components/ui';
 import { Switch } from '../components/staff/Switch';
+import { ModifierGroupsInfo, VariantSaleInfo, WebEditHint } from '../components/staff/ProductSaleInfo';
+import { Pill } from '../components/staff/Pill';
 
 // A price row of the form. `id` is set for variants that already exist on the server.
 interface VariantDraft {
@@ -42,6 +44,14 @@ export default function OwnerProductForm() {
     { id: null, name: '1-chi Porsiya', price: '' }
   ]);
 
+  // What the saved variants are sold in (unit, step, minimum) and whether the dish sells from a batch: shown read only,
+  // the full editor is the web panel's. They are not part of `variants`, so saving here sends none of them (the backend
+  // keeps what is saved).
+  const [saleInfo, setSaleInfo] = useState<Record<number, ProductVariant>>({});
+  const [batchTracked, setBatchTracked] = useState(false);
+  const { data: modifierGroups = [] } = useModifierGroups({ enabled: isEditing });
+  const groupsOfProduct = modifierGroups.filter((group) => group.product_ids.includes(Number(id)));
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -56,6 +66,8 @@ export default function OwnerProductForm() {
             setCategoryId(product.category_id?.toString() || '');
             setIsActive(product.status === 'active');
             setImagePreview(product.image_url);
+            setBatchTracked(product.batch_tracked === true);
+            setSaleInfo(Object.fromEntries((product.variants ?? []).map((v) => [v.id, v])));
             if (product.variants && product.variants.length > 0) {
               setVariants(product.variants.map((v) => ({
                 id: v.id,
@@ -242,6 +254,7 @@ export default function OwnerProductForm() {
                   <h3 className="text-body font-bold text-fg">Variant {index + 1}</h3>
                   <IconButton icon={Trash2} variant="danger" label={`Variant ${index + 1}ni o'chirish`} onClick={() => removeVariant(index)} className="-my-1 -mr-2" />
                 </div>
+                {variant.id !== null && saleInfo[variant.id] && <VariantSaleInfo variant={saleInfo[variant.id]} batchTracked={batchTracked} />}
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="Nomi">
                     {(props) => (
@@ -278,6 +291,16 @@ export default function OwnerProductForm() {
             </Button>
           </div>
         </Section>
+
+        {isEditing && batchTracked && (
+          <div>
+            <Pill tone="info">Qozon bo'yicha sotiladi</Pill>
+          </div>
+        )}
+
+        {isEditing && <ModifierGroupsInfo groups={groupsOfProduct} />}
+
+        <WebEditHint />
       </form>
     </div>
   );

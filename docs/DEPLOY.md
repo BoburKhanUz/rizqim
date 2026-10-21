@@ -99,6 +99,11 @@ Restoran egasi, menejeri va boshqa xodimlar uchun veb-panel ([partner/web/README
   panel ishlamaydi: Next serveri backend'ga compose tarmog'i ichida (`API_BASE_URL=http://backend/api`, compose o'zi beradi)
   murojaat qiladi, bu manzil brauzerga ko'rinmaydi. `PARTNER_SESSION_COOKIE_SECURE` standart `true` (cookie faqat HTTPS
   orqali); `false` faqat `http://` orqali sinash uchun.
+- **Real-time va xarita.** Buyurtmalar doskasi Reverb'ga ulanadi: ildiz `.env` dagi `REVERB_APP_KEY` (backend bilan bir
+  xil) panelga ham beriladi; `PARTNER_REVERB_HOST` bo'sh bo'lsa `PARTNER_PUBLIC_API_BASE_URL` host'i olinadi va brauzer
+  `wss://<domen>/app/...` ga ulanadi (Mini App nginx'i uni `reverb` ga uzatadi). Kalit bo'sh bo'lsa doska har 15 soniyada
+  so'rov bilan yangilanadi. Hududlar xaritasi plitkalari: `PARTNER_MAP_TILE_URL` (va `PARTNER_MAP_ATTRIBUTION`); bo'sh =
+  ochiq OpenStreetMap serveri, u faqat sinov uchun — production'da hisobli provayder. Hammasi runtime'da o'qiladi.
 - **CORS (`backend/.env`).** Brauzer API'ga panel origin'idan murojaat qiladi: `CORS_ALLOWED_ORIGINS` da panel origin'i
   bo'lishi shart, masalan `CORS_ALLOWED_ORIGINS=https://panel.<domen>`. Ro'yxat berilsa standart originlar
   (`TELEGRAM_WEBAPP_URL`, `APP_URL`) o'chadi; Mini App same-origin ishlagani uchun odatda bu muammo emas.

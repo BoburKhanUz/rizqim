@@ -1,10 +1,17 @@
-import { screen } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { render, within } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { StaffApiProvider } from '@rizqim/staff';
+import { AuthProvider } from './AuthProvider';
 import { Dashboard } from './Dashboard';
+import { I18nProvider } from './I18nProvider';
+import { ApiConfigContext } from '@/lib/apiConfig';
+import { getStaffApi } from '@/lib/session/client';
 import { setSession } from '@/lib/session/client';
-import { json, mockFetch, renderPage } from '@/test/helpers';
+import { API, json, mockFetch, renderPage } from '@/test/helpers';
 
-vi.mock('next/navigation', () => ({ useRouter: () => ({ replace: vi.fn(), refresh: vi.fn() }) }));
+vi.mock('next/navigation', () => ({ useRouter: () => ({ replace: vi.fn(), refresh: vi.fn() }), usePathname: () => '/dashboard' }));
 
 afterEach(() => setSession(null));
 
@@ -58,5 +65,45 @@ describe('Dashboard', () => {
     renderPage(<Dashboard />);
     expect(await screen.findByRole('alert')).toHaveTextContent("Ma'lumot yuklanmadi");
     expect(screen.getByRole('button', { name: 'Qayta urinish' })).toBeInTheDocument();
+  });
+
+  describe('for people who see orders', () => {
+    const signIn = (permissions: string[]) => ({
+      'POST /api/session/refresh': () => json({ access_token: 'a', expires_at: new Date(Date.now() + 900_000).toISOString(), user: { id: 1, name: 'A', role: 'cashier' } }),
+      'GET /api/v1/me/permissions': () => json({ success: true, message: 'ok', data: { role: 'cashier', store_id: 1, branch_id: 2, branch_scoped: true, permissions, device_uuid: null } }),
+    });
+    const order = (status: string, minutesAgo = 1) => ({ uuid: `${status}-${minutesAgo}`, status, created_at: new Date(Date.now() - minutesAgo * 60_000).toISOString(), updated_at: null });
+
+    function renderSignedIn() {
+      render(
+        <I18nProvider language="uz">
+          <ApiConfigContext.Provider value={{ apiBaseUrl: API }}>
+            <StaffApiProvider api={getStaffApi(API)}>
+              <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+                <AuthProvider apiBaseUrl={API}>
+                  <Dashboard />
+                </AuthProvider>
+              </QueryClientProvider>
+            </StaffApiProvider>
+          </ApiConfigContext.Provider>
+        </I18nProvider>,
+      );
+    }
+
+    it('shows the board summary and leaves the analytics out without reports.view', async () => {
+      const { calls } = mockFetch({
+        ...signIn(['orders.view', 'orders.manage']),
+        'GET /api/v1/staff/orders': () =>
+          json({ success: true, message: 'ok', data: [order('new', 12), order('new'), order('preparing'), order('ready')], meta: { next_cursor: null, per_page: 100 } }),
+      });
+      renderSignedIn();
+      const card = async (name: string) => (await screen.findByText(name, { selector: 'p' })).closest('[data-column]') as HTMLElement;
+      await waitFor(async () => expect(within(await card('Yangi')).getByText('2')).toBeInTheDocument());
+      expect(within(await card('Tayyor')).getByText('1')).toBeInTheDocument();
+      expect(within(await card("Yo'lda")).getByText('0')).toBeInTheDocument();
+      expect(screen.getByText('1 ta buyurtma 10 daqiqadan ortiq qabul qilinmagan')).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'Doskani ochish' })).toHaveAttribute('href', '/orders');
+      expect(calls.some((call) => call.url.includes('/owner/analytics'))).toBe(false);
+    });
   });
 });

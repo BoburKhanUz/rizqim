@@ -4,11 +4,14 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { LogOut, Menu, X } from 'lucide-react';
 import { Button, IconButton, InlineError } from '@rizqim/ui';
-import { homePath, NAV_ITEMS, visibleNav } from '@/lib/permissions';
+import { canOpen, homePath, sectionOf, visibleNav, type NavItem } from '@/lib/permissions';
 import { useAuth } from './AuthProvider';
 import { FullPageStatus } from './FullPageStatus';
 import { useT } from './I18nProvider';
 import { Sidebar } from './Sidebar';
+import { BranchScopeProvider } from './shell/BranchScope';
+import { LiveOrdersProvider, useLiveOrders } from './shell/LiveOrders';
+import { TopBar } from './shell/TopBar';
 
 const NO_PERMISSIONS: readonly string[] = [];
 
@@ -31,9 +34,9 @@ export function AppShell({ children }: { children: ReactNode }) {
     setMenuOpen(false);
   }, [pathname]);
 
-  const section = NAV_ITEMS.find((item) => pathname === item.href || pathname.startsWith(`${item.href}/`));
+  const section = sectionOf(pathname);
   const permissions = state.status === 'ready' ? state.access.permissions : NO_PERMISSIONS;
-  const blocked = state.status === 'ready' && section !== undefined && !permissions.includes(section.permission);
+  const blocked = state.status === 'ready' && section !== undefined && !canOpen(section, permissions);
   useEffect(() => {
     // A section the backend would refuse: go to the first one the person may open
     if (blocked) router.replace(homePath(permissions) ?? '/');
@@ -65,14 +68,48 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   return (
+    <BranchScopeProvider>
+      <LiveOrdersProvider>
+        <ShellFrame
+          nav={nav}
+          userName={state.userName}
+          role={state.access.role}
+          menuOpen={menuOpen}
+          onToggleMenu={() => setMenuOpen((open) => !open)}
+          onLogout={() => void logout()}
+        >
+          {blocked ? null : children}
+        </ShellFrame>
+      </LiveOrdersProvider>
+    </BranchScopeProvider>
+  );
+}
+
+interface ShellFrameProps {
+  nav: NavItem[];
+  userName: string;
+  role: string;
+  menuOpen: boolean;
+  onToggleMenu: () => void;
+  onLogout: () => void;
+  children: ReactNode;
+}
+
+function ShellFrame({ nav, userName, role, menuOpen, onToggleMenu, onLogout, children }: ShellFrameProps) {
+  const t = useT();
+  const { newCount } = useLiveOrders();
+  return (
     <div className="min-h-screen md:flex">
       {/* Phones and narrow windows: a top bar with the menu in a drawer */}
       <header className="sticky top-0 z-30 flex items-center gap-2 border-b border-line bg-surface px-2 py-1 md:hidden">
-        <IconButton icon={menuOpen ? X : Menu} label={menuOpen ? t('closeMenu') : t('openMenu')} aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)} />
+        <IconButton icon={menuOpen ? X : Menu} label={menuOpen ? t('closeMenu') : t('openMenu')} aria-expanded={menuOpen} onClick={onToggleMenu} />
         <span className="text-headline font-bold text-fg">{t('appName')}</span>
       </header>
-      <Sidebar items={nav} userName={state.userName} role={state.access.role} open={menuOpen} onLogout={() => void logout()} />
-      <main className="min-w-0 flex-1 p-4 md:p-6 lg:p-8">{blocked ? null : children}</main>
+      <Sidebar items={nav} userName={userName} role={role} open={menuOpen} onLogout={onLogout} badges={{ orders: newCount }} />
+      <main className="min-w-0 flex-1 p-4 md:p-6 lg:p-8">
+        <TopBar />
+        {children}
+      </main>
     </div>
   );
 }

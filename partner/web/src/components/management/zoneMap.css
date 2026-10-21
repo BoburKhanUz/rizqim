@@ -1,0 +1,89 @@
+/* The zone map in the design system's colours (light and dark), with 44px zoom buttons */
+.rz-zone-map .leaflet-bar {
+  border: 1px solid var(--rz-line);
+  border-radius: var(--radius-control);
+  box-shadow: none;
+  overflow: hidden;
+}
+.rz-zone-map .leaflet-bar a,
+.rz-zone-map .leaflet-touch .leaflet-bar a {
+  width: 44px;
+  height: 44px;
+  line-height: 44px;
+  background-color: var(--rz-surface);
+  color: var(--rz-fg);
+  border-bottom-color: var(--rz-line);
+  font-size: 20px;
+}
+.rz-zone-map .leaflet-bar a:hover {
+  background-color: var(--rz-surface-2);
+}
+.rz-zone-map .leaflet-control-attribution {
+  background: var(--rz-surface);
+  color: var(--rz-fg-muted);
+  opacity: 0.9;
+}
+.rz-zone-map .leaflet-control-attribution a {
+  color: var(--rz-brand);
+}
+.rz-zone-map .leaflet-tooltip {
+  background: var(--rz-surface);
+  color: var(--rz-fg);
+  border-color: var(--rz-line);
+  box-shadow: none;
+}
+
+/* OpenStreetMap tiles are light only: in the dark theme they are inverted so the map does not glare */
+:root[data-theme="dark"] .rz-zone-map .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.9);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .rz-zone-map .leaflet-tile-pane {
+    filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.9);
+  }
+}
+
+/* Zones: colours come from the tokens (a CSS rule beats the SVG attribute Leaflet writes) */
+.rz-zone-map path.rz-zone {
+  stroke: var(--rz-fg-muted);
+  fill: var(--rz-fg-muted);
+  fill-opacity: 0.12;
+  stroke-width: 2;
+}
+.rz-zone-map path.rz-zone--active {
+  stroke: var(--rz-success);
+  fill: var(--rz-success);
+}
+.rz-zone-map path.rz-zone--selected {
+  stroke: var(--rz-brand);
+  fill: var(--rz-brand);
+  fill-opacity: 0.22;
+  stroke-width: 3;
+}
+.rz-zone-map path.rz-branch {
+  stroke: var(--rz-surface);
+  stroke-width: 2;
+  fill: var(--rz-danger);
+  fill-opacity: 1;
+}
+
+/* A vertex of the shape being edited: a 24px target with a 14px dot */
+.rz-vertex {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+}
+.rz-vertex::after {
+  content: "";
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  background: var(--rz-surface);
+  border: 3px solid var(--rz-brand);
+  box-sizing: border-box;
+}
+.rz-vertex--first::after {
+  background: var(--rz-brand);
+}

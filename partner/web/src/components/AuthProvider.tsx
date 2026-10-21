@@ -8,6 +8,10 @@ export interface Permissions {
   role: string;
   permissions: string[];
   branchScoped: boolean;
+  // GET /me/permissions: the person's store and own branch (null for store-wide staff), and the signed-in user's id
+  storeId: number | null;
+  branchId: number | null;
+  userId: number | null;
 }
 
 export type AuthState =
@@ -47,7 +51,14 @@ export function AuthProvider({ apiBaseUrl, children }: { apiBaseUrl: string; chi
       setState({
         status: 'ready',
         userName: session.user?.name ?? '',
-        access: { role: data.data.role, permissions: data.data.permissions, branchScoped: data.data.branch_scoped },
+        access: {
+          role: data.data.role,
+          permissions: data.data.permissions,
+          branchScoped: data.data.branch_scoped,
+          storeId: data.data.store_id ?? null,
+          branchId: data.data.branch_id ?? null,
+          userId: session.user?.id ?? null,
+        },
       });
     },
     [apiBaseUrl],
@@ -98,6 +109,24 @@ export function AuthProvider({ apiBaseUrl, children }: { apiBaseUrl: string; chi
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+// The signed-in person's access (null until it is loaded): the role, permissions, store and branch
+// The session state, or null outside the provider (a test of one page)
+export function useOptionalAuth(): AuthValue | null {
+  return useContext(AuthContext);
+}
+
+// Outside the provider (a test of one page): null.
+export function useAccess(): Permissions | null {
+  const value = useContext(AuthContext);
+  return value?.state.status === 'ready' ? value.state.access : null;
+}
+
+// Whether the signed-in person has any of `permissions` (the backend still checks every request)
+export function useCan(...permissions: string[]): boolean {
+  const access = useAccess();
+  return access !== null && permissions.some((permission) => access.permissions.includes(permission));
 }
 
 export function useAuth(): AuthValue {

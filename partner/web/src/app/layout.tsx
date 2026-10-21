@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { cookies } from 'next/headers';
 import { DEFAULT_LANGUAGE, isLanguage, LANGUAGE_COOKIE } from '@/i18n';
-import { publicApiBaseUrl } from '@/lib/config';
+import { mapConfig, publicApiBaseUrl, realtimeConfig } from '@/lib/config';
 import { Providers } from '@/components/Providers';
 import './globals.css';
 
@@ -28,7 +28,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang={language}>
       <body className="min-h-screen bg-page text-fg">
-        <Providers language={language} apiBaseUrl={publicApiBaseUrl()}>
+        <Providers language={language} apiBaseUrl={publicApiBaseUrl()} realtime={realtimeConfig()} map={mapConfig()}>
           {children}
         </Providers>
       </body>

@@ -13,6 +13,8 @@ export const uz = {
   nav_reports: 'Hisobotlar',
   nav_finance: 'Moliya',
   nav_settings: 'Sozlamalar',
+  nav_zones: 'Yetkazish zonalari',
+  nav_batches: 'Qozon',
   navAria: 'Asosiy menyu',
   openMenu: 'Menyuni ochish',
   closeMenu: 'Menyuni yopish',
@@ -27,6 +29,22 @@ export const uz = {
   unknownError: "Xatolik yuz berdi. Qayta urinib ko'ring.",
   networkError: "Serverga ulanib bo'lmadi. Internetni tekshiring.",
   signedInAs: 'Kirgan hisob',
+
+  // Filial tanlash (yuqori panel)
+  branchLabel: 'Filial',
+  branchAll: 'Barcha filiallar',
+  branchOnly: 'Filialingiz: {{name}}',
+  branchUnknown: 'Filial #{{id}}',
+
+  // Jonli yangilanish va ovoz (yuqori panel)
+  liveOn: 'Jonli',
+  liveConnecting: 'Ulanmoqda...',
+  livePolling: 'Har {{seconds}} soniyada yangilanadi',
+  liveHint: "Real-time ulanmagan: ro'yxat so'rov bilan yangilanadi",
+  soundMute: "Yangi buyurtma ovozini o'chirish",
+  soundUnmute: 'Yangi buyurtma ovozini yoqish',
+  soundNeedsClick: 'Ovoz chiqishi uchun sahifaning istalgan joyini bir marta bosing',
+  newOrdersCount: '{{n}} ta yangi buyurtma',
 
   // Kirish
   loginTitle: 'Hamkor paneliga kirish',

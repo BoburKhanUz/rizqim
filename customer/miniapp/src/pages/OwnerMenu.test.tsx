@@ -1,4 +1,5 @@
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MainButtonHost } from '../components/ui/MainButtonHost';
@@ -18,6 +19,7 @@ const flush = () => act(async () => { await new Promise((resolve) => setTimeout(
 let calls: FakeCall[];
 let products: ReturnType<typeof makeProduct>[];
 let saveAnswer: unknown;
+let modifierGroups: unknown[];
 
 beforeEach(() => {
   products = [
@@ -25,9 +27,11 @@ beforeEach(() => {
     makeProduct({ id: 8, name: 'Burger', status: 'inactive', variants: [makeVariant({ id: 3, price: '40000.00' })] }),
   ];
   saveAnswer = success({ id: 9 });
+  modifierGroups = [];
   ({ calls } = stubStaffApi((call) => {
     if (call.path === '/owner/categories') return success([{ id: 3, name: 'Fast food', image: null, image_url: null }]);
     if (call.path === '/owner/products' && call.method === 'GET') return success(products);
+    if (call.path === '/owner/modifier-groups') return success(modifierGroups);
     return saveAnswer;
   }));
   vi.mocked(showAlert).mockClear();
@@ -113,14 +117,16 @@ describe('OwnerMenuManagement', () => {
 
 function renderForm(path: string) {
   render(
-    <MemoryRouter initialEntries={[path]}>
-      <Routes>
-        <Route path="/admin/catalog/create" element={<OwnerProductForm />} />
-        <Route path="/admin/catalog/edit/:id" element={<OwnerProductForm />} />
-        <Route path="/admin/catalog" element={<p>Katalog sahifasi</p>} />
-      </Routes>
-      <MainButtonHost />
-    </MemoryRouter>,
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter initialEntries={[path]}>
+        <Routes>
+          <Route path="/admin/catalog/create" element={<OwnerProductForm />} />
+          <Route path="/admin/catalog/edit/:id" element={<OwnerProductForm />} />
+          <Route path="/admin/catalog" element={<p>Katalog sahifasi</p>} />
+        </Routes>
+        <MainButtonHost />
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 }
 
@@ -173,5 +179,103 @@ describe('OwnerProductForm', () => {
 
     expect(showAlert).toHaveBeenCalledWith('Rasm juda katta');
     expect(screen.queryByText('Katalog sahifasi')).not.toBeInTheDocument();
+  });
+
+  describe('what the web panel edits: unit, weight and modifiers, shown read only', () => {
+    const group = (over: Record<string, unknown> = {}) => ({
+      id: 1,
+      uuid: 'g1',
+      name: 'Sous',
+      name_i18n: null,
+      min_select: 1,
+      max_select: 1,
+      is_required: true,
+      sort_order: 0,
+      is_active: true,
+      product_ids: [7],
+      modifiers: [
+        { id: 1, uuid: 'm1', name: 'Ketchup', name_i18n: null, price_delta: '0.00', max_quantity: 1, product_variant_id: null, sort_order: 0, is_active: true },
+        { id: 2, uuid: 'm2', name: 'Pishloqli', name_i18n: null, price_delta: '3000.00', max_quantity: 1, product_variant_id: null, sort_order: 1, is_active: true },
+      ],
+      ...over,
+    });
+
+    beforeEach(() => {
+      products = [
+        makeProduct({
+          id: 7,
+          name: 'Qazi',
+          batch_tracked: false,
+          variants: [makeVariant({ id: 4, name: 'kg', price: '33333.00', unit: 'kg', quantity_step: '0.500', min_quantity: '0.500' }), makeVariant({ id: 5, name: 'Dona', price: '9000.00' })],
+        }),
+      ];
+    });
+
+    it('says what each variant is sold in: a weighed one with its step and minimum', async () => {
+      renderForm('/admin/catalog/edit/7');
+      await flush();
+
+      const [weighed, pieces] = screen.getAllByLabelText('Faqat ko\'rish');
+      expect(within(weighed!).getByText('Kilogramm')).toBeInTheDocument();
+      expect(within(weighed!).getByText(/Qadam: 0,5\skg/)).toBeInTheDocument();
+      expect(within(weighed!).getByText(/Eng kami: 0,5\skg/)).toBeInTheDocument();
+      expect(within(pieces!).getByText('Dona')).toBeInTheDocument();
+      expect(within(pieces!).queryByText(/Qadam/)).not.toBeInTheDocument();
+    });
+
+    it('lists the modifier groups of this dish only, with their prices, and leaves them uneditable', async () => {
+      modifierGroups = [group(), group({ id: 2, name: 'Boshqa taom sousi', product_ids: [99] })];
+      renderForm('/admin/catalog/edit/7');
+      await flush();
+
+      expect(screen.getByRole('heading', { name: 'Sous' })).toBeInTheDocument();
+      expect(screen.getByText('Majburiy')).toBeInTheDocument();
+      expect(screen.getByText('Pishloqli')).toBeInTheDocument();
+      expect(screen.getByText(/^\+3\s000\sso'm$/)).toBeInTheDocument();
+      expect(screen.queryByText('Boshqa taom sousi')).not.toBeInTheDocument();
+      // read only: no field to change them in
+      expect(screen.queryByDisplayValue('Pishloqli')).not.toBeInTheDocument();
+    });
+
+    it('says so when the dish has no modifier groups, and points to the web panel for the rest', async () => {
+      renderForm('/admin/catalog/edit/7');
+      await flush();
+
+      expect(screen.getByText('Bu taomga modifikator ulanmagan')).toBeInTheDocument();
+      expect(screen.getByText('Web panelda tahrirlash')).toBeInTheDocument();
+    });
+
+    it('saves only what it shows as editable: the unit and weight of a variant are not sent back', async () => {
+      renderForm('/admin/catalog/edit/7');
+      await flush();
+
+      fireEvent.click(screen.getByRole('button', { name: /O'zgarishlarni saqlash/ }));
+      await flush();
+
+      const [update] = callsTo(calls, '/owner/products/7', 'POST');
+      const sent = JSON.parse((update!.body as FormData).get('variants') as string) as Array<Record<string, unknown>>;
+      expect(sent).toEqual([
+        { id: 4, name: 'kg', price: '33333.00' },
+        { id: 5, name: 'Dona', price: '9000.00' },
+      ]);
+      expect((update!.body as FormData).has('batch_tracked')).toBe(false);
+    });
+
+    it('does not read the modifier groups for a new dish', async () => {
+      renderForm('/admin/catalog/create');
+      await flush();
+
+      expect(callsTo(calls, '/owner/modifier-groups')).toHaveLength(0);
+      expect(screen.getByText('Web panelda tahrirlash')).toBeInTheDocument();
+    });
+
+    it('marks a dish sold from a batch', async () => {
+      products = [makeProduct({ id: 7, name: 'Osh', batch_tracked: true, variants: [makeVariant({ id: 4, name: 'Porsiya', batch_consumption: '0.5' })] })];
+      renderForm('/admin/catalog/edit/7');
+      await flush();
+
+      expect(screen.getByText("Qozon bo'yicha sotiladi")).toBeInTheDocument();
+      expect(screen.getByText('Qozondan: 0,5 porsiya')).toBeInTheDocument();
+    });
   });
 });

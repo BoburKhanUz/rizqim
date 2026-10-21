@@ -1,5 +1,5 @@
-import { Placeholder } from '@/components/Placeholder';
+import { SettingsView } from '@/components/management/SettingsView';
 
 export default function Page() {
-  return <Placeholder title="nav_settings" />;
+  return <SettingsView />;
 }

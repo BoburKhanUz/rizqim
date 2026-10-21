@@ -202,6 +202,8 @@ services:
         VITE_API_URL: ${VITE_API_URL:-/api/v1}
         VITE_MAP_TILE_URL: ${VITE_MAP_TILE_URL:-}
         VITE_MAP_ATTRIBUTION: ${VITE_MAP_ATTRIBUTION:-}
+        # Mahsulot formasidagi "Web panelda tahrirlash" havolasi (https://panel.<domen>); bo'sh = havolasiz matn
+        VITE_PARTNER_WEB_URL: ${VITE_PARTNER_WEB_URL:-}
         VITE_SENTRY_DSN: ${VITE_SENTRY_DSN:-}
         VITE_SENTRY_ENVIRONMENT: ${VITE_SENTRY_ENVIRONMENT:-production}
         VITE_SENTRY_RELEASE: ${VITE_SENTRY_RELEASE:-}
@@ -243,6 +245,15 @@ services:
       PUBLIC_API_BASE_URL: ${PARTNER_PUBLIC_API_BASE_URL:-}
       # Sessiya cookie'lari faqat HTTPS orqali (production). false faqat http:// orqali sinash uchun
       SESSION_COOKIE_SECURE: ${PARTNER_SESSION_COOKIE_SECURE:-true}
+      # Buyurtmalar doskasi uchun real-time (Reverb): kalit backend bilan bir xil (REVERB_APP_KEY). Host bo'sh = API host'i,
+      # brauzer wss://<domen>/app/... ga ulanadi (frontend nginx uni reverb'ga uzatadi). Kalit bo'sh = doska so'rov bilan yangilanadi
+      REVERB_APP_KEY: ${REVERB_APP_KEY:-}
+      REVERB_HOST: ${PARTNER_REVERB_HOST:-}
+      REVERB_PORT: ${PARTNER_REVERB_PORT:-443}
+      REVERB_SCHEME: ${PARTNER_REVERB_SCHEME:-https}
+      # Hududlar xaritasi plitkalari. Bo'sh = ochiq OSM serveri (faqat sinov uchun), production'da hisobli provayder
+      MAP_TILE_URL: ${PARTNER_MAP_TILE_URL:-}
+      MAP_ATTRIBUTION: ${PARTNER_MAP_ATTRIBUTION:-}
     depends_on:
       backend:
         condition: service_healthy

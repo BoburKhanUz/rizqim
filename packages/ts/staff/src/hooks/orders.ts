@@ -27,6 +27,7 @@ import {
 } from '../api/orders';
 import { refetchOrders, someOrderLeft } from '../orders/cache';
 import type { Order } from '../types';
+import { useStaffOrder } from './board';
 import { useStaffApi } from './context';
 import { staffKeys } from './keys';
 
@@ -144,13 +145,40 @@ export function findCachedOrder(queryClient: QueryClient, uuid: string): Order |
   return undefined;
 }
 
-// One order for a detail view. The API has no single-order endpoint yet, so it is taken from the open list of `view`
-// (kept fresh like any other screen) or from a list already in the cache.
-export function useOrder(uuid: string | undefined, view: string, options: ActiveOrdersOptions = {}) {
+export interface OrderOptions extends ActiveOrdersOptions {
+  // Also load the order itself from GET /staff/orders/{uuid} (`detail`: items with modifiers and weights, kitchen state,
+  // notes, timestamps, status history). On by default; a screen of someone without orders.view (a courier: 403) turns
+  // it off and keeps the list's order only.
+  detail?: boolean;
+}
+
+// One order for a detail view (P2-21: from the detail endpoint). `order` is the order as the open list of `view` (or a
+// list already in the cache) has it, as before; `detail` is GET /staff/orders/{uuid}, the full order, refetched with
+// `refetch` and by a realtime event (boardKeys.detail). A failed detail leaves `order` as it is (`detailError`).
+export function useOrder(uuid: string | undefined, view: string, options: OrderOptions = {}) {
+  const { detail: withDetail = true, ...listOptions } = options;
   const queryClient = useQueryClient();
-  const active = useActiveOrders(view, options);
+  const active = useActiveOrders(view, listOptions);
+  const detailQuery = useStaffOrder(withDetail ? uuid : undefined, { enabled: listOptions.enabled !== false, retry: false });
   const order = uuid === undefined ? undefined : (active.data?.orders.find((o) => o.uuid === uuid) ?? findCachedOrder(queryClient, uuid));
-  return { order, isLoading: active.isLoading, isError: active.isError, refetch: active.refetch };
+  const { refetch: refetchList } = active;
+  const { refetch: refetchDetail } = detailQuery;
+  const detailOn = withDetail && uuid !== undefined;
+  const refetch = useCallback<typeof refetchList>(
+    (...args) => {
+      if (detailOn) void refetchDetail();
+      return refetchList(...args);
+    },
+    [detailOn, refetchDetail, refetchList],
+  );
+  return {
+    order,
+    detail: detailQuery.data,
+    detailError: detailQuery.error,
+    isLoading: active.isLoading || (detailOn && detailQuery.isLoading && order === undefined),
+    isError: active.isError && detailQuery.data === undefined,
+    refetch,
+  };
 }
 
 // The couriers an order can be assigned to.

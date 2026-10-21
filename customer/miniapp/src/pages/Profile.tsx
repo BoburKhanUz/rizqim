@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bike, ChevronRight, CreditCard, ShieldCheck, Store, TriangleAlert, Settings } from 'lucide-react';
+import { Bike, ChevronRight, Clock, CreditCard, PackageX, ShieldCheck, Store, TriangleAlert, Settings } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { isLanguage, useLanguageStore } from '../store/languageStore';
@@ -333,9 +333,20 @@ export default function Profile() {
         )}
       </Card>
 
+      {user?.role === 'manager' && (
+        <Section title={uz ? 'Filial' : 'Филиал'}>
+          <Card padded={false} className="divide-y divide-line overflow-hidden">
+            <LinkRow icon={PackageX} label={uz ? 'Stop-list va qozon' : 'Стоп-лист и котлы'} onClick={() => { hapticFeedback('light'); navigate('/admin/stoplist'); }} />
+            <LinkRow icon={Clock} label={uz ? 'Filial ish vaqti' : 'Часы работы филиала'} onClick={() => { hapticFeedback('light'); navigate('/admin/branches'); }} />
+          </Card>
+        </Section>
+      )}
+
       {user?.role === 'owner' && (
         <Section title={uz ? "Do'kon sozlamalari" : 'Настройки магазина'}>
           <Card padded={false} className="divide-y divide-line overflow-hidden">
+            <LinkRow icon={PackageX} label={uz ? 'Stop-list va qozon' : 'Стоп-лист и котлы'} onClick={() => { hapticFeedback('light'); navigate('/admin/stoplist'); }} />
+            <LinkRow icon={Clock} label={uz ? 'Filiallar va ish vaqti' : 'Филиалы и часы работы'} onClick={() => { hapticFeedback('light'); navigate('/admin/branches'); }} />
             <LinkRow icon={CreditCard} label={uz ? "Balans va to'lovlar" : 'Баланс и платежи'} onClick={() => { hapticFeedback('light'); navigate('/admin/payments'); }} />
             <LinkRow icon={Settings} label={uz ? 'Tizim va ish vaqti sozlamalari' : 'Настройки системы и часов'} onClick={() => { hapticFeedback('light'); navigate('/admin/settings'); }} />
             <LinkRow icon={TriangleAlert} label={uz ? "Shikoyatlar va e'tirozlar" : 'Жалобы и споры'} onClick={() => { hapticFeedback('light'); navigate('/complaints'); }} />

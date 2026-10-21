@@ -1,5 +1,5 @@
-import { Placeholder } from '@/components/Placeholder';
+import { FinanceView } from '@/components/reports/FinanceView';
 
 export default function Page() {
-  return <Placeholder title="nav_finance" />;
+  return <FinanceView />;
 }

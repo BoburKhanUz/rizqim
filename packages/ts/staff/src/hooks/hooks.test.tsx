@@ -87,9 +87,9 @@ describe('open orders', () => {
   it('finds an order of the lists for a detail view, from the open list', async () => {
     const order = makeOrder();
     mockFetch({ 'GET /api/v1/orders': () => ok([order], { meta: { truncated: false } }) });
-    const { result } = renderHook(() => useOrder(order.uuid, 'manager'), { wrapper: wrapperFor(makeQueryClient()) });
+    const { result } = renderHook(() => useOrder(order.uuid, 'manager', { detail: false }), { wrapper: wrapperFor(makeQueryClient()) });
     await waitFor(() => expect(result.current.order).toEqual(order));
-    expect(renderHook(() => useOrder('nope', 'manager'), { wrapper: wrapperFor(makeQueryClient()) }).result.current.order).toBeUndefined();
+    expect(renderHook(() => useOrder('nope', 'manager', { detail: false }), { wrapper: wrapperFor(makeQueryClient()) }).result.current.order).toBeUndefined();
   });
 });
 

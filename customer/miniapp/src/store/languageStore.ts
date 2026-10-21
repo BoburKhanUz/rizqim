@@ -81,6 +81,7 @@ export const translations = {
     nav_menu: 'Katalog',
     nav_orders: 'Buyurtmalar',
     nav_employees: 'Xodimlar',
+    nav_stoplist: 'Stop-list',
     nav_deliveries: 'Yetkazmalar',
     nav_profile: 'Profil',
     // Payment methods (Order.payment_method) and order statuses as the staff sees them (StatusBadge audience="staff"):
@@ -261,6 +262,7 @@ export const translations = {
     nav_menu: 'Меню',
     nav_orders: 'Заказы',
     nav_employees: 'Сотрудники',
+    nav_stoplist: 'Стоп-лист',
     nav_deliveries: 'Доставки',
     nav_profile: 'Профиль',
     // Payment methods and staff order statuses: @rizqim/staff's words
@@ -440,6 +442,7 @@ export const translations = {
     nav_menu: 'Menu',
     nav_orders: 'Orders',
     nav_employees: 'Staff',
+    nav_stoplist: 'Stop list',
     nav_deliveries: 'Deliveries',
     nav_profile: 'Profile',
     // Payment methods and staff order statuses: @rizqim/staff's words

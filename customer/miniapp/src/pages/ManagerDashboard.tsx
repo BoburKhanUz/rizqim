@@ -1,57 +1,43 @@
-import { useId, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { ClipboardList, Flag } from 'lucide-react';
 import {
-  Bike,
-  Check,
-  ChefHat,
-  ChevronDown,
-  ClipboardList,
-  Flag,
-  MapPin,
-  PackageCheck,
-  ShoppingBag,
-  StickyNote,
-  Wallet,
-  type LucideIcon,
-} from 'lucide-react';
-import {
-  actionLabel,
-  formatLineQuantity,
-  formatModifiers,
-  getItemModifiers,
-  getOrderActions,
-  getStageDurations,
+  boardKeys,
   GROUP_STATUSES,
   isCancellation,
   OPEN_STATUSES,
-  orderTypeLabel,
-  paymentMethodLabel,
-  stageRows,
+  someOrderLeft,
   staffText,
+  useBoardAction,
+  useBranchList,
   useCouriers,
-  useUpdateOrderStatus,
-  type AssignableCourier,
-  type Order,
+  useStaffOrderPages,
+  useStaffOrders,
   type OrderAction,
-  type OrderChange,
-  type StageDurations,
+  type StaffOrder,
+  type StaffOrdersQuery,
 } from '@rizqim/staff';
 import { useLanguageStore } from '../store/languageStore';
 import { useAuthStore } from '../store/authStore';
+import { useRealtimeStore } from '../store/realtimeStore';
 import { hapticFeedback } from '../lib/telegram';
 import { notificationOccurred, selectionChanged } from '../lib/twa';
 import { showAlert } from '../lib/dialogs';
 import { Button, CardSkeletons, EmptyState, InlineError, PageHeader, StatusBadge, cx, fieldClass } from '../components/ui';
 import { SegmentedControl } from '../components/staff/SegmentedControl';
+import { StaffOrderCard } from '../components/staff/StaffOrderCard';
+import { OrderDetailsLink } from '../components/staff/OrderDetailsLink';
+import { ORDER_TEXT } from '../components/staff/orderText';
 import { getApiErrorMessage, getApiFieldError, logApiError } from '../lib/apiError';
 import { toAmount } from '../lib/money';
 import { formatMoney, formatOrderCode, formatTime } from '../lib/format';
-import { cleanAddress } from '../lib/openMap';
-import { POLL_INTERVAL_MS } from '../lib/polling';
-import { NO_ORDERS, useStaffOrderHistory, useStaffOrders } from '../hooks/useStaffOrders';
+import { getPollInterval, POLL_INTERVAL_MS, pollingQueryOptions } from '../lib/polling';
+import { toOrderRef } from '../lib/staffOrders';
+import { useNow } from '../hooks/useNow';
+import { useStaffText } from '../hooks/useStaffText';
 import { StaffCancelDialog } from '../components/CancelDialogs';
 import { LoadMoreOrders, TruncatedOrdersNotice } from '../components/OrderListParts';
 import { getStaffCancelReasonLabel } from '../lib/cancelReasons';
-import type { Language } from '../store/languageStore';
 
 // The counters above the list are filters too: a tap shows only those orders, a second tap shows all again. The groups
 // of statuses are @rizqim/staff's (the web board's columns are the same groups).
@@ -72,248 +58,36 @@ const FILTER_COUNT_TONE: Record<OrderFilter, string> = {
 const FILTER_LABEL_KEY = { new: 'filterNew', preparing: 'filterPreparing', ready: 'filterReady', courier: 'filterCourier' } as const;
 
 interface CancelRequest {
-  order: Order;
+  order: StaffOrder;
   mode: 'cancel' | 'reject';
 }
 
-// How each action of @rizqim/staff's getOrderActions() is drawn on this screen. Which actions an order has, and their
-// words, are the package's; the icons, colours and sizes are this screen's.
-const ACTION_LOOK: Record<OrderAction['id'], { icon?: LucideIcon; variant?: 'danger' | 'success'; basis: string }> = {
-  accept: { icon: Check, basis: 'basis-36' },
-  reject: { variant: 'danger', basis: 'basis-28' },
-  start_preparing: { icon: ChefHat, basis: 'basis-40' },
-  mark_ready: { icon: PackageCheck, variant: 'success', basis: 'basis-40' },
-  assign_courier: { icon: Bike, basis: 'basis-40' },
-  hand_over: { icon: Check, variant: 'success', basis: 'basis-40' },
-  pick_up: { icon: Bike, basis: 'basis-40' },
-  confirm_delivery: { icon: Check, variant: 'success', basis: 'basis-40' },
-  cancel: { variant: 'danger', basis: 'basis-28' },
-};
+const NO_ORDERS: StaffOrder[] = [];
+const NO_COURIER_CHOICES: Record<string, number> = {};
 
-// "Qabul 1m 3s · Tayyorlash 5m 0s ...": the stages that have a time
-function StageTimes({ timings, language }: { timings: StageDurations; language: Language }) {
-  const known = stageRows(timings, language);
-  if (known.length === 0) return null;
-  return (
-    <dl className="flex flex-wrap gap-x-4 gap-y-1 text-footnote">
-      {known.map(([label, value]) => (
-        <div key={label} className="flex gap-1.5">
-          <dt className="text-fg-muted">{label}:</dt>
-          <dd className="font-bold text-fg">{value}</dd>
-        </div>
-      ))}
-    </dl>
-  );
-}
-
-interface ActiveOrderCardProps {
-  order: Order;
-  couriers: AssignableCourier[];
-  courierId: number | undefined;
-  onPickCourier: (courierId: number) => void;
-  onChange: (change: OrderChange) => void;
-  onCancel: (order: Order, mode: CancelRequest['mode']) => void;
-  busy: boolean;
-}
-
-function ActiveOrderCard({ order, couriers, courierId, onPickCourier, onChange, onCancel, busy }: ActiveOrderCardProps) {
+function CompletedOrderCard({ order }: { order: StaffOrder }) {
   const { language } = useLanguageStore();
-  const [open, setOpen] = useState(false);
-  const itemsId = useId();
-  const courierSelectId = useId();
-  const timings = getStageDurations(order);
-  const items = order.items ?? [];
-  const address = cleanAddress(order.address, staffText('gpsLocation', language));
-  const isDelivery = order.order_type === 'delivery';
-  const TypeIcon = isDelivery ? Bike : ShoppingBag;
-  const typeLabel = orderTypeLabel(order.order_type, language);
-  const preview = items.map((item) => `${item.product_name} ${formatLineQuantity(item.quantity, item.unit, language)}`).join(', ');
   const code = formatOrderCode(order);
-  const courierName = order.courier?.name || staffText('courierFallback', language);
-  const orderWord = staffText('orderWord', language);
-
-  // What the order can do next (@rizqim/staff): the next step first, the way out last (cancel sits next to it, and only from
-  // the statuses the kitchen can still cancel from)
-  const actions = getOrderActions(order, 'manager');
-  const stepOn = (action: OrderAction) => onChange({ uuid: order.uuid, status: action.to, ...(action.needsCourier ? { courierId } : {}) });
-  const actionButton = (action: OrderAction, extra: { fullWidth?: boolean } = {}) => {
-    const look = ACTION_LOOK[action.id];
-    const isCancel = action.id === 'cancel' || action.id === 'reject';
-    return (
-      <Button
-        key={action.id}
-        variant={look.variant}
-        icon={look.icon}
-        disabled={busy || (action.needsCourier && !courierId)}
-        onClick={() => (isCancel ? onCancel(order, action.id === 'reject' ? 'reject' : 'cancel') : stepOn(action))}
-        fullWidth={extra.fullWidth}
-        className={extra.fullWidth ? undefined : cx('grow whitespace-nowrap', look.basis)}
-      >
-        {actionLabel(action.id, language)}
-      </Button>
-    );
-  };
-
   return (
-    <article aria-label={`${orderWord} ${code}`} className="flex flex-col gap-2.5 rounded-card border border-line bg-surface p-3">
+    <article aria-label={`${staffText('orderWord', language)} ${code}`} className="flex flex-col gap-2 rounded-card border border-line bg-surface p-3">
       <div className="flex items-center gap-2">
         <span className="text-headline font-bold text-fg">{code}</span>
         <StatusBadge status={order.status} audience="staff" />
-        <time dateTime={order.created_at ?? undefined} className="ml-auto text-footnote text-fg-muted">
-          {formatTime(order.created_at)}
-        </time>
-      </div>
-
-      <div className="flex items-baseline justify-between gap-3">
-        <span className="min-w-0 truncate text-body font-medium text-fg">{order.user?.name}</span>
-        <span className="shrink-0 text-headline font-bold text-brand">{formatMoney(toAmount(order.total_price), language)}</span>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-footnote text-fg-muted">
-        <span className="inline-flex items-center gap-1">
-          <TypeIcon aria-hidden="true" className="size-3.5" />
-          {typeLabel}
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <Wallet aria-hidden="true" className="size-3.5" />
-          {paymentMethodLabel(order.payment_method, language)}
-          {order.payment_status === 'paid' && <span className="font-bold text-success-soft-fg">{staffText('paidSuffix', language)}</span>}
-        </span>
-      </div>
-
-      {address && (
-        <p className="flex items-start gap-1.5 text-footnote text-fg">
-          <MapPin aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-brand" />
-          <span className="line-clamp-2">{address}</span>
-        </p>
-      )}
-
-      {order.notes && (
-        <p className="flex items-start gap-1.5 text-footnote text-fg-muted">
-          <StickyNote aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
-          <span className="line-clamp-2">{order.notes}</span>
-        </p>
-      )}
-
-      {(items.length > 0 || timings) && (
-        <div className="-mx-1 border-t border-line pt-1">
-          <button
-            type="button"
-            aria-expanded={open}
-            aria-controls={itemsId}
-            onClick={() => {
-              selectionChanged();
-              setOpen((value) => !value);
-            }}
-            className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-control px-1 text-left text-footnote text-fg-muted focus-visible:outline-2 focus-visible:outline-brand"
-          >
-            <span className="shrink-0 font-bold text-fg">{staffText('itemsLabel', language)}</span>
-            {!open && <span className="min-w-0 flex-1 truncate">{preview}</span>}
-            {open && <span className="flex-1" />}
-            <ChevronDown aria-hidden="true" className={cx('size-5 shrink-0 transition-transform', open && 'rotate-180')} />
-          </button>
-          {open && (
-            <div id={itemsId} className="flex flex-col gap-2 px-1 pb-1">
-              <ul className="flex flex-col gap-1 text-body text-fg">
-                {items.map((item, index) => {
-                  const modifiers = getItemModifiers(item);
-                  return (
-                    <li key={index}>
-                      <span>{item.product_name} {formatLineQuantity(item.quantity, item.unit, language)}</span>
-                      {item.variant_name && <span className="ml-1.5 text-footnote text-fg-muted">{item.variant_name}</span>}
-                      {modifiers.length > 0 && <span className="block text-footnote text-fg-muted">{formatModifiers(modifiers)}</span>}
-                    </li>
-                  );
-                })}
-              </ul>
-              {timings && <StageTimes timings={timings} language={language} />}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Actions: the next step of the order, and the way out of it */}
-      {(order.status === 'new' || order.status === 'accepted' || order.status === 'preparing') && (
-        <div className="flex flex-wrap gap-2">{actions.map((action) => actionButton(action))}</div>
-      )}
-
-      {order.status === 'ready' && (
-        <div className="flex flex-col gap-2">
-          {isDelivery && (
-            <>
-              <label htmlFor={courierSelectId} className="flex items-center gap-1.5 text-footnote font-bold text-fg-muted">
-                <Bike aria-hidden="true" className="size-3.5 text-brand" />
-                {staffText('assignCourierLabel', language)}
-              </label>
-              <select
-                id={courierSelectId}
-                value={courierId ?? ''}
-                onChange={(e) => {
-                  hapticFeedback('light');
-                  onPickCourier(parseInt(e.target.value));
-                }}
-                className={fieldClass}
-              >
-                <option value="">{staffText('chooseCourier', language)}</option>
-                {couriers.map((courier) => (
-                  <option key={courier.id} value={courier.id}>
-                    {courier.name} {courier.telegram_username ? `(@${courier.telegram_username})` : ''}
-                  </option>
-                ))}
-              </select>
-            </>
-          )}
-          <div className="flex flex-wrap gap-2">{actions.map((action) => actionButton(action))}</div>
-        </div>
-      )}
-
-      {order.status === 'courier_assigned' && (
-        <div className="flex flex-col gap-2">
-          <p className="text-footnote text-fg-muted">
-            {staffText('assignedCourier', language)}: <span className="font-bold text-fg">{courierName}</span>
-            <br />
-            {staffText('waitingForPickup', language)}
-          </p>
-          {actions.map((action) => actionButton(action, { fullWidth: true }))}
-        </div>
-      )}
-
-      {(order.status === 'on_the_way' || order.status === 'delivery') && (
-        <div className="flex flex-col gap-2">
-          <p className="text-footnote text-fg-muted">
-            {staffText('responsibleCourier', language)}: <span className="font-bold text-fg">{courierName}</span>
-          </p>
-          {actions.map((action) => actionButton(action, { fullWidth: true }))}
-        </div>
-      )}
-
-    </article>
-  );
-}
-
-function CompletedOrderCard({ order }: { order: Order }) {
-  const { language } = useLanguageStore();
-  const timings = getStageDurations(order);
-  return (
-    <article aria-label={`${staffText('orderWord', language)} ${formatOrderCode(order)}`} className="flex flex-col gap-2 rounded-card border border-line bg-surface p-3">
-      <div className="flex items-center gap-2">
-        <span className="text-headline font-bold text-fg">{formatOrderCode(order)}</span>
-        <StatusBadge status={order.status} audience="staff" />
-        <time dateTime={order.updated_at ?? undefined} className="ml-auto text-footnote text-fg-muted">
-          {formatTime(order.updated_at)}
+        <time dateTime={order.closed_at ?? order.updated_at ?? undefined} className="ml-auto text-footnote text-fg-muted">
+          {formatTime(order.closed_at ?? order.updated_at)}
         </time>
       </div>
       <div className="flex items-baseline justify-between gap-3">
-        <span className="min-w-0 truncate text-body text-fg-muted">{order.user?.name}</span>
+        <span className="min-w-0 truncate text-body text-fg-muted">{order.customer?.name}</span>
         <span className="shrink-0 text-body font-bold text-fg">{formatMoney(toAmount(order.total_price), language)}</span>
       </div>
-      {isCancellation(order.status) && (order.cancel_reason || order.cancel_note) && (
+      {isCancellation(order.status as never) && (order.cancel_reason || order.cancel_note) && (
         <div className="flex flex-col gap-0.5 rounded-control bg-danger-soft px-3 py-2 text-footnote text-danger-soft-fg">
           {order.cancel_reason && <span className="font-bold">{getStaffCancelReasonLabel(order.cancel_reason, language)}</span>}
           {order.cancel_note && <span>"{order.cancel_note}"</span>}
         </div>
       )}
-      {timings && <StageTimes timings={timings} language={language} />}
+      <OrderDetailsLink uuid={order.uuid} code={code} />
     </article>
   );
 }
@@ -321,29 +95,64 @@ function CompletedOrderCard({ order }: { order: Order }) {
 export default function ManagerDashboard() {
   const { user } = useAuthStore();
   const { language } = useLanguageStore();
+  const tx = useStaffText(ORDER_TEXT);
+  const queryClient = useQueryClient();
+  const realtimeConnected = useRealtimeStore((state) => state.connected);
+  const now = useNow();
   const [activeTab, setActiveTab] = useState<'active' | 'completed'>('active');
   const [filter, setFilter] = useState<OrderFilter | null>(null);
-  const [selectedCourierId, setSelectedCourierId] = useState<Record<string, number>>({});
+  const [selectedCourierId, setSelectedCourierId] = useState<Record<string, number>>(NO_COURIER_CHOICES);
   const [cancelRequest, setCancelRequest] = useState<CancelRequest | null>(null);
   const [cancelError, setCancelError] = useState<string | null>(null);
 
-  // 1. Fetch the open store orders: polled while the screen is visible, pushed over the socket when it is up
-  const { data: activeData, isLoading, error, refetch: refetchActive, isRefetching: isRefetchingActive } = useStaffOrders('manager', POLL_INTERVAL_MS.managerOrders);
+  // The owner can work with several branches: a picker narrows the board to one of them. A manager is bound to a branch
+  // by the backend, which answers with that branch's orders whatever is asked.
+  const isOwner = user?.role === 'owner';
+  const { data: branches = [] } = useBranchList({ enabled: isOwner });
+  const showBranches = isOwner && branches.length > 1;
+  const [chosenBranch, setChosenBranch] = useState<number | null>(null);
+  const branchId = showBranches && chosenBranch !== null && branches.some((branch) => branch.id === chosenBranch) ? chosenBranch : null;
+  const branchQuery = branchId === null ? {} : { branch_id: branchId };
+
+  // 1. The open orders (GET /staff/orders): polled while the screen is visible, slowly while the socket is up (it pushes
+  // the changes, lib/realtime.ts)
+  const activeQuery: StaffOrdersQuery = { scope: 'active', ...branchQuery };
+  const pollMs = POLL_INTERVAL_MS.managerOrders;
+  const {
+    data: activeData,
+    isLoading,
+    error,
+    refetch: refetchActive,
+    isRefetching: isRefetchingActive,
+  } = useStaffOrders(activeQuery, { ...pollingQueryOptions(getPollInterval(pollMs, realtimeConnected)), staleTime: pollMs });
   const orders = activeData?.orders ?? NO_ORDERS;
 
-  // The finished orders (the archive tab) come a page at a time, once the tab is opened
-  const history = useStaffOrderHistory('manager', { enabled: activeTab === 'completed' });
-  const completedOrders = history.orders;
+  // An order that leaves the open list has finished: the archive is refetched so it shows up there
+  const seen = useRef<StaffOrder[] | null>(null);
+  useEffect(() => {
+    if (!activeData) return;
+    if (seen.current && someOrderLeft(seen.current, activeData.orders)) void queryClient.invalidateQueries({ queryKey: boardKeys.all });
+    seen.current = activeData.orders;
+  }, [activeData, queryClient]);
+  // ... and a list of another branch is a new list
+  useEffect(() => {
+    seen.current = null;
+  }, [branchId]);
 
-  // 2. Fetch active couriers
+  // The finished orders (the archive tab) come a page at a time, once the tab is opened
+  const history = useStaffOrderPages({ scope: 'history', per_page: 20, ...branchQuery }, { enabled: activeTab === 'completed' });
+  const historyPages = history.data?.pages;
+  const completedOrders = useMemo(() => historyPages?.flatMap((page) => page.orders) ?? NO_ORDERS, [historyPages]);
+
+  // 2. Active couriers
   const { data: couriers = [] } = useCouriers();
 
-  // 3. Update order status mutation (an order moves between the open list and the archive: the package refetches them)
-  const updateStatusMutation = useUpdateOrderStatus({
+  // 3. A button of an order (the package says which endpoint carries it; the backend says whether it may)
+  const board = useBoardAction({
     onMutate: () => hapticFeedback('medium'),
     onSuccess: (_data, variables) => {
       notificationOccurred('success');
-      if (isCancellation(variables.status)) {
+      if (variables.action.to === 'canceled' || variables.action.to === 'rejected') {
         setCancelRequest(null);
         setCancelError(null);
       }
@@ -352,27 +161,30 @@ export default function ManagerDashboard() {
       logApiError('Failed to update status:', err);
       notificationOccurred('error');
       const message = getApiFieldError(err, 'reason') ?? getApiErrorMessage(err);
-      if (isCancellation(variables.status)) {
+      if (variables.action.to === 'canceled' || variables.action.to === 'rejected') {
         // Shown in the reason picker, which stays open
         setCancelError(message ?? staffText('cancelFailed', language));
         return;
       }
       void showAlert(message || staffText('statusUpdateFailed', language));
-    }
+    },
   });
 
-  const openCancelDialog = (order: Order, mode: CancelRequest['mode']) => {
+  const openCancelDialog = (order: StaffOrder, mode: CancelRequest['mode']) => {
     hapticFeedback('light');
-    updateStatusMutation.reset();
+    board.reset();
     setCancelError(null);
     setCancelRequest({ order, mode });
   };
 
   const closeCancelDialog = () => {
-    if (updateStatusMutation.isPending) return;
+    if (board.isPending) return;
     setCancelRequest(null);
     setCancelError(null);
   };
+
+  const onAction = (order: StaffOrder, action: OrderAction) =>
+    board.mutate({ uuid: order.uuid, action, ...(action.needsCourier ? { courierId: selectedCourierId[order.uuid] } : {}) });
 
   // A failed background refresh keeps showing the last orders; the error screen is only for "nothing to show"
   if (error && orders.length === 0) {
@@ -385,9 +197,9 @@ export default function ManagerDashboard() {
   }
 
   const activeOrders = orders.filter((order) => (OPEN_STATUSES as readonly string[]).includes(order.status));
-  const countOf = (key: OrderFilter) => orders.filter((order) => FILTER_STATUSES[key].includes(order.status)).length;
+  const countOf = (key: OrderFilter) => activeOrders.filter((order) => FILTER_STATUSES[key].includes(order.status)).length;
   const shownOrders = filter ? activeOrders.filter((order) => FILTER_STATUSES[filter].includes(order.status)) : activeOrders;
-  const busyUuid = updateStatusMutation.isPending ? updateStatusMutation.variables?.uuid : undefined;
+  const busyUuid = board.isPending ? board.variables?.uuid : undefined;
 
   const filterLabel = (key: OrderFilter) => staffText(FILTER_LABEL_KEY[key], language);
 
@@ -404,6 +216,25 @@ export default function ManagerDashboard() {
   return (
     <div className="flex flex-col gap-3 px-4 pt-2">
       <PageHeader title={user?.name} subtitle={staffText('managerSubtitle', language)} />
+
+      {showBranches && (
+        <select
+          aria-label={tx('branchFilter')}
+          value={branchId ?? ''}
+          onChange={(e) => {
+            selectionChanged();
+            setChosenBranch(e.target.value === '' ? null : Number(e.target.value));
+          }}
+          className={cx(fieldClass, 'cursor-pointer bg-surface')}
+        >
+          <option value="">{tx('allBranches')}</option>
+          {branches.map((branch) => (
+            <option key={branch.id} value={branch.id}>
+              {branch.name}
+            </option>
+          ))}
+        </select>
+      )}
 
       <SegmentedControl segments={tabs} value={activeTab} onChange={setActiveTab} label={staffText('ordersSection', language)} />
 
@@ -439,7 +270,7 @@ export default function ManagerDashboard() {
         </div>
       )}
 
-      {activeData?.truncated && <TruncatedOrdersNotice />}
+      {activeTab === 'active' && activeData?.truncated && <TruncatedOrdersNotice />}
 
       <div className="flex flex-col gap-3">
         {loadingList ? (
@@ -459,13 +290,15 @@ export default function ManagerDashboard() {
             />
           ) : (
             shownOrders.map((order) => (
-              <ActiveOrderCard
-                key={order.id}
+              <StaffOrderCard
+                key={order.uuid}
                 order={order}
+                now={now}
+                showBranch={showBranches}
                 couriers={couriers}
                 courierId={selectedCourierId[order.uuid] || undefined}
                 onPickCourier={(courierId) => setSelectedCourierId((prev) => ({ ...prev, [order.uuid]: courierId }))}
-                onChange={(change) => updateStatusMutation.mutate(change)}
+                onAction={onAction}
                 onCancel={openCancelDialog}
                 busy={busyUuid === order.uuid}
               />
@@ -474,7 +307,7 @@ export default function ManagerDashboard() {
         ) : completedOrders.length === 0 ? (
           <EmptyState icon={Flag} title={staffText('noCompletedOrders', language)} />
         ) : (
-          completedOrders.map((order) => <CompletedOrderCard key={order.id} order={order} />)
+          completedOrders.map((order) => <CompletedOrderCard key={order.uuid} order={order} />)
         )}
         {activeTab === 'completed' && (
           <LoadMoreOrders
@@ -483,22 +316,22 @@ export default function ManagerDashboard() {
             isFetching={history.isFetching}
             isError={history.isFetchNextPageError}
             loadedCount={completedOrders.length}
-            onLoadMore={() => void history.fetchNextPage()}
+            onLoadMore={() => void history.fetchNextPage({ cancelRefetch: false })}
           />
         )}
       </div>
 
       {cancelRequest && (
         <StaffCancelDialog
-          order={cancelRequest.order}
+          order={toOrderRef(cancelRequest.order)}
           mode={cancelRequest.mode}
-          isPending={updateStatusMutation.isPending}
+          isPending={board.isPending}
           error={cancelError}
           onClose={closeCancelDialog}
           onConfirm={({ reason, note }) =>
-            updateStatusMutation.mutate({
+            board.mutate({
               uuid: cancelRequest.order.uuid,
-              status: cancelRequest.mode === 'reject' ? 'rejected' : 'canceled',
+              action: { to: cancelRequest.mode === 'reject' ? 'rejected' : 'canceled', via: 'status' },
               reason,
               note,
             })

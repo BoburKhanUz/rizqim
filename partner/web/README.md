@@ -85,16 +85,34 @@ u httpOnly `rz_select` cookie'sida (5 daqiqa). Forma do'konlarni ko'rsatadi, tan
 
 Menyu `GET /api/v1/me/permissions` ro'yxatiga qarab chiziladi (`src/lib/permissions.ts`); backend baribir har so'rovni tekshiradi.
 
-| Bo'lim | Ruxsat |
+| Bo'lim | Ruxsat (istalgan biri) |
 |---|---|
-| Boshqaruv paneli, Hisobotlar | `reports.view` |
-| Buyurtmalar | `orders.view` |
-| Menyu | `menu.view` |
+| Boshqaruv paneli | `orders.view` (doska xulosasi), `reports.view` (bugungi analitika) |
+| Buyurtmalar (jonli doska) | `orders.view` |
+| Menyu | `menu.view`, `menu.manage` |
 | Stop-list | `stoplist.manage` |
-| Filiallar | `settings.manage` (filial uchun alohida ruxsat hali yo'q) |
+| Qozon (`/stoplist/batches`) | `batches.manage` |
 | Xodimlar | `staff.view` |
-| Moliya | `finance.view` |
+| Filiallar | `branches.manage`, `settings.manage` |
+| Yetkazish zonalari | `zones.manage` |
 | Sozlamalar | `settings.manage` |
+| Hisobotlar | `reports.view` |
+| Moliya | `finance.view` |
+
+**Filial tanlash** (yuqori panel): ega va filialsiz xodim "Barcha filiallar" yoki bitta filialni tanlaydi (har kishi uchun
+brauzerda eslab qolinadi, `rz_branch:<store>:<user>`), filialga biriktirilgan xodim faqat o'z filialida ishlaydi. Sahifalar
+tanlovni `useBranchScope()` (`src/components/shell/BranchScope.tsx`) dan o'qiydi.
+
+**Jonli buyurtmalar (P2-21).** `/orders` — ustunlar: Yangi, Tayyorlanmoqda, Tayyor, Yo'lda, Bugun yakunlangan (yig'iladi);
+`GET /staff/orders` (kursor), tafsilot `GET /staff/orders/{uuid}`, amallar `POST /staff/orders/{uuid}/status` va
+`/orders/{uuid}/assign-courier`. Real-time: Reverb (`REVERB_APP_KEY`, `REVERB_HOST`, `REVERB_PORT`, `REVERB_SCHEME`, runtime),
+`private-pos-branch.{id}` yoki barcha filiallarda ega/filialsiz menejer uchun `private-store.{id}`; obuna
+`PUBLIC_API_BASE_URL/broadcasting/auth` orqali sessiya tokeni bilan. Real-time bo'lmasa har 15 soniyada so'rov (ulanganda 60 s).
+Yangi buyurtmada ovoz (o'chirish mumkin, brauzerda eslab qolinadi; brauzer birinchi bosishdan keyin ruxsat beradi), menyuda va
+sarlavhada son.
+
+**Tarjimalar bo'limlari.** Har bo'lim matnlari `src/i18n/sections/<area>.ts` da (`defineSection`, uz/ru/en, kalit bo'lim
+prefiksi bilan); `src/i18n/index.ts` ularni asosiy lug'atga qo'shadi, test kalitlar to'liqligi va takrorlanmasligini tekshiradi.
 
 Ruxsati bo'lmagan bo'limga o'tilsa, birinchi ruxsat etilgan bo'limga yo'naltiriladi; hech qanday ruxsat bo'lmasa "kirish yo'q" ekrani.
 
@@ -119,8 +137,8 @@ backend'ning IP limitlari har kishiga alohida bo'ladi), panel origin'i backend'd
 ## Tuzilma
 
 ```
-src/app/                  App Router: /login, (app)/{dashboard,orders,menu,stoplist,branches,staff,reports,finance,settings}, api/session/* (send-code, login, select-account, refresh, logout)
-src/components/           AppShell + Sidebar, LoginForm, Dashboard, OrdersView, AuthProvider, I18nProvider ...
+src/app/                  App Router: /login, (app)/{dashboard,orders,menu,stoplist,branches,zones,staff,reports,finance,settings}, api/session/* (send-code, login, select-account, refresh, logout)
+src/components/           AppShell + Sidebar, shell/ (filial tanlash, jonli buyurtmalar, yuqori panel), orders/ (doska), LoginForm, Dashboard ...
 src/lib/session/          server.ts (cookie va backend), client.ts (access token xotirada, single-flight refresh, authFetch, API klienti)
 src/lib/permissions.ts    bo'lim <-> ruxsat
 src/i18n/                 uz (asosiy), ru, en; til `rz_lang` cookie'sida (server uni o'qib, sahifani shu tilda chizadi)

@@ -5,7 +5,10 @@
 library;
 
 export 'src/date_format.dart';
+export 'src/duration_format.dart';
 export 'src/locale.dart';
 export 'src/money.dart';
+export 'src/order_channel.dart';
 export 'src/order_status.dart';
 export 'src/order_type.dart';
+export 'src/staff_role.dart';

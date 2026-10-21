@@ -25,14 +25,14 @@ test('manager rejects a new order with a reason', async ({ page, api }) => {
   await confirm.click()
   await expect(dialog).toBeHidden()
 
-  const [request] = api.callsTo('POST', `/orders/${fresh.uuid}/status`)
+  const [request] = api.callsTo('POST', `/staff/orders/${fresh.uuid}/status`)
   expect(request.body).toEqual({ status: 'rejected', reason: 'out_of_stock', note: 'Lavash tugadi' })
 
   // It left the active list; the accepted one stays
   await expect(page.getByRole('button', { name: /^Faol \(1\)$/ })).toBeVisible()
   await expect(page.getByText('#N100')).toHaveCount(0)
   await expect(page.getByText('#A200')).toBeVisible()
-  expect(api.callsTo('POST', `/orders/${accepted.uuid}/status`)).toHaveLength(0)
+  expect(api.callsTo('POST', `/staff/orders/${accepted.uuid}/status`)).toHaveLength(0)
 
   // ... and is in the finished ones with its reason
   await page.getByRole('button', { name: /^Yakunlanganlar/ }).click()
