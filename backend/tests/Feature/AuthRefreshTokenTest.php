@@ -115,6 +115,9 @@ class AuthRefreshTokenTest extends TestCase
         $this->assertNotSame($login['refresh_token'], $next['refresh_token']);
         $this->assertNotSame($login['token'], $next['token']);
         $this->assertSame($login['device']['uuid'], $next['device']['uuid']);
+        // The device's user comes with it: the partner web restores who is signed in from this answer (P2-33)
+        $user = User::where('telegram_id', 5550001)->firstOrFail();
+        $this->assertSame(['id' => $user->id, 'name' => $user->name, 'role' => $user->role->value], $next['device']['user']);
         $this->bearerJson('GET', '/api/v1/user', $login['token'])->assertUnauthorized();
         $this->bearerJson('GET', '/api/v1/user', $next['token'])->assertOk();
 
@@ -308,6 +311,8 @@ class AuthRefreshTokenTest extends TestCase
         $retry = $this->refresh($login['refresh_token'], $login['device']['uuid'])->assertOk()->json('data');
 
         $this->assertNotSame($lost['refresh_token'], $retry['refresh_token']);
+        $this->assertSame($lost['device']['user'], $retry['device']['user']);
+        $this->assertNotNull($retry['device']['user']);
         // The pair the app never got is ended, the retried one works, all in the one family
         $this->bearerJson('GET', '/api/v1/user', $lost['token'])->assertUnauthorized();
         $this->assertNotNull(RefreshToken::where('token_hash', hash('sha256', $lost['refresh_token']))->value('revoked_at'));

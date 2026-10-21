@@ -26,7 +26,7 @@ Tilni o'zgartirish: **Profil** → **Ilova tili** (O'zbekcha, Русский, En
 
 | Ish | Telefon (Mini App) | Kompyuter (hamkor paneli) |
 |---|:-:|:-:|
-| Buyurtmalarni qabul qilish, rad etish, kuryer tayinlash | ha | ha |
+| Buyurtmalarni qabul qilish, rad etish, kuryer biriktirish | ha | ha |
 | Stop-list va qozon | ha | ha |
 | Xodim qo'shish, PIN o'rnatish | ha (ega) | ha |
 | Filial ish vaqti | ha | ha |
@@ -38,16 +38,19 @@ Tilni o'zgartirish: **Profil** → **Ilova tili** (O'zbekcha, Русский, En
 | Moliya: balans, pul yechish | ha (ega) | ha |
 | Oshxona planshetini ulash | yo'q | ha |
 | Rolni o'zgartirish | yo'q | ha |
-| Yangi buyurtma ovozi | yo'q | ha |
+| Yangi buyurtma ovozi | ha (**Buyurtmalar** ekrani) | ha |
 
-Ilova ochiq turganda yangi buyurtmalar o'zi chiqadi, lekin Mini App ovoz chalmaydi. Buyurtmalarni doim kuzatib turadigan
-joyda (kassada, oshxonada) hamkor panelini ochiq qoldiring: u yangi buyurtmada signal beradi.
+Ilova ochiq turganda yangi buyurtmalar o'zi chiqadi va **Buyurtmalar** ekrani yangi buyurtmada qisqa signal chaladi (panel
+bilan bir xil ovoz). Telegram ovozni faqat ekranga bir marta tegingandan keyin ruxsat beradi: ekran ochilganda "Yangi buyurtma
+ovozi uchun ekranga bir marta teging." yozuvi chiqsa, istalgan joyga teging. Ovozni sarlavha yonidagi qo'ng'iroqcha tugmasi
+o'chiradi va yoqadi (telefonda eslab qolinadi). Ilova yopiq yoki fonda bo'lsa signal chalinmaydi: buyurtmalarni doim kuzatib
+turadigan joyda (kassada, oshxonada) hamkor panelini ochiq qoldiring.
 
 ## 3. Pastki menyu: kim nimani ko'radi
 
 Ekran pastida tugmalar bor. Rolga qarab:
 
-- **Ega**: **Analitika**, **Katalog**, **Buyurtmalar**, **Xodimlar**, **Profil**.
+- **Ega**: **Analitika**, **Menyu**, **Buyurtmalar**, **Xodimlar**, **Profil**.
 - **Menejer**: **Buyurtmalar**, **Stop-list**, **Profil**.
 - **Kuryer**: **Yetkazmalar**, **Profil**.
 
@@ -59,7 +62,8 @@ Qolgan bo'limlar (**Stop-list va qozon**, **Filiallar va ish vaqti**, **Balans v
 **Buyurtmalar** ekrani. Tepada sizning ismingiz va "Menejer boshqaruvi" yozuvi.
 
 - Egada bir nechta filial bo'lsa, **Filial bo'yicha** ro'yxati chiqadi: **Barcha filiallar** yoki bitta filial. Menejer faqat o'z filialini ko'radi.
-- Ikkita yorliq: **Faol (N)** va **Yakunlanganlar**.
+- Ikkita yorliq: **Faol (N)** va **Yakunlangan** (barcha yakunlangan buyurtmalar; panel doskasidagi ustun esa faqat bugungisi —
+  **Bugun yakunlangan**).
 - Faol buyurtmalar tepasida to'rtta hisoblagich: **Yangi**, **Tayyorlash**, **Tayyor**, **Kuryer**. Birini bossangiz, faqat shu buyurtmalar
   ko'rinadi. Yana bossangiz — hammasi qaytadi (**Hammasini ko'rsatish**).
 
@@ -70,7 +74,8 @@ Raqam (`#E101`), holat belgisi, vaqt, mijoz ismi, summa, turi (**Yetkazish**, **
 
 Rangli belgilar:
 
-- **Kutmoqda: 12 daq** — kulrang: normal; sariq — 15 daqiqadan; qizil — 30 daqiqadan.
+- **Kutmoqda: 12 daq** — serverdagi kutish vaqti (oshxona ekrani bilan bir xil hisob). Ranglar panel doskasidagi bilan bir xil:
+  yangi buyurtma 5 daqiqadan sariq, 10 daqiqadan qizil; qabul qilingan yoki oshxonadagi buyurtma 20 daqiqadan sariq, 40 daqiqadan qizil.
 - **Oshxona: 2/5 tayyor** — oshxonada taomlar qancha tayyor. Hammasi tayyor bo'lsa yashil.
 - Holat belgisi: sariq — **Yangi**; ko'k — jarayonda; yashil — **Yetkazildi**; qizil — **Bekor qilindi** yoki **Rad etildi**.
 
@@ -83,10 +88,10 @@ Tugmalar buyurtma holatiga qarab chiqadi:
 | Yangi | **Qabul qilish**, **Rad etish** |
 | Qabul qilindi | **Tayyorlashni boshlash**, **Bekor qilish** |
 | Tayyorlanmoqda | **Tayyor bo'ldi**, **Bekor qilish** |
-| Tayyor (yetkazish) | kuryerni tanlash va **Kuryerni tayinlash**, **Bekor qilish** |
+| Tayyor (yetkazish) | kuryerni tanlash va **Kuryerni biriktirish**, **Bekor qilish** |
 | Tayyor (olib ketish, zal) | **Mijozga topshirish**, **Bekor qilish** |
 | Kuryer kutilmoqda | **Yo'lga chiqdi** |
-| Yo'lda | **Yetkazilganini tasdiqlash** |
+| Yo'lda | **Yetkazib berildi** |
 
 ### Rad etish yoki bekor qilish
 
@@ -96,11 +101,11 @@ Tugmalar buyurtma holatiga qarab chiqadi:
 
 Sababsiz tasdiqlab bo'lmaydi. Yakunlangan buyurtmada sabab kartochkada ko'rinadi.
 
-### Kuryer tayinlash
+### Kuryer biriktirish
 
 1. Tayyor yetkazish buyurtmasida **Kuryerni biriktirish** ro'yxatini oching.
-2. Kuryerni tanlang (ism va Telegram nomi ko'rinadi). Tanlamaguncha **Kuryerni tayinlash** tugmasi o'chiq turadi.
-3. **Kuryerni tayinlash** ni bosing.
+2. Kuryerni tanlang (ism va Telegram nomi ko'rinadi). Tanlamaguncha **Kuryerni biriktirish** tugmasi o'chiq turadi.
+3. **Kuryerni biriktirish** ni bosing.
 
 Ro'yxat bo'sh bo'lsa, kuryer qo'shilmagan: **Xodimlar** bo'limidan qo'shing.
 
@@ -110,13 +115,14 @@ Kartochkadagi **Batafsil** ni bosing. Ochiladi: mijoz (ism, telefon, **Qo'ng'iro
 zona, kuryer, **Taomlar**, **Hisob** (taomlar summasi, chegirma, yetkazish, xizmat haqi, joy narxi, **Jami**), to'lov, kanal, filial,
 **Holatlar tarixi** va **Har bir bosqich vaqti**. Ba'zi rollar uchun mijoz ma'lumoti yashirilgan.
 
-Yakunlangan buyurtmalar **Yakunlanganlar** yorlig'ida; ro'yxat oxirida yana yuklash tugmasi bor.
+Yakunlangan buyurtmalar **Yakunlangan** yorlig'ida; ro'yxat oxirida yana yuklash tugmasi bor.
 
 ## 5. Stop-list va qozon (ega va menejer)
 
-Menejer: pastki menyuda **Stop-list**. Ega: **Profil** → **Stop-list va qozon** (yoki **Katalog** ichidagi **Stop-list va qozon** tugmasi).
+Menejer: pastki menyuda **Stop-list**. Ega: **Profil** → **Stop-list va qozon** (yoki **Menyu** ichidagi **Stop-list va qozon** tugmasi).
 
-Egada bir nechta filial bo'lsa, tepada **Filial** ni tanlaysiz. Ikkita yorliq: **Stop-list** va **Qozon**.
+Ega yoki filialga bog'lanmagan (butun do'kon) menejerda bir nechta filial bo'lsa, tepada **Filial** ni tanlaysiz; filialga
+bog'langan menejer doim o'z filialida ishlaydi. Ikkita yorliq: **Stop-list** va **Qozon**.
 
 ### Taom tugadi
 
@@ -166,17 +172,18 @@ Pastga qaragan strelkani (**Boshqarish**) bossangiz, amallar ochiladi:
 PIN nima uchun kerak: kassa yoki oshxona planshetiga kirish ([oshxona ekrani qo'llanmasi](oshxona-ekrani.md)).
 Rolni o'zgartirish yoki planshetni ulash — kompyuterdagi [panelda](hamkor-panel.md).
 
-## 7. Katalog (ega)
+## 7. Menyu (ega)
 
-**Katalog** ekrani — menyudagi taomlar ro'yxati. Mini Appda mahsulotni qo'shish va tahrirlash soddalashtirilgan.
+**Menyu** ekrani — menyudagi taomlar ro'yxati (paneldagi kabi "taom" deyiladi). Mini Appda taomni qo'shish va tahrirlash
+soddalashtirilgan.
 
-1. **Qo'shish** tugmasi. Yoki mavjud mahsulotni bosing.
+1. **Qo'shish** tugmasi. Yoki mavjud taomni bosing.
 2. **Rasm yuklash**. **Asosiy ma'lumotlar**: **Sotuvda** tumbleri, **Kategoriya**, **Nomi**, **Ta'rifi (ixtiyoriy)**.
-3. **Narx va variantlar**: har bir variantga **Nomi** (masalan, Mini, Katta, 1 L) va **Narxi (so'm)**.
+3. **Variantlar va narxlar**: har bir variantga **Nomi** (masalan, Mini, Katta, 1 L) va **Narxi (so'm)**.
 4. Saqlang.
 
-Ro'yxatda har bir mahsulotda **Sotuvda** tumbleri bor: o'chirsangiz mahsulot mijozlarga ko'rinmaydi. Qalam — tahrirlash; chiqindi savat — o'chirish.
-Kg bo'yicha sotiladigan taom (**Vazn bo'yicha** yorlig'i bor), modifikatorlar va kanal narxlari faqat panelda tahrirlanadi.
+Ro'yxatda har bir taomda **Sotuvda** tumbleri bor: o'chirsangiz taom mijozlarga ko'rinmaydi (**Faol emas** yorlig'i chiqadi). Qalam — tahrirlash; chiqindi savat — o'chirish.
+Kg bo'yicha sotiladigan taom (**Vaznli** yorlig'i bor), modifikatorlar va kanal narxlari faqat panelda tahrirlanadi.
 
 ## 8. Filial ish vaqti (ega va menejer)
 
@@ -193,7 +200,8 @@ Kartochkada **Hozir ochiq** yoki **Hozir yopiq** ko'rinadi. Manzil, hudud va rad
 ## 9. Analitika, balans va sozlamalar (ega)
 
 - **Analitika** (ega ochiladigan birinchi ekran): **Bugun**, **Hafta**, **Oy**, **Yil**. Umumiy savdo, to'lov turlari bo'yicha taqsimot,
-  **Eng ko'p sotilganlar**, **Kuryerlar reytingi**.
+  **Eng ko'p sotilganlar**, **Kuryerlar reytingi**. Tepadagi **Hisobotlar va eksport** tugmasi (yoki **Profil** → **Hisobotlar va
+  eksport**) istalgan davr hisobotini va CSV faylini ochadi.
 - **Profil** → **Balans va to'lovlar**: hamyon va qarz hisobi, **Balansni to'ldirish**, pul yechish so'rovi (karta raqami bilan). Batafsil — panelning
   [Moliya bo'limida](hamkor-panel.md#12-moliya).
 - **Profil** → **Tizim va ish vaqti sozlamalari**: **Do'kon sozlamalari** (logo, banner, **Do'kon ochiq**, **Ish vaqti**, **Yetkazib berish**,
@@ -212,10 +220,10 @@ manzil (**Xaritada ochish** — xaritada yo'nalish ochiladi), **Mahsulotlar**, t
 
 Qadamlar:
 
-1. Buyurtmani restorandan oling. Keyin **Olib ketdim (Yo'lga chiqdim)** tugmasini bosing. Holat "Yo'lda" bo'ladi.
+1. Buyurtmani restorandan oling. Keyin **Yo'lga chiqdim** tugmasini bosing. Holat "Yo'lda" bo'ladi.
 2. Manzilga boring. Kerak bo'lsa mijozga qo'ng'iroq qiling.
 3. Buyurtmani topshiring, naqd bo'lsa pulni oling.
-4. **Yetkazib berdim (Yakunlash)** tugmasini bosing. Buyurtma **Topshirilganlar** yorlig'iga o'tadi, **Yetkazilganlar** soni oshadi.
+4. **Yetkazib berdim** tugmasini bosing. Buyurtma **Topshirilganlar** yorlig'iga o'tadi, **Yetkazilganlar** soni oshadi.
 
 Bir nechta buyurtma bo'lsa, ilova joriy buyurtmani **Hozirgi** belgisi bilan ajratadi. Asosiy tugma ham Telegramning pastki katta tugmasi
 sifatida chiqadi — shuni bosish ham mumkin. Yo'ldagi buyurtma birinchi o'rinda turadi.

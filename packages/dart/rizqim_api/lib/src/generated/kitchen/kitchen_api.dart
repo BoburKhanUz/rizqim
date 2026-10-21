@@ -18,7 +18,9 @@ abstract class KitchenApi {
   /// Kitchen display tickets.
   ///
   /// The orders the kitchen is cooking (accepted and preparing; with `include_ready=1` also the ready ones not yet.
-  /// handed over), oldest first, at most 200 (`meta.truncated`). Each ticket: lines with modifiers and.
+  /// handed over), oldest first, at most 200 (`meta.truncated`). P2-33: also an order a courier was assigned to while.
+  /// it was cooking (courier_assigned) as long as a line is still pending; with `include_ready=1` every.
+  /// courier_assigned order (the courier has not picked it up yet). Each ticket: lines with modifiers and.
   /// quantities/weights, each line's kitchen state, the notes (phone numbers masked), when it came in and was.
   /// accepted, and `waiting_seconds`. No customer data, no prices. Needs kitchen.manage or orders.view.
   ///
@@ -35,8 +37,9 @@ abstract class KitchenApi {
   ///
   /// The line is ready (kitchen.manage). The first bump of an accepted order starts it (preparing). When every line is.
   /// ready a delivery or pickup order becomes ready by itself; a hall order (dine_in) stays preparing until it is.
-  /// closed. 422 when the order is not in the kitchen (new, ready, on its way, finished). Bumping a ready line again.
-  /// answers 200 unchanged. Returns the ticket.
+  /// closed. P2-33: a courier_assigned order (a courier was assigned while it was cooking) takes bumps too, with no.
+  /// status move. 422 when the order is not in the kitchen (new, ready, on its way, finished). Bumping a ready line.
+  /// again answers 200 unchanged. Returns the ticket.
   @POST('/v1/staff/orders/{uuid}/items/{item}/ready')
   Future<PostV1StaffOrdersUuidItemsItemReadyResponse> staffOrderBumpItem({
     @Path('uuid') required String uuid,
@@ -47,8 +50,8 @@ abstract class KitchenApi {
   ///
   /// Undo a mistaken bump: the line is back to pending (kitchen.manage). While the order is accepted or preparing,.
   /// and (P2-30) while it is ready but not yet with a courier or handed over: the order goes back to preparing.
-  /// (`order.status_changed` and the history say so). 422 once a courier is assigned, it is on its way or finished.
-  /// Returns the ticket.
+  /// (`order.status_changed` and the history say so). P2-33: while a courier is assigned (courier_assigned) the line.
+  /// is recalled with no status move. 422 once it is on its way or finished. Returns the ticket.
   @POST('/v1/staff/orders/{uuid}/items/{item}/recall')
   Future<PostV1StaffOrdersUuidItemsItemRecallResponse> staffOrderRecallItem({
     @Path('uuid') required String uuid,

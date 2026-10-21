@@ -21,7 +21,10 @@ so'rov, sahifalash, cheklovlar va real-time. Har bir endpoint'ning to'liq tavsif
   `GET /owner/payouts`, `GET /owner/finance`) karta niqoblangan (`card`: `"8600 **** **** 9012"`), izohlardagi karta
   raqamlari ham. To'liq raqam faqat bazada (platforma pulni o'tkazishi uchun).
 - **Miqdor:** donali taomda butun son (`2`), kg/l da kasr (`1.5`, ko'pi bilan 3 xona).
-- **Vaqt:** ISO 8601 (`2026-10-20T14:05:00+05:00`). Do'kon vaqt mintaqasi standart `Asia/Tashkent`.
+- **Vaqt:** ISO 8601 (`2026-10-20T14:05:00+05:00`). Do'kon vaqt mintaqasi standart `Asia/Tashkent`. P2-33: sana
+  filtrlari, hisobotlar, `GET /owner/analytics` va filial ish vaqti bir xil o'qiydi (`App\Support\StoreTimezone`):
+  noma'lum mintaqa yozilgan bo'lsa — `Asia/Tashkent` (500 emas). Mini App analitikasi ham do'kon mintaqasidagi kunlarni
+  sanaydi (`period.timezone`), shuning uchun `/owner/reports/sales` bilan bir xil raqam.
 - **Identifikatorlar:** buyurtma, qurilma, do'kon — tashqi ilovalar uchun `uuid`; ichki obyektlar (filial, mahsulot,
   partiya) — raqamli `id`.
 - **So'rov raqami:** har bir javobda `X-Request-Id` sarlavhasi. Xato haqida xabar berganda shu raqamni yuboring: u
@@ -72,7 +75,10 @@ Qo'shimcha cheklovlar:
 
 - **Do'kon:** xodim faqat o'z do'koni ma'lumotini ko'radi; do'konsiz xodim hamma joyda 403 (`staff.store`).
 - **Filial:** filialga biriktirilgan xodim (egadan boshqa) faqat o'z filialining buyurtma, qurilma, stop-list va
-  partiyalari bilan ishlaydi. Begona yozuv 404 bo'ladi (403 emas: mavjudligi ham oshkor qilinmaydi).
+  partiyalari bilan ishlaydi. Begona yozuv 404 bo'ladi (403 emas: mavjudligi ham oshkor qilinmaydi). P2-33: filialga
+  ulangan terminaldagi PIN sessiyasi (ega va filialsiz xodim ham) hamma endpointda terminal filiali bilan ishlaydi —
+  eski `/orders/*`, hisobotlar, CSV va analitika ham; terminali topilmaydigan sessiya hech narsa qila olmaydi
+  ([AUTH.md](AUTH.md), 5-bo'lim).
 - **Ilova uchun:** `GET /me/permissions` → `{role, store_id, branch_id, branch_scoped, permissions[], device_uuid}`.
   Ilova faqat ishlaydigan tugmalarni ko'rsatadi, lekin server baribir har bir amalni o'zi tekshiradi.
 - **Xodimlar uchun buyurtmalar (P2-11):** `/orders/*` avvalgidek ega, menejer, kuryer va mijoz uchun (ma'nosi va javob
@@ -131,9 +137,9 @@ Ilova xabarni ko'rsatishi mumkin, qaror esa `data.reason` va HTTP kod bo'yicha.
 | `outside_zone` | 422 | `/delivery/quote` | nuqta hech qaysi hududda emas |
 | `zones_not_configured` | 422 | `/delivery/quote` | do'konda faol hudud yo'q |
 | `branch_closed` | 422 | `/delivery/quote` | hududga xizmat qiladigan filial yopiq |
-| `branch_in_use` | 422 | `DELETE /owner/branches/{id}` | filialda buyurtmalar bor yoki u do'konning yagona filiali (P2-12) |
+| `branch_in_use` | 422 | `DELETE /owner/branches/{id}` | filialda buyurtmalar bor yoki u do'konning yagona filiali (P2-12); P2-33: filialga xodim, faol qurilma yoki hudud bog'langan (`data.staff`, `data.devices`, `data.zones` — soni) |
 | `too_many_rows` | 422 | `/owner/reports/export` | davrda CSV uchun buyurtmalar juda ko'p (`data.limit`), qisqaroq davr tanlang (P2-12) |
-| `kitchen_status` | 422 | `/staff/orders/{uuid}/items/{id}/ready`, `.../recall` | buyurtma oshxonada emas (P2-11); qaytarish — kuryer biriktirilgan, yo'lda yoki topshirilgan |
+| `kitchen_status` | 422 | `/staff/orders/{uuid}/items/{id}/ready`, `.../recall` | buyurtma oshxonada emas (P2-11): yangi, yo'lda, topshirilgan yoki bekor qilingan (P2-33: kuryer biriktirilgan buyurtmada qatorlar bilan ishlash mumkin) |
 | `courier_required` | 422 | `POST /staff/orders/{uuid}/status` (`on_the_way`) | buyurtmaga hali kuryer biriktirilmagan (P2-30) |
 
 `outside_zone` va boshqa hudud sabablari `POST /orders` da ham qaytadi (P1-32), narx taklifi bilan bir xil.
@@ -257,7 +263,7 @@ Barchasi `/api/v1` ostida. To'liq ro'yxat, parametrlar va javob shakllari — Op
 | Kirish | `POST /auth/telegram`, `/auth/phone/send-code`, `/auth/phone/verify`, `/auth/refresh`, `/auth/logout`, `/auth/logout-all` | token olish, yangilash, chiqish |
 | Profil | `GET /user`, `POST /user/profile`, `POST /phone/send-code`, `/phone/verify-code`, `GET /me/permissions` | joriy foydalanuvchi, telefonni tasdiqlash, ruxsatlar |
 | Qurilmalar | `GET/POST /devices`, `DELETE /devices/{uuid}`, `PUT/DELETE /devices/{uuid}/push-token` | shaxsiy ilovani ro'yxatga olish, push token |
-| Terminal | `POST /devices/pair`, `GET /terminal`, `GET /terminal/staff`, `POST/DELETE /devices/{uuid}/staff-session` | POS/KDS ulash va xodim PIN kirishi; `GET /terminal` da `branches` — terminal obuna bo'la oladigan filiallar, `GET /terminal/staff?role=cook,manager` — rol bo'yicha (P2-30) |
+| Terminal | `POST /devices/pair`, `GET /terminal`, `GET /terminal/staff`, `POST/DELETE /devices/{uuid}/staff-session`, `DELETE /terminal` | POS/KDS ulash va xodim PIN kirishi; `GET /terminal` da `branches` — terminal obuna bo'la oladigan filiallar, `GET /terminal/staff?role=cook,manager` — rol bo'yicha (P2-30); `DELETE /terminal` — terminal o'z tokeni bilan o'zini uzadi (P2-33, [AUTH.md](AUTH.md) 4-bo'lim) |
 | Xabar sozlamalari | `GET/PUT /me/notification-preferences`, `GET /notifications`, `POST /notifications/read` | qaysi xabar qaysi kanaldan, ilova ichidagi xabarlar |
 | Do'konlar va katalog | `GET /stores`, `GET /catalog`, `GET /catalog/availability`, `POST /stores/{id}/rate` | mijoz uchun do'konlar, menyu (kanal narxi bilan), mavjudlik, baho |
 | Manzil va xarita | `GET/POST/PUT/DELETE /addresses`, `GET /locations`, `GET /geocode/reverse`, `/geocode/search` | mijoz manzillari, viloyat/tuman, geokodlash proksisi |
@@ -319,19 +325,25 @@ Kim nima qila oladi:
 
 | Kim | O'tishlar |
 |---|---|
-| `orders.manage` (ega, menejer, kassir, ofitsiant) | qabul qilish, tayyorlash, tayyor, topshirish (olib ketish va zal: `delivered`) |
+| `orders.manage` (ega, menejer, kassir, ofitsiant) | qabul qilish, tayyorlash, tayyor, topshirish (olib ketish va zal: `delivered`). P2-33: yetkazish buyurtmasini `delivered` qilish — faqat biriktirilgan kuryer yoki `orders.assign_courier` (ega, menejer) bilan; kassir va ofitsiantga 403 |
 | `kitchen.manage` (oshpaz; ega va menejerda ham bor) | faqat `accepted → preparing` va `preparing → ready` |
 | `orders.cancel` (ega, menejer) | bekor qilish va rad etish (`reason` majburiy, `POST /orders/{uuid}/status` dagidek) |
 | `orders.assign_courier` (ega, menejer) | P2-30: biriktirilgan kuryer buyurtmani olib ketdi — `courier_assigned → on_the_way`. Kuryer biriktirilmagan buyurtma — 422 `courier_required` (avval `POST /orders/{uuid}/assign-courier`) |
 
-Ruxsat yo'q — 403, holat mashinasi ruxsat bermasa — 422, xuddi shu holat — 200 (o'zgarishsiz). Kuryer biriktirish —
+Ruxsat yo'q — 403, holat mashinasi ruxsat bermasa — 422, xuddi shu holat — 200 (o'zgarishsiz). P2-33: buyurtma
+oshxonadan chiqsa (`on_the_way`, `delivery`, `delivered`) uning hali `pending` qatorlari ham `ready` bo'ladi (taom
+kuryer yoki mijoz bilan ketdi), doskadagi `items_ready` to'g'ri qoladi. Kuryer biriktirish —
 avvalgidek `POST /orders/{uuid}/assign-courier` (P2-30 dan `orders.assign_courier` ruxsati bilan, rol emas). Doska
 endi `on_the_way` ni ham shu endpoint orqali yuboradi; eski `POST /orders/{uuid}/status` ishlashda davom etadi. Buyurtma `ready` bo'lganda (qaysi yo'l bilan bo'lmasin: KDS, panel,
 Telegram tugmasi) uning hamma qatorlari ham `ready` bo'ladi. Har o'zgarish holat tarixiga va harakatlar jurnaliga
 (PIN sessiyasida terminal bilan) yoziladi, mijozga avvalgidek xabar boradi.
 
 **`GET /staff/kitchen/tickets`** (`kitchen.manage` yoki `orders.view`) — oshxona chiptalari: `accepted` va
-`preparing` buyurtmalar (`include_ready=1` bilan `ready` ham), eskisidan yangisiga, eng ko'pi 200. `branch_id` ixtiyoriy.
+`preparing` buyurtmalar (`include_ready=1` bilan `ready` ham), eskisidan yangisiga, eng ko'pi 200. **P2-33: oshxona
+qatorlar holatiga qarab ishlaydi.** Dispetcher taom hali pishayotganda kuryer biriktirsa (`preparing →
+courier_assigned`), buyurtma chiptalarda qoladi — toki hech bo'lmasa bitta qatori `pending` ekan; `include_ready=1` bilan
+har qanday `courier_assigned` buyurtma ham (kuryer hali olib ketmagan). `on_the_way` va undan keyingilari chiptada
+yo'q: buyurtma yo'lga chiqqanda qolgan qatorlari yopiladi (`ready`), chunki taom kuryer bilan ketgan. `branch_id` ixtiyoriy.
 Chiptada: buyurtma raqami, turi, kanali, stol (`hall_ref`, `table_ref`), mehmonlar soni, izoh (telefon niqoblangan),
 taomlar (modifikatorlar, miqdor/vazn, `kitchen_status`, `ready_at`; narxsiz), `items_total`, `items_ready`,
 `created_at`, `accepted_at`, `preparing_at`, `ready_at` va `waiting_seconds` (qabul qilingandan — qabul qilinmagan
@@ -343,12 +355,21 @@ sanab turadi.
 "tayyor" uni `preparing` ga o'tkazadi. **Oxirgi qator tayyor bo'lganda buyurtma o'zi `ready` bo'ladi** — faqat
 yetkazish va olib ketish buyurtmalarida (mijoz yoki kuryer kutyapti). Zal buyurtmasi (`dine_in`) stol yopilguncha
 `preparing` da qoladi ([POS_SPEC.md](POS_SPEC.md), 3-bo'lim); uni oshpaz xohlasa `status = ready` bilan o'zi belgilaydi.
-Qayta yuborilsa — 200, o'zgarishsiz. **`.../recall`** — xato bosilgan "tayyor"ni qaytarish (qator yana `pending`),
+Qayta yuborilsa — 200, o'zgarishsiz. **P2-33:** `courier_assigned` buyurtmada ham "tayyor" va qaytarish ishlaydi,
+lekin holat o'zgarmaydi (oxirgi qator tayyor bo'lsa ham buyurtma `courier_assigned` da qoladi: kuryer kutyapti;
+qaytarish ham `preparing` ga o'tkazmaydi). **`.../recall`** — xato bosilgan "tayyor"ni qaytarish (qator yana `pending`),
 buyurtma `accepted`/`preparing` bo'lganda. **P2-30:** oxirgi "tayyor" buyurtmani o'zi `ready` qilgan bo'lsa ham
 qaytarish mumkin (`kitchen.manage`), toki buyurtmaga kuryer biriktirilmagan, u yo'lga chiqmagan va topshirilmagan
 ekan: qator `pending`, buyurtma yana `preparing` (holat tarixi, jurnal, `order.status_changed`); keyingi oxirgi
 "tayyor" uni yana `ready` qiladi. `ready → preparing` faqat shu yo'l bilan: holat endpointlari uni qabul qilmaydi (422).
-Kuryer biriktirilgan, yo'lda yoki yakunlangan buyurtma — 422 `kitchen_status`. Ikkalasi ham chiptani qaytaradi va
+Yo'lda yoki yakunlangan buyurtma — 422 `kitchen_status` (P2-33 gacha kuryer biriktirilgani ham).
+
+**Xabarlar (P2-33).** Buyurtma `ready` bo'lganda kuryerlarga (biriktirilgan kuryerga yoki filial kuryerlariga, ular
+bo'lmasa menejer/egaga) xabar faqat **yetkazish** buyurtmasida boradi; olib ketish va zal buyurtmasida kuryer
+chaqirilmaydi (mijozga avvalgidek xabar boradi). Oshxonaning o'z tuzatishi xabar emas: `ready` buyurtmadan qatorni
+qaytarish (`ready → preparing`) va undan keyingi qayta `ready` (oxirgi "tayyor" yoki status tugmasi) mijozga ham,
+kuryerga ham qayta xabar yubormaydi — ular "tayyor" ni bir marta eshitgan. Holat tarixi, jurnal va real-time hodisalar
+(`order.status_changed`, `kitchen.item_status_changed`) avvalgidek; buyurtma topshirilgani (`delivered`) yana xabar. Ikkalasi ham chiptani qaytaradi va
 `kitchen.item_status_changed` hodisasini yuboradi. Boshqa buyurtma qatori — 404.
 
 ## 10. OpenAPI spetsifikatsiyasi va klientlar
@@ -446,7 +467,8 @@ satr (`"12000.00"`), sanalar do'kon vaqt mintaqasida (`stores.timezone`, standar
   yashirin yoki bezak uchun (bo'sh bazada namunaviy raqam ko'rsatadi), biznes qoidasi yo'q. Web panel ko'rsatkichlarni
   `/owner/reports/*` va `/staff/orders` dan oladi; haqiqiy qoldiq — variant `stock` va `/owner/batches`.
 - **Buyurtmasi bor filialni o'chirish** — Filament ruxsat beradi, API rad etadi (`branch_in_use`): buyurtmalar va hisobotlar
-  filialsiz qolmasin. Bunday filial "faol emas" qilinadi.
+  filialsiz qolmasin. Bunday filial "faol emas" qilinadi. P2-33: xodim, faol qurilma yoki hudud bog'langan filialni
+  ikkalasi ham rad etadi (Filament — xabar bilan, `BranchDeletionGuard`).
 
 ### Yangi endpointlar qisqacha
 
@@ -462,7 +484,11 @@ o'zgarish jurnalga (`delivery_zone.created/updated/deleted`; shakl o'zgarsa `pol
 `status` (`active`, `inactive`, `temporarily_closed`), `is_active`. Ish vaqti — kunda bitta oraliq (panel va
 `ZoneResolver` kabi): vaqt yo'q yoki teng — sutka bo'yi; yopilish ochilishdan oldin — tungi. Javobda `working_hours
 {open, close, all_day, overnight, timezone}` va `is_open_now` (yetkazib berish hozir shu filialni ochiq deb biladimi).
-O'chirish rad etiladi (422, `branch_in_use`): filialda buyurtma bo'lsa yoki do'konning yagona filiali bo'lsa.
+O'chirish rad etiladi (422, `branch_in_use`): filialda buyurtma bo'lsa yoki do'konning yagona filiali bo'lsa. P2-33:
+filialga xodim, bekor qilinmagan qurilma (terminal) yoki yetkazib berish hududi bog'langan bo'lsa ham (aks holda ular
+`branch_id = null` bo'lib, butun do'konga tegishli bo'lib qolardi): xabarda va `data` da soni — `{"reason":
+"branch_in_use", "staff": 2, "devices": 1, "zones": 0}`. Avval xodimlarni boshqa filialga o'tkazing, qurilmalarni
+bekor qiling, hududlarni boshqa filialga biriktiring yoki o'chiring.
 Jurnal: `branch.created/updated/deleted`.
 
 **Hisobotlar** (`reports.view`). `from`, `to` — `YYYY-MM-DD`, ikkalasi kiradi, do'kon vaqt mintaqasidagi kunlar,

@@ -2,7 +2,6 @@
 
 namespace App\Services\Order;
 
-use App\Domain\Delivery\ZoneResolver;
 use App\Enums\OrderChannel;
 use App\Enums\OrderStatus;
 use App\Models\Store;
@@ -33,9 +32,7 @@ class SalesReportService
 
     public function timezone(Store $store): string
     {
-        $timezone = (string) ($store->timezone ?: ZoneResolver::DEFAULT_TIMEZONE);
-
-        return in_array($timezone, \DateTimeZone::listIdentifiers(\DateTimeZone::ALL_WITH_BC), true) ? $timezone : ZoneResolver::DEFAULT_TIMEZONE;
+        return \App\Support\StoreTimezone::of($store); // P2-33: shared with every other store date
     }
 
     /**

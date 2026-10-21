@@ -7,6 +7,10 @@ import 'package:flutter/widgets.dart';
 /// teginishda hisob qaytadan boshlanadi. Terminalda xodimni avtomatik chiqarish uchun.
 ///
 /// [timeout] `null` yoki nol — o'chirilgan.
+///
+/// **Navigator'dan yuqorida qo'ying** (`MaterialApp.builder`): dialog va menyular alohida route'da ochiladi, sahifa ichidagi
+/// detektor ularga tegishni sezmaydi (oshpaz sozlamalar oynasida ishlayotganda ham chiqarib yuborilardi). Chiqarilganda
+/// ochiq dialoglarni ilova o'zi yopishi kerak (masalan, `navigatorKey.currentState?.popUntil((r) => r.isFirst)`).
 class RzIdleDetector extends StatefulWidget {
   const RzIdleDetector({
     super.key,

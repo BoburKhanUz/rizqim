@@ -158,7 +158,7 @@ Terminallar (`user_id` yo'q) uchun qoidalar o'zgarmagan. Panelda ham xuddi shund
 ## 4. POS/KDS terminalni ulash
 
 1. Ega yoki menejer `POST /owner/devices/pairing-codes {type: pos|kds, branch_id?, name?}` yoki panelda
-   "Qurilmalar → Terminal ulash" orqali 8 belgili kod oladi (`ABCD-EFGH` ko'rinishida; Crockford base32: raqamlar va
+   "Sozlamalar → Qurilmalar → Ulash kodini yaratish" orqali 8 belgili kod oladi (`ABCD-EFGH` ko'rinishida; Crockford base32: raqamlar va
    I, L, O, U dan tashqari bosh harflar). Kod 10 daqiqa amal qiladi, bir marta ishlatiladi; bir
    do'konda bir vaqtda ko'pi bilan 5 ta faol kod; bir kishi daqiqasiga 5 ta, soatiga 30 ta kod yarata oladi. Filial
    menejeri faqat o'z filiali uchun kod yaratadi.
@@ -180,6 +180,7 @@ Terminal endpointlari (`Authorization: Bearer <terminal token>`):
 | `GET /terminal/staff` | PIN o'rnatilgan, shu terminalda ishlay oladigan xodimlar (PIN klaviaturasi uchun); P2-30: `?role=cook,manager` — faqat shu rollar (noma'lum rol — 422) |
 | `POST /devices/{uuid}/staff-session` | xodim PIN bilan kiradi |
 | `DELETE /devices/{uuid}/staff-session` | terminaldagi xodimni chiqarish (ekran qulfi, smena oxiri) |
+| `DELETE /terminal` (P2-33) | terminal o'zini uzadi (KDS ulanishni unutishdan oldin): egasining `POST /owner/devices/{uuid}/revoke` bilan bir xil — qurilma bekor qilinadi, uning tokeni va undagi barcha PIN sessiyalari darhol ishlamaydi, jurnalda `device.revoked` (`self_revoked: true`, terminal bilan). Daqiqasiga 6 ta. Qayta ulash — yangi kod bilan |
 
 Terminal tokeni bilan real-time obunasi ham imzolanadi (P2-11): `POST /api/broadcasting/auth` uni qabul qiladi, lekin
 terminal faqat o'z filialining `private-pos-branch.{branchId}` kanaliga qo'shiladi (filialsiz ulangan terminal — do'konning
@@ -215,6 +216,13 @@ tushirmang** — u barcha terminallarni uzib qo'yadi.
 - Terminalda yangi xodim kirsa, oldingisining sessiyasi yopiladi. PIN o'zgarsa yoki o'chirilsa, terminal o'chirilsa —
   sessiyalar darhol yopiladi.
 - Xodim boshqa filial terminaliga kira olmaydi (do'kon bo'yicha ishlaydigan xodim — istalgan filialga).
+- **P2-33: PIN sessiyasi hamma joyda terminal filiali bilan ishlaydi.** Filialga ulangan terminaldagi sessiya (ega va
+  filialsiz xodim ham) faqat shu filial bilan: `/staff/*` dan tashqari eski `POST /orders/{uuid}/status`,
+  `/orders/{uuid}/assign-courier`, `GET /orders`, `GET /couriers`, hisobotlar va CSV (`/owner/reports/*`), `GET
+  /owner/analytics`, `POST /reports/export`, filiallar ro'yxati va menyu ham (`PermissionService::actingBranchId`).
+  Boshqa filial buyurtmasi — 404, boshqa filial filtri — 403. Terminali topilmaydigan sessiya (qurilma yo'q, terminal
+  emas; bekor qilingan terminal tokeni kirishda 401) hech narsa qila olmaydi: ruxsatli marshrutlar 403, ro'yxatlar bo'sh
+  (yopiq holatda ishdan chiqadi, butun do'konga ochilmaydi).
 - **Bloklash:** bitta terminalda bitta xodim uchun `AUTH_PIN_MAX_ATTEMPTS` (5) noto'g'ri urinishdan keyin, yoki
   do'konning barcha terminallarida jami `AUTH_PIN_MAX_ATTEMPTS_PER_USER` (10) noto'g'ri urinishdan keyin (terminal
   almashtirish hisobni nolga tushirmaydi) `AUTH_PIN_LOCKOUT_SECONDS` (60 soniya) bloklanadi, keyingi har bir xatoda vaqt
@@ -285,11 +293,19 @@ biriktirilgan — o'z filiali); yaratish va o'chirish — `settings.manage` (ega
 menejer — o'z filiali; panelning `BranchPolicy` qoidasi). Xodimlar: `GET/POST /owner/staff`, `PATCH /owner/staff/{id}` —
 `staff.view` va panelning xodimlar ekranidagi qoida: ega hamma xodimni, menejer o'z filialidagi o'zidan past rollarni
 (kassir, ofitsiant, oshpaz, kuryer) qo'shadi va tahrirlaydi; formadagi telefon kirish raqami bo'ladi (yuqorida, 1-bo'lim).
+P2-33: ro'yxatni filialga biriktirilgan har kim (faqat menejer emas) o'z filiali va filialsiz xodimlar bilan ko'radi.
+Ega `staff.view` ni kassir, ofitsiant, oshpaz yoki kuryerga bersa, ular menejeri ko'radigan ro'yxatni (menejerdan past
+rollar) ko'radi, lekin rol bera olmaydi, qo'sha va tahrirlay olmaydi (`can_edit: false`). Rol berish faqat ega,
+superadmin va menejerda (menejer — o'zidan past rollar).
+Filialni o'chirish (P2-33): filialga xodim, bekor qilinmagan qurilma (terminal) yoki yetkazib berish hududi bog'langan
+bo'lsa, rad etiladi (422 `branch_in_use`, `data`: `staff`, `devices`, `zones` soni) — API'da ham, Filament'da ham.
+Aks holda ularning `branch_id` si bo'shab, ular butun do'konga tegishli bo'lib qolardi (menejer hamma filialni ko'rardi).
 Moliya tarixi — `finance.view`. Hududlar — `zones.manage`. To'liq xarita: [API.md](API.md), 12-bo'lim.
 
 **Filial bo'yicha cheklov.** Filialga biriktirilgan xodim (ega bundan mustasno) faqat o'z filialidagi buyurtma, qurilma
-va xodimlar bilan ishlaydi. Filialsiz xodim butun do'konda ishlaydi. Xodim buyurtmalari va oshxona ekranida (P2-11)
-filialga ulangan terminaldagi PIN sessiyasi faqat shu terminal filiali bilan ishlaydi (filialsiz xodim ham).
+va xodimlar bilan ishlaydi. Filialsiz xodim butun do'konda ishlaydi. Filialga ulangan terminaldagi PIN sessiyasi faqat
+shu terminal filiali bilan ishlaydi (filialsiz xodim va ega ham): P2-11 da xodim buyurtmalari va oshxona ekranida,
+P2-33 dan hamma endpointlarda (5-bo'lim).
 
 **Kodda.** Huquq nomi Laravel Gate'ga ulangan: `$user->can('orders.cancel', $order)`, Blade `@can`, marshrutda
 `->middleware('permission:devices.manage')`. Mavjud policy'lar ishlashda davom etadi; `OrderPolicy` va
@@ -301,6 +317,9 @@ o'z filiali va filialsiz kuryerlar). Menyu (`/owner/products*`, `GET /owner/cate
 ham) buyurtmalar bilan `/staff/orders*` va `/staff/kitchen/tickets` orqali ishlaydi (P2-11, [API.md](API.md) 9.1-bo'lim):
 u yerda faqat ruxsatlar tekshiriladi. `OrderPolicy::changeStatus` ga oshxona yo'li qo'shilgan: `kitchen.manage` bilan
 `accepted → preparing` va `preparing → ready` (oshpazda `orders.manage` yo'q). Yangi ruxsat qo'shilmagan.
+P2-33: **yetkazish buyurtmasini `delivered` qilish** — faqat biriktirilgan kuryer (yoki uning o'rnidagi xodim) va
+`orders.assign_courier` egasi (ega, menejer: kuryer o'rniga topshiradi). Kassir va ofitsiant (`orders.manage`) faqat
+olib ketish va zal buyurtmasini topshiradi; yetkazish buyurtmasida 403.
 
 **Ilova uchun.** `GET /me/permissions` → `{role, store_id, branch_id, branch_scoped, permissions[], device_uuid, timezone}`
 (`timezone` — do'kon vaqt mintaqasi, `orders.view` yoki `reports.view` bor xodimga; boshqalarga `null`; P2-30).

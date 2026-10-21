@@ -24,16 +24,21 @@ let order: PlacedOrder
 let code: string
 const reverbFrames: string[] = []
 
-// The change is expected over the socket; the poll is the safety net (see the header)
-async function expectLive(locator: Locator, what: string): Promise<void> {
+// The change is expected over the socket; the poll is the safety net (see the header). `check` is any assertion that
+// takes a timeout (an attribute, a count...): first with SOCKET_MS, then once more with POLL_MS
+async function expectLiveThat(what: string, check: (timeout: number) => Promise<void>): Promise<void> {
   try {
-    await expect(locator).toBeVisible({ timeout: SOCKET_MS })
+    await check(SOCKET_MS)
   } catch {
     const note = `${what}: not seen within ${SOCKET_MS} ms of the event, waited for the poll`
     test.info().annotations.push({ type: 'realtime-fallback', description: note })
     console.warn(`[realtime-fallback] ${note}`)
-    await expect(locator).toBeVisible({ timeout: POLL_MS })
+    await check(POLL_MS)
   }
+}
+
+async function expectLive(locator: Locator, what: string): Promise<void> {
+  await expectLiveThat(what, (timeout) => expect(locator).toBeVisible({ timeout }))
 }
 
 test.describe.configure({ mode: 'serial' })
@@ -158,11 +163,12 @@ test('the last line makes the order ready on the board and in the Mini App', asy
 
   const card = partner.getByRole('article', { name: code })
   await expectLive(card, 'ready order on the board')
-  await expect(card).toHaveAttribute('data-status', 'ready', { timeout: SOCKET_MS })
+  // P2-33: the card was already there; its status is what the event changes, so it gets the poll fallback too
+  await expectLiveThat('ready status on the board', (timeout) => expect(card).toHaveAttribute('data-status', 'ready', { timeout }))
   await expect(card.getByRole('button', { name: 'Mijozga topshirish' })).toBeVisible()
 
   const miniCard = miniApp.getByRole('article', { name: `Buyurtma ${code}` })
-  await expect(miniCard.getByText('Tayyor', { exact: true }).first()).toBeVisible({ timeout: SOCKET_MS })
+  await expectLive(miniCard.getByText('Tayyor', { exact: true }).first(), 'ready status in the Mini App')
   await expect(miniCard.getByRole('button', { name: 'Mijozga topshirish' })).toBeVisible()
 })
 
@@ -172,5 +178,7 @@ test('handing the order over on the board closes it in the Mini App too', async 
 
   // It leaves the open columns and is among today's finished orders
   await expect(card).toHaveAttribute('data-status', 'delivered', { timeout: 15_000 })
-  await expect(miniApp.getByRole('article', { name: `Buyurtma ${code}` })).toHaveCount(0, { timeout: SOCKET_MS + 15_000 })
+  await expectLiveThat('handed-over order leaving the Mini App', (timeout) =>
+    expect(miniApp.getByRole('article', { name: `Buyurtma ${code}` })).toHaveCount(0, { timeout }),
+  )
 })

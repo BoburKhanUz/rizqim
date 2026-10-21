@@ -12,6 +12,7 @@ import '../widgets/connection_status.dart';
 import '../widgets/recent_strip.dart';
 import '../widgets/settings_dialog.dart';
 import '../widgets/ticket_card.dart';
+import '../widgets/unpair_dialog.dart';
 
 /// Oshxona doskasi: chiptalar eskisidan yangisiga, ekran kengligiga qarab ustunlarda (planshet 3, 1080p televizor 5).
 class KitchenBoardScreen extends StatefulWidget {
@@ -100,19 +101,26 @@ class _KitchenBoardScreenState extends State<KitchenBoardScreen> {
   void _signOut({String reason = 'logout'}) =>
       unawaited(widget.auth.signOutStaff(reason: reason));
 
+  void _openSettings() => unawaited(
+    showKdsSettings(
+      context,
+      widget.settings,
+      onUnpair: canUnpair(widget.auth)
+          ? () => unawaited(confirmUnpair(context, widget.auth))
+          : null,
+    ),
+  );
+
+  // Avtomatik chiqish (harakatsizlik) ilova darajasida: `KdsApp` dagi detektor Navigator'dan yuqorida, dialoglarni ham
+  // sezadi va chiqishda ularni yopadi.
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<KdsSettings>(
       valueListenable: widget.settings,
       builder: (BuildContext context, KdsSettings settings, _) =>
-          RzIdleDetector(
-            timeout: settings.idleTimeout,
-            onIdle: () => _signOut(reason: 'idle'),
-            child: ListenableBuilder(
-              listenable: widget.controller,
-              builder: (BuildContext context, _) =>
-                  _scaffold(context, settings),
-            ),
+          ListenableBuilder(
+            listenable: widget.controller,
+            builder: (BuildContext context, _) => _scaffold(context, settings),
           ),
     );
   }
@@ -145,8 +153,7 @@ class _KitchenBoardScreenState extends State<KitchenBoardScreen> {
               onToggleMute: () => widget.settings.update(
                 settings.copyWith(muted: !settings.muted),
               ),
-              onSettings: () =>
-                  unawaited(showKdsSettings(context, widget.settings)),
+              onSettings: _openSettings,
               onSignOut: _signOut,
             ),
             if (board.error != null && !board.offline && board.loaded)
@@ -155,6 +162,14 @@ class _KitchenBoardScreenState extends State<KitchenBoardScreen> {
                 child: InlineError(
                   message: board.error!.message,
                   onRetry: () => unawaited(board.refresh()),
+                ),
+              ),
+            if (board.skippedTickets > 0)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                child: Text(
+                  "${board.skippedTickets} ta chiptani o'qib bo'lmadi va u doskada ko'rsatilmayapti. Ilovani yangilang yoki menejerga ayting.",
+                  style: RzType.body.copyWith(color: c.warningSoftFg),
                 ),
               ),
             if (board.truncated)

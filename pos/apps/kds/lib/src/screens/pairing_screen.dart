@@ -9,7 +9,7 @@ import 'package:rizqim_ui/rizqim_ui.dart';
 import '../app_config.dart';
 import '../pairing_code_formatter.dart';
 
-/// Terminalni ulash: egasi panelda ("Qurilmalar -> Terminal ulash") olgan 8 belgili kod.
+/// Terminalni ulash: ega yoki menejer panelda (Sozlamalar → Qurilmalar → "Ulash kodini yaratish") olgan 8 belgili kod.
 class PairingScreen extends StatefulWidget {
   const PairingScreen({super.key, required this.auth});
 
@@ -87,7 +87,7 @@ class _PairingScreenState extends State<PairingScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    "Boshqaruv panelidagi Qurilmalar > Terminal ulash bo'limidan 8 belgili kodni oling va shu yerga kiriting.",
+                    "Boshqaruv panelida Sozlamalar → Qurilmalar → «Ulash kodini yaratish» orqali 8 belgili kod oling va shu yerga kiriting.",
                     style: RzType.body.copyWith(color: c.fgMuted),
                     textAlign: TextAlign.center,
                   ),

@@ -63,10 +63,13 @@ export class FakeBackend {
   /** Requests no endpoint of the fake knows: a test fails when the page starts using one. */
   unhandled: string[] = []
 
-  private accessTokens = new Map<string, { account: Account; expiresAt: number }>()
+  private accessTokens = new Map<string, { account: Account; expiresAt: number; deviceUuid: string }>()
   private refreshTokens = new Map<string, { account: Account; deviceUuid: string }>()
   private selectionTickets = new Map<string, Account[]>()
   private counter = 0
+  // Refresh tokens are unique across tests, as real ones are (the panel's server shares the answer of a refresh of the
+  // same token for a few seconds: a token of the previous test must never be "the same token")
+  private readonly tokenTag = Math.random().toString(36).slice(2, 10)
   /** The SMS codes the backend was asked to send, by phone (most recent last). */
   readonly smsRequests: string[] = []
   /** Set to make the next sign-in attempt fail with this message (a server refusal in Uzbek). */
@@ -92,27 +95,38 @@ export class FakeBackend {
 
   // --- Tokens ------------------------------------------------------------------------------------------------------
 
-  private issue(account: Account, deviceUuid: string) {
+  // Like TokenService::issuePair: one live access token per user and device (a new pair ends the device's older access
+  // token, so tabs that share the browser's device have to share the session). The device names its user only where the
+  // backend loads it: in a refresh answer, not in a sign-in one (whose `user` is beside it).
+  private issue(account: Account, deviceUuid: string, withDeviceUser: boolean) {
     const n = ++this.counter
     const token = `access-${n}`
-    const refresh = `refresh-${n}`
+    const refresh = `refresh-${n}-${this.tokenTag}`
     const expiresAt = Date.now() + 15 * 60_000
-    this.accessTokens.set(token, { account, expiresAt })
+    for (const [other, record] of this.accessTokens) {
+      if (record.account.id === account.id && record.deviceUuid === deviceUuid) this.accessTokens.delete(other)
+    }
+    this.accessTokens.set(token, { account, expiresAt, deviceUuid })
     this.refreshTokens.set(refresh, { account, deviceUuid })
     return {
       token,
       token_expires_at: new Date(expiresAt).toISOString(),
       refresh_token: refresh,
       refresh_token_expires_at: new Date(Date.now() + 30 * DAY_MS).toISOString(),
-      device: { uuid: deviceUuid, type: 'web', name: 'Hamkor veb-panel', platform: 'web', user: { id: account.id, name: account.name, role: account.role } },
+      device: { uuid: deviceUuid, type: 'web', name: 'Hamkor veb-panel', platform: 'web', user: withDeviceUser ? { id: account.id, name: account.name, role: account.role } : null },
     }
   }
 
   /** A refresh token a browser can start with, as if it had signed in earlier (the `rz_refresh` cookie value). */
   seedSession(account: Account = OWNER): { refreshToken: string; deviceUuid: string } {
     const deviceUuid = `00000000-0000-4000-8000-${String(++this.counter).padStart(12, '0')}`
-    const { refresh_token } = this.issue(account, deviceUuid)
+    const { refresh_token } = this.issue(account, deviceUuid, false)
     return { refreshToken: refresh_token, deviceUuid }
+  }
+
+  /** How many refresh tokens are still live (a sign-out ends them). */
+  liveRefreshTokens(): number {
+    return this.refreshTokens.size
   }
 
   /** Makes every access token invalid (the page has to refresh). */
@@ -126,7 +140,7 @@ export class FakeBackend {
 
   private session(account: Account, device: Record<string, unknown>): Reply {
     const uuid = typeof device.uuid === 'string' ? device.uuid : `device-${this.counter}`
-    return ok({ ...this.issue(account, uuid), user: this.userPayload(account), store: { id: account.storeId, name: account.storeName }, sms_verification_required: false, is_new_user: false })
+    return ok({ ...this.issue(account, uuid, false), user: this.userPayload(account), store: { id: account.storeId, name: account.storeName }, sms_verification_required: false, is_new_user: false })
   }
 
   // --- Auth endpoints (called by the Next route handlers) --------------------------------------------------------------
@@ -178,10 +192,8 @@ export class FakeBackend {
         // Single use: a spent token is refused (and signs the browser out)
         if (!record) return fail(401, 'Seans tugagan.', undefined, { reason: 'refresh_invalid' })
         this.refreshTokens.delete(String(body.refresh_token))
-        return ok(this.issue(record.account, record.deviceUuid))
+        return ok(this.issue(record.account, record.deviceUuid, true))
       }
-      case '/v1/auth/logout':
-        return ok(null)
     }
     return null
   }
@@ -205,6 +217,15 @@ export class FakeBackend {
     const record = this.accessTokens.get(token)
     if (!record || record.expiresAt < Date.now()) return unauthenticated()
     this.account = record.account
+
+    // Signing out needs a live access token (auth:sanctum) and ends the device's session: its refresh tokens too
+    if (req.method === 'POST' && req.path === '/v1/auth/logout') {
+      for (const [refresh, other] of this.refreshTokens) {
+        if (other.account.id === record.account.id && other.deviceUuid === record.deviceUuid) this.refreshTokens.delete(refresh)
+      }
+      this.accessTokens.delete(token)
+      return ok(null)
+    }
 
     if (req.method === 'GET' && req.path === '/v1/me/permissions') {
       const account = record.account

@@ -323,7 +323,8 @@ class OrderController extends Controller
             return $this->error($e->getMessage(), [], $e->status);
         }
 
-        if ($result->changed) {
+        // P2-33: not for a quiet kitchen correction (ready again after a recall)
+        if ($result->changed && !$result->quiet) {
             $this->alerts->statusChanged($result->order, $status->value);
         }
 
@@ -463,6 +464,10 @@ class OrderController extends Controller
 
         $userRole = $user->role->value ?? null; // null for an in-memory user created without a role
         if (!in_array($userRole, ['owner', 'manager']) || !$user->store_id) {
+            return $this->error('Ruxsat etilmagan.', [], 403);
+        }
+        // P2-33: a PIN session whose terminal is gone acts nowhere
+        if (app(\App\Services\Auth\PermissionService::class)->actingBranchId($user) === \App\Services\Auth\PermissionService::NO_BRANCH) {
             return $this->error('Ruxsat etilmagan.', [], 403);
         }
 

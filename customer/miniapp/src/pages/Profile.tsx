@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bike, ChevronRight, Clock, CreditCard, PackageX, ShieldCheck, Store, TriangleAlert, Settings } from 'lucide-react';
+import { Bike, ChevronRight, Clock, CreditCard, FileSpreadsheet, PackageX, ShieldCheck, Store, TriangleAlert, Settings } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { isLanguage, useLanguageStore } from '../store/languageStore';
@@ -47,7 +47,7 @@ function LinkRow({ icon: Icon, label, onClick }: { icon: LucideIcon; label: stri
 export default function Profile() {
   const navigate = useNavigate();
   const { user, updateUser, smsVerificationRequired } = useAuthStore();
-  const { language, setLanguage } = useLanguageStore();
+  const { language, setLanguage, t } = useLanguageStore();
   const uz = language === 'uz';
 
   const isOwner = user?.role === 'owner';
@@ -348,6 +348,7 @@ export default function Profile() {
             <LinkRow icon={PackageX} label={uz ? 'Stop-list va qozon' : 'Стоп-лист и котлы'} onClick={() => { hapticFeedback('light'); navigate('/admin/stoplist'); }} />
             <LinkRow icon={Clock} label={uz ? 'Filiallar va ish vaqti' : 'Филиалы и часы работы'} onClick={() => { hapticFeedback('light'); navigate('/admin/branches'); }} />
             <LinkRow icon={CreditCard} label={uz ? "Balans va to'lovlar" : 'Баланс и платежи'} onClick={() => { hapticFeedback('light'); navigate('/admin/payments'); }} />
+            <LinkRow icon={FileSpreadsheet} label={t('ownerReports_link')} onClick={() => { hapticFeedback('light'); navigate('/admin/reports'); }} />
             <LinkRow icon={Settings} label={uz ? 'Tizim va ish vaqti sozlamalari' : 'Настройки системы и часов'} onClick={() => { hapticFeedback('light'); navigate('/admin/settings'); }} />
             <LinkRow icon={TriangleAlert} label={uz ? "Shikoyatlar va e'tirozlar" : 'Жалобы и споры'} onClick={() => { hapticFeedback('light'); navigate('/complaints'); }} />
           </Card>

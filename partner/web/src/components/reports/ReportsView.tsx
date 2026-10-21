@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { ChartColumn } from 'lucide-react';
-import { Card, CardSkeletons, EmptyState, InlineError, Skeleton, formatMoney, formatNumber } from '@rizqim/ui';
+import { Card, CardSkeletons, cx, EmptyState, InlineError, Skeleton, formatMoney, formatNumber } from '@rizqim/ui';
 import { getApiErrorMessage, getApiErrorStatus, useOwnerAnalytics, useSalesReport, useTopProducts, type TopProductsSort } from '@rizqim/staff';
 import { orderTypeLabel, paymentLabel } from '@/lib/labels';
 import { useAccess } from '../AuthProvider';
@@ -90,7 +90,9 @@ function ReportBody({ sales, top, groupBy, sort, onSort, waiting }: { sales: Sal
   if (summary.orders_count === 0) return <EmptyState icon={ChartColumn} title={t('report_emptyTitle')} text={t('report_emptyText')} />;
 
   return (
-    <div className="flex flex-col gap-6" aria-busy={sales.isPlaceholderData || undefined}>
+    // Another period of the same branch loading: the figures on screen are the previous period's, dimmed (another
+    // branch's figures are never kept: useSalesReport)
+    <div className={cx('flex flex-col gap-6', sales.isPlaceholderData && 'opacity-60 transition-opacity')} aria-busy={sales.isPlaceholderData || undefined}>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-4">
         <Kpi label={t('report_kpi_revenue')} value={formatMoney(summary.revenue, language)} note={t('report_kpi_revenueNote')} tone="brand" />
         <Kpi label={t('report_kpi_orders')} value={formatNumber(summary.orders_count, language)} note={t('report_kpi_ordersNote', { n: formatNumber(summary.delivered_count, language) })} />

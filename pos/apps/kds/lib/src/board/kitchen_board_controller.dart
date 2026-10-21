@@ -84,6 +84,7 @@ class KitchenBoardController extends ChangeNotifier {
   List<KitchenTicket> _server = <KitchenTicket>[];
   bool _loaded = false;
   bool _truncated = false;
+  int _skipped = 0;
   ApiException? _error;
   DateTime? _lastSuccess;
 
@@ -141,13 +142,17 @@ class KitchenBoardController extends ChangeNotifier {
   bool get loaded => _loaded;
   bool get truncated => _truncated;
 
+  /// Oxirgi ro'yxatda o'qib bo'lmagan (doskaga chiqmagan) chiptalar soni: ilova versiyasi serverdan eski bo'lishi mumkin.
+  int get skippedTickets => _skipped;
+
   /// Oxirgi yuklash xatosi (chiptalar baribir oxirgi holatda ko'rsatiladi).
   ApiException? get error => _error;
 
-  /// Server bilan aloqa yo'q (tarmoq, vaqt tugashi, 5xx): "Aloqa yo'q" lentasi.
+  /// Server bilan aloqa yo'q (tarmoq, vaqt tugashi, 5xx): "Aloqa yo'q" lentasi. Server javob berib, uni o'qib
+  /// bo'lmagani ([ApiException.isUnexpectedResponse]) aloqa muammosi emas: u alohida xabar bilan ko'rsatiladi.
   bool get offline {
     final ApiException? e = _error;
-    if (e == null) return false;
+    if (e == null || e.isUnexpectedResponse) return false;
     final int? code = e.statusCode;
     return code == null || code >= 500;
   }
@@ -173,16 +178,19 @@ class KitchenBoardController extends ChangeNotifier {
       _eventSub = rt.events.listen((_) => _scheduleEventRefresh());
       _wasLive = rt.isLive;
       void onStatus() {
+        // "Jonli" = ulangan va kanal obunasi tasdiqlangan (`subscription_succeeded`). Faqat ulanish (handshake) yetarli
+        // emas: obuna hali yo'q yoki rad etilgan bo'lsa hodisalar kelmaydi, polling 15 s qoladi.
         final bool live = rt.isLive;
-        // Qayta ulanganda uzilish paytidagi hodisalar yo'qolgan: ro'yxat to'liq qayta yuklanadi
-        if (live && !_wasLive) unawaited(refresh());
+        if (live == _wasLive) return;
+        // Obuna (qayta) tasdiqlandi: uzilish paytidagi hodisalar yo'qolgan, ro'yxat to'liq qayta yuklanadi
+        if (live) unawaited(refresh());
         _wasLive = live;
         _schedulePoll();
         _notify();
       }
 
       _statusListener = onStatus;
-      rt.status.addListener(onStatus);
+      rt.changes.addListener(onStatus);
     }
     unawaited(refresh());
   }
@@ -227,6 +235,12 @@ class KitchenBoardController extends ChangeNotifier {
       _hidden.removeWhere((String uuid) => !present.contains(uuid));
       _server = list.tickets;
       _truncated = list.truncated;
+      if (list.skipped.isNotEmpty && list.skipped.length != _skipped) {
+        for (final KitchenTicketSkip skip in list.skipped) {
+          debugPrint('KDS: chiptani o\'qib bo\'lmadi, tushirildi: $skip');
+        }
+      }
+      _skipped = list.skipped.length;
       _error = null;
       _lastSuccess = now;
       _loaded = true;
@@ -427,7 +441,7 @@ class KitchenBoardController extends ChangeNotifier {
     _debounce?.cancel();
     unawaited(_eventSub?.cancel());
     final RealtimeStatusListener? l = _statusListener;
-    if (l != null) realtime?.status.removeListener(l);
+    if (l != null) realtime?.changes.removeListener(l);
     unawaited(_notices.close());
     super.dispose();
   }

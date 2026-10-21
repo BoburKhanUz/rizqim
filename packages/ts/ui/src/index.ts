@@ -14,6 +14,7 @@ export { cx } from './components/cx';
 export { Field } from './components/Field';
 export { fieldClass } from './components/fieldStyles';
 export { CardSkeletons, Skeleton } from './components/Skeleton';
+export { FOCUSABLE, keepTabInside } from './lib/focus';
 
 export { formatDate, formatDateTime, formatMoney, formatNumber, formatOrderCode, formatTime, NBSP } from './lib/format';
 export { parseAmount, sumAmounts, toAmount } from './lib/money';

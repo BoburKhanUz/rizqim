@@ -183,6 +183,22 @@ class TerminalController extends Controller
     }
 
     /**
+     * Unpair this terminal (P2-33)
+     *
+     * The terminal revokes itself with its own token (`auth:device`), e.g. before the kitchen display forgets its
+     * pairing: the same as the owner's `POST /owner/devices/{uuid}/revoke` — the device is revoked, its token and every
+     * staff PIN session on it stop working at once, and the audit log records `device.revoked` (`self_revoked: true`).
+     * Pairing again needs a new code. Calling it again with the old token: 401.
+     */
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: null}')]
+    public function destroy(Request $request, \App\Services\Auth\DeviceService $devices): JsonResponse
+    {
+        $devices->revoke($this->device($request), null, true);
+
+        return $this->success(null, "Terminal uzildi. Qayta ulash uchun yangi kod kerak.");
+    }
+
+    /**
      * Pairing attempts are limited per address and per subnet (the "device-pair" limiter), not platform-wide, so nobody
      * can block every terminal's pairing. An unusual platform-wide volume is logged for the on-call instead.
      */

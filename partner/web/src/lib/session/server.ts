@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { apiBaseUrl, secureCookies } from '../config';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { isIP } from 'node:net';
 import type { AccountChoice, SessionPayload, SessionUser } from './types';
 
@@ -66,6 +66,61 @@ export async function backendFetch(path: string, init: { body?: unknown; token?:
   } catch {
     return { status: 0, body: null, retryAfter: null };
   }
+}
+
+// Concurrent refreshes of the same cookie (two tabs on plain HTTP, where browsers give pages no Web Locks to take turns
+// with; see lib/session/client.ts) get one backend refresh and share its answer: spending the single-use refresh token
+// twice would look like theft to the backend and end the session. A successful answer is also given to a request with
+// the same old cookie that arrives just after (its tab sent the cookie before the rotated one reached the browser),
+// for as long as the backend itself would accept that retry (its refresh grace). The map lives in this server process.
+const REFRESH_SHARE_MS = 10_000;
+// nextKey: the key of the refresh token the answer carried; once that one is spent the old answer is stale and goes
+interface SharedRefresh {
+  result: Promise<BackendResult>;
+  settledAt: number | null;
+  nextKey: string | null;
+}
+const refreshes = new Map<string, SharedRefresh>();
+
+const refreshKey = (refreshToken: string, deviceUuid: string) => createHash('sha256').update(`${deviceUuid}\n${refreshToken}`).digest('hex');
+
+export function refreshOnce(refreshToken: string, deviceUuid: string, request?: NextRequest): Promise<BackendResult> {
+  const key = refreshKey(refreshToken, deviceUuid);
+  const known = refreshes.get(key);
+  if (known) return known.result;
+
+  const now = Date.now();
+  for (const [other, entry] of refreshes) {
+    if ((entry.settledAt !== null && now - entry.settledAt > REFRESH_SHARE_MS) || entry.nextKey === key) refreshes.delete(other);
+  }
+
+  const entry: SharedRefresh = {
+    result: backendFetch('/v1/auth/refresh', { body: { refresh_token: refreshToken, device_uuid: deviceUuid }, request }),
+    settledAt: null,
+    nextKey: null,
+  };
+  refreshes.set(key, entry);
+  void entry.result.then((result) => {
+    const data = isRecord(result.body?.data) ? result.body.data : null;
+    // Only a new pair is worth sharing afterwards; a refusal or a failure is answered afresh next time
+    if (result.status >= 200 && result.status < 300 && data && typeof data.refresh_token === 'string') {
+      entry.settledAt = Date.now();
+      entry.nextKey = refreshKey(data.refresh_token, deviceUuid);
+    } else if (refreshes.get(key) === entry) {
+      refreshes.delete(key);
+    }
+  });
+  return entry.result;
+}
+
+// Signing out: the answer of a refresh of this cookie is not handed out any more
+export function forgetRefresh(refreshToken: string, deviceUuid: string): void {
+  refreshes.delete(refreshKey(refreshToken, deviceUuid));
+}
+
+// Tests: every test starts without shared refreshes
+export function resetRefreshes(): void {
+  refreshes.clear();
 }
 
 export const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);

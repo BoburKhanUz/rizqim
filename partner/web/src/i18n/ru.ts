@@ -89,19 +89,6 @@ export const ru: Messages = {
   noOrdersTodayText: 'Показатели появятся здесь после первого заказа.',
   updatedAt: 'Обновлено: {{time}}',
 
-  ordersSubtitle: 'Активные заказы (только просмотр)',
-  colCode: 'Номер',
-  colStatus: 'Статус',
-  colCustomer: 'Клиент',
-  colType: 'Тип',
-  colPayment: 'Оплата',
-  colTotal: 'Сумма',
-  colTime: 'Время',
-  noActiveOrders: 'Нет активных заказов',
-  noActiveOrdersText: 'Новые заказы появятся здесь. Список обновляется сам.',
-  ordersTruncated: 'Список ограничен 200 последними заказами.',
-  guest: 'Клиент',
-
   // Роли
   role_owner: 'Владелец',
   role_manager: 'Менеджер',

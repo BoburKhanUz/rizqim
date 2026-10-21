@@ -6,6 +6,7 @@ import { POST as logout } from './logout/route';
 import { POST as refresh } from './refresh/route';
 import { POST as selectAccount } from './select-account/route';
 import { POST as sendCode } from './send-code/route';
+import { resetRefreshes } from '@/lib/session/server';
 
 const DEVICE = '3f2b8c1e-5a4d-4e6f-9b7a-1c2d3e4f5a6b';
 
@@ -46,7 +47,10 @@ const sessionData = {
   device: { uuid: DEVICE, type: 'web', user: { id: 7, name: 'Aziz', role: 'owner' } },
 };
 
-afterEach(() => vi.unstubAllEnvs());
+afterEach(() => {
+  vi.unstubAllEnvs();
+  resetRefreshes();
+});
 
 describe('POST /api/session/login', () => {
   it('registers a web device, keeps the refresh token in an httpOnly cookie and out of the body', async () => {
@@ -212,6 +216,39 @@ describe('POST /api/session/refresh', () => {
     expect(refused.cookies.get('rz_refresh')).toMatchObject({ value: '', maxAge: 0 });
   });
 
+  it('answers two tabs refreshing the same cookie at once with one backend refresh (no Web Locks on plain HTTP)', async () => {
+    let n = 0;
+    const calls = stubBackend(() => {
+      n++;
+      return reply({ success: true, data: { ...sessionData, token: `access-${n}`, refresh_token: `refresh-${n}` } });
+    });
+    const first = refresh(post('refresh', {}, cookies));
+    const second = refresh(post('refresh', {}, cookies));
+    const [a, b] = await Promise.all([first, second]);
+
+    expect(calls).toHaveLength(1);
+    expect((await a.json()).access_token).toBe('access-1');
+    expect((await b.json()).access_token).toBe('access-1');
+    expect(a.cookies.get('rz_refresh')?.value).toBe('refresh-1');
+    expect(b.cookies.get('rz_refresh')?.value).toBe('refresh-1');
+
+    // A late request with the old cookie still gets that answer; once the rotated token is spent it does not
+    const late = await refresh(post('refresh', {}, cookies));
+    expect((await late.json()).access_token).toBe('access-1');
+    await refresh(post('refresh', {}, { Cookie: `rz_refresh=refresh-1; rz_device=${DEVICE}` }));
+    expect(calls).toHaveLength(2);
+    await refresh(post('refresh', {}, cookies));
+    expect(calls).toHaveLength(3);
+    expect(calls.map((call) => call.body.refresh_token)).toEqual(['old-refresh', 'refresh-1', 'old-refresh']);
+  });
+
+  it('never shares a refusal or a failure: the next request asks the backend again', async () => {
+    const calls = stubBackend(() => reply({ message: 'boom' }, 503));
+    await refresh(post('refresh', {}, cookies));
+    await refresh(post('refresh', {}, cookies));
+    expect(calls).toHaveLength(2);
+  });
+
   it('keeps the cookie when the backend is down (nobody is signed out by a hiccup)', async () => {
     stubBackend(() => reply({ message: 'boom' }, 503));
     const response = await refresh(post('refresh', {}, cookies));
@@ -234,6 +271,22 @@ describe('POST /api/session/logout', () => {
     expect(calls.map((call) => call.path)).toEqual(['/api/v1/auth/refresh', '/api/v1/auth/logout']);
     expect(calls[1]?.authorization).toBe('Bearer fresh');
     expect(response.status).toBe(200);
+    expect(response.cookies.get('rz_refresh')?.maxAge).toBe(0);
+  });
+});
+
+describe('signing out of a tab whose access token expired', () => {
+  it('trades the cookie for a fresh token when the backend refuses the page\'s one, so the session still ends', async () => {
+    const calls = stubBackend((url, init) => {
+      if (url.pathname.endsWith('/refresh')) return reply({ data: { token: 'fresh', refresh_token: 'next' } });
+      return new Headers(init.headers).get('Authorization') === 'Bearer fresh' ? reply({ success: true }) : reply({ message: 'Unauthenticated.' }, 401);
+    });
+    const response = await logout(post('logout', {}, { Authorization: 'Bearer expired', Cookie: `rz_refresh=r; rz_device=${DEVICE}` }));
+    expect(calls.map((call) => `${call.path} ${call.authorization ?? ''}`.trim())).toEqual([
+      '/api/v1/auth/logout Bearer expired',
+      '/api/v1/auth/refresh',
+      '/api/v1/auth/logout Bearer fresh',
+    ]);
     expect(response.cookies.get('rz_refresh')?.maxAge).toBe(0);
   });
 });

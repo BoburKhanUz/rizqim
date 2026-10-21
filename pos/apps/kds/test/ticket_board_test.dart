@@ -428,6 +428,90 @@ void main() {
   );
 
   testWidgets(
+    'one unreadable ticket is skipped with a warning; the others stay on the board and it is not "Aloqa yo\'q"',
+    (WidgetTester tester) async {
+      final KdsHarness h = seeded();
+      h.backend.respond = (RequestOptions o) {
+        if (o.method != 'GET' || !o.uri.path.contains('/kitchen/tickets')) {
+          return null;
+        }
+        final String? auth = o.headers['Authorization'] as String?;
+        final FakeResponse real = h.state.handle(
+          o.method,
+          o.uri.path,
+          o.uri.queryParameters,
+          o.data,
+          auth?.replaceFirst('Bearer ', ''),
+        );
+        final Map<String, Object?> body = Map<String, Object?>.of(
+          real.body! as Map<String, Object?>,
+        );
+        body['data'] = <Object?>[
+          ...(body['data']! as List<Object?>),
+          <String, Object?>{'uuid': 'broken-ticket', 'items': 'nope'},
+        ];
+        return FakeResponse(real.status, body);
+      };
+      await pumpBoard(tester, h);
+
+      expect(find.text('3 ta chipta'), findsOneWidget);
+      expect(find.text('#K101'), findsOneWidget);
+      expect(
+        find.textContaining("1 ta chiptani o'qib bo'lmadi"),
+        findsOneWidget,
+      );
+      expect(find.byType(RzOfflineBanner), findsNothing);
+      expect(find.textContaining("Aloqa yo'q"), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'a 200 the app cannot read says so (not "Aloqa yo\'q") and keeps the last tickets',
+    (WidgetTester tester) async {
+      final KdsHarness h = seeded();
+      await pumpBoard(tester, h);
+      expect(find.text('3 ta chipta'), findsOneWidget);
+
+      h.backend.respond = (RequestOptions o) =>
+          o.method == 'GET' && o.uri.path.contains('/kitchen/tickets')
+          ? const FakeResponse(200, <String, Object?>{
+              'success': true,
+              'message': '',
+              'data': <String, Object?>{'tickets': <Object?>[]},
+            })
+          : null;
+      await tester.pump(const Duration(seconds: 15));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(RzOfflineBanner), findsNothing);
+      expect(find.textContaining("Aloqa yo'q"), findsNothing);
+      expect(
+        find.textContaining("Server javobini o'qib bo'lmadi"),
+        findsOneWidget,
+      );
+      expect(find.text('3 ta chipta'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'an unreadable first load shows the reason, not "server bilan aloqa yo\'q"',
+    (WidgetTester tester) async {
+      final KdsHarness h = seeded();
+      h.backend.respond = (RequestOptions o) =>
+          o.method == 'GET' && o.uri.path.contains('/kitchen/tickets')
+          ? const FakeResponse(200, <String, Object?>{'success': true})
+          : null;
+      await pumpBoard(tester, h);
+      expect(
+        find.textContaining("Server javobini o'qib bo'lmadi"),
+        findsOneWidget,
+      );
+      expect(find.textContaining("aloqa yo'q"), findsNothing);
+      expect(find.byType(RzOfflineBanner), findsNothing);
+    },
+  );
+
+  testWidgets(
     'polling every 15 s picks up new tickets when there is no realtime, with sound and a "Yangi" badge',
     (WidgetTester tester) async {
       final KdsHarness h = seeded();

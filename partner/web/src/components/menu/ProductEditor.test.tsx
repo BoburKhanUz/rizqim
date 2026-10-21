@@ -201,6 +201,9 @@ describe('an existing product', () => {
         { modifier_group_id: 4, sort_order: 1 },
       ],
     });
+    // The groups are fetched again after the save (the switches remount with what the server stored): the note stays
+    await waitFor(() => expect(calls.filter((call) => call.method === 'GET' && call.url.endsWith('/owner/modifier-groups')).length).toBeGreaterThan(1));
+    expect(await screen.findByText('Saqlandi.')).toBeInTheDocument();
   });
 
   it('sets channel prices and visibility, and sends the rows of other channels back unchanged', async () => {

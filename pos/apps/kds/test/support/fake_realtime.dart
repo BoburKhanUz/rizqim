@@ -11,6 +11,10 @@ class FakeRealtimeHub {
   bool down = false;
   int connects = 0;
 
+  /// `true` — imzolangan obuna qabul qilinadi, lekin `subscription_succeeded` [releaseSubscriptions] gacha yuborilmaydi
+  /// (server obunani kech tasdiqlaydi).
+  bool holdSubscriptions = false;
+
   Iterable<FakeSocket> get open => sockets.where((FakeSocket s) => !s.closed);
 
   Future<RealtimeSocket> connect(Uri uri, Map<String, String> headers) async {
@@ -39,6 +43,18 @@ class FakeRealtimeHub {
     }
   }
 
+  /// Ushlab turilgan obunalarni tasdiqlaydi.
+  void releaseSubscriptions() {
+    holdSubscriptions = false;
+    for (final FakeSocket s in open) {
+      for (final String channel in s.held) {
+        s.channels.add(channel);
+        s.push('pusher_internal:subscription_succeeded', channel: channel);
+      }
+      s.held.clear();
+    }
+  }
+
   /// Hamma ulanish uziladi.
   void dropAll() {
     for (final FakeSocket s in open.toList()) {
@@ -54,6 +70,9 @@ class FakeSocket implements RealtimeSocket {
   final Map<String, String> headers;
   final StreamController<String> _incoming = StreamController<String>();
   final Set<String> channels = <String>{};
+
+  /// Imzosi to'g'ri, lekin hali tasdiqlanmagan obunalar ([FakeRealtimeHub.holdSubscriptions]).
+  final Set<String> held = <String>{};
   final List<Map<String, Object?>> sent = <Map<String, Object?>>[];
   bool closed = false;
 
@@ -70,6 +89,10 @@ class FakeSocket implements RealtimeSocket {
           .cast<String, Object?>();
       final String channel = data['channel']! as String;
       if ('${data['auth']}'.startsWith('kds-key:')) {
+        if (hub.holdSubscriptions) {
+          held.add(channel);
+          return;
+        }
         channels.add(channel);
         scheduleMicrotask(
           () =>

@@ -15,16 +15,29 @@ import { Switch } from './Switch';
 export function ProductModifiers({ product, canManage }: { product: Product; canManage: boolean }) {
   const { t } = useI18n();
   const query = useModifierGroups();
+  // Kept here: the refetch after a save remounts the switches, and "Saqlandi." must survive it
+  const [saved, setSaved] = useState(false);
   if (query.isPending) return <CardSkeletons count={1} lines={3} label={t('loading')} />;
   if (query.isError) return <InlineError title={t('loadErrorTitle')} message={describeError(query.error, t).message} retryLabel={t('retry')} retrying={query.isFetching} onRetry={() => void query.refetch()} />;
   // Remounted when the groups are refetched, so the switches show what the server stored
-  return <Switches key={query.dataUpdatedAt} product={product} groups={query.data} canManage={canManage} />;
+  return <Switches key={query.dataUpdatedAt} product={product} groups={query.data} canManage={canManage} saved={saved} onSaved={setSaved} />;
 }
 
-function Switches({ product, groups, canManage }: { product: Product; groups: NonNullable<ReturnType<typeof useModifierGroups>['data']>; canManage: boolean }) {
+function Switches({
+  product,
+  groups,
+  canManage,
+  saved,
+  onSaved: setSaved,
+}: {
+  product: Product;
+  groups: NonNullable<ReturnType<typeof useModifierGroups>['data']>;
+  canManage: boolean;
+  saved: boolean;
+  onSaved: (saved: boolean) => void;
+}) {
   const { t } = useI18n();
   const [attached, setAttached] = useState<Set<number>>(() => new Set(groups.filter((group) => group.product_ids.includes(product.id)).map((group) => group.id)));
-  const [saved, setSaved] = useState(false);
   const sync = useSyncProductModifierGroups();
 
   if (groups.length === 0) {

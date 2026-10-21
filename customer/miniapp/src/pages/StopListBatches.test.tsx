@@ -137,6 +137,23 @@ describe('StopListBatches: the branch', () => {
   });
 });
 
+describe('StopListBatches: store-wide staff', () => {
+  it('lets a manager without a branch pick one and sends it (the backend asks them for branch_id)', async () => {
+    useAuthStore.getState().setAuth('token', makeUser({ role: 'manager', store_id: 1, branch_id: null }), makeStore(), false);
+    renderPage();
+    await flush();
+
+    expect(stopListCalls().at(-1)!.query.branch_id).toBe('1');
+    fireEvent.change(screen.getByRole('combobox', { name: 'Filial' }), { target: { value: '2' } });
+    await flush();
+    expect(stopListCalls().at(-1)!.query.branch_id).toBe('2');
+
+    fireEvent.click(sellSwitch('Lavash'));
+    await flush();
+    expect(callsTo(calls, '/owner/stop-list', 'POST')[0]!.body).toEqual({ type: 'product', id: 1, branch_id: 2 });
+  });
+});
+
 describe('StopListBatches: the stop-list', () => {
   beforeEach(() => {
     owner();

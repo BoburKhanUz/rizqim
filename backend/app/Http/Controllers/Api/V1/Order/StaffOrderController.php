@@ -260,7 +260,8 @@ class StaffOrderController extends Controller
             return $this->error($e->getMessage(), [], $e->status);
         }
 
-        if ($result->changed) {
+        // P2-33: not for a quiet kitchen correction (ready again after a recall)
+        if ($result->changed && !$result->quiet) {
             $this->alerts->statusChanged($result->order, $status->value);
         }
 
@@ -274,7 +275,9 @@ class StaffOrderController extends Controller
      * Kitchen display tickets
      *
      * The orders the kitchen is cooking (accepted and preparing; with `include_ready=1` also the ready ones not yet
-     * handed over), oldest first, at most 200 (`meta.truncated`). Each ticket: lines with modifiers and
+     * handed over), oldest first, at most 200 (`meta.truncated`). P2-33: also an order a courier was assigned to while
+     * it was cooking (courier_assigned) as long as a line is still pending; with `include_ready=1` every
+     * courier_assigned order (the courier has not picked it up yet). Each ticket: lines with modifiers and
      * quantities/weights, each line's kitchen state, the notes (phone numbers masked), when it came in and was
      * accepted, and `waiting_seconds`. No customer data, no prices. Needs kitchen.manage or orders.view.
      */
@@ -290,12 +293,24 @@ class StaffOrderController extends Controller
             'include_ready' => 'nullable|boolean',
         ]);
 
+        $includeReady = $request->boolean('include_ready');
         $statuses = [OrderStatus::ACCEPTED->value, OrderStatus::PREPARING->value];
-        if ($request->boolean('include_ready')) {
+        if ($includeReady) {
             $statuses[] = OrderStatus::READY->value;
+            $statuses[] = OrderStatus::COURIER_ASSIGNED->value;
         }
 
-        $query = $this->scope->query($user)->whereIn('orders.status', $statuses);
+        // P2-33: keyed on the lines too: a courier was assigned while the kitchen was still cooking, so the order is
+        // courier_assigned with lines still pending; it stays on the display until they are bumped
+        $query = $this->scope->query($user)->where(function ($query) use ($statuses, $includeReady) {
+            $query->whereIn('orders.status', $statuses);
+            if (!$includeReady) {
+                $query->orWhere(fn ($query) => $query->where('orders.status', OrderStatus::COURIER_ASSIGNED->value)
+                    ->whereExists(fn ($lines) => $lines->selectRaw('1')->from('order_items')
+                        ->whereColumn('order_items.order_id', 'orders.id')
+                        ->where('order_items.kitchen_status', \App\Enums\KitchenItemStatus::PENDING->value)));
+            }
+        });
         if (($branchId = $request->query('branch_id')) !== null) {
             $query->where('orders.branch_id', $this->branch($user, $branchId)->id);
         }
@@ -320,8 +335,9 @@ class StaffOrderController extends Controller
      *
      * The line is ready (kitchen.manage). The first bump of an accepted order starts it (preparing). When every line is
      * ready a delivery or pickup order becomes ready by itself; a hall order (dine_in) stays preparing until it is
-     * closed. 422 when the order is not in the kitchen (new, ready, on its way, finished). Bumping a ready line again
-     * answers 200 unchanged. Returns the ticket.
+     * closed. P2-33: a courier_assigned order (a courier was assigned while it was cooking) takes bumps too, with no
+     * status move. 422 when the order is not in the kitchen (new, ready, on its way, finished). Bumping a ready line
+     * again answers 200 unchanged. Returns the ticket.
      */
     #[Group('Kitchen')]
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . self::TICKET . '}')]
@@ -335,8 +351,8 @@ class StaffOrderController extends Controller
      *
      * Undo a mistaken bump: the line is back to pending (kitchen.manage). While the order is accepted or preparing,
      * and (P2-30) while it is ready but not yet with a courier or handed over: the order goes back to preparing
-     * (`order.status_changed` and the history say so). 422 once a courier is assigned, it is on its way or finished.
-     * Returns the ticket.
+     * (`order.status_changed` and the history say so). P2-33: while a courier is assigned (courier_assigned) the line
+     * is recalled with no status move. 422 once it is on its way or finished. Returns the ticket.
      */
     #[Group('Kitchen')]
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . self::TICKET . '}')]
@@ -434,7 +450,8 @@ class StaffOrderController extends Controller
             return;
         }
 
-        $timezone = (string) ($user->store?->timezone ?: 'Asia/Tashkent');
+        // P2-33: an unknown stored time zone falls back to Asia/Tashkent (as the reports) instead of a 500
+        $timezone = \App\Support\StoreTimezone::of($user->store);
         $start = $from !== null ? Carbon::createFromFormat('!Y-m-d', (string) $from, $timezone) : null;
         $end = $to !== null ? Carbon::createFromFormat('!Y-m-d', (string) $to, $timezone)?->addDay() : null;
 

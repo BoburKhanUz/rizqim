@@ -89,19 +89,6 @@ export const en: Messages = {
   noOrdersTodayText: 'The figures appear here after the first order.',
   updatedAt: 'Updated: {{time}}',
 
-  ordersSubtitle: 'Active orders (read-only)',
-  colCode: 'Number',
-  colStatus: 'Status',
-  colCustomer: 'Customer',
-  colType: 'Type',
-  colPayment: 'Payment',
-  colTotal: 'Total',
-  colTime: 'Time',
-  noActiveOrders: 'No active orders',
-  noActiveOrdersText: 'New orders appear here. The list refreshes by itself.',
-  ordersTruncated: 'The list is limited to the 200 latest orders.',
-  guest: 'Customer',
-
   // Roles
   role_owner: 'Owner',
   role_manager: 'Manager',

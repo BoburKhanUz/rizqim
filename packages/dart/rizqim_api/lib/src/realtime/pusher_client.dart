@@ -19,6 +19,33 @@ enum RealtimeStatus {
   reconnecting,
 }
 
+/// Kanalga obuna holati ([PusherClient.channelStates]).
+enum RealtimeSubscriptionState {
+  /// Obuna so'ralmoqda (yoki ulanish yo'q: ulangach so'raladi).
+  pending,
+
+  /// Server `pusher_internal:subscription_succeeded` yubordi: kanal hodisalari keladi.
+  subscribed,
+
+  /// Imzo olinmadi (403, 429, tarmoq) yoki server `pusher:subscription_error` yubordi. Obuna [Backoff] bo'yicha
+  /// qayta so'raladi; shu orada kanal hodisalari kelmaydi (ilova polling'ga tayanishi kerak).
+  failed,
+}
+
+/// Bitta kanal obunasining o'zgargan holati.
+class RealtimeChannelState {
+  const RealtimeChannelState(this.channel, this.state, {this.error});
+
+  final String channel;
+  final RealtimeSubscriptionState state;
+
+  /// [RealtimeSubscriptionState.failed] da sabab ([RealtimeSubscriptionError.cause]).
+  final Object? error;
+
+  @override
+  String toString() => 'RealtimeChannelState($channel, ${state.name})';
+}
+
 /// Kanal hodisasi (`order.created`, `kitchen.item_status_changed` ...). [data] — hodisa tanasi.
 class RealtimeEvent {
   const RealtimeEvent({
@@ -52,9 +79,14 @@ typedef ChannelAuthorizer = Future<String> Function(
 ///   ulanishdan keyin hisob nolga tushadi. Hech qachon taslim bo'lmaydi: oshxona ekrani qarovsiz turadi.
 /// * Server `activity_timeout` soniya jim tursa `pusher:ping` yuboriladi; [pongTimeout] ichida javob bo'lmasa ulanish
 ///   o'lgan deb hisoblanadi (Wi-Fi uzilganda TCP buni sezmasligi mumkin).
-/// * Qayta ulanganda hamma kanallarga qayta obuna bo'ladi. Ilova [statuses] da [RealtimeStatus.connected] ni ko'rganda
-///   ro'yxatni to'liq qayta yuklashi kerak: uzilish paytidagi hodisalar yo'qolgan (docs/API.md, 8-bo'lim).
-/// * Imzo olinmasa (tarmoq, 403) obuna [Backoff] bo'yicha qayta so'raladi.
+/// * Qayta ulanganda hamma kanallarga qayta obuna bo'ladi. [RealtimeStatus.connected] faqat ulanish (handshake) degani:
+///   kanal hodisalari obuna tasdiqlangandan keyin keladi. Shuning uchun ilova "jonli" holatni va qayta ulangandagi
+///   to'liq qayta yuklashni [channelStates] dagi [RealtimeSubscriptionState.subscribed] bo'yicha qiladi
+///   ([isSubscribed]): uzilish paytidagi hodisalar yo'qolgan (docs/API.md, 8-bo'lim).
+/// * Imzo olinmasa (tarmoq, 403, 429) yoki server obunani rad etsa kanal [RealtimeSubscriptionState.failed] bo'ladi va
+///   obuna [Backoff] bo'yicha qayta so'raladi (ulanish uzilmaydi).
+/// * Ulanish [connectTimeout] ichida ochilmasa urinish tashlanadi; kech ochilgan ulanish darhol yopiladi (osilib qolgan
+///   TCP ulanishlar to'planmaydi). [disconnect] va [dispose] kutilayotgan urinishni ham bekor qiladi.
 class PusherClient {
   PusherClient({
     required this.uri,
@@ -87,11 +119,15 @@ class PusherClient {
   final StreamController<RealtimeStatus> _statuses =
       StreamController<RealtimeStatus>.broadcast();
   final StreamController<Object> _errors = StreamController<Object>.broadcast();
+  final StreamController<RealtimeChannelState> _channelStates =
+      StreamController<RealtimeChannelState>.broadcast();
 
   final Set<String> _channels = <String>{};
   final Set<String> _subscribed = <String>{};
   final Map<String, Timer> _subscribeRetries = <String, Timer>{};
   final Map<String, int> _subscribeAttempts = <String, int>{};
+  final Map<String, RealtimeSubscriptionState> _states =
+      <String, RealtimeSubscriptionState>{};
 
   RealtimeStatus _status = RealtimeStatus.idle;
   RealtimeSocket? _socket;
@@ -101,6 +137,10 @@ class PusherClient {
   Timer? _activityTimer;
   Timer? _pongTimer;
   Timer? _reconnectTimer;
+
+  /// Kutilayotgan ulanish urinishining muddati va natijasi ([disconnect] bekor qiladi).
+  Timer? _connectTimer;
+  Completer<RealtimeSocket>? _connecting;
   int _attempt = 0;
   bool _running = false;
 
@@ -122,6 +162,19 @@ class PusherClient {
   /// Obunasi tasdiqlangan kanallar.
   Set<String> get subscribedChannels => Set<String>.unmodifiable(_subscribed);
 
+  /// Kanal obunasi holatining o'zgarishlari (ulanish uzilsa hamma kanal yana [RealtimeSubscriptionState.pending]).
+  Stream<RealtimeChannelState> get channelStates => _channelStates.stream;
+
+  /// [channel] ning joriy obuna holati ([subscribe] qilinmagan bo'lsa `null`).
+  RealtimeSubscriptionState? channelState(String channel) =>
+      _channels.contains(channel)
+      ? (_states[channel] ?? RealtimeSubscriptionState.pending)
+      : null;
+
+  /// Ulangan va [channel] obunasi tasdiqlangan: kanal hodisalari keladi.
+  bool isSubscribed(String channel) =>
+      _status == RealtimeStatus.connected && _subscribed.contains(channel);
+
   /// Kanalga obuna (ulangan bo'lsa darhol, bo'lmasa ulangach). Qayta ulanishda o'zi takrorlanadi.
   void subscribe(String channel) {
     if (!_channels.add(channel)) return;
@@ -132,6 +185,7 @@ class PusherClient {
     if (!_channels.remove(channel)) return;
     _subscribeRetries.remove(channel)?.cancel();
     _subscribeAttempts.remove(channel);
+    _states.remove(channel);
     if (_subscribed.remove(channel)) {
       _send('pusher:unsubscribe', <String, Object?>{'channel': channel});
     }
@@ -160,6 +214,7 @@ class PusherClient {
     await _events.close();
     await _statuses.close();
     await _errors.close();
+    await _channelStates.close();
   }
 
   // --- ulanish ---------------------------------------------------------------------------------------------------
@@ -175,7 +230,7 @@ class PusherClient {
     connectAttempts++;
     final RealtimeSocket socket;
     try {
-      socket = await connector(uri, headers).timeout(connectTimeout);
+      socket = await _connectWithDeadline();
     } on Object catch (e) {
       if (generation != _generation) return;
       _error(e);
@@ -204,6 +259,46 @@ class PusherClient {
     _armActivityTimer();
   }
 
+  /// [connector] ni [connectTimeout] bilan chaqiradi. Muddat o'tgach (yoki [_drop] da) urinish tashlanadi, lekin
+  /// connector'ning o'zi kechroq ulanib qolsa, o'sha ulanish darhol yopiladi: aks holda har osilgan urinish bitta TCP
+  /// ulanishni ochiq qoldirardi (`Future.timeout` asl natijani tashlab yuboradi).
+  Future<RealtimeSocket> _connectWithDeadline() {
+    final Completer<RealtimeSocket> done = Completer<RealtimeSocket>();
+    final Future<RealtimeSocket> attempt;
+    try {
+      attempt = connector(uri, headers);
+    } on Object catch (e, s) {
+      return Future<RealtimeSocket>.error(e, s);
+    }
+    _connecting = done;
+    _connectTimer?.cancel();
+    _connectTimer = Timer(connectTimeout, () {
+      if (done.isCompleted) return;
+      done.completeError(
+        TimeoutException('Realtime: ulanish ochilmadi', connectTimeout),
+      );
+    });
+    attempt.then(
+      (RealtimeSocket socket) {
+        if (done.isCompleted) {
+          // Kech keldi: urinish allaqachon tashlangan
+          unawaited(_closeQuietly(null, socket));
+          return;
+        }
+        _connectTimer?.cancel();
+        done.complete(socket);
+      },
+      onError: (Object e, StackTrace s) {
+        if (done.isCompleted) return;
+        _connectTimer?.cancel();
+        done.completeError(e, s);
+      },
+    );
+    return done.future.whenComplete(() {
+      if (identical(_connecting, done)) _connecting = null;
+    });
+  }
+
   void _lost() {
     _drop();
     if (_running) _scheduleReconnect();
@@ -212,11 +307,21 @@ class PusherClient {
   /// Joriy ulanishni tashlaydi: holat darhol tozalanadi, soket fonda yopiladi.
   void _drop() {
     _generation++;
+    _connectTimer?.cancel();
+    final Completer<RealtimeSocket>? connecting = _connecting;
+    _connecting = null;
+    if (connecting != null && !connecting.isCompleted) {
+      // Urinish tashlandi; connector kechroq ulansa, ulanish [_connectWithDeadline] da yopiladi
+      connecting.completeError(StateError('Realtime: ulanish bekor qilindi'));
+    }
     _activityTimer?.cancel();
     _pongTimer?.cancel();
     _pongTimer = null;
     _socketId = null;
     _subscribed.clear();
+    for (final String c in _channels) {
+      _setChannelState(c, RealtimeSubscriptionState.pending);
+    }
     final StreamSubscription<String>? sub = _socketSubscription;
     final RealtimeSocket? socket = _socket;
     _socketSubscription = null;
@@ -295,10 +400,17 @@ class PusherClient {
         if (channel != null && _channels.contains(channel)) {
           _subscribed.add(channel);
           _subscribeAttempts.remove(channel);
+          _subscribeRetries.remove(channel)?.cancel();
+          _setChannelState(channel, RealtimeSubscriptionState.subscribed);
         }
       case 'pusher:subscription_error':
-        if (channel != null) {
+        if (channel != null && _channels.contains(channel)) {
           _error(RealtimeSubscriptionError(channel, data));
+          _setChannelState(
+            channel,
+            RealtimeSubscriptionState.failed,
+            error: data,
+          );
           _retrySubscribe(channel);
         }
       default:
@@ -324,6 +436,7 @@ class PusherClient {
       } on Object catch (e) {
         if (generation != _generation || !_channels.contains(channel)) return;
         _error(RealtimeSubscriptionError(channel, e));
+        _setChannelState(channel, RealtimeSubscriptionState.failed, error: e);
         _retrySubscribe(channel);
         return;
       }
@@ -368,6 +481,22 @@ class PusherClient {
         _lost();
       });
     });
+  }
+
+  /// Holat o'zgarsa xabar beradi. Qayta urinish paytida [RealtimeSubscriptionState.failed] saqlanadi (ekran
+  /// "jonli" va "polling" orasida miltillamasin): faqat muvaffaqiyat yoki ulanish uzilishi uni almashtiradi.
+  void _setChannelState(
+    String channel,
+    RealtimeSubscriptionState state, {
+    Object? error,
+  }) {
+    final RealtimeSubscriptionState? before = _states[channel];
+    _states[channel] = state;
+    if (before == state && state != RealtimeSubscriptionState.failed) return;
+    if (before == null && state == RealtimeSubscriptionState.pending) return;
+    if (!_channelStates.isClosed) {
+      _channelStates.add(RealtimeChannelState(channel, state, error: error));
+    }
   }
 
   void _setStatus(RealtimeStatus status) {

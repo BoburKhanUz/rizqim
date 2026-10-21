@@ -5669,7 +5669,7 @@
         "/v1/owner/analytics": {
             "get": {
                 "operationId": "ownerAnalytics.index",
-                "description": "`period` is today|week|month|year (the last 1/7/30/365 Asia/Tashkent calendar days) or custom with `from` and `to`\n(YYYY-MM-DD, at most 93 days). Orders count by the day they were created; `revenue` is the total of the delivered\nones. All money is a number in UZS (two decimals at most). Cached for 60 s per store/branch and period.",
+                "description": "`period` is today|week|month|year (the last 1/7/30/365 calendar days of the store's time zone, P2-33) or custom with `from` and `to`\n(YYYY-MM-DD, at most 93 days). Orders count by the day they were created; `revenue` is the total of the delivered\nones. All money is a number in UZS (two decimals at most). Cached for 60 s per store/branch and period.",
                 "summary": "Sales figures of the owner's store (a branch manager's branch) for a period, computed on the server:\nrevenue, order counts, average check, by payment method and order type, best sellers, couriers, average\nkitchen and delivery times, and a daily series for charts",
                 "tags": [
                     "Owner analytics"
@@ -7822,7 +7822,7 @@
             },
             "delete": {
                 "operationId": "branch.destroy",
-                "description": "Owner only (settings.manage). Refused (422) for a branch that has orders, or the store's only branch: make it\ninactive instead.",
+                "description": "Owner only (settings.manage). Refused (422) for a branch that has orders, or the store's only branch: make it\ninactive instead. P2-33: refused too while staff, unrevoked devices (terminals) or delivery zones are tied to it\n(they would become store-wide); `data` carries their counts (`staff`, `devices`, `zones`).",
                 "summary": "Delete a branch",
                 "tags": [
                     "Owner: branches"
@@ -17822,7 +17822,7 @@
         "/v1/staff/kitchen/tickets": {
             "get": {
                 "operationId": "staffOrder.tickets",
-                "description": "The orders the kitchen is cooking (accepted and preparing; with `include_ready=1` also the ready ones not yet\nhanded over), oldest first, at most 200 (`meta.truncated`). Each ticket: lines with modifiers and\nquantities/weights, each line's kitchen state, the notes (phone numbers masked), when it came in and was\naccepted, and `waiting_seconds`. No customer data, no prices. Needs kitchen.manage or orders.view.",
+                "description": "The orders the kitchen is cooking (accepted and preparing; with `include_ready=1` also the ready ones not yet\nhanded over), oldest first, at most 200 (`meta.truncated`). P2-33: also an order a courier was assigned to while\nit was cooking (courier_assigned) as long as a line is still pending; with `include_ready=1` every\ncourier_assigned order (the courier has not picked it up yet). Each ticket: lines with modifiers and\nquantities/weights, each line's kitchen state, the notes (phone numbers masked), when it came in and was\naccepted, and `waiting_seconds`. No customer data, no prices. Needs kitchen.manage or orders.view.",
                 "summary": "Kitchen display tickets",
                 "tags": [
                     "Kitchen"
@@ -19036,7 +19036,7 @@
         "/v1/staff/orders/{uuid}/items/{item}/ready": {
             "post": {
                 "operationId": "staffOrder.bumpItem",
-                "description": "The line is ready (kitchen.manage). The first bump of an accepted order starts it (preparing). When every line is\nready a delivery or pickup order becomes ready by itself; a hall order (dine_in) stays preparing until it is\nclosed. 422 when the order is not in the kitchen (new, ready, on its way, finished). Bumping a ready line again\nanswers 200 unchanged. Returns the ticket.",
+                "description": "The line is ready (kitchen.manage). The first bump of an accepted order starts it (preparing). When every line is\nready a delivery or pickup order becomes ready by itself; a hall order (dine_in) stays preparing until it is\nclosed. P2-33: a courier_assigned order (a courier was assigned while it was cooking) takes bumps too, with no\nstatus move. 422 when the order is not in the kitchen (new, ready, on its way, finished). Bumping a ready line\nagain answers 200 unchanged. Returns the ticket.",
                 "summary": "Bump a line ready (kitchen display)",
                 "tags": [
                     "Kitchen"
@@ -19290,7 +19290,7 @@
         "/v1/staff/orders/{uuid}/items/{item}/recall": {
             "post": {
                 "operationId": "staffOrder.recallItem",
-                "description": "Undo a mistaken bump: the line is back to pending (kitchen.manage). While the order is accepted or preparing,\nand (P2-30) while it is ready but not yet with a courier or handed over: the order goes back to preparing\n(`order.status_changed` and the history say so). 422 once a courier is assigned, it is on its way or finished.\nReturns the ticket.",
+                "description": "Undo a mistaken bump: the line is back to pending (kitchen.manage). While the order is accepted or preparing,\nand (P2-30) while it is ready but not yet with a courier or handed over: the order goes back to preparing\n(`order.status_changed` and the history say so). P2-33: while a courier is assigned (courier_assigned) the line\nis recalled with no status move. 422 once it is on its way or finished. Returns the ticket.",
                 "summary": "Recall a line (kitchen display)",
                 "tags": [
                     "Kitchen"
@@ -21286,6 +21286,46 @@
                                                 "branch",
                                                 "branches"
                                             ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                },
+                "security": []
+            },
+            "delete": {
+                "operationId": "terminal.destroy",
+                "description": "The terminal revokes itself with its own token (`auth:device`), e.g. before the kitchen display forgets its\npairing: the same as the owner's `POST /owner/devices/{uuid}/revoke` — the device is revoked, its token and every\nstaff PIN session on it stop working at once, and the audit log records `device.revoked` (`self_revoked: true`).\nPairing again needs a new code. Calling it again with the old token: 401.",
+                "summary": "Unpair this terminal (P2-33)",
+                "tags": [
+                    "Terminal"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "null"
                                         }
                                     },
                                     "required": [

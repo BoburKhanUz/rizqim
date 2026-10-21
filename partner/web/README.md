@@ -68,7 +68,15 @@ CORS kerak emas. Cookie'siz Bearer token ishlatilgani uchun `supports_credential
 4. **Single-flight:** refresh token bir martalik, ikkinchi so'rov backend'da "qayta ishlatish" (o'g'irlik) deb hisoblanadi va butun
    oila bekor qilinadi. Shuning uchun bir vaqtdagi barcha so'rovlar bitta refresh'ni kutadi (`src/lib/session/client.ts`), bir nechta
    tab esa `navigator.locks` orqali navbatma-navbat ishlaydi. API 401 qaytarsa, sessiya bir marta yangilanadi va so'rov takrorlanadi.
-5. `POST /api/session/logout` backend'da sessiyani (va qurilmaning refresh tokenlarini) tugatadi va cookie'ni o'chiradi.
+   **Tablar bitta sessiyada (P2-33).** Backend bir qurilmaga bitta jonli access token qoldiradi, barcha tablar esa bitta `rz_device`
+   bilan ishlaydi: shuning uchun yangi sessiya olgan tab uni `BroadcastChannel('rizqim-session')` orqali boshqa tablarga beradi,
+   ular o'zlari refresh qilmaydi. Lock ichida, boshqa tab yangiroq sessiya olgan bo'lsa (`localStorage` dagi `rizqim-session-stamp`
+   — tokenning o'zi emas, faqat id va vaqt), refresh token sarflanmaydi: sessiya o'sha tabdan so'raladi. `navigator.locks` yo'q
+   joyda (oddiy HTTP) `/api/session/refresh` bir xil cookie bilan bir vaqtda kelgan so'rovlarga bitta backend refresh'ini beradi
+   (`refreshOnce`, server xotirasida ~10 soniya).
+5. `POST /api/session/logout` backend'da sessiyani (va qurilmaning refresh tokenlarini) tugatadi va cookie'ni o'chiradi. Sahifaning
+   access tokeni eskirgan bo'lsa (uzoq turgan tab), handler avval cookie'dagi refresh token bilan yangisini olib, keyin chiqadi.
+   Bitta tabdagi chiqish barcha tablarni chiqaradi.
 
 Route handler'lar `Origin`/`Sec-Fetch-Site` ni tekshiradi (boshqa saytdan chaqirib bo'lmaydi).
 

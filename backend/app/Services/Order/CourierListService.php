@@ -22,7 +22,7 @@ class CourierListService
     {
         $query = $this->orderStatus->assignableStaff((int) $assigner->store_id, $assigner);
 
-        if (!app(\App\Services\Auth\PermissionService::class)->isBranchScoped($assigner) && array_key_exists('branch_id', $filters)) {
+        if (app(\App\Services\Auth\PermissionService::class)->actingBranchId($assigner) === null && array_key_exists('branch_id', $filters)) {
             $query->where(function ($q) use ($filters) {
                 $q->where('branch_id', $filters['branch_id'])
                   ->orWhereNull('branch_id')

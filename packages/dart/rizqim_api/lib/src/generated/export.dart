@@ -510,6 +510,7 @@ export 'models/branch11.dart';
 export 'models/branches2.dart';
 export 'models/data94.dart';
 export 'models/get_v1_terminal_response.dart';
+export 'models/delete_v1_terminal_response.dart';
 export 'models/data95.dart';
 export 'models/get_v1_terminal_staff_response.dart';
 export 'models/data96.dart';

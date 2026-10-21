@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { IconButton } from './IconButton';
 import { cx } from './cx';
+import { FOCUSABLE, keepTabInside } from '../lib/focus';
 
 interface DialogProps {
   open: boolean;
@@ -24,8 +25,6 @@ interface DialogProps {
   // The accessible name of the close button ("Yopish"); the app translates it
   closeLabel?: string;
 }
-
-const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 // The one modal of the app (docs/DESIGN.md): a bottom sheet or a centred dialog over a scrim. Escape and the close
 // button close it, focus moves into it and back to where it was, the page behind does not scroll.
@@ -55,20 +54,8 @@ export function Dialog({ open, onClose, title, description, children, footer, va
         event.stopPropagation();
         onCloseRef.current();
       }
-      if (event.key === 'Tab' && panel) {
-        // Keep Tab inside the dialog
-        const items = Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE));
-        const first = items[0];
-        const last = items[items.length - 1];
-        if (!first || !last) return;
-        if (event.shiftKey && document.activeElement === first) {
-          event.preventDefault();
-          last.focus();
-        } else if (!event.shiftKey && document.activeElement === last) {
-          event.preventDefault();
-          first.focus();
-        }
-      }
+      // Keep Tab inside the dialog
+      if (panel) keepTabInside(event, panel);
     };
     document.addEventListener('keydown', onKeyDown);
     return () => {

@@ -13,12 +13,12 @@ test('courier picks up an assigned order and hands it over', async ({ page, api 
   await expect(page.getByText('Chilonzor 9, 14-uy')).toBeVisible()
 
   // courier_assigned -> on_the_way
-  await page.getByRole('button', { name: /Olib ketdim/ }).click()
+  await page.getByRole('button', { name: /Yo'lga chiqdim/ }).click()
   // click() does not wait for the request it causes
   await expect.poll(() => api.callsTo('POST', `/orders/${order.uuid}/status`).length).toBe(1)
   expect(api.callsTo('POST', `/orders/${order.uuid}/status`)[0].body).toEqual({ status: 'on_the_way' })
   await expect(page.getByRole('button', { name: /Yetkazib berdim/ })).toBeVisible()
-  await expect(page.getByRole('button', { name: /Olib ketdim/ })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /Yo'lga chiqdim/ })).toHaveCount(0)
 
   // on_the_way -> delivered: the delivery leaves the active list and is counted among today's
   await page.getByRole('button', { name: /Yetkazib berdim/ }).click()

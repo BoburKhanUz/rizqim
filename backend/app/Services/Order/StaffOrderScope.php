@@ -4,14 +4,12 @@ namespace App\Services\Order;
 
 use App\Enums\Permission;
 use App\Enums\UserRole;
-use App\Http\Middleware\RejectStaffSession;
 use App\Models\Branch;
 use App\Models\Device;
 use App\Models\Order;
 use App\Models\User;
 use App\Services\Auth\PermissionService;
 use Illuminate\Database\Eloquent\Builder;
-use Laravel\Sanctum\PersonalAccessToken;
 
 /**
  * Which orders a store staff member works with on the staff order screens (P2-11: partner web board, Mini App staff
@@ -24,52 +22,30 @@ use Laravel\Sanctum\PersonalAccessToken;
  */
 class StaffOrderScope
 {
-    /** @var array<int, Device|false> terminal of a PIN session token, by token id */
-    private array $terminals = [];
-
     public function __construct(
         protected PermissionService $permissions,
     ) {}
 
     /**
-     * The paired POS/KDS terminal this request's staff PIN session is bound to; null for any other sign-in.
+     * The paired POS/KDS terminal this request's staff PIN session is bound to; null for any other sign-in (and for a
+     * PIN session whose terminal is gone: branchIds() then matches nothing, P2-33 fails closed).
      */
     public function terminalOf(User $user): ?Device
     {
-        /** @var mixed $token a TransientToken for a session sign-in (panel, tests) */
-        $token = $user->currentAccessToken();
-        if (!$token instanceof PersonalAccessToken || !RejectStaffSession::isStaffSession($token)) {
-            return null;
-        }
-
-        $deviceId = $token->getAttribute('device_id');
-        if ($deviceId === null) {
-            return null;
-        }
-
-        $key = (int) $token->getKey();
-        if (!array_key_exists($key, $this->terminals)) {
-            $device = Device::whereKey((int) $deviceId)->whereNull('revoked_at')->first();
-            $this->terminals[$key] = $device !== null && $device->isTerminal() ? $device : false;
-        }
-
-        return $this->terminals[$key] ?: null;
+        return $this->permissions->terminalOf($user);
     }
 
     /**
-     * The branches the user works in: null for every branch of the store, else exactly one branch id.
+     * The branches the user works in: null for every branch of the store, else exactly one branch id (P2-33: a PIN
+     * session whose terminal is missing or revoked gets PermissionService::NO_BRANCH, which no order has).
      *
      * @return list<int>|null
      */
     public function branchIds(User $user): ?array
     {
-        if ($this->permissions->isBranchScoped($user)) {
-            return [(int) $user->branch_id];
-        }
+        $branchId = $this->permissions->actingBranchId($user);
 
-        $terminalBranch = $this->terminalOf($user)?->branch_id;
-
-        return $terminalBranch !== null ? [(int) $terminalBranch] : null;
+        return $branchId !== null ? [$branchId] : null;
     }
 
     /**

@@ -4,6 +4,7 @@ namespace App\Policies;
 
 use App\Enums\CancelReason;
 use App\Enums\OrderStatus;
+use App\Enums\OrderType;
 use App\Enums\Permission;
 use App\Enums\UserRole;
 use App\Models\Order;
@@ -89,6 +90,14 @@ class OrderPolicy
         if ($to === OrderStatus::ON_THE_WAY && $order->status === OrderStatus::COURIER_ASSIGNED && $order->courier_id !== null
             && $this->permissions->allows($user, Permission::ORDERS_ASSIGN_COURIER, $order)) {
             return true;
+        }
+
+        // P2-33: a delivery order is handed over by the courier who has it, or by whoever dispatches couriers
+        // (orders.assign_courier: owner, manager) standing in for one; not by everyone who runs orders (cashier, waiter)
+        if ($to === OrderStatus::DELIVERED && $order->order_type === OrderType::DELIVERY
+            && ($order->courier_id === null || (int) $order->courier_id !== (int) $user->id)
+            && !$this->permissions->allows($user, Permission::ORDERS_ASSIGN_COURIER, $order)) {
+            return false;
         }
 
         // Cancelling or rejecting is its own permission (a cashier may run orders but not cancel them)

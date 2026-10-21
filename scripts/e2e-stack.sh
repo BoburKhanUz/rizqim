@@ -23,6 +23,9 @@
 #
 # Database: E2E_DB_HOST/PORT/DATABASE/USERNAME/PASSWORD (127.0.0.1, 5432, rizqim_e2e, rizqim, rizqim). The database is
 # created when the role may, and is emptied (migrate:fresh) on every run, so the name must contain "e2e" or "testing".
+# Before wiping, the script asks Laravel itself which environment and database it is on (the stack keeps its own
+# config/route/event caches under e2e/stack/.run, so a developer's cached backend/bootstrap/cache/config.php is never
+# read) and refuses unless that is APP_ENV=e2e on exactly this database.
 # Other variables: E2E_SKIP_BUILD=1 reuses the builds of the last run; E2E_BACKEND_PORT, E2E_REVERB_PORT,
 # E2E_PARTNER_PORT, E2E_MINIAPP_PORT move the servers.
 set -euo pipefail
@@ -55,7 +58,7 @@ while [ $# -gt 0 ]; do
     --keep) KEEP=1 ;;
     --stop) STOP_ONLY=1 ;;
     --) shift; PLAYWRIGHT_ARGS=("$@"); break ;;
-    -h | --help) sed -n '2,27p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h | --help) sed -n '2,30p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "Unknown argument: $1 (see --help)" >&2; exit 2 ;;
   esac
   shift
@@ -145,8 +148,12 @@ BACKEND_ENV=(
   # The partner web calls the API straight from the browser: its origin must be allowed
   CORS_ALLOWED_ORIGINS="http://127.0.0.1:$PARTNER_PORT,http://127.0.0.1:$MINIAPP_PORT"
   E2E_SEED_FILE="$RUN/seed.json"
-  # The Reverb socket, the board's polls and the tests' own calls arrive together: more than one PHP worker
+  # The Reverb socket, the board's polls and the tests' own calls arrive together: more than one PHP worker (php artisan
+  # serve honours it only with --no-reload, below)
   PHP_CLI_SERVER_WORKERS=4
+  # P2-33: the stack's own config, route and event caches. A developer's cached backend/bootstrap/cache/config.php would
+  # make Laravel ignore every variable above, and migrate:fresh would then wipe the database of their .env
+  APP_CONFIG_CACHE="$RUN/cache-config.php" APP_ROUTES_CACHE="$RUN/cache-routes.php" APP_EVENTS_CACHE="$RUN/cache-events.php"
 )
 artisan() { (cd "$ROOT/backend" && env "${BACKEND_ENV[@]}" php artisan "$@"); }
 
@@ -158,6 +165,31 @@ if command -v psql > /dev/null && command -v pg_isready > /dev/null; then
       || die "cannot create database $DB_NAME: create it (or set E2E_DB_DATABASE to an existing test database)"
   fi
 fi
+
+# P2-33: clear the stack's own caches (never the developer's), then ask Laravel what it is really connected to: the
+# environment, the configured database and the database the server says this connection is on. Refuse to wipe anything
+# else, whatever the reason (a cached config, a DB_URL, an env file that overrides the variables)
+artisan config:clear > /dev/null 2>&1 || true
+artisan route:clear > /dev/null 2>&1 || true
+artisan event:clear > /dev/null 2>&1 || true
+rm -f "$RUN/cache-config.php" "$RUN/cache-routes.php" "$RUN/cache-events.php"
+# shellcheck disable=SC2016 # PHP code: the $ are PHP's
+effective="$(cd "$ROOT/backend" && env "${BACKEND_ENV[@]}" php -r '
+  require "vendor/autoload.php";
+  $app = require "bootstrap/app.php";
+  $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+  $db = Illuminate\Support\Facades\DB::connection("pgsql");
+  echo $app->environment(), "|", config("database.default"), "|", config("database.connections.pgsql.database"), "|",
+    $db->selectOne("select current_database() as name")->name, PHP_EOL;
+' 2> "$RUN/effective-db.log")" || { tail -n 20 "$RUN/effective-db.log" >&2; die "cannot ask Laravel which database it uses"; }
+IFS='|' read -r eff_env eff_default eff_config eff_server <<< "$effective"
+if [ "$eff_env" != e2e ] || [ "$eff_default" != pgsql ] || [ "$eff_config" != "$DB_NAME" ] || [ "$eff_server" != "$DB_NAME" ]; then
+  die "refusing to wipe: Laravel runs as APP_ENV=$eff_env on connection $eff_default, database '$eff_config' (server: '$eff_server'), expected e2e on '$DB_NAME'. A cached config or DB_URL? See backend/bootstrap/cache."
+fi
+case "$eff_server" in
+  *e2e* | *testing*) ;;
+  *) die "refusing to wipe database '$eff_server': its name must contain 'e2e' or 'testing'" ;;
+esac
 
 log "migrating and seeding $DB_NAME"
 artisan migrate:fresh --force --no-interaction > "$RUN/migrate.log" 2>&1 || { tail -n 30 "$RUN/migrate.log" >&2; die "migrate:fresh failed"; }
@@ -181,7 +213,7 @@ fi
 # --- Servers ---------------------------------------------------------------------------------------------------------
 
 log "starting the backend (:$BACKEND_PORT) and Reverb (:$REVERB_PORT)"
-(cd "$ROOT/backend" && start backend env "${BACKEND_ENV[@]}" php artisan serve --host=127.0.0.1 --port="$BACKEND_PORT")
+(cd "$ROOT/backend" && start backend env "${BACKEND_ENV[@]}" php artisan serve --host=127.0.0.1 --port="$BACKEND_PORT" --no-reload)
 (cd "$ROOT/backend" && start reverb env "${BACKEND_ENV[@]}" php artisan reverb:start --host=127.0.0.1 --port="$REVERB_PORT")
 
 log "starting the partner web (:$PARTNER_PORT) and the Mini App (:$MINIAPP_PORT)"

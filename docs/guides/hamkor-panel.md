@@ -71,6 +71,8 @@ panel sababini yozadi. Ega bilan bog'laning.
 ro'yxati chiqadi. Do'kon nomi, rol va filialga qarab kerakli qatorni bosing. Notanish do'konni tanlamang.
 
 **Chiqish.** Yon menyuning pastidagi **Chiqish** tugmasi sizni tizimdan chiqaradi. Umumiy kompyuterda ishlagan bo'lsangiz, albatta chiqing.
+Panel bir nechta brauzer varag'ida ochiq bo'lsa, ular bitta sessiyada ishlaydi: bittasida chiqsangiz, hammasidan chiqasiz (uzoq
+turib qolgan varaqdan chiqqanda ham sessiya serverda yopiladi).
 
 **Til.** Menyudagi **Til** orqali o'zbekcha, ruscha yoki inglizcha tanlanadi.
 
@@ -80,9 +82,11 @@ Sahifaning yuqorisida:
 
 - **Filial** — qaysi filial bilan ishlayotganingiz. Ega va filialsiz menejer **Barcha filiallar** yoki bitta filialni tanlaydi.
   Tanlov shu brauzerda eslab qolinadi. Filialga biriktirilgan menejerda **Filialingiz: ...** deb yoziladi, tanlab bo'lmaydi.
-  Buyurtmalar, hisobotlar va stop-list tanlangan filialga qarab ko'rinadi.
+  Buyurtmalar, hisobotlar, stop-list, qozon va taomning **Filiallar** bo'limi tanlangan filialga qarab ishlaydi. **Barcha filiallar**
+  tanlangan bo'lsa, stop-list, qozon va **Filiallar** bo'limi sahifaning o'zida filialni so'raydi.
 - **Jonli** — yangi buyurtmalar sahifani yangilamasdan o'zi chiqadi. **Ulanmoqda...** yoki **Har 15 soniyada yangilanadi**
-  yozuvi bo'lsa, ulanish vaqtincha yo'q: ro'yxat har 15 soniyada o'zi yangilanadi. Hech narsa qilish shart emas.
+  yozuvi bo'lsa, ulanish vaqtincha yo'q (yoki hali o'rnatilmoqda): ro'yxat har 15 soniyada o'zi yangilanadi. Hech narsa qilish shart
+  emas. Ulanib bo'lmasa, **Ulanmoqda...** o'rniga **Har 15 soniyada yangilanadi** yoziladi.
 - Karnay belgisi — yangi buyurtma ovozini o'chiradi va yoqadi (**Yangi buyurtma ovozini o'chirish** / **yoqish**).
 - Menyudagi **Buyurtmalar** yonida va brauzer sarlavhasida yangi buyurtmalar soni ko'rinadi, masalan `(3)`.
 
@@ -143,10 +147,10 @@ Kartochkadagi tugma buyurtma holatiga qarab o'zgaradi:
 | Yangi | **Qabul qilish** | Buyurtma qabul qilinadi |
 | Qabul qilindi | **Tayyorlashni boshlash** | Oshxonaga ketadi |
 | Tayyorlanmoqda | **Tayyor bo'ldi** | Tayyor ustuniga o'tadi |
-| Tayyor, yetkazish | **Kuryerni tayinlash** | Kuryer tanlanadi |
+| Tayyor, yetkazish | **Kuryerni biriktirish** | Kuryer tanlanadi |
 | Tayyor, olib ketish yoki zal | **Mijozga topshirish** | Buyurtma yakunlanadi |
 | Kuryer kutilmoqda | **Yo'lga chiqdi** | Kuryer yo'lga chiqdi |
-| Yo'lda | **Yetkazilganini tasdiqlash** | Buyurtma yakunlanadi |
+| Yo'lda | **Yetkazib berildi** | Buyurtma yakunlanadi |
 
 Oshxonada KDS ekrani bo'lsa, oshpaz o'zi taomlarni "tayyor" deb belgilaydi. Buyurtma ham shunga qarab o'zgaradi.
 
@@ -163,10 +167,10 @@ Bu tugmalar kartochkada emas, kartochkani ochganda **Amallar** bo'limida turadi 
 
 Sababsiz rad etib bo'lmaydi: "Sababni tanlang." xabari chiqadi. Sabab buyurtma tarixida saqlanadi.
 
-### Kuryer tayinlash
+### Kuryer biriktirish
 
-1. Yetkazish buyurtmasi **Tayyor** ustuniga o'tgach, **Kuryerni tayinlash** tugmasini bosing.
-2. **Kuryerni tayinlash** oynasida ro'yxatdan kuryerni tanlang.
+1. Yetkazish buyurtmasi **Tayyor** ustuniga o'tgach, **Kuryerni biriktirish** tugmasini bosing.
+2. **Kuryerni biriktirish** oynasida ro'yxatdan kuryerni tanlang.
 3. **Tayinlash** ni bosing.
 
 "Bu filialda bo'sh kuryer yo'q" chiqsa, kuryer hali qo'shilmagan yoki boshqa filialda. [Xodimlar](#7-xodimlar) bo'limida kuryerni qo'shing.
@@ -226,7 +230,8 @@ Modifikator — taomga qo'shiladigan tanlov: "Sous tanlang", "Qo'shimchalar".
    Donali taomda qo'shimcha har bir donaga, kilogrammli taomda butun qatorga bir marta qo'shiladi.
 5. **Saqlash**. Guruh saqlangach, **Qaysi taomlarda taklif qilinadi** bo'limida taomlarni belgilab, **Taomlarni saqlash** ni bosing.
 
-Yoki taom oynasidagi **Modifikator guruhlari** bo'limidan **Taomda taklif qilinadi** ni belgilab, **Guruhlarni saqlash** ni bosing.
+Yoki taom oynasidagi **Modifikator guruhlari** bo'limidan **Taomda taklif qilinadi** ni belgilab, **Guruhlarni saqlash** ni bosing
+(saqlangach **Saqlandi.** yozuvi chiqadi).
 Guruh yo'q bo'lsa, avval **Modifikatorlar** bo'limida yarating.
 
 ### Kanal narxlari
@@ -241,7 +246,8 @@ Bitta taom Telegramda va mobil ilovada har xil narxda sotilishi mumkin.
 
 ### Filialda sotilmaydigan variant
 
-Taom oynasining **Filiallar** bo'limida filialni tanlang va u yerda sotilmaydigan variantni o'chiring. Bu stop-listda ham ko'rinadi.
+Taom oynasining **Filiallar** bo'limida (yuqori panelda tanlangan filial; **Barcha filiallar** bo'lsa, shu yerda filialni tanlang)
+u yerda sotilmaydigan variantni o'chiring. Bu stop-listda ham ko'rinadi.
 
 ### "Qozon bo'yicha sotiladi"
 
@@ -256,7 +262,8 @@ Taom qatoridan **O'chirish** → tasdiqlang. Oldingi buyurtmalar o'zgarmaydi. Va
 ## 6. Stop-list va qozon
 
 Ikkalasi ham filial bo'yicha ishlaydi. Sahifa tepasidagi ikkita yorliq (**Stop-list** va **Qozon**) orqali o'tasiz.
-Birinchi ochilganda filialni tanlang (egada). Menejerda o'z filiali.
+Filial — yuqori paneldagi tanlov (sahifada **Filial: ...** deb yoziladi). Yuqorida **Barcha filiallar** tanlangan bo'lsa,
+sahifaning o'zida **Filial** ro'yxati chiqadi: avval to'g'ri filialni tanlang. Menejerda doim o'z filiali.
 
 ### Stop-list: taom tugadi
 

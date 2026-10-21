@@ -63,6 +63,16 @@ jobs:
               - '.env*.example'
               - 'backend/Dockerfile'
               - 'backend/docker/**'
+              # P2-33: the backend image installs composer.lock and dumps the optimized autoloader over the app code, and
+              # the Reverb/ext-uv check runs in it: a dependency or app change can break the image build
+              - 'backend/composer.json'
+              - 'backend/composer.lock'
+              - 'backend/.dockerignore'
+              - 'backend/app/**'
+              - 'backend/bootstrap/**'
+              - 'backend/config/**'
+              - 'backend/routes/**'
+              - 'backend/database/**'
               - 'scripts/**'
               - 'infra/**'
               # The Mini App and partner web images are built here from the repository root: any change to the apps or

@@ -128,7 +128,8 @@ Menejerga ayting.
 
 ## 5. Sozlamalar
 
-Tepadagi tishli g'ildirak belgisi (**Sozlamalar**). Sozlamalar shu planshetning o'zida saqlanadi.
+PIN bilan kirgandan keyin tepadagi tishli g'ildirak belgisi (**Sozlamalar**). PIN ekranida sozlamalar yo'q: PIN'siz
+hech kim ovozni yoki avtomatik chiqishni o'chira olmaydi. Sozlamalar shu planshetning o'zida saqlanadi.
 
 | Sozlama | Nima qiladi |
 |---|---|
@@ -152,7 +153,8 @@ Tepada kichik belgi aloqa holatini ko'rsatadi:
 
 - **Jonli** — yangi buyurtma darhol chiqadi.
 - **Ulanmoqda** yoki **Qayta ulanmoqda** — ilova ulanishga harakat qilmoqda. Ko'p holda o'zi tiklanadi.
-- **Har 15 soniyada** — jonli ulanish yo'q, ro'yxat har 15 soniyada yangilanadi. Ish davom etaveradi.
+- **Har 15 soniyada** — jonli ulanish yo'q (yoki server oshxona kanaliga hali ruxsat bermadi), ro'yxat har 15 soniyada
+  yangilanadi. Ish davom etaveradi. Uzoq tursa, menejerga ayting.
 
 ### "Aloqa yo'q" lentasi
 
@@ -173,8 +175,13 @@ Nima qilish kerak:
 - Chiqqandan keyin ham planshet ulangan qoladi: yangi buyurtma kelsa ovoz chalinadi.
 - Sessiya tugasa: "Sessiya tugadi. PIN bilan qayta kiring." — PIN'ni qayta tering. (Sessiya 12 soat amal qiladi.)
 
-**Planshetni butunlay uzish** (boshqa oshxonaga o'tkazish yoki sotish oldidan): PIN ekranidagi zanjir belgisi (**Terminalni uzish**) → **Uzish**.
-Qayta ulash uchun yangi kod kerak bo'ladi. Buni ega yoki menejer qiladi.
+**Planshetni butunlay uzish** (boshqa oshxonaga o'tkazish yoki sotish oldidan) — buni faqat ega yoki menejer qiladi:
+
+- **Panelda (eng oson):** **Sozlamalar** → **Qurilmalar** → planshet qatoridagi **O'chirish**. Planshet o'zi ulash ekraniga qaytadi.
+- **Planshetda:** menejer o'z PIN kodi bilan kiradi → **Sozlamalar** → **Terminalni uzish** → **Uzish**. Planshet serverda
+  ham o'chiriladi. Faqat internet bo'lmasa, planshet buni aytadi — unda panelda ham **O'chirish** bilan o'chiring.
+
+Oshpazda bu tugma yo'q, PIN ekranida ham yo'q. Qayta ulash uchun yangi kod kerak bo'ladi.
 
 ## 8. Muammolar va yechimlar
 
@@ -185,6 +192,7 @@ Qayta ulash uchun yangi kod kerak bo'ladi. Buni ega yoki menejer qiladi.
 | **PIN noto'g'ri** | Qayta tering. 5 marta xato qilsangiz, bir daqiqa kutish kerak |
 | Planshet o'zi ulash ekraniga qaytdi | Panelda bu qurilma o'chirilgan. Yangi kod yarating va qayta ulang |
 | Yangi chipta kelmayapti | Tepadagi aloqa belgisini va qizil **Aloqa yo'q** lentasini tekshiring. Wi-Fi'ni tekshiring |
+| "Server javobini o'qib bo'lmadi" yoki "N ta chiptani o'qib bo'lmadi" | Aloqa bor, lekin ilova eski bo'lishi mumkin. Menejerga ayting: ilovani yangilash kerak. Qolgan chiptalar bilan ishlashda davom eting |
 | Ovoz yo'q | Karnay belgisi yoqilganini tekshiring (**Ovozni yoqish**), **Sozlamalar** da **Yangi buyurtma ovozi** yoqilganini ko'ring, planshet ovozini balandlating |
 | Taom qatorini bosganda belgi qaytyapti | Server rad etdi yoki aloqa uzildi. Taom ostidagi sababni o'qing, aloqa tiklangach qayta bosing |
 | Hamma taomni bosdim, buyurtma doskada qoldi | Zal buyurtmasi stol yopilguncha qoladi. **Buyurtma tayyor** tugmasini bosing |

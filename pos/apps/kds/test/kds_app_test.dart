@@ -38,6 +38,13 @@ void main() {
 
       expect(find.text('Terminalni ulash'), findsOneWidget);
       expect(pairButton(tester).onPressed, isNull);
+      // the same path and button names as the partner panel
+      expect(
+        find.textContaining(
+          'Sozlamalar → Qurilmalar → «Ulash kodini yaratish»',
+        ),
+        findsOneWidget,
+      );
     },
   );
 
@@ -146,32 +153,108 @@ void main() {
     },
   );
 
-  testWidgets('unpairing asks first, then returns to the pairing screen', (
+  testWidgets(
+    'the PIN screen offers neither settings nor unpairing: nobody changes the screen without a PIN',
+    (WidgetTester tester) async {
+      final KdsHarness h = KdsHarness(realtime: false);
+      await pumpPaired(tester, h);
+      expect(find.text('Kim ishlaydi?'), findsOneWidget);
+      expect(find.byTooltip('Terminalni uzish'), findsNothing);
+      expect(find.byTooltip('Sozlamalar'), findsNothing);
+      expect(find.byIcon(Icons.link_off), findsNothing);
+    },
+  );
+
+  testWidgets('a cook cannot unpair: the settings have no "Terminalni uzish"', (
     WidgetTester tester,
   ) async {
     final KdsHarness h = KdsHarness(realtime: false);
-    await pumpPaired(tester, h);
-
-    await tester.tap(find.byTooltip('Terminalni uzish'));
+    await pumpBoard(tester, h);
+    await tester.tap(find.byTooltip('Sozlamalar'));
     await tester.pumpAndSettle();
-    expect(
-      find.text(
-        "Bu qurilma do'kondan uziladi. Qayta ulash uchun yangi kod kerak bo'ladi.",
-      ),
-      findsOneWidget,
-    );
-    await tester.tap(buttonLabeled('Bekor qilish'));
-    await tester.pumpAndSettle();
-    expect(find.text('Terminalni ulash'), findsNothing);
-
-    await tester.tap(find.byTooltip('Terminalni uzish'));
-    await tester.pumpAndSettle();
-    await tester.tap(buttonLabeled('Uzish'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Terminalni ulash'), findsOneWidget);
-    expect(h.store.values, isEmpty);
+    expect(find.text('Sozlamalar'), findsOneWidget);
+    expect(buttonLabeled('Terminalni uzish'), findsNothing);
   });
+
+  testWidgets(
+    'a manager signs in with their own PIN and unpairs: asks first, revokes the terminal on the server, returns to pairing',
+    (WidgetTester tester) async {
+      final KdsHarness h = KdsHarness(realtime: false);
+      await pumpPaired(tester, h);
+      await tester.tap(find.text('Bobur Aliyev'));
+      await tester.pumpAndSettle();
+      await typePin(tester, h.state.pin);
+      expect(find.text('Kim ishlaydi?'), findsNothing);
+
+      await tester.tap(find.byTooltip('Sozlamalar'));
+      await tester.pumpAndSettle();
+      await tester.tap(buttonLabeled('Terminalni uzish'));
+      await tester.pumpAndSettle();
+      expect(find.text('Sozlamalar'), findsNothing, reason: 'settings closed');
+      expect(
+        find.textContaining(
+          "Bu qurilma do'kondan uziladi va serverda ham o'chiriladi.",
+        ),
+        findsOneWidget,
+      );
+      await tester.tap(buttonLabeled('Bekor qilish'));
+      await tester.pumpAndSettle();
+      expect(find.text('Terminalni ulash'), findsNothing);
+      expect(h.client.auth.staff, isNotNull);
+
+      await tester.tap(find.byTooltip('Sozlamalar'));
+      await tester.pumpAndSettle();
+      await tester.tap(buttonLabeled('Terminalni uzish'));
+      await tester.pumpAndSettle();
+      await tester.tap(buttonLabeled('Uzish'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Terminalni ulash'), findsOneWidget);
+      expect(find.byType(Dialog), findsNothing);
+      expect(h.store.values, isEmpty);
+      expect(
+        h.backend.to('DELETE', RegExp(r'/v1/terminal$')),
+        hasLength(1),
+        reason: 'the terminal revokes itself on the server before forgetting',
+      );
+      expect(
+        h.backend
+            .to('DELETE', RegExp(r'/v1/terminal$'))
+            .single
+            .headers['Authorization'],
+        'Bearer ${FakeKitchenState.terminalToken}',
+      );
+      expect(find.textContaining('boshqaruv panelida'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'unpairing without a connection still unpairs here and tells to remove the device in the panel',
+    (WidgetTester tester) async {
+      final KdsHarness h = KdsHarness(realtime: false);
+      await pumpPaired(tester, h);
+      await tester.tap(find.text('Bobur Aliyev'));
+      await tester.pumpAndSettle();
+      await typePin(tester, h.state.pin);
+      await tester.tap(find.byTooltip('Sozlamalar'));
+      await tester.pumpAndSettle();
+      await tester.tap(buttonLabeled('Terminalni uzish'));
+      await tester.pumpAndSettle();
+      h.backend.respond = (RequestOptions o) =>
+          o.method == 'DELETE' && o.uri.path.endsWith('/v1/terminal')
+          ? throw DioException.connectionError(
+              requestOptions: o,
+              reason: 'offline',
+            )
+          : null;
+      await tester.tap(buttonLabeled('Uzish'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Terminalni ulash'), findsOneWidget);
+      expect(h.store.values, isEmpty);
+      expect(find.textContaining('boshqaruv panelida'), findsOneWidget);
+    },
+  );
 
   testWidgets(
     'a server that revokes the terminal sends the app back to pairing',

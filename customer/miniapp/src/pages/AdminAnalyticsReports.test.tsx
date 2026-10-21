@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider, focusManager } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { formatMoney } from '../lib/format';
 import { useLanguageStore } from '../store/languageStore';
@@ -77,6 +77,24 @@ describe('AdminAnalytics', () => {
     const couriers = screen.getByRole('region', { name: 'Kuryerlar reytingi' });
     expect(within(couriers).getByText('Sardor')).toBeInTheDocument();
     expect(within(couriers).getByText('2 ta buyurtma')).toBeInTheDocument();
+  });
+
+  it('leads to the reports page (the CSV export lives there)', async () => {
+    serve(makeAnalytics());
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={['/admin/analytics']}>
+          <Routes>
+            <Route path="/admin/analytics" element={<AdminAnalytics />} />
+            <Route path="/admin/reports" element={<p>Hisobotlar sahifasi</p>} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    await settle();
+    fireEvent.click(screen.getByRole('button', { name: 'Hisobotlar va eksport' }));
+    await settle();
+    expect(screen.getByText('Hisobotlar sahifasi')).toBeInTheDocument();
   });
 
   it('never talks about a partial period or truncated orders: the server counts them all', async () => {

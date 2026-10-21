@@ -33,7 +33,10 @@ class EnsureUserHasPermission
             ], 401);
         }
 
-        foreach ($permissions as $permission) {
+        // P2-33: a terminal PIN session whose terminal is gone holds nothing (PermissionService::actingBranchId)
+        $failClosed = $this->permissions->actingBranchId($user) === \App\Services\Auth\PermissionService::NO_BRANCH;
+
+        foreach ($failClosed ? [] : $permissions as $permission) {
             $permission = Permission::tryFrom($permission);
             if ($permission && $this->permissions->has($user, $permission)) {
                 return $next($request);

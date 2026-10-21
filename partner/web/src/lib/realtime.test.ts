@@ -70,6 +70,21 @@ describe('openBoardChannels', () => {
     expect(onResync).toHaveBeenCalledTimes(1);
   });
 
+  it('reports a socket that never opens as down (the page then shows its polling text), but not while it is connecting', () => {
+    const echo = new FakeEcho();
+    const onConnectionChange = vi.fn();
+    openBoardChannels(echo, ['store.3'], { onEvent: vi.fn(), onConnectionChange, onResync: vi.fn() });
+    echo.setConnection('connecting');
+    expect(onConnectionChange).not.toHaveBeenCalled();
+    echo.setConnection('failed');
+    expect(onConnectionChange).toHaveBeenCalledTimes(1);
+    expect(onConnectionChange).toHaveBeenLastCalledWith(false);
+    echo.setConnection('connecting'); // pusher-js tries again: still down
+    expect(onConnectionChange).toHaveBeenCalledTimes(1);
+    echo.connectAll();
+    expect(onConnectionChange).toHaveBeenLastCalledWith(true);
+  });
+
   it('retries a refused subscription with a growing delay, and stops once closed', () => {
     vi.useFakeTimers();
     const echo = new FakeEcho();

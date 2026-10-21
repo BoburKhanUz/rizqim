@@ -67,7 +67,9 @@ final class PayoutView
     }
 
     /**
-     * Every card-like number (13–19 digits, spaces or dashes allowed between them) in free text, masked.
+     * Every card-like number (13–19 digits) in free text, masked. P2-33: the digits may be grouped by up to three
+     * separators each: spaces (also several, tabs, no-break spaces), dots, dashes, underscores or slashes
+     * ("8600.1234.5678.9012", "8600  1234  5678  9012"). Not across a line break.
      */
     public static function maskCardsIn(mixed $text): ?string
     {
@@ -75,7 +77,14 @@ final class PayoutView
             return null;
         }
 
-        return (string) preg_replace_callback('/\b\d(?:[ -]?\d){12,18}\b/', fn (array $match) => self::maskCard($match[0]), (string) $text);
+        $masked = preg_replace_callback(
+            '/(?<!\d)\d(?:[\h.\-_\/]{0,3}\d){12,18}(?!\d)/u',
+            fn (array $match) => self::maskCard($match[0]),
+            (string) $text,
+        );
+
+        // Not valid UTF-8 (preg fails): mask every digit rather than return a number
+        return $masked ?? (string) preg_replace('/\d/', '*', (string) $text);
     }
 
     private static function iso(mixed $value): ?string

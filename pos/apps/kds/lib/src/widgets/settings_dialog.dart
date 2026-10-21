@@ -4,19 +4,25 @@ import 'package:rizqim_ui/rizqim_ui.dart';
 import '../settings/kds_settings.dart';
 
 /// Ekran sozlamalari: ovoz, mavzu, shrift, kutish chegaralari, avtomatik chiqish. O'zgarish darhol qo'llanadi va
-/// qurilmada saqlanadi.
+/// qurilmada saqlanadi. Faqat PIN bilan kirilgan doskadan ochiladi (PIN ekranida sozlamalar yo'q).
+///
+/// [onUnpair] berilsa (kirgan xodimda `devices.manage` bor: menejer yoki ega) oynada "Terminalni uzish" tugmasi bor:
+/// u oynani yopib [onUnpair] ni chaqiradi.
 Future<void> showKdsSettings(
   BuildContext context,
-  KdsSettingsController settings,
-) => showDialog<void>(
+  KdsSettingsController settings, {
+  VoidCallback? onUnpair,
+}) => showDialog<void>(
   context: context,
-  builder: (BuildContext context) => _SettingsDialog(settings: settings),
+  builder: (BuildContext context) =>
+      _SettingsDialog(settings: settings, onUnpair: onUnpair),
 );
 
 class _SettingsDialog extends StatelessWidget {
-  const _SettingsDialog({required this.settings});
+  const _SettingsDialog({required this.settings, this.onUnpair});
 
   final KdsSettingsController settings;
+  final VoidCallback? onUnpair;
 
   static String _idleLabel(Duration? d) =>
       d == null ? "O'chiq" : '${d.inMinutes} daqiqa';
@@ -176,13 +182,27 @@ class _SettingsDialog extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: RzButton(
-                      label: 'Yopish',
-                      variant: RzButtonVariant.secondary,
-                      onPressed: () => Navigator.pop(context),
-                    ),
+                  Wrap(
+                    alignment: WrapAlignment.spaceBetween,
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: <Widget>[
+                      if (onUnpair != null)
+                        RzButton(
+                          label: 'Terminalni uzish',
+                          icon: Icons.link_off,
+                          variant: RzButtonVariant.ghost,
+                          onPressed: () {
+                            Navigator.pop(context);
+                            onUnpair!();
+                          },
+                        ),
+                      RzButton(
+                        label: 'Yopish',
+                        variant: RzButtonVariant.secondary,
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ],
                   ),
                 ],
               ),

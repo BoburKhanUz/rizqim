@@ -200,23 +200,58 @@ void main() {
     );
   });
 
-  test('a body that does not match the spec is reported, not thrown as a TypeError', () async {
+  test('one ticket that does not match the spec is skipped and reported; the rest still show', () async {
     adapter.handler = (RequestOptions o) => json(200, <String, Object?>{
       'success': true,
       'message': '',
       'data': <Object?>[
-        <String, Object?>{'uuid': 'x'},
+        ticketJson(),
+        <String, Object?>{'uuid': 'broken-ticket'},
+        'not even an object',
+        ticketJson(uuid: 'bbbbbbbb-0000-4000-8000-000000000002'),
       ],
       'meta': <String, Object?>{'truncated': false},
+    });
+    final KitchenTicketList list = await client.kitchen.tickets();
+    expect(list.tickets.map((KitchenTicket t) => t.uuid), <String>[
+      'aaaaaaaa-0000-4000-8000-000000000001',
+      'bbbbbbbb-0000-4000-8000-000000000002',
+    ]);
+    expect(list.skipped, hasLength(2));
+    expect(list.skipped.first.index, 1);
+    expect(list.skipped.first.uuid, 'broken-ticket');
+    expect(list.skipped.first.error, isNotNull);
+    expect(list.skipped.last.index, 2);
+    expect(list.skipped.last.uuid, isNull);
+  });
+
+  test('a body that cannot be read at all is an "unexpected response", not a network error', () async {
+    adapter.handler = (RequestOptions o) => json(200, <String, Object?>{
+      'success': true,
+      'message': '',
+      'data': <String, Object?>{'tickets': <Object?>[]},
     });
     await expectLater(
       client.kitchen.tickets(),
       throwsA(
-        isA<ApiException>().having(
-          (ApiException e) => e.message,
-          'message',
-          'Server kutilmagan javob qaytardi.',
-        ),
+        isA<ApiException>()
+            .having((ApiException e) => e.statusCode, 'status', 200)
+            .having(
+              (ApiException e) => e.reason,
+              'reason',
+              ApiException.unexpectedResponse,
+            )
+            .having(
+              (ApiException e) => e.isUnexpectedResponse,
+              'unexpected',
+              isTrue,
+            )
+            .having((ApiException e) => e.isNetworkError, 'network', isFalse)
+            .having(
+              (ApiException e) => e.message,
+              'message',
+              contains("Server javobini o'qib bo'lmadi"),
+            ),
       ),
     );
   });

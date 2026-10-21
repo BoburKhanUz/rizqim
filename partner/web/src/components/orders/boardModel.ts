@@ -1,4 +1,4 @@
-import { getApiErrorMessage, isStaffApiError, statusGroup, type StaffOrder } from '@rizqim/staff';
+import { getApiErrorMessage, getOrderWaiting, isStaffApiError, statusGroup, type StaffOrder, type WaitTone } from '@rizqim/staff';
 import type { MessageKey, Translate } from '@/i18n';
 
 // How the board lays out what the API returns: which column an order sits in (by its status group, the same groups as
@@ -44,23 +44,15 @@ export function groupBoard(active: readonly StaffOrder[], finished: readonly Sta
   return groups;
 }
 
-export type WaitTone = 'calm' | 'warning' | 'late';
+export type { WaitTone } from '@rizqim/staff';
 
-const RUNNING = ['new', 'accepted', 'preparing'];
-
-// How long the order has waited, by the server's rule (`waiting_seconds`, the same as the kitchen display's): from its
-// acceptance (its creation while it is new), counting while it is new or in the kitchen and stopped once it was ready.
-// A running clock ticks on from the server's start time between two refreshes; a stopped one is the server's number.
-// The tone says how worrying that is: a new order should be accepted within minutes, one in the kitchen ready within
-// half an hour (display only; the thresholds are the board's own).
+// How long the order has waited and how worrying that is, by the rule the Mini App's staff screens share
+// (@rizqim/staff getOrderWaiting: the server's `waiting_seconds`, ticking on while the clock runs; the thresholds of
+// WAITING_THRESHOLDS). Finished orders show none.
 export function waitingOf(order: Pick<StaffOrder, 'status' | 'created_at' | 'accepted_at' | 'waiting_seconds'>, now: number): { minutes: number; tone: WaitTone } | null {
   const column = columnOf(order.status);
   if (column === null || column === 'done') return null;
-  const since = time(order.accepted_at ?? order.created_at);
-  const ticking = RUNNING.includes(order.status) && since ? (now - since) / 1000 : 0;
-  const minutes = Math.max(0, Math.floor(Math.max(order.waiting_seconds, ticking) / 60));
-  const [warning, late] = order.status === 'new' ? [5, 10] : [20, 40];
-  return { minutes, tone: minutes >= late ? 'late' : minutes >= warning ? 'warning' : 'calm' };
+  return getOrderWaiting(order, now);
 }
 
 // "Today" for the finished column: the date in the store's time zone (the API counts days there)

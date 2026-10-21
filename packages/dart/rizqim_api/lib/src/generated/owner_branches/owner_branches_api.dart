@@ -46,7 +46,8 @@ abstract class OwnerBranchesApi {
   /// Delete a branch.
   ///
   /// Owner only (settings.manage). Refused (422) for a branch that has orders, or the store's only branch: make it.
-  /// inactive instead.
+  /// inactive instead. P2-33: refused too while staff, unrevoked devices (terminals) or delivery zones are tied to it.
+  /// (they would become store-wide); `data` carries their counts (`staff`, `devices`, `zones`).
   @DELETE('/v1/owner/branches/{id}')
   Future<DeleteV1OwnerBranchesIdResponse> branchDestroy({
     @Path('id') required int id,

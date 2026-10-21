@@ -139,9 +139,13 @@ export function LiveOrdersProvider({ children, connect = defaultConnect, chime: 
 
   const [chime] = useState(() => givenChime ?? createChime());
   const [soundReady, setSoundReady] = useState(() => chime.ready);
+  // The AudioContext goes with the shell (signing out, leaving the panel): browsers allow only a few at a time
+  useEffect(() => () => chime.close(), [chime]);
   useEffect(() => {
-    if (soundReady || !enabled) return;
+    if (!enabled) return;
+    // Every gesture checks: the context may have been closed and must be opened again (a remount)
     const unlock = () => {
+      if (chime.ready) return;
       void chime.unlock().then((ready) => {
         if (ready) setSoundReady(true);
       });
@@ -152,7 +156,7 @@ export function LiveOrdersProvider({ children, connect = defaultConnect, chime: 
       window.removeEventListener('pointerdown', unlock);
       window.removeEventListener('keydown', unlock);
     };
-  }, [chime, soundReady, enabled]);
+  }, [chime, enabled]);
 
   // The uuids already announced, per branch scope (switching branches announces nothing)
   const seen = useRef<{ scope: string; uuids: Set<string> } | null>(null);
@@ -168,9 +172,21 @@ export function LiveOrdersProvider({ children, connect = defaultConnect, chime: 
     if (arrived && !muted) chime.play();
   }, [orders, scopeKey, muted, chime]);
 
+  // "(n) " before the tab title. Next sets the title of each page itself (metadata), possibly after this effect ran: the
+  // observer puts the count back whenever the title changes. Leaving the shell takes the count off.
   useEffect(() => {
-    const base = document.title.replace(/^\(\d+\)\s/, '');
-    document.title = newCount > 0 ? `(${newCount}) ${base}` : base;
+    const strip = (title: string) => title.replace(/^\(\d+\)\s/, '');
+    const apply = () => {
+      const wanted = newCount > 0 ? `(${newCount}) ${strip(document.title)}` : strip(document.title);
+      if (document.title !== wanted) document.title = wanted;
+    };
+    apply();
+    const observer = typeof MutationObserver === 'undefined' ? null : new MutationObserver(apply);
+    observer?.observe(document.head, { subtree: true, childList: true, characterData: true });
+    return () => {
+      observer?.disconnect();
+      document.title = strip(document.title);
+    };
   }, [newCount, pathname]);
 
   const subscribe = useCallback((listener: (event: BoardEvent) => void) => {

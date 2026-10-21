@@ -68,7 +68,7 @@ test('a pickup order goes from new to handed over', async ({ page, api, signIn, 
   await card.getByRole('button', { name: "Tayyor bo'ldi" }).click()
   await expect(card).toHaveAttribute('data-status', 'ready')
   // A pickup order is handed over, not sent with a courier
-  await expect(card.getByRole('button', { name: 'Kuryerni tayinlash' })).toHaveCount(0)
+  await expect(card.getByRole('button', { name: 'Kuryerni biriktirish' })).toHaveCount(0)
 
   await card.getByRole('button', { name: 'Mijozga topshirish' }).click()
   await expect(card).toHaveAttribute('data-status', 'delivered')
@@ -89,8 +89,8 @@ test('a delivery order is given to a courier and delivered', async ({ page, api,
   const card = page.getByRole('article', { name: '#D3' })
   await expect(card.getByText("Yo'lda")).toHaveCount(0)
 
-  await card.getByRole('button', { name: 'Kuryerni tayinlash' }).click()
-  const dialog = page.getByRole('dialog', { name: 'Kuryerni tayinlash' })
+  await card.getByRole('button', { name: 'Kuryerni biriktirish' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Kuryerni biriktirish' })
   await expect(dialog.getByRole('radio')).toHaveCount(1)
   // Nothing is sent until a courier is chosen
   await expect(dialog.getByRole('button', { name: 'Tayinlash' })).toBeDisabled()
@@ -105,7 +105,7 @@ test('a delivery order is given to a courier and delivered', async ({ page, api,
   await expect(card).toHaveAttribute('data-status', 'on_the_way')
   expect(statusRequests(api, order.uuid)).toEqual([{ status: 'on_the_way' }])
 
-  await card.getByRole('button', { name: 'Yetkazilganini tasdiqlash' }).click()
+  await card.getByRole('button', { name: 'Yetkazib berildi' }).click()
   await expect(card).toHaveAttribute('data-status', 'delivered')
   expect(statusRequests(api, order.uuid)).toEqual([{ status: 'on_the_way' }, { status: 'delivered' }])
 })

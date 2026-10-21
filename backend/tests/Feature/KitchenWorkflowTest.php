@@ -202,15 +202,22 @@ class KitchenWorkflowTest extends TestCase
         $this->bump($this->cook, $order, $osh, 'recall')->assertUnprocessable()->assertJsonPath('data.reason', 'kitchen_status');
         $this->assertSame(OrderStatus::DELIVERED, $order->fresh()->status);
 
-        // A delivery order already with a courier: too late as well
+        // A delivery order already with a courier: P2-33 the line comes back, the order stays with the courier
         $delivery = $this->orderWithItems(OrderStatus::ACCEPTED, ['order_type' => 'delivery']);
         foreach ($delivery->items as $item) {
             $this->bump($this->cook, $delivery, $item)->assertOk();
         }
         $this->assertSame(OrderStatus::READY, $delivery->fresh()->status);
         $this->actingAs($this->manager, 'sanctum')->postJson("/api/v1/orders/{$delivery->uuid}/assign-courier", ['courier_id' => $this->courier->id])->assertOk();
-        $this->bump($this->cook, $delivery, $delivery->items->first(), 'recall')->assertUnprocessable()->assertJsonPath('data.reason', 'kitchen_status');
+        $this->bump($this->cook, $delivery, $delivery->items->first(), 'recall')->assertOk()
+            ->assertJsonPath('data.status', 'courier_assigned')->assertJsonPath('data.items_ready', 1);
         $this->assertSame(OrderStatus::COURIER_ASSIGNED, $delivery->fresh()->status);
+
+        // On its way: too late (and the line left with the food)
+        $this->actingAs($this->manager, 'sanctum')->postJson("/api/v1/staff/orders/{$delivery->uuid}/status", ['status' => 'on_the_way'])->assertOk()
+            ->assertJsonPath('data.items_ready', 2);
+        $this->bump($this->cook, $delivery, $delivery->items->first(), 'recall')->assertUnprocessable()->assertJsonPath('data.reason', 'kitchen_status');
+        $this->assertSame(OrderStatus::ON_THE_WAY, $delivery->fresh()->status);
     }
 
     public function test_a_hall_order_stays_preparing_when_every_line_is_ready(): void

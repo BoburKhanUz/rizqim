@@ -122,7 +122,7 @@ function renderForm(path: string) {
         <Routes>
           <Route path="/admin/catalog/create" element={<OwnerProductForm />} />
           <Route path="/admin/catalog/edit/:id" element={<OwnerProductForm />} />
-          <Route path="/admin/catalog" element={<p>Katalog sahifasi</p>} />
+          <Route path="/admin/catalog" element={<p>Menyu sahifasi</p>} />
         </Routes>
         <MainButtonHost />
       </MemoryRouter>
@@ -138,7 +138,7 @@ describe('OwnerProductForm', () => {
     fireEvent.change(screen.getByLabelText(/Kategoriya/), { target: { value: '3' } });
     fireEvent.change(screen.getByPlaceholderText('Masalan: Achchiq lavash'), { target: { value: 'Plov' } });
     fireEvent.change(screen.getByPlaceholderText('0'), { target: { value: '45000' } });
-    fireEvent.click(screen.getByRole('button', { name: /Mahsulotni qo'shish/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Taomni qo'shish/ }));
     await flush();
 
     const [create] = callsTo(calls, '/owner/products', 'POST');
@@ -147,8 +147,8 @@ describe('OwnerProductForm', () => {
     expect(form.get('name')).toBe('Plov');
     expect(form.get('category_id')).toBe('3');
     expect(form.get('is_active')).toBe('1');
-    expect(JSON.parse(form.get('variants') as string)).toEqual([{ id: null, name: '1-chi Porsiya', price: '45000' }]);
-    expect(screen.getByText('Katalog sahifasi')).toBeInTheDocument();
+    expect(JSON.parse(form.get('variants') as string)).toEqual([{ id: null, name: '1 porsiya', price: '45000' }]);
+    expect(screen.getByText('Menyu sahifasi')).toBeInTheDocument();
   });
 
   it('opens a product for editing and saves it with a POST to its own address', async () => {
@@ -174,11 +174,11 @@ describe('OwnerProductForm', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     saveAnswer = reply(422, { success: false, message: 'Rasm juda katta' });
 
-    fireEvent.click(screen.getByRole('button', { name: /Mahsulotni qo'shish/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Taomni qo'shish/ }));
     await flush();
 
     expect(showAlert).toHaveBeenCalledWith('Rasm juda katta');
-    expect(screen.queryByText('Katalog sahifasi')).not.toBeInTheDocument();
+    expect(screen.queryByText('Menyu sahifasi')).not.toBeInTheDocument();
   });
 
   describe('what the web panel edits: unit, weight and modifiers, shown read only', () => {

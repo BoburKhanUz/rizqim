@@ -74,6 +74,11 @@ class TokenService
             }
 
             $device = $current->device;
+            // The answer carries the device's signed-in user (Device::toPublicArray shows it only when loaded): a web
+            // client restoring its session from the refresh cookie learns who is signed in from it
+            if ($device && (int) $device->user_id === (int) $current->user_id && $current->user) {
+                $device->setRelation('user', $current->user);
+            }
             $rightDevice = $device && !$device->isRevoked() && hash_equals($device->uuid, $deviceUuid)
                 && (int) $device->user_id === (int) $current->user_id;
 

@@ -199,7 +199,7 @@ describe('ManagerDashboard: open orders and the archive', () => {
     useAuthStore.getState().setAuth('token', makeUser({ role: 'manager', name: 'Menejer Bobur' }), makeStore(), false);
   });
 
-  const archiveTab = () => screen.getByRole('button', { name: /Yakunlanganlar/ });
+  const archiveTab = () => screen.getByRole('button', { name: /Yakunlangan/ });
 
   it('reads only the open orders at first and the archive when its tab is opened', async () => {
     serveOrders([

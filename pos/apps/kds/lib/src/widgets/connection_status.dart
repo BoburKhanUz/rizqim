@@ -4,7 +4,8 @@ import 'package:rizqim_ui/rizqim_ui.dart';
 
 import '../realtime/branch_realtime.dart';
 
-/// Yuqori paneldagi real-time belgisi: "Jonli", "Qayta ulanmoqda" yoki (real-time sozlanmagan) "Har 15 s".
+/// Yuqori paneldagi real-time belgisi: "Jonli" (ulangan va kanal obunasi tasdiqlangan), "Ulanmoqda", "Qayta ulanmoqda"
+/// yoki "Har 15 soniyada" (real-time sozlanmagan yoki kanal obunasi rad etilgan: ekran polling bilan ishlaydi).
 class ConnectionStatus extends StatelessWidget {
   const ConnectionStatus({
     super.key,
@@ -22,18 +23,49 @@ class ConnectionStatus extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final BranchRealtime? rt = realtime;
-    if (rt == null) return _chip(context, RealtimeStatus.idle, polling: true);
-    return ValueListenableBuilder<RealtimeStatus>(
-      valueListenable: rt.status,
-      builder: (BuildContext context, RealtimeStatus s, _) => _chip(context, s),
+    if (rt == null) {
+      return _chip(
+        context,
+        RealtimeStatus.idle,
+        polling: true,
+        tooltip:
+            "Real-time sozlanmagan: chiptalar har $pollSeconds soniyada yangilanadi",
+      );
+    }
+    return ListenableBuilder(
+      listenable: rt.changes,
+      builder: (BuildContext context, _) {
+        if (rt.subscriptionFailed) {
+          return _chip(
+            context,
+            rt.status.value,
+            polling: true,
+            tooltip:
+                "Real-time kanaliga ulanib bo'lmadi (qayta urinilmoqda): chiptalar har $pollSeconds soniyada yangilanadi",
+          );
+        }
+        return _chip(context, rt.status.value, live: rt.isLive);
+      },
     );
   }
 
-  Widget _chip(BuildContext context, RealtimeStatus s, {bool polling = false}) {
+  Widget _chip(
+    BuildContext context,
+    RealtimeStatus s, {
+    bool polling = false,
+    bool live = false,
+    String? tooltip,
+  }) {
     final RzColors c = context.rz;
     final (IconData icon, Color color, String label) = polling
         ? (Icons.sync_rounded, c.fgMuted, 'Har $pollSeconds soniyada')
         : switch (s) {
+            // Ulangan, obuna hali tasdiqlanmagan
+            RealtimeStatus.connected when !live => (
+              Icons.sync_rounded,
+              c.fgMuted,
+              'Ulanmoqda',
+            ),
             RealtimeStatus.connected => (
               Icons.sensors_rounded,
               c.successSoftFg,
@@ -51,9 +83,7 @@ class ConnectionStatus extends StatelessWidget {
             ),
           };
     return Tooltip(
-      message: polling
-          ? "Real-time sozlanmagan: chiptalar har $pollSeconds soniyada yangilanadi"
-          : 'Real-time: $label',
+      message: tooltip ?? 'Real-time: $label',
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[

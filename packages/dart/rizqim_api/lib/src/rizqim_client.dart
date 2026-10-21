@@ -46,7 +46,7 @@ class RizqimClient {
   RizqimClient._(this.dio, this.auth, DateTime Function()? clock)
     : api = RizqimApi(dio),
       channelAuth = ChannelAuth(dio) {
-    kitchen = KitchenService(api, clock: clock);
+    kitchen = KitchenService(api, dio, clock: clock);
   }
 
   final Dio dio;

@@ -13,13 +13,16 @@ import { formatMoney } from '../lib/format';
 import { Button, CardSkeletons, EmptyState, IconButton, InlineError, PageHeader, cx, fieldClass, ProductImage } from '../components/ui';
 import { Pill } from '../components/staff/Pill';
 import { Switch } from '../components/staff/Switch';
+import { useLanguageStore } from '../store/languageStore';
 
+// The owner's menu on the phone: the dishes, on sale or not, and a quick edit (the full editor is the partner web's)
 export default function OwnerMenuManagement() {
   const navigate = useNavigate();
+  const { t } = useLanguageStore();
 
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0); // bumped by \"Qayta urinish\" after a failed load
   const [search, setSearch] = useState('');
 
@@ -30,11 +33,11 @@ export default function OwnerMenuManagement() {
         const list = await fetchOwnerProducts(staffApi);
         if (cancelled) return;
         setProducts(list);
-        setError(null);
+        setError(false);
       } catch (err) {
         if (cancelled) return;
         logApiError('Failed to load products:', err);
-        setError('Mahsulotlarni yuklashda xatolik yuz berdi');
+        setError(true);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -59,9 +62,9 @@ export default function OwnerMenuManagement() {
   };
 
   const deleteProduct = async (product: Product) => {
-    const confirmed = await showConfirm(`"${product.name}" mahsuloti o'chiriladi. Buni qaytarib bo'lmaydi.`, {
-      title: "Mahsulotni o'chirish",
-      confirmText: "O'chirish",
+    const confirmed = await showConfirm(t('ownerMenu_deleteText', { name: product.name }), {
+      title: t('ownerMenu_deleteTitle'),
+      confirmText: t('ownerMenu_delete'),
       destructive: true,
     });
     if (!confirmed) return;
@@ -72,7 +75,7 @@ export default function OwnerMenuManagement() {
       setProducts(prev => prev.filter(p => p.id !== product.id));
       notificationOccurred('success');
     } catch {
-      void showAlert("O'chirishda xatolik yuz berdi");
+      void showAlert(t('ownerMenu_deleteFailed'));
       notificationOccurred('error');
     }
   };
@@ -83,19 +86,19 @@ export default function OwnerMenuManagement() {
   if (loading && products.length === 0) {
     return (
       <div className="flex flex-col gap-4 px-4 pt-2">
-        <PageHeader title="Katalog" />
-        <CardSkeletons count={3} lines={3} label="Menyu yuklanmoqda" />
+        <PageHeader title={t('ownerMenu_title')} />
+        <CardSkeletons count={3} lines={3} label={t('ownerMenu_loading')} />
       </div>
     );
   }
   if (error) {
     return (
       <div className="flex flex-col gap-4 px-4 pt-2">
-        <PageHeader title="Katalog" />
+        <PageHeader title={t('ownerMenu_title')} />
         <InlineError
           onRetry={() => {
             setLoading(true);
-            setError(null);
+            setError(false);
             setReloadKey((key) => key + 1);
           }}
         />
@@ -111,25 +114,25 @@ export default function OwnerMenuManagement() {
   return (
     <div className="flex flex-col gap-4 px-4 pt-2 animate-fade-in">
       <PageHeader
-        title="Katalog"
-        subtitle={`Jami ${products.length} ta mahsulot`}
+        title={t('ownerMenu_title')}
+        subtitle={t('ownerMenu_count', { n: products.length })}
         action={
           <Button icon={Plus} onClick={addProduct}>
-            Qo'shish
+            {t('ownerMenu_add')}
           </Button>
         }
       />
 
       <Button variant="secondary" icon={PackageX} onClick={() => navigate('/admin/stoplist')} fullWidth>
-        Stop-list va qozon
+        {t('ownerMenu_stoplist')}
       </Button>
 
       <div className="relative">
         <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 size-5 -translate-y-1/2 text-fg-muted" />
         <input
           type="search"
-          aria-label="Mahsulot qidirish"
-          placeholder="Mahsulot qidirish"
+          aria-label={t('ownerMenu_search')}
+          placeholder={t('ownerMenu_search')}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className={cx(fieldClass, 'bg-surface pl-10')}
@@ -160,25 +163,26 @@ export default function OwnerMenuManagement() {
                 >
                   <span className="line-clamp-2 text-body font-bold text-fg">{product.name}</span>
                   <span className="flex flex-wrap items-center gap-1.5">
-                    <Pill tone="brand">{product.category?.name || 'Kategoriyasiz'}</Pill>
-                    {!active && <Pill tone="danger">Nofaol</Pill>}
-                    {variants.some((v) => isMeasuredUnit(v.unit as MenuUnit)) && <Pill>Vazn bo'yicha</Pill>}
+                    <Pill tone="brand">{product.category?.name || t('ownerMenu_noCategory')}</Pill>
+                    {!active && <Pill tone="danger">{t('ownerMenu_inactive')}</Pill>}
+                    {variants.some((v) => isMeasuredUnit(v.unit as MenuUnit)) && <Pill>{t('ownerMenu_byWeight')}</Pill>}
                   </span>
                   <span className="mt-auto text-footnote text-fg-muted">
                     {/* "25 000 so'mdan": from the cheapest of several variants */}
-                    <span className="text-body font-bold text-brand">{formatMoney(startingPrice)}</span>
-                    {variants.length > 1 && 'dan'}
+                    <span className="text-body font-bold text-brand">
+                      {variants.length > 1 ? t('ownerMenu_priceFrom', { price: formatMoney(startingPrice) }) : formatMoney(startingPrice)}
+                    </span>
                   </span>
                 </button>
               </div>
 
               {/* Actions: on/off, edit, and delete kept apart from edit so one is not tapped for the other */}
               <div className="flex items-center gap-2 border-t border-line pl-3 pr-1">
-                <span className="text-footnote font-medium text-fg-muted">Sotuvda</span>
-                <Switch checked={active} onChange={() => toggleActive(product.id)} label={`Sotuvda: ${product.name}`} />
+                <span className="text-footnote font-medium text-fg-muted">{t('ownerMenu_onSale')}</span>
+                <Switch checked={active} onChange={() => toggleActive(product.id)} label={t('ownerMenu_onSaleOf', { name: product.name })} />
                 <span className="flex-1" />
-                <IconButton icon={Pencil} variant="surface" label={`${product.name}: tahrirlash`} onClick={edit} />
-                <IconButton icon={Trash2} variant="danger" label={`${product.name}: o'chirish`} onClick={() => deleteProduct(product)} className="ml-4" />
+                <IconButton icon={Pencil} variant="surface" label={t('ownerMenu_editOf', { name: product.name })} onClick={edit} />
+                <IconButton icon={Trash2} variant="danger" label={t('ownerMenu_deleteOf', { name: product.name })} onClick={() => deleteProduct(product)} className="ml-4" />
               </div>
             </li>
           );
@@ -189,16 +193,16 @@ export default function OwnerMenuManagement() {
         (products.length === 0 ? (
           <EmptyState
             icon={PackageOpen}
-            title="Katalog bo'sh"
-            text="Birinchi mahsulotni qo'shing: u mijozlarga shu zahoti ko'rinadi."
+            title={t('ownerMenu_emptyTitle')}
+            text={t('ownerMenu_emptyText')}
             action={
               <Button icon={Plus} onClick={addProduct}>
-                Mahsulot qo'shish
+                {t('ownerMenu_addFirst')}
               </Button>
             }
           />
         ) : (
-          <EmptyState icon={SearchX} title="Hech narsa topilmadi" text="Boshqa so'z bilan qidirib ko'ring." />
+          <EmptyState icon={SearchX} title={t('ownerMenu_nothingFound')} text={t('ownerMenu_nothingFoundText')} />
         ))}
     </div>
   );

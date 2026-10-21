@@ -14,6 +14,7 @@ import {
   type PayoutsPage,
   type PayoutsQuery,
   type ReportDownload,
+  type ReportPeriodQuery,
   type ReportDownloadQuery,
   type SalesReport,
   type SalesReportQuery,
@@ -37,11 +38,20 @@ export const reportKeys = {
   payments: (query: PaymentsQuery) => ['owner', 'finance-history', 'payments', query] as const,
 };
 
+// While another period of the same branch loads, the previous figures stay on screen (dimmed by the page); another
+// branch's figures never do: they would show under the new branch's name.
+function sameBranchPlaceholder<T>(query: ReportPeriodQuery | null) {
+  return (previous: T | undefined, previousQuery: { queryKey: readonly unknown[] } | undefined): T | undefined => {
+    const before = previousQuery?.queryKey[3] as ReportPeriodQuery | undefined;
+    return before && (before.branch_id ?? null) === (query?.branch_id ?? null) ? previous : undefined;
+  };
+}
+
 // A report of a period. Pass `null` while the period is not known or not valid: nothing is requested.
 export function useSalesReport(query: SalesReportQuery | null, options: QueryExtras<SalesReport> = {}) {
   const api = useStaffApi();
   return useQuery({
-    placeholderData: keepPreviousData,
+    placeholderData: sameBranchPlaceholder<SalesReport>(query),
     ...options,
     enabled: query !== null && options.enabled !== false,
     queryKey: reportKeys.sales(query ?? { from: '', to: '' }),
@@ -52,7 +62,7 @@ export function useSalesReport(query: SalesReportQuery | null, options: QueryExt
 export function useTopProducts(query: TopProductsQuery | null, options: QueryExtras<TopProductsReport> = {}) {
   const api = useStaffApi();
   return useQuery({
-    placeholderData: keepPreviousData,
+    placeholderData: sameBranchPlaceholder<TopProductsReport>(query),
     ...options,
     enabled: query !== null && options.enabled !== false,
     queryKey: reportKeys.topProducts(query ?? { from: '', to: '' }),

@@ -41,23 +41,111 @@ class KdsServices {
 }
 
 /// Oshxona ekrani ilovasi: ulanmagan — ulash, ulangan — PIN, PIN bilan kirilgan — doska. Standart mavzu qorong'i.
-class KdsApp extends StatelessWidget {
+class KdsApp extends StatefulWidget {
   const KdsApp({super.key, required this.services});
 
   final KdsServices services;
 
   @override
+  State<KdsApp> createState() => _KdsAppState();
+}
+
+class _KdsAppState extends State<KdsApp> {
+  final GlobalKey<NavigatorState> _navigator = GlobalKey<NavigatorState>();
+
+  @override
   Widget build(BuildContext context) {
+    final KdsServices services = widget.services;
     return ValueListenableBuilder<KdsSettings>(
       valueListenable: services.settings,
       builder: (BuildContext context, KdsSettings s, _) => MaterialApp(
         title: 'Oshxona ekrani',
         debugShowCheckedModeBanner: false,
+        navigatorKey: _navigator,
         theme: kdsTheme(RzTheme.light()),
         darkTheme: kdsTheme(RzTheme.dark()),
         themeMode: s.dark ? ThemeMode.dark : ThemeMode.light,
+        // Navigator'dan yuqorida: dialoglardagi teginish ham hisoblanadi, chiqishda dialoglar yopiladi
+        builder: (BuildContext context, Widget? child) => StaffIdleScope(
+          auth: services.client.auth,
+          navigator: _navigator,
+          idleTimeout: s.idleTimeout,
+          child: child ?? const SizedBox.shrink(),
+        ),
         home: AuthGate(services: services),
       ),
+    );
+  }
+}
+
+/// Xodim kirgan paytda harakatsizlikda avtomatik chiqaradi ([RzIdleDetector] butun ilova ustida, dialoglar ham ichida)
+/// va xodim chiqqanda (qo'lda, harakatsizlik, server sessiyani yopdi) yoki terminal uzilganda ochiq dialoglarni yopadi:
+/// PIN ekrani ustida oldingi xodimning oynasi qolmasin.
+class StaffIdleScope extends StatefulWidget {
+  const StaffIdleScope({
+    super.key,
+    required this.auth,
+    required this.navigator,
+    required this.idleTimeout,
+    required this.child,
+  });
+
+  final AuthSession auth;
+  final GlobalKey<NavigatorState> navigator;
+  final Duration? idleTimeout;
+  final Widget child;
+
+  @override
+  State<StaffIdleScope> createState() => _StaffIdleScopeState();
+}
+
+class _StaffIdleScopeState extends State<StaffIdleScope> {
+  late StreamSubscription<AuthEvent> _subscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _subscription = widget.auth.events.listen(_onAuth);
+  }
+
+  @override
+  void didUpdateWidget(StaffIdleScope oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.auth, widget.auth)) {
+      unawaited(_subscription.cancel());
+      _subscription = widget.auth.events.listen(_onAuth);
+    }
+  }
+
+  @override
+  void dispose() {
+    unawaited(_subscription.cancel());
+    super.dispose();
+  }
+
+  void _onAuth(AuthEvent e) {
+    switch (e.kind) {
+      case AuthEventKind.staffSignedOut ||
+          AuthEventKind.terminalRevoked ||
+          AuthEventKind.terminalForgotten:
+        widget.navigator.currentState?.popUntil(
+          (Route<dynamic> r) => r.isFirst,
+        );
+      case AuthEventKind.staffSignedIn:
+        break;
+      default:
+        return;
+    }
+    if (mounted) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bool signedIn = widget.auth.staff != null;
+    return RzIdleDetector(
+      timeout: signedIn ? widget.idleTimeout : null,
+      onIdle: () => unawaited(widget.auth.signOutStaff(reason: 'idle')),
+      child: widget.child,
     );
   }
 }
@@ -231,7 +319,6 @@ class _TerminalHomeState extends State<TerminalHome> {
     return StaffSignInScreen(
       auth: _auth,
       terminal: widget.terminal,
-      settings: _s.settings,
       realtime: _realtime,
       notice: _notice,
       waitingTickets: _waiting,

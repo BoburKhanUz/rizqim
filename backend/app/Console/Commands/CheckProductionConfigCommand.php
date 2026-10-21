@@ -114,7 +114,8 @@ class CheckProductionConfigCommand extends Command
         }
 
         if (in_array('*', (array) config('reverb.apps.apps.0.allowed_origins', []), true)) {
-            $this->warn('OGOHLANTIRISH: REVERB_ALLOWED_ORIGINS=* — WebSocket istalgan saytdan ochiladi; Mini App domenini yozing (masalan, mini.example.uz).');
+            // P2-33: every screen that opens the socket (docs/DEPLOY.md §9)
+            $this->warn('OGOHLANTIRISH: REVERB_ALLOWED_ORIGINS=* — WebSocket istalgan saytdan ochiladi. Vergul bilan WebSocket ochadigan hamma hostlarni yozing: Mini App hosti (<domen>), hamkor paneli (panel.<domen>) va oshxona ekrani (KDS) uchun API hosti (RIZQIM_API_URL xosti, Mini App hosti bilan bir xil bo\'lsa shart emas), masalan: example.uz,panel.example.uz (docs/DEPLOY.md, 9-bo\'lim).');
         }
 
         return $problems;

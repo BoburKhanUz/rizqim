@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { WAITING_THRESHOLDS } from '@rizqim/staff';
 import { makeStaffItem, makeStaffOrder } from '../test/staffOrdersApi';
 import {
   formatWaiting,
@@ -10,8 +11,6 @@ import {
   toOrderRef,
   waitingMinutes,
   waitingTone,
-  WAITING_DANGER_MINUTES,
-  WAITING_WARNING_MINUTES,
 } from './staffOrders';
 
 const NOW = Date.parse('2026-10-14T10:00:00.000Z');
@@ -61,6 +60,10 @@ describe('waitingMinutes', () => {
     expect(waitingMinutes({ status: 'new', accepted_at: null, created_at: ago(3) }, NOW)).toBe(3);
   });
 
+  it('takes the server\'s waiting_seconds when it is ahead of the local clock', () => {
+    expect(waitingMinutes({ status: 'preparing', accepted_at: ago(2), created_at: ago(20), waiting_seconds: 9 * 60 }, NOW)).toBe(9);
+  });
+
   it('is whole minutes and never negative', () => {
     expect(waitingMinutes({ status: 'accepted', accepted_at: new Date(NOW - 119_000).toISOString(), created_at: ago(5) }, NOW)).toBe(1);
     expect(waitingMinutes({ status: 'accepted', accepted_at: new Date(NOW + 60_000).toISOString(), created_at: ago(5) }, NOW)).toBe(0);
@@ -77,12 +80,14 @@ describe('waitingMinutes', () => {
 });
 
 describe('waitingTone', () => {
-  it('is calm, then warning, then danger', () => {
-    expect(waitingTone(0)).toBe('neutral');
-    expect(waitingTone(WAITING_WARNING_MINUTES - 1)).toBe('neutral');
-    expect(waitingTone(WAITING_WARNING_MINUTES)).toBe('warning');
-    expect(waitingTone(WAITING_DANGER_MINUTES - 1)).toBe('warning');
-    expect(waitingTone(WAITING_DANGER_MINUTES)).toBe('danger');
+  it('is calm, then warning, then danger, sooner for a new order than for one in the kitchen (the web board\'s thresholds)', () => {
+    expect([0, 4, 5, 9, 10].map((minutes) => waitingTone(minutes, 'new'))).toEqual(['neutral', 'neutral', 'warning', 'warning', 'danger']);
+    expect([0, WAITING_THRESHOLDS.kitchen.warning - 1, WAITING_THRESHOLDS.kitchen.warning, WAITING_THRESHOLDS.kitchen.late].map((minutes) => waitingTone(minutes, 'preparing'))).toEqual([
+      'neutral',
+      'neutral',
+      'warning',
+      'danger',
+    ]);
   });
 });
 

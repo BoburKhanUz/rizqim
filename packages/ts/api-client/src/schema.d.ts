@@ -754,7 +754,7 @@ export interface paths {
          * Sales figures of the owner's store (a branch manager's branch) for a period, computed on the server:
          *     revenue, order counts, average check, by payment method and order type, best sellers, couriers, average
          *     kitchen and delivery times, and a daily series for charts
-         * @description `period` is today|week|month|year (the last 1/7/30/365 Asia/Tashkent calendar days) or custom with `from` and `to`
+         * @description `period` is today|week|month|year (the last 1/7/30/365 calendar days of the store's time zone, P2-33) or custom with `from` and `to`
          *     (YYYY-MM-DD, at most 93 days). Orders count by the day they were created; `revenue` is the total of the delivered
          *     ones. All money is a number in UZS (two decimals at most). Cached for 60 s per store/branch and period.
          */
@@ -921,7 +921,8 @@ export interface paths {
         /**
          * Delete a branch
          * @description Owner only (settings.manage). Refused (422) for a branch that has orders, or the store's only branch: make it
-         *     inactive instead.
+         *     inactive instead. P2-33: refused too while staff, unrevoked devices (terminals) or delivery zones are tied to it
+         *     (they would become store-wide); `data` carries their counts (`staff`, `devices`, `zones`).
          */
         delete: operations["branch.destroy"];
         options?: never;
@@ -1892,7 +1893,9 @@ export interface paths {
         /**
          * Kitchen display tickets
          * @description The orders the kitchen is cooking (accepted and preparing; with `include_ready=1` also the ready ones not yet
-         *     handed over), oldest first, at most 200 (`meta.truncated`). Each ticket: lines with modifiers and
+         *     handed over), oldest first, at most 200 (`meta.truncated`). P2-33: also an order a courier was assigned to while
+         *     it was cooking (courier_assigned) as long as a line is still pending; with `include_ready=1` every
+         *     courier_assigned order (the courier has not picked it up yet). Each ticket: lines with modifiers and
          *     quantities/weights, each line's kitchen state, the notes (phone numbers masked), when it came in and was
          *     accepted, and `waiting_seconds`. No customer data, no prices. Needs kitchen.manage or orders.view.
          */
@@ -1965,8 +1968,9 @@ export interface paths {
          * Bump a line ready (kitchen display)
          * @description The line is ready (kitchen.manage). The first bump of an accepted order starts it (preparing). When every line is
          *     ready a delivery or pickup order becomes ready by itself; a hall order (dine_in) stays preparing until it is
-         *     closed. 422 when the order is not in the kitchen (new, ready, on its way, finished). Bumping a ready line again
-         *     answers 200 unchanged. Returns the ticket.
+         *     closed. P2-33: a courier_assigned order (a courier was assigned while it was cooking) takes bumps too, with no
+         *     status move. 422 when the order is not in the kitchen (new, ready, on its way, finished). Bumping a ready line
+         *     again answers 200 unchanged. Returns the ticket.
          */
         post: operations["staffOrder.bumpItem"];
         delete?: never;
@@ -1988,8 +1992,8 @@ export interface paths {
          * Recall a line (kitchen display)
          * @description Undo a mistaken bump: the line is back to pending (kitchen.manage). While the order is accepted or preparing,
          *     and (P2-30) while it is ready but not yet with a courier or handed over: the order goes back to preparing
-         *     (`order.status_changed` and the history say so). 422 once a courier is assigned, it is on its way or finished.
-         *     Returns the ticket.
+         *     (`order.status_changed` and the history say so). P2-33: while a courier is assigned (courier_assigned) the line
+         *     is recalled with no status move. 422 once it is on its way or finished. Returns the ticket.
          */
         post: operations["staffOrder.recallItem"];
         delete?: never;
@@ -2175,7 +2179,14 @@ export interface paths {
         get: operations["terminal.show"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Unpair this terminal (P2-33)
+         * @description The terminal revokes itself with its own token (`auth:device`), e.g. before the kitchen display forgets its
+         *     pairing: the same as the owner's `POST /owner/devices/{uuid}/revoke` — the device is revoked, its token and every
+         *     staff PIN session on it stop working at once, and the audit log records `device.revoked` (`self_revoked: true`).
+         *     Pairing again needs a new code. Calling it again with the old token: 401.
+         */
+        delete: operations["terminal.destroy"];
         options?: never;
         head?: never;
         patch?: never;
@@ -10455,6 +10466,30 @@ export interface operations {
                                 name: string;
                             }[];
                         };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "terminal.destroy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: null;
                     };
                 };
             };

@@ -118,4 +118,27 @@ class PayoutCardMaskingTest extends TestCase
         // Another store's owner sees their own store
         $this->as($this->foreignOwner, 'GET', '/api/v1/owner/finance')->assertOk()->assertJsonPath('data.wallet_balance', 0)->assertJsonCount(0, 'data.payout_requests');
     }
+
+    /**
+     * P2-33: card numbers typed with dots, several spaces, tabs or no-break spaces between the groups are masked too.
+     */
+    public function test_card_numbers_in_notes_are_masked_whatever_separates_their_digits(): void
+    {
+        $cases = [
+            'Karta: 8600.1234.5678.9012' => 'Karta: 8600 **** **** 9012',
+            'Karta: 8600  1234  5678  9012 (asosiy)' => 'Karta: 8600 **** **** 9012 (asosiy)',
+            "Karta: 8600\t1234\t5678\t9012" => 'Karta: 8600 **** **** 9012',
+            "Karta: 8600\u{00A0}1234\u{00A0}5678\u{00A0}9012" => 'Karta: 8600 **** **** 9012',
+            'Karta: 8600 - 1234 - 5678 - 9012' => 'Karta: 8600 **** **** 9012',
+            'Karta: 8600_1234_5678_9012' => 'Karta: 8600 **** **** 9012',
+            'Karta:8600123456789012.' => 'Karta:8600 **** **** 9012.',
+            // Not cards: a phone number, a sum, a date
+            'Tel +998901234567, 1 500 000 so\'m, 21.10.2026' => 'Tel +998901234567, 1 500 000 so\'m, 21.10.2026',
+        ];
+
+        foreach ($cases as $note => $masked) {
+            $this->assertSame($masked, \App\Support\PayoutView::maskCardsIn($note), $note);
+        }
+        $this->assertNull(\App\Support\PayoutView::maskCardsIn(null));
+    }
 }

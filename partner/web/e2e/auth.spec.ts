@@ -1,4 +1,6 @@
 import { expect, OWNER, test, type Account } from './fixtures'
+import { FakeReverb } from './fake/reverb'
+import { FAKE_URL, WEB_URL } from './ports'
 
 // Signing in by SMS code (and what the server says when it refuses), the choice of account when a phone holds several, and
 // signing out. The Next server's session handlers run for real (/api/session/*) and call the fake backend.
@@ -114,4 +116,55 @@ test('a refused session (an expired refresh token) sends the browser to the sign
   await page.goto('/orders')
   await expect(page).toHaveURL(/\/login/)
   expect(api.callsTo('POST', '/v1/auth/refresh')[0].status).toBe(401)
+})
+
+test('two tabs share one session: a refresh in one does not sign the other out or start a refresh ping-pong', async ({ page, context, api, signIn, reverb }) => {
+  void reverb
+  await signIn()
+  await page.goto('/menu')
+  await expect(page.getByRole('heading', { name: 'Menyu', level: 1 })).toBeVisible()
+
+  // The second tab of the same browser (the same device): it takes the first tab's session instead of rotating it
+  const second = await context.newPage()
+  await second.route((url) => url.origin !== new URL(WEB_URL).origin && url.origin !== FAKE_URL, (route) => route.fulfill({ status: 204 }))
+  await new FakeReverb().install(second)
+  await second.goto('/reports')
+  await expect(second.getByRole('heading', { name: 'Hisobotlar', level: 1 })).toBeVisible()
+  expect(api.callsTo('POST', '/v1/auth/refresh')).toHaveLength(1)
+
+  // The access token runs out; the second tab renews the session and the first adopts it (the backend keeps one live
+  // access token per device: had the first tab kept its own, every request of it would now be a 401 and a new refresh)
+  api.expireAccessTokens()
+  await second.getByRole('link', { name: 'Stop-list' }).first().click()
+  await expect(second.getByRole('heading', { name: 'Stop-list', level: 1 })).toBeVisible()
+  await expect.poll(() => api.callsTo('POST', '/v1/auth/refresh').length).toBe(2)
+
+  for (const [name, heading] of [['Xodimlar', 'Xodimlar'], ['Hisobotlar', 'Hisobotlar'], ['Menyu', 'Menyu']]) {
+    await page.getByRole('link', { name }).first().click()
+    await expect(page.getByRole('heading', { name: heading, level: 1 })).toBeVisible()
+  }
+  await second.getByRole('link', { name: 'Menyu' }).first().click()
+  await expect(second.getByRole('heading', { name: 'Menyu', level: 1 })).toBeVisible()
+
+  expect(api.callsTo('POST', '/v1/auth/refresh')).toHaveLength(2)
+  expect(api.callsTo('POST', '/v1/auth/refresh').every((call) => call.status === 200)).toBe(true)
+  await expect(page).not.toHaveURL(/\/login/)
+  await expect(second).not.toHaveURL(/\/login/)
+  await second.close()
+})
+
+test('signing out of a tab left idle past its access token still ends the backend session', async ({ page, api, signIn }) => {
+  await signIn()
+  await page.goto('/menu')
+  await expect(page.getByRole('heading', { name: 'Menyu', level: 1 })).toBeVisible()
+  expect(api.liveRefreshTokens()).toBe(1)
+
+  // The tab's access token is no longer accepted (it sat idle; another tab renewed the session)
+  api.expireAccessTokens()
+  await page.getByRole('button', { name: 'Chiqish' }).first().click()
+  await expect(page).toHaveURL(/\/login/)
+
+  // The server traded the refresh cookie for a fresh token and signed out with it: nothing of the session is left
+  expect(api.callsTo('POST', '/v1/auth/logout').map((call) => call.status).at(-1)).toBe(200)
+  expect(api.liveRefreshTokens()).toBe(0)
 })

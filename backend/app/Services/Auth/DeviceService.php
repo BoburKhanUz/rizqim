@@ -133,22 +133,25 @@ class DeviceService
 
     /**
      * Revoke a device: everything bound to it stops working at once. Audited for store devices (terminals, staff apps).
+     * P2-33: `$self` — the terminal revoked itself (DELETE /terminal): audited with `self_revoked` and the terminal as
+     * the actor's device.
      */
-    public function revoke(Device $device, ?User $actor): void
+    public function revoke(Device $device, ?User $actor, bool $self = false): void
     {
         if ($device->isRevoked()) {
             return;
         }
 
-        DB::transaction(function () use ($device, $actor) {
+        DB::transaction(function () use ($device, $actor, $self) {
             $device->forceFill(['revoked_at' => now(), 'revoked_by' => $actor?->id, 'push_token' => null])->save();
             $this->tokens->revokeDevice($device);
 
             if ($device->store_id !== null) {
-                $this->audit->record('device.revoked', $device, [], [], [
+                $this->audit->record('device.revoked', $device, [], [], array_filter([
                     'type' => $device->type->value,
                     'name' => $device->name,
-                ], ['actor' => $actor]);
+                    'self_revoked' => $self ?: null,
+                ], fn ($value) => $value !== null), ['actor' => $actor] + ($self ? ['device' => $device] : []));
             }
         });
     }
