@@ -1,8 +1,7 @@
 # 3-bosqich: POS (kassa) — ish tartibi
 
-Holati: **qoralama, egasi ko'rib chiqishi uchun (21.10.2026).** Birinchi format — **choyxona** (egasi qarori).
-Tasdiqlangach "tasdiqlangan" deb belgilanadi va ishlar shu hujjat bo'yicha boradi; o'zgarish bo'lsa, avval shu yerda
-yangilanadi.
+Holati: **tasdiqlangan (21.10.2026).** Birinchi format — **choyxona** (egasi qarori).
+Ishlar shu hujjat bo'yicha boradi; o'zgarish bo'lsa, avval shu yerda yangilanadi.
 
 Har bir ishning kodi bor (masalan, `P3-21`). Hisobotlar, commit xabarlari va PR'larda shu kod ishlatiladi.
 
