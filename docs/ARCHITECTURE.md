@@ -3,7 +3,8 @@
 Bu hujjat butun platformani bir joyda ko'rsatadi: qaysi ilova nima qiladi, ular qanday bog'langan, ma'lumotlar qanday
 saqlanadi va tizim qanday ishga tushadi. Tafsilotlar alohida hujjatlarda, bu yerda faqat umumiy rasm va havolalar.
 
-Holati: 1-bosqich tugagan, 2-bosqich davom etmoqda (oktabr 2026). Kod qanday bo'lsa, shunday yozilgan.
+Holati: 1 va 2-bosqichlar tugagan, 3-bosqich (POS, birinchi format — choyxona) boshlandi (oktabr 2026). Kod qanday
+bo'lsa, shunday yozilgan; 3-bosqichda quriladigan qismlar "3-bosqich" deb belgilangan (4.1-bo'lim).
 
 | Mavzu | Batafsil hujjat |
 |---|---|
@@ -16,7 +17,7 @@ Holati: 1-bosqich tugagan, 2-bosqich davom etmoqda (oktabr 2026). Kod qanday bo'
 | Push xabarlar | [PUSH.md](PUSH.md) |
 | Deploy, ekspluatatsiya | [DEPLOY.md](DEPLOY.md), [OPERATIONS.md](OPERATIONS.md) |
 | Dizayn tizimi | [DESIGN.md](DESIGN.md) |
-| POS spetsifikatsiyasi (qoralama) | [POS_SPEC.md](POS_SPEC.md) |
+| POS spetsifikatsiyasi va 3-bosqich rejasi | [POS_SPEC.md](POS_SPEC.md), [PHASE3_PLAN.md](PHASE3_PLAN.md) |
 
 ## 1. Asosiy tamoyillar
 
@@ -49,7 +50,7 @@ rizqim/
 │   ├── apps/cashier/      Flutter: kassa                                                  3-bosqich
 │   ├── apps/waiter/       Flutter: ofitsiant                                              3-bosqich
 │   ├── apps/customer_display/  Flutter: mijozga qaragan ekran                             3-bosqich
-│   └── packages/          pos_core, pos_sync, pos_hardware, pos_fiscal, pos_ui            3-bosqich (reja)
+│   └── packages/          pos_core, pos_hardware, pos_ui; keyin pos_sync                 3-bosqich
 ├── packages/
 │   ├── api-spec/          openapi.json — koddan yaratilgan API spetsifikatsiyasi
 │   ├── ts/api-client/     @rizqim/api-client — OpenAPI'dan TypeScript turlari + fetch klient
@@ -74,7 +75,7 @@ marta). Yangi Flutter ilovalar shu ro'yxatga qo'shiladi.
 | Hamkor veb-paneli (`partner/web`) | ega, menejer | telefon + SMS kod | skelet: xodimlar SMS bilan kiradi (bir nechta do'kon bo'lsa akkaunt tanlanadi), docker-compose'da `panel.<domen>`. To'liq ekranlar 2-bosqichda ([PHASE2_PLAN.md](PHASE2_PLAN.md)) |
 | Oshxona ekrani (`pos/apps/kds`) | oshpaz | terminal ulash kodi, keyin PIN | skelet: ulash ekrani va bo'sh ro'yxat |
 | Telegram bot | mijoz, xodimlar | webhook | ishlayapti: `/start` havolalari, buyurtma kartochkalari va tugmalari |
-| Kassa, ofitsiant, mijoz ekrani | kassir, ofitsiant | terminal + PIN | hali yo'q, [POS_SPEC.md](POS_SPEC.md) |
+| Kassa, ofitsiant (`pos/apps/cashier`, `waiter`) | kassir, ofitsiant | terminal + PIN | 3-bosqichda quriladi (choyxona birinchi), [POS_SPEC.md](POS_SPEC.md). Mijoz ekrani — keyin |
 
 ## 3. Tizim sxemasi
 
@@ -127,6 +128,7 @@ Laravel 12, PHP 8.3. Kod `backend/app` ostida, vazifa bo'yicha:
 | `Services/Notifications`, `Push`, `Telegram`, `Sms` | xabarlarni kanallarga taqsimlash (`NotificationRouter`), FCM, Telegram bot, Eskiz SMS |
 | `Services/Audit` | harakatlar jurnali va maxfiy ma'lumotni yashirish |
 | `Domain/Delivery` | hududlar geometriyasi, hudud va filial tanlash, yetkazish narxi |
+| `Domain/Fiscal`, `Domain/Pos/*` | fiskal qatlam va POS modullari (3-bosqich, pastda 4.1) |
 | `Services/Ops`, `Domain/Ops` | Filament dashboard uchun operatsion ko'rsatkichlar (kechikish, oshxona yuklamasi) |
 | `Events`, `Listeners`, `Events/Broadcast` | buyurtma hodisalari, Telegram/push xabarlari, Reverb hodisalari |
 | `Jobs` | navbat ishlari (pastda, 8-bo'lim) |
@@ -136,6 +138,42 @@ Laravel 12, PHP 8.3. Kod `backend/app` ostida, vazifa bo'yicha:
 
 Marshrutlar: `routes/api.php` (asosiy), `api_access.php` (kirish, qurilmalar, ruxsatlar), `api_menu.php` (menyu),
 `api_billing.php` (tarif), `channels.php` (real-time kanallar), `health.php`, `console.php` (rejalashtirilgan ishlar).
+3-bosqichda har bir POS moduli o'z marshrut faylini oladi (`routes/api_pos_<soha>.php`).
+
+### 4.1. Fiskal qatlam va POS modullari (3-bosqich)
+
+Ish tartibi va kodlari: [PHASE3_PLAN.md](PHASE3_PLAN.md); qoidalar: [POS_SPEC.md](POS_SPEC.md). Modullar bir-biriga
+`App\Domain\Pos\Contracts` dagi interfeyslar orqali bog'lanadi; har bir amalga oshirish o'z service provider'ida
+bog'lanadi.
+
+| Modul | Nima qiladi | Ish |
+|---|---|---|
+| `Domain/Fiscal` | **Fiskal qatlam.** Yagona kirish nuqtasi `FiscalIssuer` (`issue`, `recordExternal`, `hasPending`); `FiscalLineBuilder` (MXIK, birlik, QQS menyu va do'kon soliq rejimidan); provayderdan mustaqil `FiscalDocument`, `FiscalLine`, `FiscalPayment`; chek turlari `sale`, `refund`, `advance`, `credit`; to'lov shakli `cash`, `card`, `qr`, `mixed`. Provayderga xos qism — `FiscalGateway` drayveri: sandbox (pilotgacha), null (faqat demo), keyin haqiqiy provayder. `fiscal_receipts` jadvali va qayta yuborish navbati ("fiskal kutmoqda") | P3-11, P3-32 |
+| `Domain/Pos/Contracts` | Modullar orasidagi kelishuv: `PosTender` (`cash`, `card`, `qr`, `prepayment`, `account`), `PosOrderOpener`, `KitchenStationResolver`, `AdvanceLedger`, `CustomerAccountLedger`, `ManagerApprovals` | P3-10 |
+| `Domain/Pos/Hall` | Zallar va zonalar, stol, xona, tapchan, xona holatlari, xona tariflari, choy-non qoidasi | P3-12 |
+| `Domain/Pos/Orders` | POS buyurtmasi: ochish (`PosOrderOpener`), bosqichlar, yuborish va "ushlab turish", o'chirish, ko'chirish va birlashtirish, xona puli va minimal summa qatorlari; `order.items_changed` | P3-12 |
+| `Domain/Pos/Setup` | Sexlar va yo'naltirish (`KitchenStationResolver`), printerlar, filial POS sozlamalari, `GET /pos/bootstrap`, POS katalogi | P3-13 |
+| `Domain/Pos/Booking` | Bron daftari, oldindan buyurtma, avans (bo'nak cheki), "Keldi" → buyurtma (`AdvanceLedger`) | P3-17 |
+| `Domain/Pos/Accounts` | Mijoz hisoblari (nasiya): limit, qarz, to'lovlar kredit cheki bilan (`CustomerAccountLedger`) | P3-17 |
+| `Domain/Pos/Billing` | Schyot, bo'lish, to'lov, fiskal chek bilan yopish, qaytarish, menejer tasdig'i (`ManagerApprovals`) | P3-18 |
+| `Domain/Pos/Shifts` | Smena, kassaga kirim/chiqim, X va Z, biznes kun; `shift.changed` | P3-18 |
+| `Payment` webhooklari | Payme va Click to'lovida fiskal ma'lumot; to'lov tizimi chiqargan chek `FiscalIssuer::recordExternal` bilan yoziladi | P3-14 |
+
+```
+POS amali (schyot yopish, qaytarish, bron avansi, nasiya to'lovi) yoki Payme/Click webhooki
+   └─ FiscalIssuer ── fiscal_receipts (holat, fiskal belgi, QR, urinishlar)
+        └─ FiscalGateway: Sandbox | Null | provayder drayveri (B) | o'z virtual kassasi (A, keyin)
+             javob yo'q → "fiskal kutmoqda", navbat qayta yuboradi; kutayotgan chek bilan smena yopilmaydi
+```
+
+Fiskal qism alohida va kam o'zgaradi (virtual kassada fiskal qismdagi har o'zgarish qayta ekspertiza talab qiladi):
+UI, menyu va POS oqimidagi o'zgarishlar `Domain/Fiscal` ga tegmaydi.
+
+**Flutter POS paketlari** (`pos/packages/*`, P3-15): `pos_core` — zal, buyurtma, bron, smena va to'lov modellari;
+`pos_hardware` — ESC/POS printerlar (LAN, USB Windows, Sunmi ichki), kassa qutisi, matnni rasm sifatida chop etish,
+chek, schyot, marka va X/Z shablonlari; `pos_ui` — sensor ekran komponentlari, zal xaritasi, raqam va kg klaviaturasi.
+Keyin `pos_sync` — internetsiz cheklangan rejim (SQLite navbat, P3-31). Ilovalar (`cashier`, `waiter`, `kds`) shu
+paketlar va `packages/dart/rizqim_api` ustida quriladi.
 
 ## 5. Ma'lumotlar modeli
 
@@ -289,12 +327,12 @@ OrderStatusService / CreateOrderAction / StopListService / BatchService
 | `private-branch.{branchId}` | filial menejeri, ega | xuddi shu |
 | `private-courier.{userId}` | kuryerning o'zi | `order.status_changed`, `order.assigned` |
 | `private-user.{userId}` | mijozning o'zi | `order.status_changed` |
+| `private-pos-branch.{branchId}` | filial terminali (terminal tokeni) va shu filialda `orders.view` bor xodim (P2-11) | `order.created`, `order.status_changed`, `order.assigned`, `kitchen.item_status_changed`, `menu.availability_changed`; 3-bosqichda `order.items_changed`, `shift.changed` |
 | `menu.{storeId}` (ochiq) | hamma | `menu.availability_changed` |
 
 Hodisalarda shaxsiy ma'lumot yo'q (faqat id, uuid, holat): ilova hodisani olgach ma'lumotni API'dan qayta so'raydi.
-Obuna `POST /api/broadcasting/auth` (Sanctum token) bilan imzolanadi. **Eslatma:** kassir, ofitsiant, oshpaz va
-terminal tokeni hozir hech qaysi xodim kanaliga qo'shila olmaydi — POS uchun yangi kanal kerak
-([POS_SPEC.md](POS_SPEC.md), 12.2). Sozlash: [DEPLOY.md](DEPLOY.md), 9-bo'lim; nosozliklar:
+Obuna `POST /api/broadcasting/auth` (Sanctum token yoki terminal tokeni) bilan imzolanadi. Kassir, ofitsiant, oshpaz
+va terminal `private-pos-branch.{branchId}` kanaliga qo'shiladi ([POS_SPEC.md](POS_SPEC.md), 1.1 va 12.2). Sozlash: [DEPLOY.md](DEPLOY.md), 9-bo'lim; nosozliklar:
 [OPERATIONS.md](OPERATIONS.md), 6-bo'lim.
 
 ## 7. Xabarlar: Telegram, push, SMS
