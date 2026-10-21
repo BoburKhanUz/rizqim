@@ -1,0 +1,50 @@
+{
+  "name": "@rizqim/staff",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Rizqim xodim ekranlari uchun umumiy kod: buyurtma statuslari, formatlar, uz/ru matnlar, API qatlami va TanStack Query hook'lari (Mini App va hamkor web ishlatadi). Manba kod sifatida ulanadi (build yo'q)",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": [
+    "src"
+  ],
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "@rizqim/api-client": "*",
+    "@rizqim/ui": "*",
+    "@tanstack/react-query": ">=5.100.0 <6",
+    "react": ">=19.2.0 <20"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@rizqim/api-client": "file:../api-client",
+    "@rizqim/ui": "file:../ui",
+    "@tanstack/react-query": "5.100.14",
+    "@testing-library/dom": "10.4.2",
+    "@testing-library/react": "16.3.3",
+    "@types/react": "19.2.15",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "6.0.2",
+    "eslint": "10.4.0",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "globals": "17.6.0",
+    "jsdom": "30.1.3",
+    "lucide-react": "1.17.0",
+    "react": "19.2.6",
+    "react-dom": "19.2.6",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.60.0",
+    "vite": "8.3.4",
+    "vitest": "5.0.5"
+  },
+  "engines": {
+    "node": ">=22.12"
+  }
+}

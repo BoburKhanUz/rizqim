@@ -5,14 +5,14 @@ import { Plus, Search, Pencil, Trash2, SearchX, PackageOpen } from 'lucide-react
 import { hapticFeedback } from '../lib/telegram';
 import { notificationOccurred } from '../lib/twa';
 import { showAlert, showConfirm } from '../lib/dialogs';
-import api from '../services/api';
+import { deleteProduct as removeProduct, fetchOwnerProducts, toggleProductActive, type Product } from '@rizqim/staff';
+import { staffApi } from '../services/staffApi';
 import { logApiError } from '../lib/apiError';
 import { toAmount } from '../lib/money';
 import { formatMoney } from '../lib/format';
 import { Button, CardSkeletons, EmptyState, IconButton, InlineError, PageHeader, cx, fieldClass, ProductImage } from '../components/ui';
 import { Pill } from '../components/staff/Pill';
 import { Switch } from '../components/staff/Switch';
-import type { ApiResponse, Product } from '../types';
 
 export default function OwnerMenuManagement() {
   const navigate = useNavigate();
@@ -27,9 +27,9 @@ export default function OwnerMenuManagement() {
     let cancelled = false;
     const fetchProducts = async () => {
       try {
-        const res = await api.get<ApiResponse<Product[]>>('/owner/products');
+        const list = await fetchOwnerProducts(staffApi);
         if (cancelled) return;
-        setProducts(res.data.data);
+        setProducts(list);
         setError(null);
       } catch (err) {
         if (cancelled) return;
@@ -50,7 +50,7 @@ export default function OwnerMenuManagement() {
     // Optimistic update
     setProducts(prev => prev.map(p => p.id === id ? { ...p, status: p.status === 'active' ? 'inactive' : 'active' } : p));
     try {
-      await api.post(`/owner/products/${id}?toggle_active=1`);
+      await toggleProductActive(staffApi, id);
     } catch {
       // Revert on error
       setProducts(prev => prev.map(p => p.id === id ? { ...p, status: p.status === 'active' ? 'inactive' : 'active' } : p));
@@ -68,7 +68,7 @@ export default function OwnerMenuManagement() {
 
     hapticFeedback('medium');
     try {
-      await api.delete(`/owner/products/${product.id}`);
+      await removeProduct(staffApi, product.id);
       setProducts(prev => prev.filter(p => p.id !== product.id));
       notificationOccurred('success');
     } catch {
@@ -134,8 +134,9 @@ export default function OwnerMenuManagement() {
 
       <ul className="flex flex-col gap-3">
         {filteredProducts.map(product => {
-          const startingPrice = product.variants?.length > 0
-            ? Math.min(...product.variants.map((v) => toAmount(v.price)))
+          const variants = product.variants ?? [];
+          const startingPrice = variants.length > 0
+            ? Math.min(...variants.map((v) => toAmount(v.price)))
             : 0;
           const active = product.status === 'active';
           const edit = () => navigate(`/admin/catalog/edit/${product.id}`);
@@ -161,7 +162,7 @@ export default function OwnerMenuManagement() {
                   <span className="mt-auto text-footnote text-fg-muted">
                     {/* "25 000 so'mdan": from the cheapest of several variants */}
                     <span className="text-body font-bold text-brand">{formatMoney(startingPrice)}</span>
-                    {(product.variants?.length ?? 0) > 1 && 'dan'}
+                    {variants.length > 1 && 'dan'}
                   </span>
                 </button>
               </div>

@@ -1,8 +1,12 @@
-import type { AnalyticsPeriod } from '../types';
+import type { StaffApi } from './client';
+import { unwrap } from './errors';
+import type { JsonRequest, OkData } from './types';
 
-// The timeframes of the owner's analytics and reports screens, and how they are asked of GET /owner/analytics. The
-// figures themselves are computed by the server; nothing here counts orders.
+// The timeframes of the analytics and reports screens, and how they are asked of GET /owner/analytics. The figures
+// themselves are computed by the server; nothing here counts orders.
 export type Timeframe = 'today' | 'weekly' | 'monthly' | 'yearly' | 'custom';
+
+export type AnalyticsPeriod = 'today' | 'week' | 'month' | 'year' | 'custom';
 
 // Inclusive calendar days ("YYYY-MM-DD", as <input type="date"> gives them) of the 'custom' timeframe.
 export interface DateRange {
@@ -48,4 +52,25 @@ export function getCustomRangeProblem(range: DateRange | undefined): CustomRange
 export function toDateInputValue(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+// GET /owner/analytics: server-side aggregates of the store's orders (a branch manager's branch) created in the period
+// (Asia/Tashkent calendar days). "revenue" is the total of the delivered orders.
+export type OwnerAnalytics = OkData<'ownerAnalytics.index'>;
+
+export async function fetchOwnerAnalytics(api: StaffApi, timeframe: Timeframe, range?: DateRange): Promise<OwnerAnalytics> {
+  const query = {
+    period: toAnalyticsPeriod(timeframe),
+    ...(timeframe === 'custom' && range ? { from: range.start, to: range.end } : {}),
+  };
+  const body = unwrap(await api.client.GET('/v1/owner/analytics', { params: { query } }));
+  return body.data;
+}
+
+export type ReportExportInput = JsonRequest<'order.exportReport'>;
+
+// POST /reports/export: the server sends the report to the person's Telegram. Answers the server's own confirmation text.
+export async function exportReport(api: StaffApi, input: ReportExportInput): Promise<string | undefined> {
+  const body = unwrap(await api.client.POST('/v1/reports/export', { body: input }));
+  return body.message || undefined;
 }

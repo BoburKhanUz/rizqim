@@ -1,13 +1,13 @@
-import { isMessageKey, type Translate } from '@/i18n';
+import { orderTypeLabel as staffOrderTypeLabel, paymentMethodLabel, statusLabel as staffStatusLabel } from '@rizqim/staff';
+import { isMessageKey, type Language, type Translate } from '@/i18n';
 
-// The words of a backend value, in the language of the page; a value the page has no words for is shown as it is.
-function label(t: Translate, prefix: string, value: string | null | undefined): string {
-  if (!value) return '—';
-  const key = `${prefix}_${value}`;
-  return isMessageKey(key) ? t(key) : value;
+// The words of an order's status, type and payment method are @rizqim/staff's (shared with the Mini App's staff screens);
+// a value they have no words for is shown as the backend sent it. A role's words are this app's.
+export const statusLabel = (language: Language, status: string) => staffStatusLabel(status, language);
+export const orderTypeLabel = (language: Language, type: string | null | undefined) => staffOrderTypeLabel(type, language) || '—';
+export const paymentLabel = (language: Language, method: string | null | undefined) => paymentMethodLabel(method, language) || '—';
+
+export function roleLabel(t: Translate, role: string): string {
+  const key = `role_${role}`;
+  return isMessageKey(key) ? t(key) : role;
 }
-
-export const statusLabel = (t: Translate, status: string) => label(t, 'status', status);
-export const orderTypeLabel = (t: Translate, type: string | null | undefined) => label(t, 'type', type);
-export const paymentLabel = (t: Translate, method: string | null | undefined) => label(t, 'payment', method);
-export const roleLabel = (t: Translate, role: string) => label(t, 'role', role);

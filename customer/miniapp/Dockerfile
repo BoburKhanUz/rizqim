@@ -1,5 +1,5 @@
 # The build context is the REPOSITORY ROOT (docker-compose.yml: context ".", dockerfile customer/miniapp/Dockerfile),
-# because the app links the shared UI package from packages/ts/ui (package.json: "@rizqim/ui": "file:../../packages/ts/ui").
+# because the app links shared packages from packages/ts/ (package.json: file: dependencies on ui, staff and api-client).
 # Which files enter the context: customer/miniapp/Dockerfile.dockerignore.
 
 # Node 22 LTS, as CI: the locked vitest 5 needs Node ^22.12 (npm ci warns on Node 20)
@@ -7,7 +7,18 @@ FROM node:22-alpine AS build
 # Same layout as in the repository, so the relative file: link resolves
 WORKDIR /app/customer/miniapp
 
+# The UI and staff packages ship TypeScript source: nothing to build
 COPY packages/ts/ui /app/packages/ts/ui
+COPY packages/ts/staff /app/packages/ts/staff
+
+# The API client is compiled to dist/ (its package.json "main"); the staff package builds on it
+WORKDIR /app/packages/ts/api-client
+COPY packages/ts/api-client/package.json packages/ts/api-client/package-lock.json ./
+RUN npm ci
+COPY packages/ts/api-client ./
+RUN npm run build
+
+WORKDIR /app/customer/miniapp
 COPY customer/miniapp/package.json customer/miniapp/package-lock.json ./
 # puppeteer (devDependency of the manual test-browser.js script only) would download Chrome during install
 RUN PUPPETEER_SKIP_DOWNLOAD=1 npm ci

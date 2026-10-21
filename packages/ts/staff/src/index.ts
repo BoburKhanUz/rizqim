@@ -1,0 +1,93 @@
+// @rizqim/staff: what the Mini App's staff screens and the partner web panel share (docs/PHASE2_PLAN.md, "Asosiy tamoyil").
+// Business rules stay in the backend: this package only decides how things are shown (statuses, words, formats) and how
+// the API is called. Read README.md.
+
+export type * from './types';
+
+// Order statuses as data (labels, colour groups, next actions)
+export {
+  CANCELABLE_STATUSES,
+  FINISHED_STATUSES,
+  GROUP_STATUSES,
+  isCancellation,
+  isFinishedStatus,
+  isOpenStatus,
+  isOrderStatus,
+  getOrderActions,
+  ORDER_STATUSES,
+  OPEN_STATUSES,
+  STATUS_GROUPS,
+  STATUS_TONE,
+  statusGroup,
+  statusTone,
+  WITH_COURIER_STATUSES,
+  type OrderAction,
+  type OrderActionId,
+  type OrderActionRole,
+  type StatusGroup,
+} from './orders/status';
+export { CANCEL_NOTE_MAX_LENGTH, getStaffCancelReasons, STAFF_CANCEL_REASONS } from './orders/cancel';
+export { formatDuration, getStageDurations, stageRows, type StageDurations } from './orders/stages';
+export { formatModifiers, getItemModifiers, getShippingAddress, type OrderItemModifier, type ShippingAddress } from './orders/display';
+export {
+  applyFinishedOrderChange,
+  mergeOrders,
+  refetchOrders,
+  someOrderLeft,
+  type FinishedOrderChange,
+  type OrderRef,
+} from './orders/cache';
+
+// Words
+export {
+  ACTION_LABELS,
+  actionLabel,
+  CANCEL_REASON_LABELS,
+  cancelReasonLabel,
+  COURIER_ACTION_LABELS,
+  normalizePaymentMethod,
+  ORDER_TYPE_LABELS,
+  orderTypeLabel,
+  PAYMENT_METHOD_LABELS,
+  PAYMENT_METHODS,
+  paymentMethodLabel,
+  STAFF_MESSAGES,
+  STAFF_STATUS_LABELS,
+  staffText,
+  statusLabel,
+  type PaymentMethodId,
+  type StaffMessageKey,
+} from './i18n/messages';
+export { fillParams, isLanguage, LANGUAGES, localize, type Language, type Localized } from './i18n/localize';
+
+// Formats
+export * from './format';
+
+// API layer
+export { createStaffApi, toApiRoot, type StaffApi, type StaffApiOptions } from './api/client';
+export { createAuthFetch, type AuthAdapter, type RequestFetch } from './api/auth';
+export {
+  getApiErrorMessage,
+  getApiErrorStatus,
+  getApiFieldError,
+  isStaffApiError,
+  StaffApiError,
+  unwrap,
+} from './api/errors';
+export type { JsonBody, JsonRequest, OkData } from './api/types';
+export type * from './api/specGaps';
+export * from './api/orders';
+export * from './api/menu';
+export * from './api/team';
+export * from './api/settings';
+export * from './api/payments';
+export * from './api/analytics';
+export * from './api/superadmin';
+
+// TanStack Query hooks
+export { setDefaultStaffApi, StaffApiProvider, useStaffApi } from './hooks/context';
+export { staffKeys } from './hooks/keys';
+export * from './hooks/orders';
+export * from './hooks/menu';
+export * from './hooks/team';
+export * from './hooks/business';

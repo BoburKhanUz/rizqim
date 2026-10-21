@@ -3,7 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MainButtonHost } from '../components/ui/MainButtonHost';
-import api from '../services/api';
+import { callsTo, stubStaffApi, success, type FakeCall } from '../test/staffFetch';
 import type { OwnerStoreSettings, PaymentSettings } from '../types';
 import OwnerSettings from './OwnerSettings';
 
@@ -13,10 +13,9 @@ import OwnerSettings from './OwnerSettings';
 
 vi.mock('../lib/telegram', () => ({ hapticFeedback: vi.fn(), tg: { initDataUnsafe: {} } }));
 vi.mock('../lib/dialogs', () => ({ showAlert: vi.fn().mockResolvedValue(undefined) }));
-vi.mock('../services/api', () => ({ default: { get: vi.fn(), post: vi.fn() } }));
 
-const get = vi.mocked(api.get);
-const post = vi.mocked(api.post);
+let calls: FakeCall[];
+const posts = () => callsTo(calls, '/owner/settings', 'POST');
 
 let client: QueryClient;
 
@@ -42,7 +41,7 @@ function ownerSettings(paymentSettings: PaymentSettings): OwnerStoreSettings {
 }
 
 async function renderSettings(paymentSettings: PaymentSettings) {
-  get.mockResolvedValue({ data: { success: true, data: ownerSettings(paymentSettings) } });
+  ({ calls } = stubStaffApi((call) => (call.method === 'GET' ? success(ownerSettings(paymentSettings)) : success(null))));
   render(
     <QueryClientProvider client={client}>
       <MemoryRouter>
@@ -60,15 +59,13 @@ const pickupSwitch = () => screen.getByRole('switch', { name: 'Olib ketish' });
 // Saves the form and returns the `payment_settings` it sent
 async function save(): Promise<Record<string, unknown>> {
   fireEvent.click(screen.getByRole('button', { name: /Sozlamalarni saqlash/ }));
-  await vi.waitFor(() => expect(post).toHaveBeenCalledTimes(1));
-  const [url, body] = post.mock.calls[0];
-  expect(url).toBe('/owner/settings');
+  await vi.waitFor(() => expect(posts()).toHaveLength(1));
+  const { body } = posts()[0]!;
   return (body as { payment_settings: Record<string, unknown> }).payment_settings;
 }
 
 beforeEach(() => {
   client = new QueryClient();
-  post.mockResolvedValue({ data: { success: true } });
 });
 
 afterEach(() => {

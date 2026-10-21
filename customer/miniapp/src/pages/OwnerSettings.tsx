@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import type { ChangeEvent, FormEvent, ReactNode } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import api from '../services/api';
+import { uploadSettingsFile, useOwnerSettings, useSaveOwnerSettings, type OwnerPaymentSettings, type OwnerSettings as OwnerStoreSettings, type OwnerSettingsInput, type PaymentProviderSettings } from '@rizqim/staff';
+import { staffApi } from '../services/staffApi';
 import { getApiErrorMessage, getApiFieldError, logApiError } from '../lib/apiError';
 import { hapticFeedback } from '../lib/telegram';
 import { notificationOccurred } from '../lib/twa';
@@ -13,7 +13,6 @@ import { FileButton } from '../components/staff/FileButton';
 import { Pill } from '../components/staff/Pill';
 import { Switch } from '../components/staff/Switch';
 import { Camera, Image as ImageIcon, MapPin, Store } from 'lucide-react';
-import type { ApiResponse, OwnerStoreSettings, PaymentProviderSettings, PaymentSettings } from '../types';
 
 // A provider of payment_settings: a settings object or (legacy data) a bare boolean. The API adds `available: false`
 // to a provider that is not integrated yet (Uzum, Paynet): it is shown but can't be switched on.
@@ -33,33 +32,6 @@ function isOnlineOn(setting: ProviderSetting): boolean {
 
 function isProviderAvailable(setting: ProviderSetting): boolean {
   return typeof setting === 'object' && setting !== null ? setting.available !== false : true;
-}
-
-// Body of POST /owner/settings
-interface OwnerSettingsPayload {
-  logo: string | null;
-  banner: string | null;
-  description: string | null;
-  address: string | null;
-  location_url: string | null;
-  is_open: boolean;
-  min_order_amount: number;
-  payment_settings: {
-    delivery_fee: number;
-    delivery_enabled: boolean;
-    pickup_enabled: boolean;
-    working_hours: { open: string; close: string };
-    cash: { enabled: boolean };
-    click: { enabled: boolean };
-    payme: { enabled: boolean };
-    uzum: { enabled: boolean };
-    paynet: { enabled: boolean };
-  };
-}
-
-interface UploadedFile {
-  path: string;
-  url: string;
 }
 
 // A row of the form with a switch: a title, what it does, the switch
@@ -94,13 +66,7 @@ export default function OwnerSettings() {
   const uz = language === 'uz';
 
   // Fetch current store settings
-  const { data: storeInfo, isLoading, refetch, isRefetching } = useQuery({
-    queryKey: ['owner-settings'],
-    queryFn: async () => {
-      const res = await api.get<ApiResponse<OwnerStoreSettings>>('/owner/settings');
-      return res.data?.data || null;
-    }
-  });
+  const { data: storeInfo, isLoading, refetch, isRefetching } = useOwnerSettings();
 
   const title = uz ? "Do'kon sozlamalari" : 'Настройки магазина';
 
@@ -135,10 +101,9 @@ export default function OwnerSettings() {
 function OwnerSettingsForm({ storeInfo }: { storeInfo: OwnerStoreSettings }) {
   const { language } = useLanguageStore();
   const uz = language === 'uz';
-  const queryClient = useQueryClient();
   const formRef = useRef<HTMLFormElement>(null);
 
-  const paySettings: PaymentSettings = storeInfo.payment_settings ?? {};
+  const paySettings: OwnerPaymentSettings = storeInfo.payment_settings ?? {};
   const hours: { open?: string; close?: string } = paySettings.working_hours ?? {};
   const uzumAvailable = isProviderAvailable(paySettings.uzum);
   const paynetAvailable = isProviderAvailable(paySettings.paynet);
@@ -182,9 +147,6 @@ function OwnerSettingsForm({ storeInfo }: { storeInfo: OwnerStoreSettings }) {
     if (!file) return;
 
     hapticFeedback('light');
-    const formData = new FormData();
-    formData.append('file', file);
-
     if (type === 'logo') {
       setIsUploadingLogo(true);
     } else {
@@ -192,12 +154,7 @@ function OwnerSettingsForm({ storeInfo }: { storeInfo: OwnerStoreSettings }) {
     }
 
     try {
-      const res = await api.post<ApiResponse<UploadedFile>>('/owner/settings/upload', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-      const data = res.data?.data;
+      const data = await uploadSettingsFile(staffApi, file);
       if (type === 'logo') {
         setLogo(data.path);
       } else {
@@ -258,14 +215,9 @@ function OwnerSettingsForm({ storeInfo }: { storeInfo: OwnerStoreSettings }) {
   };
 
   // Mutation to save settings
-  const saveSettings = useMutation({
-    mutationFn: async (payload: OwnerSettingsPayload) => {
-      const res = await api.post('/owner/settings', payload);
-      return res.data;
-    },
+  const saveSettings = useSaveOwnerSettings({
     onSuccess: () => {
       notificationOccurred('success');
-      queryClient.invalidateQueries({ queryKey: ['owner-settings'] });
       void showAlert(uz ? 'Sozlamalar muvaffaqiyatli saqlandi!' : 'Настройки успешно сохранены!');
     },
     onError: (err: unknown) => {
@@ -279,7 +231,7 @@ function OwnerSettingsForm({ storeInfo }: { storeInfo: OwnerStoreSettings }) {
     e.preventDefault();
     hapticFeedback('medium');
 
-    const payload: OwnerSettingsPayload = {
+    const payload: OwnerSettingsInput = {
       logo: logo.trim() || null,
       banner: banner.trim() || null,
       description: description.trim() || null,

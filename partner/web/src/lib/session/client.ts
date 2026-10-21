@@ -1,4 +1,5 @@
 import { createApiClient, type ApiClient } from '@rizqim/api-client';
+import { createStaffApi, type StaffApi } from '@rizqim/staff';
 import type { AccountChoice, SessionPayload, SessionUser } from './types';
 
 // Browser half of the sign-in. The access token (15 minutes) lives in this module's memory only: not in localStorage,
@@ -117,6 +118,18 @@ export function getApi(baseUrl: string): ApiClient {
     clients.set(baseUrl, client);
   }
   return client;
+}
+
+const staffApis = new Map<string, StaffApi>();
+
+// The same, as the API layer of @rizqim/staff (the hooks and functions the staff screens share with the Mini App)
+export function getStaffApi(baseUrl: string): StaffApi {
+  let api = staffApis.get(baseUrl);
+  if (!api) {
+    api = createStaffApi({ baseUrl, fetch: authFetch });
+    staffApis.set(baseUrl, api);
+  }
+  return api;
 }
 
 export class SessionError extends Error {

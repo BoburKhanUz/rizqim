@@ -1,11 +1,11 @@
 import { useState, useEffect, type ReactNode } from 'react';
 import { Activity, Landmark, Calendar, RefreshCw, Store, Users } from 'lucide-react';
 import { hapticFeedback } from '../lib/telegram';
-import api from '../services/api';
+import { fetchSuperadminDashboard, type Amount, type DashboardStats } from '@rizqim/staff';
+import { staffApi } from '../services/staffApi';
 import { logApiError } from '../lib/apiError';
 import { Card, IconButton, InlineError, PageHeader, Section, Skeleton, cx } from '../components/ui';
 import { formatMoney, formatNumber } from '../lib/format';
-import type { Amount, ApiResponse, DashboardStats } from '../types';
 
 // A card of rows: a label on the left, its figure on the right (long money values never overflow a narrow column)
 function StatList({ rows, className }: { rows: Array<{ label: string; value: ReactNode; tone?: string }>; className?: string }) {
@@ -56,9 +56,9 @@ export default function SuperadminDashboard() {
     let cancelled = false;
     const fetchStats = async () => {
       try {
-        const res = await api.get<ApiResponse<DashboardStats>>('/superadmin/dashboard');
+        const data = await fetchSuperadminDashboard(staffApi);
         if (cancelled) return;
-        setStats(res.data.data);
+        setStats(data);
         setError(null);
       } catch (err) {
         if (cancelled) return;

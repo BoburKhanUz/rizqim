@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo } from 'react';
-import { useInfiniteQuery, useQuery, useQueryClient, type InfiniteData, type QueryClient, type QueryKey } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
+import { applyFinishedOrderChange, mergeOrders, refetchOrders, someOrderLeft, type FinishedOrderChange } from '@rizqim/staff';
 import api from '../services/api';
 import { useAuthStore } from '../store/authStore';
 import { useRealtimeStore } from '../store/realtimeStore';
 import { POLL_INTERVAL_MS, getPollInterval, pollingQueryOptions } from '../lib/polling';
-import type { ActiveOrdersMeta, ApiResponse, HistoryOrdersMeta, Order, OrderStatus } from '../types';
+import type { ActiveOrdersMeta, ApiResponse, HistoryOrdersMeta, Order } from '../types';
 
 export type { Order, OrderItem, PaymentStatus } from '../types';
 
@@ -51,21 +52,10 @@ export async function fetchOrdersPage(cursor: string | null, pageSize: number = 
   return { orders: data.data ?? [], nextCursor: data.meta?.next_cursor ?? null };
 }
 
-// Refetches the order queries under `queryKey` that are on screen, without cancelling a refetch already under way:
-// in a busy store, cancelling it on every change would restart it again and again (asking a paged list for all its
-// pages each time), and it might never finish. Such a refetch may have read the orders from before the change, so the
-// queries are refetched once more after it; the calls made in the meantime all share that one refetch.
-export async function refetchOrders(queryClient: QueryClient, queryKey: QueryKey): Promise<void> {
-  const busy = queryClient.isFetching({ queryKey }) > 0;
-  await queryClient.invalidateQueries({ queryKey }, { cancelRefetch: false });
-  if (busy) await queryClient.invalidateQueries({ queryKey }, { cancelRefetch: false });
-}
-
-// Whether something that was in `before` is gone from `after`, i.e. an order left the open ones (it finished).
-function someOrderLeft(before: Order[], after: Order[]): boolean {
-  const remaining = new Set(after.map((order) => order.uuid));
-  return before.some((order) => !remaining.has(order.uuid));
-}
+// The cache logic of the order lists (refetchOrders, someOrderLeft, applyFinishedOrderChange, mergeOrders) is @rizqim/staff's,
+// shared with the partner web. The customer's fetches and hooks below stay here (axios, this app's Order type); the staff
+// screens' are the package's (hooks/useStaffOrders.ts).
+export { applyFinishedOrderChange, mergeOrders, refetchOrders, type FinishedOrderChange };
 
 // The open orders of a screen, polled so changes show up without a reload (slowly while the real-time socket is up).
 // When an order drops out of the list it has finished: the history of that screen is refetched so it shows up there.
@@ -96,10 +86,6 @@ export const useOrders = () => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   return useActiveOrders('customer', POLL_INTERVAL_MS.customerOrders, isAuthenticated);
 };
-
-// The open orders for a staff screen (what GET /orders returns depends on the role). Each screen has its own cache
-// entry so its mutations can invalidate just that one.
-export const useStaffOrders = (scope: Exclude<OrdersScope, 'customer'>, intervalMs: number) => useActiveOrders(scope, intervalMs);
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 // Orders are paged by creation time, but a screen about a period cares about when they finished: an order created the
@@ -163,57 +149,4 @@ export function useOrderHistory(scope: OrdersScope, options: OrderHistoryOptions
     isRefetching: query.isRefetching,
     dataUpdatedAt: query.dataUpdatedAt,
   };
-}
-
-const FINISHED_STATUSES: readonly OrderStatus[] = ['delivered', 'canceled', 'rejected', 'refunded'];
-const isFinished = (status: OrderStatus) => FINISHED_STATUSES.includes(status);
-
-// What an order event says about the order (lib/realtime.ts OrderEventOrder): its id and state.
-export interface FinishedOrderChange {
-  uuid: string;
-  status: OrderStatus;
-  updated_at?: string | null;
-}
-
-// An order that is already in a history list can still change (delivered -> refunded). The event says so, and the lists
-// show it at once instead of after their next staleness refetch: the cached copy takes the new status in place. No
-// request at all, so a burst of events cannot become a refetch of every loaded page (which is what refetching a paged
-// history costs). Only an order that is finished before and after is touched: one that has just finished is the open
-// list's business (it drops out of it and the history is refetched, useActiveOrders). `updatedAt` of each query is kept,
-// so patching never makes older pages look fresher than they are. Returns whether any list had the order.
-export function applyFinishedOrderChange(queryClient: QueryClient, change: FinishedOrderChange): boolean {
-  if (!isFinished(change.status)) return false;
-
-  const changes = (order: Order) => order.uuid === change.uuid && isFinished(order.status) && order.status !== change.status;
-
-  let patched = false;
-  for (const query of queryClient.getQueryCache().findAll({ queryKey: ordersKeys.allHistory })) {
-    const data = query.state.data as InfiniteData<OrdersPage> | undefined;
-    if (!data?.pages.some((page) => page.orders.some(changes))) continue;
-
-    patched = true;
-    queryClient.setQueryData<InfiniteData<OrdersPage>>(
-      query.queryKey,
-      {
-        ...data,
-        pages: data.pages.map((page) => ({
-          ...page,
-          orders: page.orders.map((order) =>
-            changes(order) ? { ...order, status: change.status, updated_at: change.updated_at ?? order.updated_at } : order,
-          ),
-        })),
-      },
-      { updatedAt: query.state.dataUpdatedAt },
-    );
-  }
-  return patched;
-}
-
-// Open orders and finished ones in one list (finished versions win: an order that finished between two requests is
-// in both).
-export function mergeOrders(active: Order[], history: Order[]): Order[] {
-  const byId = new Map<number, Order>();
-  for (const order of active) byId.set(order.id, order);
-  for (const order of history) byId.set(order.id, order);
-  return [...byId.values()];
 }

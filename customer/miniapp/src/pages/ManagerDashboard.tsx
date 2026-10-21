@@ -1,6 +1,4 @@
-import { formatLineQuantity } from '../lib/quantity';
 import { useId, useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Bike,
   Check,
@@ -13,7 +11,30 @@ import {
   ShoppingBag,
   StickyNote,
   Wallet,
+  type LucideIcon,
 } from 'lucide-react';
+import {
+  actionLabel,
+  formatLineQuantity,
+  formatModifiers,
+  getItemModifiers,
+  getOrderActions,
+  getStageDurations,
+  GROUP_STATUSES,
+  isCancellation,
+  OPEN_STATUSES,
+  orderTypeLabel,
+  paymentMethodLabel,
+  stageRows,
+  staffText,
+  useCouriers,
+  useUpdateOrderStatus,
+  type AssignableCourier,
+  type Order,
+  type OrderAction,
+  type OrderChange,
+  type StageDurations,
+} from '@rizqim/staff';
 import { useLanguageStore } from '../store/languageStore';
 import { useAuthStore } from '../store/authStore';
 import { hapticFeedback } from '../lib/telegram';
@@ -21,32 +42,26 @@ import { notificationOccurred, selectionChanged } from '../lib/twa';
 import { showAlert } from '../lib/dialogs';
 import { Button, CardSkeletons, EmptyState, InlineError, PageHeader, StatusBadge, cx, fieldClass } from '../components/ui';
 import { SegmentedControl } from '../components/staff/SegmentedControl';
-import api from '../services/api';
 import { getApiErrorMessage, getApiFieldError, logApiError } from '../lib/apiError';
 import { toAmount } from '../lib/money';
 import { formatMoney, formatOrderCode, formatTime } from '../lib/format';
-import { getPaymentMethodLabel } from '../lib/paymentMethod';
 import { cleanAddress } from '../lib/openMap';
 import { POLL_INTERVAL_MS } from '../lib/polling';
-import { NO_ORDERS, ORDERS_KEY, useOrderHistory, useStaffOrders } from '../hooks/useOrders';
+import { NO_ORDERS, useStaffOrderHistory, useStaffOrders } from '../hooks/useStaffOrders';
 import { StaffCancelDialog } from '../components/CancelDialogs';
 import { LoadMoreOrders, TruncatedOrdersNotice } from '../components/OrderListParts';
 import { getStaffCancelReasonLabel } from '../lib/cancelReasons';
-import type { ApiResponse, AssignableStaff, CancelReason, Order, OrderStatus } from '../types';
+import type { Language } from '../store/languageStore';
 
-const ACTIVE_STATUSES: readonly OrderStatus[] = ['new', 'accepted', 'preparing', 'ready', 'courier_assigned', 'on_the_way', 'delivery'];
-const WITH_COURIER_STATUSES: readonly OrderStatus[] = ['courier_assigned', 'on_the_way', 'delivery'];
-// Statuses a manager can still cancel from the kitchen (a new order is rejected instead)
-const CANCELABLE_STATUSES: readonly OrderStatus[] = ['accepted', 'preparing', 'ready'];
-
-// The counters above the list are filters too: a tap shows only those orders, a second tap shows all again
+// The counters above the list are filters too: a tap shows only those orders, a second tap shows all again. The groups
+// of statuses are @rizqim/staff's (the web board's columns are the same groups).
 type OrderFilter = 'new' | 'preparing' | 'ready' | 'courier';
 const FILTERS: readonly OrderFilter[] = ['new', 'preparing', 'ready', 'courier'];
-const FILTER_STATUSES: Record<OrderFilter, readonly OrderStatus[]> = {
-  new: ['new'],
-  preparing: ['accepted', 'preparing'],
-  ready: ['ready'],
-  courier: WITH_COURIER_STATUSES,
+const FILTER_STATUSES: Record<OrderFilter, readonly string[]> = {
+  new: GROUP_STATUSES.new,
+  preparing: GROUP_STATUSES.preparing,
+  ready: GROUP_STATUSES.ready,
+  courier: GROUP_STATUSES.courier,
 };
 const FILTER_COUNT_TONE: Record<OrderFilter, string> = {
   new: 'text-warning-soft-fg',
@@ -54,61 +69,30 @@ const FILTER_COUNT_TONE: Record<OrderFilter, string> = {
   ready: 'text-success-soft-fg',
   courier: 'text-brand-soft-fg',
 };
-
-interface StatusChange {
-  orderUuid: string;
-  status: OrderStatus;
-  courierId?: number;
-  reason?: CancelReason; // required by the API for canceled and rejected
-  note?: string;
-}
+const FILTER_LABEL_KEY = { new: 'filterNew', preparing: 'filterPreparing', ready: 'filterReady', courier: 'filterCourier' } as const;
 
 interface CancelRequest {
   order: Order;
   mode: 'cancel' | 'reject';
 }
 
-const isCancellation = (status: OrderStatus) => status === 'canceled' || status === 'rejected';
-
-// How long each stage of an order took, from its status history (null where a stage has no two timestamps)
-function getStageDurations(order: Order) {
-  const histories = order.status_histories;
-  if (!histories || histories.length === 0) return null;
-
-  const times: Partial<Record<OrderStatus, Date>> = {};
-  histories.forEach((h) => {
-    times[h.status] = new Date(h.created_at);
-  });
-
-  const formatDiff = (start?: Date, end?: Date) => {
-    if (!start || !end) return null;
-    const diffMs = end.getTime() - start.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffSecs = Math.floor((diffMs % 60000) / 1000);
-    return diffMins > 0 ? `${diffMins}m ${diffSecs}s` : `${diffSecs}s`;
-  };
-
-  return {
-    acceptTime: formatDiff(times['new'], times['accepted']),
-    prepTime: formatDiff(times['accepted'], times['preparing']),
-    readyTime: formatDiff(times['preparing'], times['ready']),
-    transitTime: formatDiff(times['ready'] || times['preparing'], times['on_the_way'] || times['delivery']),
-    deliveryTime: formatDiff((times['on_the_way'] || times['delivery']) || times['ready'], times['delivered']),
-  };
-}
-
-type StageDurations = NonNullable<ReturnType<typeof getStageDurations>>;
+// How each action of @rizqim/staff's getOrderActions() is drawn on this screen. Which actions an order has, and their
+// words, are the package's; the icons, colours and sizes are this screen's.
+const ACTION_LOOK: Record<OrderAction['id'], { icon?: LucideIcon; variant?: 'danger' | 'success'; basis: string }> = {
+  accept: { icon: Check, basis: 'basis-36' },
+  reject: { variant: 'danger', basis: 'basis-28' },
+  start_preparing: { icon: ChefHat, basis: 'basis-40' },
+  mark_ready: { icon: PackageCheck, variant: 'success', basis: 'basis-40' },
+  assign_courier: { icon: Bike, basis: 'basis-40' },
+  hand_over: { icon: Check, variant: 'success', basis: 'basis-40' },
+  pick_up: { icon: Bike, basis: 'basis-40' },
+  confirm_delivery: { icon: Check, variant: 'success', basis: 'basis-40' },
+  cancel: { variant: 'danger', basis: 'basis-28' },
+};
 
 // "Qabul 1m 3s · Tayyorlash 5m 0s ...": the stages that have a time
-function StageTimes({ timings, uz }: { timings: StageDurations; uz: boolean }) {
-  const stages: Array<[string, string | null]> = [
-    [uz ? 'Qabul qilish' : 'Принятие', timings.acceptTime],
-    [uz ? 'Tayyorlash' : 'Готовка', timings.prepTime],
-    [uz ? "Tayyor bo'lishi" : 'Готовность', timings.readyTime],
-    [uz ? 'Kuryerga topshirish' : 'Передача курьеру', timings.transitTime],
-    [uz ? 'Yetkazish' : 'Доставка', timings.deliveryTime],
-  ];
-  const known = stages.filter((stage): stage is [string, string] => stage[1] !== null);
+function StageTimes({ timings, language }: { timings: StageDurations; language: Language }) {
+  const known = stageRows(timings, language);
   if (known.length === 0) return null;
   return (
     <dl className="flex flex-wrap gap-x-4 gap-y-1 text-footnote">
@@ -124,45 +108,58 @@ function StageTimes({ timings, uz }: { timings: StageDurations; uz: boolean }) {
 
 interface ActiveOrderCardProps {
   order: Order;
-  uz: boolean;
-  couriers: AssignableStaff[];
+  couriers: AssignableCourier[];
   courierId: number | undefined;
   onPickCourier: (courierId: number) => void;
-  onChange: (change: StatusChange) => void;
+  onChange: (change: OrderChange) => void;
   onCancel: (order: Order, mode: CancelRequest['mode']) => void;
   busy: boolean;
 }
 
-function ActiveOrderCard({ order, uz, couriers, courierId, onPickCourier, onChange, onCancel, busy }: ActiveOrderCardProps) {
-  const { language, t } = useLanguageStore();
+function ActiveOrderCard({ order, couriers, courierId, onPickCourier, onChange, onCancel, busy }: ActiveOrderCardProps) {
+  const { language } = useLanguageStore();
   const [open, setOpen] = useState(false);
   const itemsId = useId();
   const courierSelectId = useId();
   const timings = getStageDurations(order);
   const items = order.items ?? [];
-  const address = cleanAddress(order.address, uz ? 'GPS lokatsiya' : 'GPS локация');
+  const address = cleanAddress(order.address, staffText('gpsLocation', language));
   const isDelivery = order.order_type === 'delivery';
   const TypeIcon = isDelivery ? Bike : ShoppingBag;
-  const typeLabel = isDelivery ? (uz ? 'Yetkazish' : 'Доставка') : order.order_type === 'dine_in' ? (uz ? 'Zalda' : 'В зале') : uz ? 'Olib ketish' : 'Самовывоз';
-  const preview = items.map((item) => `${item.product_name} ${formatLineQuantity(item.quantity, item.unit)}`).join(', ');
+  const typeLabel = orderTypeLabel(order.order_type, language);
+  const preview = items.map((item) => `${item.product_name} ${formatLineQuantity(item.quantity, item.unit, language)}`).join(', ');
   const code = formatOrderCode(order);
-  const courierName = order.courier?.name || (uz ? 'Kuryer' : 'Курьер');
+  const courierName = order.courier?.name || staffText('courierFallback', language);
+  const orderWord = staffText('orderWord', language);
 
-  const change = (status: OrderStatus, extra: Partial<StatusChange> = {}) => onChange({ orderUuid: order.uuid, status, ...extra });
-
-  // Next to the next step, never alone on a row of its own unless there is no room
-  const cancelButton = CANCELABLE_STATUSES.includes(order.status) && (
-    <Button variant="danger" disabled={busy} onClick={() => onCancel(order, 'cancel')} className="grow whitespace-nowrap basis-28">
-      {uz ? 'Bekor qilish' : 'Отменить заказ'}
-    </Button>
-  );
+  // What the order can do next (@rizqim/staff): the next step first, the way out last (cancel sits next to it, and only from
+  // the statuses the kitchen can still cancel from)
+  const actions = getOrderActions(order, 'manager');
+  const stepOn = (action: OrderAction) => onChange({ uuid: order.uuid, status: action.to, ...(action.needsCourier ? { courierId } : {}) });
+  const actionButton = (action: OrderAction, extra: { fullWidth?: boolean } = {}) => {
+    const look = ACTION_LOOK[action.id];
+    const isCancel = action.id === 'cancel' || action.id === 'reject';
+    return (
+      <Button
+        key={action.id}
+        variant={look.variant}
+        icon={look.icon}
+        disabled={busy || (action.needsCourier && !courierId)}
+        onClick={() => (isCancel ? onCancel(order, action.id === 'reject' ? 'reject' : 'cancel') : stepOn(action))}
+        fullWidth={extra.fullWidth}
+        className={extra.fullWidth ? undefined : cx('grow whitespace-nowrap', look.basis)}
+      >
+        {actionLabel(action.id, language)}
+      </Button>
+    );
+  };
 
   return (
-    <article aria-label={`${uz ? 'Buyurtma' : 'Заказ'} ${code}`} className="flex flex-col gap-2.5 rounded-card border border-line bg-surface p-3">
+    <article aria-label={`${orderWord} ${code}`} className="flex flex-col gap-2.5 rounded-card border border-line bg-surface p-3">
       <div className="flex items-center gap-2">
         <span className="text-headline font-bold text-fg">{code}</span>
         <StatusBadge status={order.status} audience="staff" />
-        <time dateTime={order.created_at} className="ml-auto text-footnote text-fg-muted">
+        <time dateTime={order.created_at ?? undefined} className="ml-auto text-footnote text-fg-muted">
           {formatTime(order.created_at)}
         </time>
       </div>
@@ -179,8 +176,8 @@ function ActiveOrderCard({ order, uz, couriers, courierId, onPickCourier, onChan
         </span>
         <span className="inline-flex items-center gap-1">
           <Wallet aria-hidden="true" className="size-3.5" />
-          {getPaymentMethodLabel(order.payment_method, t)}
-          {order.payment_status === 'paid' && <span className="font-bold text-success-soft-fg">{uz ? " · To'langan" : ' · Оплачено'}</span>}
+          {paymentMethodLabel(order.payment_method, language)}
+          {order.payment_status === 'paid' && <span className="font-bold text-success-soft-fg">{staffText('paidSuffix', language)}</span>}
         </span>
       </div>
 
@@ -210,7 +207,7 @@ function ActiveOrderCard({ order, uz, couriers, courierId, onPickCourier, onChan
             }}
             className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-control px-1 text-left text-footnote text-fg-muted focus-visible:outline-2 focus-visible:outline-brand"
           >
-            <span className="shrink-0 font-bold text-fg">{uz ? 'Tarkibi' : 'Состав'}</span>
+            <span className="shrink-0 font-bold text-fg">{staffText('itemsLabel', language)}</span>
             {!open && <span className="min-w-0 flex-1 truncate">{preview}</span>}
             {open && <span className="flex-1" />}
             <ChevronDown aria-hidden="true" className={cx('size-5 shrink-0 transition-transform', open && 'rotate-180')} />
@@ -218,49 +215,26 @@ function ActiveOrderCard({ order, uz, couriers, courierId, onPickCourier, onChan
           {open && (
             <div id={itemsId} className="flex flex-col gap-2 px-1 pb-1">
               <ul className="flex flex-col gap-1 text-body text-fg">
-                {items.map((item, index) => (
-                  <li key={index}>
-                    <span>{item.product_name} {formatLineQuantity(item.quantity, item.unit)}</span>
-                    {item.variant_name && <span className="ml-1.5 text-footnote text-fg-muted">{item.variant_name}</span>}
-                    {item.modifiers && item.modifiers.length > 0 && (
-                      <span className="block text-footnote text-fg-muted">
-                        {item.modifiers.map((modifier) => (modifier.quantity > 1 ? `${modifier.name} × ${modifier.quantity}` : modifier.name)).join(', ')}
-                      </span>
-                    )}
-                  </li>
-                ))}
+                {items.map((item, index) => {
+                  const modifiers = getItemModifiers(item);
+                  return (
+                    <li key={index}>
+                      <span>{item.product_name} {formatLineQuantity(item.quantity, item.unit, language)}</span>
+                      {item.variant_name && <span className="ml-1.5 text-footnote text-fg-muted">{item.variant_name}</span>}
+                      {modifiers.length > 0 && <span className="block text-footnote text-fg-muted">{formatModifiers(modifiers)}</span>}
+                    </li>
+                  );
+                })}
               </ul>
-              {timings && <StageTimes timings={timings} uz={uz} />}
+              {timings && <StageTimes timings={timings} language={language} />}
             </div>
           )}
         </div>
       )}
 
       {/* Actions: the next step of the order, and the way out of it */}
-      {order.status === 'new' && (
-        <div className="flex flex-wrap gap-2">
-          <Button icon={Check} disabled={busy} onClick={() => change('accepted')} className="grow whitespace-nowrap basis-36">
-            {uz ? 'Qabul qilish' : 'Принять'}
-          </Button>
-          <Button variant="danger" disabled={busy} onClick={() => onCancel(order, 'reject')} className="grow whitespace-nowrap basis-28">
-            {uz ? 'Rad etish' : 'Отклонить'}
-          </Button>
-        </div>
-      )}
-
-      {(order.status === 'accepted' || order.status === 'preparing') && (
-        <div className="flex flex-wrap gap-2">
-          {order.status === 'accepted' ? (
-            <Button icon={ChefHat} disabled={busy} onClick={() => change('preparing')} className="grow whitespace-nowrap basis-40">
-              {uz ? 'Tayyorlashni boshlash' : 'Начать готовку'}
-            </Button>
-          ) : (
-            <Button variant="success" icon={PackageCheck} disabled={busy} onClick={() => change('ready')} className="grow whitespace-nowrap basis-40">
-              {uz ? "Tayyor bo'ldi" : 'Готово'}
-            </Button>
-          )}
-          {cancelButton}
-        </div>
+      {(order.status === 'new' || order.status === 'accepted' || order.status === 'preparing') && (
+        <div className="flex flex-wrap gap-2">{actions.map((action) => actionButton(action))}</div>
       )}
 
       {order.status === 'ready' && (
@@ -269,7 +243,7 @@ function ActiveOrderCard({ order, uz, couriers, courierId, onPickCourier, onChan
             <>
               <label htmlFor={courierSelectId} className="flex items-center gap-1.5 text-footnote font-bold text-fg-muted">
                 <Bike aria-hidden="true" className="size-3.5 text-brand" />
-                {uz ? 'Kuryerni biriktirish' : 'Назначить курьера'}
+                {staffText('assignCourierLabel', language)}
               </label>
               <select
                 id={courierSelectId}
@@ -280,7 +254,7 @@ function ActiveOrderCard({ order, uz, couriers, courierId, onPickCourier, onChan
                 }}
                 className={fieldClass}
               >
-                <option value="">{uz ? 'Kuryerni tanlang' : 'Выбрать курьера'}</option>
+                <option value="">{staffText('chooseCourier', language)}</option>
                 {couriers.map((courier) => (
                   <option key={courier.id} value={courier.id}>
                     {courier.name} {courier.telegram_username ? `(@${courier.telegram_username})` : ''}
@@ -289,42 +263,27 @@ function ActiveOrderCard({ order, uz, couriers, courierId, onPickCourier, onChan
               </select>
             </>
           )}
-          <div className="flex flex-wrap gap-2">
-            {isDelivery ? (
-              <Button icon={Bike} disabled={!courierId || busy} onClick={() => change('courier_assigned', { courierId })} className="grow whitespace-nowrap basis-40">
-                {uz ? 'Kuryerni tayinlash' : 'Назначить курьера'}
-              </Button>
-            ) : (
-              <Button variant="success" icon={Check} disabled={busy} onClick={() => change('delivered')} className="grow whitespace-nowrap basis-40">
-                {uz ? 'Mijozga topshirish' : 'Выдать заказ'}
-              </Button>
-            )}
-            {cancelButton}
-          </div>
+          <div className="flex flex-wrap gap-2">{actions.map((action) => actionButton(action))}</div>
         </div>
       )}
 
       {order.status === 'courier_assigned' && (
         <div className="flex flex-col gap-2">
           <p className="text-footnote text-fg-muted">
-            {uz ? 'Biriktirilgan kuryer' : 'Назначенный курьер'}: <span className="font-bold text-fg">{courierName}</span>
+            {staffText('assignedCourier', language)}: <span className="font-bold text-fg">{courierName}</span>
             <br />
-            {uz ? "Kuryer buyurtmani olib yo'lga chiqishini kutmoqda." : 'Ожидание, пока курьер заберёт заказ.'}
+            {staffText('waitingForPickup', language)}
           </p>
-          <Button icon={Bike} disabled={busy} onClick={() => change('on_the_way')} fullWidth>
-            {uz ? "Yo'lga chiqdi" : 'В пути'}
-          </Button>
+          {actions.map((action) => actionButton(action, { fullWidth: true }))}
         </div>
       )}
 
       {(order.status === 'on_the_way' || order.status === 'delivery') && (
         <div className="flex flex-col gap-2">
           <p className="text-footnote text-fg-muted">
-            {uz ? "Mas'ul kuryer" : 'Курьер'}: <span className="font-bold text-fg">{courierName}</span>
+            {staffText('responsibleCourier', language)}: <span className="font-bold text-fg">{courierName}</span>
           </p>
-          <Button variant="success" icon={Check} disabled={busy} onClick={() => change('delivered')} fullWidth>
-            {uz ? 'Yetkazilganini tasdiqlash' : 'Подтвердить доставку'}
-          </Button>
+          {actions.map((action) => actionButton(action, { fullWidth: true }))}
         </div>
       )}
 
@@ -332,15 +291,15 @@ function ActiveOrderCard({ order, uz, couriers, courierId, onPickCourier, onChan
   );
 }
 
-function CompletedOrderCard({ order, uz }: { order: Order; uz: boolean }) {
+function CompletedOrderCard({ order }: { order: Order }) {
   const { language } = useLanguageStore();
   const timings = getStageDurations(order);
   return (
-    <article aria-label={`${uz ? 'Buyurtma' : 'Заказ'} ${formatOrderCode(order)}`} className="flex flex-col gap-2 rounded-card border border-line bg-surface p-3">
+    <article aria-label={`${staffText('orderWord', language)} ${formatOrderCode(order)}`} className="flex flex-col gap-2 rounded-card border border-line bg-surface p-3">
       <div className="flex items-center gap-2">
         <span className="text-headline font-bold text-fg">{formatOrderCode(order)}</span>
         <StatusBadge status={order.status} audience="staff" />
-        <time dateTime={order.updated_at} className="ml-auto text-footnote text-fg-muted">
+        <time dateTime={order.updated_at ?? undefined} className="ml-auto text-footnote text-fg-muted">
           {formatTime(order.updated_at)}
         </time>
       </div>
@@ -348,13 +307,13 @@ function CompletedOrderCard({ order, uz }: { order: Order; uz: boolean }) {
         <span className="min-w-0 truncate text-body text-fg-muted">{order.user?.name}</span>
         <span className="shrink-0 text-body font-bold text-fg">{formatMoney(toAmount(order.total_price), language)}</span>
       </div>
-      {(order.status === 'canceled' || order.status === 'rejected') && (order.cancel_reason || order.cancel_note) && (
+      {isCancellation(order.status) && (order.cancel_reason || order.cancel_note) && (
         <div className="flex flex-col gap-0.5 rounded-control bg-danger-soft px-3 py-2 text-footnote text-danger-soft-fg">
           {order.cancel_reason && <span className="font-bold">{getStaffCancelReasonLabel(order.cancel_reason, language)}</span>}
           {order.cancel_note && <span>"{order.cancel_note}"</span>}
         </div>
       )}
-      {timings && <StageTimes timings={timings} uz={uz} />}
+      {timings && <StageTimes timings={timings} language={language} />}
     </article>
   );
 }
@@ -362,8 +321,6 @@ function CompletedOrderCard({ order, uz }: { order: Order; uz: boolean }) {
 export default function ManagerDashboard() {
   const { user } = useAuthStore();
   const { language } = useLanguageStore();
-  const uz = language === 'uz';
-  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<'active' | 'completed'>('active');
   const [filter, setFilter] = useState<OrderFilter | null>(null);
   const [selectedCourierId, setSelectedCourierId] = useState<Record<string, number>>({});
@@ -375,38 +332,16 @@ export default function ManagerDashboard() {
   const orders = activeData?.orders ?? NO_ORDERS;
 
   // The finished orders (the archive tab) come a page at a time, once the tab is opened
-  const history = useOrderHistory('manager', { enabled: activeTab === 'completed' });
+  const history = useStaffOrderHistory('manager', { enabled: activeTab === 'completed' });
   const completedOrders = history.orders;
 
   // 2. Fetch active couriers
-  const { data: couriers = [] } = useQuery({
-    queryKey: ['storeCouriers'],
-    queryFn: async () => {
-      const response = await api.get<ApiResponse<AssignableStaff[]>>('/couriers');
-      return response.data?.data || [];
-    }
-  });
+  const { data: couriers = [] } = useCouriers();
 
-  // 3. Update order status mutation
-  const updateStatusMutation = useMutation({
-    mutationFn: async ({ orderUuid, status, courierId, reason, note }: StatusChange) => {
-      hapticFeedback('medium');
-      if (status === 'courier_assigned') {
-        const response = await api.post<ApiResponse<Order>>(`/orders/${orderUuid}/assign-courier`, {
-          courier_id: courierId
-        });
-        return response.data;
-      } else {
-        const response = await api.post<ApiResponse<Order>>(`/orders/${orderUuid}/status`, {
-          status,
-          ...(isCancellation(status) ? { reason, ...(note ? { note } : {}) } : {})
-        });
-        return response.data;
-      }
-    },
+  // 3. Update order status mutation (an order moves between the open list and the archive: the package refetches them)
+  const updateStatusMutation = useUpdateOrderStatus({
+    onMutate: () => hapticFeedback('medium'),
     onSuccess: (_data, variables) => {
-      // The order moves between the open list and the archive
-      queryClient.invalidateQueries({ queryKey: ORDERS_KEY });
       notificationOccurred('success');
       if (isCancellation(variables.status)) {
         setCancelRequest(null);
@@ -419,10 +354,10 @@ export default function ManagerDashboard() {
       const message = getApiFieldError(err, 'reason') ?? getApiErrorMessage(err);
       if (isCancellation(variables.status)) {
         // Shown in the reason picker, which stays open
-        setCancelError(message ?? (uz ? 'Bekor qilishda xatolik yuz berdi!' : 'Ошибка при отмене заказа!'));
+        setCancelError(message ?? staffText('cancelFailed', language));
         return;
       }
-      void showAlert(message || (uz ? 'Holatni yangilashda xatolik yuz berdi!' : 'Ошибка при обновлении статуса!'));
+      void showAlert(message || staffText('statusUpdateFailed', language));
     }
   });
 
@@ -443,29 +378,24 @@ export default function ManagerDashboard() {
   if (error && orders.length === 0) {
     return (
       <div className="flex flex-col gap-3 px-4 pt-2">
-        <PageHeader title={user?.name} subtitle={uz ? 'Menejer boshqaruvi' : 'Панель менеджера'} />
+        <PageHeader title={user?.name} subtitle={staffText('managerSubtitle', language)} />
         <InlineError onRetry={() => void refetchActive()} retrying={isRefetchingActive} />
       </div>
     );
   }
 
-  const activeOrders = orders.filter((order) => ACTIVE_STATUSES.includes(order.status));
+  const activeOrders = orders.filter((order) => (OPEN_STATUSES as readonly string[]).includes(order.status));
   const countOf = (key: OrderFilter) => orders.filter((order) => FILTER_STATUSES[key].includes(order.status)).length;
   const shownOrders = filter ? activeOrders.filter((order) => FILTER_STATUSES[filter].includes(order.status)) : activeOrders;
-  const busyUuid = updateStatusMutation.isPending ? updateStatusMutation.variables?.orderUuid : undefined;
+  const busyUuid = updateStatusMutation.isPending ? updateStatusMutation.variables?.uuid : undefined;
 
-  const filterLabel: Record<OrderFilter, string> = {
-    new: uz ? 'Yangi' : 'Новые',
-    preparing: uz ? 'Tayyorlash' : 'Готовка',
-    ready: uz ? 'Tayyor' : 'Готовы',
-    courier: uz ? 'Kuryer' : 'Курьер',
-  };
+  const filterLabel = (key: OrderFilter) => staffText(FILTER_LABEL_KEY[key], language);
 
   const tabs = [
-    { value: 'active' as const, label: uz ? `Faol (${activeOrders.length})` : `Активные (${activeOrders.length})` },
+    { value: 'active' as const, label: staffText('tabActive', language, { n: activeOrders.length }) },
     {
       value: 'completed' as const,
-      label: `${uz ? 'Yakunlanganlar' : 'Завершенные'}${completedOrders.length > 0 ? ` (${completedOrders.length}${history.hasNextPage ? '+' : ''})` : ''}`,
+      label: `${staffText('tabCompleted', language)}${completedOrders.length > 0 ? ` (${completedOrders.length}${history.hasNextPage ? '+' : ''})` : ''}`,
     },
   ];
 
@@ -473,12 +403,12 @@ export default function ManagerDashboard() {
 
   return (
     <div className="flex flex-col gap-3 px-4 pt-2">
-      <PageHeader title={user?.name} subtitle={uz ? 'Menejer boshqaruvi' : 'Панель менеджера'} />
+      <PageHeader title={user?.name} subtitle={staffText('managerSubtitle', language)} />
 
-      <SegmentedControl segments={tabs} value={activeTab} onChange={setActiveTab} label={uz ? "Buyurtmalar bo'limi" : 'Раздел заказов'} />
+      <SegmentedControl segments={tabs} value={activeTab} onChange={setActiveTab} label={staffText('ordersSection', language)} />
 
       {activeTab === 'active' && (
-        <div role="group" aria-label={uz ? 'Holat bo\'yicha saralash' : 'Фильтр по статусу'} className="grid grid-cols-4 gap-2">
+        <div role="group" aria-label={staffText('filterAria', language)} className="grid grid-cols-4 gap-2">
           {FILTERS.map((key) => {
             const selected = filter === key;
             return (
@@ -486,7 +416,7 @@ export default function ManagerDashboard() {
                 key={key}
                 type="button"
                 aria-pressed={selected}
-                aria-label={`${filterLabel[key]}: ${countOf(key)}`}
+                aria-label={`${filterLabel(key)}: ${countOf(key)}`}
                 onClick={() => {
                   selectionChanged();
                   setFilter(selected ? null : key);
@@ -501,7 +431,7 @@ export default function ManagerDashboard() {
                   {countOf(key)}
                 </span>
                 <span aria-hidden="true" className="max-w-full truncate text-caption font-medium text-fg-muted">
-                  {filterLabel[key]}
+                  {filterLabel(key)}
                 </span>
               </button>
             );
@@ -513,17 +443,17 @@ export default function ManagerDashboard() {
 
       <div className="flex flex-col gap-3">
         {loadingList ? (
-          <CardSkeletons count={2} lines={3} label={uz ? 'Yuklanmoqda' : 'Загрузка'} />
+          <CardSkeletons count={2} lines={3} label={staffText('loading', language)} />
         ) : activeTab === 'active' ? (
           activeOrders.length === 0 ? (
-            <EmptyState icon={ClipboardList} title={uz ? "Hozircha faol buyurtmalar yo'q" : 'Активных заказов пока нет'} text={uz ? "Yangi buyurtma kelganda shu yerda paydo bo'ladi." : 'Новые заказы появятся здесь.'} />
+            <EmptyState icon={ClipboardList} title={staffText('noActiveOrdersTitle', language)} text={staffText('noActiveOrdersText', language)} />
           ) : shownOrders.length === 0 ? (
             <EmptyState
               icon={ClipboardList}
-              title={uz ? "Bu holatda buyurtma yo'q" : 'В этом статусе заказов нет'}
+              title={staffText('noOrdersInStatus', language)}
               action={
                 <Button variant="secondary" onClick={() => setFilter(null)}>
-                  {uz ? "Hammasini ko'rsatish" : 'Показать все'}
+                  {staffText('showAll', language)}
                 </Button>
               }
             />
@@ -532,7 +462,6 @@ export default function ManagerDashboard() {
               <ActiveOrderCard
                 key={order.id}
                 order={order}
-                uz={uz}
                 couriers={couriers}
                 courierId={selectedCourierId[order.uuid] || undefined}
                 onPickCourier={(courierId) => setSelectedCourierId((prev) => ({ ...prev, [order.uuid]: courierId }))}
@@ -543,9 +472,9 @@ export default function ManagerDashboard() {
             ))
           )
         ) : completedOrders.length === 0 ? (
-          <EmptyState icon={Flag} title={uz ? "Hozircha yakunlangan buyurtmalar yo'q" : 'Завершенных заказов пока нет'} />
+          <EmptyState icon={Flag} title={staffText('noCompletedOrders', language)} />
         ) : (
-          completedOrders.map((order) => <CompletedOrderCard key={order.id} order={order} uz={uz} />)
+          completedOrders.map((order) => <CompletedOrderCard key={order.id} order={order} />)
         )}
         {activeTab === 'completed' && (
           <LoadMoreOrders
@@ -568,7 +497,7 @@ export default function ManagerDashboard() {
           onClose={closeCancelDialog}
           onConfirm={({ reason, note }) =>
             updateStatusMutation.mutate({
-              orderUuid: cancelRequest.order.uuid,
+              uuid: cancelRequest.order.uuid,
               status: cancelRequest.mode === 'reject' ? 'rejected' : 'canceled',
               reason,
               note,

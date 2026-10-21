@@ -22,7 +22,7 @@ describe('i18n', () => {
     expect(createTranslator('uz')('minutes', { n: 12 })).toBe('12 daq');
     expect(createTranslator('ru')('minutes', { n: 12 })).toBe('12 мин');
     expect(LANGUAGES).toEqual(['uz', 'ru', 'en']);
-    expect(isMessageKey('status_new')).toBe(true);
-    expect(isMessageKey('status_unknown')).toBe(false);
+    expect(isMessageKey('role_owner')).toBe(true);
+    expect(isMessageKey('role_unknown')).toBe(false);
   });
 });

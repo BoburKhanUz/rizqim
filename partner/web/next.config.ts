@@ -1,7 +1,7 @@
 import path from 'node:path';
 import type { NextConfig } from 'next';
 
-// The repository root: @rizqim/ui and @rizqim/api-client are linked from packages/ts/ (file: dependencies), so the
+// The repository root: @rizqim/ui, @rizqim/staff and @rizqim/api-client are linked from packages/ts/ (file: dependencies), so the
 // bundler and the standalone output tracing must be allowed to read outside this folder.
 const repoRoot = path.join(__dirname, '../..');
 
@@ -9,16 +9,20 @@ const config: NextConfig = {
   // A self-contained server for the Docker image (Dockerfile): .next/standalone/partner/web/server.js
   output: 'standalone',
   outputFileTracingRoot: repoRoot,
-  // @rizqim/ui ships TypeScript source (no build step): Next compiles it with the app
-  transpilePackages: ['@rizqim/ui'],
+  // @rizqim/ui and @rizqim/staff ship TypeScript source (no build step): Next compiles them with the app
+  transpilePackages: ['@rizqim/ui', '@rizqim/staff'],
   turbopack: {
     root: repoRoot,
-    // The linked @rizqim/ui sources import react, react-dom and lucide-react from their real location, where there is
-    // no node_modules: resolve them to this app's copies (one React for the whole page)
+    // The linked @rizqim/ui and @rizqim/staff sources import react, react-dom, lucide-react, @tanstack/react-query and the
+    // sibling packages from their real location, where there is no node_modules: resolve them to this app's copies (one
+    // React and one query cache context for the whole page)
     resolveAlias: {
       react: './node_modules/react',
       'react-dom': './node_modules/react-dom',
       'lucide-react': './node_modules/lucide-react',
+      '@tanstack/react-query': './node_modules/@tanstack/react-query',
+      '@rizqim/api-client': './node_modules/@rizqim/api-client',
+      '@rizqim/ui': './node_modules/@rizqim/ui',
     },
   },
   poweredByHeader: false,

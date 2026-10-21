@@ -6,9 +6,10 @@ import api from '../services/api';
 import { useAuthStore } from '../store/authStore';
 import { makeOrder, makeStore, makeUser } from '../test/factories';
 import { ordersResponse } from '../test/ordersApi';
-import { failedRequest } from '../test/httpErrors';
 import { useNotifications } from './useNotifications';
-import { useOrders, useStaffOrders } from './useOrders';
+import { callsTo, reply, stubStaffApi, type FakeCall } from '../test/staffFetch';
+import { useOrders } from './useOrders';
+import { useStaffOrders } from './useStaffOrders';
 
 // The hooks that keep a screen fresh by polling, wired to a fake API and a controlled clock
 
@@ -43,17 +44,29 @@ afterEach(() => {
 });
 
 describe('useStaffOrders', () => {
+  // The staff screens read GET /orders through @rizqim/staff, over fetch
+  let staffCalls: FakeCall[];
+  let staffOrders: ReturnType<typeof makeOrder>[];
+  let staffFails: boolean;
+  const staffOrdersCalls = () => callsTo(staffCalls, '/orders').length;
+
+  beforeEach(() => {
+    staffOrders = [makeOrder({ id: 1, status: 'new' })];
+    staffFails = false;
+    ({ calls: staffCalls } = stubStaffApi((call) => (staffFails ? reply(502) : ordersResponse(staffOrders, { params: call.query }).data)));
+  });
+
   it('loads the orders and refreshes them at the dashboard\'s interval', async () => {
     const { result } = renderHook(() => useStaffOrders('manager', 8000), { wrapper });
     await advance(0);
 
     expect(result.current.data?.orders.map((o) => o.id)).toEqual([1]);
-    expect(ordersCalls()).toBe(1);
+    expect(staffOrdersCalls()).toBe(1);
 
     await advance(8000);
-    expect(ordersCalls()).toBe(2);
+    expect(staffOrdersCalls()).toBe(2);
     await advance(16_000);
-    expect(ordersCalls()).toBe(4);
+    expect(staffOrdersCalls()).toBe(4);
   });
 
   it('stays quiet while the page is hidden and catches up when it is shown', async () => {
@@ -62,11 +75,11 @@ describe('useStaffOrders', () => {
 
     focusManager.setFocused(false);
     await advance(10 * 60_000);
-    expect(ordersCalls()).toBe(1);
+    expect(staffOrdersCalls()).toBe(1);
 
     focusManager.setFocused(true);
     await advance(0);
-    expect(ordersCalls()).toBe(2);
+    expect(staffOrdersCalls()).toBe(2);
   });
 
   it('keeps the last orders on screen through failed polls and polls less often meanwhile', async () => {
@@ -79,22 +92,23 @@ describe('useStaffOrders', () => {
     await advance(0);
     expect(screen.getByText('orders:1 error:false')).toBeInTheDocument();
 
-    get.mockRejectedValue(failedRequest(502, {}, '/orders'));
+    staffFails = true;
     await advance(15_000 + 5000); // a poll fails (and its one retry)
     expect(screen.getByText('orders:1 error:true')).toBeInTheDocument(); // the last good orders are still there
-    const callsAfterFirstFailure = ordersCalls();
+    const callsAfterFirstFailure = staffOrdersCalls();
 
     await advance(15_000); // the normal interval has passed, but the next poll is twice as far away
-    expect(ordersCalls()).toBe(callsAfterFirstFailure);
+    expect(staffOrdersCalls()).toBe(callsAfterFirstFailure);
 
     // The server comes back: the next poll succeeds and everything is normal again
-    get.mockImplementation((_url, config) => Promise.resolve(ordersResponse([makeOrder({ id: 1, status: 'new' }), makeOrder({ id: 2, status: 'new' })], config)));
+    staffFails = false;
+    staffOrders = [makeOrder({ id: 1, status: 'new' }), makeOrder({ id: 2, status: 'new' })];
     await advance(60_000);
     expect(screen.getByText('orders:2 error:false')).toBeInTheDocument();
 
-    const callsWhenRecovered = ordersCalls();
+    const callsWhenRecovered = staffOrdersCalls();
     await advance(15_000);
-    expect(ordersCalls()).toBe(callsWhenRecovered + 1);
+    expect(staffOrdersCalls()).toBe(callsWhenRecovered + 1);
   });
 });
 

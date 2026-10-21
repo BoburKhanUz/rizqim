@@ -1,11 +1,10 @@
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Banknote, CheckCircle2, Clock, CreditCard, Gauge, Send, ShieldAlert, TrendingDown, TrendingUp, XCircle } from 'lucide-react';
 import { useLanguageStore } from '../store/languageStore';
 import { Button, Card, Dialog, Field, InlineError, PageHeader, Section, Skeleton, cx, fieldClass } from '../components/ui';
 import { Pill, type PillTone } from '../components/staff/Pill';
 import { StoreStatusPill } from '../components/staff/StoreStatusPill';
-import api from '../services/api';
+import { useInitiateTopup, useOwnerFinance, useRequestPayout, type Amount } from '@rizqim/staff';
 import { tg, hapticFeedback } from '../lib/telegram';
 import { notificationOccurred, selectionChanged } from '../lib/twa';
 import { showAlert } from '../lib/dialogs';
@@ -13,7 +12,6 @@ import { getApiErrorMessage, getErrorMessage } from '../lib/apiError';
 import { parseAmount, sumAmounts, toAmount } from '../lib/money';
 import { formatDate, formatDateTime, formatMoney } from '../lib/format';
 import { POLL_INTERVAL_MS, pollingQueryOptions } from '../lib/polling';
-import type { Amount, ApiResponse, OwnerFinance, PayoutStatus, TopupInitiated } from '../types';
 
 // What the API falls back to when a store has no value of its own.
 const DEFAULT_MIN_PAYOUT_RESERVE = 100_000;
@@ -27,12 +25,12 @@ const errorText = (err: unknown) => getApiErrorMessage(err) || getErrorMessage(e
 // Money arrives as floats and decimal strings alike: lib/format reads it through toAmount.
 const formatPrice = (price: Amount) => formatMoney(price);
 
-const payoutTone = (status: PayoutStatus): PillTone => (status === 'completed' ? 'success' : status === 'rejected' ? 'danger' : 'warning');
+// (the spec types a payout's status as a plain string; anything but completed / rejected reads as pending)
+const payoutTone = (status: string): PillTone => (status === 'completed' ? 'success' : status === 'rejected' ? 'danger' : 'warning');
 
 export default function OwnerPayments() {
   const { language } = useLanguageStore();
   const uz = language === 'uz';
-  const queryClient = useQueryClient();
 
   // State for Payout form
   const [amount, setAmount] = useState('');
@@ -47,11 +45,7 @@ export default function OwnerPayments() {
   const [topupProvider, setTopupProvider] = useState<'click' | 'payme'>('click');
 
   // Mutation to initiate top-up
-  const topupMutation = useMutation({
-    mutationFn: async (payload: { amount: number; provider: string }) => {
-      const res = await api.post<ApiResponse<TopupInitiated>>('/owner/finance/top-up', payload);
-      return res.data?.data;
-    },
+  const topupMutation = useInitiateTopup({
     onSuccess: (data) => {
       notificationOccurred('success');
       setShowTopupModal(false);
@@ -73,21 +67,10 @@ export default function OwnerPayments() {
 
   // 1. Fetch finance details. The balances move whenever an order is commissioned or a top-up lands, so the
   // screen refreshes itself while it is visible (never in the background, backing off while the server fails).
-  const { data: financeData, isLoading, refetch, isRefetching } = useQuery({
-    queryKey: ['ownerFinance'],
-    queryFn: async () => {
-      const res = await api.get<ApiResponse<OwnerFinance>>('/owner/finance');
-      return res.data?.data || null;
-    },
-    ...pollingQueryOptions(POLL_INTERVAL_MS.ownerFinance),
-  });
+  const { data: financeData, isLoading, refetch, isRefetching } = useOwnerFinance(pollingQueryOptions(POLL_INTERVAL_MS.ownerFinance));
 
   // 2. Mutation to request payout
-  const payoutMutation = useMutation({
-    mutationFn: async (payload: { amount: number; card_number: string; notes?: string }) => {
-      const res = await api.post('/owner/payouts', payload);
-      return res.data;
-    },
+  const payoutMutation = useRequestPayout({
     onSuccess: () => {
       notificationOccurred('success');
       setSuccessMessage(
@@ -99,7 +82,6 @@ export default function OwnerPayments() {
       setCardNumber('');
       setNotes('');
       setErrorMessage('');
-      queryClient.invalidateQueries({ queryKey: ['ownerFinance'] });
       setTimeout(() => setSuccessMessage(''), 5000);
     },
     onError: (err: unknown) => {
@@ -214,7 +196,7 @@ export default function OwnerPayments() {
     }
   };
 
-  const payoutStatus = (reqStatus: PayoutStatus) => {
+  const payoutStatus = (reqStatus: string) => {
     if (reqStatus === 'completed') return { label: uz ? 'Bajarildi' : 'Выполнено', icon: CheckCircle2 };
     if (reqStatus === 'rejected') return { label: uz ? 'Rad etildi' : 'Отклонено', icon: XCircle };
     return { label: uz ? 'Kutilmoqda' : 'В ожидании', icon: Clock };

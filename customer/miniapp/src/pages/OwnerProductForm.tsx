@@ -5,11 +5,11 @@ import { hapticFeedback } from '../lib/telegram';
 import { notificationOccurred } from '../lib/twa';
 import { showAlert } from '../lib/dialogs';
 import { useMainButton } from '../hooks/useMainButton';
-import api from '../services/api';
+import { fetchOwnerCategories, fetchOwnerProducts, productFormData, saveProduct, type Category } from '@rizqim/staff';
+import { staffApi } from '../services/staffApi';
 import { getApiErrorMessage, logApiError } from '../lib/apiError';
 import { Button, Card, Field, IconButton, PageHeader, Section, Skeleton, cx, fieldClass } from '../components/ui';
 import { Switch } from '../components/staff/Switch';
-import type { ApiResponse, CategoryOption, Product } from '../types';
 
 // A price row of the form. `id` is set for variants that already exist on the server.
 interface VariantDraft {
@@ -25,7 +25,7 @@ export default function OwnerProductForm() {
 
   const [loading, setLoading] = useState(isEditing);
   const [saving, setSaving] = useState(false);
-  const [categories, setCategories] = useState<CategoryOption[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -45,14 +45,11 @@ export default function OwnerProductForm() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const catRes = await api.get<ApiResponse<CategoryOption[]>>('/owner/categories');
-        if (catRes.data.success) {
-          setCategories(catRes.data.data);
-        }
+        setCategories(await fetchOwnerCategories(staffApi));
 
         if (isEditing) {
-          const prodRes = await api.get<ApiResponse<Product[]>>('/owner/products');
-          const product = prodRes.data.data.find((p) => p.id === Number(id));
+          const products = await fetchOwnerProducts(staffApi);
+          const product = products.find((p) => p.id === Number(id));
           if (product) {
             setName(product.name);
             setDescription(product.description || '');
@@ -119,28 +116,10 @@ export default function OwnerProductForm() {
 
     setSaving(true);
     try {
-      const formData = new FormData();
-      formData.append('name', name);
-      formData.append('description', description);
-      formData.append('category_id', categoryId);
-      formData.append('is_active', isActive ? '1' : '0');
+      const formData = productFormData({ name, description, category_id: categoryId, is_active: isActive, image: imageFile, variants });
 
-      if (imageFile) {
-        formData.append('image', imageFile);
-      }
-
-      formData.append('variants', JSON.stringify(variants));
-
-      if (isEditing) {
-        // Since api.php has Route::post() to handle multipart/form-data, we just send a POST request.
-        await api.post(`/owner/products/${id}`, formData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
-        });
-      } else {
-        await api.post('/owner/products', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
-        });
-      }
+      // The API takes multipart on POST for both (an image can go along), so an update is a POST too
+      await saveProduct(staffApi, isEditing ? id : null, formData);
 
       // The catalog list the owner lands on shows the saved product: no popup to dismiss
       notificationOccurred('success');

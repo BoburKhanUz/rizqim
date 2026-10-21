@@ -3,6 +3,8 @@ import { createRoot } from 'react-dom/client';
 import './index.css';
 import App from './App.tsx';
 import { initSentry, isSentryConfigured, reportCaughtError } from './lib/sentry';
+// Registers the API the staff screens' hooks (@rizqim/staff) read
+import './services/staffApi';
 
 // Sentry starts only when VITE_SENTRY_DSN is set (src/lib/sentry.ts); otherwise this is a plain React root.
 void initSentry();

@@ -89,30 +89,6 @@ export const uz = {
   ordersTruncated: "Ro'yxat eng so'nggi 200 ta buyurtma bilan cheklangan.",
   guest: 'Mijoz',
 
-  // Buyurtma holatlari (xodim so'zlari)
-  status_new: 'Yangi',
-  status_accepted: 'Qabul qilindi',
-  status_preparing: 'Tayyorlanmoqda',
-  status_ready: 'Tayyor',
-  status_courier_assigned: 'Kuryer kutilmoqda',
-  status_on_the_way: "Yo'lda",
-  status_delivery: "Yo'lda",
-  status_delivered: 'Yetkazildi',
-  status_canceled: 'Bekor qilindi',
-  status_rejected: 'Rad etildi',
-  status_refunded: 'Qaytarildi',
-
-  // Buyurtma turlari va to'lov usullari
-  type_delivery: 'Yetkazib berish',
-  type_pickup: 'Olib ketish',
-  type_dine_in: 'Joyida',
-  payment_cash: 'Naqd pul',
-  payment_click: 'Click',
-  payment_payme: 'Payme',
-  payment_uzum: 'Uzum',
-  payment_paynet: 'Paynet',
-  payment_keshbek: 'Keshbek',
-
   // Rollar
   role_owner: 'Ega',
   role_manager: 'Menejer',

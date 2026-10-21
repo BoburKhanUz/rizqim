@@ -9,7 +9,7 @@
 # infra/backup: this file does not apply to them.
 #
 # Keep in sync: nothing below may exclude what the root-context Dockerfiles COPY (customer/miniapp, partner/web,
-# packages/ts/ui, packages/ts/api-client with their package.json, package-lock.json and partner/web/.npmrc).
+# packages/ts/ui, packages/ts/staff, packages/ts/api-client with their package.json, package-lock.json and partner/web/.npmrc).
 
 # Secrets: env files (the .example ones stay), keys, service accounts, database dumps
 **/.env

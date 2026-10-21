@@ -11,14 +11,6 @@ export interface Category {
   image_url: string | null;
 }
 
-// A category in the owner's product form dropdown (GET /owner/categories).
-export interface CategoryOption {
-  id: number;
-  name: string;
-  image: string | null;
-  image_url: string | null;
-}
-
 // How a variant is sold (product_variants.unit, App\Enums\MenuUnit): per piece, or per kilogram / litre.
 export type MenuUnit = 'piece' | 'kg' | 'l';
 

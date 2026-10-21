@@ -3,12 +3,13 @@ import { Users, UserPlus, Trash2, Shield, Share2, Copy, Check } from 'lucide-rea
 import { hapticFeedback } from '../lib/telegram';
 import { notificationOccurred } from '../lib/twa';
 import { showAlert, showConfirm } from '../lib/dialogs';
-import api from '../services/api';
+import { fetchEmployees as loadEmployees, getApiErrorMessage, getApiFieldError, inviteEmployee, removeEmployee, transferEmployee, type Employee } from '@rizqim/staff';
+import { staffApi } from '../services/staffApi';
 import { useAuthStore } from '../store/authStore';
-import { getApiErrorMessage, getApiFieldError, logApiError } from '../lib/apiError';
+import { logApiError } from '../lib/apiError';
 import { Button, Card, CardSkeletons, EmptyState, Field, IconButton, InlineError, PageHeader, Section, fieldClass } from '../components/ui';
 import { SegmentedControl } from '../components/staff/SegmentedControl';
-import type { ApiResponse, Branch, Employee, EmployeeInvite } from '../types';
+import type { Branch } from '../types';
 
 const NO_BRANCHES: Branch[] = [];
 
@@ -47,9 +48,9 @@ export default function OwnerEmployees() {
     let cancelled = false;
     const fetchEmployees = async () => {
       try {
-        const res = await api.get<ApiResponse<Employee[]>>('/owner/employees');
-        if (res.data.success && !cancelled) {
-          setEmployees(res.data.data);
+        const list = await loadEmployees(staffApi);
+        if (!cancelled) {
+          setEmployees(list);
           setLoadFailed(false);
         }
       } catch (err) {
@@ -72,16 +73,14 @@ export default function OwnerEmployees() {
     hapticFeedback('medium');
     setGenerating(true);
     try {
-      const res = await api.post<ApiResponse<EmployeeInvite>>('/owner/employees/invite', {
+      const invite = await inviteEmployee(staffApi, {
         role: newRole,
         name: newName,
-        branch_id: selectedBranchId ? parseInt(selectedBranchId) : null,
+        branchId: selectedBranchId ? parseInt(selectedBranchId) : null,
       });
-      if (res.data.success) {
-        setInviteLink(res.data.data.invite_link);
-        refreshEmployees(); // Refresh list to show pending employee
-        setNewName('');
-      }
+      setInviteLink(invite.invite_link);
+      refreshEmployees(); // Refresh list to show pending employee
+      setNewName('');
     } catch (err) {
       void showAlert(getApiErrorMessage(err) || 'Xatolik yuz berdi');
     } finally {
@@ -98,7 +97,7 @@ export default function OwnerEmployees() {
     if (!confirmed) return;
     hapticFeedback('heavy');
     try {
-      await api.delete(`/owner/employees/${employee.id}`);
+      await removeEmployee(staffApi, employee.id);
       refreshEmployees();
     } catch {
       void showAlert("O'chirishda xatolik yuz berdi");
@@ -110,12 +109,8 @@ export default function OwnerEmployees() {
     if (!branchIdStr) return;
     hapticFeedback('medium');
     try {
-      const res = await api.post<ApiResponse<Employee>>(`/owner/employees/${employeeId}/transfer`, {
-        branch_id: parseInt(branchIdStr),
-      });
-      if (res.data.success) {
-        refreshEmployees();
-      }
+      await transferEmployee(staffApi, employeeId, parseInt(branchIdStr));
+      refreshEmployees();
     } catch (err) {
       void showAlert(getApiFieldError(err, 'branch_id') || getApiErrorMessage(err) || 'Filialni o\'zgartirishda xatolik yuz berdi');
     }

@@ -1,7 +1,9 @@
+import { StaffApiError } from '@rizqim/staff';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { failedRequest, secretsIn } from '../test/httpErrors';
 import {
   getApiErrorMessage,
+  getApiErrorStatus,
   getApiFieldError,
   getErrorMessage,
   logApiError,
@@ -113,5 +115,24 @@ describe('getErrorMessage', () => {
     expect(getErrorMessage(new Error(''))).toBeUndefined();
     expect(getErrorMessage('Network Error')).toBeUndefined();
     expect(getErrorMessage(undefined)).toBeUndefined();
+  });
+});
+
+describe('errors of the staff API layer (@rizqim/staff)', () => {
+  it('keeps only the status and the server message, like an axios error', () => {
+    expect(sanitizeError(new StaffApiError(422, { message: "Sabab kerak", errors: { reason: ['x'] } }))).toBe('HTTP 422: Sabab kerak');
+    expect(sanitizeError(new StaffApiError(500, undefined))).toBe('HTTP 500: HTTP 500');
+  });
+
+  it('reads the server message, the field message and the status', () => {
+    const invalid = new StaffApiError(422, { message: 'Xato', errors: { branch_id: ["Noto'g'ri filial"] } });
+    expect(getApiErrorMessage(invalid)).toBe('Xato');
+    expect(getApiFieldError(invalid, 'branch_id')).toBe("Noto'g'ri filial");
+    expect(getApiFieldError(invalid, 'name')).toBeUndefined();
+    expect(getApiErrorStatus(invalid)).toBe(422);
+    expect(getApiErrorMessage(new StaffApiError(502, '<html>Bad gateway</html>'))).toBeUndefined();
+    expect(getApiErrorStatus(failedRequest(429, {}))).toBe(429);
+    expect(getApiErrorStatus(failedRequest(undefined))).toBeUndefined();
+    expect(getApiErrorStatus(new Error('x'))).toBeUndefined();
   });
 });

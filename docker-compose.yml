@@ -194,7 +194,7 @@ services:
 
   frontend:
     build:
-      # Ildiz: Mini App umumiy packages/ts/ui paketiga bog'liq (P1-25). Image'ga nimalar kirishi: customer/miniapp/Dockerfile.dockerignore
+      # Ildiz: Mini App umumiy packages/ts/ui, staff va api-client paketlariga bog'liq (P1-25, P2-13). Image'ga nimalar kirishi: customer/miniapp/Dockerfile.dockerignore
       context: .
       dockerfile: customer/miniapp/Dockerfile
       args:
@@ -234,7 +234,7 @@ services:
   # docs/DEPLOY.md (4-bo'lim), partner/web/README.md
   partner-web:
     build:
-      # Ildiz: panel packages/ts/ui va packages/ts/api-client ga bog'liq. Image'ga nimalar kirishi: partner/web/Dockerfile.dockerignore
+      # Ildiz: panel packages/ts/ui, staff va api-client ga bog'liq. Image'ga nimalar kirishi: partner/web/Dockerfile.dockerignore
       context: .
       dockerfile: partner/web/Dockerfile
     restart: unless-stopped

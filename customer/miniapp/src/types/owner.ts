@@ -2,6 +2,10 @@ import type { Amount, Decimal } from './api';
 import type { PaymentAccountType, StoreStatus } from './store';
 import type { ApiUser } from './user';
 
+// The shapes below (employees, finance, analytics) are what the staff screens now read through @rizqim/staff, from the
+// generated schema; they remain for the test fixtures (src/test/factories.ts) and Profile.tsx, which still reads
+// /owner/settings with axios.
+//
 // The branch an employee works at, as GET /owner/employees embeds it (the invite response carries the whole Branch).
 export interface EmployeeBranch {
   id: number;
@@ -15,12 +19,6 @@ export type Employee = Omit<ApiUser, 'role' | 'branch'> & {
   role: 'manager' | 'courier';
   branch?: EmployeeBranch | null;
 };
-
-// POST /owner/employees/invite
-export interface EmployeeInvite {
-  employee: Employee;
-  invite_link: string;
-}
 
 // Mirrors App\Enums\StoreTransactionType.
 export type StoreTransactionType = 'commission' | 'topup' | 'settlement' | 'payout' | 'refund' | 'adjustment';
@@ -93,12 +91,6 @@ export interface OwnerFinance {
   ledger_transactions: LedgerTransaction[];
   wallet_transactions: WalletTransaction[];
   payout_requests: PayoutRequest[];
-}
-
-// POST /owner/finance/top-up
-export interface TopupInitiated {
-  topup_uuid: string;
-  payment_url: string;
 }
 
 // GET /owner/analytics?period=today|week|month|year, or ?period=custom&from=YYYY-MM-DD&to=YYYY-MM-DD (at most 93 days).

@@ -9,9 +9,10 @@ const fromPackages = (...names: string[]) =>
 export default defineConfig({
   plugins: [react()],
   resolve: {
-    // @rizqim/ui (packages/ts/ui) is linked and compiled as source from outside this folder: its imports of react,
-    // react-dom and lucide-react must resolve to this app's copies, not to a second React
-    dedupe: ['react', 'react-dom', 'lucide-react'],
+    // @rizqim/ui and @rizqim/staff (packages/ts/) are linked and compiled as source from outside this folder: their imports
+    // of react, react-dom, lucide-react, @tanstack/react-query and the sibling packages must resolve to this app's copies,
+    // not to a second React or a second query cache context
+    dedupe: ['react', 'react-dom', 'lucide-react', '@tanstack/react-query', '@rizqim/api-client', '@rizqim/ui'],
   },
   build: {
     rolldownOptions: {
@@ -34,7 +35,7 @@ export default defineConfig({
   },
   server: {
     allowedHosts: true,
-    // The linked @rizqim/ui sources live in packages/ts/ui, outside this folder
+    // The linked @rizqim/ui and @rizqim/staff sources live in packages/ts/, outside this folder
     fs: { allow: ['../..'] },
     proxy: {
       '/api': {

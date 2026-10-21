@@ -4,19 +4,11 @@ import { formatMoney } from '../lib/format';
 import { Button, Card, Field, InlineError, PageHeader, Skeleton, fieldClass } from '../components/ui';
 import { SegmentedControl } from '../components/staff/SegmentedControl';
 import { Activity, CheckCircle2, Download, FileSpreadsheet, XCircle } from 'lucide-react';
-import api from '../services/api';
+import { staffApi } from '../services/staffApi';
 import { getApiErrorMessage } from '../lib/apiError';
 import { notificationOccurred } from '../lib/twa';
-import { MAX_CUSTOM_DAYS, toDateInputValue, type Timeframe } from '../lib/analytics';
+import { exportReport, MAX_CUSTOM_DAYS, toDateInputValue, type ReportExportInput, type Timeframe } from '@rizqim/staff';
 import { useOwnerAnalytics } from '../hooks/useOwnerAnalytics';
-import type { ApiResponse } from '../types';
-
-// POST /reports/export
-interface ExportPayload {
-  timeframe: Timeframe;
-  start_date?: string;
-  end_date?: string;
-}
 
 export default function AdminReports() {
   const { language } = useLanguageStore();
@@ -40,16 +32,14 @@ export default function AdminReports() {
     setExportMessage(null);
     let result: { text: string; ok: boolean };
     try {
-      const payload: ExportPayload = { timeframe };
+      const payload: ReportExportInput = { timeframe };
       if (timeframe === 'custom') {
         payload.start_date = startDate;
         payload.end_date = endDate;
       }
 
-      const response = await api.post<ApiResponse<null>>('/reports/export', payload);
-      result = response.data?.success
-        ? { text: response.data?.message || (uz ? 'Hisobot muvaffaqiyatli yuborildi!' : 'Отчёт успешно отправлен!'), ok: true }
-        : { text: uz ? 'Xatolik yuz berdi.' : 'Произошла ошибка.', ok: false };
+      const message = await exportReport(staffApi, payload);
+      result = { text: message || (uz ? 'Hisobot muvaffaqiyatli yuborildi!' : 'Отчёт успешно отправлен!'), ok: true };
     } catch (err) {
       result = { text: getApiErrorMessage(err) || (uz ? 'Xatolik yuz berdi.' : 'Произошла ошибка.'), ok: false };
     } finally {

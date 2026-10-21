@@ -84,28 +84,6 @@ export const en: Messages = {
   ordersTruncated: 'The list is limited to the 200 latest orders.',
   guest: 'Customer',
 
-  status_new: 'New',
-  status_accepted: 'Accepted',
-  status_preparing: 'Preparing',
-  status_ready: 'Ready',
-  status_courier_assigned: 'Waiting for courier',
-  status_on_the_way: 'On the way',
-  status_delivery: 'On the way',
-  status_delivered: 'Delivered',
-  status_canceled: 'Cancelled',
-  status_rejected: 'Rejected',
-  status_refunded: 'Refunded',
-
-  type_delivery: 'Delivery',
-  type_pickup: 'Pickup',
-  type_dine_in: 'Dine-in',
-  payment_cash: 'Cash',
-  payment_click: 'Click',
-  payment_payme: 'Payme',
-  payment_uzum: 'Uzum',
-  payment_paynet: 'Paynet',
-  payment_keshbek: 'Cashback',
-
   // Roles
   role_owner: 'Owner',
   role_manager: 'Manager',
