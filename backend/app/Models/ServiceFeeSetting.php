@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property numeric-string $place_fee_amount
  * @property PlaceFeeMode $place_fee_mode
  * @property list<string>|null $place_fee_channels
+ * @property int|null $hall_id P3-12: a hall's own row (DiningFeeCalculator::settingsForHall)
  */
 class ServiceFeeSetting extends Model
 {
@@ -48,5 +49,15 @@ class ServiceFeeSetting extends Model
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
+    }
+
+    /**
+     * P3-12: the hall this row overrides the branch's settings in.
+     *
+     * @return BelongsTo<Hall, $this>
+     */
+    public function hall(): BelongsTo
+    {
+        return $this->belongsTo(Hall::class);
     }
 }

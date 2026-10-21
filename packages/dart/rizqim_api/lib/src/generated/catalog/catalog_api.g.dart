@@ -27,6 +27,7 @@ class _CatalogApi implements CatalogApi {
     num? lng,
     int? regionId,
     int? districtId,
+    int? branchId,
     int? categoryId,
     Channel? channel,
   }) async {
@@ -37,6 +38,7 @@ class _CatalogApi implements CatalogApi {
       r'lng': lng,
       r'region_id': regionId,
       r'district_id': districtId,
+      r'branch_id': branchId,
       r'category_id': categoryId,
       r'channel': channel?.toJson(),
     };

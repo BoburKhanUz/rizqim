@@ -11,7 +11,7 @@ PostV1OwnerBatchesIdAdjustResponse _$PostV1OwnerBatchesIdAdjustResponseFromJson(
 ) => PostV1OwnerBatchesIdAdjustResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data29.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data33.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1OwnerBatchesIdAdjustResponseToJson(

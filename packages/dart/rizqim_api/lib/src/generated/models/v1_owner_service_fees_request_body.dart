@@ -19,6 +19,7 @@ class V1OwnerServiceFeesRequestBody {
     this.branchId,
     this.serviceChargeChannels,
     this.placeFeeChannels,
+    this.hallId,
   });
 
   factory V1OwnerServiceFeesRequestBody.fromJson(Map<String, Object?> json) =>
@@ -36,6 +37,10 @@ class V1OwnerServiceFeesRequestBody {
   final PlaceFeeMode placeFeeMode;
   @JsonKey(name: 'place_fee_channels')
   final List<PlaceFeeChannels>? placeFeeChannels;
+
+  /// P3-12: a hall's own settings (its branch is the hall's)
+  @JsonKey(name: 'hall_id')
+  final int? hallId;
 
   Map<String, Object?> toJson() => _$V1OwnerServiceFeesRequestBodyToJson(this);
 }

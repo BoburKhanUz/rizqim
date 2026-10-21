@@ -8,30 +8,32 @@ part of 'data92.dart';
 
 Data92 _$Data92FromJson(Map<String, dynamic> json) => Data92(
   id: (json['id'] as num).toInt(),
-  uuid: json['uuid'] as String,
+  branchId: (json['branch_id'] as num).toInt(),
   name: json['name'] as String,
-  phone: json['phone'] as String?,
-  slug: json['slug'] as String,
+  purpose: json['purpose'] as String,
+  connection: json['connection'] as String,
+  address: json['address'] as String?,
+  port: (json['port'] as num?)?.toInt(),
+  paperWidth: (json['paper_width'] as num).toInt(),
+  stationId: (json['station_id'] as num?)?.toInt(),
+  deviceId: json['device_id'] as String?,
   isActive: json['is_active'] as bool,
-  commissionRate: json['commission_rate'] as String,
-  branchesCount: (json['branches_count'] as num?)?.toInt(),
-  createdAt: json['created_at'] == null
-      ? null
-      : DateTime.parse(json['created_at'] as String),
-  owner: json['owner'] == null
-      ? null
-      : Owner.fromJson(json['owner'] as Map<String, dynamic>),
+  encoding: json['encoding'] as String?,
+  printAsImage: json['print_as_image'] as bool,
 );
 
 Map<String, dynamic> _$Data92ToJson(Data92 instance) => <String, dynamic>{
   'id': instance.id,
-  'uuid': instance.uuid,
+  'branch_id': instance.branchId,
   'name': instance.name,
-  'phone': instance.phone,
-  'slug': instance.slug,
+  'purpose': instance.purpose,
+  'connection': instance.connection,
+  'address': instance.address,
+  'port': instance.port,
+  'paper_width': instance.paperWidth,
+  'station_id': instance.stationId,
+  'device_id': instance.deviceId,
   'is_active': instance.isActive,
-  'commission_rate': instance.commissionRate,
-  'branches_count': instance.branchesCount,
-  'created_at': instance.createdAt?.toIso8601String(),
-  'owner': instance.owner,
+  'encoding': instance.encoding,
+  'print_as_image': instance.printAsImage,
 };

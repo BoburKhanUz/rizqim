@@ -4,55 +4,56 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'working_hours2.dart';
-
 part 'data33.g.dart';
 
 @JsonSerializable()
 class Data33 {
   const Data33({
     required this.id,
-    required this.name,
-    required this.phone,
-    required this.address,
-    required this.regionId,
-    required this.districtId,
-    required this.latitude,
-    required this.longitude,
-    required this.radiusKm,
-    required this.status,
-    required this.isActive,
-    required this.workingHours,
-    required this.isOpenNow,
-    required this.createdAt,
-    required this.updatedAt,
+    required this.uuid,
+    required this.branchId,
+    required this.productId,
+    required this.productName,
+    required this.productVariantId,
+    required this.variantName,
+    required this.unit,
+    required this.label,
+    required this.quantityProduced,
+    required this.quantityLeft,
+    required this.isOpen,
+    required this.startedAt,
+    required this.soldOutAt,
+    required this.closedAt,
   });
 
   factory Data33.fromJson(Map<String, Object?> json) => _$Data33FromJson(json);
 
   final int id;
-  final String name;
-  final String? phone;
-  final String? address;
-  @JsonKey(name: 'region_id')
-  final int? regionId;
-  @JsonKey(name: 'district_id')
-  final int? districtId;
-  final num? latitude;
-  final num? longitude;
-  @JsonKey(name: 'radius_km')
-  final num radiusKm;
-  final String status;
-  @JsonKey(name: 'is_active')
-  final bool isActive;
-  @JsonKey(name: 'working_hours')
-  final WorkingHours2 workingHours;
-  @JsonKey(name: 'is_open_now')
-  final bool isOpenNow;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
-  @JsonKey(name: 'updated_at')
-  final String? updatedAt;
+  final String uuid;
+  @JsonKey(name: 'branch_id')
+  final int branchId;
+  @JsonKey(name: 'product_id')
+  final int productId;
+  @JsonKey(name: 'product_name')
+  final String productName;
+  @JsonKey(name: 'product_variant_id')
+  final int? productVariantId;
+  @JsonKey(name: 'variant_name')
+  final String? variantName;
+  final String? unit;
+  final String? label;
+  @JsonKey(name: 'quantity_produced')
+  final num? quantityProduced;
+  @JsonKey(name: 'quantity_left')
+  final num? quantityLeft;
+  @JsonKey(name: 'is_open')
+  final bool isOpen;
+  @JsonKey(name: 'started_at')
+  final String? startedAt;
+  @JsonKey(name: 'sold_out_at')
+  final String? soldOutAt;
+  @JsonKey(name: 'closed_at')
+  final String? closedAt;
 
   Map<String, Object?> toJson() => _$Data33ToJson(this);
 }

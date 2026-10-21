@@ -46,7 +46,7 @@ class StaffOrderController extends Controller
 {
     use ApiResponse;
 
-    private const ITEM = 'array{id: int, product_name: string, variant_name: string|null, quantity: int|float, unit: string, quantity_label: string, modifiers: list<array{name: string, group_name?: string, quantity: int, price_delta?: string}>, kitchen_status: string, ready_at: string|null, unit_price?: string, modifiers_total?: string, total_price?: string}';
+    private const ITEM = 'array{id: int, product_name: string, variant_name: string|null, quantity: int|float, unit: string, quantity_label: string, modifiers: list<array{name: string, group_name?: string, quantity: int, price_delta?: string}>, kitchen_status: string, ready_at: string|null, round_no?: int|null, fire_mode?: string, station_id?: int|null, sent_at?: string|null, due_at?: string|null, seat_no?: int|null, note?: string|null, voided_at?: string|null, void_reason?: string|null, unit_price?: string, modifiers_total?: string, total_price?: string}';
 
     private const ORDER = 'array{uuid: string, short_code: string|null, status: string, status_label: string, type: string, channel: string, store_id: int, branch_id: int|null, branch_name: string|null, payment_method: string, payment_status: string, subtotal: string, discount: string, delivery_price: string, service_charge_amount: string, place_fee_amount: string, total_price: string, notes: string|null, guests_count: int|null, hall_ref: string|null, table_ref: string|null, cancel_reason: string|null, cancel_note: string|null, customer: array{name: string|null, phone: string|null}|null, delivery: array{address: string|null, latitude: float|null, longitude: float|null, zone_name: string|null}|null, courier: array{id: int, name: string|null, phone: string|null}|null, items_total: int, items_ready: int, items: list<' . self::ITEM . '>, created_at: string|null, updated_at: string|null, accepted_at: string|null, preparing_at: string|null, ready_at: string|null, closed_at: string|null, waiting_seconds: int}';
 
@@ -314,6 +314,17 @@ class StaffOrderController extends Controller
         if (($branchId = $request->query('branch_id')) !== null) {
             $query->where('orders.branch_id', $this->branch($user, $branchId)->id);
         }
+
+        // P3-12: a POS order reaches the kitchen line by line: listed once a line was sent, or a held pre-order line
+        // has its due time (StaffOrderPresenter::kitchenSees); online orders as before
+        $query->where(fn ($query) => $query->whereNotIn('orders.channel', [OrderChannel::POS_HALL->value, OrderChannel::POS_TAKEAWAY->value])
+            ->orWhereExists(fn ($lines) => $lines->selectRaw('1')->from('order_items')
+                ->whereColumn('order_items.order_id', 'orders.id')
+                ->whereNull('order_items.deleted_at')
+                ->where(fn ($line) => $line->whereNotNull('order_items.sent_at')
+                    ->orWhere(fn ($line) => $line->where('order_items.fire_mode', \App\Enums\FireMode::HOLD->value)
+                        ->whereNotNull('order_items.due_at')
+                        ->where('order_items.kitchen_status', '!=', \App\Enums\KitchenItemStatus::VOID->value)))));
 
         $rows = $query->with(StaffOrderPresenter::RELATIONS)
             ->orderBy('orders.created_at')

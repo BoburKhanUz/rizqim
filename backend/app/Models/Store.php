@@ -19,6 +19,11 @@ use App\Traits\Auditable;
  * @property numeric-string $min_payout_reserve
  * @property numeric-string $min_order_amount
  *
+ * P3-11: the store as a taxpayer (App\Domain\Fiscal)
+ * @property string|null $tin STIR, 9 digits
+ * @property string|null $tax_regime vat | vat_simplified | turnover (App\Domain\Fiscal\TaxRegime); null: not chosen
+ * @property array<string, mixed>|null $fiscal_settings App\Domain\Fiscal\FiscalSettings
+ *
  * Loaded with withCount('branches'):
  *
  * @property-read int|null $branches_count
@@ -44,6 +49,7 @@ class Store extends Model
         'debt_balance', 'wallet_balance', 'credit_limit', 'low_balance_threshold', 'min_payout_reserve',
         'commission_rate', 'payment_account_type', 'settlement_type',
         'legal_name', 'tax_number', 'bank_account', 'moderation_note', 'telegram_admin_chat_id',
+        'fiscal_settings', // P3-11: shown through GET /owner/settings and /owner/fiscal/settings only
     ];
 
     /**
@@ -394,6 +400,7 @@ class Store extends Model
             'credit_limit' => 'decimal:2',
             'min_payout_reserve' => 'decimal:2',
             'min_order_amount' => 'decimal:2',
+            'fiscal_settings' => 'array', // P3-11
         ];
     }
     

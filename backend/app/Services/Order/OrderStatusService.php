@@ -119,7 +119,9 @@ class OrderStatusService
             // P2-33: so is an order that left the kitchen (on its way, handed over): its lines are closed, so the board's
             // items_ready stays right and no ticket keeps waiting for food that is gone
             if (in_array($to, [OrderStatus::READY, OrderStatus::ON_THE_WAY, OrderStatus::DELIVERY, OrderStatus::DELIVERED], true)) {
-                $order->items()->where('kitchen_status', \App\Enums\KitchenItemStatus::PENDING->value)
+                // P3-12: a POS line sent to the kitchen too; a POS line never sent (held) and a voided one stay as they are
+                $order->items()->whereIn('kitchen_status', \App\Enums\KitchenItemStatus::cookingValues())
+                    ->where(fn ($query) => $query->whereNotNull('sent_at')->orWhereNull('fire_mode'))
                     ->update(['kitchen_status' => \App\Enums\KitchenItemStatus::READY->value, 'ready_at' => now()]);
             }
 
@@ -411,7 +413,9 @@ class OrderStatusService
 
     protected function restoreStock(Order $order): void
     {
-        $items = $order->items()->get(['product_variant_id', 'quantity', 'batch_id', 'batch_quantity']);
+        // P3-12: a voided POS line already gave its portion back, or was cooked and thrown away (PosOrderService::void)
+        $items = $order->items()->where('kitchen_status', '!=', \App\Enums\KitchenItemStatus::VOID->value)
+            ->get(['product_variant_id', 'quantity', 'batch_id', 'batch_quantity']);
 
         // Decimal quantities (P1-21: 0.5 kg) are added exactly
         $quantities = [];

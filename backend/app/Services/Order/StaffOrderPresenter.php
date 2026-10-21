@@ -93,8 +93,9 @@ class StaffOrderPresenter
                 'zone_name' => $order->delivery_zone_name,
             ] : null,
             'courier' => $contact && $order->courier ? ['id' => (int) $order->courier->id, 'name' => $order->courier->name, 'phone' => $order->courier->phone] : null,
-            'items_total' => $items->count(),
-            'items_ready' => $items->filter(fn (OrderItem $item) => $item->kitchen_status->value === 'ready')->count(),
+            // P3-12: a voided POS line is not counted; a served one is done
+            'items_total' => $items->reject(fn (OrderItem $item) => $item->isVoid())->count(),
+            'items_ready' => $this->doneCount($items),
             'items' => $items->map(fn (OrderItem $item) => $this->item($item, true))->all(),
             'created_at' => $order->created_at?->toJSON(),
             'updated_at' => $order->updated_at?->toJSON(),
@@ -128,7 +129,9 @@ class StaffOrderPresenter
     {
         $order->loadMissing(self::RELATIONS);
         $times = $this->times($order);
-        $items = $order->items->sortBy('id')->values();
+        // P3-12: the kitchen sees a POS line once it was sent (a voided one struck through), and a held pre-order line
+        // with its due time; a line still only on the order (not sent, or held for later) is not the kitchen's yet
+        $items = $order->items->sortBy('id')->filter(fn (OrderItem $item) => self::kitchenSees($item))->values();
 
         return [
             'uuid' => (string) $order->uuid,
@@ -141,8 +144,8 @@ class StaffOrderPresenter
             'table_ref' => $order->table_ref,
             'guests_count' => $order->guests_count,
             'notes' => $this->maskedNotes($order->notes),
-            'items_total' => $items->count(),
-            'items_ready' => $items->filter(fn (OrderItem $item) => $item->kitchen_status->value === 'ready')->count(),
+            'items_total' => $items->reject(fn (OrderItem $item) => $item->isVoid())->count(),
+            'items_ready' => $this->doneCount($items),
             'items' => $items->map(fn (OrderItem $item) => $this->item($item, false))->all(),
             'created_at' => $order->created_at?->toJSON(),
             'accepted_at' => $times['accepted_at']?->toJSON(),
@@ -193,6 +196,22 @@ class StaffOrderPresenter
             'ready_at' => $item->ready_at?->toJSON(),
         ];
 
+        // P3-12: a POS line also says its round, firing, station, seat, note and void ("O'CHIRILDI"); an online line
+        // keeps exactly its P2-11 shape
+        if ($item->fire_mode !== null) {
+            $data += [
+                'round_no' => $item->round_no,
+                'fire_mode' => $item->fire_mode->value,
+                'station_id' => $item->station_id,
+                'sent_at' => $item->sent_at?->toJSON(),
+                'due_at' => $item->due_at?->toJSON(),
+                'seat_no' => $item->seat_no,
+                'note' => $item->note,
+                'voided_at' => $item->voided_at?->toJSON(),
+                'void_reason' => $item->void_reason,
+            ];
+        }
+
         if ($withPrices) {
             $data += [
                 'unit_price' => (string) $item->unit_price,
@@ -229,6 +248,27 @@ class StaffOrderPresenter
             'ready_at' => $at[OrderStatus::READY->value] ?? null,
             'closed_at' => in_array($order->status, OrderQueryService::TERMINAL_STATUSES, true) ? $closed : null,
         ];
+    }
+
+    /**
+     * P3-12: whether the kitchen display shows a line: an online line always; a POS line once sent (also when voided
+     * after that), or held with a due time (a pre-order the kitchen plans by time).
+     */
+    public static function kitchenSees(OrderItem $item): bool
+    {
+        if ($item->reachedKitchen()) {
+            return true;
+        }
+
+        return $item->fire_mode === \App\Enums\FireMode::HOLD && $item->due_at !== null && !$item->isVoid();
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, OrderItem>  $items
+     */
+    private function doneCount(\Illuminate\Support\Collection $items): int
+    {
+        return $items->filter(fn (OrderItem $item) => in_array($item->kitchen_status->value, \App\Enums\KitchenItemStatus::doneValues(), true))->count();
     }
 
     /**

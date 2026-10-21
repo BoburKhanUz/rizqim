@@ -15,6 +15,12 @@ use App\Traits\HasMenuImage;
  * @property bool $batch_tracked available on a branch only while an open batch has something left (P1-21)
  * @property array<string, string>|null $image_thumbs
  * @property string|null $image_disk
+ *
+ * P3-11: what a fiscal receipt line needs (App\Domain\Fiscal)
+ * @property \App\Enums\ProductKind $kind dish | service
+ * @property string|null $mxik_code 17 digits; a fiscal store sells nothing without it (FiscalReadiness)
+ * @property string|null $package_code
+ * @property numeric-string|null $vat_rate null: the store's tax regime decides
  */
 class Product extends Model
 {
@@ -29,10 +35,14 @@ class Product extends Model
 
     protected $casts = [
         'batch_tracked' => 'boolean',
+        // P3-11: fiscal fields
+        'kind' => \App\Enums\ProductKind::class,
+        'vat_rate' => 'decimal:2',
     ];
 
     protected $attributes = [
         'batch_tracked' => false,
+        'kind' => 'dish', // P3-11
     ];
 
     public function getIsActiveAttribute(): bool

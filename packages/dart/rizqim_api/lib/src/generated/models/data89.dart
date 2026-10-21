@@ -4,37 +4,26 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'polygon5.dart';
+import 'roles.dart';
+import 'permissions.dart';
 
 part 'data89.g.dart';
 
 @JsonSerializable()
 class Data89 {
   const Data89({
-    required this.id,
-    required this.name,
-    required this.polygon,
-    required this.deliveryPrice,
-    required this.minOrderAmount,
-    required this.freeDeliveryFrom,
-    required this.etaMinutes,
-    required this.priority,
+    required this.roles,
+    required this.permissions,
+    required this.matrix,
+    required this.defaults,
   });
 
   factory Data89.fromJson(Map<String, Object?> json) => _$Data89FromJson(json);
 
-  final int id;
-  final String name;
-  final Polygon5 polygon;
-  @JsonKey(name: 'delivery_price')
-  final String deliveryPrice;
-  @JsonKey(name: 'min_order_amount')
-  final String minOrderAmount;
-  @JsonKey(name: 'free_delivery_from')
-  final String? freeDeliveryFrom;
-  @JsonKey(name: 'eta_minutes')
-  final int? etaMinutes;
-  final int priority;
+  final List<Roles> roles;
+  final List<Permissions> permissions;
+  final Map<String, Map<String, bool>> matrix;
+  final Map<String, Map<String, bool>> defaults;
 
   Map<String, Object?> toJson() => _$Data89ToJson(this);
 }

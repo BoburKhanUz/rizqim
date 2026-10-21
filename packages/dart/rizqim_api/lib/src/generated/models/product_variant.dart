@@ -29,6 +29,7 @@ class ProductVariant {
     required this.quantityStep,
     required this.minQuantity,
     required this.batchConsumption,
+    required this.unitLabel,
     this.product,
     this.channelPrices,
   });
@@ -61,6 +62,8 @@ class ProductVariant {
   final String? minQuantity;
   @JsonKey(name: 'batch_consumption')
   final String batchConsumption;
+  @JsonKey(name: 'unit_label')
+  final String? unitLabel;
   final Product? product;
   @JsonKey(name: 'channel_prices')
   final List<ChannelPrice>? channelPrices;

@@ -30,6 +30,8 @@ jobs:
       staffpkg: ${{ steps.filter.outputs.staffpkg }}
       flutter: ${{ steps.filter.outputs.flutter }}
       e2estack: ${{ steps.filter.outputs.e2estack }}
+      # P3-15: POS packages (pos-packages job)
+      pospkg: ${{ steps.filter.outputs.pospkg }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -103,6 +105,14 @@ jobs:
               - 'courier/**'
               - 'partner/mobile/**'
               - 'customer/mobile/**'
+              - 'pubspec*'
+              - 'analysis_options.yaml'
+              - '.github/workflows/ci.yml'
+            # P3-15: the POS packages (pos/packages/*) and the shared Dart packages they build on (pos-packages job)
+            pospkg:
+              - 'pos/packages/**'
+              - 'packages/dart/rizqim_core/**'
+              - 'packages/dart/rizqim_ui/**'
               - 'pubspec*'
               - 'analysis_options.yaml'
               - '.github/workflows/ci.yml'
@@ -750,3 +760,46 @@ jobs:
             echo "::error file=packages/dart/rizqim_api/lib/src/generated::Dart klienti packages/api-spec/openapi.json ga mos emas. Yangilang: bash packages/dart/rizqim_api/tool/generate.sh; so'ng commit qiling."
             exit 1
           fi
+
+  # --- P3-15: POS packages (pos_core, pos_hardware, pos_ui) ---------------------------------------------------------
+  # Format and analyze of the whole workspace already run in the flutter job; this job runs the packages' own tests:
+  # ESC/POS bytes, text snapshots of receipts (test/goldens/*.txt), the LAN printer emulator, the print queue and the
+  # golden images of the touch components (Linux, same Flutter version as the images were made with).
+  pos-packages:
+    name: POS packages (analyze, tests)
+    needs: changes
+    if: needs.changes.outputs.pospkg == 'true'
+    runs-on: ubuntu-latest
+    env:
+      FLUTTER_VERSION: 3.47.5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get --enforce-lockfile
+
+      - name: Analyze
+        run: flutter analyze pos/packages
+
+      # pos_core has no Flutter (dart test); a missing text golden fails on CI instead of being written
+      - name: Tests
+        run: |
+          set -e
+          for dir in pos/packages/*; do
+            [ -f "$dir/pubspec.yaml" ] && [ -d "$dir/test" ] || continue
+            echo "::group::$dir"
+            if grep -q 'sdk: flutter' "$dir/pubspec.yaml"; then
+              (cd "$dir" && flutter test)
+            else
+              (cd "$dir" && dart test)
+            fi
+            echo "::endgroup::"
+          done

@@ -22,6 +22,11 @@ class SendCustomerStatusAlert implements ShouldQueue
             return;
         }
 
+        // P3-12: a POS order has no customer to tell (its user is the staff member who opened it)
+        if ($event->order->channel->isPos()) {
+            return;
+        }
+
         $this->telegramService->sendOrderStatusChanged($event->order);
     }
 }

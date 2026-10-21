@@ -100,22 +100,27 @@ class FinanceHistoryController extends ManagementController
      *
      * Customers' payments for the store's orders through Click, Payme… (the payments table), with the provider's
      * transaction id for reconciliation. A branch-bound caller sees their branch's orders only. Raw provider payloads
-     * are never returned.
+     * are never returned. `fiscal` (P3-14): the fiscal receipt Payme/Click registers for the payment — `status`
+     * blocked | pending | failed | recorded and problem codes (`mxik_missing`, `store_tin_missing`...); null when
+     * fiscal receipts are off. `fiscal_status=blocked` lists the payments that need the owner's attention.
      */
     #[QueryParameter('status', description: 'pending | paid | failed | cancelled | expired | refunded.', type: 'string', required: false)]
     #[QueryParameter('provider', description: 'click | payme | ...', type: 'string', required: false)]
+    #[QueryParameter('fiscal_status', description: 'P3-14: blocked | pending | failed | recorded (fiskal chek holati).', type: 'string', required: false)]
     #[QueryParameter('branch_id', description: 'Filial.', type: 'int', required: false)]
     #[QueryParameter('from', description: 'YYYY-MM-DD (do\'kon vaqti).', type: 'string', required: false)]
     #[QueryParameter('to', description: 'YYYY-MM-DD (do\'kon vaqti).', type: 'string', required: false)]
     #[QueryParameter('per_page', description: '1–100, standart 25.', type: 'int', required: false)]
     #[QueryParameter('page', description: 'Sahifa raqami, 1 dan (Laravel sahifalari).', type: 'int', required: false)]
-    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{data: list<array{uuid: string, provider: string, provider_transaction_id: string|null, status: string, amount: string, paid_at: string|null, cancelled_at: string|null, created_at: string, order: array{uuid: string, short_code: string|null, branch_id: int|null, total_price: string}}>, ' . self::PAGE . '}}')]
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{data: list<array{uuid: string, provider: string, provider_transaction_id: string|null, status: string, amount: string, paid_at: string|null, cancelled_at: string|null, created_at: string, order: array{uuid: string, short_code: string|null, branch_id: int|null, total_price: string}, fiscal: array{status: string, problems: list<string>}|null}>, ' . self::PAGE . '}}')]
     public function payments(Request $request): JsonResponse
     {
         $this->validateFilters($request, [
             'status' => ['nullable', 'string', Rule::in(array_map(fn (PaymentStatus $status) => $status->value, PaymentStatus::cases()))],
             'provider' => 'nullable|string|max:32',
             'branch_id' => UzValidation::rowId(),
+            // P3-14: online fiscal receipt state (App\Services\Payment\Fiscal\OnlineFiscalRecorder)
+            'fiscal_status' => ['nullable', 'string', Rule::in(\App\Services\Payment\Fiscal\OnlineFiscalRecorder::STATUSES)],
         ]);
         $store = $this->currentStore($request);
         $branch = $this->branchFilter($request, Permission::FINANCE_VIEW);
@@ -126,10 +131,14 @@ class FinanceHistoryController extends ManagementController
             ->when($branch !== null, fn (Builder $query) => $query->where('orders.branch_id', $branch?->id))
             ->when($request->filled('status'), fn (Builder $query) => $query->where('payments.status', $request->input('status')))
             ->when($request->filled('provider'), fn (Builder $query) => $query->where('payments.provider', $request->input('provider')))
+            ->when($request->filled('fiscal_status'), fn (Builder $query) => $query->whereRaw("payments.payload->'fiscal'->>'status' = ?", [$request->input('fiscal_status')]))
             ->select([
                 'payments.id', 'payments.uuid', 'payments.provider', 'payments.provider_transaction_id', 'payments.status', 'payments.amount',
                 'payments.paid_at', 'payments.cancelled_at', 'payments.created_at',
                 'orders.uuid as order_uuid', 'orders.short_code as order_short_code', 'orders.branch_id as order_branch_id', 'orders.total_price as order_total',
+                // P3-14: only the fiscal state, never the raw payload
+                DB::raw("payments.payload->'fiscal'->>'status' as fiscal_status"),
+                DB::raw("payments.payload->'fiscal'->'problems' as fiscal_problems"),
             ]);
         $this->dateRange($query, 'payments.created_at', $request, $store);
 
@@ -179,6 +188,11 @@ class FinanceHistoryController extends ManagementController
                 'branch_id' => $row->order_branch_id !== null ? (int) $row->order_branch_id : null,
                 'total_price' => Money::of($row->order_total)->toString(),
             ],
+            // P3-14: the online fiscal receipt's state; problem codes only (never names or provider data)
+            'fiscal' => $row->fiscal_status !== null ? [
+                'status' => (string) $row->fiscal_status,
+                'problems' => array_values(array_filter((array) json_decode((string) $row->fiscal_problems, true), 'is_string')),
+            ] : null,
         ];
     }
 

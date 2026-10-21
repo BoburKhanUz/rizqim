@@ -8,6 +8,7 @@ part of 'settings.dart';
 
 Settings _$SettingsFromJson(Map<String, dynamic> json) => Settings(
   branchId: (json['branch_id'] as num?)?.toInt(),
+  hallId: (json['hall_id'] as num?)?.toInt(),
   serviceChargePercent: json['service_charge_percent'] as String,
   serviceChargeChannels: (json['service_charge_channels'] as List<dynamic>?)
       ?.map((e) => e as String)
@@ -21,6 +22,7 @@ Settings _$SettingsFromJson(Map<String, dynamic> json) => Settings(
 
 Map<String, dynamic> _$SettingsToJson(Settings instance) => <String, dynamic>{
   'branch_id': instance.branchId,
+  'hall_id': instance.hallId,
   'service_charge_percent': instance.serviceChargePercent,
   'service_charge_channels': instance.serviceChargeChannels,
   'place_fee_amount': instance.placeFeeAmount,

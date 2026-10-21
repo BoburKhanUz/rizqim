@@ -49,6 +49,8 @@ return [
         'secret_key' => env('CLICK_SECRET_KEY'),
         'service_id' => env('CLICK_SERVICE_ID', '32104'),
         'merchant_id' => env('CLICK_MERCHANT_ID', '24185'),
+        // P3-14: Merchant API user (Click cabinet) for sending fiscal receipt items; unset = no Click fiscal data
+        'merchant_user_id' => env('CLICK_MERCHANT_USER_ID'),
     ],
 
     'payme' => [

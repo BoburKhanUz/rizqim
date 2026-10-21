@@ -171,4 +171,20 @@ Route::prefix('v1')->group(function () {
 
     // P2-11: staff orders (board, Mini App staff screens, kitchen display) and the kitchen bump (docs/API.md §9)
     require __DIR__ . '/api_staff_orders.php';
+
+    // P3-13: POS settings: kitchen stations, printers, branch POS settings, GET /pos/bootstrap (docs/API.md)
+    require __DIR__ . '/api_pos_setup.php';
+
+    // P3-11: fiscal settings, readiness, receipts list and retry for the web panel (docs/API.md)
+    require __DIR__ . '/api_fiscal.php';
+
+    // P3-17: bookings, pre-orders, deposits and customer accounts (nasiya) (docs/API.md "Bron va nasiya")
+    require __DIR__ . '/api_pos_bookings.php';
+
+    // P3-12: halls, tables, room tariffs, per-guest items (web panel) and POS hall orders: floor, rounds, send, void,
+    // move, merge, charges (docs/API.md)
+    require __DIR__ . '/api_pos_hall.php';
+
+    // P3-18: bills, split, payments, refunds, shifts with X/Z, manager approvals (docs/API.md "Schyot, to'lov va smena")
+    require __DIR__ . '/api_pos_billing.php';
 });

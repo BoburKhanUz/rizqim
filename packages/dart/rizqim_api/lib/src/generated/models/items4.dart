@@ -4,49 +4,33 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'modifiers5.dart';
-
 part 'items4.g.dart';
 
 @JsonSerializable()
 class Items4 {
   const Items4({
-    required this.id,
+    required this.orderItemId,
     required this.productName,
     required this.variantName,
-    required this.quantity,
     required this.unit,
-    required this.quantityLabel,
-    required this.modifiers,
-    required this.kitchenStatus,
-    required this.readyAt,
-    this.unitPrice,
-    this.modifiersTotal,
-    this.totalPrice,
+    required this.quantity,
+    required this.amount,
+    required this.discountAmount,
   });
 
   factory Items4.fromJson(Map<String, Object?> json) => _$Items4FromJson(json);
 
-  final int id;
+  @JsonKey(name: 'order_item_id')
+  final int orderItemId;
   @JsonKey(name: 'product_name')
   final String productName;
   @JsonKey(name: 'variant_name')
   final String? variantName;
-  final num quantity;
   final String unit;
-  @JsonKey(name: 'quantity_label')
-  final String quantityLabel;
-  final List<Modifiers5> modifiers;
-  @JsonKey(name: 'kitchen_status')
-  final String kitchenStatus;
-  @JsonKey(name: 'ready_at')
-  final String? readyAt;
-  @JsonKey(name: 'unit_price')
-  final String? unitPrice;
-  @JsonKey(name: 'modifiers_total')
-  final String? modifiersTotal;
-  @JsonKey(name: 'total_price')
-  final String? totalPrice;
+  final num quantity;
+  final String amount;
+  @JsonKey(name: 'discount_amount')
+  final String discountAmount;
 
   Map<String, Object?> toJson() => _$Items4ToJson(this);
 }

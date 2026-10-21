@@ -8,4 +8,14 @@ return [
     App\Providers\ApiDocsServiceProvider::class,
     App\Providers\Filament\AdminPanelProvider::class,
     App\Providers\Filament\SuperadminPanelProvider::class,
+    // P3-13: kitchen station routing (KitchenStationResolver)
+    App\Domain\Pos\Setup\PosSetupServiceProvider::class,
+    // P3-11: fiscal receipts (FiscalIssuer, FiscalLineBuilder, FiscalReadiness)
+    App\Providers\FiscalServiceProvider::class,
+    // P3-17: bookings, deposits, customer accounts (AdvanceLedger, CustomerAccountLedger)
+    App\Providers\PosBookingServiceProvider::class,
+    // P3-12: POS hall orders (PosOrderOpener), halls and tables
+    App\Providers\PosOrdersServiceProvider::class,
+    // P3-18: bills, payments, shifts, refunds, manager approvals (ManagerApprovals)
+    App\Domain\Pos\Billing\PosBillingServiceProvider::class,
 ];

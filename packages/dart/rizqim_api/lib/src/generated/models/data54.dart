@@ -4,8 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'modifiers.dart';
-import 'product_rules.dart';
+import 'layout6.dart';
 
 part 'data54.g.dart';
 
@@ -13,41 +12,37 @@ part 'data54.g.dart';
 class Data54 {
   const Data54({
     required this.id,
-    required this.uuid,
+    required this.branchId,
+    required this.hallId,
     required this.name,
-    required this.nameI18n,
-    required this.minSelect,
-    required this.maxSelect,
-    required this.isRequired,
+    required this.kind,
+    required this.seats,
+    required this.layout,
     required this.sortOrder,
     required this.isActive,
-    required this.modifiers,
-    required this.productIds,
-    required this.productRules,
+    required this.minSpend,
+    required this.minSpendMode,
   });
 
   factory Data54.fromJson(Map<String, Object?> json) => _$Data54FromJson(json);
 
   final int id;
-  final String uuid;
+  @JsonKey(name: 'branch_id')
+  final int branchId;
+  @JsonKey(name: 'hall_id')
+  final int hallId;
   final String name;
-  @JsonKey(name: 'name_i18n')
-  final Map<String, String>? nameI18n;
-  @JsonKey(name: 'min_select')
-  final int minSelect;
-  @JsonKey(name: 'max_select')
-  final int? maxSelect;
-  @JsonKey(name: 'is_required')
-  final bool isRequired;
+  final String kind;
+  final int? seats;
+  final Layout6 layout;
   @JsonKey(name: 'sort_order')
   final int sortOrder;
   @JsonKey(name: 'is_active')
   final bool isActive;
-  final List<Modifiers> modifiers;
-  @JsonKey(name: 'product_ids')
-  final List<int> productIds;
-  @JsonKey(name: 'product_rules')
-  final ProductRules productRules;
+  @JsonKey(name: 'min_spend')
+  final String? minSpend;
+  @JsonKey(name: 'min_spend_mode')
+  final String minSpendMode;
 
   Map<String, Object?> toJson() => _$Data54ToJson(this);
 }

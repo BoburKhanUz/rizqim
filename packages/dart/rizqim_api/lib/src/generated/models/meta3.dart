@@ -1,0 +1,21 @@
+// coverage:ignore-file
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: type=lint, unused_import, invalid_annotation_target, unnecessary_import
+
+import 'package:json_annotation/json_annotation.dart';
+
+part 'meta3.g.dart';
+
+@JsonSerializable()
+class Meta3 {
+  const Meta3({required this.nextCursor, required this.perPage});
+
+  factory Meta3.fromJson(Map<String, Object?> json) => _$Meta3FromJson(json);
+
+  @JsonKey(name: 'next_cursor')
+  final String? nextCursor;
+  @JsonKey(name: 'per_page')
+  final int perPage;
+
+  Map<String, Object?> toJson() => _$Meta3ToJson(this);
+}

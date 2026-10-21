@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'status4.dart';
+import 'order2.dart';
 
 part 'data61.g.dart';
 
@@ -12,40 +12,31 @@ part 'data61.g.dart';
 class Data61 {
   const Data61({
     required this.id,
+    required this.type,
     required this.amount,
-    required this.card,
-    required this.status,
+    required this.balanceBefore,
+    required this.balanceAfter,
+    required this.order,
+    required this.referenceId,
     required this.notes,
-    required this.resolutionNotes,
-    required this.processedAt,
     required this.createdAt,
-    required this.storeId,
-    required this.cardNumber,
-    required this.processedBy,
-    required this.updatedAt,
   });
 
   factory Data61.fromJson(Map<String, Object?> json) => _$Data61FromJson(json);
 
   final int id;
+  final String type;
   final String amount;
-  final String card;
-  final Status4 status;
+  @JsonKey(name: 'balance_before')
+  final String balanceBefore;
+  @JsonKey(name: 'balance_after')
+  final String balanceAfter;
+  final Order2? order;
+  @JsonKey(name: 'reference_id')
+  final String? referenceId;
   final String? notes;
-  @JsonKey(name: 'resolution_notes')
-  final String? resolutionNotes;
-  @JsonKey(name: 'processed_at')
-  final String? processedAt;
   @JsonKey(name: 'created_at')
   final String createdAt;
-  @JsonKey(name: 'store_id')
-  final int storeId;
-  @JsonKey(name: 'card_number')
-  final String cardNumber;
-  @JsonKey(name: 'processed_by')
-  final int? processedBy;
-  @JsonKey(name: 'updated_at')
-  final String? updatedAt;
 
   Map<String, Object?> toJson() => _$Data61ToJson(this);
 }

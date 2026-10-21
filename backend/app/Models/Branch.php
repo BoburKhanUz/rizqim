@@ -15,6 +15,9 @@ use App\Traits\Auditable;
  * @property float|null $longitude
  * @property float $radius_km
  * @property \App\Enums\BranchStatus $status
+ * P3-13 (POS settings): `business_day_starts_at` is a time column ("05:00:00"); pos_settings holds the validated keys
+ * of App\Domain\Pos\Setup\PosSettings (read them through PosSettings::resolve())
+ * @property array<string, mixed>|null $pos_settings
  */
 class Branch extends Model
 {
@@ -29,6 +32,8 @@ class Branch extends Model
             'longitude' => 'float',
             'radius_km' => 'float',
             'status' => \App\Enums\BranchStatus::class,
+            // P3-13
+            'pos_settings' => 'array',
         ];
     }
 

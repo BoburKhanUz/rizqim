@@ -7,15 +7,11 @@ part of 'data96.dart';
 // **************************************************************************
 
 Data96 _$Data96FromJson(Map<String, dynamic> json) => Data96(
-  user: User.fromJson(json['user'] as Map<String, dynamic>),
-  store: json['store'] == null
-      ? null
-      : Store.fromJson(json['store'] as Map<String, dynamic>),
-  smsVerificationRequired: json['sms_verification_required'] as bool,
+  productId: (json['product_id'] as num).toInt(),
+  modifierGroups: json['modifier_groups'] as String,
 );
 
 Map<String, dynamic> _$Data96ToJson(Data96 instance) => <String, dynamic>{
-  'user': instance.user,
-  'store': instance.store,
-  'sms_verification_required': instance.smsVerificationRequired,
+  'product_id': instance.productId,
+  'modifier_groups': instance.modifierGroups,
 };

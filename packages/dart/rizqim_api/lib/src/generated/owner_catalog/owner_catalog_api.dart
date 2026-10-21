@@ -45,14 +45,11 @@ abstract class OwnerCatalogApi {
   /// Create a new product with variants.
   ///
   /// multipart/form-data, menu.manage. `variants` is a JSON array of {name, price, unit?, quantity_step?,.
-  /// min_quantity?, batch_consumption?, stock?}; `stock` left out starts the variant at 999.
+  /// min_quantity?, batch_consumption?, stock?, unit_label?}; `stock` left out starts the variant at 999.
+  /// P3-11: optional `kind` (dish | service), `mxik_code` (17 digits), `package_code` (digits), `vat_rate` (0–100,.
+  /// empty: the store's tax regime decides); a variant's `unit_label` is its unit on the receipt ("kg (guruch)").
   ///
-  /// [image] - Max 5MB.
-  ///
-  /// [variants] - JSON array of variants: [{"name": "...", "price": 25000}, ...]; P1-21 adds optional "unit" (piece|kg|l),.
-  /// "quantity_step", "min_quantity" (kg/l) and "batch_consumption"; P2-30: optional "stock" (left out: 999).
-  ///
-  /// [sortOrder] - P2-12: position in the menu, as the panel's product form sets it (left out = 0 / kept).
+  /// [image] - Maximum file size: 5120 kilobytes.
   @MultiPart()
   @POST('/v1/owner/products')
   Future<PostV1OwnerProductsResponse> ownerCatalogStoreProduct({
@@ -64,20 +61,22 @@ abstract class OwnerCatalogApi {
     @Part(name: 'image') File? image,
     @Part(name: 'batch_tracked') bool? batchTracked,
     @Part(name: 'sort_order') int? sortOrder,
+    @Part(name: 'kind') String? kind,
+    @Part(name: 'mxik_code') String? mxikCode,
+    @Part(name: 'package_code') String? packageCode,
+    @Part(name: 'vat_rate') num? vatRate,
   });
 
   /// Update an existing product.
   ///
   /// multipart/form-data (POST, so the image can be sent). With `toggle_active` (any value) only the product's.
   /// active status is flipped and the other fields are not needed. menu.manage. A variant's stock is not changed.
-  /// here (orders move it); a new variant takes `stock` like on create.
+  /// here (orders move it); a new variant takes `stock` like on create. P3-11: `kind`, `mxik_code`,.
+  /// `package_code`, `vat_rate` and a variant's `unit_label` as on create; left out = kept, empty = cleared.
   ///
   /// [toggleActive] - Any value: only switch the product on/off (no other field needed).
   ///
   /// [image] - Maximum file size: 5120 kilobytes.
-  ///
-  /// [variants] - JSON array of variants: [{"id": 1, "name": "...", "price": 25000}, ...]; one without an id is created,.
-  /// an existing one left out is deleted. P1-21: optional "unit", "quantity_step", "min_quantity", "batch_consumption".
   @MultiPart()
   @POST('/v1/owner/products/{id}')
   Future<dynamic> ownerCatalogUpdateProduct({
@@ -91,6 +90,10 @@ abstract class OwnerCatalogApi {
     @Part(name: 'image') File? image,
     @Part(name: 'batch_tracked') bool? batchTracked,
     @Part(name: 'sort_order') int? sortOrder,
+    @Part(name: 'kind') String? kind,
+    @Part(name: 'mxik_code') String? mxikCode,
+    @Part(name: 'package_code') String? packageCode,
+    @Part(name: 'vat_rate') num? vatRate,
   });
 
   /// Delete a product

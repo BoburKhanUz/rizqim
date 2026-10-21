@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'status5.dart';
+import 'status6.dart';
 import 'reason2.dart';
 
 part 'v1_staff_orders_uuid_status_request_body.g.dart';
@@ -21,7 +21,7 @@ class V1StaffOrdersUuidStatusRequestBody {
     Map<String, Object?> json,
   ) => _$V1StaffOrdersUuidStatusRequestBodyFromJson(json);
 
-  final Status5 status;
+  final Status6 status;
   final Reason2? reason;
   final String? note;
 

@@ -6,10 +6,14 @@
 //   * a property or item -> `dynamic`.
 // A nullable type (`anyOf: [X, {type: null}]`) is not a union and is kept as is; so is everything else: all other
 // models and endpoints are generated unchanged. The apps read the few free-form fields they need.
+//
+// Enum fields of multipart/form-data bodies become plain strings: Retrofit writes `field.toJson()` (a `String?` for
+// swagger_parser enums) into the form, which does not compile.
 import 'dart:convert';
 import 'dart:io';
 
 int _replaced = 0;
+int _formEnums = 0;
 
 bool _isNull(Object? schema) =>
     schema is Map<String, Object?> && schema['type'] == 'null';
@@ -41,6 +45,39 @@ Object? _walk(Object? node, {bool responseRoot = false}) {
     for (final MapEntry<String, Object?> e in node.entries)
       e.key: _walk(e.value),
   };
+}
+
+/// Drops `enum` from the properties of multipart/form-data request bodies (see the header).
+void _plainFormEnums(Object? spec) {
+  final Object? paths = spec is Map<String, Object?> ? spec['paths'] : null;
+  if (paths is! Map<String, Object?>) return;
+  for (final Object? item in paths.values) {
+    if (item is! Map<String, Object?>) continue;
+    for (final Object? operation in item.values) {
+      final Object? body = operation is Map<String, Object?>
+          ? operation['requestBody']
+          : null;
+      final Object? content = body is Map<String, Object?>
+          ? body['content']
+          : null;
+      final Object? form = content is Map<String, Object?>
+          ? content['multipart/form-data']
+          : null;
+      final Object? schema = form is Map<String, Object?>
+          ? form['schema']
+          : null;
+      final Object? properties = schema is Map<String, Object?>
+          ? schema['properties']
+          : null;
+      if (properties is! Map<String, Object?>) continue;
+      for (final Object? property in properties.values) {
+        if (property is Map<String, Object?> &&
+            property.remove('enum') != null) {
+          _formEnums++;
+        }
+      }
+    }
+  }
 }
 
 void main(List<String> args) {
@@ -77,11 +114,13 @@ void main(List<String> args) {
     }
   }
   final Object? walked = _walk(spec);
+  _plainFormEnums(walked);
 
   File(target)
     ..createSync(recursive: true)
     ..writeAsStringSync(const JsonEncoder.withIndent('  ').convert(walked));
   stdout.writeln(
-    'prepare_spec: $_replaced union(s) replaced by free-form values -> $target',
+    'prepare_spec: $_replaced union(s) replaced by free-form values, '
+    '$_formEnums form enum(s) made plain strings -> $target',
   );
 }

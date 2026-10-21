@@ -9,20 +9,20 @@ part 'delivery.g.dart';
 @JsonSerializable()
 class Delivery {
   const Delivery({
-    required this.address,
-    required this.latitude,
-    required this.longitude,
-    required this.zoneName,
+    required this.name,
+    required this.mxik,
+    required this.packageCode,
+    required this.unit,
   });
 
   factory Delivery.fromJson(Map<String, Object?> json) =>
       _$DeliveryFromJson(json);
 
-  final String? address;
-  final num? latitude;
-  final num? longitude;
-  @JsonKey(name: 'zone_name')
-  final String? zoneName;
+  final String name;
+  final String? mxik;
+  @JsonKey(name: 'package_code')
+  final String? packageCode;
+  final String unit;
 
   Map<String, Object?> toJson() => _$DeliveryToJson(this);
 }

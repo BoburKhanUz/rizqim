@@ -8,11 +8,22 @@ part 'meta.g.dart';
 
 @JsonSerializable()
 class Meta {
-  const Meta({required this.truncated});
+  const Meta({
+    required this.currentPage,
+    required this.lastPage,
+    required this.perPage,
+    required this.total,
+  });
 
   factory Meta.fromJson(Map<String, Object?> json) => _$MetaFromJson(json);
 
-  final bool truncated;
+  @JsonKey(name: 'current_page')
+  final int currentPage;
+  @JsonKey(name: 'last_page')
+  final int lastPage;
+  @JsonKey(name: 'per_page')
+  final int perPage;
+  final int total;
 
   Map<String, Object?> toJson() => _$MetaToJson(this);
 }

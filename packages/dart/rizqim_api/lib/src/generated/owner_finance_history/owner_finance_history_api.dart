@@ -68,11 +68,15 @@ abstract class OwnerFinanceHistoryApi {
   ///
   /// Customers' payments for the store's orders through Click, Payme… (the payments table), with the provider's.
   /// transaction id for reconciliation. A branch-bound caller sees their branch's orders only. Raw provider payloads.
-  /// are never returned.
+  /// are never returned. `fiscal` (P3-14): the fiscal receipt Payme/Click registers for the payment — `status`.
+  /// blocked | pending | failed | recorded and problem codes (`mxik_missing`, `store_tin_missing`...); null when.
+  /// fiscal receipts are off. `fiscal_status=blocked` lists the payments that need the owner's attention.
   ///
   /// [status] - pending | paid | failed | cancelled | expired | refunded.
   ///
   /// [provider] - click | payme | ...
+  ///
+  /// [fiscalStatus] - P3-14: blocked | pending | failed | recorded (fiskal chek holati).
   ///
   /// [branchId] - Filial.
   ///
@@ -87,6 +91,7 @@ abstract class OwnerFinanceHistoryApi {
   Future<GetV1OwnerPaymentsResponse> financeHistoryPayments({
     @Query('status') String? status,
     @Query('provider') String? provider,
+    @Query('fiscal_status') String? fiscalStatus,
     @Query('branch_id') int? branchId,
     @Query('from') String? from,
     @Query('to') String? to,

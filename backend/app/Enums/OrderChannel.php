@@ -34,6 +34,15 @@ enum OrderChannel: string
     }
 
     /**
+     * P3-12: an order taken on the POS (the till or a waiter phone): its lines, guests, table and charge lines are
+     * changed through /pos/orders (App\Domain\Pos\Orders), and it has no customer to notify.
+     */
+    public function isPos(): bool
+    {
+        return $this === self::POS_HALL || $this === self::POS_TAKEAWAY;
+    }
+
+    /**
      * Channels a customer may name when placing an order through POST /orders (POS and aggregators get their own
      * endpoints later).
      *

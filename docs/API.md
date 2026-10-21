@@ -278,6 +278,10 @@ Barchasi `/api/v1` ostida. To'liq ro'yxat, parametrlar va javob shakllari — Op
 | Ega: moliya va sozlamalar | `/owner/finance`, `/owner/finance/top-up`, `/owner/payouts`, `/owner/settings` (+ `upload`), `/owner/service-fees`, `/owner/subscription`, `/owner/invoices` | balans, to'ldirish, pul yechish, sozlamalar, xizmat haqi, tarif |
 | Ega: hisobot | `GET /owner/analytics`, `POST /reports/export` | ko'rsatkichlar, CSV hisobot (Telegram'ga) |
 | Ega: boshqaruv (P2-12) | `/owner/branches`, `/owner/delivery-zones`, `/owner/staff`, `/owner/reports/sales`, `/owner/reports/top-products`, `/owner/reports/export`, `/owner/finance/ledger`, `/owner/finance/wallet`, `GET /owner/payouts`, `GET /owner/payments` | web panel uchun filiallar, hududlar, xodimlar, hisobotlar, moliya tarixi (12-bo'lim) |
+| POS sozlamalari (P3-13) | `GET /pos/bootstrap`, `GET /catalog?channel=pos_hall\|pos_takeaway`, `/owner/kitchen-stations`, `/owner/kitchen-station-routes`, `/owner/printers`, `/owner/branches/{id}/pos-settings` | terminal ishga tushishi, POS menyusi, sexlar va yo'naltirish, printerlar, filial POS sozlamalari ("POS sozlamalari (P3-13)" bo'limi) |
+| Ega: fiskal (P3-11) | `/owner/fiscal/settings`, `GET /owner/fiscal/readiness`, `GET /owner/fiscal/receipts`, `/owner/fiscal/receipts/{uuid}` (+ `retry`) | STIR, soliq rejimi, fiskal drayver, MXIK tayyorligi, cheklar va qayta yuborish ("Fiskal cheklar" bo'limi) |
+| POS: bron va nasiya (P3-17) | `/pos/bookings` (+ `calendar`, `{uuid}/confirm`, `/cancel`, `/no-show`, `/arrive`, `/items`, `/deposits`, `.../refund`, `.../retain`), `/pos/customer-accounts` (+ `debtors`, `{uuid}/statement`, `/repayments`, `/adjustments`) | bron taqvimi va to'qnashuv, oldindan buyurtma, avans (bo'nak cheki), "Keldi", nasiya hisoblari va qarz to'lovi (kredit cheki) ("Bron, avans va nasiya (P3-17)" bo'limi) |
+| POS: schyot, to'lov va smena (P3-18) | `/pos/orders/{uuid}/bills`, `/pos/bills/{uuid}/print`, `/pos/bills/{uuid}/payments`, `/pos/bills/{uuid}/fiscal-retry`, `POST /pos/orders/{uuid}/close`, `POST /pos/refunds`, `/pos/shifts` (+ `current`, `{uuid}`, `/x-report`, `/cash-movements`, `/close`), `POST /pos/approvals` | schyot va bo'lish, aralash to'lov, sotuv cheki, smena ichida qaytarish, smena, X va Z, menejer PIN tasdig'i ("Schyot, to'lov va smena (P3-18)" bo'limi) |
 | Feature flag'lar | `GET /features` | do'kon bo'yicha yoqilgan imkoniyatlar |
 | Superadmin | `/superadmin/dashboard`, `/superadmin/stores`, `/superadmin/locations` | Mini App'dagi superadmin ekranlari (asosiy boshqaruv Filament'da) |
 | Webhooklar | `POST /payments/click/webhook`, `/payments/payme/webhook`, `/telegram/webhook` | serverdan serverga, imzo bilan |
@@ -509,7 +513,8 @@ analitikasi bilan bir xil raqam). Filialga biriktirilgan menejer doim o'z filial
 - `GET /owner/payouts?status=pending|completed|rejected` — karta raqami niqoblangan (`8600 **** **** 9012`), izohlardagi
   karta raqamlari ham.
 - `GET /owner/payments?status=&provider=&branch_id=` — onlayn to'lovlar (provayder tranzaksiya raqami bilan, xom
-  payload'siz). Filialga biriktirilgan xodim — faqat o'z filiali.
+  payload'siz). Filialga biriktirilgan xodim — faqat o'z filiali. P3-14: har qatorda `fiscal` (fiskal chek holati) va
+  `?fiscal_status=` filtri — "Onlayn to'lov fiskal cheki (P3-14)" bo'limiga qarang.
 
 **Xodimlar** (`staff.view`, terminal PIN sessiyasidan emas). Kim kimni boshqaradi — panelning xodimlar ekrani bilan bir
 xil (`StaffAccountService`): ega — hamma xodimni, menejer — o'z filialidagi o'zidan past rollarni.
@@ -540,3 +545,661 @@ ro'yxatida `login_phone_proof`; buyurtma ro'yxatida `waiting_seconds`; `/me/perm
 `/terminal/staff?role=`, `GET /terminal` da `branches`; yangi variant `stock`i; validatsiya xabarlari o'zbekcha;
 OpenAPI'dagi xatolar tuzatildi (`/owner/employees`, `/superadmin/*`, `/owner/settings`, `toggle_active`, payout
 `status` enum, `page`, `/owner/modifier-groups` tanasi).
+
+## POS sozlamalari (P3-13)
+
+Choyxona kassasi, ofitsiant telefoni va oshxona ekrani ishga tushganda kerak bo'ladigan sozlamalar: sexlar, printerlar,
+filial POS sozlamalari va POS menyusi ([POS_SPEC.md](POS_SPEC.md) 2.8, 2.11, 2.12, 10, 12). Hamma endpoint `auth:sanctum` +
+`staff.store` + ruxsat, do'kon va filial bo'yicha ajratilgan (boshqa do'konniki — 404; filialga biriktirilgan xodim yoki
+terminal sessiyasi boshqa filialni so'rasa — 403), id'lar 18 xonagacha, xato xabarlari o'zbekcha, pul — ikki xonali satr.
+Qurilma ochiq API'da **uuid** bilan ko'rsatiladi (`device_id`, `printing_device_id`): raqamli id hech qachon chiqmaydi.
+
+### Boshqaruv endpointlari (web panel)
+
+`settings.manage` (faqat ega) va `not-staff-session`: terminaldagi PIN sessiyasi bularga kira olmaydi (403
+`staff_session_not_allowed`). Filial `branch_id` bilan beriladi (filialga biriktirilgan chaqiruvchida — o'zinik).
+
+| Endpoint | Vazifasi |
+|---|---|
+| `GET /owner/kitchen-stations?branch_id=` | sexlar (nofaollari ham) va `kinds` ro'yxati |
+| `POST /owner/kitchen-stations` | sex qo'shish: `branch_id`, `name` (filialda yagona), `kind` (`osh`, `mangal`, `salad_bar`, `tea`, `kitchen`, `other`), `sort_order`, `is_active`, `show_on_kds` |
+| `PATCH /owner/kitchen-stations/{id}` | tahrirlash (filial o'zgarmaydi). Nofaol sex terminalga berilmaydi, uning yo'naltirishlari hisobga olinmaydi |
+| `DELETE /owner/kitchen-stations/{id}` | o'chirish: yo'naltirishlari o'chadi, printerlari sexsiz qoladi. Unga buyurtma qatori yuborilgan bo'lsa — 422 `station_in_use` (faolsizlantiring) |
+| `GET /owner/kitchen-station-routes?branch_id=` | filialning yo'naltirishlari: `category_id` yoki `product_id`, `station_id`, nomi |
+| `PUT /owner/kitchen-station-routes` | ommaviy biriktirish: `branch_id`, `station_id`, `category_ids[]` (≤200), `product_ids[]` (≤500). Boshqa sexga biriktirilgan bo'lsa — ko'chadi. `station_id: null` — ko'rsatilganlarning yo'naltirishini olib tashlaydi. Javob — filialning yo'naltirishlari |
+| `DELETE /owner/kitchen-station-routes/{id}` | bitta yo'naltirishni olib tashlash |
+| `GET/POST /owner/printers`, `PATCH/DELETE /owner/printers/{id}` | printerlar (quyida) |
+| `GET/PUT /owner/branches/{id}/pos-settings` | biznes kun boshlanishi va `pos_settings` (quyida) |
+
+**Yo'naltirish qoidasi.** Taom qatori sexga shunday tushadi: **taomning o'z yo'naltirishi** → **kategoriyasining
+yo'naltirishi** → sexsiz (`null`: standart marka printeri). Bir filialda taom va kategoriya bittadan ortiq sexga
+biriktirilmaydi. Nofaol sex yoki boshqa filialning sexi hisobga olinmaydi. Buyurtma qatorining sexini serverdagi
+`KitchenStationResolver` aniqlaydi (`App\Domain\Pos\Setup\KitchenStationRouter`); terminal oflayn rejimda uni
+`GET /pos/bootstrap` dagi `station_routes` dan o'zi hisoblaydi.
+
+**Printer.** `name` (filialda yagona), `purpose` (`receipt`, `kitchen`, `label`), `connection`, `paper_width` (58 yoki 80),
+`encoding` (printer shrifti talab qilsa, masalan `cp866`; `null` — UTF-8), `print_as_image` (matnni rasm sifatida chop
+etish), `is_active`, `station_id` (shu filial sexi; faqat `kitchen` va `label` uchun). Ulanish turiga qarab:
+- `lan` — `address` (IP yoki nom) majburiy, `port` (standart 9100); har bir terminal manzil bo'yicha ulanadi, `device_id` yo'q;
+- `bluetooth` — `address` majburiy;
+- `usb`, `builtin` (Sunmi ichki printeri) — `device_id` majburiy: shu filialniki (yoki butun do'konga ulangan) faol POS
+  terminalining uuid'si; manzil saqlanmaydi. Terminal almashsa, printer sozlamasi qoladi — faqat `device_id` o'zgaradi.
+Chop etishni server emas, terminalning o'zi bajaradi ([POS_SPEC.md](POS_SPEC.md) 2.11).
+
+**Filial POS sozlamalari.** `PUT /owner/branches/{id}/pos-settings` faqat yuborilganini o'zgartiradi:
+- `business_day_starts_at` — `"SS:DD"`, 00:00 dan 11:59 gacha (standart `05:00`; erta ochiladigan filial `04:00` qo'yishi
+  mumkin). Do'kon vaqt mintaqasida: shu vaqtgacha bo'lgan savdo avvalgi biznes kunga kiradi.
+- `pos_settings.mode` — `counter` (tez kassa), `table` (stol/xona), `hybrid` (standart).
+- `pos_settings.printing_device_id` — "chop etuvchi" kassaning uuid'si (shu filialniki yoki do'konga ulangan POS terminali)
+  yoki `null`. U onlayn buyurtmalar markasini chiqaradi ([POS_SPEC.md](POS_SPEC.md) 2.11).
+- `pos_settings.screen_lock_minutes` — 0–240 (0 = qulflanmaydi; standart 5).
+- `pos_settings.queue_numbers` — navbat raqami (standart `false`).
+- `pos_settings.alerts` — kalit bo'yicha qo'shiladi, `null` shu ogohlantirishni o'chiradi: `open_room_hours` (1–72, standart 6),
+  `void_amount` (0–100 000 000, standart `"200000.00"`), `discount_percent` (0–100, standart `"10.00"`),
+  `unaccepted_online_minutes` (1–120, standart 3).
+- `pos_settings.holidays` — `YYYY-MM-DD` sanalar (≤400), butun ro'yxat almashtiriladi (xona tarifi "bayram" kunini shundan oladi).
+- `pos_settings.booking_slot_minutes` — tugash vaqtisiz bron xonani qancha ushlab turadi: 30–1440 daqiqa yoki `null` (serverning standarti, 300).
+Noma'lum kalit — 422 (saqlanmaydi). Javob: `branch_id`, `timezone`, `business_day_starts_at`, to'liq `pos_settings`
+(saqlanmaganlari standart qiymat bilan).
+
+### `GET /pos/bootstrap` — terminal ishga tushishi
+
+Terminaldagi xodim PIN sessiyasi (terminal filiali) yoki oddiy xodim kirishi (xodimning filiali) bilan, `orders.view`.
+Filialga biriktirilmagan chaqiruvchi (ega, butun do'konga ulangan terminal) `?branch_id=` beradi (bo'lmasa 422).
+Javob (`data`):
+
+| Kalit | Mazmuni |
+|---|---|
+| `server_time` | server vaqti (ISO 8601): terminal soat farqini shundan hisoblaydi |
+| `menu_version` | menyu versiyasi (12 belgi). Narx, nom, birlik, kategoriya, modifikator, kanal narxi o'zgarsa o'zgaradi; qoldiq, stop-list va qozonda **o'zgarmaydi** (ular uchun `menu.availability_changed`). O'zgarsa — `GET /catalog?channel=pos_*` ni qayta oling |
+| `store` | `id`, `name`, `timezone` |
+| `branch` | `id`, `name`, `address`, `phone`, `timezone`, `business_day_starts_at`, `business_date` (hozir qaysi biznes kun), `pos_settings` |
+| `device` | terminal: `uuid`, `type`, `name`, `is_printing_device` (u "chop etuvchi" kassami); terminalsiz kirishda `null` |
+| `user` | `id`, `name`, `role`, `permissions[]` |
+| `stations` | faol sexlar (`sort_order` bo'yicha) |
+| `station_routes` | `categories[]` va `products[]`: `{category_id\|product_id, station_id}` (faol sexlar) |
+| `printers` | filialning faol printerlari, **shu terminal ishlata oladiganlari**: LAN va Bluetooth hammaga, USB va ichki — faqat o'zi ulangan terminalga |
+| `staff` | filial va butun do'kon xodimlari: `id`, `name`, `role`, `photo_url` (ofitsiant tanlash uchun; PIN va kodlar yo'q — PIN klaviatura `GET /terminal/staff` dan) |
+| `halls`, `tables` | filialning ochiq zallari (`id`, `name`, `sort_order`) va ulardagi faol joylar: stol, xona, tapchan (`id`, `hall_id`, `name`, `kind`, `seats`, `layout` {x,y,w,h}, `sort_order`, `min_spend`, `min_spend_mode`). O'chirilgan mavsumiy zal va uning joylari yo'q. Xona bandligi bu yerda emas — buyurtma endpointlarida |
+| `shift` | **shu terminalda** ochiq smena: `uuid`, `status`, `business_date`, `opened_at`, `opened_by`, `opening_cash`, `device_id`; terminalsiz kirishda yoki smena ochiq bo'lmasa `null` (to'liq smena — smena endpointlarida) |
+
+`halls`, `tables` va `shift` `PosBootstrapContributor` orqali qo'shiladi (`PosBootstrap::CONTRIBUTORS` tegi): boshqa modul o'z bo'limini shu tegga ulab, bu javobni o'zgartirmasdan kengaytiradi.
+
+### `GET /catalog?channel=pos_hall|pos_takeaway` — POS menyusi
+
+Mijoz menyusining (`GET /catalog`) o'sha endpointi, lekin `channel` POS kanali bo'lsa so'rov `PosCatalogController`ga
+beriladi: javob **boshqa shaklda** (do'kon menyusi emas, bitta filial menyusi). Shu sababli POS kanallari mijoz
+katalogiga aralashmaydi: mijoz yoki boshqa do'kon xodimi so'rasa — 403/404; `telegram`, `mobile` va kanalsiz javoblar
+o'zgarmagan (boshqa qiymatlar avvalgidek `telegram` ga tushadi).
+- Ruxsat: `menu.view` (kassir, ofitsiant, oshpaz, menejer, ega). Filial: xodimning/terminalning filiali; ega `?branch_id=`
+  beradi. `store_id` ixtiyoriy va faqat o'z do'koniniki bo'lishi mumkin.
+- `data`: `channel`, `menu_version`, `branch`, `categories`, `products`, `availability`.
+- Mahsulot va variantlarda mijoz katalogidagi maydonlar (kanal narxi `price`, variantning o'z narxi `base_price`,
+  `unit` `piece|kg|l`, `quantity_step`, `min_quantity`, `modifier_groups` bilan `modifiers`) + qo'shimcha:
+  `station_id` (sexi: taomning yo'naltirishi, bo'lmasa kategoriyasiniki, bo'lmasa `null`), `is_available` va
+  `unavailable_reason` (`stopped` — stop-listda; `sold_out` — qozon/partiya tugagan; mahsulotda: stop-list yoki
+  barcha variantlari tugagan; modifikatorda faqat `stopped`).
+- Shu kanalda yashirilgan taom/variant (`channel_prices.is_hidden`) ro'yxatda yo'q.
+- `availability` — shu filialning stop-listi, tugagan variantlar va ochiq qozonlari (`GET /catalog/availability` bilan bir xil
+  shakl, bitta filial uchun).
+
+### Test va tekshiruv
+
+`PosStationsPrintersApiTest`, `PosBranchSettingsApiTest`, `PosBootstrapTest`, `PosCatalogTest`, `KitchenStationRouterTest`:
+ruxsat, boshqa do'kon va filial izolyatsiyasi, yo'naltirish ustuvorligi, sozlamalar validatsiyasi, terminal va oddiy
+kirish uchun bootstrap shakli, POS kanal narxi va ko'rinishi, mijoz katalogi o'zgarmagani.
+
+## Onlayn to'lov fiskal cheki (P3-14)
+
+Mini App buyurtmasi Payme yoki Click orqali to'langanda fiskal chekni **to'lov tizimining o'zi** ro'yxatdan o'tkazadi,
+restoran STIRi chekda **komitent** sifatida turadi. Natija `fiscal_receipts` ga `external` chek bo'lib yoziladi
+(`FiscalIssuer::recordExternal`, provayder `payme` yoki `click`, `subject_type = order`). Bu faqat do'konda fiskal rejim
+yoqilgan bo'lsa (`stores.fiscal_settings.enabled`) ishlaydi; o'chiq bo'lsa webhook javoblari avvalgidek, bayt-bayt bir xil.
+
+**Payme** ([CheckPerformTransaction](https://developer.help.paycom.uz/metody-merchant-api/checkperformtransaction),
+[SetFiscalData](https://developer.help.paycom.uz/metody-merchant-api/setfiscaldata)):
+- `CheckPerformTransaction` javobida `allow: true` bilan birga `detail`: `receipt_type: 0`, `items[]` (`title`, `price`
+  tiyinda, `count`, `code` — MXIK, `package_code`, `vat_percent`, kerak bo'lsa `discount` va raqamli `units`) va
+  yetkazish bo'lsa `shipping {title: "Yetkazib berish", price}`. Summa aniq: `Σ(price × count − discount) +
+  shipping.price` = to'lov summasi (tiyin). Promo-chegirma qatorlarga summaga mutanosib taqsimlanadi (eng katta qoldiq
+  usuli, bir xil buyurtma doim bir xil natija); butun bo'lmagan miqdor (1.5 kg) `count: 1` va qator summasi bilan,
+  miqdor nomda ("Somsa (1.5)"). Xizmat haqi va joy narxi — alohida qator (do'konning shu xizmatlar uchun MXIK'i bilan).
+- `detail` faqat **do'konning o'z Payme kassasi** (`payment_owner = STORE`) uchun yuboriladi: Merchant API'da chek
+  bo'yicha komitent maydoni yo'q, platforma kassasi orqali chek platformaning o'z savdosi bo'lib qoladi. Platforma
+  kassasidagi to'lov `payme_platform_cashbox` belgisi bilan qayd etiladi.
+- `SetFiscalData` (yangi metod, o'sha Basic auth — to'lovning o'z kaliti): `{id, type: PERFORM|CANCEL, fiscal_data:
+  {receipt_id, status_code, message, terminal_id, fiscal_sign, qr_code_url, date}}` → `{"result": {"success": true}}`.
+  `PERFORM` — sotuv cheki, `CANCEL` — alohida qaytarish cheki (asl sotuv chekiga bog'lanadi). Takroriy chaqiruv hech
+  narsani o'zgartirmaydi (birinchi qabul qilingan chek saqlanadi). Xatolar: `-32001` (bunday chek yo'q), `-32602`
+  (noto'g'ri parametr, `message` da nomi: `Invalid parameter: type`), `-32504` (kalit noto'g'ri). `status_code ≠ 0`
+  (OFD rad etgan) — to'lovda `failed` / `payme_ofd_rejected` deb belgilanadi, keyingi muvaffaqiyatli chaqiruv yoziladi.
+
+**Click** ([Фискализация данных](https://docs.click.uz/merchant-api/fiscalization)):
+- `Complete` muvaffaqiyatli bo'lgach navbatga `SubmitClickFiscalData` qo'yiladi; Click callback'i javobi uni kutmaydi va
+  o'zgarmaydi. Ish `POST https://api.click.uz/v2/merchant/payment/ofd_data/submit_items` ga `{service_id, payment_id
+  (= click_trans_id), items[], received_ecash: 0, received_cash: 0, received_card}` yuboradi. `items[]`: `Name` (63
+  belgi), `SPIC` (MXIK), `PackageCode`, `Price` (qator summasi, tiyin), `Amount` (miqdor mingdan birlarda: 1000 = 1
+  dona, 1500 = 1.5 kg), `VAT` (tiyin), `VATPercent`, `CommissionInfo {TIN}` (yakka tadbirkorda `{PINFL}`), kerak
+  bo'lsa `GoodPrice`, `Units`. Yetkazish — do'konning `delivery` xizmati MXIK'i bilan alohida qator.
+- So'ng `GET .../ofd_data/{service_id}/{payment_id}` dan `qrCodeURL` olinadi; havoladagi `t`, `r`, `c`, `s` —
+  terminal, chek raqami, sana, fiskal belgi. Click uzilishi va chek hali tayyor bo'lmasa qayta urinish (60 s, 5, 15,
+  30 daqiqa, 1, 2, 4 soat; jami 8 marta; `error_code ≠ 0` ham qayta uriniladi), mahsulotlar qayta yuborilmaydi.
+  Click so'rovni rad etsa (HTTP 4xx) yoki urinishlar tugasa — `failed`.
+- Kirish sarlavhasi: `Auth: merchant_user_id:sha1(timestamp + secret_key):timestamp`. Platforma kassasi uchun
+  `CLICK_MERCHANT_USER_ID` (yoki superadmin'dagi Click provayderi `credentials.merchant_user_id`), do'konning o'z
+  hisobi uchun `payment_settings.click.merchant_user_id`.
+
+**Chek chiqmasa to'lov to'xtamaydi.** Fiskal rejim yoqilgan, lekin chek tuzib bo'lmasa (taomda MXIK yoki qadoq kodi
+yo'q, do'kon STIRi yo'q, Click kalitlari yo'q, platforma Payme kassasi) — to'lov odatdagidek o'tadi (provayder hujjati
+bo'yicha `detail`/`items` shunchaki yuborilmaydi), serverda `Online fiscal receipt not sent` ogohlantirishi (buyurtma,
+do'kon, muammo kodlari, taom nomlari) yoziladi va to'lovda belgi qoladi. Belgi `GET /owner/payments` qatorida:
+
+```json
+"fiscal": {"status": "blocked", "problems": ["mxik_missing"]}
+```
+
+`status`: `blocked` (ega tuzatishi kerak), `pending` (Click'ga yuborildi, chek kutilmoqda), `failed` (provayder yoki
+OFD rad etdi, urinishlar tugadi), `recorded` (chek `fiscal_receipts` da); fiskal rejim o'chiq yoki naqd to'lovda
+`null`. Filtr: `GET /owner/payments?fiscal_status=blocked|pending|failed|recorded` (`finance.view`). Muammo kodlari:
+`mxik_missing`, `package_code_missing`, `store_tin_missing`, `charge_mxik_missing` (xizmat haqi yoki joy narxi),
+`delivery_mxik_missing`, `items_missing`, `sum_mismatch`, `fiscal_unavailable`, `payme_platform_cashbox`,
+`payme_ofd_rejected`, `click_credentials_missing`, `click_submit_failed`, `click_qr_missing`. Xom provayder
+ma'lumoti hech qachon qaytarilmaydi.
+
+Testlar: `tests/Feature/OnlineFiscal/*` — hujjatdagi so'rov va javob namunalari, summalar va yaxlitlash, SetFiscalData
+idempotentligi va auth, Click ishining muvaffaqiyati, xatosi va qayta urinishi, MXIK va STIR yo'qligi, haqiqiy fiskal
+yadro bilan to'liq sikl.
+
+## Bron, avans va nasiya (P3-17)
+
+Kassa va web panel uchun bron daftari, oldindan buyurtma, avans (bo'nak) va nasiya hisoblari (tadqiqot hisoboti
+R14–R18, POS_SPEC 2.9–2.10). Hammasi `/api/v1/pos/*` ostida: terminaldagi xodim PIN sessiyasi yoki oddiy xodim kirishi
+(web panel ham shu endpointlardan foydalanadi). Do'kon va filial bo'yicha ajratilgan: boshqa do'kon yoki o'zi
+ishlamaydigan filial yozuvi — 404; filialga biriktirilgan xodim va terminal sessiyasi faqat o'z (terminal) filialida
+ishlaydi; terminali bekor qilingan sessiya hech narsa qila olmaydi. Pul — `"12000.00"` satr, vaqt — UTC ISO 8601
+(so'rovda zonasiz vaqt do'kon vaqt mintaqasida o'qiladi), id'lar 18 xonagacha. Xatolar standart shaklda,
+`data.reason` — barqaror kod.
+
+### Bron (`bookings.manage`: ega, menejer, kassir)
+
+| Endpoint | Vazifasi |
+|---|---|
+| `GET /pos/bookings/calendar?branch_id&from&to&include_canceled` | filial xonalari (zal tartibida), har birida o'sha kunlardagi bronlar; xonasiz bronlar `unassigned` da; ko'pi bilan 31 kun |
+| `GET /pos/bookings?branch_id&from&to&status` | kunlar bo'yicha ro'yxat |
+| `GET /pos/bookings?phone=901234567` | telefon bo'yicha qidiruv (kamida 4 raqam, istalgan ko'rinishda): mijoz yoki guruh tarixi, yangisi birinchi |
+| `POST /pos/bookings` | yaratish: `dining_table_id`, banket uchun `extra_table_ids` (birlashtirilgan xonalar), `starts_at`, `ends_at` (yo'q bo'lsa filial sloti, standart 5 soat), `guests_planned`, `event_type` (`gap`, `ziyofat`, `tugilgan_kun`, `nahor_oshi`, `korporativ`, `other`), `contact_name`, `contact_phone` (+998XXXXXXXXX ga keltiriladi), `source` (`phone`, `telegram`, `instagram`, `walk_in`, `other`), `min_spend`, `note`, `confirm` |
+| `GET /pos/bookings/{uuid}` | bron, oldindan buyurtma qatorlari (`items`) va avanslar (`payments`) bilan |
+| `PATCH /pos/bookings/{uuid}` | faqat yuborilgan maydonlar; vaqt yoki xona o'zgarsa to'qnashuv qayta tekshiriladi |
+| `POST /pos/bookings/{uuid}/confirm`, `/cancel` (`reason` majburiy), `/no-show` | holatni o'zgartirish |
+| `POST /pos/bookings/{uuid}/arrive` | "Keldi": buyurtma ochiladi (`guests`, boshqa xonaga — `dining_table_id`) |
+| `POST/PATCH/DELETE /pos/bookings/{uuid}/items[/{id}]` | oldindan buyurtma: `product_variant_id`, `quantity` (kg qadam bilan), `modifiers` `[{modifier_id, quantity}]`, `note`, `due_at` (tayyor bo'lish vaqti; standart — bron boshlanishi) |
+| `POST /pos/bookings/{uuid}/deposits` | avans olish (`Idempotency-Key` majburiy) |
+| `POST /pos/bookings/{uuid}/deposits/{payment}/refund` | avansni qaytarish (`reason`, kerak bo'lsa `approval_token`) |
+| `POST /pos/bookings/{uuid}/deposits/{payment}/retain` | avansni ushlab qolish (`reason`, kerak bo'lsa `approval_token`) |
+
+**Holatlar.** `requested` (so'rov) → `confirmed` → `arrived` (buyurtma ochiq) → `completed` (buyurtma yopildi yoki
+bekor qilindi — avtomatik); `requested`/`confirmed` → `canceled`; `confirmed` → `no_show` (faqat bron boshlanish
+vaqtidan keyin); kelib qolgan mehmon uchun `requested` → `arrived` ham mumkin. Avans olinganda `requested` bron
+`confirmed` bo'ladi (hisobotdagi "avans olindi" — `confirmed` + `deposit_available > 0`). Noto'g'ri o'tish — 422
+`invalid_transition`. O'zgartiruvchi so'rovlarda ixtiyoriy `version`: boshqa qurilma o'zgartirib ulgurgan bo'lsa 409
+`stale_version`.
+
+**To'qnashuv.** Bir xona bir vaqtda ikki marta band qilinmaydi: `requested`, `confirmed`, `arrived` bronlar o'z
+xonalarini (banketda — birlashtirilgan hamma xonani) `[starts_at, ends_at)` oralig'ida band qiladi. 18:00 da tugagan
+va 18:00 da boshlangan bronlar to'qnashmaydi. To'qnashuvda 409 `booking_conflict`, `data.conflicts` — band qilgan
+bronlar (`uuid`, `status`, vaqtlar, `table_ids`). Bekor qilingan yoki "kelmadi" bron xonani bo'shatadi. Tekshiruv va
+yozish filial qatori qulfi ostida: ikki kassir bir xonani bir vaqtda band qila olmaydi. Standart slot
+`POS_BOOKING_SLOT_MINUTES` (300) yoki filialning `pos_settings.booking_slot_minutes`.
+
+**"Keldi".** `PosOrderOpener` (P3-12) orqali `pos_hall` buyurtma ochiladi: xona, mehmonlar soni, `orders.booking_id`;
+oldindan buyurtma qatorlari "ushlab turish" holatida, har biri o'z `due_at` vaqti bilan (oshxona ularni vaqtida
+ko'radi). Bronning avanslari shu buyurtmaga bog'lanadi va yopishda ayiriladi (`AdvanceLedger`, P3-18). Ikkinchi marta —
+409 `booking_already_arrived`, `data.order_uuid`. Javob: `{booking, order: {uuid, status}}`.
+
+**Avans (bo'nak).** `amount`, `tender` (`cash`, `card`, `qr`; P2P yo'q), `card_type`, `transaction_id`. Avans
+yozilgach **bo'nak (ADVANCE) cheki** chiqariladi: bitta "avans" qatori (do'konning `deposit` xizmati MXIK'i, standart
+10202002004000001), to'lov shakli avans usuli bo'yicha. Javobda `payment.fiscal_receipt_uuid` va `fiscal_status`.
+Takroriy so'rov (bir xil `Idempotency-Key`) o'sha avansni qaytaradi, ikkinchi chek chiqmaydi. Fiskal sozlama xatosi
+(masalan avans uchun MXIK yo'q) avansni yozmasdan 422 `mxik_missing` beradi; provayder xatosida avans saqlanadi,
+`fiscal_status: "error"`. Bo'nak cheki soliq hisobotiga tushmaydi: kechqurun yopishda **to'liq** summaga sotuv cheki
+chiqadi, avans undagi oldindan to'lov qismi bo'ladi (P3-18).
+
+**Qaytarish va ushlab qolish.** Avansning ishlatilmagan qoldig'i bilan, sabab majburiy, menejer tasdig'i bilan:
+qaytarish — `pos.refund`, ushlab qolish — `orders.cancel`. Shu huquqi bor xodim (menejer, ega) o'zi tasdiqlaydi;
+kassir menejerning bir martalik `approval_token` ini yuboradi (`POST /pos/approvals`, P3-18). Tasdiqsiz — 403
+`approval_required`, yaroqsiz token — 403 `approval_invalid`. Qaytarish mehmonlar o'tirgan paytda (`arrived`) mumkin
+emas; ushlab qolish faqat `canceled`, `no_show` yoki `completed` (hisobdan ortgan qoldiq) bronda. Egaga Telegram
+xabari boradi, harakatlar jurnaliga yoziladi.
+
+> **Tekshirilmagan fiskal qoidalar (buxgalter bilan tasdiqlash kerak, tadqiqot T3).** Qaytarishda standart bo'yicha
+> chek **chiqmaydi** (buxgalter.uz tavsiyasi: ariza, qaytarish dalolatnomasi, asl bo'nak cheki); do'kon
+> `fiscal_settings.deposit_refund_receipt: true` bilan asl bo'nak chekiga bog'langan qaytarish (REFUND) chekini
+> yoqishi mumkin. Ushlab qolingan avansga standart bo'yicha **sotuv (SALE) cheki** chiqadi: "bron xizmati" qatori
+> (`booking_fee`, standart MXIK 10202002003000002), to'lov — oldindan to'langan (avans hisobidan); do'kon
+> `fiscal_settings.retained_deposit_receipt: false` bilan o'chira oladi. Ikkalasining standarti:
+> `POS_DEPOSIT_REFUND_RECEIPT`, `POS_RETAINED_DEPOSIT_RECEIPT` (`config/pos_bookings.php`).
+
+### Nasiya hisoblari
+
+| Endpoint | Ruxsat | Vazifasi |
+|---|---|---|
+| `GET /pos/customer-accounts?q&debtors&per_page` | `customer_accounts.manage` yoki `pos.take_payment` | qidiruv (ism, guruh, telefon raqamlari), sahifalangan |
+| `GET /pos/customer-accounts/debtors` | xuddi shu | qarzdorlar (eng katta qarz birinchi) va jami qarz |
+| `GET /pos/customer-accounts/{uuid}` | xuddi shu | hisob va oxirgi 20 yozuv |
+| `GET /pos/customer-accounts/{uuid}/statement?from&to` | xuddi shu | ko'chirma: boshlang'ich va yakuniy qarz, tur bo'yicha jami, yozuvlar |
+| `POST /pos/customer-accounts/{uuid}/repayments` | xuddi shu | qarz to'lovi: `amount` (qarzdan ko'p emas), `tender`, `card_type`, `transaction_id`, `note`; `Idempotency-Key` majburiy |
+| `POST /pos/customer-accounts` | `customer_accounts.manage` (ega, menejer) | ochish: `name`, `phone` (do'konda yagona), `group_name`, `credit_limit` (`null` — cheksiz, `0` — nasiya yo'q), `note`, `branch_id` |
+| `PATCH /pos/customer-accounts/{uuid}` | xuddi shu | o'zgartirish, `is_blocked` (yangi nasiya to'xtaydi, to'lov qabul qilinaveradi) |
+| `POST /pos/customer-accounts/{uuid}/adjustments` | xuddi shu | tuzatish: `amount` (+ qarzga qo'shadi, − kechadi), `note` majburiy; qarz manfiy bo'lmaydi |
+
+Hisob do'kon bo'yicha (`branch_id: null`) yoki bitta filialniki; filialga biriktirilgan menejer ochgan hisob uning
+filialiniki. Filial xodimi va terminal sessiyasi do'kon hisoblarini va o'z filiali hisoblarini ko'radi.
+
+Qarz faqat yozuvlar orqali o'zgaradi (`charge` +, `repayment` −, `adjustment` ±; har birida `balance_after`), hisob
+qatori qulfi ostida. **Nasiyaga yopish** P3-18 dagi schyot to'lovi (`PosTender::ACCOUNT`, menejer tasdig'i bilan)
+`CustomerAccountLedger::charge` ni chaqiradi: noma'lum, bloklangan, boshqa do'kon yoki (tasdiqlagan menejer uchun)
+boshqa filial hisobi, limitdan oshish — rad etiladi; bitta schyot bitta marta yoziladi. Taom berilgan kuni **to'liq
+sotuv cheki** chiqadi (P3-18), har bir qarz to'loviga esa **kredit (CREDIT) cheki** (QR va fiskal belgisiz; do'konning
+`credit` xizmati qatori, to'lov shakli to'lov usuli bo'yicha). Egaga Telegram xabari: chegaradan
+(`POS_CREDIT_ALERT_THRESHOLD`, standart 500 000 so'm) katta har bir yangi nasiya va har bir qarz to'lovi.
+
+### Real-time
+
+`private-pos-branch.{branchId}` kanalida `booking.changed`: bron yaratildi, o'zgardi, holati yoki avansi o'zgardi.
+Tanasi faqat id, holat va vaqtlar — ilova `GET /pos/bookings/{uuid}` ni qayta so'raydi:
+
+```json
+{"booking": {"uuid": "...", "status": "confirmed", "branch_id": 5, "version": 3, "starts_at": "...", "ends_at": "..."}}
+```
+
+Testlar: `tests/Feature/PosBooking/*` — to'qnashuv (birlashtirilgan xonalar, chegaraviy vaqtlar, bir vaqtdagi ikki
+so'rov), holatlar, bo'nak cheki va idempotentlik, tasdiq bilan qaytarish va ushlab qolish, "Keldi" va ushlab turilgan
+qatorlar, avans ofseti (bir vaqtdagi ikki schyot), nasiya limiti va kredit cheki, ruxsat va izolyatsiya.
+
+## Fiskal cheklar (P3-11)
+
+22.10.2026 dan ovqatlanish korxonasi faqat soliq tizimi bilan integratsiya qilingan buyurtma dasturidan foydalana oladi
+(VM 393). Shuning uchun Rizqim'da har bir sotuv, qaytarish, bo'nak (avans) va kredit (nasiya to'lovi) cheki
+`fiscal_receipts` jadvaliga yoziladi va provayderga (virtual kassa) yuboriladi. Provayder hali tanlanmagan: hozir
+ikki drayver bor — `sandbox` (soxta, lekin haqiqiyga o'xshash javob) va `null` (fiskal emas). Ikkalasining cheki ham
+`non_fiscal: true` — qog'ozda "Bu fiskal chek emas" yoziladi. Haqiqiy drayver P3-32 da qo'shiladi.
+
+**Chek turlari** (VM 943, 1-ilova, 7-band): `sale` (sotuv), `refund` (qaytarish — asl sotuv yoki bo'nak chekiga
+bog'lanadi), `advance` (bo'nak: bron avansi; bitta "avans" qatori, fiskal belgi va QR yo'q), `credit` (nasiya
+to'lovi; bitta "qarz to'lovi" qatori, fiskal belgi va QR yo'q). Avansli bron: avval `advance` cheki, keyin **to'liq
+summaga** `sale` cheki, avans qismi `prepayment: true` to'lov bo'lib ko'rsatiladi. Nasiya: xizmat kuni to'liq `sale`
+cheki, har bir to'lovga `credit` cheki. **To'lov shakli** (`payment_form`): `cash`, `card`, `qr` yoki bir nechta
+usulda olinsa `mixed` (avans hisobidan qism hisobga olinmaydi).
+
+**Chek qatori:** nom (menyudagi nom va variant), MXIK (17 raqam), qadoq kodi, o'lchov birligi (variantning
+`unit_label` i yoki "dona", "kg", "l"), miqdor, birlik narxi, summa (chegirmadan keyin), QQS stavkasi va summasi,
+kerak bo'lsa komitent STIRi va markirovka kodi. QQS narx ichida: `QQS = summa × stavka / (100 + stavka)`, har qator
+alohida tiyingacha yaxlitlanadi (chekning QQS jami — qatorlar yig'indisi). Stavka do'konning soliq rejimidan:
+`vat` — 12% (taomning o'z `vat_rate` i bo'lsa — o'sha), `vat_simplified` — 6%, `turnover` (aylanma solig'i) — QQSsiz
+(stavka `"0"`, qatorda `no_vat: true`). Rejim tanlanmagan bo'lsa — `vat`.
+
+**"MXIK'siz sotilmaydi".** Fiskal rejim yoqilgan do'konda MXIK kodi yo'q taom yoki xizmatni POS buyurtmasiga qo'shib
+bo'lmaydi, xizmatlar (xona puli, xizmat haqi...) ham sozlamada MXIK kodisiz chekka tushmaydi. Javob — 422:
+
+```json
+{"success": false, "message": "\"Osh\" uchun MXIK kodi kiritilmagan. Fiskal rejimda MXIK'siz taom yoki xizmat sotilmaydi: menyuda MXIK kodini kiriting.", "data": {"reason": "mxik_missing", "product_id": 12, "name": "Osh"}}
+```
+
+Boshqa sabablar (`data.reason`): `invalid_document` (qatorlar, to'lovlar va jami mos emas, chek turi qoidasi
+buzilgan), `idempotency_conflict` (shu kalit bilan boshqa chek bor), `original_receipt_invalid` (qaytarishda asl chek
+yo'q, ro'yxatdan o'tmagan yoki summa oshib ketdi), `unknown_charge`.
+
+**Kutish va qayta yuborish.** Chek avval `pending` bo'lib yoziladi, keyin provayderga yuboriladi: tasdiqlansa
+`issued`, provayder javob bermasa `pending` qoladi ("fiskal kutmoqda") va navbatdagi ish 30 s, 1, 2, 5, 10, 30 daqiqa,
+keyin har soat qayta urinadi (`config/fiscal.php`, ko'pi bilan 12 marta); har daqiqada `fiscal:retry-pending`
+yo'qolgan urinishlarni ham yig'ib oladi. Provayder rad etsa yoki urinishlar tugasa — `failed`; ega panelda "Qayta
+yuborish" bosadi. Sotuv hech qachon yo'qolmaydi: chek qatori provayderdan oldin saqlanadi. Bitta `Idempotency` kaliti
+(do'kon ichida) — bitta chek.
+
+**Real-time:** `fiscal.receipt_updated` — chek `issued` yoki `failed` bo'lganda `private-pos-branch.{branchId}` (chekda
+filial bo'lsa) va `private-store.{storeId}` kanallariga: `{"receipt": {"uuid", "type", "status", "store_id",
+"branch_id", "subject_type", "subject_id"}}`. Ilova chekni API'dan qayta so'raydi.
+
+### Endpointlar
+
+Hammasi `auth:sanctum` + `staff.store` + ruxsat, do'kon va filial bo'yicha ajratilgan (boshqa do'konniki — 404,
+filialga biriktirilgan xodim yoki terminal sessiyasi uchun boshqa filialniki — 403), xatolar o'zbekcha, pul — ikki
+xonali satr.
+
+| Endpoint | Ruxsat | Vazifasi |
+|---|---|---|
+| `GET /owner/fiscal/settings` | `settings.manage`, terminal sessiyasidan emas | STIR, soliq rejimi, fiskal sozlamalar (standart qiymatlar bilan), drayverlar va rejimlar ro'yxati |
+| `PUT /owner/fiscal/settings` | `settings.manage`, terminal sessiyasidan emas | `tin` (9 raqam), `tax_regime` (`vat`, `vat_simplified`, `turnover`), `fiscal_settings` (qisman; yuborilmagani o'zgarmaydi) |
+| `GET /owner/fiscal/readiness` | `menu.view` yoki `settings.manage` | MXIK'siz taomlar va xizmatlar ro'yxati, STIR bormi |
+| `GET /owner/fiscal/receipts` | `finance.view` yoki `reports.view` | cheklar ro'yxati (yangisi birinchi, sahifalab): `status`, `type`, `payment_form`, `branch_id`, `subject_type` + `subject_id`, `from`/`to` (do'kon vaqti), `per_page` 1–100 |
+| `GET /owner/fiscal/receipts/{uuid}` | `finance.view` yoki `reports.view` | bitta chek: qatorlar, to'lovlar, fiskal belgi, QR, xato, urinishlar |
+| `POST /owner/fiscal/receipts/{uuid}/retry` | `settings.manage`, terminal sessiyasidan emas | `pending` yoki `failed` chekni darhol qayta yuborish (`issued` yoki Payme/Click cheki — 422 `already_issued`) |
+
+`fiscal_settings` (`stores.fiscal_settings`):
+
+```json
+{
+  "enabled": true,
+  "driver": "sandbox",
+  "charges": {
+    "room_fee": {"mxik": "10202002…", "package_code": null, "unit": "xizmat", "name": "Xona puli"},
+    "deposit": {"name": "Bron avansi"}
+  },
+  "sandbox": {"latency_ms": 0, "fail_attempts": 0, "failure_rate": 0, "reject": false},
+  "deposit_refund_receipt": null,
+  "retained_deposit_receipt": null
+}
+```
+
+- `enabled` — fiskal rejim; yoqish uchun STIR va soliq rejimi kerak. O'chiq bo'lsa cheklar `null` drayveri bilan
+  "fiskal emas" bo'lib yoziladi. `driver` — `sandbox` yoki `null` (bo'sh — `FISCAL_DRIVER`, standart `sandbox`);
+  javobdagi `active_driver` — hozir cheklar qayerga ketadi.
+- `charges` — menyuda yo'q xizmatlar qatori: `room_fee` (xona puli), `place_fee` (joy puli), `min_spend_topup`
+  (minimal summaga qo'shimcha), `service_charge` (xizmat haqi), `deposit` (avans, standart MXIK `10202002004000001`),
+  `booking_fee` (bron xizmati, `10202002003000002`), `credit` (qarz to'lovi, `10202002004000001`), `delivery`
+  (yetkazib berish). Xona puli, joy puli, minimal summa, xizmat haqi va yetkazish uchun rasmiy kod topilmagan: ega
+  tasnif.soliq.uz da tekshirib kiritadi. Maydonni `null` yuborish standart qiymatga qaytaradi.
+- `sandbox` — faqat sinov drayveri uchun: `latency_ms` (0–3000) kechikish, `fail_attempts` — har chekning birinchi N
+  urinishi "javob yo'q", `failure_rate` — urinishlarning shuncha foizi (uuid bo'yicha takrorlanadigan), `reject` —
+  hamma chek rad etiladi.
+- `deposit_refund_receipt`, `retained_deposit_receipt` — bron avansi qaytarilganda yoki ushlab qolinganda chek
+  chiqarilsinmi (P3-17; `null` — standart).
+
+`GET/POST /owner/settings` ham `tin`, `tax_regime`, `fiscal_settings` ni qaytaradi va qabul qiladi (ixtiyoriy).
+
+**Menyu.** `POST /owner/products` va `POST /owner/products/{id}` ixtiyoriy `kind` (`dish` — taom, `service` —
+xizmat: oshpaz xizmati, qozon ijarasi), `mxik_code` (17 raqam), `package_code` (faqat raqamlar, ko'pi bilan 20),
+`vat_rate` (0–100, bo'sh — rejim bo'yicha) qabul qiladi; variantlar JSON'ida `unit_label` (chekdagi birlik, masalan
+"kg (guruch)"). Yangilashda yuborilmagan maydon o'zgarmaydi, bo'sh qiymat tozalaydi. `GET /owner/products` ularni
+qaytaradi.
+
+Testlar: `tests/Feature/FiscalIssuerTest.php` (to'rt chek turi, idempotentlik, validatsiya, kutish → qayta urinish →
+`issued`, rad etish, tashqi chek, qaytarish bog'lanishi), `FiscalLineBuilderTest.php` (QQS va yaxlitlash rejim
+bo'yicha, MXIK tayyorligi), `FiscalApiTest.php` (ruxsatlar va izolyatsiya).
+
+## Schyot, to'lov va smena (P3-18)
+
+Kassa uchun: schyot (pre-check), hisobni bo'lish, to'lov, fiskal sotuv cheki, smena ichida pul qaytarish, smena, X va
+Z, menejer PIN tasdig'i ([POS_SPEC.md](POS_SPEC.md) 2.2, 2.3, 2.9, 2.10). Oddiy xodim kirishi yoki terminaldagi PIN
+sessiyasi; filial — xodimniki (PIN sessiyasida terminalniki), boshqa filial yoki do'kon buyurtmasi, schyoti, smenasi
+— 404. Har o'zgartiruvchi so'rovda `Idempotency-Key` majburiy (yo'q bo'lsa 428 `idempotency_key_required`), takror
+so'rov birinchi javobni qaytaradi. Buyurtmani o'zgartirishda `version` (eskisi — 409 `version_conflict`, javobda
+joriy `version`). Rad javoblari `data.reason` bilan.
+
+### Menejer tasdig'i
+
+`POST /pos/approvals {permission, user_id | staff_code, pin}` — terminaldagi xodimda ruxsat yo'q bo'lsa, menejer
+shu terminalda o'z PIN'ini teradi. Javob: bir martalik `token` — faqat shu `permission` va shu terminal uchun,
+**60 soniya**. Amal so'rovida `approval_token` sifatida yuboriladi. PIN tekshiruvi va bloklash xodim kirishi bilan bir
+xil (noto'g'ri — 422 `pin_invalid`, bloklangan — 429 `pin_locked`); menejerda ruxsat bo'lmasa 403
+`approver_not_allowed`; terminal sessiyasidan tashqari — 422 `terminal_required`. Tasdiqlanadigan ruxsatlar:
+`orders.manage`, `orders.cancel`, `orders.discount`, `orders.void_item`, `tables.manage`, `pos.*`, `bookings.manage`,
+`customer_accounts.manage`. Token yo'q bo'lsa amal 403 `approval_required` (`data.permission`), muddati o'tgan,
+ishlatilgan, boshqa terminal yoki boshqa ruxsat uchun bo'lsa 403 `approval_expired` / `approval_used` /
+`approval_wrong_device` / `approval_wrong_permission`. Jurnalda ikkalasi: `pos.approval_granted` (kim tasdiqladi,
+kim so'radi), `pos.approval_used`.
+
+### Schyot va bo'lish
+
+| Endpoint | Ruxsat | Nima qiladi |
+|---|---|---|
+| `GET /pos/orders/{uuid}/bills` | `orders.view` | buyurtmaning hisob holati va schyotlari (`all=1` — bekor qilinganlari bilan), qaytarishlar |
+| `POST /pos/orders/{uuid}/bills {version, mode, parts?, bills?}` | bitta schyot — `orders.manage` yoki `pos.take_payment`; bo'lish — `pos.take_payment` | schyot tuzish yoki bo'lish |
+| `POST /pos/bills/{uuid}/print {version?, approval_token?}` | `orders.manage` yoki `pos.take_payment`; nusxa — `pos.reprint_bill` (yoki tasdiq) | schyotni chiqarish |
+
+- `mode`: `single` — bitta schyot; `equal` + `parts` (2–30) — teng summali schyotlar, **qoldiq tiyin birinchi
+  schyotga**; `items` + `bills: [{items: [{order_item_id, quantity}], guests?}]` — taom bo'yicha, kasr miqdor ham
+  (1,5 kg oshdan 0,5 va 1). Qolgan har bir qator to'liq taqsimlanishi kerak (422 `items_not_covered`).
+- Chegirma va xizmatlar (xona puli, minimal summaga qo'shimcha, xizmat haqi, joy puli) schyotlar orasida summasiga
+  proporsional bo'linadi; hammasi tiyingacha aniq: schyotlar yig'indisi buyurtmaga, har qator va xizmat ulushlari o'ziga
+  teng. Teng bo'lishda har qator ham ulushlarga bo'linadi — har schyot alohida sotuv cheki oladi.
+- Schyot buyurtmaning **hali schyotga tushmagan qismidan** tuziladi: to'lov boshlangan yoki to'langan schyotlar
+  qoladi, qolgan ochiq yoki chiqarilgan schyotlar bekor qilinib qayta tuziladi. Schyotdan keyin yangi bosqich
+  qo'shilsa — shunchaki qayta schyot tuziladi. Ochiq schyot tuzilgandan keyin buyurtma o'zgargan bo'lsa, uni chiqarish
+  yoki to'lash 409 `order_changed` (ro'yxatda `bills_out_of_date: true`).
+- Schyot javobida: `subtotal`, `discount`, xizmat qatorlari, `total`, `paid_amount`, `due_amount`, `guests_share` va
+  `per_guest_amount` ("kishi boshiga", butun so'mga yuqoriga yaxlitlangan), qatorlar ulushi, to'lovlar, `fiscal`
+  (`status`, `receipt_uuid`, `error`). Buyurtma holatida `billed_amount`, `paid_amount`, `unbilled_amount`,
+  `fiscal_pending` ("fiskal kutmoqda"), `queue_number`, `business_date`, `bill_locked_at`, `closed_at`.
+- Faqat POS buyurtmalari (`pos_hall`, `pos_takeaway`; boshqasi 409 `not_pos_order`); onlayn to'lovda (Payme, Click)
+  fiskal cheki chiqqan buyurtma kassada qayta hisoblanmaydi — 409 `order_receipted_online` (ikkinchi sotuv cheki yo'q).
+- Birinchi chiqarish buyurtmani **qulflaydi** (`bill_locked_at`): shundan keyin o'chirish va chegirma menejer tasdig'i
+  bilan (P3-12). Qayta chiqarish — `copy: true`, chekda "NUSXA".
+
+### To'lov va yopish
+
+`POST /pos/bills/{uuid}/payments {tenders: [...], approval_token?, shift_uuid?, version?}` (`pos.take_payment`).
+Bitta so'rovda bir nechta to'lov turi (aralash), yoki bir necha so'rovda qismlab; jami schyot qoldig'idan oshmaydi
+(422 `overpayment`, `data.due`).
+
+| `tender` | Maydonlar | Izoh |
+|---|---|---|
+| `cash` | `amount`, `tendered_amount?` | qaytim hisoblanadi (`change_amount`); naqd smena kassasiga tushadi |
+| `card` | `amount`, `card_type`, `transaction_id` | alohida bank terminali; karta turi (`uzcard`, `humo`, `visa`, `mastercard`, `unionpay`, `mir`, `other`) va tranzaksiya raqami **majburiy** (422 `card_type_required`, `transaction_id_required`) |
+| `qr` | `amount`, `reference?` | statik yoki dinamik QR, kassir tasdiqlaydi |
+| `prepayment` | `amount` | bron avansidan ayirish (P3-17 `AdvanceLedger`), mavjudidan ko'p emas (422 `advance_insufficient`), schyotga bir marta |
+| `account` | `amount`, `account_uuid` | nasiya (P3-17 `CustomerAccountLedger`); `customer_accounts.manage` yoki menejer tasdig'i; schyotga bir marta |
+
+- To'lov kassaning ochiq smenasiga yoziladi (terminal smenasi yoki `shift_uuid`; yo'q bo'lsa 409 `shift_not_open`).
+- Schyot to'liq qoplanganda **sotuv cheki** so'raladi (to'liq summaga). Schyot `paid` bo'ladi faqat chek `issued`
+  bo'lganda; hamma schyot to'langach buyurtma **yopiladi**: `delivered`, `payment_status = paid`, `closed_at`, stol
+  bo'shaydi (real-time `order.status_changed`). Chek kutilayotgan yoki xato bo'lsa schyot "fiskal kutmoqda"
+  (`fiscal.status`: `pending` / `failed`), pul saqlanadi; `POST /pos/bills/{uuid}/fiscal-retry` o'sha chekni qayta
+  so'raydi (yangi chek chiqmaydi). Provayder keyinroq tasdiqlasa (`fiscal.receipt_updated`) schyot o'zi yopiladi.
+- MXIK'siz qator — 422 `mxik_missing`, pul olinmasdan oldin.
+- `POST /pos/orders/{uuid}/close` — uzilib qolgan yopishni yakunlash (kutilayotgan cheklarni qayta so'raydi);
+  to'lanmagan bo'lsa 409 `order_not_settled`.
+
+**Sotuv chekidagi to'lovlar (P3-11 `FiscalPayment`):** naqd, karta (`card_type`, `transaction_id`), QR — o'z shakli
+bilan; avans qismi — `prepayment: true`, avans olingan shaklda (bo'nak → sotuv, tadqiqot 5-bo'lim); **nasiya qismi
+ham `prepayment: true`** (hozir olingan pul emas): chek to'liq summaga chiqadi, qarz to'langanda kredit cheklari
+(P3-17). Bu vaqtinchalik yechim: `FiscalPayment` da kredit belgisi yo'q (tadqiqotdagi T4 ochiq savol).
+
+### Qaytarish
+
+`POST /pos/refunds {payment_uuid, amount, reason, approval_token?, shift_uuid?}` — `pos.refund` (yangi ruxsat: ega,
+menejer) yoki menejer tasdig'i. Faqat **shu smenada** olingan naqd, karta yoki QR to'lov (409 `refund_outside_shift`,
+422 `refund_tender_invalid` — avans va nasiya o'z bo'limida), to'lovdan qolganidan ko'p emas (422
+`refund_exceeds_payment`), schyotning sotuv cheki chiqqan bo'lsa (409 `bill_not_fiscalized`), naqd — kassadagidan
+ko'p emas (409 `not_enough_cash`). Naqd kassadan chiqadi, asl sotuv chekiga bog'langan **qaytarish cheki** so'raladi,
+egaga Telegram xabari boradi. To'lov to'liq qaytsa `refunded`, buyurtmaning hamma to'lovi qaytsa buyurtma
+`payment_status = refunded`.
+
+### Smena, kassa, X va Z
+
+| Endpoint | Ruxsat | Nima qiladi |
+|---|---|---|
+| `POST /pos/shifts {opening_cash, note?}` | `pos.open_shift` | shu terminalda smena ochish (faqat PIN sessiyasi; terminalda bitta ochiq smena — 409 `shift_already_open`) |
+| `GET /pos/shifts/current` | `pos.open_shift`, `pos.close_shift` yoki `pos.take_payment` | terminalning ochiq smenasi va X hisobot |
+| `GET /pos/shifts?branch_id&status&from&to&limit` | `pos.close_shift` yoki `reports.view` | smenalar ro'yxati (web panel uchun ham) |
+| `GET /pos/shifts/{uuid}` | xuddi shu | smena va Z hisobot (`summary`) |
+| `GET /pos/shifts/{uuid}/x-report` | xuddi shu | X hisobot |
+| `POST /pos/shifts/{uuid}/cash-movements {type, category, amount, note?, employee_id?, approval_token?}` | `pos.cash_in_out` yoki tasdiq | kassaga kirim/chiqim |
+| `POST /pos/shifts/{uuid}/close {counted_breakdown, force?, reason?, approval_token?}` | `pos.close_shift` | Z: smenani yopish |
+
+- **Biznes kun** — do'kon vaqt zonasida, filialning `business_day_starts_at` (standart 05:00) dan: 02:00 dagi sotuv
+  oldingi kunniki. Smena, hisobot va **navbat raqami** (`orders.queue_number`, har biznes kun 1 dan, filial bo'yicha)
+  biznes kun bo'yicha. Yangi POS buyurtmasi biznes kun, navbat raqami va terminalning ochiq smenasini o'zi oladi.
+- Kassa harakatlari: `cash_in` (`change_fund`, `owner`, `other`), `cash_out` (`collection`, `owner`, `supplies`,
+  `utilities`, `other`), `wage` — xodimga berilgan pul (`daily_wage`, `advance`, `bonus`; `employee_id` majburiy),
+  `purchase` — bozorlik (`bazaar`, `meat`, `bread`, `supplies`, `other`). `other` izohsiz bo'lmaydi; chiqim kassadagi
+  naqddan oshmaydi (409 `not_enough_cash`).
+- **X hisobot:** to'lov turlari (`by_tender`) va karta turlari (`cards`), kanallar (`by_channel`), ofitsiantlar
+  (`by_waiter`: tushum va xizmat haqi), chegirma, o'chirilgan taomlar, qaytarishlar, avans (olingan — shu terminalda,
+  ayirilgan, qaytarilgan), nasiya savdosi va qarz to'lovlari, kassa harakatlari va **kutilgan naqd** (boshlang'ich +
+  naqd sotuv + kirim + naqd avans va qarz to'lovi − qaytarish − chiqim, ish haqi, bozorlik).
+- **Z:** `counted_breakdown` — kupyura va soni (`{"100000": 2, "50000": 1}`; 200000 dan 100 gacha), sanalgan naqd va
+  farq (`difference` = sanalgan − kutilgan) yoziladi, `z_number` filial bo'yicha ketma-ket, Z hisobot `summary` da
+  saqlanadi va egaga Telegram'ga qisqa xulosa boradi. Ochiq POS buyurtmalari (shu smenada ochilgan; filialning oxirgi
+  ochiq smenasi bo'lsa — filialning hammasi) bo'lsa 409 `shift_has_open_orders`, cheki kutilayotgan to'lov bo'lsa 409
+  `shift_has_pending_receipts`. `force: true` + `reason` — `orders.cancel` (menejer) yoki uning tasdig'i bilan
+  majburan yopish; ochiq buyurtmalar keyingi smenaga o'tadi.
+
+### Real-time
+
+`private-pos-branch.{branchId}` (va `branch`, `store`): `order.bill_changed` — schyot tuzildi, chiqarildi, to'landi,
+chek holati o'zgardi (`{order: {...}, bill: {uuid, status, fiscal_status} | null, change}`); `shift.changed`
+(`pos-branch` va `branch`) — smena ochildi, kassa harakati, yopildi (`{shift: {uuid, status, store_id, branch_id,
+device_uuid, business_date, z_number}, change, changed_at}`). Faqat id va holat: ilova API'dan qayta so'raydi.
+
+### Jurnal
+
+`pos.approval_granted`, `pos.approval_used`, `pos.bills_created`, `pos.bill_printed`, `pos.bill_reprinted`,
+`pos.payment`, `pos.order_closed`, `pos.refund`, `pos.shift_opened`, `pos.cash_movement`, `pos.shift_closed`.
+
+Testlar: `tests/Feature/PosBilling/*` (bo'lish matematikasi, to'lov turlari, chek chiqdi / kutilmoqda, yopish,
+qaytarish, smena va Z, biznes kun, navbat raqami, tasdiqlar, izolyatsiya, idempotentlik, versiya; P3-11 sandbox bilan
+integratsiya), `tests/Unit/PosBillingAllocationTest.php`.
+
+## Zal va xona hisobi (P3-12)
+
+Choyxonaning uchta rejimi bitta `orders` qatorida: bronsiz stol yoki tapchan (qisqa hisob), xona (kabinka) sessiyasi
+(4–6 soatlik ochiq hisob, bosqichlar, xona puli, minimal summa, zal bo'yicha xizmat haqi) va oldindan buyurtma (bron
+"Keldi" bo'lganda P3-17 `PosOrderOpener` orqali ochadi) ([POS_SPEC.md](POS_SPEC.md) 2.4–2.10; tadqiqot R1–R4, R6,
+R11, R26). Narx, xizmat haqi va xona pulini **faqat server** hisoblaydi: ilova javobdagi summalarni ko'rsatadi.
+
+### Boshqaruv endpointlari (web panel)
+
+Terminaldagi PIN sessiyasidan kirilmaydi (403). Filialga biriktirilgan xodim faqat o'z filiali (boshqa filial —
+403), boshqa do'kon yozuvi — 404.
+
+| Endpoint | Ruxsat | Nima qiladi |
+|---|---|---|
+| `GET /owner/halls?branch_id` | `tables.manage` | zallar (tartib bilan), har birida o'z xizmat haqi (`service_fee`, yo'q bo'lsa `null` — filialniki) va stollari |
+| `POST /owner/halls`, `PATCH /owner/halls/{id}`, `DELETE /owner/halls/{id}` | `tables.manage` | zal yoki zona; `is_active: false` — mavsumiy zona yopiq (xaritadan chiqadi, ochiq buyurtmalar qoladi); ochiq buyurtmali zal o'chmaydi (422 `hall_in_use`) |
+| `GET /owner/dining-tables?branch_id&hall_id` | `tables.manage` | stol, xona, tapchanlar |
+| `POST /owner/dining-tables`, `PATCH .../{id}`, `DELETE .../{id}` | `tables.manage` | `kind` (`table`, `room`, `tapchan`), `seats`, `layout {x, y, w, h}`, `sort_order`, `is_active`, `min_spend` va `min_spend_mode` (`per_table` yoki `per_person`); nom filialda yagona; ochiq buyurtmali joy o'chmaydi (422 `table_in_use`) |
+| `PUT /owner/dining-tables/layout {branch_id, tables: [{id, hall_id?, sort_order?, layout}]}` | `tables.manage` | zal xaritasini bir martada saqlash; boshqa filial stoli bo'lsa hech narsa saqlanmaydi (422) |
+| `GET /owner/room-tariffs?branch_id` | `settings.manage` | xona tariflari va filial kalendari (`weekend_days`, `holidays`) |
+| `POST /owner/room-tariffs`, `PATCH .../{id}`, `DELETE .../{id}` | `settings.manage` | xona puli: `dining_table_id` (bitta xona) yoki `table_kind` (+ ixtiyoriy `hall_id`), `day_type` (`weekday`, `weekend`, `holiday`), `price` (0 — tekin), `valid_from`/`valid_to` |
+| `PUT /owner/room-tariffs/calendar {branch_id, weekend_days, holidays}` | `settings.manage` | dam olish kunlari (ISO: 1 — dushanba … 7 — yakshanba; standart 6 va 7) va bayramlar (`Y-m-d`) |
+| `GET /owner/auto-guest-items?branch_id`, `POST`, `PATCH .../{id}`, `DELETE .../{id}` | `settings.manage` | "choy-non" qoidasi: `product_variant_id`, `quantity_per_guest`, `hall_id` (ixtiyoriy), `is_active` |
+| `PUT /owner/service-fees` + `hall_id` | `settings.manage` | zalning o'z xizmat haqi va joy narxi (VIP 15%, o'z-o'ziga xizmat zonasi 0%) |
+| `DELETE /owner/service-fees/halls/{id}` | `settings.manage` | zal sozlamasini olib tashlash (filialniki qo'llanadi) |
+
+### POS endpointlari (kassa va ofitsiant)
+
+Oddiy xodim kirishi yoki terminaldagi PIN sessiyasi; filial — xodimniki (PIN sessiyasida terminalniki). Boshqa do'kon
+yoki filial buyurtmasi — 404, boshqa filialda ochish — 403. Har o'zgartiruvchi so'rovda `Idempotency-Key` **majburiy**
+(yo'q bo'lsa 428 `idempotency_key_required`); takror so'rov birinchi javobni qaytaradi. Buyurtmani o'zgartirishda
+`version` (javobdagi oxirgi qiymat): boshqa qurilma o'zgartirib ulgurgan bo'lsa 409 `version_conflict` va
+`data.version` — ilova buyurtmani qayta yuklaydi. Har javob — buyurtmaning to'liq ko'rinishi (pastda).
+
+| Endpoint | Ruxsat | Nima qiladi |
+|---|---|---|
+| `GET /pos/floor?branch_id` | `orders.view` | zal xaritasi: zallar → joylar, har birida `status` va ochiq buyurtmalar; `untabled_orders` — stolsiz va olib ketish |
+| `GET /pos/orders/{uuid}` | `orders.view` | bitta POS buyurtma |
+| `POST /pos/orders {branch_id?, channel, table_id?, guests_count, waiter_id?, external_id?, note?, items?, send?}` | `orders.manage` | buyurtma ochish: `pos_hall` (stol, xona, tapchan yoki stolsiz) yoki `pos_takeaway` |
+| `POST /pos/orders/{uuid}/rounds {version, items, fire_mode?, send?}` | `orders.manage` | yangi bosqich (`round_no`, kim qo'shdi, qachon) |
+| `POST /pos/orders/{uuid}/send {version, item_ids?}` | `orders.manage` | oshxonaga yuborish |
+| `POST /pos/orders/{uuid}/items/{id}/void {version, reason?, approval_token?, restock?}` | `orders.manage` (+ pastdagi qoida) | qatorni o'chirish ("O'CHIRILDI") |
+| `POST /pos/orders/{uuid}/guests {version, guests_count}` | `orders.manage` | mehmonlar soni |
+| `POST /pos/orders/{uuid}/move {version, table_id}` | `tables.manage` | boshqa stol yoki xonaga ko'chirish |
+| `POST /pos/orders/{uuid}/merge {version, source_uuid, source_version}` | `tables.manage` | ikkinchi buyurtmani shu buyurtmaga qo'shish |
+| `POST /pos/orders/{uuid}/charges/{charge}/waive {version, reason, approval_token?}` | `orders.manage` + `orders.discount` yoki tasdiq | `service_charge`, `place_fee`, `room_fee` yoki `min_spend_topup` ni sabab bilan olib tashlash |
+| `POST /pos/orders/{uuid}/charges/{charge}/restore {version}` | `orders.manage` | olib tashlangan qatorni qaytarish |
+
+**Ochish.** Xonada bir vaqtda bitta ochiq buyurtma (ikkinchisi 422 `table_occupied` — birlashtiring); stol va
+tapchanda bir nechta. Yopiq zona yoki faol bo'lmagan joy — 422 `table_inactive`. `guests_count` zalda kamida 1.
+`waiter_id` berilmasa, ochgan xodim ofitsiant bo'lsa — u. `external_id` — qurilmaning o'z raqami: shu raqam bilan
+qayta yuborilsa o'sha buyurtma qaytadi. POS buyurtmasi `accepted` holatda ochiladi (`order_type`: zal — `dine_in`,
+olib ketish — `pickup`); `user_id` — ochgan xodim (POS buyurtmasida mijoz akkaunti yo'q, unga Telegram xabari
+bormaydi). Komissiya olinmaydi.
+
+**Qatorlar** (`items[]`): `variant_id` (uuid), `quantity` (kg va kasr — menyu qadami va eng kam miqdori bilan,
+[MENU.md](MENU.md)), `modifiers`, `note`, `seat_no`, `fire_mode` (`now` — keyingi yuborishda, `hold` — faqat id bilan
+yuborilganda), `due_at` (oldindan buyurtma vaqti). Narx — kanal narxi (`pos_hall` / `pos_takeaway`). Stop-list,
+filialda yashirilgan taom, qoldiq, qozon (`menu_batches`: ochiq qozondan `batch_consumption` bo'yicha ayiriladi,
+yetmasa yoki qozon yopiq bo'lsa "tugadi") — 422. Fiskal rejimda MXIK'siz taom — 422 `mxik_missing` (P3-11).
+
+**Choy-non.** Zal buyurtmasi ochilganda va mehmon qo'shilganda har mehmonga `quantity_per_guest` (donali taomda
+yuqoriga yaxlitlanadi: 0.5 choynak × 3 mehmon = 2) avtomatik qator bo'lib qo'shiladi (ochishda 1-bosqichda,
+keyin yangi bosqich sifatida). Zalning qoidasi filialning shu taom qoidasini almashtiradi. Mehmon kamaysa hech narsa
+olib tashlanmaydi. Sotib bo'lmaydigan taom (stop-list, tugagan) jim o'tkazib yuboriladi.
+
+**Oshxonaga yuborish.** `item_ids` siz — yuborilmagan hamma `now` qator; `item_ids` bilan — aynan shular (`hold`
+qatorlar ham). Har qatorga sex (`station_id`, P3-13 marshruti) va `sent_at`; birinchi yuborish buyurtmani
+`preparing` qiladi. Yangi qator yo'q — 422 `nothing_to_send`. Oshxona ekrani (`GET /staff/kitchen/tickets`) POS
+qatorini faqat yuborilgandan keyin (o'chirilgani ham — `void`) yoki `hold` + `due_at` bo'lsa (oldindan buyurtma
+navbati) ko'radi; yuborilmagan qatorni "tayyor" deb bo'lmaydi (422 `kitchen_status`). POS qatorini qaytarish
+(`recall`) uni `sent` ga qaytaradi.
+
+**Qator holati** (`kitchen_status`): POS qatori `pending` (faqat buyurtmada) → `sent` → `ready` → `served`; `void` —
+o'chirilgan. Onlayn buyurtma qatorlari avvalgidek `pending` → `ready`. Xodim buyurtmasi va oshxona chiptasida POS
+qatorida qo'shimcha `round_no`, `fire_mode`, `station_id`, `sent_at`, `due_at`, `seat_no`, `note`, `voided_at`,
+`void_reason` (onlayn qator shakli o'zgarmagan).
+
+**O'chirish.** Oshxonaga yuborilmagan qator — `orders.manage`, sabab ixtiyoriy, qoldiq va qozon ulushi qaytadi.
+Yuborilgan qator yoki schyot chiqarilgan (`bill_locked_at`, P3-18) buyurtma — `reason` majburiy va `orders.void_item`
+yoki menejer tasdig'i (`approval_token`, `POST /pos/approvals`); yo'q bo'lsa 403 `approval_required`, yaroqsiz bo'lsa
+403 `approval_invalid` (yoki P3-18 sababi: `approval_expired`, `approval_used`, ...). Yuborilgan qatorning ulushi
+faqat `restock: true` bo'lsa qaytadi (pishmagan bo'lsa). Allaqachon o'chirilgan — 422 `already_void`.
+
+**Ko'chirish va birlashtirish.** Ko'chirishda yangi zalning xizmat haqi, yangi joyning xona puli va minimal summasi
+qo'llanadi (kun turi — buyurtma ochilgan biznes kun bo'yicha); band xonaga — 422 `table_occupied`, o'sha stolga — 422
+`same_table`, olib ketish — 422 `not_hall_order`. Birlashtirishda `source_uuid` qatorlari bosqichlari bilan (targetdan
+keyin) ko'chadi, mehmonlar qo'shiladi, manba buyurtma `canceled` bo'ladi (izoh: "#… buyurtmasiga qo'shildi", stok
+qaytmaydi — qatorlar yashashda davom etadi). Ikkalasi bitta filialning ochiq zal buyurtmasi, schyot chiqmagan
+(422 `bill_locked`), to'lovsiz (422 `has_payments`); boshqa filial — 422 `merge_not_allowed`.
+
+Yopilgan yoki bekor qilingan buyurtma — 422 `order_closed`; Telegram yoki mobil buyurtma — 422 `not_pos_order`.
+
+### Xona puli, minimal summa va xizmat haqi
+
+Har qator, mehmon, stol yoki chegirma o'zgarishida qayta hisoblanadi va buyurtmaga yoziladi
+(`App\Domain\Pos\Orders\PosChargesCalculator`):
+
+```
+taomlar           = o'chirilmagan qatorlar yig'indisi                       (subtotal)
+chegirmadan keyin = max(0, taomlar − discount)
+xizmat haqi       = chegirmadan keyin × foiz, butun so'm      (service_charge_amount; zal → filial → do'kon foizi)
+joy narxi         = mavjud sozlama: kishi boshiga × mehmon yoki stol uchun              (place_fee_amount)
+xona puli         = joyning tarifi, buyurtma ochilgan biznes kun turi bo'yicha           (room_fee_amount)
+minimal summa     = min_spend (per_person bo'lsa × mehmon)
+qo'shimcha        = max(0, minimal summa − chegirmadan keyin), butun so'm                 (min_spend_topup_amount)
+jami              = chegirmadan keyin + xizmat haqi + joy narxi + xona puli + qo'shimcha  (total_price)
+```
+
+- **Biznes kun** — do'kon vaqt zonasida, filialning `business_day_starts_at` (standart 05:00) dan: yakshanba 03:30
+  shanba kuniga tegishli. **Kun turi:** bayram (filial kalendari va `pos_settings.holidays`), dam olish kuni
+  (`weekend_days`), aks holda hafta ichi.
+- **Tarif tanlash:** eng aniqi — joyning o'zi, keyin zaldagi joy turi, keyin filialdagi joy turi; har darajada
+  bayramning o'z narxi bo'lmasa — dam olish kuni narxi, u ham bo'lmasa — hafta ichi narxi. Tarif yo'q — xona puli 0.
+- Xona puli va minimal summa faqat `pos_hall` va stol bilan; xizmat haqi va joy narxi sozlamadagi kanallar bo'yicha
+  (standart faqat `pos_hall`). Telegram va mobil buyurtmaga hech qachon qo'llanmaydi.
+- Olib tashlangan qator 0 bo'ladi; `charges.waived` va `charges.waivers` (kim, sabab, kim tasdiqladi) ko'rsatadi.
+
+**Javob shakli** (har POS endpointi): `uuid`, `short_code`, `status`, `channel`, `type`, `version`, `hall`, `table`
+(`{id, name, kind}`), `guests_count`, `waiter`, `opened_by`, `device_id`, `booking_id`, `bill_locked`, `opened_at`,
+summalar (`subtotal`, `discount`, `service_charge_amount`, `place_fee_amount`, `room_fee_amount`,
+`min_spend_topup_amount`, `total_price`), `charges` (`service_charge_percent`, `room_tariff_id`, `business_date`,
+`day_type`, `min_spend`, `waived`, `waivers`, `total`), `rounds` va `items` (har qator: `round_no`, `added_by`,
+`added_at`, `fire_mode`, `due_at`, `seat_no`, `note`, `kitchen_status`, `station_id`, `sent_at`, `ready_at`,
+`voided_at`, `voided_by`, `void_reason`, narxlar).
+
+### Zal xaritasi holatlari
+
+`free` — bo'sh; `reserved_soon` — bo'sh, bron bir soat ichida boshlanadi (`reservation`); `occupied` — ochiq buyurtma;
+`overdue` — buyurtma filial chegarasidan uzoq ochiq (`pos_settings.alerts.open_room_hours`, standart 6 soat);
+`bill_printed` — schyot chiqarilgan (mehmonlar to'lamoqda). Har buyurtmada `opened_at`, `open_minutes`,
+`guests_count`, `waiter`, `total_price`, `items_count`, `unsent_count`, `version`. Yopiq zona va faol bo'lmagan joy
+ochiq buyurtmasi bo'lmasa ko'rinmaydi.
+
+### Real-time
+
+`private-pos-branch.{branchId}` (va `branch`, `store`): **`order.items_changed`** — bosqich qo'shildi, yuborildi,
+o'chirildi, mehmonlar, ko'chirish, birlashtirish, xizmat qatori o'zgardi:
+`{order: {...}, version, table_id, change, item_ids}` (`change`: `round_added`, `sent`, `voided`, `guests_changed`,
+`moved`, `merged`, `charges_changed`). Ochishda `order.created`, birinchi yuborishda va birlashtirilgan manba
+buyurtmada `order.status_changed`, yuborilgan qator o'chirilganda `kitchen.item_status_changed` (`void`). Faqat id va
+holat: ilova buyurtmani (`GET /pos/orders/{uuid}`) yoki xaritani qayta so'raydi.
+
+### Jurnal
+
+`pos.order_opened`, `pos.round_added`, `pos.items_sent`, `pos.item_voided` (sabab, summa, kim tasdiqladi),
+`pos.guests_changed`, `pos.order_moved`, `pos.orders_merged`, `pos.charge_waived`, `pos.charge_restored`;
+boshqaruv: `pos.hall_*`, `pos.table_*`, `pos.layout_saved`, `pos.room_tariff_*`, `pos.room_calendar_changed`,
+`pos.auto_guest_item_*`. Terminal (qurilma) har yozuvda.
+
+Testlar: `tests/Feature/PosOrderFlowTest.php`, `PosChargesTest.php`, `PosHallManagementTest.php`,
+`PosHallIsolationTest.php`.

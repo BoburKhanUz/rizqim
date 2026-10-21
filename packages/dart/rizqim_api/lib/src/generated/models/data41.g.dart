@@ -7,15 +7,17 @@ part of 'data41.dart';
 // **************************************************************************
 
 Data41 _$Data41FromJson(Map<String, dynamic> json) => Data41(
-  code: json['code'] as String,
-  expiresAt: json['expires_at'] as String,
-  type: json['type'] as String,
-  branchId: (json['branch_id'] as num?)?.toInt(),
+  branchId: (json['branch_id'] as num).toInt(),
+  timezone: json['timezone'] as String,
+  businessDayStartsAt: json['business_day_starts_at'] as String,
+  posSettings: PosSettings2.fromJson(
+    json['pos_settings'] as Map<String, dynamic>,
+  ),
 );
 
 Map<String, dynamic> _$Data41ToJson(Data41 instance) => <String, dynamic>{
-  'code': instance.code,
-  'expires_at': instance.expiresAt,
-  'type': instance.type,
   'branch_id': instance.branchId,
+  'timezone': instance.timezone,
+  'business_day_starts_at': instance.businessDayStartsAt,
+  'pos_settings': instance.posSettings,
 };

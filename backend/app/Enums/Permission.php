@@ -44,6 +44,11 @@ enum Permission: string
     case POS_REPRINT_BILL = 'pos.reprint_bill';
     // P2-12: edit branches (address, location, working hours, open/closed); a branch-bound manager only their own
     case BRANCHES_MANAGE = 'branches.manage';
+    // P3-17: bookings (rooms, deposits, pre-orders) and customer accounts (nasiya)
+    case BOOKINGS_MANAGE = 'bookings.manage';
+    case CUSTOMER_ACCOUNTS_MANAGE = 'customer_accounts.manage';
+    // P3-18: refund a closed POS order's payment within the shift (refund receipt, cash out of the till)
+    case POS_REFUND = 'pos.refund';
 
     public function label(): string
     {
@@ -80,6 +85,9 @@ enum Permission: string
             self::POS_TAKE_PAYMENT => "To'lov qabul qilish",
             self::POS_REPRINT_BILL => 'Schyotni qayta chiqarish',
             self::BRANCHES_MANAGE => 'Filiallar va ish vaqti', // P2-12
+            self::BOOKINGS_MANAGE => 'Bron, avans va oldindan buyurtma', // P3-17
+            self::CUSTOMER_ACCOUNTS_MANAGE => 'Nasiya hisoblari', // P3-17
+            self::POS_REFUND => "Smena ichida pulni qaytarish", // P3-18
         };
     }
 

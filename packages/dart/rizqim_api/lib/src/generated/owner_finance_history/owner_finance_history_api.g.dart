@@ -104,6 +104,7 @@ class _OwnerFinanceHistoryApi implements OwnerFinanceHistoryApi {
   Future<GetV1OwnerPaymentsResponse> financeHistoryPayments({
     String? status,
     String? provider,
+    String? fiscalStatus,
     int? branchId,
     String? from,
     String? to,
@@ -114,6 +115,7 @@ class _OwnerFinanceHistoryApi implements OwnerFinanceHistoryApi {
     final queryParameters = <String, dynamic>{
       r'status': status,
       r'provider': provider,
+      r'fiscal_status': fiscalStatus,
       r'branch_id': branchId,
       r'from': from,
       r'to': to,

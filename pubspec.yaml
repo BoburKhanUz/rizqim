@@ -12,3 +12,7 @@ workspace:
   - packages/dart/rizqim_api
   - packages/dart/rizqim_ui
   - pos/apps/kds
+  # P3-15: POS packages
+  - pos/packages/pos_core
+  - pos/packages/pos_hardware
+  - pos/packages/pos_ui

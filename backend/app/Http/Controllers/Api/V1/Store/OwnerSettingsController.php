@@ -33,7 +33,7 @@ class OwnerSettingsController extends Controller
     /**
      * Get store settings.
      */
-    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{id: int, name: string, timezone: string, logo: string|null, logo_url: string|null, banner: string|null, banner_url: string|null, description: string|null, phone: string|null, address: string|null, location_url: string|null, is_open: bool, min_order_amount: float, payment_settings: ' . self::SETTINGS_OUT . ', payment_account_type: \'own_account\'|\'platform_account\', status: StoreStatus, is_order_locked: bool, allowed_methods: list<string>}}')]
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{id: int, name: string, timezone: string, logo: string|null, logo_url: string|null, banner: string|null, banner_url: string|null, description: string|null, phone: string|null, address: string|null, location_url: string|null, is_open: bool, min_order_amount: float, payment_settings: ' . self::SETTINGS_OUT . ', payment_account_type: \'own_account\'|\'platform_account\', status: StoreStatus, is_order_locked: bool, allowed_methods: list<string>, tin: string|null, tax_regime: \'vat\'|\'vat_simplified\'|\'turnover\'|null, fiscal_settings: array{enabled: bool, driver: string, active_driver: string, charges: array<string, ' . \App\Http\Controllers\Api\V1\Fiscal\FiscalSettingsController::CHARGE . '>, sandbox: array{latency_ms: int, fail_attempts: int, failure_rate: int, reject: bool}, deposit_refund_receipt: bool|null, retained_deposit_receipt: bool|null}}}')]
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -75,6 +75,10 @@ class OwnerSettingsController extends Controller
                 (array) ($store->payment_settings['allowed_methods'] ?? ['cash', 'click', 'payme', 'uzum', 'paynet']),
                 fn ($method) => Store::isPaymentMethodAvailable((string) $method)
             )),
+            // P3-11: the store as a taxpayer and its fiscal settings (also GET /owner/fiscal/settings)
+            'tin' => $store->tin,
+            'tax_regime' => $store->tax_regime,
+            'fiscal_settings' => \App\Domain\Fiscal\FiscalSettings::of($store)->toArray(),
         ]);
     }
 
@@ -83,6 +87,9 @@ class OwnerSettingsController extends Controller
      *
      * `payment_settings` is an object (not a list): the delivery fee and switches, working hours and one entry per
      * provider. A provider that cannot be enabled yet (uzum, paynet) is a 422 on `payment_settings`.
+     *
+     * P3-11: optional `tin` (9 digits), `tax_regime` (vat | vat_simplified | turnover) and `fiscal_settings`, as
+     * PUT /owner/fiscal/settings takes them; left out = kept.
      */
     // The nested rules below describe the object (BodyParameter); left in, Scramble would fold them into a list
     #[IgnoreParam('payment_settings.delivery_fee')]
@@ -94,6 +101,9 @@ class OwnerSettingsController extends Controller
     #[IgnoreParam('payment_settings.*.merchant_id')]
     #[IgnoreParam('payment_settings.*.service_id')]
     #[IgnoreParam('payment_settings.*.secret_key')]
+    #[BodyParameter('tin', description: "P3-11: STIR, 9 ta raqam.", required: false, type: 'string|null')]
+    #[BodyParameter('tax_regime', description: 'P3-11: vat | vat_simplified | turnover.', required: false, type: "'vat'|'vat_simplified'|'turnover'|null")]
+    #[BodyParameter('fiscal_settings', description: 'P3-11: fiskal sozlamalar (PUT /owner/fiscal/settings kabi).', required: false, infer: false, type: 'array{enabled?: bool, driver?: string|null, charges?: array<string, array{name?: string|null, mxik?: string|null, package_code?: string|null, unit?: string|null}>, sandbox?: array{latency_ms?: int, fail_attempts?: int, failure_rate?: int, reject?: bool}, deposit_refund_receipt?: bool|null, retained_deposit_receipt?: bool|null}')]
     #[BodyParameter('payment_settings', description: "To'lov va yetkazish sozlamalari (obyekt).", required: true, infer: false, type: 'array{delivery_fee?: float|null, delivery_enabled?: bool|null, pickup_enabled?: bool|null, working_hours?: array{open?: string|null, close?: string|null}|null, cash?: ' . self::PROVIDER_IN . ', click?: ' . self::PROVIDER_IN . ', payme?: ' . self::PROVIDER_IN . ', uzum?: ' . self::PROVIDER_IN . ', paynet?: ' . self::PROVIDER_IN . '}')]
     public function update(Request $request): JsonResponse
     {
@@ -137,6 +147,9 @@ class OwnerSettingsController extends Controller
             'timezone.required' => 'Vaqt mintaqasini kiriting.',
             'timezone.timezone' => "Vaqt mintaqasi noto'g'ri (masalan Asia/Tashkent).",
         ]);
+
+        // P3-11: TIN, tax regime and fiscal settings (validated before anything is saved)
+        $fiscalUpdate = \App\Domain\Fiscal\FiscalSettings::validatedUpdate($request->only(['tin', 'tax_regime', 'fiscal_settings']), $store);
 
         $currentSettings = $store->payment_settings ?? [];
         $newSettings = $request->payment_settings ?? [];
@@ -189,7 +202,8 @@ class OwnerSettingsController extends Controller
             'min_order_amount' => $request->min_order_amount ?? 0,
             'payment_settings' => $currentSettings,
         ] + ($request->has('phone') ? ['phone' => $request->phone] : []) // a client that never sends phone keeps it
-            + $request->only(['name', 'timezone'])); // P2-12
+            + $request->only(['name', 'timezone']) // P2-12
+            + $fiscalUpdate); // P3-11
 
         // The main (first) branch follows the store's address, and its location when the link holds one
         $branch = $store->branches()->oldest('id')->first();

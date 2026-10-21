@@ -7,35 +7,33 @@ part of 'data46.dart';
 // **************************************************************************
 
 Data46 _$Data46FromJson(Map<String, dynamic> json) => Data46(
-  debtBalance: json['debt_balance'] as num,
-  walletBalance: json['wallet_balance'] as num,
-  creditLimit: json['credit_limit'] as num,
-  minPayoutReserve: json['min_payout_reserve'] as num,
-  paymentAccountType: json['payment_account_type'] as String,
-  commissionRate: json['commission_rate'] as num,
-  status: StoreStatus.fromJson(json['status'] as String),
-  isOrderLocked: json['is_order_locked'] as bool,
-  ledgerTransactions: (json['ledger_transactions'] as List<dynamic>)
-      .map((e) => StoreTransaction.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  walletTransactions: (json['wallet_transactions'] as List<dynamic>)
-      .map((e) => StoreWalletTransaction.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  payoutRequests: (json['payout_requests'] as List<dynamic>)
-      .map((e) => PayoutRequests.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  uuid: json['uuid'] as String,
+  type: json['type'] as String,
+  name: json['name'] as String,
+  platform: json['platform'] as String?,
+  appVersion: json['app_version'] as String?,
+  storeId: (json['store_id'] as num?)?.toInt(),
+  branchId: (json['branch_id'] as num?)?.toInt(),
+  user: json['user'] == null
+      ? null
+      : User11.fromJson(json['user'] as Map<String, dynamic>),
+  hasPushToken: json['has_push_token'] as bool,
+  lastSeenAt: json['last_seen_at'] as String?,
+  revokedAt: json['revoked_at'] as String?,
+  createdAt: json['created_at'] as String?,
 );
 
 Map<String, dynamic> _$Data46ToJson(Data46 instance) => <String, dynamic>{
-  'debt_balance': instance.debtBalance,
-  'wallet_balance': instance.walletBalance,
-  'credit_limit': instance.creditLimit,
-  'min_payout_reserve': instance.minPayoutReserve,
-  'payment_account_type': instance.paymentAccountType,
-  'commission_rate': instance.commissionRate,
-  'status': instance.status,
-  'is_order_locked': instance.isOrderLocked,
-  'ledger_transactions': instance.ledgerTransactions,
-  'wallet_transactions': instance.walletTransactions,
-  'payout_requests': instance.payoutRequests,
+  'uuid': instance.uuid,
+  'type': instance.type,
+  'name': instance.name,
+  'platform': instance.platform,
+  'app_version': instance.appVersion,
+  'store_id': instance.storeId,
+  'branch_id': instance.branchId,
+  'user': instance.user,
+  'has_push_token': instance.hasPushToken,
+  'last_seen_at': instance.lastSeenAt,
+  'revoked_at': instance.revokedAt,
+  'created_at': instance.createdAt,
 };

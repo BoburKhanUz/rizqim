@@ -16,6 +16,19 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property numeric-string $modifiers_total
  * @property \App\Enums\KitchenItemStatus $kitchen_status P2-11: the kitchen display's per line "ready"
  * @property \Illuminate\Support\Carbon|null $ready_at
+ *
+ * P3-12: POS lines (rounds, firing, void)
+ * @property int|null $round_no
+ * @property \App\Enums\FireMode|null $fire_mode
+ * @property int|null $station_id
+ * @property \Illuminate\Support\Carbon|null $sent_at
+ * @property \Illuminate\Support\Carbon|null $due_at
+ * @property int|null $added_by
+ * @property \Illuminate\Support\Carbon|null $voided_at
+ * @property int|null $voided_by
+ * @property string|null $void_reason
+ * @property int|null $seat_no
+ * @property string|null $note
  */
 class OrderItem extends Model
 {
@@ -30,6 +43,16 @@ class OrderItem extends Model
         // P2-11: kitchen display bump (docs/API.md)
         'kitchen_status' => \App\Enums\KitchenItemStatus::class,
         'ready_at' => 'datetime',
+        // P3-12: POS lines (App\Domain\Pos\Orders)
+        'round_no' => 'integer',
+        'fire_mode' => \App\Enums\FireMode::class,
+        'station_id' => 'integer',
+        'sent_at' => 'datetime',
+        'due_at' => 'datetime',
+        'added_by' => 'integer',
+        'voided_at' => 'datetime',
+        'voided_by' => 'integer',
+        'seat_no' => 'integer',
     ];
 
     protected $attributes = [
@@ -119,5 +142,36 @@ class OrderItem extends Model
     public function batch(): BelongsTo
     {
         return $this->belongsTo(MenuBatch::class);
+    }
+
+    // --- P3-12: POS lines -----------------------------------------------------------------------------------------
+
+    /**
+     * @return BelongsTo<User, $this>
+     */
+    public function addedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'added_by');
+    }
+
+    /**
+     * @return BelongsTo<User, $this>
+     */
+    public function voidedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'voided_by');
+    }
+
+    public function isVoid(): bool
+    {
+        return $this->kitchen_status === \App\Enums\KitchenItemStatus::VOID;
+    }
+
+    /**
+     * Whether the kitchen has this line: sent by the POS, or (an online line, P2-11) from the start.
+     */
+    public function reachedKitchen(): bool
+    {
+        return $this->sent_at !== null || $this->fire_mode === null;
     }
 }

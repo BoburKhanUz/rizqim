@@ -114,6 +114,10 @@ class _OwnerCatalogApi implements OwnerCatalogApi {
     File? image,
     bool? batchTracked,
     int? sortOrder,
+    String? kind,
+    String? mxikCode,
+    String? packageCode,
+    num? vatRate,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{};
@@ -145,6 +149,18 @@ class _OwnerCatalogApi implements OwnerCatalogApi {
     }
     if (sortOrder != null) {
       _data.fields.add(MapEntry('sort_order', sortOrder.toString()));
+    }
+    if (kind != null) {
+      _data.fields.add(MapEntry('kind', kind));
+    }
+    if (mxikCode != null) {
+      _data.fields.add(MapEntry('mxik_code', mxikCode));
+    }
+    if (packageCode != null) {
+      _data.fields.add(MapEntry('package_code', packageCode));
+    }
+    if (vatRate != null) {
+      _data.fields.add(MapEntry('vat_rate', vatRate.toString()));
     }
     final _options = _setStreamType<PostV1OwnerProductsResponse>(
       Options(
@@ -184,6 +200,10 @@ class _OwnerCatalogApi implements OwnerCatalogApi {
     File? image,
     bool? batchTracked,
     int? sortOrder,
+    String? kind,
+    String? mxikCode,
+    String? packageCode,
+    num? vatRate,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{r'toggle_active': toggleActive};
@@ -215,6 +235,18 @@ class _OwnerCatalogApi implements OwnerCatalogApi {
     }
     if (sortOrder != null) {
       _data.fields.add(MapEntry('sort_order', sortOrder.toString()));
+    }
+    if (kind != null) {
+      _data.fields.add(MapEntry('kind', kind));
+    }
+    if (mxikCode != null) {
+      _data.fields.add(MapEntry('mxik_code', mxikCode));
+    }
+    if (packageCode != null) {
+      _data.fields.add(MapEntry('package_code', packageCode));
+    }
+    if (vatRate != null) {
+      _data.fields.add(MapEntry('vat_rate', vatRate.toString()));
     }
     final _options = _setStreamType<dynamic>(
       Options(
