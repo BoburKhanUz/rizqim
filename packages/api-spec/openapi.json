@@ -647,6 +647,269 @@
                 }
             }
         },
+        "/v1/auth/phone/select-account": {
+            "post": {
+                "operationId": "phoneLogin.selectAccount",
+                "summary": "Finish a staff sign-in when the phone holds several staff accounts: the `selection_token` the verify call\nanswered with (single use, 5 minutes) and the chosen `user_id` from its `accounts`. A wrong, used or expired\ntoken, or an account that was not offered, is 422 `selection_invalid` (sign in again with a new code)",
+                "tags": [
+                    "Auth"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "device": {
+                                        "type": "object",
+                                        "properties": {
+                                            "type": {
+                                                "type": "string",
+                                                "enum": [
+                                                    "web",
+                                                    "partner_mobile",
+                                                    "courier"
+                                                ]
+                                            },
+                                            "uuid": {
+                                                "type": [
+                                                    "string",
+                                                    "null"
+                                                ],
+                                                "format": "uuid"
+                                            },
+                                            "name": {
+                                                "type": [
+                                                    "string",
+                                                    "null"
+                                                ],
+                                                "maxLength": 100
+                                            },
+                                            "platform": {
+                                                "type": [
+                                                    "string",
+                                                    "null"
+                                                ],
+                                                "maxLength": 32
+                                            },
+                                            "app_version": {
+                                                "type": [
+                                                    "string",
+                                                    "null"
+                                                ],
+                                                "maxLength": 32
+                                            },
+                                            "push_token": {
+                                                "type": [
+                                                    "string",
+                                                    "null"
+                                                ],
+                                                "maxLength": 4096
+                                            }
+                                        },
+                                        "required": [
+                                            "type"
+                                        ]
+                                    },
+                                    "selection_token": {
+                                        "type": "string",
+                                        "maxLength": 100
+                                    },
+                                    "user_id": {
+                                        "type": "integer",
+                                        "minimum": 1
+                                    }
+                                },
+                                "required": [
+                                    "device",
+                                    "selection_token",
+                                    "user_id"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "token": {
+                                                    "type": "string"
+                                                },
+                                                "user": {
+                                                    "$ref": "#/components/schemas/User"
+                                                },
+                                                "store": {
+                                                    "anyOf": [
+                                                        {
+                                                            "$ref": "#/components/schemas/Store"
+                                                        },
+                                                        {
+                                                            "type": "null"
+                                                        }
+                                                    ]
+                                                },
+                                                "sms_verification_required": {
+                                                    "type": "boolean"
+                                                },
+                                                "is_new_user": {
+                                                    "type": "boolean"
+                                                },
+                                                "token_expires_at": {
+                                                    "type": "string"
+                                                },
+                                                "refresh_token": {
+                                                    "type": "string"
+                                                },
+                                                "refresh_token_expires_at": {
+                                                    "type": "string"
+                                                },
+                                                "device": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "uuid": {
+                                                            "type": "string"
+                                                        },
+                                                        "type": {
+                                                            "type": "string"
+                                                        },
+                                                        "name": {
+                                                            "type": "string"
+                                                        },
+                                                        "platform": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "app_version": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "store_id": {
+                                                            "type": [
+                                                                "integer",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "branch_id": {
+                                                            "type": [
+                                                                "integer",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "user": {
+                                                            "type": [
+                                                                "object",
+                                                                "null"
+                                                            ],
+                                                            "properties": {
+                                                                "id": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "name": {
+                                                                    "type": "string"
+                                                                },
+                                                                "role": {
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "id",
+                                                                "name",
+                                                                "role"
+                                                            ]
+                                                        },
+                                                        "has_push_token": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "last_seen_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "revoked_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "created_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "uuid",
+                                                        "type",
+                                                        "name",
+                                                        "platform",
+                                                        "app_version",
+                                                        "store_id",
+                                                        "branch_id",
+                                                        "user",
+                                                        "has_push_token",
+                                                        "last_seen_at",
+                                                        "revoked_at",
+                                                        "created_at"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "token",
+                                                "user",
+                                                "store",
+                                                "sms_verification_required",
+                                                "is_new_user",
+                                                "token_expires_at",
+                                                "refresh_token",
+                                                "refresh_token_expires_at",
+                                                "device"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "The selection token is unknown, expired or used, or the account was not offered",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
+            }
+        },
         "/v1/auth/phone/send-code": {
             "post": {
                 "operationId": "phoneLogin.sendCode",
@@ -730,6 +993,8 @@
         "/v1/auth/phone/verify": {
             "post": {
                 "operationId": "phoneLogin.verify",
+                "description": "Without `account` (or with `account: customer`) the customer holding the phone signs in (created when there is\nnone). With `account: staff` the store staff account holding it as its login phone does, and a `device` of type\n`web`, `partner_mobile` or `courier` is required: 403 `staff_account_not_found` when there is none; 409\n`account_selection_required` with `selection_token` and `accounts` when the phone holds several (the same person\nin two stores), and the client then calls POST /auth/phone/select-account.",
+                "summary": "Check the SMS code and sign in",
                 "tags": [
                     "Auth"
                 ],
@@ -740,15 +1005,6 @@
                             "schema": {
                                 "type": "object",
                                 "properties": {
-                                    "phone": {
-                                        "type": "string",
-                                        "pattern": "^\\+998\\d{9}$"
-                                    },
-                                    "code": {
-                                        "type": "string",
-                                        "minLength": 6,
-                                        "maxLength": 6
-                                    },
                                     "device": {
                                         "type": "object",
                                         "properties": {
@@ -797,6 +1053,22 @@
                                                 "maxLength": 4096
                                             }
                                         }
+                                    },
+                                    "phone": {
+                                        "type": "string",
+                                        "pattern": "^\\+998\\d{9}$"
+                                    },
+                                    "code": {
+                                        "type": "string",
+                                        "minLength": 6,
+                                        "maxLength": 6
+                                    },
+                                    "account": {
+                                        "type": "string",
+                                        "enum": [
+                                            "customer",
+                                            "staff"
+                                        ]
                                     }
                                 },
                                 "required": [
@@ -828,7 +1100,7 @@
                                                     "type": "string"
                                                 },
                                                 "user": {
-                                                    "type": "object"
+                                                    "$ref": "#/components/schemas/User"
                                                 },
                                                 "store": {
                                                     "anyOf": [
@@ -970,7 +1242,17 @@
                         }
                     },
                     "409": {
-                        "description": "",
+                        "description": "Several accounts: customers sharing the phone, or (account: staff) several staff accounts to pick from with POST /auth/phone/select-account",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "No store staff account holds this phone (account: staff)",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -2331,7 +2613,7 @@
         "/v1/delivery/quote": {
             "get": {
                 "operationId": "deliveryZone.quote",
-                "description": "Which zone and branch would serve `lat`/`lng`, what delivery costs (the free-delivery rule applied when `subtotal`\nis given) and the minimum order. 422 with `data.reason` when the point cannot be served:\n`outside_zone` (hududdan tashqarida), `zones_not_configured` (the store has not drawn zones) or `branch_closed`.\nMoney is a string with two decimals.",
+                "description": "Which zone and branch would serve `lat`/`lng`, what delivery costs (the free-delivery rule applied when `subtotal`\nis given) and the minimum order. 422 with `data.reason` when the point cannot be served:\n`outside_zone` (hududdan tashqarida), `zones_not_configured` (the store has not drawn zones) or `branch_closed`.\nMoney is a string with two decimals. Optional `branch`: price as checkout would with that `branch_id` (the best\nzone that branch serves); `branch_outside_zone` when it serves none covering the point.",
                 "summary": "Delivery quote for a point",
                 "tags": [
                     "Delivery"
@@ -2370,6 +2652,14 @@
                         "description": "Cart total before delivery; enables the free-delivery and minimum-order checks.",
                         "schema": {
                             "type": "string"
+                        }
+                    },
+                    {
+                        "name": "branch",
+                        "in": "query",
+                        "description": "Filial id: the branch the customer chose at checkout (P1-32).",
+                        "schema": {
+                            "type": "integer"
                         }
                     }
                 ],
@@ -4707,7 +4997,7 @@
             },
             "post": {
                 "operationId": "order.store",
-                "description": "Prices, stock, the promo code and the delivery fee are checked on the server. `payment_url` is set for online\npayment methods (Click, Payme): open it to pay; the order is cancelled when it stays unpaid. 400 with the reason\nwhen the order cannot be placed (store closed, item unavailable, minimum not reached...).\n\nP1-21 (docs/MENU.md): `items.*.quantity` may be a fraction for items sold by weight (kg/l, at least\n`min_quantity`, in `quantity_step` steps); `items.*.modifiers` lists the chosen modifiers as uuids or\n`{id: uuid, quantity}`; prices always come from the server. 422 when a modifier rule is broken, the item is on\nthe branch's stop-list, its batch is sold out (\"tugadi\") or it is hidden on the channel. `channel` is\n`telegram` (default) or `mobile`. An `Idempotency-Key` header makes retries safe: the same key with the same body\nwithin 24 hours returns the first response (header `Idempotent-Replayed: true`), with another body 409.",
+                "description": "Prices, stock, the promo code and the delivery fee are checked on the server. `payment_url` is set for online\npayment methods (Click, Payme): open it to pay; the order is cancelled when it stays unpaid. 400 with the reason\nwhen the order cannot be placed (store closed, item unavailable, minimum not reached...).\n\nP1-21 (docs/MENU.md): `items.*.quantity` may be a fraction for items sold by weight (kg/l, at least\n`min_quantity`, in `quantity_step` steps); `items.*.modifiers` lists the chosen modifiers as uuids or\n`{id: uuid, quantity}`; prices always come from the server. 422 when a modifier rule is broken, the item is on\nthe branch's stop-list, its batch is sold out (\"tugadi\") or it is hidden on the channel. The channel is decided by\nthe server from the sign-in (P1-34): `mobile` for a token of a customer mobile app device, else `telegram`; a\n`channel` in the body is accepted for older apps but ignored. `type=dine_in` is refused with 422 (hall orders\nare taken by staff on the POS). An `Idempotency-Key` header makes retries safe: the same key with the same body\nwithin 24 hours returns the first response (header `Idempotent-Replayed: true`), with another body 409.\n\nP1-32 (docs/ZONES.md): when the store has delivery zones, a `delivery` order is routed and priced by the zone\nthat covers `latitude`/`longitude`, exactly as `GET /delivery/quote` prices it: the zone's fee (free past its\nthreshold) and minimum order replace the store-wide ones, any fee the client sends is ignored. Without\n`branch_id` the branch is picked automatically (the zone's branch, else the nearest open one); with it, that\nbranch must serve a zone covering the point. 422 with `data.reason`: `outside_zone`, `branch_outside_zone`,\n`branch_closed`, or `below_minimum_order` (with `data.min_order_amount` and `data.subtotal`). Stores without\nzones keep the branch radius rule and the store's delivery fee.",
                 "summary": "Place an order (checkout)",
                 "tags": [
                     "Orders"
@@ -4730,7 +5020,8 @@
                                 "type": "object",
                                 "properties": {
                                     "store_id": {
-                                        "type": "integer"
+                                        "type": "integer",
+                                        "minimum": 1
                                     },
                                     "items": {
                                         "type": "array",
@@ -4769,6 +5060,7 @@
                                             "string",
                                             "null"
                                         ],
+                                        "description": "P1-34: accepted for older apps, ignored: the channel is the sign-in's (channelOf)",
                                         "enum": [
                                             "telegram",
                                             "mobile",
@@ -4798,7 +5090,8 @@
                                         "type": [
                                             "integer",
                                             "null"
-                                        ]
+                                        ],
+                                        "minimum": 1
                                     },
                                     "address": {
                                         "type": [
@@ -4846,6 +5139,26 @@
                 "responses": {
                     "400": {
                         "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Yetkazib berish hududi: manzilga yetkazib bo'lmaydi yoki buyurtma hududning eng kam summasidan kam",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -4915,9 +5228,6 @@
                                 }
                             }
                         }
-                    },
-                    "422": {
-                        "$ref": "#/components/responses/ValidationException"
                     },
                     "401": {
                         "$ref": "#/components/responses/AuthenticationException"
@@ -6651,13 +6961,16 @@
                                 "type": "object",
                                 "properties": {
                                     "branch_id": {
-                                        "type": "integer"
+                                        "type": "integer",
+                                        "minimum": 1
                                     },
                                     "product_id": {
-                                        "type": "integer"
+                                        "type": "integer",
+                                        "minimum": 1
                                     },
                                     "product_variant_id": {
-                                        "type": "integer"
+                                        "type": "integer",
+                                        "minimum": 1
                                     },
                                     "is_active": {
                                         "type": "boolean"
@@ -15043,6 +15356,129 @@
                 ],
                 "title": "CourierType"
             },
+            "DeliveryZone": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "store_id": {
+                        "type": "integer"
+                    },
+                    "branch_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ]
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "polygon": {
+                        "type": "object",
+                        "properties": {
+                            "type": {
+                                "type": "string"
+                            },
+                            "coordinates": {
+                                "type": "array",
+                                "items": {}
+                            }
+                        },
+                        "required": [
+                            "type",
+                            "coordinates"
+                        ]
+                    },
+                    "min_lat": {
+                        "type": "string"
+                    },
+                    "max_lat": {
+                        "type": "string"
+                    },
+                    "min_lng": {
+                        "type": "string"
+                    },
+                    "max_lng": {
+                        "type": "string"
+                    },
+                    "area_km2": {
+                        "type": "string"
+                    },
+                    "delivery_price": {
+                        "type": "string"
+                    },
+                    "min_order_amount": {
+                        "type": "string"
+                    },
+                    "free_delivery_from": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "eta_minutes": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ]
+                    },
+                    "priority": {
+                        "type": "integer"
+                    },
+                    "active": {
+                        "type": "boolean"
+                    },
+                    "created_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date-time"
+                    },
+                    "updated_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date-time"
+                    },
+                    "store": {
+                        "$ref": "#/components/schemas/Store"
+                    },
+                    "branch": {
+                        "anyOf": [
+                            {
+                                "$ref": "#/components/schemas/Branch"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    }
+                },
+                "required": [
+                    "id",
+                    "store_id",
+                    "branch_id",
+                    "name",
+                    "polygon",
+                    "min_lat",
+                    "max_lat",
+                    "min_lng",
+                    "max_lng",
+                    "area_km2",
+                    "delivery_price",
+                    "min_order_amount",
+                    "free_delivery_from",
+                    "eta_minutes",
+                    "priority",
+                    "active",
+                    "created_at",
+                    "updated_at"
+                ],
+                "title": "DeliveryZone"
+            },
             "Device": {
                 "type": "object",
                 "properties": {
@@ -15880,6 +16316,30 @@
                             "null"
                         ]
                     },
+                    "delivery_zone_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ]
+                    },
+                    "delivery_zone_name": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "delivery_zone_price": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "delivery_min_order_amount": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
                     "type": {
                         "type": "string"
                     },
@@ -15919,6 +16379,16 @@
                         "anyOf": [
                             {
                                 "$ref": "#/components/schemas/Branch"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    },
+                    "delivery_zone": {
+                        "anyOf": [
+                            {
+                                "$ref": "#/components/schemas/DeliveryZone"
                             },
                             {
                                 "type": "null"
@@ -15994,6 +16464,10 @@
                     "guests_count",
                     "hall_ref",
                     "table_ref",
+                    "delivery_zone_id",
+                    "delivery_zone_name",
+                    "delivery_zone_price",
+                    "delivery_min_order_amount",
                     "type",
                     "address"
                 ],
@@ -16961,6 +17435,19 @@
                         ],
                         "format": "date-time"
                     },
+                    "replaced_by_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ]
+                    },
+                    "grace_used_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date-time"
+                    },
                     "user": {
                         "$ref": "#/components/schemas/User"
                     },
@@ -16978,7 +17465,9 @@
                     "used_at",
                     "revoked_at",
                     "created_at",
-                    "updated_at"
+                    "updated_at",
+                    "replaced_by_id",
+                    "grace_used_at"
                 ],
                 "title": "RefreshToken"
             },

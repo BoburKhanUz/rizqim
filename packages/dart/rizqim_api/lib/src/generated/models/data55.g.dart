@@ -7,19 +7,19 @@ part of 'data55.dart';
 // **************************************************************************
 
 Data55 _$Data55FromJson(Map<String, dynamic> json) => Data55(
-  id: (json['id'] as num).toInt(),
-  code: json['code'] as String,
-  type: Type6.fromJson(json['type'] as String),
-  amount: json['amount'] as num,
-  discountAmount: json['discount_amount'] as num?,
-  description: json['description'] as String,
+  subscription: json['subscription'] == null
+      ? null
+      : Subscription.fromJson(json['subscription'] as Map<String, dynamic>),
+  commissionRate: json['commission_rate'] as num,
+  terminals: Terminals.fromJson(json['terminals'] as Map<String, dynamic>),
+  nextInvoice: json['next_invoice'] == null
+      ? null
+      : NextInvoice.fromJson(json['next_invoice'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data55ToJson(Data55 instance) => <String, dynamic>{
-  'id': instance.id,
-  'code': instance.code,
-  'type': instance.type,
-  'amount': instance.amount,
-  'discount_amount': instance.discountAmount,
-  'description': instance.description,
+  'subscription': instance.subscription,
+  'commission_rate': instance.commissionRate,
+  'terminals': instance.terminals,
+  'next_invoice': instance.nextInvoice,
 };

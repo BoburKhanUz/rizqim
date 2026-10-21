@@ -25,6 +25,10 @@ RefreshToken _$RefreshTokenFromJson(Map<String, dynamic> json) => RefreshToken(
   updatedAt: json['updated_at'] == null
       ? null
       : DateTime.parse(json['updated_at'] as String),
+  replacedById: (json['replaced_by_id'] as num?)?.toInt(),
+  graceUsedAt: json['grace_used_at'] == null
+      ? null
+      : DateTime.parse(json['grace_used_at'] as String),
   user: json['user'] == null
       ? null
       : User.fromJson(json['user'] as Map<String, dynamic>),
@@ -45,6 +49,8 @@ Map<String, dynamic> _$RefreshTokenToJson(RefreshToken instance) =>
       'revoked_at': instance.revokedAt?.toIso8601String(),
       'created_at': instance.createdAt?.toIso8601String(),
       'updated_at': instance.updatedAt?.toIso8601String(),
+      'replaced_by_id': instance.replacedById,
+      'grace_used_at': instance.graceUsedAt?.toIso8601String(),
       'user': instance.user,
       'device': instance.device,
     };

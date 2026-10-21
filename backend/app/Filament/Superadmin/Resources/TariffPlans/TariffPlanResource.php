@@ -57,11 +57,11 @@ class TariffPlanResource extends Resource
                 ->schema([
                     TextInput::make('commission_percent')->label('Komissiya (%)')->numeric()->minValue(0)->maxValue(100)->step('0.01')
                         ->helperText("Bo'sh qoldirilsa, do'kon sozlamasidagi komissiya foizi olinadi. 0 — komissiya yo'q."),
-                    TextInput::make('monthly_base_fee')->label("Oylik asosiy to'lov (UZS)")->numeric()->minValue(0)->step('0.01')
+                    TextInput::make('monthly_base_fee')->label("Oylik asosiy to'lov (UZS)")->numeric()->minValue(0)->maxValue(9999999999)->step('0.01')
                         ->helperText("Bo'sh yoki 0 — asosiy to'lov yo'q."),
-                    TextInput::make('monthly_fee_per_terminal')->label('Bir terminal uchun oylik narx (UZS)')->numeric()->minValue(0)->step('0.01')
+                    TextInput::make('monthly_fee_per_terminal')->label('Bir terminal uchun oylik narx (UZS)')->numeric()->minValue(0)->maxValue(9999999999)->step('0.01')
                         ->helperText("Kassa (POS) va oshxona ekrani (KDS) terminallari hisoblanadi."),
-                    TextInput::make('included_terminals')->label('Tarifga kirgan terminallar soni')->integer()->minValue(0)->default(0)->required(),
+                    TextInput::make('included_terminals')->label('Tarifga kirgan terminallar soni')->integer()->minValue(0)->maxValue(10000)->default(0)->required(),
                     TextInput::make('trial_days')->label('Sinov davri (kun)')->integer()->minValue(0)->maxValue(365)->default(0)->required()
                         ->helperText("Faqat do'konning birinchi obunasiga beriladi. Sinov davri tegib o'tgan oy uchun hisob-faktura chiqmaydi."),
                 ]),

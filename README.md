@@ -8,6 +8,8 @@ O'zbekiston uchun ko'p do'konli (multi-store) ovqat buyurtma va yetkazib berish 
 | `customer/miniapp/` | React 19, TypeScript, Vite 8, Tailwind 4, TanStack Query, zustand | [customer/miniapp/README.md](customer/miniapp/README.md) |
 | Deploy | Docker Compose | [docs/DEPLOY.md](docs/DEPLOY.md) |
 
+Umumiy hujjatlar: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (butun platforma: ilovalar, ma'lumotlar modeli, real-time, navbatlar, CI, deploy), [docs/API.md](docs/API.md) (API'dan foydalanish: kirish turlari, ruxsatlar, xatolar, idempotency, sahifalash, cheklovlar, real-time, klientlar), [docs/POS_SPEC.md](docs/POS_SPEC.md) (POS spetsifikatsiyasi, egasi tasdig'i uchun qoralama).
+
 ## Papkalar tuzilmasi
 
 Hozir ishlayotgan qismlar: `backend/` va `customer/miniapp/`. Qolgan papkalar kelajakdagi ilovalar uchun ajratilgan (hozircha faqat README); qaysi bosqichda nima qurilishi [docs/ROADMAP.md](docs/ROADMAP.md) da.

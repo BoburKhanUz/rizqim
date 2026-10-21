@@ -48,6 +48,7 @@ async function installNetwork(page: Page, api: FakeApi, origin: string): Promise
       Object.fromEntries(url.searchParams),
       jsonBody(request),
       await request.headerValue('authorization'),
+      await request.headerValue('idempotency-key'),
     )
     await route.fulfill({ status: result.status, contentType: 'application/json', body: JSON.stringify(result.body) })
   })

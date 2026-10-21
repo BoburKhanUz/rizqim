@@ -9,6 +9,7 @@ use App\Filament\Support\StorePanelScope;
 use App\Models\User;
 use App\Enums\UserRole;
 use App\Services\Auth\PermissionService;
+use App\Services\Auth\StaffPhoneLoginService;
 use BackedEnum;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
@@ -24,6 +25,7 @@ use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Validation\Rules\Unique;
 
 /**
  * @extends Resource<User>
@@ -80,6 +82,36 @@ class EmployeeResource extends Resource
                     ->required()
                     ->maxLength(255)
                     ->label('Ismi'),
+                // P1-36: the number this person signs in to the partner panel and the staff apps with (SMS code). Saving the
+                // form with a new one vouches for it (static::saveEmployee): the holder of the number becomes this
+                // employee. P1-34: a phone the employee proved by SMS is not replaced here (StaffPhoneLoginService)
+                TextInput::make('phone')
+                    ->label('Telefon (SMS bilan kirish)')
+                    ->tel()
+                    ->placeholder('+998901234567')
+                    ->regex(StaffPhoneLoginService::PHONE_PATTERN)
+                    ->validationMessages([
+                        'regex' => "Raqam +998XXXXXXXXX ko'rinishida bo'lsin.",
+                        'unique' => "Bu raqam do'koningizning boshqa xodimiga biriktirilgan.",
+                    ])
+                    // One staff account per phone in a store (a person in two stores is fine)
+                    ->unique(User::class, 'phone', ignoreRecord: true, modifyRuleUsing: fn (Unique $rule) => $rule->where('store_id', StorePanelScope::storeId()))
+                    // Implicit: it also checks an emptied field (clearing a phone the employee proved by SMS)
+                    ->rule(fn (?User $record) => new class($record) implements \Illuminate\Contracts\Validation\ValidationRule {
+                        public bool $implicit = true;
+
+                        public function __construct(private ?User $record) {}
+
+                        public function validate(string $attribute, mixed $value, \Closure $fail): void
+                        {
+                            $refusal = app(StaffPhoneLoginService::class)
+                                ->refusalForStoreVouch($this->record, is_string($value) ? $value : null, StorePanelScope::storeId());
+                            if ($refusal !== null) {
+                                $fail($refusal);
+                            }
+                        }
+                    })
+                    ->helperText("Xodim hamkor paneli va ilovalarga shu raqamga keladigan SMS kod bilan kiradi. Faqat xodimning o'z raqamini yozing. Raqam o'zgarsa yoki o'chirilsa, xodimning ilovadagi sessiyalari yopiladi va bu harakatlar jurnaliga yoziladi."),
                 Select::make('role')
                     // A manager adds the staff ranked below them; the owner any staff role (UserRole::assignableStaffRoles)
                     ->options(fn () => collect(static::assignableRoles())
@@ -234,7 +266,8 @@ class EmployeeResource extends Resource
                 ViewAction::make()
                     ->slideOver()
                     ->modalWidth('4xl'),
-                EditAction::make(),
+                EditAction::make()
+                    ->using(fn (User $record, array $data) => static::saveEmployee($record, $data)),
                 static::setPinAction(),
                 static::resetPinAction(),
                 DeleteAction::make(),
@@ -337,6 +370,51 @@ class EmployeeResource extends Resource
     protected static function ordersOf(User $record): Builder
     {
         return StorePanelScope::scopeOrders($record->orders()->getQuery());
+    }
+
+    /**
+     * A new employee's phone from the form is their login phone, on the authority of the owner or manager who saved it
+     * (StaffPhoneLoginService::vouch, audited). A typed phone elsewhere (the person's own profile) stays unverified.
+     */
+    public static function vouchLoginPhone(User $record): void
+    {
+        if ($record->phone !== null && $record->phone_verified_at === null && $record->role->isStoreStaff()) {
+            app(StaffPhoneLoginService::class)->vouch($record, $record->phone);
+        }
+    }
+
+    /**
+     * Save an edited employee. The phone is vouched for only when the form changed it (P1-34): saving the form for
+     * anything else does not turn a number the employee typed into their own profile into a login phone. Changing or
+     * clearing it is audited and ends their app sessions (StaffPhoneLoginService); the form's validation has refused
+     * replacing a phone they proved by SMS.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    public static function saveEmployee(User $record, array $data): User
+    {
+        $phoneChanged = false;
+        $phone = null;
+        if (array_key_exists('phone', $data)) {
+            $phone = is_string($data['phone']) && trim($data['phone']) !== '' ? trim($data['phone']) : null;
+            $phoneChanged = $phone !== $record->phone;
+            unset($data['phone']);
+        }
+
+        \Illuminate\Support\Facades\DB::transaction(function () use ($record, $data, $phone, $phoneChanged) {
+            $record->update($data);
+
+            if (!$phoneChanged) {
+                return;
+            }
+            if ($record->role->isStoreStaff()) {
+                app(StaffPhoneLoginService::class)->vouch($record, $phone);
+            } else {
+                $record->update(['phone' => $phone]);
+            }
+        });
+
+        return $record;
     }
 
     /**

@@ -7,41 +7,15 @@ part of 'data23.dart';
 // **************************************************************************
 
 Data23 _$Data23FromJson(Map<String, dynamic> json) => Data23(
-  period: Period.fromJson(json['period'] as String?),
-  summary: Summary.fromJson(json['summary'] as Map<String, dynamic>),
-  byStatus: Map<String, int>.from(json['by_status'] as Map),
-  byPaymentMethod: (json['by_payment_method'] as List<dynamic>)
-      .map((e) => ByPaymentMethod.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  byOrderType: (json['by_order_type'] as List<dynamic>)
-      .map((e) => ByOrderType.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  byChannel: (json['by_channel'] as List<dynamic>)
-      .map((e) => ByChannel.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  topProducts: (json['top_products'] as List<dynamic>)
-      .map((e) => TopProducts.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  couriers: (json['couriers'] as List<dynamic>)
-      .map((e) => Couriers.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  times: Times.fromJson(json['times'] as Map<String, dynamic>),
-  daily: (json['daily'] as List<dynamic>)
-      .map((e) => Daily.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  generatedAt: json['generated_at'] as String,
+  orderUuid: json['order_uuid'] as String,
+  orderNumber: json['order_number'] as String?,
+  status: json['status'] as String,
+  paymentUrl: json['payment_url'],
 );
 
 Map<String, dynamic> _$Data23ToJson(Data23 instance) => <String, dynamic>{
-  'period': instance.period,
-  'summary': instance.summary,
-  'by_status': instance.byStatus,
-  'by_payment_method': instance.byPaymentMethod,
-  'by_order_type': instance.byOrderType,
-  'by_channel': instance.byChannel,
-  'top_products': instance.topProducts,
-  'couriers': instance.couriers,
-  'times': instance.times,
-  'daily': instance.daily,
-  'generated_at': instance.generatedAt,
+  'order_uuid': instance.orderUuid,
+  'order_number': instance.orderNumber,
+  'status': instance.status,
+  'payment_url': instance.paymentUrl,
 };

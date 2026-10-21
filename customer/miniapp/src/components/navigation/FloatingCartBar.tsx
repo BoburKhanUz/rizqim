@@ -23,7 +23,7 @@ export function FloatingCartBar() {
         className="flex min-h-13 w-full items-center justify-between gap-3 rounded-card bg-brand px-4 text-on-brand shadow-lg transition-transform motion-safe:active:scale-[0.98]"
       >
         <span className="flex min-w-0 items-center gap-2.5">
-          <span className="flex items-center gap-1 rounded-control bg-on-brand/15 px-2 py-0.5 text-footnote font-bold">
+          <span className="flex items-center gap-1 rounded-control border border-on-brand/50 px-2 py-0.5 text-footnote font-bold">
             <ShoppingBag aria-hidden="true" className="size-4" />
             {totalItems}
           </span>

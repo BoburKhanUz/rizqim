@@ -58,10 +58,17 @@ class CreateGlobalStore extends CreateRecord
                     TextInput::make('owner_name')
                         ->label('Owner Name')
                         ->required(),
+                    // P1-36: the owner signs in to the partner panel and apps with an SMS code to this number
                     TextInput::make('owner_phone')
                         ->label('Phone Number (Login)')
                         ->tel()
-                        ->unique(User::class, 'phone')
+                        ->placeholder('+998901234567')
+                        ->regex(\App\Services\Auth\StaffPhoneLoginService::PHONE_PATTERN)
+                        ->validationMessages(['regex' => "Raqam +998XXXXXXXXX ko'rinishida bo'lsin."])
+                        // Another staff account may not hold it; the owner's own customer (Mini App) account may
+                        ->unique(User::class, 'phone', modifyRuleUsing: fn (\Illuminate\Validation\Rules\Unique $rule) => $rule->where(
+                            fn ($query) => $query->where('role', '!=', \App\Enums\UserRole::CUSTOMER->value)
+                        ))
                         ->required(),
                     TextInput::make('owner_password')
                         ->label('Password')
@@ -139,14 +146,15 @@ class CreateGlobalStore extends CreateRecord
             ]);
 
             $ownerToken = \Illuminate\Support\Str::uuid()->toString();
-            User::create([
+            $owner = User::create([
                 'name' => $data['owner_name'],
-                'phone' => $data['owner_phone'],
                 'password' => bcrypt($data['owner_password']),
                 'role' => \App\Enums\UserRole::OWNER->value,
                 'store_id' => $store->id,
                 'telegram_invite_token' => $ownerToken,
             ]);
+            // The platform vouches for the owner's login phone: SMS sign-in to the partner panel (docs/AUTH.md)
+            app(\App\Services\Auth\StaffPhoneLoginService::class)->vouch($owner, $data['owner_phone']);
 
             Branch::create([
                 'store_id' => $store->id,

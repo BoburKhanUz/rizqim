@@ -66,7 +66,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/geocode/search', [\App\Http\Controllers\Api\V1\GeocodeController::class, 'search'])->middleware('throttle:geocode');
 
         Route::get('/stores', [\App\Http\Controllers\Api\V1\Store\StoreController::class, 'index']);
-        Route::post('/stores/{id}/rate', [\App\Http\Controllers\Api\V1\StoreRatingController::class, 'rate'])->middleware('throttle:store-ratings');
+        Route::post('/stores/{id}/rate', [\App\Http\Controllers\Api\V1\StoreRatingController::class, 'rate'])->where('id', \App\Support\RowId::ROUTE_PATTERN)->middleware('throttle:store-ratings');
         Route::get('/catalog', [\App\Http\Controllers\Api\V1\Catalog\CatalogController::class, 'index']);
         Route::get('/orders', [\App\Http\Controllers\Api\V1\Order\OrderController::class, 'index']);
         Route::get('/notifications', [\App\Http\Controllers\Api\V1\Order\OrderController::class, 'notifications']);

@@ -4,18 +4,19 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'prices2.dart';
+
 part 'data45.g.dart';
 
 @JsonSerializable()
 class Data45 {
-  const Data45({required this.productId, required this.modifierGroups});
+  const Data45({required this.productId, required this.prices});
 
   factory Data45.fromJson(Map<String, Object?> json) => _$Data45FromJson(json);
 
   @JsonKey(name: 'product_id')
   final int productId;
-  @JsonKey(name: 'modifier_groups')
-  final String modifierGroups;
+  final List<Prices2> prices;
 
   Map<String, Object?> toJson() => _$Data45ToJson(this);
 }

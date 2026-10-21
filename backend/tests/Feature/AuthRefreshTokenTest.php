@@ -128,6 +128,8 @@ class AuthRefreshTokenTest extends TestCase
         $login = $this->deviceLogin();
         $next = $this->refresh($login['refresh_token'], $login['device']['uuid'])->assertOk()->json('data');
 
+        // Past the grace window for a lost answer (test_a_retry_after_a_lost_answer_...)
+        $this->travel(31)->seconds();
         $this->refresh($login['refresh_token'], $login['device']['uuid'])
             ->assertUnauthorized()
             ->assertJsonPath('data.reason', 'refresh_reused');
@@ -294,5 +296,52 @@ class AuthRefreshTokenTest extends TestCase
         // The new one does
         $this->bearerJson('GET', '/api/v1/me/permissions', $second['token'])->assertOk();
         $this->refresh($second['refresh_token'], $second['device']['uuid'])->assertOk();
+    }
+
+    public function test_a_retry_after_a_lost_answer_rotates_once_more_within_the_grace_window(): void
+    {
+        $login = $this->deviceLogin();
+        // The server rotated, but the answer never reached the app (network drop)
+        $lost = $this->refresh($login['refresh_token'], $login['device']['uuid'])->assertOk()->json('data');
+
+        $this->travel(10)->seconds();
+        $retry = $this->refresh($login['refresh_token'], $login['device']['uuid'])->assertOk()->json('data');
+
+        $this->assertNotSame($lost['refresh_token'], $retry['refresh_token']);
+        // The pair the app never got is ended, the retried one works, all in the one family
+        $this->bearerJson('GET', '/api/v1/user', $lost['token'])->assertUnauthorized();
+        $this->assertNotNull(RefreshToken::where('token_hash', hash('sha256', $lost['refresh_token']))->value('revoked_at'));
+        $this->bearerJson('GET', '/api/v1/user', $retry['token'])->assertOk();
+        $this->assertSame(1, RefreshToken::distinct('family_id')->count('family_id'));
+
+        // The grace is one retry: the same spent token once more is reuse, and the family ends
+        $this->refresh($login['refresh_token'], $login['device']['uuid'])
+            ->assertUnauthorized()
+            ->assertJsonPath('data.reason', 'refresh_reused');
+        $this->bearerJson('GET', '/api/v1/user', $retry['token'])->assertUnauthorized();
+        $this->assertSame(0, RefreshToken::whereNull('revoked_at')->count());
+    }
+
+    public function test_the_grace_never_covers_a_replay_whose_new_pair_was_used_or_another_device(): void
+    {
+        // The app got the new pair and used it: the spent token coming back is a copy
+        $login = $this->deviceLogin();
+        $next = $this->refresh($login['refresh_token'], $login['device']['uuid'])->assertOk()->json('data');
+        $after = $this->refresh($next['refresh_token'], $login['device']['uuid'])->assertOk()->json('data');
+
+        $this->refresh($login['refresh_token'], $login['device']['uuid'])
+            ->assertUnauthorized()
+            ->assertJsonPath('data.reason', 'refresh_reused');
+        $this->bearerJson('GET', '/api/v1/user', $after['token'])->assertUnauthorized();
+        $this->assertSame(0, RefreshToken::whereNull('revoked_at')->count());
+
+        // Within the window, but from another device: a stolen token
+        $mine = $this->deviceLogin(5550002);
+        $other = $this->deviceLogin(5550003);
+        $this->refresh($mine['refresh_token'], $mine['device']['uuid'])->assertOk();
+        $this->refresh($mine['refresh_token'], $other['device']['uuid'])
+            ->assertUnauthorized()
+            ->assertJsonPath('data.reason', 'refresh_reused');
+        $this->assertSame(0, RefreshToken::whereNull('revoked_at')->where('user_id', User::where('telegram_id', '5550002')->value('id'))->count());
     }
 }

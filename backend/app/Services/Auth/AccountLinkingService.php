@@ -47,7 +47,7 @@ class AccountLinkingService
             }
 
             $user = new User(['name' => 'Mijoz', 'role' => UserRole::CUSTOMER]);
-            $user->forceFill(['phone' => $phone, 'phone_verified_at' => now()])->save();
+            $user->forceFill(['phone' => $phone, 'phone_verified_at' => now(), 'phone_verified_via' => User::PHONE_VIA_SMS])->save();
 
             return ['user' => $user, 'created' => true];
         });
@@ -63,7 +63,7 @@ class AccountLinkingService
         return $this->locked($phone, function () use ($user, $phone) {
             // Staff accounts keep the old behaviour: a phone is just a contact detail there
             if ($user->role !== UserRole::CUSTOMER) {
-                $user->forceFill(['phone' => $phone, 'phone_verified_at' => now()])->save();
+                $user->forceFill(['phone' => $phone, 'phone_verified_at' => now(), 'phone_verified_via' => User::PHONE_VIA_SMS])->save();
 
                 return ['user' => $user, 'linked' => false];
             }
@@ -71,7 +71,7 @@ class AccountLinkingService
             $others = $this->verifiedCustomers($phone)->whereKeyNot($user->id)->limit(2)->get();
 
             if ($others->isEmpty()) {
-                $user->forceFill(['phone' => $phone, 'phone_verified_at' => now()])->save();
+                $user->forceFill(['phone' => $phone, 'phone_verified_at' => now(), 'phone_verified_via' => User::PHONE_VIA_SMS])->save();
 
                 return ['user' => $user, 'linked' => false];
             }
@@ -108,9 +108,11 @@ class AccountLinkingService
      */
     private function verifiedCustomers(string $phone): \Illuminate\Database\Eloquent\Builder
     {
+        // Proven by an SMS code only: a phone vouched for a staff account that later became a customer one is no proof
         return User::where('role', UserRole::CUSTOMER->value)
             ->where('phone', $phone)
             ->whereNotNull('phone_verified_at')
+            ->where('phone_verified_via', User::PHONE_VIA_SMS)
             ->orderBy('id');
     }
 

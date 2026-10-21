@@ -6,7 +6,7 @@ import api from '../services/api';
 import { useAddressStore } from '../store/useAddressStore';
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
-import { makeOrder, makeStore, makeUser } from '../test/factories';
+import { makeOrder, makeProduct, makeStore, makeUser, makeVariant } from '../test/factories';
 import type { BranchSummary, PaymentSettings, StoreListItem } from '../types';
 import { MainButtonHost } from '../components/ui/MainButtonHost';
 import Cart from './Cart';
@@ -36,16 +36,36 @@ function storeWith(paymentSettings: unknown): StoreListItem {
   return { ...makeStore({ id: 1, payment_settings: paymentSettings as PaymentSettings | null, delivery_fee: 10000 }), branches: [BRANCH] };
 }
 
-function serveStore(store: StoreListItem) {
+// The dish of the cart in the store's menu (a line whose dish is not on the menu any more cannot be ordered)
+const LAVASH = makeProduct({ id: 1, variants: [makeVariant({ id: 1, uuid: 'lavash', product_id: 1, price: '25000.00', stock: 50 })] });
+
+// What GET /delivery/quote answers: the zone's fee and minimum for the cart
+function quoteOf(deliveryPrice: string, minOrder = '0.00') {
+  return {
+    zone: { id: 7, name: 'Markaz', delivery_price: deliveryPrice, min_order_amount: minOrder, free_delivery_from: null, eta_minutes: 40 },
+    branch: { id: 5, name: 'Asosiy filial', distance_km: 1.2 },
+    delivery_price: deliveryPrice,
+    min_order_amount: minOrder,
+    free_delivery_applies: false,
+    meets_min_order: true,
+    eta: { minutes: 40 },
+  };
+}
+
+function serveStore(store: StoreListItem, quote: unknown = quoteOf('10000.00')) {
   get.mockImplementation((url) => {
     if (url === '/stores') return Promise.resolve({ data: { success: true, data: [store] } });
-    if (url.startsWith('/catalog')) return Promise.resolve({ data: { success: true, data: { products: [] } } });
+    if (url.startsWith('/catalog/availability')) return Promise.resolve({ data: { success: true, data: { store_id: 1, branches: [] } } });
+    if (url.startsWith('/catalog')) return Promise.resolve({ data: { success: true, data: { products: [LAVASH] } } });
+    if (url === '/delivery/quote') return Promise.resolve({ data: { success: true, data: quote } });
     return Promise.reject(new Error(`unexpected GET ${url}`));
   });
 }
 
 // Lets the (fake) network answer and React render what it brought
 const flush = () => act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+// ... and waits out the moment the quote is asked after the cart changed (useDeliveryQuote settles a change first)
+const settle = () => act(async () => { await new Promise((resolve) => setTimeout(resolve, 600)); });
 
 let queryClient: QueryClient;
 
@@ -146,14 +166,16 @@ describe('Cart: payment methods follow the store settings the server enforces', 
     fireEvent.click(paymentTile(/payme/i));
     expect(isSelected(paymentTile(/payme/i))).toBe(true);
 
-    // The store switches Payme off; the cart reloads the store when its items change
+    // The store switches Payme off; the cart reloads the store once its items changed (and settled)
     serveStore(storeWith({ cash: { enabled: true }, click: { enabled: true }, payme: { enabled: false } }));
     act(() => useCartStore.getState().updateQuantity('1-lavash', 2));
-    await flush();
+    await settle();
 
     expect(queryPaymentTile(/payme/i)).not.toBeInTheDocument();
     expect(isSelected(paymentTile(/naqd/i))).toBe(true);
 
+    await settle();
+    await flush();
     fireEvent.click(orderButton());
     await flush();
 
@@ -227,7 +249,7 @@ describe('Cart: delivery and pickup follow the store switches the server enforce
 
     serveStore(storeWith({ cash: { enabled: true }, pickup_enabled: false }));
     act(() => useCartStore.getState().updateQuantity('1-lavash', 2));
-    await flush();
+    await settle();
 
     expect(tab(PICKUP)).toBeDisabled();
     expect(isSelected(tab(DELIVERY))).toBe(true);

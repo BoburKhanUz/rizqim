@@ -9,7 +9,7 @@ part of 'v1_owner_stop_list_request_body.dart';
 V1OwnerStopListRequestBody _$V1OwnerStopListRequestBodyFromJson(
   Map<String, dynamic> json,
 ) => V1OwnerStopListRequestBody(
-  type: Type5.fromJson(json['type'] as String),
+  type: Type6.fromJson(json['type'] as String),
   id: (json['id'] as num).toInt(),
   branchId: (json['branch_id'] as num?)?.toInt(),
   reason: json['reason'] as String?,

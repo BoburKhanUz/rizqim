@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { makeProduct, makeVariant } from '../test/factories';
-import { buildCartItem, DEFAULT_STORE_ADDRESS, getProductBasePrice, getStoreInfo, parsePrice } from './catalog';
+import { buildCartItem, DEFAULT_STORE_ADDRESS, formatUnitPrice, getProductBasePrice, getStoreInfo, needsProductSheet, parsePrice } from './catalog';
 
 describe('parsePrice', () => {
   it('reads the decimal strings of the API and plain numbers', () => {
@@ -75,6 +75,7 @@ describe('buildCartItem', () => {
       price: 32000,
       quantity: 1,
       image: 'https://cdn.example/lavash.jpg',
+      variantDbId: variant.id,
     });
   });
 
@@ -98,5 +99,63 @@ describe('buildCartItem', () => {
 
   it('has no image instead of a null one', () => {
     expect(buildCartItem(makeProduct({ image_url: null }), variant).image).toBeUndefined();
+  });
+});
+
+describe('buildCartItem with a selection', () => {
+  const product = makeProduct({ id: 7, store_id: 3, name: 'Burger' });
+  const variant = makeVariant({ uuid: 'var-uuid', name: 'Katta', price: '50000.00' });
+  const cheese = { id: 6, uuid: 'm-6', groupId: 1, name: 'Pishloqli', priceDelta: 3000, quantity: 1 };
+
+  it('gives lines with different modifiers different ids, and the same choices the same id', () => {
+    const plain = buildCartItem(product, variant);
+    const withCheese = buildCartItem(product, variant, { modifiers: [cheese] });
+
+    expect(withCheese.id).not.toBe(plain.id);
+    expect(withCheese.id).toBe(buildCartItem(product, variant, { modifiers: [{ ...cheese }] }).id);
+    expect(withCheese.modifiers).toEqual([cheese]);
+    expect(plain).not.toHaveProperty('modifiers');
+  });
+
+  it('starts an item sold by weight at its least quantity and remembers the step', () => {
+    const meat = makeVariant({ uuid: 'v-meat', price: '120000.00', unit: 'kg', quantity_step: '0.500', min_quantity: '1.000' });
+
+    expect(buildCartItem(product, meat)).toMatchObject({ quantity: 1, unit: 'kg', quantityStep: 0.5, minQuantity: 1, price: 120000 });
+    expect(buildCartItem(product, meat, { quantity: 2.5 }).quantity).toBe(2.5);
+  });
+
+  it('starts at the first multiple of the step when the minimum is not one, so the server takes the order', () => {
+    const meat = makeVariant({ uuid: 'v-meat', price: '100000.00', unit: 'kg', quantity_step: '0.500', min_quantity: '0.300' });
+
+    expect(buildCartItem(product, meat)).toMatchObject({ quantity: 0.5, quantityStep: 0.5, minQuantity: 0.5 });
+  });
+});
+
+describe('needsProductSheet', () => {
+  const one = [makeVariant()];
+
+  it('is false for a dish with one plain variant', () => {
+    expect(needsProductSheet({ variants: one, modifier_groups: [] })).toBe(false);
+    expect(needsProductSheet({ variants: one })).toBe(false);
+  });
+
+  it('is true for variants to choose from, modifier groups or a weight', () => {
+    expect(needsProductSheet({ variants: [makeVariant(), makeVariant({ id: 2 })] })).toBe(true);
+    expect(needsProductSheet({
+      variants: one,
+      modifier_groups: [{ id: 1, uuid: 'g', name: 'Sous', min_select: 0, max_select: null, is_required: false, sort_order: 0, modifiers: [{ id: 1, uuid: 'm', modifier_group_id: 1, name: 'K', price_delta: '0.00', max_quantity: 1, sort_order: 0, is_active: true }] }],
+    })).toBe(true);
+    expect(needsProductSheet({ variants: [makeVariant({ unit: 'kg' })] })).toBe(true);
+  });
+
+  it('ignores a group without modifiers', () => {
+    expect(needsProductSheet({ variants: one, modifier_groups: [{ id: 1, uuid: 'g', name: 'Bo\'sh', min_select: 0, max_select: null, is_required: false, sort_order: 0, modifiers: [] }] })).toBe(false);
+  });
+});
+
+describe('formatUnitPrice', () => {
+  it('adds the unit of an item sold by weight', () => {
+    expect(formatUnitPrice(makeVariant({ price: '120000.00', unit: 'kg' }))).toBe("120\u00a0000\u00a0so'm / kg");
+    expect(formatUnitPrice(makeVariant({ price: '25000.00' }))).toBe("25\u00a0000\u00a0so'm");
   });
 });

@@ -6,14 +6,12 @@ import 'package:json_annotation/json_annotation.dart';
 
 @JsonEnum()
 enum Type {
-  @JsonValue('courier')
-  courier('courier'),
-  @JsonValue('partner_mobile')
-  partnerMobile('partner_mobile'),
-  @JsonValue('customer_mobile')
-  customerMobile('customer_mobile'),
   @JsonValue('web')
   web('web'),
+  @JsonValue('partner_mobile')
+  partnerMobile('partner_mobile'),
+  @JsonValue('courier')
+  courier('courier'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

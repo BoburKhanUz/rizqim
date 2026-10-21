@@ -6,6 +6,7 @@ use App\Domain\Delivery\DeliveryQuoter;
 use App\Domain\Delivery\DeliveryUnavailableException;
 use App\Enums\StoreStatus;
 use App\Http\Controllers\Controller;
+use App\Models\Branch;
 use App\Models\DeliveryZone;
 use App\Models\Store;
 use App\Traits\ApiResponse;
@@ -16,8 +17,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /**
- * Public, read-only view of a store's delivery zones and the price of delivering to a point (P1-24). Checkout does not
- * use the quote yet; P1-32 plugs it in (docs/ZONES.md).
+ * Public, read-only view of a store's delivery zones and the price of delivering to a point (P1-24). Checkout prices
+ * delivery orders through the same DeliveryQuoter (P1-32, docs/ZONES.md).
  */
 #[Group('Delivery', "Yetkazib berish hududlari va yetkazib berish narxi (ochiq, faqat o'qish).")]
 class DeliveryZoneController extends Controller
@@ -64,12 +65,14 @@ class DeliveryZoneController extends Controller
      * Which zone and branch would serve `lat`/`lng`, what delivery costs (the free-delivery rule applied when `subtotal`
      * is given) and the minimum order. 422 with `data.reason` when the point cannot be served:
      * `outside_zone` (hududdan tashqarida), `zones_not_configured` (the store has not drawn zones) or `branch_closed`.
-     * Money is a string with two decimals.
+     * Money is a string with two decimals. Optional `branch`: price as checkout would with that `branch_id` (the best
+     * zone that branch serves); `branch_outside_zone` when it serves none covering the point.
      */
     #[QueryParameter('store', description: "Do'kon uuid yoki id.", type: 'string')]
     #[QueryParameter('lat', description: 'Latitude of the delivery point.', type: 'float')]
     #[QueryParameter('lng', description: 'Longitude of the delivery point.', type: 'float')]
     #[QueryParameter('subtotal', description: "Cart total before delivery; enables the free-delivery and minimum-order checks.", type: 'string', required: false)]
+    #[QueryParameter('branch', description: "Filial id: the branch the customer chose at checkout (P1-32).", type: 'int', required: false)]
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{zone: array{id: int, name: string, delivery_price: string, min_order_amount: string, free_delivery_from: string|null, eta_minutes: int|null}, branch: array{id: int, name: string, distance_km: float}, delivery_price: string, min_order_amount: string, free_delivery_applies: bool, meets_min_order: bool|null, eta: array{minutes: int}|null}}')]
     #[ApiDocResponse(422, type: 'array{success: false, message: string, data: array{reason: string}}', description: "Manzilga yetkazib berib bo'lmaydi")]
     public function quote(Request $request, DeliveryQuoter $quoter): JsonResponse
@@ -79,6 +82,7 @@ class DeliveryZoneController extends Controller
             'lat' => ['required', 'numeric', 'between:-90,90'],
             'lng' => ['required', 'numeric', 'between:-180,180'],
             'subtotal' => ['nullable', 'numeric', 'min:0', 'max:9999999999'],
+            'branch' => ['nullable', 'integer', 'min:1'],
         ]);
 
         $store = $this->findStore($input['store']);
@@ -87,7 +91,13 @@ class DeliveryZoneController extends Controller
         }
 
         try {
-            $quote = $quoter->quote($store, (float) $input['lat'], (float) $input['lng'], $input['subtotal'] ?? null);
+            $branch = null;
+            if (isset($input['branch'])) {
+                // Unknown or another store's branch: it delivers none of this store's zones (existence is not revealed)
+                $branch = Branch::query()->where('store_id', $store->id)->find((int) $input['branch'])
+                    ?? throw DeliveryUnavailableException::branchOutsideZone();
+            }
+            $quote = $quoter->quote($store, (float) $input['lat'], (float) $input['lng'], $input['subtotal'] ?? null, null, $branch);
         } catch (DeliveryUnavailableException $e) {
             return $this->error($e->getMessage(), ['reason' => $e->reason], 422);
         }

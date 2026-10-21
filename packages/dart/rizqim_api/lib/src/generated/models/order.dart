@@ -6,6 +6,7 @@ import 'package:json_annotation/json_annotation.dart';
 
 import 'branch.dart';
 import 'cancel_reason.dart';
+import 'delivery_zone.dart';
 import 'order_channel.dart';
 import 'order_item.dart';
 import 'order_status.dart';
@@ -22,7 +23,7 @@ part 'order.g.dart';
 @JsonSerializable()
 class Order {
   const Order({
-    required this.deletedAt,
+    required this.courierId,
     required this.uuid,
     required this.shortCode,
     required this.storeId,
@@ -38,9 +39,9 @@ class Order {
     required this.shippingAddress,
     required this.createdAt,
     required this.updatedAt,
-    required this.id,
+    required this.deletedAt,
     required this.paymentMethod,
-    required this.courierId,
+    required this.id,
     required this.commissionAmount,
     required this.branchId,
     required this.addressId,
@@ -54,20 +55,25 @@ class Order {
     required this.cancelReason,
     required this.cancelNote,
     required this.cancelledBy,
-    required this.address,
+    required this.channel,
     required this.externalId,
     required this.serviceChargeAmount,
     required this.placeFeeAmount,
-    required this.guestsCount,
+    required this.address,
     required this.hallRef,
     required this.tableRef,
+    required this.deliveryZoneId,
+    required this.deliveryZoneName,
+    required this.deliveryZonePrice,
+    required this.deliveryMinOrderAmount,
     required this.type,
-    required this.channel,
+    required this.guestsCount,
     this.store,
     this.user,
     this.courier,
     this.manager,
     this.branch,
+    this.deliveryZone,
     this.items,
     this.statusHistories,
     this.payments,
@@ -146,6 +152,14 @@ class Order {
   final String? hallRef;
   @JsonKey(name: 'table_ref')
   final String? tableRef;
+  @JsonKey(name: 'delivery_zone_id')
+  final int? deliveryZoneId;
+  @JsonKey(name: 'delivery_zone_name')
+  final String? deliveryZoneName;
+  @JsonKey(name: 'delivery_zone_price')
+  final String? deliveryZonePrice;
+  @JsonKey(name: 'delivery_min_order_amount')
+  final String? deliveryMinOrderAmount;
   final String type;
   final String? address;
   final Store? store;
@@ -153,6 +167,8 @@ class Order {
   final User? courier;
   final User? manager;
   final Branch? branch;
+  @JsonKey(name: 'delivery_zone')
+  final DeliveryZone? deliveryZone;
   final List<OrderItem>? items;
   @JsonKey(name: 'status_histories')
   final List<OrderStatusHistory>? statusHistories;

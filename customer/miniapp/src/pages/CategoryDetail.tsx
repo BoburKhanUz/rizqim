@@ -1,20 +1,19 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useCartStore, type PendingCartItem } from '../store/cartStore';
+import { useCartStore } from '../store/cartStore';
 import { useLanguageStore } from '../store/languageStore';
-import { hapticFeedback } from '../lib/telegram';
 import { selectionChanged } from '../lib/twa';
-import { useCanAddToCart } from '../hooks/useCanAddToCart';
+import { useAddToCart } from '../hooks/useAddToCart';
 import { ShoppingBag } from 'lucide-react';
-import VariantSelectorModal from '../components/VariantSelectorModal';
+import ProductSheet from '../components/ProductSheet';
 import { EmptyState, InlineError, PageHeader, cx } from '../components/ui';
 import { ProductCard } from '../components/catalog/ProductCard';
 import { ReplaceCartDialog } from '../components/catalog/ReplaceCartDialog';
 import { SearchField } from '../components/catalog/SearchField';
 import api from '../services/api';
 import { logApiError } from '../lib/apiError';
-import { buildCartItem, getStoreInfo } from '../lib/catalog';
-import type { ApiResponse, Category, FeedCatalog, Product, ProductVariant } from '../types';
+import { getStoreInfo } from '../lib/catalog';
+import type { ApiResponse, Category, FeedCatalog, Product } from '../types';
 
 const CHIP = 'min-h-11 shrink-0 cursor-pointer whitespace-nowrap rounded-control px-4 text-body font-medium transition-colors';
 
@@ -23,7 +22,8 @@ export default function CategoryDetail() {
   const navigate = useNavigate();
   const { language } = useLanguageStore();
   const uz = language === 'uz';
-  const { items: cartItems, addItem } = useCartStore();
+  const cartItems = useCartStore((state) => state.items);
+  const cart = useAddToCart({ storeInfoOf: (product) => getStoreInfo(product.store) });
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -34,8 +34,6 @@ export default function CategoryDetail() {
   const [selectedSubCategoryId, setSelectedSubCategoryId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const [selectedProductForVariant, setSelectedProductForVariant] = useState<Product | null>(null);
-  const [pendingCartItem, setPendingCartItem] = useState<PendingCartItem | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -83,31 +81,6 @@ export default function CategoryDetail() {
     }
     return result;
   }, [products, selectedSubCategoryId, searchQuery]);
-
-  const canAddVariant = useCanAddToCart();
-
-  // Puts one unit into the cart (unless the stock rule blocks it); another store's items in the cart ask the customer first
-  const addToCart = (product: Product, variant: ProductVariant | undefined) => {
-    const cartItem = buildCartItem(product, variant);
-    if (!canAddVariant(variant, cartItem.id)) return;
-    const storeInfo = getStoreInfo(product.store);
-
-    const isSuccess = addItem(cartItem, storeInfo);
-    if (!isSuccess) {
-      setPendingCartItem({ item: cartItem, storeInfo });
-    }
-  };
-
-  const handleAddToCart = (product: Product) => {
-    hapticFeedback('medium');
-
-    if (product.variants && product.variants.length > 1) {
-      setSelectedProductForVariant(product);
-      return;
-    }
-
-    addToCart(product, product.variants?.[0]);
-  };
 
   const selectSubCategory = (subCategoryId: number | null) => {
     selectionChanged();
@@ -179,27 +152,26 @@ export default function CategoryDetail() {
                 product={product}
                 cartQty={cartQty}
                 onOpen={matchStore ? () => navigate(`/store/${matchStore.uuid}`) : undefined}
-                onAdd={() => handleAddToCart(product)}
+                onAdd={() => cart.start(product)}
               />
             );
           })}
         </div>
       )}
 
-      {/* Variant Selector Bottom Sheet */}
-      {selectedProductForVariant && (
-        <VariantSelectorModal
-          isOpen={!!selectedProductForVariant}
-          product={selectedProductForVariant}
-          onClose={() => setSelectedProductForVariant(null)}
-          onAdd={(variant) => {
-            addToCart(selectedProductForVariant, variant);
-            setSelectedProductForVariant(null);
+      {/* The product sheet: variant, modifiers, weight */}
+      {cart.sheetProduct && (
+        <ProductSheet
+          isOpen
+          product={cart.sheetProduct}
+          onClose={cart.closeSheet}
+          onAdd={(choice) => {
+            if (cart.sheetProduct) cart.addVariant(cart.sheetProduct, choice.variant, choice);
           }}
         />
       )}
 
-      <ReplaceCartDialog pending={pendingCartItem} onClose={() => setPendingCartItem(null)} />
+      <ReplaceCartDialog pending={cart.pending} onClose={cart.clearPending} />
     </div>
   );
 }

@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import api from '../services/api';
 import { useAuthStore } from '../store/authStore';
 import { useLanguageStore, type Language } from '../store/languageStore';
-import { makeOrder, makeStore, makeUser } from '../test/factories';
+import { makeOrder, makeOrderItem, makeStore, makeUser } from '../test/factories';
 import { failedRequest } from '../test/httpErrors';
 import { ordersResponse, serveOrdersApi } from '../test/ordersApi';
 import type { Order, OrderStatus } from '../types';
@@ -177,6 +177,40 @@ const ordersAt = (id: number, overrides: Partial<Order> = {}) =>
   makeOrder({ id, uuid: `${codeOf(id)}-0000-4000-8000-000000000000`, short_code: codeOf(id), payment_status: 'pending', ...overrides });
 
 const expand = (id: number) => fireEvent.click(screen.getByText(`#${codeOf(id)}`));
+
+describe('Orders: the lines of the new menu', () => {
+  it('shows the weight as "1,5 kg", pieces as "x2", and the modifiers of a line', async () => {
+    serveOrders([
+      ordersAt(1, {
+        status: 'preparing',
+        items: [
+          makeOrderItem({ id: 1, product_name: 'Qazi', variant_name: 'kg', quantity: 1.5, unit: 'kg', unit_price: '120000.00', total_price: '180000.00' }),
+          makeOrderItem({
+            id: 2,
+            product_name: 'Burger',
+            variant_name: 'Katta',
+            quantity: 2,
+            unit_price: '50000.00',
+            modifiers_total: '3000.00',
+            total_price: '106000.00',
+            modifiers: [{ id: 6, uuid: 'm-6', group_id: 1, group_name: 'Sous', name: 'Pishloqli', price_delta: '3000.00', quantity: 1, total: '3000.00' }],
+          }),
+        ],
+      }),
+    ]);
+
+    renderOrders();
+    await screen.findByText(`#${codeOf(1)}`);
+    expand(1);
+
+    const items = within(screen.getByRole('list'));
+    expect(items.getByText('1,5 kg')).toBeInTheDocument();
+    expect(items.getByText("180 000 so'm")).toBeInTheDocument();
+    expect(items.getByText('x2')).toBeInTheDocument();
+    expect(items.getByText('Pishloqli')).toBeInTheDocument();
+    expect(items.getByText("106 000 so'm")).toBeInTheDocument();
+  });
+});
 
 describe('Orders: open orders and history', () => {
   it('lists the open orders first and the finished ones below, from the two scopes of the API', async () => {

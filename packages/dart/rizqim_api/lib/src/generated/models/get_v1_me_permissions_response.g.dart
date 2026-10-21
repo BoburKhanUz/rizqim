@@ -11,7 +11,7 @@ GetV1MePermissionsResponse _$GetV1MePermissionsResponseFromJson(
 ) => GetV1MePermissionsResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data20.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data21.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1MePermissionsResponseToJson(

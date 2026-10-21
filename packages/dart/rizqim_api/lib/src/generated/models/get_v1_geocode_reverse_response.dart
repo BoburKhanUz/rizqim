@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data15.dart';
+import 'data16.dart';
 
 part 'get_v1_geocode_reverse_response.g.dart';
 
@@ -21,7 +21,7 @@ class GetV1GeocodeReverseResponse {
 
   final bool success;
   final String message;
-  final Data15 data;
+  final Data16 data;
 
   Map<String, Object?> toJson() => _$GetV1GeocodeReverseResponseToJson(this);
 }

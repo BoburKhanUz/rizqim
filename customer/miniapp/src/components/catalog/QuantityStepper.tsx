@@ -9,8 +9,14 @@ interface QuantityStepperProps {
   incrementLabel: string;
   // The "-" at quantity 1 removes the line: show a bin instead of a minus
   removeAtOne?: boolean;
+  // ... or at this quantity (the least a weighed item can be ordered)
+  removeAt?: number;
   // The "+" is at the stock limit: it stays pressable (it says why) but looks off
   incrementDimmed?: boolean;
+  // The "-" is at the least that can be ordered (a weighed item's minimum): same
+  decrementDimmed?: boolean;
+  // What is shown between the buttons instead of the number: "0,5 kg" for an item sold by weight
+  valueLabel?: string;
   className?: string;
 }
 
@@ -26,17 +32,27 @@ export function QuantityStepper({
   decrementLabel,
   incrementLabel,
   removeAtOne = false,
+  removeAt = 1,
   incrementDimmed = false,
+  decrementDimmed = false,
+  valueLabel,
   className,
 }: QuantityStepperProps) {
-  const DecrementIcon = removeAtOne && quantity <= 1 ? Trash2 : Minus;
+  const DecrementIcon = removeAtOne && quantity <= removeAt ? Trash2 : Minus;
   return (
     <div role="group" className={cx('inline-flex shrink-0 items-center rounded-full bg-brand-soft', className)}>
-      <button type="button" aria-label={decrementLabel} title={decrementLabel} onClick={onDecrement} className={BUTTON}>
+      <button
+        type="button"
+        aria-label={decrementLabel}
+        title={decrementLabel}
+        aria-disabled={decrementDimmed || undefined}
+        onClick={onDecrement}
+        className={cx(BUTTON, decrementDimmed && 'opacity-40')}
+      >
         <DecrementIcon aria-hidden="true" className="size-[18px]" />
       </button>
-      <span aria-live="polite" className="min-w-6 text-center text-body font-bold text-brand-soft-fg">
-        {quantity}
+      <span aria-live="polite" className={cx('text-center text-body font-bold text-brand-soft-fg', valueLabel ? 'min-w-14 whitespace-nowrap' : 'min-w-6')}>
+        {valueLabel ?? quantity}
       </span>
       <button
         type="button"

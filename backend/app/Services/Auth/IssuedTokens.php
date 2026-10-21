@@ -16,6 +16,8 @@ final class IssuedTokens
         public readonly string $refreshToken,
         public readonly Carbon $refreshExpiresAt,
         public readonly Device $device,
+        // The stored refresh token (TokenService links the spent one to it); not part of any response
+        public readonly ?int $refreshTokenId = null,
     ) {}
 
     /**

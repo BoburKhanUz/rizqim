@@ -100,6 +100,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/auth/phone/select-account": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Finish a staff sign-in when the phone holds several staff accounts: the `selection_token` the verify call
+         *     answered with (single use, 5 minutes) and the chosen `user_id` from its `accounts`. A wrong, used or expired
+         *     token, or an account that was not offered, is 422 `selection_invalid` (sign in again with a new code)
+         */
+        post: operations["phoneLogin.selectAccount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/auth/phone/send-code": {
         parameters: {
             query?: never;
@@ -125,6 +146,14 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Check the SMS code and sign in
+         * @description Without `account` (or with `account: customer`) the customer holding the phone signs in (created when there is
+         *     none). With `account: staff` the store staff account holding it as its login phone does, and a `device` of type
+         *     `web`, `partner_mobile` or `courier` is required: 403 `staff_account_not_found` when there is none; 409
+         *     `account_selection_required` with `selection_token` and `accounts` when the phone holds several (the same person
+         *     in two stores), and the client then calls POST /auth/phone/select-account.
+         */
         post: operations["phoneLogin.verify"];
         delete?: never;
         options?: never;
@@ -300,7 +329,8 @@ export interface paths {
          * @description Which zone and branch would serve `lat`/`lng`, what delivery costs (the free-delivery rule applied when `subtotal`
          *     is given) and the minimum order. 422 with `data.reason` when the point cannot be served:
          *     `outside_zone` (hududdan tashqarida), `zones_not_configured` (the store has not drawn zones) or `branch_closed`.
-         *     Money is a string with two decimals.
+         *     Money is a string with two decimals. Optional `branch`: price as checkout would with that `branch_id` (the best
+         *     zone that branch serves); `branch_outside_zone` when it serves none covering the point.
          */
         get: operations["deliveryZone.quote"];
         put?: never;
@@ -607,9 +637,19 @@ export interface paths {
          *     P1-21 (docs/MENU.md): `items.*.quantity` may be a fraction for items sold by weight (kg/l, at least
          *     `min_quantity`, in `quantity_step` steps); `items.*.modifiers` lists the chosen modifiers as uuids or
          *     `{id: uuid, quantity}`; prices always come from the server. 422 when a modifier rule is broken, the item is on
-         *     the branch's stop-list, its batch is sold out ("tugadi") or it is hidden on the channel. `channel` is
-         *     `telegram` (default) or `mobile`. An `Idempotency-Key` header makes retries safe: the same key with the same body
+         *     the branch's stop-list, its batch is sold out ("tugadi") or it is hidden on the channel. The channel is decided by
+         *     the server from the sign-in (P1-34): `mobile` for a token of a customer mobile app device, else `telegram`; a
+         *     `channel` in the body is accepted for older apps but ignored. `type=dine_in` is refused with 422 (hall orders
+         *     are taken by staff on the POS). An `Idempotency-Key` header makes retries safe: the same key with the same body
          *     within 24 hours returns the first response (header `Idempotent-Replayed: true`), with another body 409.
+         *
+         *     P1-32 (docs/ZONES.md): when the store has delivery zones, a `delivery` order is routed and priced by the zone
+         *     that covers `latitude`/`longitude`, exactly as `GET /delivery/quote` prices it: the zone's fee (free past its
+         *     threshold) and minimum order replace the store-wide ones, any fee the client sends is ignored. Without
+         *     `branch_id` the branch is picked automatically (the zone's branch, else the nearest open one); with it, that
+         *     branch must serve a zone covering the point. 422 with `data.reason`: `outside_zone`, `branch_outside_zone`,
+         *     `branch_closed`, or `below_minimum_order` (with `data.min_order_amount` and `data.subtotal`). Stores without
+         *     zones keep the branch radius rule and the store's delivery fee.
          */
         post: operations["order.store"];
         delete?: never;
@@ -1895,6 +1935,34 @@ export interface components {
          * @enum {string}
          */
         CourierType: "own" | "fleet";
+        /** DeliveryZone */
+        DeliveryZone: {
+            id: number;
+            store_id: number;
+            branch_id: number | null;
+            name: string;
+            polygon: {
+                type: string;
+                coordinates: unknown[];
+            };
+            min_lat: string;
+            max_lat: string;
+            min_lng: string;
+            max_lng: string;
+            area_km2: string;
+            delivery_price: string;
+            min_order_amount: string;
+            free_delivery_from: string | null;
+            eta_minutes: number | null;
+            priority: number;
+            active: boolean;
+            /** Format: date-time */
+            created_at: string | null;
+            /** Format: date-time */
+            updated_at: string | null;
+            store?: components["schemas"]["Store"];
+            branch?: components["schemas"]["Branch"] | null;
+        };
         /** Device */
         Device: {
             uuid: string;
@@ -2099,6 +2167,10 @@ export interface components {
             guests_count: number | null;
             hall_ref: string | null;
             table_ref: string | null;
+            delivery_zone_id: number | null;
+            delivery_zone_name: string | null;
+            delivery_zone_price: string | null;
+            delivery_min_order_amount: string | null;
             type: string;
             address: string | null;
             store?: components["schemas"]["Store"];
@@ -2106,6 +2178,7 @@ export interface components {
             courier?: components["schemas"]["User"] | null;
             manager?: components["schemas"]["User"] | null;
             branch?: components["schemas"]["Branch"] | null;
+            delivery_zone?: components["schemas"]["DeliveryZone"] | null;
             items?: components["schemas"]["OrderItem"][];
             status_histories?: components["schemas"]["OrderStatusHistory"][];
             payments?: components["schemas"]["Payment"][];
@@ -2337,6 +2410,9 @@ export interface components {
             created_at: string | null;
             /** Format: date-time */
             updated_at: string | null;
+            replaced_by_id: number | null;
+            /** Format: date-time */
+            grace_used_at: string | null;
             user?: components["schemas"]["User"];
             device?: components["schemas"]["Device"];
         };
@@ -2871,6 +2947,82 @@ export interface operations {
             401: components["responses"]["AuthenticationException"];
         };
     };
+    "phoneLogin.selectAccount": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    device: {
+                        /** @enum {string} */
+                        type: "web" | "partner_mobile" | "courier";
+                        /** Format: uuid */
+                        uuid?: string | null;
+                        name?: string | null;
+                        platform?: string | null;
+                        app_version?: string | null;
+                        push_token?: string | null;
+                    };
+                    selection_token: string;
+                    user_id: number;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            token: string;
+                            user: components["schemas"]["User"];
+                            store: components["schemas"]["Store"] | null;
+                            sms_verification_required: boolean;
+                            is_new_user: boolean;
+                            token_expires_at: string;
+                            refresh_token: string;
+                            refresh_token_expires_at: string;
+                            device: {
+                                uuid: string;
+                                type: string;
+                                name: string;
+                                platform: string | null;
+                                app_version: string | null;
+                                store_id: number | null;
+                                branch_id: number | null;
+                                user: {
+                                    id: number;
+                                    name: string;
+                                    role: string;
+                                } | null;
+                                has_push_token: boolean;
+                                last_seen_at: string | null;
+                                revoked_at: string | null;
+                                created_at: string | null;
+                            };
+                        };
+                    };
+                };
+            };
+            /** @description The selection token is unknown, expired or used, or the account was not offered */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     "phoneLogin.sendCode": {
         parameters: {
             query?: never;
@@ -2921,8 +3073,6 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    phone: string;
-                    code: string;
                     device?: {
                         /** @enum {string} */
                         type?: "courier" | "partner_mobile" | "customer_mobile" | "web";
@@ -2933,6 +3083,10 @@ export interface operations {
                         app_version?: string | null;
                         push_token?: string | null;
                     };
+                    phone: string;
+                    code: string;
+                    /** @enum {string} */
+                    account?: "customer" | "staff";
                 };
             };
         };
@@ -2947,7 +3101,7 @@ export interface operations {
                         message: string;
                         data: {
                             token: string;
-                            user: Record<string, never>;
+                            user: components["schemas"]["User"];
                             store: components["schemas"]["Store"] | null;
                             sms_verification_required: boolean;
                             is_new_user: boolean;
@@ -2976,6 +3130,16 @@ export interface operations {
                     };
                 };
             };
+            /** @description No store staff account holds this phone (account: staff) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Several accounts: customers sharing the phone, or (account: staff) several staff accounts to pick from with POST /auth/phone/select-account */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -3492,6 +3656,8 @@ export interface operations {
                 lng: number;
                 /** @description Cart total before delivery; enables the free-delivery and minimum-order checks. */
                 subtotal?: string;
+                /** @description Filial id: the branch the customer chose at checkout (P1-32). */
+                branch?: number;
             };
             header?: never;
             path?: never;
@@ -4396,7 +4562,10 @@ export interface operations {
                         quantity: number;
                         modifiers?: string[] | null;
                     }[];
-                    /** @enum {string|null} */
+                    /**
+                     * @description P1-34: accepted for older apps, ignored: the channel is the sign-in's (channelOf)
+                     * @enum {string|null}
+                     */
                     channel?: "telegram" | "mobile" | null;
                     /** @enum {string} */
                     type: "delivery" | "pickup" | "dine_in";
@@ -4438,7 +4607,23 @@ export interface operations {
                 };
             };
             401: components["responses"]["AuthenticationException"];
-            422: components["responses"]["ValidationException"];
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Yetkazib berish hududi: manzilga yetkazib bo'lmaydi yoki buyurtma hududning eng kam summasidan kam */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     "order.assignCourier": {

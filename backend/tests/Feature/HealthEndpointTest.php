@@ -73,7 +73,8 @@ class HealthEndpointTest extends TestCase
             ->assertOk()
             ->assertJsonPath('status', 'degraded')
             ->assertJsonPath('checks.scheduler.status', 'stale')
-            ->assertJsonPath('checks.scheduler.last_heartbeat_age_seconds', 400);
+            // The clock may tick between the put above and the request
+            ->assertJsonPath('checks.scheduler.last_heartbeat_age_seconds', fn (int $age) => $age >= 400 && $age <= 402);
     }
 
     public function test_queue_backlog_is_reported_and_a_long_queue_is_degraded(): void

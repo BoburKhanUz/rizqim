@@ -17,7 +17,7 @@ Production uchun yagona yo'l: Docker Compose (`docker-compose.yml`). Backend dep
 
 ## 1. Oldindan tayyorlash
 
-- **Server.** Docker Engine va Compose v2 (`docker compose`), `git`. Server qayta yoqilganda Docker o'zi ishga tushishi kerak: xizmatlar `restart: unless-stopped` bilan o'zlari qayta ko'tariladi. Portlar: `FRONTEND_PORT` (8080) va `BACKEND_PORT` (8000) tashqi proksi uchun; Postgres va Redis tashqariga ochilmaydi, ularni va ularning dasturlarini serverga o'rnatish shart emas.
+- **Server.** Docker Engine va Compose v2 (`docker compose`), `git`. Server qayta yoqilganda Docker o'zi ishga tushishi kerak: xizmatlar `restart: unless-stopped` bilan o'zlari qayta ko'tariladi. Portlar: `FRONTEND_PORT` (8080), `BACKEND_PORT` (8000) va hamkor veb-panel uchun `PARTNER_WEB_PORT` (3000, faqat `127.0.0.1` da, 4-bo'lim) tashqi proksi uchun; Postgres va Redis tashqariga ochilmaydi, ularni va ularning dasturlarini serverga o'rnatish shart emas.
 - **Domen va HTTPS.** Telegram Mini App va webhook faqat HTTPS bilan ishlaydi. Compose TLS o'rnatmaydi: sertifikatni tashqi reverse proxy (nginx, Caddy, Cloudflare) beradi (4-bo'lim).
 - **Telegram bot** (BotFather): token (`TELEGRAM_BOT_TOKEN`), username (`TELEGRAM_BOT_USERNAME` va Mini App'dagi `VITE_BOT_USERNAME`, `@` siz), Mini App manzili (`TELEGRAM_WEBAPP_URL`).
 - **Click / Payme** merchant: maxfiy kalitlar (`CLICK_SECRET_KEY`, `PAYME_SECRET_KEY`) va id'lar. Merchant kabinetida webhook manzillari: `https://<domen>/api/v1/payments/click/webhook` va `https://<domen>/api/v1/payments/payme/webhook`.
@@ -45,11 +45,11 @@ Hammasining ma'nosi va standarti: [backend/README.md](../backend/README.md), [cu
 | `FIREBASE_CREDENTIALS_JSON` (yoki `FIREBASE_CREDENTIALS` fayl yo'li), ixtiyoriy `FIREBASE_PROJECT_ID`, `PUSH_ANDROID_CHANNEL_ID` | Push xabarlar (P1-22). Bo'sh bo'lsa push o'chiq turadi va hech narsa buzilmaydi. Service account kalitini `base64 -w0 kalit.json` bilan bir qatorga o'tkazib bering; qadamlari `docs/PUSH.md` da |
 | `LOG_LEVEL` | `warning` tavsiya etiladi: Click, Payme va Telegram webhook payload'lari `info` darajasida to'liq logga yoziladi (shaxsiy ma'lumot bo'lishi mumkin) |
 
-**Ildizdagi `.env`** (compose o'qiydi): `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD` (postgres ham, backend ham shundan oladi va `backend/.env` dagilarni bekor qiladi), `REDIS_PASSWORD` (`$` belgisiz), `BACKEND_PORT` (8000), `FRONTEND_PORT` (8080), `VITE_BOT_USERNAME`, `VITE_API_URL`, `VITE_MAP_TILE_URL`, `VITE_MAP_ATTRIBUTION`, real-time uchun `BROADCAST_CONNECTION` (standart `null`; kalitlar bilan `reverb`), `REVERB_APP_ID`, `REVERB_APP_KEY`, `REVERB_APP_SECRET`, `REVERB_ALLOWED_ORIGINS` va `VITE_REVERB_*` (9-bo'lim; bular `backend/.env` dagilarni bekor qiladi). Ildizdagi `.env.example` ning pastki qismidagi `APP_ENV`, `CACHE_STORE`, `SUPERADMIN_*` kabi qatorlar faqat eslatma: konteyner ularni `backend/.env` dan o'qiydi, ildizdagi `.env` dan emas.
+**Ildizdagi `.env`** (compose o'qiydi): `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD` (postgres ham, backend ham shundan oladi va `backend/.env` dagilarni bekor qiladi), `REDIS_PASSWORD` (`$` belgisiz), `BACKEND_PORT` (8000), `FRONTEND_PORT` (8080), hamkor veb-panel uchun `PARTNER_WEB_PORT` (3000), `PARTNER_WEB_BIND` (standart `127.0.0.1`), `PARTNER_PUBLIC_API_BASE_URL` va `PARTNER_SESSION_COOKIE_SECURE` (4-bo'lim), `VITE_BOT_USERNAME`, `VITE_API_URL`, `VITE_MAP_TILE_URL`, `VITE_MAP_ATTRIBUTION`, real-time uchun `BROADCAST_CONNECTION` (standart `null`; kalitlar bilan `reverb`), `REVERB_APP_ID`, `REVERB_APP_KEY`, `REVERB_APP_SECRET`, `REVERB_ALLOWED_ORIGINS` va `VITE_REVERB_*` (9-bo'lim; bular `backend/.env` dagilarni bekor qiladi). Ildizdagi `.env.example` ning pastki qismidagi `APP_ENV`, `CACHE_STORE`, `SUPERADMIN_*` kabi qatorlar faqat eslatma: konteyner ularni `backend/.env` dan o'qiydi, ildizdagi `.env` dan emas.
 
 ## 3. Ishga tushirish
 
-Xizmatlar: `postgres` (17), `redis` (7, AOF, parol ixtiyoriy), `backend` (nginx + php-fpm, deploy qadamlarini shu bajaradi), `queue` (`--queue=default,broadcasts`: Telegram xabarlari va h.k., so'ng Reverb eventlari), `queue-reports` (`--queue=reports`: og'ir CSV hisobotlar, `SendOrderReport`), `scheduler`, `reverb` (WebSocket, 9-bo'lim), `frontend` (nginx). `queue`, `queue-reports`, `scheduler`, `reverb` va `frontend` `backend` healthcheck'i (`/up`) o'tgunicha kutadi.
+Xizmatlar: `postgres` (17), `redis` (7, AOF, parol ixtiyoriy), `backend` (nginx + php-fpm, deploy qadamlarini shu bajaradi), `queue` (`--queue=default,broadcasts`: Telegram xabarlari va h.k., so'ng Reverb eventlari), `queue-reports` (`--queue=reports`: og'ir CSV hisobotlar, `SendOrderReport`), `scheduler`, `reverb` (WebSocket, 9-bo'lim), `frontend` (nginx), `partner-web` (hamkor veb-panel, Next.js, 4-bo'lim). `queue`, `queue-reports`, `scheduler`, `reverb`, `frontend` va `partner-web` `backend` healthcheck'i (`/up`) o'tgunicha kutadi.
 
 ```bash
 git clone <repo-url> rizqim && cd rizqim
@@ -64,7 +64,7 @@ curl -fsS http://127.0.0.1:8000/up
 
 - **`APP_KEY`ni oldindan yozing.** Entrypoint kalit yaratmaydi (`key:generate` yo'q): `APP_KEY` bo'sh bo'lsa `app:check-production` konteynerni ishga tushirmaydi. Sabab: web, queue va scheduler alohida konteynerlar, ularning har biri o'z kalitini olardi va konteyner qayta yaratilganda kalit o'zgarardi, natijada sessiyalar va shifrlangan ma'lumotlar (masalan, Superadmin > To'lov Tizimlari kalitlari) o'qilmay qolardi.
 - Konteyner `APP_ENV=production` va boshqa xavfsizlik shartlari bajarilmasa ishga tushmaydi, shuning uchun lokal ishlab chiqish uchun compose mos emas ([backend/README.md](../backend/README.md)).
-- Portlar: Mini App `FRONTEND_PORT` da (statika; `/api/` va `/storage/` ni backendga uzatadi), admin panellar (`/admin`, `/superadmin`) va `/up` `BACKEND_PORT` da. Postgres va Redis tashqariga ochilmagan.
+- Portlar: Mini App `FRONTEND_PORT` da (statika; `/api/` va `/storage/` ni backendga uzatadi), admin panellar (`/admin`, `/superadmin`) va `/up` `BACKEND_PORT` da, hamkor veb-panel `PARTNER_WEB_PORT` da. Postgres va Redis tashqariga ochilmagan.
 - Volume'lar: `postgres_data`, `redis_data`, `backend_storage` (= `storage/app`; yuklangan rasmlar shu yerda).
 - Loglar: `storage/logs/laravel.log` konteyner ichida (volume emas, konteyner qayta yaratilganda yo'qoladi): `docker compose exec backend tail -f storage/logs/laravel.log`. `docker compose logs` da ko'rish uchun `backend/.env` ga `LOG_CHANNEL=stderr`.
 - Yangilash: `git pull && docker compose up -d --build`. Faqat `.env` o'zgarganda: `docker compose up -d --force-recreate` (`config:cache` konteyner ishga tushganda yig'iladi). `docker compose down -v` volume'larni, ya'ni bazani ham o'chiradi.
@@ -82,6 +82,50 @@ curl -fsS http://127.0.0.1:8000/up
 - `/admin` va `/superadmin` (Livewire/Filament aktivlari bilan) backend portida (`BACKEND_PORT`) xizmat qilinadi. Mini App nginx'i `/api/` va `/storage/` ni backendga uzatadi (yo'lni o'zgartirmasdan); boshqa yo'llar SPA uchun `index.html` ga qaytadi, `/assets/` dagi yo'q fayl 404 beradi.
 - Yuklangan rasm havolalari (`logo_url`, `image_url`) `asset('storage/...')` bilan **so'rov Host'idan** quriladi, `APP_URL` dan emas. Compose'dagi `frontend` `/storage/` ni ham backendga uzatadi va `Host` ni o'zgartirmaydi, shuning uchun havolalar Mini App domenida ochiladi. Boshqa nginx/proksi qo'ysangiz, `/storage/` ni ham yo'naltiring (yoki `/api/` proksisida `Host` ni backend domeniga o'zgartiring), aks holda rasmlar `index.html` qaytaradi. Deploydan keyin API javobidagi rasm URL'ini oching: `200` va `image/*` bo'lishi kerak.
 - Backend `X-Forwarded-Proto: https` bo'lsagina `https` havolalar quradi va faqat xususiy tarmoq manzillaridan kelgan `X-Forwarded-For`/`X-Forwarded-Proto` ga ishonadi. `customer/miniapp/docker/nginx.conf` kelgan `X-Forwarded-Proto` ni o'zgartirmay uzatadi va faqat u yo'q so'rovlarda o'zining `$scheme` ini qo'yadi. Shuning uchun TLS'ni compose'dan tashqaridagi proksi tugatsa, u `X-Forwarded-Proto: https` yuborishi shart, aks holda `$scheme` `http` bo'ladi: rasm URL'lari `https://` bilan boshlanishini tekshiring.
+
+### Hamkor veb-panel (`partner-web`)
+
+Restoran egasi, menejeri va boshqa xodimlar uchun veb-panel ([partner/web/README.md](../partner/web/README.md)). Compose'da
+`partner-web` xizmati (`partner/web/Dockerfile`, build konteksti repozitoriy ildizi, Mini App kabi), port `PARTNER_WEB_PORT`
+(3000). Mini App kabi, TLS'ni tashqi proksi beradi; panel **alohida hostda** turadi:
+
+| Host | Tashqi proksi qayerga uzatadi |
+|---|---|
+| `<domen>` (Mini App) | `FRONTEND_PORT` |
+| `panel.<domen>` (hamkor paneli) | `PARTNER_WEB_PORT` |
+
+- **Muhit (ildiz `.env`).** `PARTNER_PUBLIC_API_BASE_URL` — brauzer API'ga murojaat qiladigan ochiq manzil, `/api` bilan
+  tugaydi, odatda Mini App domenidagi `/api` (`https://<domen>/api`; Mini App nginx'i uni backendga uzatadi). Bo'sh qolsa
+  panel ishlamaydi: Next serveri backend'ga compose tarmog'i ichida (`API_BASE_URL=http://backend/api`, compose o'zi beradi)
+  murojaat qiladi, bu manzil brauzerga ko'rinmaydi. `PARTNER_SESSION_COOKIE_SECURE` standart `true` (cookie faqat HTTPS
+  orqali); `false` faqat `http://` orqali sinash uchun.
+- **CORS (`backend/.env`).** Brauzer API'ga panel origin'idan murojaat qiladi: `CORS_ALLOWED_ORIGINS` da panel origin'i
+  bo'lishi shart, masalan `CORS_ALLOWED_ORIGINS=https://panel.<domen>`. Ro'yxat berilsa standart originlar
+  (`TELEGRAM_WEBAPP_URL`, `APP_URL`) o'chadi; Mini App same-origin ishlagani uchun odatda bu muammo emas.
+- **Proksi.** `Host` sarlavhasini o'zgartirmay uzating (yoki `X-Forwarded-Host` yuboring): panelning kirish so'rovlari
+  (`/api/session/*`) `Origin` ni shu host bilan solishtiradi, boshqa host bilan 403 qaytaradi. nginx misoli:
+  `proxy_set_header Host $host; proxy_set_header X-Forwarded-Proto https; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`.
+- **Mijoz IP manzili.** Kirish so'rovlari (SMS kod, kodni tekshirish, refresh) backend'ga Next serveri orqali boradi;
+  panel backend'ga mijozning IP manzilini `X-Forwarded-For` da uzatadi (backend uni faqat xususiy tarmoqdan, ya'ni
+  compose tarmog'idagi `partner-web` dan qabul qiladi). Usiz backend'ning IP bo'yicha limitlari (SMS: daqiqada 1 ta,
+  noto'g'ri kod, refresh) va audit IP'si barcha hamkorlar uchun bitta bo'lardi. Panel kelgan `X-Forwarded-For` ning
+  faqat **oxirgi** yozuvini oladi — uni tashqi proksi yozadi (`$proxy_add_x_forwarded_for` yoki `$remote_addr`);
+  brauzer yuborgan chapdagi yozuvlar e'tiborga olinmaydi. Shuning uchun `partner-web` porti standart bo'yicha faqat
+  `127.0.0.1` da ochiladi (`PARTNER_WEB_BIND`): proksini chetlab portga kelgan kishi o'z IP'sini soxtalashtirib limitlarni
+  aylanib o'tardi. Proksi boshqa xostda bo'lsa `PARTNER_WEB_BIND` ni o'zgartiring va portni faydalanuvchilardan
+  firewall bilan yoping. Proksi oldida CDN (masalan Cloudflare) bo'lsa, proksi avval haqiqiy IP'ni tiklashi kerak
+  (nginx `real_ip` moduli: `set_real_ip_from <CDN tarmoqlari>; real_ip_header CF-Connecting-IP;`), aks holda oxirgi
+  yozuv CDN manzili bo'ladi. Mini App va backend portlariga bu shart emas: Mini App nginx'i o'zi ko'rgan manzilni
+  zanjir oxiriga qo'shadi.
+- **Kirish.** Xodim telefon raqami va SMS kod bilan kiradi (`docs/AUTH.md`, 1-bo'lim). Raqam xodim hisobiga "kirish raqami"
+  sifatida biriktirilgan bo'lishi kerak: egasi uchun Superadmin > Restoranlar > yaratishdagi "Phone Number (Login)", boshqa
+  xodimlar uchun do'kon panelidagi Xodimlar formasi. Bu o'zgarishdan oldin yaratilgan egalar uchun: Superadmin >
+  Foydalanuvchilar > "SMS bilan kirishni yoqish". Productionda SMS drayveri sozlangan bo'lishi kerak (Superadmin > Tizim
+  Sozlamalari).
+- **Tekshirish.** `docker compose ps` da `partner-web` healthy (`GET /login`); `https://panel.<domen>/login` ochiladi;
+  brauzer konsolida API so'rovlarida CORS xatosi yo'q.
+- Yangilash: `docker compose up -d --build partner-web` (sozlamalar runtime'da o'qiladi, `.env` o'zgarsa
+  `docker compose up -d --force-recreate partner-web` yetadi).
 
 ## 5. Birinchi ishga tushishdan keyin
 
@@ -233,7 +277,7 @@ docker compose exec -u www-data backend php artisan db:seed --class=SuperAdminSe
 docker compose exec -u www-data backend php artisan db:seed --class=LocationSeeder --force
 ```
 
-`COMPOSE_FILE` bo'lmasa har buyruqqa `-f docker-compose.yml -f docker-compose.staging.yml` qo'shing. Domen va HTTPS: 4-bo'limdagidek, staging domeniga alohida sertifikat va tashqi proksi (Mini App `FRONTEND_PORT`=8180 ga, `/admin` va `/superadmin` `BACKEND_PORT`=8100 ga). Telegram test botida Mini App manzili `TELEGRAM_WEBAPP_URL`; deploy `telegram:set-webhook` ni o'zi ishga tushiradi. Birinchi do'kon va superadmin: 5-bo'lim (test ma'lumotlari bilan). Faqat bitta xostda ishlatsangiz, `.env` dagi portlar (8100/8180) productionnikidan farq qilsin; loyiha va volume nomlari allaqachon alohida.
+`COMPOSE_FILE` bo'lmasa har buyruqqa `-f docker-compose.yml -f docker-compose.staging.yml` qo'shing. Domen va HTTPS: 4-bo'limdagidek, staging domeniga alohida sertifikat va tashqi proksi (Mini App `FRONTEND_PORT`=8180 ga, `/admin` va `/superadmin` `BACKEND_PORT`=8100 ga, hamkor paneli `panel.` hosti `PARTNER_WEB_PORT`=8130 ga; panel origin'i `backend/.env` dagi `CORS_ALLOWED_ORIGINS` da). Telegram test botida Mini App manzili `TELEGRAM_WEBAPP_URL`; deploy `telegram:set-webhook` ni o'zi ishga tushiradi. Birinchi do'kon va superadmin: 5-bo'lim (test ma'lumotlari bilan). Faqat bitta xostda ishlatsangiz, `.env` dagi portlar (8100/8180/8130) productionnikidan farq qilsin; loyiha va volume nomlari allaqachon alohida.
 
 **`app:check-production` staging'da.** Buyruq `APP_ENV=production` **yoki** `staging` ni qabul qiladi. Qolgan hamma shartlar staging'da ham o'zgarishsiz tekshiriladi (debug o'chiq, `APP_KEY`, Telegram secret va HTTPS manzil, Reverb kalitlari, standart super admin paroli yo'q): staging internetda turadi, shuning uchun "staging deb" zaiflashtirilmaydi. Production-only shart bitta: `APP_ENV` qiymatining o'zi (`local`/`testing` va boshqalar ikkalasida ham rad etiladi). Muvaffaqiyatli bo'lsa chiqadi: "Staging sozlamalari tekshiruvdan o'tdi".
 

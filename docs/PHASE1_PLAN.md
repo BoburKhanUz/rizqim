@@ -21,7 +21,8 @@ To'lqin 2    P1-21 Menyu + buyurtma modeli ┐
              P1-26 Flutter skeleti         ┘             ▼
 To'lqin 3    P1-31 Mini-app yangi menyuga  ┐
              P1-32 Zonalarni buyurtmaga ulash├ parallel ─┐
-             P1-33 Hujjatlar va POS_SPEC   ┘             ▼
+             P1-33 Hujjatlar va POS_SPEC   │
+             P1-36 Hamkor panelga kirish   ┘             ▼
              P1-34 Mustaqil review va tuzatishlar ───────┐
                                                          ▼
              P1-35 Staging'da tekshiruv            (bosqich tugadi)
@@ -78,6 +79,7 @@ Har bir qadam yoki to'lqin **alohida PR** bo'ladi (jami 4 ta PR). Siz merge qilg
 | P1-31 | **Mini-app'ni yangi menyuga ulash:** modifikator tanlash, kilogrammli taom, "tugadi" belgisi, stop-list real-time | Sonnet | Unit va e2e testlar, yorug' va qorong'i mavzuda suratlar |
 | P1-32 | **Zonalarni buyurtmaga ulash:** yetkazish narxi va minimal buyurtma zonadan olinadi, filial avtomatik tanlanadi | Opus | Pul testlari, mavjud buyurtma testlari |
 | P1-33 | **Hujjatlar:** `docs/ARCHITECTURE.md`, `docs/API.md`, `docs/POS_SPEC.md` (tanlangan format uchun ekranlar, ma'lumotlar modeli, internetsiz ishlash va sinxronlash qoidalari) | Opus | Siz POS_SPEC'ni tasdiqlaysiz |
+| P1-36 | **Hamkor panelga kirish:** xodim (egasi, menejer) SMS orqali kira oladi, panel origin'i CORS'ga qo'shiladi, `partner/web` docker-compose'ga kiradi. Kuryerni Telegram'siz (faqat ilova orqali) tayinlash mumkin | Opus | Auth testlari, hamkor web testlari, compose config |
 | P1-34 | **Ikki mustaqil review** (backend va frontend/infra) va topilmalarni tuzatish | 2 × Opus + tuzatuvchi | Topilmalar yopilgan, CI yashil |
 | P1-35 | **Staging'da tekshiruv:** image yig'ish, migratsiyalar, Reverb, push, Click/Payme sinov to'lovi | Men + siz (server kerak) | Tekshiruv ro'yxati to'liq |
 

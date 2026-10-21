@@ -39,7 +39,8 @@ class MenuChannelPricingTest extends TestCase
         $this->assertSame(OrderChannel::TELEGRAM, $order->channel);
         $this->assertNull($order->external_id);
 
-        $this->order([['variant_id' => $this->variant->uuid, 'quantity' => 1]], ['channel' => 'mobile'])->assertCreated();
+        // The channel is the sign-in's (P1-34): the customer mobile app's device token makes a mobile order
+        $this->mobileOrder([['variant_id' => $this->variant->uuid, 'quantity' => 1]])->assertCreated();
         $this->assertSame(1, Order::where('channel', 'mobile')->count());
 
         // A customer cannot claim to be the POS or an aggregator
@@ -85,7 +86,7 @@ class MenuChannelPricingTest extends TestCase
         $this->assertSame('94000.00', $order->getRawOriginal('total_price'));
         $this->assertSame('47000.00', $order->items()->first()->getRawOriginal('unit_price'));
 
-        $response = $this->order([['variant_id' => $this->variant->uuid, 'quantity' => 1]], ['channel' => 'mobile'])->assertCreated();
+        $response = $this->mobileOrder([['variant_id' => $this->variant->uuid, 'quantity' => 1]])->assertCreated();
         $this->assertSame('50000.00', Order::where('uuid', $response->json('data.order_uuid'))->value('total_price'));
     }
 
@@ -101,7 +102,7 @@ class MenuChannelPricingTest extends TestCase
         $this->assertSame(['Regular', 'Katta'], array_column($catalog('&channel=mobile')['variants'], 'name'));
         $response = $this->order([['variant_id' => $second->uuid, 'quantity' => 1]])->assertStatus(422);
         $this->assertSame("Uzr, 'Cheeseburger (Katta)' bu kanal orqali sotilmaydi. Iltimos, savatni yangilang.", $response->json('errors.items.0'));
-        $this->order([['variant_id' => $second->uuid, 'quantity' => 1]], ['channel' => 'mobile'])->assertCreated();
+        $this->mobileOrder([['variant_id' => $second->uuid, 'quantity' => 1]])->assertCreated();
 
         // The whole product
         $this->setPrices([['channel' => 'telegram', 'is_hidden' => true]])->assertOk();

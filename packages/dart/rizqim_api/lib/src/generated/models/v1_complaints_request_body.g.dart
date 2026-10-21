@@ -10,7 +10,7 @@ V1ComplaintsRequestBody _$V1ComplaintsRequestBodyFromJson(
   Map<String, dynamic> json,
 ) => V1ComplaintsRequestBody(
   orderId: (json['order_id'] as num).toInt(),
-  type: Type2.fromJson(json['type'] as String),
+  type: Type3.fromJson(json['type'] as String),
   description: json['description'] as String,
 );
 

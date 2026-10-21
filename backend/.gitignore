@@ -22,3 +22,7 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+# Firebase service account keys (P1-22, docs/PUSH.md): use FIREBASE_CREDENTIALS_JSON or a path outside the repo
+*firebase-adminsdk*.json
+*service-account*.json
+/storage/firebase*.json

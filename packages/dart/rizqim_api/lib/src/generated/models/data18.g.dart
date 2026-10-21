@@ -7,11 +7,15 @@ part of 'data18.dart';
 // **************************************************************************
 
 Data18 _$Data18FromJson(Map<String, dynamic> json) => Data18(
-  preferences: (json['preferences'] as List<dynamic>)
-      .map((e) => Preferences.fromJson(e as Map<String, dynamic>))
+  regions: (json['regions'] as List<dynamic>)
+      .map((e) => Regions.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  districts: (json['districts'] as List<dynamic>)
+      .map((e) => Districts.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 
 Map<String, dynamic> _$Data18ToJson(Data18 instance) => <String, dynamic>{
-  'preferences': instance.preferences,
+  'regions': instance.regions,
+  'districts': instance.districts,
 };

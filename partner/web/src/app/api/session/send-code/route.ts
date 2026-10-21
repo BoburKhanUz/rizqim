@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: 'Telefon raqami noto\'g\'ri.', reason: 'invalid_phone' }, { status: 422 });
   }
 
-  const result = await backendFetch('/v1/auth/phone/send-code', { body: { phone } });
+  const result = await backendFetch('/v1/auth/phone/send-code', { body: { phone }, request });
   if (result.status < 200 || result.status >= 300) return failure(result, 'SMS yuborib bo\'lmadi. Birozdan so\'ng qayta urinib ko\'ring.');
   return NextResponse.json({ ok: true });
 }

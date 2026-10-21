@@ -11,7 +11,7 @@ PostV1OwnerStopListResponse _$PostV1OwnerStopListResponseFromJson(
 ) => PostV1OwnerStopListResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data53.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data54.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1OwnerStopListResponseToJson(

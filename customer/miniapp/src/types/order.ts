@@ -1,6 +1,6 @@
 import type { Amount, Decimal } from './api';
 import type { BranchSummary } from './store';
-import type { Category, Product, ProductVariant } from './catalog';
+import type { Category, MenuUnit, Product, ProductVariant } from './catalog';
 import type { ApiUser } from './user';
 
 // Mirrors App\Enums\OrderStatus.
@@ -40,14 +40,29 @@ export interface OrderItemVariant extends ProductVariant {
   product?: (Product & { category?: Category | null }) | null;
 }
 
+// One chosen modifier of an order line, as the order snapshot keeps it (docs/MENU.md, "Buyurtma qatori").
+export interface OrderItemModifier {
+  id: number;
+  uuid: string;
+  group_id: number;
+  group_name: string;
+  name: string;
+  price_delta: Decimal;
+  quantity: number;
+  total: Decimal;
+}
+
 export interface OrderItem {
   id: number;
   order_id: number;
   product_variant_id: number | null;
   product_name: string; // snapshots, so they survive product edits
   variant_name: string | null;
-  quantity: number;
+  quantity: number; // a fraction for an item sold by weight (1.5)
+  unit?: MenuUnit; // missing on an older backend: pieces
   unit_price: Decimal;
+  modifiers?: OrderItemModifier[] | null;
+  modifiers_total?: Decimal;
   total_price: Decimal;
   created_at: string;
   updated_at: string;

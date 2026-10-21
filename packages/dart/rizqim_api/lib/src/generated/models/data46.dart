@@ -4,18 +4,18 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'settings.dart';
-
 part 'data46.g.dart';
 
 @JsonSerializable()
 class Data46 {
-  const Data46({required this.channels, required this.settings});
+  const Data46({required this.productId, required this.modifierGroups});
 
   factory Data46.fromJson(Map<String, Object?> json) => _$Data46FromJson(json);
 
-  final List<dynamic> channels;
-  final List<Settings> settings;
+  @JsonKey(name: 'product_id')
+  final int productId;
+  @JsonKey(name: 'modifier_groups')
+  final String modifierGroups;
 
   Map<String, Object?> toJson() => _$Data46ToJson(this);
 }

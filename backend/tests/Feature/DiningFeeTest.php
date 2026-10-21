@@ -91,7 +91,7 @@ class DiningFeeTest extends TestCase
         $this->assertNull($order->guests_count);
 
         // The mobile channel was configured for the service charge (the place fee stays pos_hall only)
-        $response = $this->order([['variant_id' => $this->variant->uuid, 'quantity' => 2]], ['channel' => 'mobile'])->assertCreated();
+        $response = $this->mobileOrder([['variant_id' => $this->variant->uuid, 'quantity' => 2]])->assertCreated();
         $order = Order::where('uuid', $response->json('data.order_uuid'))->firstOrFail();
         $this->assertSame('15000.00', $order->getRawOriginal('service_charge_amount'));
         $this->assertSame('0.00', $order->getRawOriginal('place_fee_amount'));

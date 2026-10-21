@@ -8,20 +8,12 @@ part 'data50.g.dart';
 
 @JsonSerializable()
 class Data50 {
-  const Data50({
-    required this.userId,
-    required this.staffCode,
-    required this.pinSetAt,
-  });
+  const Data50({required this.path, required this.url});
 
   factory Data50.fromJson(Map<String, Object?> json) => _$Data50FromJson(json);
 
-  @JsonKey(name: 'user_id')
-  final int userId;
-  @JsonKey(name: 'staff_code')
-  final String? staffCode;
-  @JsonKey(name: 'pin_set_at')
-  final String? pinSetAt;
+  final String path;
+  final String url;
 
   Map<String, Object?> toJson() => _$Data50ToJson(this);
 }

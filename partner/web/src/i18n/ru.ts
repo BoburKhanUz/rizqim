@@ -41,6 +41,7 @@ export const ru: Messages = {
   resend: 'Отправить код ещё раз',
   resendIn: 'Повторная отправка через {{seconds}} с',
   changePhone: 'Изменить номер',
+  chooseAccount: 'В какой аккаунт войти?',
   rateLimited: 'Слишком много попыток. Повторите чуть позже.',
 
   noAccessTitle: 'У этой учётной записи нет доступа к панели',

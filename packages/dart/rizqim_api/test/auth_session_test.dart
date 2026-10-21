@@ -385,6 +385,30 @@ void main() {
     });
   });
 
+  group('sign-in calls', () {
+    test(
+      'carry no token and never trigger a refresh, select-account included',
+      () async {
+        adapter.handler = (RequestOptions o) => refuse(401, 'Unauthenticated.');
+        await client.auth.signInUser(userSession());
+
+        for (final String path in <String>[
+          '/v1/auth/phone/send-code',
+          '/v1/auth/phone/verify',
+          '/v1/auth/phone/select-account',
+        ]) {
+          await expectLater(
+            client.dio.post<Object?>(path, data: <String, Object?>{}),
+            throwsA(isA<DioException>()),
+          );
+          expect(bearer(adapter.requests.last), isNull, reason: path);
+        }
+        expect(client.auth.refreshCalls, 0);
+        expect(adapter.count('/api/v1/auth/refresh'), 0);
+      },
+    );
+  });
+
   group('terminal pairing and staff sessions', () {
     test('pairs with a code typed without the dash and in lower case, and stores the terminal token', () async {
       adapter.handler = (RequestOptions o) =>

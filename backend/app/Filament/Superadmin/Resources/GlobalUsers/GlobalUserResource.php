@@ -158,10 +158,27 @@ class GlobalUserResource extends Resource
                     ])
                     ->modalSubmitAction(false)
                     ->modalCancelActionLabel('Yopish'),
+                // P1-36: a staff member's phone typed in without an SMS code (e.g. before SMS sign-in existed) becomes
+                // their login phone only when the platform vouches for it here
+                \Filament\Actions\Action::make('vouchLoginPhone')
+                    ->label('SMS bilan kirishni yoqish')
+                    ->icon('heroicon-o-device-phone-mobile')
+                    ->color('warning')
+                    ->visible(fn (User $record) => $record->role->isStoreStaff()
+                        && $record->phone_verified_at === null
+                        && is_string($record->phone)
+                        && preg_match(\App\Services\Auth\StaffPhoneLoginService::PHONE_PATTERN, $record->phone) === 1)
+                    ->requiresConfirmation()
+                    ->modalDescription(fn (User $record) => "{$record->phone} raqami egasi hamkor paneli va ilovalarga SMS kod bilan shu xodim hisobiga kira oladi. Raqam haqiqatan shu xodimniki ekanini tekshiring.")
+                    ->action(function (User $record) {
+                        app(\App\Services\Auth\StaffPhoneLoginService::class)->vouch($record, $record->phone);
+                        \Filament\Notifications\Notification::make()->title('SMS bilan kirish yoqildi')->success()->send();
+                    }),
                 ViewAction::make()
                     ->slideOver()
                     ->modalWidth('4xl'),
-                EditAction::make(),
+                EditAction::make()
+                    ->using(fn (User $record, array $data) => static::saveUser($record, $data)),
                 DeleteAction::make(),
             ])
             ->toolbarActions([
@@ -169,6 +186,30 @@ class GlobalUserResource extends Resource
                     DeleteBulkAction::make(),
                 ]),
             ]);
+    }
+
+    /**
+     * Save an edited user. A phone typed here is a contact detail (it loses its verification, User::booted), and a
+     * vouched login phone ends when the account leaves the store roles; when either drops a staff login phone, that
+     * is audited and the account's app sessions end (P1-34, StaffPhoneLoginService::loginPhoneChanged).
+     *
+     * @param  array<string, mixed>  $data
+     */
+    public static function saveUser(User $record, array $data): User
+    {
+        $loginPhone = $record->role->isStoreStaff() ? \App\Services\Auth\StaffPhoneLoginService::loginPhone($record) : null;
+        $via = $record->phone_verified_via;
+        $storeId = $record->store_id;
+
+        \Illuminate\Support\Facades\DB::transaction(function () use ($record, $data, $loginPhone, $via, $storeId) {
+            $record->update($data);
+
+            if ($loginPhone !== null && \App\Services\Auth\StaffPhoneLoginService::loginPhone($record) !== $loginPhone) {
+                app(\App\Services\Auth\StaffPhoneLoginService::class)->loginPhoneChanged($record, $loginPhone, $via, $storeId);
+            }
+        });
+
+        return $record;
     }
 
   public static function infolist(Schema $schema): Schema

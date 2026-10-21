@@ -7,17 +7,11 @@ part of 'data62.dart';
 // **************************************************************************
 
 Data62 _$Data62FromJson(Map<String, dynamic> json) => Data62(
-  device: Device7.fromJson(json['device'] as Map<String, dynamic>),
-  store: json['store'] == null
-      ? null
-      : Store2.fromJson(json['store'] as Map<String, dynamic>),
-  branch: json['branch'] == null
-      ? null
-      : Branch3.fromJson(json['branch'] as Map<String, dynamic>),
+  storeId: (json['store_id'] as num).toInt(),
+  inviteLink: json['invite_link'] as String,
 );
 
 Map<String, dynamic> _$Data62ToJson(Data62 instance) => <String, dynamic>{
-  'device': instance.device,
-  'store': instance.store,
-  'branch': instance.branch,
+  'store_id': instance.storeId,
+  'invite_link': instance.inviteLink,
 };

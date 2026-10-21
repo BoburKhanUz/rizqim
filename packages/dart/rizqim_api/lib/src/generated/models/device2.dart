@@ -11,7 +11,7 @@ part 'device2.g.dart';
 @JsonSerializable()
 class Device2 {
   const Device2({
-    this.type,
+    required this.type,
     this.uuid,
     this.name,
     this.platform,
@@ -22,7 +22,7 @@ class Device2 {
   factory Device2.fromJson(Map<String, Object?> json) =>
       _$Device2FromJson(json);
 
-  final Type? type;
+  final Type type;
   final String? uuid;
   final String? name;
   final String? platform;

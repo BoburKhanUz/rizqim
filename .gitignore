@@ -27,6 +27,9 @@ backend/bootstrap/cache/*.php
 backend/database/database.sqlite
 backend/.phpunit.result.cache
 backend/auth.json
+# Firebase service account keys (docs/PUSH.md), wherever they are put
+*firebase-adminsdk*.json
+*service-account*.json
 
 # Frontend (Vite/React)
 customer/miniapp/node_modules/

@@ -6,7 +6,7 @@ import 'package:json_annotation/json_annotation.dart';
 
 import 'items2.dart';
 import 'channel2.dart';
-import 'type3.dart';
+import 'type4.dart';
 import 'payment_method.dart';
 
 part 'v1_orders_request_body.g.dart';
@@ -33,8 +33,10 @@ class V1OrdersRequestBody {
   @JsonKey(name: 'store_id')
   final int storeId;
   final List<Items2> items;
+
+  /// P1-34: accepted for older apps, ignored: the channel is the sign-in's (channelOf)
   final Channel2? channel;
-  final Type3 type;
+  final Type4 type;
   @JsonKey(name: 'payment_method')
   final PaymentMethod paymentMethod;
   @JsonKey(name: 'branch_id')

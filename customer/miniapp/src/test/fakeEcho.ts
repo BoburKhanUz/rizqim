@@ -62,6 +62,13 @@ export class FakeEcho {
     return channel;
   }
 
+  // A public channel (no authorization), like Echo.channel(): recorded with the private ones
+  channel(name: string) {
+    const channel = new FakeChannel(name);
+    this.channels.push(channel);
+    return channel;
+  }
+
   leave(name: string) {
     this.left.push(name);
   }
@@ -79,7 +86,8 @@ export class FakeEcho {
     return found[found.length - 1];
   }
 
-  get channel(): FakeChannel {
+  // The first channel asked for (private or public)
+  get firstChannel(): FakeChannel {
     return this.channelNamed();
   }
 

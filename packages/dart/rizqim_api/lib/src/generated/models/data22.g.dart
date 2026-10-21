@@ -7,15 +7,15 @@ part of 'data22.dart';
 // **************************************************************************
 
 Data22 _$Data22FromJson(Map<String, dynamic> json) => Data22(
-  orderUuid: json['order_uuid'] as String,
-  orderNumber: json['order_number'] as String?,
-  status: json['status'] as String,
-  paymentUrl: json['payment_url'],
+  items: (json['items'] as List<dynamic>)
+      .map((e) => Items.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  unreadCount: (json['unread_count'] as num).toInt(),
+  pagination: Pagination.fromJson(json['pagination'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data22ToJson(Data22 instance) => <String, dynamic>{
-  'order_uuid': instance.orderUuid,
-  'order_number': instance.orderNumber,
-  'status': instance.status,
-  'payment_url': instance.paymentUrl,
+  'items': instance.items,
+  'unread_count': instance.unreadCount,
+  'pagination': instance.pagination,
 };

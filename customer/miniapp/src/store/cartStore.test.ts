@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { useCartStore, type CartItem } from './cartStore';
+import { createCheckoutAttempt } from '../lib/idempotency';
+import { cartAttemptStorage, cartLineId, cartLineTotal, quantityOfVariant, useCartStore, type CartItem, type CartModifier } from './cartStore';
 
 const burger: CartItem = {
   id: '1-v1',
@@ -182,5 +183,108 @@ describe('persistence', () => {
     const saved = JSON.parse(localStorage.getItem('cart-storage') ?? 'null');
     expect(saved.state.items).toEqual([{ ...burger, quantity: 2 }]);
     expect(saved.state.storeName).toBe('Evos');
+  });
+
+  it('keeps the open checkout attempt with the cart, and drops it with the cart', () => {
+    cart().addItem(burger, { name: 'Evos', address: 'Chilonzor 5' });
+    const key = createCheckoutAttempt(() => 'key-1', cartAttemptStorage).keyFor({ items: [1] });
+
+    const saved = JSON.parse(localStorage.getItem('cart-storage') ?? 'null');
+    expect(saved.state.checkoutAttempt).toEqual({ key, fingerprint: '{"items":[1]}' });
+    // The cart page opened again (a new attempt object): the same body keeps the key
+    expect(createCheckoutAttempt(() => 'key-2', cartAttemptStorage).keyFor({ items: [1] })).toBe('key-1');
+
+    cart().clearCart();
+    expect(cart().checkoutAttempt).toBeNull();
+  });
+});
+
+describe('refreshLines', () => {
+  it('takes the new price and modifier deltas into the matching lines only', () => {
+    const cheesy: CartItem = { ...burger, id: 'b+m', modifiers: [{ id: 5, uuid: 'm-5', groupId: 1, name: 'Pishloq', priceDelta: 3000, quantity: 1 }] };
+    cart().addItem(cheesy);
+    cart().addItem(cola);
+
+    cart().refreshLines([{ ...cheesy, price: 31000, quantity: 99, modifiers: [{ ...cheesy.modifiers![0], priceDelta: 4000 }] }]);
+
+    expect(cart().items.find((item) => item.id === 'b+m')).toMatchObject({ price: 31000, quantity: 1, modifiers: [{ priceDelta: 4000 }] });
+    expect(cart().items.find((item) => item.id === cola.id)).toEqual(cola);
+  });
+});
+
+const cheese: CartModifier = { id: 5, uuid: 'm-5', groupId: 1, name: 'Pishloq', priceDelta: 3000, quantity: 1 };
+const spicy: CartModifier = { id: 6, uuid: 'm-6', groupId: 1, name: 'Achchiq', priceDelta: 1000, quantity: 1 };
+const withModifiers = (modifiers: CartModifier[], quantity = 1): CartItem => ({ ...burger, id: cartLineId(burger.id, modifiers), modifiers, quantity });
+const meat: CartItem = {
+  id: '3-v3', productId: 3, variantId: 'v3', storeId: '10', name: 'Qazi (kg)', price: 120000, quantity: 0.5, unit: 'kg', quantityStep: 0.5, minQuantity: 0.5,
+};
+
+describe('lines with modifiers', () => {
+  it('keeps lines of one dish with different modifiers apart', () => {
+    cart().addItem(burger);
+    cart().addItem(withModifiers([cheese]));
+    cart().addItem(withModifiers([cheese, spicy]));
+
+    expect(cart().items).toHaveLength(3);
+    expect(new Set(cart().items.map((item) => item.id)).size).toBe(3);
+  });
+
+  it('merges the same choices, whatever order they were picked in', () => {
+    cart().addItem(withModifiers([cheese, spicy]));
+    cart().addItem(withModifiers([spicy, cheese]));
+
+    expect(cart().items).toHaveLength(1);
+    expect(cart().items[0].quantity).toBe(2);
+  });
+
+  it('keeps the id of a line without modifiers as it was', () => {
+    expect(cartLineId('1-v1', undefined)).toBe('1-v1');
+    expect(cartLineId('1-v1', [])).toBe('1-v1');
+  });
+
+  it('prices a line with the modifiers on every piece', () => {
+    expect(cartLineTotal(withModifiers([cheese, spicy], 2))).toBe(2 * (30000 + 3000 + 1000));
+  });
+
+  it('counts the stock of a variant over all its lines', () => {
+    cart().addItem(burger);
+    cart().addItem(withModifiers([cheese], 2));
+    cart().addItem(cola);
+
+    expect(quantityOfVariant(cart().items, 'v1')).toBe(3);
+    expect(quantityOfVariant(cart().items, undefined)).toBe(0);
+  });
+});
+
+describe('lines sold by weight', () => {
+  it('adds fractions without float noise', () => {
+    cart().addItem({ ...meat, quantity: 0.1 });
+    cart().addItem({ ...meat, quantity: 0.2 });
+
+    expect(cart().items[0].quantity).toBe(0.3);
+  });
+
+  it('prices the line like the server: 120 000 × 1.5 kg = 180 000, 33 333 × 0.5 rounds half up', () => {
+    cart().addItem({ ...meat, quantity: 1.5 });
+    expect(cart().getSubtotal()).toBe(180000);
+
+    cart().clearCart();
+    cart().addItem({ ...meat, price: 33333 });
+    expect(cart().getSubtotal()).toBe(16667);
+  });
+
+  it('counts a weighed line as one dish in the badge', () => {
+    cart().addItem({ ...meat, quantity: 2.5 });
+    cart().addItem(burger);
+    cart().addItem(burger);
+
+    expect(cart().getTotalItems()).toBe(3);
+  });
+
+  it('sets a fractional quantity exactly', () => {
+    cart().addItem(meat);
+    cart().updateQuantity('3-v3', 0.1 + 0.2);
+
+    expect(cart().items[0].quantity).toBe(0.3);
   });
 });

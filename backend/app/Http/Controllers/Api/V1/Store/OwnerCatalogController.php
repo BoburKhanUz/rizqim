@@ -201,7 +201,7 @@ class OwnerCatalogController extends Controller
             'variants' => 'required|json',
             'batch_tracked' => 'boolean',
         ]);
-        $this->validateVariantUnits($validated['variants']);
+        $this->validateVariantUnits($validated['variants'], $product);
 
         try {
             DB::beginTransaction();
@@ -295,9 +295,11 @@ class OwnerCatalogController extends Controller
     }
 
     /**
-     * P1-21: the optional sale-unit fields of a variants JSON row; 422 when one is invalid.
+     * P1-21: the optional sale-unit fields of a variants JSON row; 422 when one is invalid. The minimum of a weighed
+     * variant must be a multiple of its step (a field left out of an update keeps the saved variant's value), or no
+     * quantity at or above it would be accepted at checkout.
      */
-    private function validateVariantUnits(string $json): void
+    private function validateVariantUnits(string $json, ?Product $product = null): void
     {
         $rows = json_decode($json, true);
         if (!is_array($rows)) {
@@ -310,6 +312,28 @@ class OwnerCatalogController extends Controller
             'variants.*.min_quantity' => 'nullable|numeric|gt:0|max:1000|decimal:0,3',
             'variants.*.batch_consumption' => 'nullable|numeric|gt:0|max:1000|decimal:0,3',
         ]);
+        $validator->after(function (\Illuminate\Validation\Validator $validator) use ($rows, $product) {
+            if ($validator->errors()->isNotEmpty()) {
+                return;
+            }
+            foreach ($rows as $index => $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+                $saved = $product !== null && isset($row['id']) ? $product->variants()->whereKey($row['id'])->first() : null;
+                // An empty unit keeps the saved one (variantUnitFields drops it); empty step/minimum reset to the defaults
+                $unit = $row['unit'] ?? $saved?->unit->value;
+                if ($unit === null || !\App\Enums\MenuUnit::from((string) $unit)->isMeasured()) {
+                    continue;
+                }
+                $minimum = array_key_exists('min_quantity', $row) ? $row['min_quantity'] : $saved?->min_quantity;
+                $step = array_key_exists('quantity_step', $row) ? $row['quantity_step'] : $saved?->quantity_step;
+                $problem = \App\Support\QuantityRules::minimumProblem($minimum, $step);
+                if ($problem !== null) {
+                    $validator->errors()->add("variants.{$index}.min_quantity", $problem);
+                }
+            }
+        });
         $validator->validate();
     }
 

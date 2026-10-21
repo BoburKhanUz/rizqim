@@ -6,18 +6,14 @@ import 'package:json_annotation/json_annotation.dart';
 
 @JsonEnum()
 enum Type2 {
-  @JsonValue('WRONG_ITEM')
-  wrongItem('WRONG_ITEM'),
-  @JsonValue('ORDER_NOT_RECEIVED')
-  orderNotReceived('ORDER_NOT_RECEIVED'),
-  @JsonValue('QUALITY_ISSUE')
-  qualityIssue('QUALITY_ISSUE'),
-  @JsonValue('COURIER_ISSUE')
-  courierIssue('COURIER_ISSUE'),
-  @JsonValue('PAYMENT_ISSUE')
-  paymentIssue('PAYMENT_ISSUE'),
-  @JsonValue('OTHER')
-  other('OTHER'),
+  @JsonValue('courier')
+  courier('courier'),
+  @JsonValue('partner_mobile')
+  partnerMobile('partner_mobile'),
+  @JsonValue('customer_mobile')
+  customerMobile('customer_mobile'),
+  @JsonValue('web')
+  web('web'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

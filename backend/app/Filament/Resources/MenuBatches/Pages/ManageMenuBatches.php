@@ -46,7 +46,7 @@ class ManageMenuBatches extends ManageRecords
                         ->label('Variant')
                         ->placeholder('Barcha variantlar (har biri o\'z ulushi bilan)')
                         ->options(fn (Get $get) => $get('product_id') ? ProductVariant::where('product_id', $get('product_id'))->pluck('name', 'id')->all() : []),
-                    TextInput::make('quantity')->label('Miqdor (porsiya yoki kg)')->numeric()->minValue(0.001)->required(),
+                    TextInput::make('quantity')->label('Miqdor (porsiya yoki kg)')->numeric()->minValue(0.001)->maxValue(999999)->required(),
                     TextInput::make('label')->label('Belgi')->placeholder('Masalan: 2-qozon')->maxLength(100),
                 ])
                 ->action(function (array $data) {

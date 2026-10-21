@@ -11,7 +11,7 @@ PostV1DevicesResponse _$PostV1DevicesResponseFromJson(
 ) => PostV1DevicesResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data9.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data10.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1DevicesResponseToJson(

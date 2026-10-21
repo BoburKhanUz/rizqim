@@ -1,0 +1,56 @@
+# The build context of the images built from the REPOSITORY ROOT (docker-compose.yml: frontend, partner-web;
+# `docker build -f <app>/Dockerfile .`).
+#
+# BuildKit (the default builder) reads <Dockerfile>.dockerignore next to the Dockerfile INSTEAD of this file when there
+# is one: customer/miniapp/Dockerfile.dockerignore and partner/web/Dockerfile.dockerignore are allow-lists and decide
+# what those images see. This file is the safety net for the legacy builder (DOCKER_BUILDKIT=0), which ignores the
+# per-Dockerfile files, and for any future Dockerfile built from the root without its own: secrets and heavy folders
+# never leave the machine. The backend image's context is backend/ (backend/.dockerignore), infra/backup's is
+# infra/backup: this file does not apply to them.
+#
+# Keep in sync: nothing below may exclude what the root-context Dockerfiles COPY (customer/miniapp, partner/web,
+# packages/ts/ui, packages/ts/api-client with their package.json, package-lock.json and partner/web/.npmrc).
+
+# Secrets: env files (the .example ones stay), keys, service accounts, database dumps
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.*.example
+**/auth.json
+**/*.pem
+**/*.key
+**/*.jks
+**/*.keystore
+**/key.properties
+**/*firebase-adminsdk*.json
+**/*service-account*.json
+backups
+**/*.dump
+**/*.sql
+**/*.sql.gz
+
+# The backend is never built from here (context backend/): its storage, vendor and caches stay out
+backend/storage
+backend/vendor
+backend/bootstrap/cache
+
+# Version control, editors, tools
+.git
+**/.git
+.github
+.claude
+.idea
+.vscode
+_archive
+
+# Dependencies and build output (the images install and build their own)
+**/node_modules
+**/.dart_tool
+**/build
+**/dist
+**/.next
+**/coverage
+**/playwright-report
+**/test-results
+**/*.tsbuildinfo
+**/*.log

@@ -1,14 +1,14 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useCartStore, type PendingCartItem } from '../store/cartStore';
+import { useCartStore } from '../store/cartStore';
 import { useAddressStore } from '../store/useAddressStore';
 import { hapticFeedback } from '../lib/telegram';
-import { useCanAddToCart } from '../hooks/useCanAddToCart';
+import { useAddToCart } from '../hooks/useAddToCart';
 import { Button, EmptyState, InlineError, PageHeader, ProductImage, Section, buttonClasses } from '../components/ui';
 import api from '../services/api';
 import { MapPin, Search } from 'lucide-react';
 import HeroPromoSlider from '../components/HeroPromoSlider';
 import { Link, useNavigate } from 'react-router-dom';
-import VariantSelectorModal from '../components/VariantSelectorModal';
+import ProductSheet from '../components/ProductSheet';
 import { NotificationBell } from '../components/catalog/NotificationBell';
 import { ProductCard } from '../components/catalog/ProductCard';
 import { ReplaceCartDialog } from '../components/catalog/ReplaceCartDialog';
@@ -16,9 +16,9 @@ import { SearchField } from '../components/catalog/SearchField';
 import { StoreCard } from '../components/catalog/StoreCard';
 import { useLanguageStore } from '../store/languageStore';
 import { formatMoney } from '../lib/format';
-import { buildCartItem, getProductBasePrice, getStoreInfo } from '../lib/catalog';
+import { getProductBasePrice, getStoreInfo } from '../lib/catalog';
 import { getLocationParams } from '../lib/location';
-import type { ApiResponse, Category, FeedCatalog, Product, ProductVariant, Promo, StoreListItem } from '../types';
+import type { ApiResponse, Category, FeedCatalog, Product, Promo, StoreListItem } from '../types';
 
 export default function Home() {
   const navigate = useNavigate();
@@ -27,9 +27,8 @@ export default function Home() {
   const { addresses, selectedAddressId } = useAddressStore();
   const activeAddress = addresses.find(a => a.id === selectedAddressId) || addresses[0];
 
-  const { items: cartItems, addItem } = useCartStore();
-  const [pendingCartItem, setPendingCartItem] = useState<PendingCartItem | null>(null);
-  const [selectedProductForVariant, setSelectedProductForVariant] = useState<Product | null>(null);
+  const cartItems = useCartStore((state) => state.items);
+  const cart = useAddToCart({ storeInfoOf: (product) => getStoreInfo(product.store) });
 
   const [searchQuery, setSearchQuery] = useState('');
   const [categories, setCategories] = useState<Category[]>([]);
@@ -79,31 +78,6 @@ export default function Home() {
     setFavoriteStores(prev =>
       prev.includes(uuid) ? prev.filter(id => id !== uuid) : [...prev, uuid]
     );
-  };
-
-  const canAddVariant = useCanAddToCart();
-
-  // Puts one unit into the cart (unless the stock rule blocks it); another store's items in the cart ask the customer first
-  const addToCart = (product: Product, variant: ProductVariant | undefined) => {
-    const cartItem = buildCartItem(product, variant);
-    if (!canAddVariant(variant, cartItem.id)) return;
-    const storeInfo = getStoreInfo(product.store);
-
-    const isSuccess = addItem(cartItem, storeInfo);
-    if (!isSuccess) {
-      setPendingCartItem({ item: cartItem, storeInfo });
-    }
-  };
-
-  const handleAddToCart = (product: Product) => {
-    hapticFeedback('medium');
-
-    if (product.variants && product.variants.length > 1) {
-      setSelectedProductForVariant(product);
-      return;
-    }
-
-    addToCart(product, product.variants?.[0]);
   };
 
   const parentCategories = useMemo(() => {
@@ -222,7 +196,7 @@ export default function Home() {
             <h2 className="line-clamp-2 text-headline font-bold text-fg">{featuredProduct.name}</h2>
             {featuredProduct.description && <p className="line-clamp-1 text-footnote text-fg-muted">{featuredProduct.description}</p>}
             <p className="text-body font-bold text-fg">{formatMoney(getProductBasePrice(featuredProduct))}</p>
-            <Button className="mt-1" onClick={() => handleAddToCart(featuredProduct)}>
+            <Button className="mt-1" onClick={() => cart.start(featuredProduct)}>
               Buyurtma qilish
             </Button>
           </div>
@@ -278,7 +252,7 @@ export default function Home() {
                   product={product}
                   cartQty={cartQty}
                   onOpen={product.store?.uuid ? () => navigate(`/store/${product.store?.uuid}`) : undefined}
-                  onAdd={() => handleAddToCart(product)}
+                  onAdd={() => cart.start(product)}
                 />
               );
             })}
@@ -286,15 +260,15 @@ export default function Home() {
         )}
       </Section>
 
-      <ReplaceCartDialog pending={pendingCartItem} onClose={() => setPendingCartItem(null)} />
+      <ReplaceCartDialog pending={cart.pending} onClose={cart.clearPending} />
 
-      {/* Product Variant / Option Selector Sheet */}
-      <VariantSelectorModal
-        isOpen={!!selectedProductForVariant}
-        onClose={() => setSelectedProductForVariant(null)}
-        product={selectedProductForVariant}
-        onAdd={(variant) => {
-          if (selectedProductForVariant) addToCart(selectedProductForVariant, variant);
+      {/* The product sheet: variant, modifiers, weight */}
+      <ProductSheet
+        isOpen={!!cart.sheetProduct}
+        onClose={cart.closeSheet}
+        product={cart.sheetProduct}
+        onAdd={(choice) => {
+          if (cart.sheetProduct) cart.addVariant(cart.sheetProduct, choice.variant, choice);
         }}
       />
     </div>

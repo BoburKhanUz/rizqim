@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'preferences2.dart';
+import 'preferences.dart';
 
 part 'data19.g.dart';
 
@@ -14,7 +14,7 @@ class Data19 {
 
   factory Data19.fromJson(Map<String, Object?> json) => _$Data19FromJson(json);
 
-  final List<Preferences2> preferences;
+  final List<Preferences> preferences;
 
   Map<String, Object?> toJson() => _$Data19ToJson(this);
 }

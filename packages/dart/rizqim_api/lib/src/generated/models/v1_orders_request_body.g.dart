@@ -12,7 +12,7 @@ V1OrdersRequestBody _$V1OrdersRequestBodyFromJson(Map<String, dynamic> json) =>
       items: (json['items'] as List<dynamic>)
           .map((e) => Items2.fromJson(e as Map<String, dynamic>))
           .toList(),
-      type: Type3.fromJson(json['type'] as String),
+      type: Type4.fromJson(json['type'] as String),
       paymentMethod: PaymentMethod.fromJson(json['payment_method'] as String),
       channel: json['channel'] == null
           ? null

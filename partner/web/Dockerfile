@@ -1,7 +1,7 @@
 # Hamkor veb-panel (Next.js, standalone output). The build context is the REPOSITORY ROOT, because the app links two
 # packages from packages/ts/ (package.json: file: dependencies). Which files enter the context: Dockerfile.dockerignore.
 #   docker build -f partner/web/Dockerfile -t rizqim-partner-web .
-# NOT in docker-compose.yml yet (P1-35 adds the service, the reverse-proxy route and the CORS origin: README.md).
+# Served by docker-compose.yml as the `partner-web` service (P1-36; host, CORS origin and env: docs/DEPLOY.md, section 4).
 # Runtime configuration (no rebuild per environment): API_BASE_URL, PUBLIC_API_BASE_URL, SESSION_COOKIE_SECURE (.env.example).
 
 # Node 22 LTS, as CI

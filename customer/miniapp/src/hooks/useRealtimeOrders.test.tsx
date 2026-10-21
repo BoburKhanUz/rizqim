@@ -77,7 +77,7 @@ describe('useRealtimeOrders: connecting', () => {
     await settle();
 
     expect(echoInstances).toHaveLength(1);
-    expect(latestEcho().channel.name).toBe('user.42');
+    expect(latestEcho().firstChannel.name).toBe('user.42');
   });
 
   it.each([
@@ -177,7 +177,7 @@ describe('useRealtimeOrders: leaving', () => {
     await settle();
 
     expect(first.disconnected).toBe(true);
-    expect(latestEcho().channel.name).toBe('courier.77');
+    expect(latestEcho().firstChannel.name).toBe('courier.77');
   });
 });
 

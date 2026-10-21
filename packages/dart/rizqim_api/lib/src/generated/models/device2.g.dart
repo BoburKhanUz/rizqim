@@ -7,7 +7,7 @@ part of 'device2.dart';
 // **************************************************************************
 
 Device2 _$Device2FromJson(Map<String, dynamic> json) => Device2(
-  type: json['type'] == null ? null : Type.fromJson(json['type'] as String),
+  type: Type.fromJson(json['type'] as String),
   uuid: json['uuid'] as String?,
   name: json['name'] as String?,
   platform: json['platform'] as String?,

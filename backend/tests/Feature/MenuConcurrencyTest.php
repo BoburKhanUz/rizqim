@@ -115,6 +115,24 @@ class MenuConcurrencyTest extends TestCase
         $this->assertSame(3, count(array_filter(range(0, 3), fn (int $i) => file_get_contents("{$this->dir}/replayed-{$i}") === 'true')));
     }
 
+    public function test_concurrent_stops_of_one_item_make_one_entry(): void
+    {
+        // P1-34 review: staff stopping the same item at the same instant get one entry and no 500 (updateOrCreate's
+        // createOrFirst retries the unique violation inside a savepoint)
+        $body = ['type' => 'variant', 'id' => $this->variant->id, 'branch_id' => $this->branch->id, 'reason' => 'tugadi'];
+        // Every child sends at the same instant
+        $at = microtime(true) + 0.4;
+
+        $statuses = $this->race(array_fill(0, 6, $this->owner), function (User $owner) use ($body, $at) {
+            time_sleep_until(max($at, microtime(true) + 0.001));
+
+            return $this->actingAs($owner, 'sanctum')->postJson('/api/v1/owner/stop-list', $body);
+        }, fn () => null);
+
+        $this->assertSame([201, 201, 201, 201, 201, 201], $statuses);
+        $this->assertSame(1, \App\Models\StopListEntry::where('branch_id', $this->branch->id)->count());
+    }
+
     /**
      * Forks one child per actor; each waits for the row the parent holds locked, then sends its request at the same
      * moment as the others. Returns the HTTP statuses.

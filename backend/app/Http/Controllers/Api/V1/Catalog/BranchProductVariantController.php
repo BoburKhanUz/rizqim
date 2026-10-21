@@ -32,7 +32,8 @@ class BranchProductVariantController extends Controller
             return $this->error('Unauthorized.', [], 403);
         }
 
-        $branchId = $userRole === 'manager' ? $user->branch_id : $request->query('branch_id');
+        // An id past bigint reads as missing (a 422), never as a failing query
+        $branchId = $userRole === 'manager' ? $user->branch_id : \App\Support\RowId::parse($request->query('branch_id'));
         if (!$branchId) {
             return $this->error('Branch ID is required.', [], 422);
         }
@@ -97,9 +98,9 @@ class BranchProductVariantController extends Controller
         }
 
         $request->validate([
-            'branch_id' => 'required|exists:branches,id',
-            'product_id' => 'required|exists:products,id',
-            'product_variant_id' => 'required|exists:product_variants,id',
+            'branch_id' => 'bail|required|integer|min:1|exists:branches,id',
+            'product_id' => 'bail|required|integer|min:1|exists:products,id',
+            'product_variant_id' => 'bail|required|integer|min:1|exists:product_variants,id',
             'is_active' => 'required|boolean',
             'hidden_reason' => 'nullable|string|max:255',
             'sort_order' => 'nullable|integer',

@@ -11,7 +11,7 @@ GetV1CatalogAvailabilityResponse _$GetV1CatalogAvailabilityResponseFromJson(
 ) => GetV1CatalogAvailabilityResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data5.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data6.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1CatalogAvailabilityResponseToJson(

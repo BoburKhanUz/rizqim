@@ -20,8 +20,10 @@ taomga ulangan faol guruhda va o'zi faol, filial stop-listida emas, `max_quantit
 soni `min`–`max` oralig'ida. Xato bo'lsa 422 (`items.N.modifiers`), masalan "'Burger (Katta)': 'Sous' tanlovi
 majburiy.". Mijoz yuborgan narx hech qachon ishlatilmaydi.
 
-Bir xil variant va bir xil modifikatorli qatorlar birlashtiriladi; boshqa modifikatorli qatorlar alohida qator bo'lib
-qoladi. Qoldiq variantning umumiy miqdori bo'yicha tekshiriladi.
+Bir xil variant va bir xil modifikatorli **donali** qatorlar birlashtiriladi; boshqa modifikatorli qatorlar alohida
+qator bo'lib qoladi. Vazn bo'yicha (kg, l) qatorlar hech qachon birlashtirilmaydi: har biri alohida porsiya (o'z eng kam
+miqdori, modifikatorlari bir marta, o'z yaxlitlashi), shuning uchun buyurtma summasi mijoz ko'rgan qatorlar yig'indisiga
+aynan teng (2 × (0.5 kg + 5 000 sous) = 2 × 55 000 = 110 000). Qoldiq variantning umumiy miqdori bo'yicha tekshiriladi.
 
 ## 2. Vazn bo'yicha sotuv (kg, l)
 
@@ -74,7 +76,8 @@ filialida. Panelda "Stop-list" ekrani. Jurnal: `menu.stop_list_added`, `menu.sto
 
 ## 6. Mavjudlik va real-time
 
-`GET /catalog/availability?store_id=&branch_id=` — har bir faol filial uchun: `stopped` (`products`, `variants`,
+`GET /catalog/availability?store_id=&branch_id=` (`store_id` — uuid yoki son; juda katta yoki noto'g'ri son
+`store_id`/`branch_id` — 422) — har bir faol filial uchun: `stopped` (`products`, `variants`,
 `modifiers` id'lari), `stop_list` (sabab va `until`), `sold_out.variants` (partiya tugagan), `batches` (ochiq partiyalar
 va qoldig'i). Xuddi shu ma'lumot `GET /catalog?store_id=` javobida `availability` sifatida keladi.
 
@@ -86,11 +89,20 @@ hodisani olgach `GET /catalog/availability` ni qayta so'raydi.
 ## 7. Kanallar
 
 `orders.channel`: `telegram`, `mobile`, `pos_hall`, `pos_takeaway`, `aggregator` (eski buyurtmalar — `telegram`).
-`orders.external_id` — kanalning o'z raqami (agregator, POS sinxronlash), do'kon va kanal ichida yagona. Mijoz
-`POST /orders` da faqat `telegram` (standart) yoki `mobile` yubora oladi.
+`orders.external_id` — kanalning o'z raqami (agregator, POS sinxronlash), do'kon va kanal ichida yagona.
+
+`POST /orders` da kanalni **server** belgilaydi, kirish usulidan (P1-34): access token mijoz mobil ilovasining qurilmasiga
+bog'langan bo'lsa (`/auth/telegram` yoki `/auth/phone/verify` `device.type = customer_mobile` bilan, [AUTH.md](AUTH.md))
+— `mobile`, aks holda (Telegram Mini App'ning initData tokeni, qurilmasiz) — `telegram`. Tanadagi `channel` eski ilovalar
+uchun qabul qilinadi (`telegram` yoki `mobile`, boshqasi 422), lekin hisobga olinmaydi: Telegram'dan kirgan mijoz
+`channel=mobile` yuborib mobil narxni ololmaydi. Hamkor, kuryer va brauzer qurilmalari — `telegram`.
+
+`POST /orders` `type` — `delivery` yoki `pickup`. `dine_in` (zalda ovqatlanish) mijoz ilovalaridan **qabul qilinmaydi**
+(422, `errors.type`): zal buyurtmasini ofitsiant yoki kassa (POS) qabul qiladi. Filialsiz buyurtma umuman yaratilmaydi,
+chunki har bir qator filialning stop-listi va qozon qoldig'i bo'yicha tekshirilishi shart.
 
 `channel_prices`: variantning kanaldagi narxi va/yoki yashirilgani (`product_variant_id` bo'sh — butun mahsulot
-yashiriladi). Katalog (`GET /catalog`, `channel=telegram` standart, `channel=mobile`) kanal narxini `price` da,
+yashiriladi). Katalog (`GET /catalog`, `channel=telegram` standart, `channel=mobile`; faqat ko'rsatish uchun) kanal narxini `price` da,
 variantning o'z narxini `base_price` da ko'rsatadi, yashirilganlarni chiqarmaydi; checkout shu narxni oladi va
 yashirilganni 422 bilan rad etadi. Ega: `GET/PUT /owner/products/{id}/channel-prices` (`menu.manage`). Analitikada
 `by_channel`.
@@ -104,6 +116,14 @@ yuborsa, birinchi javob o'zgarmasdan qaytadi (`Idempotent-Replayed: true`), yang
 dublikat birinchisi tugashini kutadi va uning javobini oladi (10 soniyadan oshsa 409). Kalitlar `idempotency_keys`
 jadvalida (so'rov xeshi, javob, `expires_at`), har kuni tozalanadi. Boshqa endpointga ulash:
 `->middleware(EnsureIdempotency::class . ':scope')`.
+
+Kalit buyurtma bilan **bitta tranzaksiyada** "ishlatilgan" deb belgilanadi (`IdempotencyService::markApplied`, P1-34):
+buyurtma saqlangan bo'lsa, kalit ham belgilangan. Shuning uchun server buyurtmani saqlab, javobni yozishga ulgurmay
+to'xtasa yoki checkout 60 soniyadan uzoq cho'zilsa ham, takroriy so'rov ikkinchi buyurtma yaratmaydi: javob hali
+yozilmagan bo'lsa 409 oladi (ilova buyurtmalar ro'yxatini yangilaydi). Kalitni qo'lga kiritgan har bir urinish uni
+o'zining `locked_until` qiymati bilan "egallaydi": kaliti boshqa urinishga o'tib ketgan urinish buyurtmasini saqlay olmaydi
+(409, tranzaksiya bekor qilinadi) va boshqaning kalitini bo'shatmaydi. Endpoint `markApplied` ni chaqirmasa, avvalgidek
+ishlaydi.
 
 ## 9. Xizmat haqi va joy narxi (POS uchun)
 

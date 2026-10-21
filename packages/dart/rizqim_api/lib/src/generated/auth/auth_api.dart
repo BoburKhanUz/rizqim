@@ -8,11 +8,13 @@ import 'package:retrofit/retrofit.dart';
 import '../models/get_v1_me_permissions_response.dart';
 import '../models/post_v1_auth_logout_all_response.dart';
 import '../models/post_v1_auth_logout_response.dart';
+import '../models/post_v1_auth_phone_select_account_response.dart';
 import '../models/post_v1_auth_phone_send_code_response.dart';
 import '../models/post_v1_auth_phone_verify_response.dart';
 import '../models/post_v1_auth_refresh_response.dart';
 import '../models/post_v1_auth_telegram_response.dart';
 import '../models/post_v1_phone_send_code_response.dart';
+import '../models/v1_auth_phone_select_account_request_body.dart';
 import '../models/v1_auth_phone_send_code_request_body.dart';
 import '../models/v1_auth_phone_verify_request_body.dart';
 import '../models/v1_auth_refresh_request_body.dart';
@@ -35,11 +37,26 @@ abstract class AuthApi {
   @POST('/v1/auth/logout-all')
   Future<PostV1AuthLogoutAllResponse> tokenLogoutAll();
 
+  /// Finish a staff sign-in when the phone holds several staff accounts: the `selection_token` the verify call.
+  /// answered with (single use, 5 minutes) and the chosen `user_id` from its `accounts`. A wrong, used or expired.
+  /// token, or an account that was not offered, is 422 `selection_invalid` (sign in again with a new code).
+  @POST('/v1/auth/phone/select-account')
+  Future<PostV1AuthPhoneSelectAccountResponse> phoneLoginSelectAccount({
+    @Body() required V1AuthPhoneSelectAccountRequestBody body,
+  });
+
   @POST('/v1/auth/phone/send-code')
   Future<PostV1AuthPhoneSendCodeResponse> phoneLoginSendCode({
     @Body() required V1AuthPhoneSendCodeRequestBody body,
   });
 
+  /// Check the SMS code and sign in.
+  ///
+  /// Without `account` (or with `account: customer`) the customer holding the phone signs in (created when there is.
+  /// none). With `account: staff` the store staff account holding it as its login phone does, and a `device` of type.
+  /// `web`, `partner_mobile` or `courier` is required: 403 `staff_account_not_found` when there is none; 409.
+  /// `account_selection_required` with `selection_token` and `accounts` when the phone holds several (the same person.
+  /// in two stores), and the client then calls POST /auth/phone/select-account.
   @POST('/v1/auth/phone/verify')
   Future<PostV1AuthPhoneVerifyResponse> phoneLoginVerify({
     @Body() required V1AuthPhoneVerifyRequestBody body,

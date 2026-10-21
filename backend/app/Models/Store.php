@@ -261,6 +261,17 @@ class Store extends Model
 
     protected static function booted()
     {
+        // P1-34: a deleted store's subscription is closed once its ended months are billed (docs/BILLING.md); if this
+        // fails, the daily billing run closes it the same way
+        static::softDeleted(function (Store $store) {
+            try {
+                $actor = auth()->user();
+                app(\App\Services\Finance\SubscriptionService::class)->closeForDeletedStore($store, $actor instanceof User ? $actor : null);
+            } catch (\Throwable $e) {
+                report($e);
+            }
+        });
+
         static::creating(function ($store) {
             if (empty($store->slug)) {
                 $store->slug = \Illuminate\Support\Str::slug($store->name) . '-' . uniqid();

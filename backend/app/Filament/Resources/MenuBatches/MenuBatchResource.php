@@ -126,8 +126,8 @@ class MenuBatchResource extends Resource
                     ->icon('heroicon-m-plus-circle')
                     ->visible(fn (MenuBatch $record) => $record->closed_at === null && static::canManage($record))
                     ->schema([
-                        TextInput::make('add')->label("Qo'shish (yana pishirildi)")->numeric()->minValue(0.001),
-                        TextInput::make('quantity_left')->label('Yoki qoldiqni belgilash')->numeric()->minValue(0),
+                        TextInput::make('add')->label("Qo'shish (yana pishirildi)")->numeric()->minValue(0.001)->maxValue(999999),
+                        TextInput::make('quantity_left')->label('Yoki qoldiqni belgilash')->numeric()->minValue(0)->maxValue(999999),
                         TextInput::make('reason')->label('Sabab')->maxLength(255),
                     ])
                     ->action(function (MenuBatch $record, array $data) {

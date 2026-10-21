@@ -7,7 +7,14 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use App\Traits\ApiResponse;
 use App\Actions\Order\CreateOrderAction;
+use App\Domain\Delivery\DeliveryUnavailableException;
 use App\Enums\CancelReason;
+use App\Enums\DeviceType;
+use App\Enums\OrderChannel;
+use App\Enums\OrderType;
+use App\Models\Device;
+use App\Services\Idempotency\IdempotencyService;
+use Illuminate\Support\Facades\DB;
 use App\Enums\OrderStatus;
 use App\Models\Order;
 use App\Services\Notifications\NotificationFeedService;
@@ -40,7 +47,22 @@ class OrderController extends Controller
         protected OrderQueryService $orders,
         protected OrderAlertService $alerts,
         protected PaymentLinkService $paymentLinks,
+        protected IdempotencyService $idempotency,
     ) {}
+
+    /**
+     * The channel of an order placed through POST /orders (P1-34, docs/MENU.md §7): `mobile` when the access token is
+     * bound to a customer mobile app device (POST /auth/telegram or /auth/phone/verify with `device.type =
+     * customer_mobile`, docs/AUTH.md), else `telegram` (the Mini App's initData token has no device).
+     */
+    private function channelOf(Request $request): OrderChannel
+    {
+        // A TransientToken (session, tests) has no device
+        $deviceId = data_get($request->user()?->currentAccessToken(), 'device_id');
+        $device = $deviceId ? Device::whereKey($deviceId)->whereNull('revoked_at')->first(['id', 'type']) : null;
+
+        return $device?->type === DeviceType::CUSTOMER_MOBILE ? OrderChannel::MOBILE : OrderChannel::TELEGRAM;
+    }
 
     /**
      * List orders
@@ -163,24 +185,37 @@ class OrderController extends Controller
      * P1-21 (docs/MENU.md): `items.*.quantity` may be a fraction for items sold by weight (kg/l, at least
      * `min_quantity`, in `quantity_step` steps); `items.*.modifiers` lists the chosen modifiers as uuids or
      * `{id: uuid, quantity}`; prices always come from the server. 422 when a modifier rule is broken, the item is on
-     * the branch's stop-list, its batch is sold out ("tugadi") or it is hidden on the channel. `channel` is
-     * `telegram` (default) or `mobile`. An `Idempotency-Key` header makes retries safe: the same key with the same body
+     * the branch's stop-list, its batch is sold out ("tugadi") or it is hidden on the channel. The channel is decided by
+     * the server from the sign-in (P1-34): `mobile` for a token of a customer mobile app device, else `telegram`; a
+     * `channel` in the body is accepted for older apps but ignored. `type=dine_in` is refused with 422 (hall orders
+     * are taken by staff on the POS). An `Idempotency-Key` header makes retries safe: the same key with the same body
      * within 24 hours returns the first response (header `Idempotent-Replayed: true`), with another body 409.
+     *
+     * P1-32 (docs/ZONES.md): when the store has delivery zones, a `delivery` order is routed and priced by the zone
+     * that covers `latitude`/`longitude`, exactly as `GET /delivery/quote` prices it: the zone's fee (free past its
+     * threshold) and minimum order replace the store-wide ones, any fee the client sends is ignored. Without
+     * `branch_id` the branch is picked automatically (the zone's branch, else the nearest open one); with it, that
+     * branch must serve a zone covering the point. 422 with `data.reason`: `outside_zone`, `branch_outside_zone`,
+     * `branch_closed`, or `below_minimum_order` (with `data.min_order_amount` and `data.subtotal`). Stores without
+     * zones keep the branch radius rule and the store's delivery fee.
      */
+    #[ApiDocResponse(422, type: 'array{success: false, message: string, data: array{reason: string, min_order_amount?: string, subtotal?: string}}', description: "Yetkazib berish hududi: manzilga yetkazib bo'lmaydi yoki buyurtma hududning eng kam summasidan kam")]
     #[HeaderParameter('Idempotency-Key', description: 'Optional, 1-255 visible characters (e.g. a UUID made per checkout attempt). Same key + same body within 24 hours: the first response is returned again; another body: 409.', type: 'string')]
     public function store(Request $request): JsonResponse
     {
+        // bail on the ids: one past bigint is a 422 here, never a database error from the exists query
         $request->validate([
-            'store_id' => 'required|exists:stores,id',
+            'store_id' => 'bail|required|integer|min:1|exists:stores,id',
             'items' => 'required|array|min:1',
             'items.*.variant_id' => 'required|uuid',
             // P1-21: a fraction for items sold by weight (0.5 kg, at most 3 decimals); pieces stay whole (checked per unit)
             'items.*.quantity' => 'required|numeric|gt:0|max:9999',
             'items.*.modifiers' => 'nullable|array|max:50',
+            // P1-34: accepted for older apps, ignored: the channel is the sign-in's (channelOf)
             'channel' => ['nullable', 'string', Rule::in(\App\Enums\OrderChannel::customerValues())],
             'type' => 'required|string|in:delivery,pickup,dine_in',
             'payment_method' => 'required|string|in:cash,click,payme,uzum,paynet,keshbek',
-            'branch_id' => 'required_if:type,pickup|nullable|exists:branches,id',
+            'branch_id' => 'bail|required_if:type,pickup|nullable|integer|min:1|exists:branches,id',
             'address' => 'required_if:type,delivery|nullable|string',
             'latitude' => 'required_if:type,delivery|nullable|numeric',
             'longitude' => 'required_if:type,delivery|nullable|numeric',
@@ -188,13 +223,28 @@ class OrderController extends Controller
             'promo_code' => 'nullable|string|max:50',
         ]);
 
+        // P1-34: a hall order is taken by a waiter or the till (the POS path), never from the customer apps: without a
+        // branch it would skip the branch's stop-list and batch checks
+        if ($request->input('type') === OrderType::DINE_IN->value) {
+            throw ValidationException::withMessages([
+                'type' => "Zalda ovqatlanish buyurtmasini ilovadan berib bo'lmaydi: uni ofitsiant yoki kassa qabul qiladi. Yetkazib berish yoki olib ketishni tanlang.",
+            ]);
+        }
+
         try {
-            // Its "new" status history row is written by the action itself
-            $order = $this->createOrderAction->execute(
-                $request->user(),
-                $request->items,
-                $request->only(['store_id', 'type', 'payment_method', 'address', 'latitude', 'longitude', 'branch_id', 'notes', 'promo_code', 'channel'])
-            );
+            $payload = $request->only(['store_id', 'type', 'payment_method', 'address', 'latitude', 'longitude', 'branch_id', 'notes', 'promo_code']);
+            // P1-34: the channel (its prices and visibility) is decided by how the customer signed in, not by the body
+            $payload['channel'] = $this->channelOf($request);
+
+            // The Idempotency-Key is marked used in the order's own transaction, so the order and the key commit
+            // together: a retry can never place it a second time (IdempotencyService::markApplied)
+            $order = DB::transaction(function () use ($request, $payload) {
+                // Its "new" status history row is written by the action itself
+                $order = $this->createOrderAction->execute($request->user(), $request->items, $payload);
+                $this->idempotency->markApplied($request);
+
+                return $order;
+            });
 
             $this->alerts->newOrder($order);
 
@@ -207,6 +257,12 @@ class OrderController extends Controller
 
         } catch (\Illuminate\Validation\ValidationException $e) {
             throw $e;
+        } catch (DeliveryUnavailableException $e) {
+            // P1-32: delivery zones, the same shape as GET /delivery/quote (data.reason, plus e.g. min_order_amount)
+            return $this->error($e->getMessage(), $e->data(), 422);
+        } catch (\Symfony\Component\HttpKernel\Exception\ConflictHttpException $e) {
+            // The Idempotency-Key's claim was taken over by a retry: this attempt was rolled back
+            return $this->error($e->getMessage(), [], 409);
         } catch (\Exception $e) {
             return $this->error($e->getMessage(), [], 400);
         }

@@ -113,7 +113,7 @@ class ModifierGroupResource extends Resource
                         ->helperText("Bo'sh: cheklanmagan"),
                     Toggle::make('is_required')->label('Majburiy')->default(false),
                     Toggle::make('is_active')->label('Faol')->default(true),
-                    TextInput::make('sort_order')->label('Tartib')->numeric()->default(0),
+                    TextInput::make('sort_order')->label('Tartib')->numeric()->integer()->minValue(-1000000)->maxValue(1000000)->default(0),
                 ])->columns(2),
             Section::make('Modifikatorlar')
                 ->schema([
@@ -126,7 +126,7 @@ class ModifierGroupResource extends Resource
                         ->collapsible()
                         ->schema([
                             TextInput::make('name')->label('Nomi')->required()->maxLength(255)->columnSpan(2),
-                            TextInput::make('price_delta')->label("Narx qo'shimchasi")->numeric()->minValue(0)->default(0)->prefix('UZS')->required()->columnSpan(2),
+                            TextInput::make('price_delta')->label("Narx qo'shimchasi")->numeric()->minValue(0)->maxValue(100000000)->default(0)->prefix('UZS')->required()->columnSpan(2),
                             TextInput::make('max_quantity')->label("Ko'pi bilan (marta)")->numeric()->minValue(1)->maxValue(50)->default(1)->required(),
                             Toggle::make('is_active')->label('Faol')->default(true),
                             Select::make('product_variant_id')

@@ -169,6 +169,9 @@ return [
         'device_ttl_days' => (int) env('AUTH_DEVICE_TOKEN_TTL_DAYS', 365),
         'staff_session_ttl' => (int) env('AUTH_STAFF_SESSION_TTL', 720),
         'max_devices_per_user' => 20,
+        // A retry with the refresh token spent this many seconds ago, whose new pair was never used, rotates once more
+        // instead of counting as reuse (a lost response); at most 60
+        'refresh_grace_seconds' => 30,
     ],
 
     'pairing' => [

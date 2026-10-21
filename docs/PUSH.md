@@ -53,8 +53,12 @@ Loyihani Rizqim egasi yaratadi (bepul, Spark tarifi yetadi).
 
 | O'zgaruvchi | Ma'nosi |
 |---|---|
-| `FIREBASE_CREDENTIALS_JSON` | Service account JSON faylning base64 ko'rinishi, bir qatorda: `base64 -w0 rizqim-firebase-adminsdk.json`. Docker uchun eng qulayi |
-| `FIREBASE_CREDENTIALS` | Yoki JSON fayl yo'li (nisbiy yo'l `backend/` dan boshlanadi). Ikkalasi berilsa `FIREBASE_CREDENTIALS_JSON` ustun |
+| `FIREBASE_CREDENTIALS_JSON` | **Tavsiya etiladi.** Service account JSON faylning base64 ko'rinishi, bir qatorda: `base64 -w0 rizqim-firebase-adminsdk.json`. Docker uchun eng qulayi |
+| `FIREBASE_CREDENTIALS` | Yoki JSON fayl yo'li. Faylni `backend/` papkasidan **tashqarida** saqlang (masalan `/etc/rizqim/firebase.json`, konteynerga volume bilan ulanadi): `backend/` ichidagi fayl Docker obraziga (`COPY . .`) tushishi mumkin. Nisbiy yo'l `backend/` dan boshlanadi. Ikkalasi berilsa `FIREBASE_CREDENTIALS_JSON` ustun |
+
+Kalit fayli hech qachon gitga yoki Docker obraziga tushmasligi kerak. Ehtiyot chorasi sifatida `*firebase-adminsdk*.json`,
+`*service-account*.json` va `backend/storage/firebase*.json` nomli fayllar `.gitignore` (ildiz va `backend/`) hamda
+`backend/.dockerignore` da e'tiborsiz qoldiriladi, lekin boshqa nom bilan saqlangan fayl himoyalanmaydi.
 | `FIREBASE_PROJECT_ID` | Odatda kerak emas: JSON ichidagi `project_id` ishlatiladi |
 | `PUSH_ANDROID_CHANNEL_ID` | Android bildirishnoma kanali, standart `orders`. Ilova shu nomli kanal yaratishi shart |
 
@@ -153,9 +157,10 @@ so'rov yuborilmaydi.
 
 ## 7. Bilish kerak bo'lgan cheklovlar
 
-- Buyurtmani kuryerga biriktirish hozir faqat Telegram orqali ulangan kuryerni tanlaydi (`OrderStatusService::joined()`), shuning
-  uchun faqat ilovasi bor (Telegramsiz) kuryer avtomatik biriktirilmaydi. Push uni topshiriq haqida xabardor qila oladi, lekin
-  tanlash qoidasini o'zgartirish keyingi vazifa (kuryer ilovasi bilan birga).
+- Buyurtmani kuryerga biriktirish Telegramga bog'liq emas (P1-36, `OrderStatusService::joined()`): Telegram taklifini qabul
+  qilgan yoki ilovaga kirgan (o'chirilmagan shaxsiy qurilmasi bor) kuryer qo'lda ham, avtomatik ham biriktiriladi. Telegrami
+  bor kuryer xabarni Telegramda, faqat ilovasi bor (o'z yoki Rizqim kuryeri) — push orqali oladi; push tokeni yo'q bo'lsa
+  ham buyurtma biriktiriladi (ilova ochilganda ko'rinadi). Taklifning `temp_…` belgisiga Telegram xabari yuborilmaydi.
 - Push matnlari qisqa va o'zbekcha (`App\Services\Push\OrderPushMessages`); boshqa tillar kerak bo'lsa shu klass kengaytiriladi.
 - Foydalanuvchi uchun tilga qarab matn tanlash va rasmli push hozircha yo'q.
 - Web push (brauzer) uchun `web` turidagi qurilma tokeni qabul qilinadi, lekin service worker va VAPID sozlamalari bu vazifada

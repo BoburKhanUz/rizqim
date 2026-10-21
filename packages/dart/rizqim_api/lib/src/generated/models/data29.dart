@@ -4,48 +4,29 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'user10.dart';
+import 'variants.dart';
 
 part 'data29.g.dart';
 
 @JsonSerializable()
 class Data29 {
   const Data29({
-    required this.uuid,
-    required this.type,
+    required this.productId,
     required this.name,
-    required this.platform,
-    required this.appVersion,
-    required this.storeId,
-    required this.branchId,
-    required this.user,
-    required this.hasPushToken,
-    required this.lastSeenAt,
-    required this.revokedAt,
-    required this.createdAt,
+    required this.description,
+    required this.imageUrl,
+    required this.variants,
   });
 
   factory Data29.fromJson(Map<String, Object?> json) => _$Data29FromJson(json);
 
-  final String uuid;
-  final String type;
+  @JsonKey(name: 'product_id')
+  final int productId;
   final String name;
-  final String? platform;
-  @JsonKey(name: 'app_version')
-  final String? appVersion;
-  @JsonKey(name: 'store_id')
-  final int? storeId;
-  @JsonKey(name: 'branch_id')
-  final int? branchId;
-  final User10? user;
-  @JsonKey(name: 'has_push_token')
-  final bool hasPushToken;
-  @JsonKey(name: 'last_seen_at')
-  final String? lastSeenAt;
-  @JsonKey(name: 'revoked_at')
-  final String? revokedAt;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
+  final String? description;
+  @JsonKey(name: 'image_url')
+  final String? imageUrl;
+  final List<Variants> variants;
 
   Map<String, Object?> toJson() => _$Data29ToJson(this);
 }

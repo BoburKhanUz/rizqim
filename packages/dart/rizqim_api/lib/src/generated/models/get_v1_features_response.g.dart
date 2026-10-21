@@ -10,7 +10,7 @@ GetV1FeaturesResponse _$GetV1FeaturesResponseFromJson(
   Map<String, dynamic> json,
 ) => GetV1FeaturesResponse(
   success: json['success'] as bool,
-  data: Data14.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data15.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1FeaturesResponseToJson(

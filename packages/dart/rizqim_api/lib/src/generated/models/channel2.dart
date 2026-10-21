@@ -4,6 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+/// P1-34: accepted for older apps, ignored: the channel is the sign-in's (channelOf)
 @JsonEnum()
 enum Channel2 {
   @JsonValue('telegram')

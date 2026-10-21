@@ -51,9 +51,19 @@ abstract class OrdersApi {
   /// P1-21 (docs/MENU.md): `items.*.quantity` may be a fraction for items sold by weight (kg/l, at least.
   /// `min_quantity`, in `quantity_step` steps); `items.*.modifiers` lists the chosen modifiers as uuids or.
   /// `{id: uuid, quantity}`; prices always come from the server. 422 when a modifier rule is broken, the item is on.
-  /// the branch's stop-list, its batch is sold out ("tugadi") or it is hidden on the channel. `channel` is.
-  /// `telegram` (default) or `mobile`. An `Idempotency-Key` header makes retries safe: the same key with the same body.
+  /// the branch's stop-list, its batch is sold out ("tugadi") or it is hidden on the channel. The channel is decided by.
+  /// the server from the sign-in (P1-34): `mobile` for a token of a customer mobile app device, else `telegram`; a.
+  /// `channel` in the body is accepted for older apps but ignored. `type=dine_in` is refused with 422 (hall orders.
+  /// are taken by staff on the POS). An `Idempotency-Key` header makes retries safe: the same key with the same body.
   /// within 24 hours returns the first response (header `Idempotent-Replayed: true`), with another body 409.
+  ///
+  /// P1-32 (docs/ZONES.md): when the store has delivery zones, a `delivery` order is routed and priced by the zone.
+  /// that covers `latitude`/`longitude`, exactly as `GET /delivery/quote` prices it: the zone's fee (free past its.
+  /// threshold) and minimum order replace the store-wide ones, any fee the client sends is ignored. Without.
+  /// `branch_id` the branch is picked automatically (the zone's branch, else the nearest open one); with it, that.
+  /// branch must serve a zone covering the point. 422 with `data.reason`: `outside_zone`, `branch_outside_zone`,.
+  /// `branch_closed`, or `below_minimum_order` (with `data.min_order_amount` and `data.subtotal`). Stores without.
+  /// zones keep the branch radius rule and the store's delivery fee.
   ///
   /// [idempotencyKey] - Optional, 1-255 visible characters (e.g. a UUID made per checkout attempt). Same key + same body within 24 hours: the first response is returned again; another body: 409.
   @POST('/v1/orders')

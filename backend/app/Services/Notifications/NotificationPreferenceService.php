@@ -47,7 +47,7 @@ class NotificationPreferenceService
                 'label' => $channel->label(),
                 'enabled' => (bool) $stored->get("{$type->value}|{$channel->value}", $type->defaultEnabled($channel)),
                 'available' => match ($channel) {
-                    NotificationChannel::TELEGRAM => filled($user->telegram_id),
+                    NotificationChannel::TELEGRAM => $user->hasTelegram(),
                     NotificationChannel::PUSH => $hasPushDevice,
                     default => false,
                 },

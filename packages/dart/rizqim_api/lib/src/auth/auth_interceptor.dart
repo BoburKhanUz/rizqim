@@ -14,7 +14,7 @@ enum _TokenKind { terminal, staff, user }
 ///
 /// Qaysi token: [AuthScope] (`Options.extra`) yoki, berilmasa, yo'l bo'yicha:
 /// * `/v1/terminal*`, `/v1/devices/{uuid}/staff-session` — terminal tokeni;
-/// * `/v1/devices/pair`, `/v1/auth/refresh|telegram|phone/*` — token yo'q;
+/// * `/v1/devices/pair`, `/v1/auth/refresh|telegram`, `/v1/auth/phone/send-code|verify|select-account` — token yo'q;
 /// * boshqasi — xodim sessiyasi, bo'lmasa shaxsiy ilova tokeni. Terminal tokeni oddiy API'ga hech qachon yuborilmaydi.
 ///
 /// 401 bo'lganda:
@@ -35,7 +35,7 @@ class AuthInterceptor extends Interceptor {
     r'/v1/(terminal(/|$)|devices/[^/]+/staff-session$)',
   );
   static final RegExp _openPath = RegExp(
-    r'/v1/(devices/pair$|auth/(refresh|telegram|phone/(send-code|verify))$)',
+    r'/v1/(devices/pair$|auth/(refresh|telegram|phone/(send-code|verify|select-account))$)',
   );
 
   static AuthScope _scopeOf(RequestOptions options) {

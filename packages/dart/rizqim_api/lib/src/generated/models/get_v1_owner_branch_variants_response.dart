@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data28.dart';
+import 'data29.dart';
 
 part 'get_v1_owner_branch_variants_response.g.dart';
 
@@ -22,7 +22,7 @@ class GetV1OwnerBranchVariantsResponse {
 
   final bool success;
   final String message;
-  final List<Data28> data;
+  final List<Data29> data;
 
   Map<String, Object?> toJson() =>
       _$GetV1OwnerBranchVariantsResponseToJson(this);

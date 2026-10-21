@@ -29,6 +29,10 @@ use Throwable;
  *   row ends now, the new plan's row runs to the same month end and bills the whole month alone. Only a store's first
  *   subscription gets the plan's trial; a change keeps whatever is left of the current trial.
  * - Cancelling immediately ends the subscription without billing the month; at period end bills it, then ends it.
+ * - Every change first bills the periods that have already ended (the daily run may not have reached them yet), so a
+ *   change made after a month ends never loses that month nor starts a period that ends before it begins (P1-34).
+ * - A deleted store's subscription is closed once what it owes is billed (Store::softDeleted, and the run for rows
+ *   left from before); the month in progress at the deletion and later ones are never billed.
  */
 class SubscriptionService
 {
@@ -82,6 +86,8 @@ class SubscriptionService
             // One writer per store, so two assignments cannot both find no current subscription
             Store::whereKey($store->id)->lockForUpdate()->firstOrFail();
             $current = StoreSubscription::query()->current()->where('store_id', $store->id)->lockForUpdate()->first();
+            // A month that ended before the daily run is billed under the plan it was used on, before anything changes
+            $current = $current ? $this->billEndedPeriods($current, $now)[1] : null;
 
             if (!$current) {
                 $isFirst = !StoreSubscription::where('store_id', $store->id)->exists();
@@ -118,17 +124,27 @@ class SubscriptionService
     }
 
     /**
-     * End a subscription: now (the month is not billed) or when its month ends (billed, then ended).
+     * End a subscription: now (the month is not billed) or when its month ends (billed, then ended). Months that have
+     * already ended are billed first.
      */
     public function cancel(StoreSubscription $subscription, bool $immediately, ?User $actor = null, ?CarbonInterface $now = null): StoreSubscription
     {
         $now = $this->now($now);
 
         return DB::transaction(function () use ($subscription, $immediately, $actor, $now) {
+            // The store first, as assignPlan locks them (a deleted store's too: its subscription is closed this way)
+            Store::withTrashed()->whereKey($subscription->store_id)->lockForUpdate()->first();
             $subscription = StoreSubscription::whereKey($subscription->id)->lockForUpdate()->firstOrFail();
             if (!$subscription->isCurrent()) {
                 return $subscription;
             }
+
+            // Ended months are billed first; they may move the subscription on (next month, next plan's row) or end it
+            $current = $this->billEndedPeriods($subscription, $now)[1];
+            if ($current === null) {
+                return $subscription->refresh();
+            }
+            $subscription = $current;
 
             $subscription->update($immediately
                 ? ['status' => SubscriptionStatus::CANCELLED, 'cancelled_at' => $now, 'next_tariff_plan_id' => null, 'cancel_at_period_end' => false]
@@ -164,14 +180,8 @@ class SubscriptionService
             try {
                 $created += DB::transaction(function () use ($id, $now) {
                     $subscription = StoreSubscription::whereKey($id)->lockForUpdate()->first();
-                    $count = 0;
 
-                    while ($subscription && $subscription->isCurrent() && $subscription->current_period_end->lessThanOrEqualTo($now)) {
-                        [$invoice, $subscription] = $this->closePeriod($subscription, $now);
-                        $count += $invoice?->wasRecentlyCreated ? 1 : 0;
-                    }
-
-                    return $count;
+                    return $subscription ? $this->billEndedPeriods($subscription, $now)[0] : 0;
                 });
             } catch (Throwable $e) {
                 // One store's failure never stops the others; the next run tries it again
@@ -181,6 +191,19 @@ class SubscriptionService
         }
 
         return $created;
+    }
+
+    /**
+     * A store was deleted (soft delete): its ended periods are billed, then its subscription ends now (the month in
+     * progress is not billed, as with an immediate cancel). Store::softDeleted calls it.
+     */
+    public function closeForDeletedStore(Store $store, ?User $actor = null, ?CarbonInterface $now = null): void
+    {
+        $now = $this->now($now);
+
+        foreach (StoreSubscription::query()->current()->where('store_id', $store->id)->orderBy('id')->get() as $subscription) {
+            $this->cancel($subscription, true, $actor, $now);
+        }
     }
 
     /**
@@ -367,6 +390,37 @@ class SubscriptionService
     }
 
     /**
+     * Bill every period of the subscription that has ended by $now, oldest first, as the scheduled run does (the
+     * caller holds the subscription's row lock). A deleted store's periods are billed while they ended before its
+     * deletion; then the subscription ends (the month in progress at the deletion is not billed, as with an immediate
+     * cancel). Returns the invoices created and the subscription current afterwards (the same row moved
+     * on, the next plan's row, or null when it ended).
+     *
+     * @return array{0: int, 1: StoreSubscription|null}
+     */
+    protected function billEndedPeriods(StoreSubscription $subscription, CarbonInterface $now): array
+    {
+        $deletedAt = Store::withTrashed()->whereKey($subscription->store_id)->value('deleted_at');
+        $deletedAt = $deletedAt !== null ? Carbon::parse($deletedAt) : null;
+        $created = 0;
+        $current = $subscription;
+
+        while ($current && $current->isCurrent() && $current->current_period_end->lessThanOrEqualTo($now)
+            && ($deletedAt === null || $current->current_period_end->lessThanOrEqualTo($deletedAt))) {
+            [$invoice, $current] = $this->closePeriod($current, $now);
+            $created += $invoice?->wasRecentlyCreated ? 1 : 0;
+        }
+
+        if ($current && $current->isCurrent() && $deletedAt !== null) {
+            $current->update(['status' => SubscriptionStatus::CANCELLED, 'cancelled_at' => $now, 'next_tariff_plan_id' => null, 'cancel_at_period_end' => false]);
+            $this->audit->record('subscription.cancelled', $current, [], [], ['immediately' => true, 'store_deleted' => true], ['store_id' => $current->store_id]);
+            $current = null;
+        }
+
+        return [$created, $current];
+    }
+
+    /**
      * Bill the subscription's current period (it has ended) and move it on: to the next month, to the plan chosen
      * for next month (a new row), or to its end. Returns the period's invoice (null when none is due) and the
      * subscription that is current afterwards.
@@ -378,6 +432,7 @@ class SubscriptionService
         $from = $subscription->current_period_start;
         $to = $subscription->current_period_end;
         $invoice = null;
+        $this->assertPeriod($from, $to, $subscription->id);
 
         if (!$this->trialCovers($subscription, $from)) {
             $plan = $subscription->plan()->firstOrFail();
@@ -453,6 +508,8 @@ class SubscriptionService
 
     protected function open(int $storeId, TariffPlan $plan, CarbonInterface $start, ?CarbonInterface $trialEndsAt, CarbonInterface $periodEnd, ?User $actor, CarbonInterface $now): StoreSubscription
     {
+        $this->assertPeriod($start, $periodEnd);
+
         $subscription = new StoreSubscription([
             'store_id' => $storeId,
             'tariff_plan_id' => $plan->id,
@@ -491,6 +548,22 @@ class SubscriptionService
         $subscription = StoreSubscription::query()->current()->where('store_id', $storeId)->first();
         if ($subscription && ($status = $this->statusFor($subscription, $now)) !== $subscription->status) {
             $subscription->update(['status' => $status]);
+        }
+    }
+
+    /**
+     * The invariant every period keeps: it ends after it starts. A period that would not is a bug upstream (it used to
+     * happen when a plan changed after a month ended but before the run billed it), never something to bill.
+     */
+    protected function assertPeriod(CarbonInterface $start, CarbonInterface $end, ?int $subscriptionId = null): void
+    {
+        if (!$end->greaterThan($start)) {
+            throw new \LogicException(sprintf(
+                'Subscription%s period would end (%s) before it starts (%s).',
+                $subscriptionId !== null ? " {$subscriptionId}" : '',
+                $end->toIso8601String(),
+                $start->toIso8601String(),
+            ));
         }
     }
 
