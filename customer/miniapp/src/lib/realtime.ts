@@ -54,8 +54,8 @@ export interface ChannelUser {
 }
 
 // The private channels carrying the order events this user may see (routes/channels.php), the main one first:
-// owner -> the store, manager -> their branch (the store when they have no branch), courier -> their own, customer ->
-// their own. An owner or manager can also be handed an order as its courier (assignable staff), and its events go to
+// owner -> the store (every branch's events, and the old branchless orders'), manager -> their branch's staff channel
+// pos-branch.{id} (the store when they have no branch), courier -> their own, customer -> their own. An owner or manager can also be handed an order as its courier (assignable staff), and its events go to
 // their own courier.{id} channel, which the channel rules let them join too: it comes second. Super admins have no
 // order screen.
 export function getOrderChannelNames(user: ChannelUser | null | undefined): string[] {
@@ -65,7 +65,7 @@ export function getOrderChannelNames(user: ChannelUser | null | undefined): stri
     case 'owner':
       return user.store_id ? [`store.${user.store_id}`, courierChannel] : [];
     case 'manager':
-      if (user.branch_id) return user.store_id ? [`branch.${user.branch_id}`, courierChannel] : [`branch.${user.branch_id}`];
+      if (user.branch_id) return user.store_id ? [`pos-branch.${user.branch_id}`, courierChannel] : [`pos-branch.${user.branch_id}`];
       return user.store_id ? [`store.${user.store_id}`, courierChannel] : [];
     case 'courier':
       return [courierChannel];
@@ -76,6 +76,15 @@ export function getOrderChannelNames(user: ChannelUser | null | undefined): stri
 
 export const ORDER_EVENTS = ['order.created', 'order.status_changed', 'order.assigned'] as const;
 export type OrderEventName = (typeof ORDER_EVENTS)[number];
+
+// What the staff channels (store, branch, pos-branch) carry besides the order events: a cook marking a line ready or taking
+// it back, and the stop-list / a batch changing what can be sold. Like the order events they only say "ask again".
+export const KITCHEN_EVENT = 'kitchen.item_status_changed';
+export const STAFF_ONLY_EVENTS = [KITCHEN_EVENT, 'menu.availability_changed'] as const;
+export type StaffEventName = OrderEventName | (typeof STAFF_ONLY_EVENTS)[number];
+
+// The channels that carry the staff-only events (the courier's and the customer's do not)
+export const isStaffChannel = (name: string): boolean => /^(store|branch|pos-branch)\./.test(name);
 
 // What an order event carries: ids and state only.
 export interface OrderEventOrder {
@@ -88,7 +97,7 @@ export interface OrderEventOrder {
 }
 
 export interface OrderEvent {
-  name: OrderEventName;
+  name: StaffEventName;
   order: OrderEventOrder | null; // null when the payload was not what the contract says (the event still counts)
 }
 
@@ -187,7 +196,8 @@ export async function openOrderChannels(
 
   const subscribe = (state: ChannelState) => {
     const channel = echo.private(state.name);
-    for (const name of ORDER_EVENTS) {
+    const events: readonly StaffEventName[] = isStaffChannel(state.name) ? [...ORDER_EVENTS, ...STAFF_ONLY_EVENTS] : ORDER_EVENTS;
+    for (const name of events) {
       channel.listen(`.${name}`, (payload: unknown) => {
         if (!closed) handlers.onEvent({ name, order: parseOrderPayload(payload) });
       });

@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, Pencil, Trash2, SearchX, PackageOpen } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, SearchX, PackageOpen, PackageX } from 'lucide-react';
 
 import { hapticFeedback } from '../lib/telegram';
 import { notificationOccurred } from '../lib/twa';
 import { showAlert, showConfirm } from '../lib/dialogs';
-import { deleteProduct as removeProduct, fetchOwnerProducts, toggleProductActive, type Product } from '@rizqim/staff';
+import { deleteProduct as removeProduct, fetchOwnerProducts, isMeasuredUnit, toggleProductActive, type MenuUnit, type Product } from '@rizqim/staff';
 import { staffApi } from '../services/staffApi';
 import { logApiError } from '../lib/apiError';
 import { toAmount } from '../lib/money';
@@ -120,6 +120,10 @@ export default function OwnerMenuManagement() {
         }
       />
 
+      <Button variant="secondary" icon={PackageX} onClick={() => navigate('/admin/stoplist')} fullWidth>
+        Stop-list va qozon
+      </Button>
+
       <div className="relative">
         <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 size-5 -translate-y-1/2 text-fg-muted" />
         <input
@@ -158,6 +162,7 @@ export default function OwnerMenuManagement() {
                   <span className="flex flex-wrap items-center gap-1.5">
                     <Pill tone="brand">{product.category?.name || 'Kategoriyasiz'}</Pill>
                     {!active && <Pill tone="danger">Nofaol</Pill>}
+                    {variants.some((v) => isMeasuredUnit(v.unit as MenuUnit)) && <Pill>Vazn bo'yicha</Pill>}
                   </span>
                   <span className="mt-auto text-footnote text-fg-muted">
                     {/* "25 000 so'mdan": from the cheapest of several variants */}

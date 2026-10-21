@@ -82,7 +82,7 @@ describe('useRealtimeOrders: connecting', () => {
 
   it.each([
     [{ role: 'owner', store_id: 5 }, ['store.5', 'courier.42']],
-    [{ role: 'manager', store_id: 5, branch_id: 8 }, ['branch.8', 'courier.42']],
+    [{ role: 'manager', store_id: 5, branch_id: 8 }, ['pos-branch.8', 'courier.42']],
     [{ role: 'manager', store_id: 5, branch_id: null }, ['store.5', 'courier.42']],
     [{ role: 'courier', store_id: 5 }, ['courier.42']],
     [{ role: 'customer', store_id: null }, ['user.42']],
@@ -364,7 +364,7 @@ describe('an owner or manager standing in as a courier', () => {
   it('polls at its own pace again when the main channel is refused', async () => {
     await mountAs({ role: 'manager', store_id: 5, branch_id: 8 });
 
-    act(() => latestEcho().refuseSubscription('branch.8'));
+    act(() => latestEcho().refuseSubscription('pos-branch.8'));
 
     expect(useRealtimeStore.getState().connected).toBe(false);
   });
@@ -379,6 +379,72 @@ describe('an owner or manager standing in as a courier', () => {
     await settle(400);
 
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['orders', 'history'] }, { cancelRefetch: false });
+  });
+});
+
+describe('useRealtimeOrders: the staff channel (pos-branch)', () => {
+  const kitchenEvent = { order, item: { id: 812, kitchen_status: 'ready', ready_at: 't' }, items_total: 3, items_ready: 2 };
+
+  async function mountManager() {
+    signIn({ role: 'manager', store_id: 5, branch_id: 8 });
+    renderHook(() => useRealtimeOrders(), { wrapper });
+    await settle();
+    act(() => latestEcho().connectAndSubscribe());
+    await settle();
+  }
+
+  it('is the manager\'s main channel, and the socket counts as connected once it is accepted', async () => {
+    await mountManager();
+
+    expect(latestEcho().channels.map((channel) => channel.name)).toEqual(['pos-branch.8', 'courier.42']);
+    expect(useRealtimeStore.getState().connected).toBe(true);
+  });
+
+  it('refetches the staff order screens (list and detail) when the cook marks a line ready', async () => {
+    await mountManager();
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+
+    act(() => latestEcho().emit('.kitchen.item_status_changed', kitchenEvent, 'pos-branch.8'));
+    await settle(400);
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['staff-orders'] }, { cancelRefetch: false });
+  });
+
+  it('refetches the stop-list, the batches and the availability when the menu changes', async () => {
+    await mountManager();
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+
+    act(() => latestEcho().emit('.menu.availability_changed', { store_id: 5, branch_id: 8, reason: 'stop_list', items: [], changed_at: 't' }, 'pos-branch.8'));
+    act(() => latestEcho().emit('.menu.availability_changed', { store_id: 5, branch_id: 8, reason: 'batch', items: [], changed_at: 't' }, 'pos-branch.8'));
+    await settle(400);
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['owner', 'stop-list'] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['owner', 'batches'] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['menu-availability'] });
+    expect(invalidate.mock.calls.filter(([filters]) => (filters as { queryKey: string[] }).queryKey[1] === 'stop-list')).toHaveLength(1); // one burst, one refetch
+  });
+
+  it('does not refetch the orders for a menu change', async () => {
+    await mountManager();
+    const before = activeCalls();
+
+    act(() => latestEcho().emit('.menu.availability_changed', { store_id: 5, branch_id: 8, reason: 'stop_list', items: [], changed_at: 't' }, 'pos-branch.8'));
+    await settle(400);
+
+    expect(activeCalls()).toBe(before);
+  });
+
+  it('refetches everything after the channel came back, since events may have been missed', async () => {
+    await mountManager();
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+
+    act(() => latestEcho().refuseSubscription('pos-branch.8'));
+    await settle(5_000);
+    act(() => latestEcho().acceptSubscription('pos-branch.8'));
+    await settle(400);
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['staff-orders'] }, { cancelRefetch: false });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['owner', 'stop-list'] });
   });
 });
 
@@ -407,7 +473,7 @@ describe('an order already in the history that changes', () => {
     expect(historyOrder(delivered.uuid)?.status).toBe('delivered');
     const history = historyCalls();
 
-    act(() => latestEcho().emit('.order.status_changed', { order: { ...order, uuid: delivered.uuid, status: 'refunded', updated_at: '2026-10-18T10:00:00.000000Z' } }, 'branch.8'));
+    act(() => latestEcho().emit('.order.status_changed', { order: { ...order, uuid: delivered.uuid, status: 'refunded', updated_at: '2026-10-18T10:00:00.000000Z' } }, 'pos-branch.8'));
 
     expect(historyOrder(delivered.uuid)).toMatchObject({ status: 'refunded', updated_at: '2026-10-18T10:00:00.000000Z' });
     expect(historyOrder(other.uuid)?.status).toBe('delivered'); // only that order
@@ -421,7 +487,7 @@ describe('an order already in the history that changes', () => {
     const updatedAt = query?.state.dataUpdatedAt;
     await settle(10_000);
 
-    act(() => latestEcho().emit('.order.status_changed', { order: { ...order, uuid: delivered.uuid, status: 'refunded' } }, 'branch.8'));
+    act(() => latestEcho().emit('.order.status_changed', { order: { ...order, uuid: delivered.uuid, status: 'refunded' } }, 'pos-branch.8'));
 
     expect(query?.state.dataUpdatedAt).toBe(updatedAt);
   });
@@ -431,10 +497,10 @@ describe('an order already in the history that changes', () => {
     const before = client.getQueryData([...ordersKeys.history('manager'), 20]);
 
     act(() => {
-      latestEcho().emit('.order.status_changed', { order: { ...order, uuid: 'not-in-history', status: 'refunded' } }, 'branch.8');
-      latestEcho().emit('.order.status_changed', { order: { ...order, uuid: delivered.uuid, status: 'preparing' } }, 'branch.8');
-      latestEcho().emit('.order.status_changed', { order: { ...order, uuid: delivered.uuid, status: 'delivered' } }, 'branch.8');
-      latestEcho().emit('.order.created', { order: { ...order, uuid: delivered.uuid, status: 'refunded' } }, 'branch.8');
+      latestEcho().emit('.order.status_changed', { order: { ...order, uuid: 'not-in-history', status: 'refunded' } }, 'pos-branch.8');
+      latestEcho().emit('.order.status_changed', { order: { ...order, uuid: delivered.uuid, status: 'preparing' } }, 'pos-branch.8');
+      latestEcho().emit('.order.status_changed', { order: { ...order, uuid: delivered.uuid, status: 'delivered' } }, 'pos-branch.8');
+      latestEcho().emit('.order.created', { order: { ...order, uuid: delivered.uuid, status: 'refunded' } }, 'pos-branch.8');
     });
 
     expect(client.getQueryData([...ordersKeys.history('manager'), 20])).toBe(before);
@@ -479,7 +545,7 @@ describe('an order already in the history that changes', () => {
     const history = historyCalls();
 
     act(() => {
-      for (const o of many.slice(0, 40)) latestEcho().emit('.order.status_changed', { order: { ...order, uuid: o.uuid, status: 'refunded' } }, 'branch.8');
+      for (const o of many.slice(0, 40)) latestEcho().emit('.order.status_changed', { order: { ...order, uuid: o.uuid, status: 'refunded' } }, 'pos-branch.8');
     });
     await settle(5_000);
 

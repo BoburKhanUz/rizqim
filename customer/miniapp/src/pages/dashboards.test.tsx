@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAuthStore } from '../store/authStore';
 import { makeOrder, makeOrderItem, makeStore, makeUser } from '../test/factories';
 import { ordersResponse } from '../test/ordersApi';
+import { staffOrdersResponse, toStaffOrder } from '../test/staffOrdersApi';
 import { callsTo, reply, stubStaffApi, success, type FakeCall } from '../test/staffFetch';
 import CourierDashboard from './CourierDashboard';
 import ManagerDashboard from './ManagerDashboard';
@@ -21,7 +22,9 @@ let ordersStatus: number | null; // an error status the orders answer with, or n
 let ordersTruncated: boolean;
 let postAnswer: unknown;
 const callsOf = (scope: string) => callsTo(calls, '/orders').filter((call) => call.query.scope === scope);
-const ordersCalls = () => callsTo(calls, '/orders').length;
+// The manager's screen reads the staff board (GET /staff/orders), the courier's the older GET /orders
+const staffCallsOf = (scope: string) => callsTo(calls, '/staff/orders').filter((call) => call.query.scope === scope);
+const ordersCalls = () => callsTo(calls, '/staff/orders').length;
 const posts = () => calls.filter((call) => call.method === 'POST').map((call) => [call.path, call.body]);
 const failOrders = (status: number) => {
   ordersStatus = status;
@@ -54,10 +57,15 @@ beforeEach(() => {
   postAnswer = success({});
   ({ calls } = stubStaffApi((call) => {
     if (call.method === 'POST') return postAnswer;
-    if (call.path !== '/orders') return success([]); // GET /couriers
+    if (call.path !== '/orders' && call.path !== '/staff/orders') return success([]); // GET /couriers
     if (ordersStatus !== null) return reply(ordersStatus);
+    if (call.path === '/staff/orders') {
+      const body = staffOrdersResponse(served.map(toStaffOrder), call.query);
+      // More open orders than the pages the screen follows: there is always a next page
+      if (call.query.scope === 'active' && ordersTruncated) body.meta.next_cursor = 'more';
+      return body;
+    }
     const body = ordersResponse(served, { params: call.query }).data as { meta?: unknown };
-    if (call.query.scope === 'active' && ordersTruncated) body.meta = { truncated: true };
     return body;
   }));
   vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -201,14 +209,14 @@ describe('ManagerDashboard: open orders and the archive', () => {
 
     renderWithClient(<ManagerDashboard />);
     await settle();
-    expect(callsOf('active')).toHaveLength(1);
-    expect(callsOf('history')).toHaveLength(0);
-    expect(callsTo(calls, '/orders').every((call) => !!call.query.scope)).toBe(true);
+    expect(staffCallsOf('active')).toHaveLength(1);
+    expect(staffCallsOf('history')).toHaveLength(0);
+    expect(callsTo(calls, '/staff/orders').every((call) => !!call.query.scope)).toBe(true);
 
     fireEvent.click(archiveTab());
     await settle();
 
-    expect(callsOf('history')).toHaveLength(1);
+    expect(staffCallsOf('history')).toHaveLength(1);
     expect(screen.getByText('#A200')).toBeInTheDocument();
     expect(screen.queryByText('#A100')).not.toBeInTheDocument();
   });
@@ -264,7 +272,7 @@ describe('ManagerDashboard: open orders and the archive', () => {
     fireEvent.click(screen.getByRole('button', { name: /Qabul qilish/ }));
     await settle();
 
-    expect(posts()).toEqual([['/orders/uuid-1/status', { status: 'accepted' }]]);
+    expect(posts()).toEqual([['/staff/orders/uuid-1/status', { status: 'accepted' }]]);
   });
 });
 
@@ -300,7 +308,7 @@ describe('ManagerDashboard: cancelling and rejecting', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Rad etish' }));
     await settle();
 
-    expect(posts()).toEqual([['/orders/uuid-1/status', { status: 'rejected', reason: 'out_of_stock', note: 'Lavash tugadi' }]]);
+    expect(posts()).toEqual([['/staff/orders/uuid-1/status', { status: 'rejected', reason: 'out_of_stock', note: 'Lavash tugadi' }]]);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
@@ -314,7 +322,7 @@ describe('ManagerDashboard: cancelling and rejecting', () => {
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Rad etish' }));
     await settle();
 
-    expect(posts()).toContainEqual(['/orders/uuid-1/status', { status: 'rejected', reason: 'store_closed' }]);
+    expect(posts()).toContainEqual(['/staff/orders/uuid-1/status', { status: 'rejected', reason: 'store_closed' }]);
   });
 
   it('offers "Mijoz kelmadi" only for a pickup order and "Kuryer yo\'q" only for a delivery order', async () => {
@@ -353,7 +361,7 @@ describe('ManagerDashboard: cancelling and rejecting', () => {
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Bekor qilish' }));
     await settle();
 
-    expect(posts()).toContainEqual(['/orders/p-acc/status', { status: 'canceled', reason: 'no_show' }]);
+    expect(posts()).toContainEqual(['/staff/orders/p-acc/status', { status: 'canceled', reason: 'no_show' }]);
   });
 
   it('shows the reason error of a 422 in the dialog and keeps it open', async () => {

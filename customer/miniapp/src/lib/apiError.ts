@@ -46,3 +46,13 @@ export function getApiFieldError(err: unknown, field: string): string | undefine
 export function getErrorMessage(err: unknown): string | undefined {
   return err instanceof Error && err.message ? err.message : undefined;
 }
+
+// The 422 messages of several fields at once ({ phone: "...", name: "..." }); only the fields that have one.
+export function getApiFieldErrors(err: unknown, fields: readonly string[]): Record<string, string> {
+  const found: Record<string, string> = {};
+  for (const field of fields) {
+    const message = getApiFieldError(err, field);
+    if (message) found[field] = message;
+  }
+  return found;
+}

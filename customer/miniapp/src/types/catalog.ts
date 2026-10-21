@@ -25,6 +25,7 @@ export interface ProductVariant {
   unit?: MenuUnit; // missing on an older backend: pieces
   quantity_step?: Decimal | null; // kg / l only: the step a quantity moves in ("0.100" when unset the server uses 0.1)
   min_quantity?: Decimal | null; // kg / l only: the least one line may take
+  batch_consumption?: Decimal; // portions of a batch one unit takes (the owner's product list)
   stock: number; // a fraction for items sold by weight
   attributes_json: Record<string, unknown> | null;
   is_active: boolean | number; // boolean on PostgreSQL; legacy drivers send 0/1

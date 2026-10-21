@@ -120,6 +120,7 @@ describe('pollingQueryOptions', () => {
       ownerAnalytics: 60_000,
       notifications: 15_000,
       ownerFinance: 10_000,
+      stopList: 15_000,
       menuAvailability: 20_000,
     });
   });

@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { BrowserRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { initTelegramApp } from './lib/telegram';
@@ -16,7 +16,7 @@ import { getRoleHomePath, isCustomerRole } from './lib/roles';
 import { useTelegramBackButton } from './hooks/useTelegramBackButton';
 import { BottomNav } from './components/navigation/BottomNav';
 import { FloatingCartBar } from './components/navigation/FloatingCartBar';
-import { getNavItems, ROOT_PATHS } from './components/navigation/navItems';
+import { getNavItems, getRootPaths } from './components/navigation/navItems';
 import { BottomDock } from './components/ui/BottomDock';
 import { Button, buttonClasses } from '@rizqim/ui';
 import { DialogHost } from './components/ui/DialogHost';
@@ -45,8 +45,11 @@ const Complaints = lazyWithRetry(() => import('./pages/Complaints'));
 const Notifications = lazyWithRetry(() => import('./pages/Notifications'));
 const CourierDashboard = lazyWithRetry(() => import('./pages/CourierDashboard'));
 const ManagerDashboard = lazyWithRetry(() => import('./pages/ManagerDashboard'));
+const StaffOrderDetail = lazyWithRetry(() => import('./pages/StaffOrderDetail'));
 const AdminAnalytics = lazyWithRetry(() => import('./pages/AdminAnalytics'));
 const AdminReports = lazyWithRetry(() => import('./pages/AdminReports'));
+const StopListBatches = lazyWithRetry(() => import('./pages/StopListBatches'));
+const OwnerBranches = lazyWithRetry(() => import('./pages/OwnerBranches'));
 const OwnerMenuManagement = lazyWithRetry(() => import('./pages/OwnerMenuManagement'));
 const OwnerProductForm = lazyWithRetry(() => import('./pages/OwnerProductForm'));
 const OwnerEmployees = lazyWithRetry(() => import('./pages/OwnerEmployees'));
@@ -209,7 +212,8 @@ function AppContent() {
 
   usePrefetchCustomerPages(isCustomer && isAuthenticated);
   useRealtimeOrders(); // order events over the socket, once signed in (a no-op without VITE_REVERB_APP_KEY)
-  useTelegramBackButton(ROOT_PATHS);
+  const rootPaths = useMemo(() => getRootPaths(user?.role), [user?.role]);
+  useTelegramBackButton(rootPaths);
 
   useEffect(() => {
     initTelegramApp();
@@ -245,8 +249,11 @@ function AppContent() {
             <Route path="/store/:id" element={<StoreDetail />} />
             <Route path="/courier" element={<CourierDashboard />} />
             <Route path="/manager" element={<ManagerDashboard />} />
+            <Route path="/manager/orders/:uuid" element={<StaffOrderDetail />} />
             <Route path="/admin/analytics" element={<AdminAnalytics />} />
             <Route path="/admin/reports" element={<AdminReports />} />
+            <Route path="/admin/stoplist" element={<StopListBatches />} />
+            <Route path="/admin/branches" element={<OwnerBranches />} />
             <Route path="/admin/catalog" element={<OwnerMenuManagement />} />
             <Route path="/admin/catalog/create" element={<OwnerProductForm />} />
             <Route path="/admin/catalog/edit/:id" element={<OwnerProductForm />} />

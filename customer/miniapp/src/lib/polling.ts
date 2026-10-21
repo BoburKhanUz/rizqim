@@ -16,6 +16,7 @@ export const POLL_INTERVAL_MS = {
   ownerAnalytics: 60_000, // the server keeps each period's figures for 60 s: polling faster would only read the same numbers
   notifications: 15_000,
   ownerFinance: 10_000,
+  stopList: 15_000, // the stop-list and the batches of a branch (events make them instant when real-time is on)
   menuAvailability: 20_000, // the stop-list / sold-out state of a store's menu (events make it instant when real-time is on)
 } as const;
 

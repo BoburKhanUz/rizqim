@@ -1,6 +1,7 @@
 // An in-memory stand-in for the backend API (/api/v1), shaped like the real responses (see src/types).
 // The browser never reaches a server: e2e/fixtures.ts routes every API request of the page into FakeApi.handle().
 import { makeOrder, makeOrderItem, makeProduct, makeStore, makeUser, makeVariant } from '../src/test/factories'
+import { FakeStaff } from './fakeStaff'
 import type {
   ApiUser,
   BranchSummary,
@@ -180,6 +181,15 @@ export class FakeApi {
 
   orders: Order[] = [] // newest first, like the API lists them
 
+  /** The staff side: the order board (GET /staff/orders), stop-list, batches, branches, staff accounts (e2e/fakeStaff.ts). */
+  readonly staff = new FakeStaff({
+    orders: () => this.orders,
+    user: () => this.user,
+    products: () => this.products,
+    modifierGroups: () => [SAUCE_GROUP, EXTRAS_GROUP],
+    changeStatus: (order, body) => this.changeStatus(order, body),
+  })
+
   /** What GET /geocode/search finds: the places whose address contains the query (case-insensitive). */
   places: FakePlace[] = []
   /** What GET /geocode/reverse answers for any point; null = "no address there" (404), like the real endpoint. */
@@ -284,6 +294,9 @@ export class FakeApi {
     if (method === 'GET' && path === '/catalog/availability') return this.availabilityReply(query)
     if (method === 'GET' && path === '/delivery/quote') return this.deliveryQuote(query)
     if (method === 'POST' && path === '/orders') return this.placeOrder(body ?? {}, idempotencyKey)
+
+    const staffReply = this.staff.handle(method, path, query, body)
+    if (staffReply) return staffReply
 
     const orderAction = /^\/orders\/([^/]+)\/(cancel|status|complete)$/.exec(path)
     if (method === 'POST' && orderAction) {

@@ -4,6 +4,7 @@ import {
   getOrderChannelNames,
   getRealtimeConfig,
   getMenuChannelName,
+  isStaffChannel,
   openMenuChannel,
   openOrderChannels,
   type MenuChannelHandlers,
@@ -54,7 +55,7 @@ describe('getOrderChannelNames', () => {
     // Staff who can be handed an order as its courier listen on their own courier channel too (routes/channels.php)
     [{ id: 7, role: 'owner', store_id: 3, branch_id: null }, ['store.3', 'courier.7']],
     [{ id: 7, role: 'owner', store_id: 3, branch_id: 9 }, ['store.3', 'courier.7']],
-    [{ id: 7, role: 'manager', store_id: 3, branch_id: 9 }, ['branch.9', 'courier.7']],
+    [{ id: 7, role: 'manager', store_id: 3, branch_id: 9 }, ['pos-branch.9', 'courier.7']],
     [{ id: 7, role: 'manager', store_id: 3, branch_id: null }, ['store.3', 'courier.7']],
     [{ id: 7, role: 'courier', store_id: 3, branch_id: null }, ['courier.7']],
     [{ id: 7, role: 'customer', store_id: null, branch_id: null }, ['user.7']],
@@ -134,10 +135,36 @@ describe('openOrderChannels', () => {
     expect(headersProvider()).not.toHaveProperty('Authorization');
   });
 
-  it('listens for the three order events, with the leading dot that skips the namespace', async () => {
+  it('listens for the order events and, on a staff channel, the kitchen and menu ones, with the leading dot that skips the namespace', async () => {
     const { echo } = await open();
 
-    expect([...echo.firstChannel.listeners.keys()].sort()).toEqual(['.order.assigned', '.order.created', '.order.status_changed']);
+    expect([...echo.firstChannel.listeners.keys()].sort()).toEqual([
+      '.kitchen.item_status_changed',
+      '.menu.availability_changed',
+      '.order.assigned',
+      '.order.created',
+      '.order.status_changed',
+    ]);
+  });
+
+  it.each(['store.3', 'branch.5', 'pos-branch.5'])('%s is a staff channel', (name) => {
+    expect(isStaffChannel(name)).toBe(true);
+  });
+
+  it.each(['courier.7', 'user.7', 'menu.3'])('%s is not a staff channel', (name) => {
+    expect(isStaffChannel(name)).toBe(false);
+  });
+
+  it('passes the kitchen and menu events on with the order they carry, or none', async () => {
+    channels = ['pos-branch.5'];
+    const { echo } = await open();
+    const order = { uuid: 'u1', status: 'preparing', store_id: 3, branch_id: 5, courier_id: null, updated_at: 't' };
+
+    echo.emit('.kitchen.item_status_changed', { order, item: { id: 812, kitchen_status: 'ready', ready_at: 't' }, items_total: 3, items_ready: 2 });
+    echo.emit('.menu.availability_changed', { store_id: 3, branch_id: 5, reason: 'stop_list', items: [], changed_at: 't' });
+
+    expect(handlers.onEvent).toHaveBeenNthCalledWith(1, { name: 'kitchen.item_status_changed', order });
+    expect(handlers.onEvent).toHaveBeenNthCalledWith(2, { name: 'menu.availability_changed', order: null });
   });
 
   it('passes events on, with the order when the payload has one', async () => {
@@ -211,7 +238,7 @@ describe('openOrderChannels', () => {
     echo.acceptSubscription();
     expect(handlers.onConnectionChange).toHaveBeenLastCalledWith(true);
     expect(handlers.onResync).toHaveBeenCalledOnce(); // events were missed meanwhile
-    expect([...echo.firstChannel.listeners.keys()]).toHaveLength(3);
+    expect([...echo.firstChannel.listeners.keys()]).toHaveLength(5);
   });
 
   it('leaves, disconnects and goes quiet when closed', async () => {
@@ -250,7 +277,7 @@ describe('openOrderChannels', () => {
       channels = ['store.3', 'courier.7'];
     });
 
-    it('subscribes each channel on the one socket, with the three order events', async () => {
+    it('subscribes each channel on the one socket, a courier channel with the three order events only', async () => {
       const { echo } = await open();
 
       expect(echoInstances).toHaveLength(1);

@@ -6,6 +6,7 @@ import {
   Home as HomeIcon,
   LayoutGrid,
   List,
+  PackageX,
   PlusCircle,
   ShoppingBag,
   User as UserIcon,
@@ -46,7 +47,11 @@ const STAFF: Partial<Record<UserRole, NavItem[]>> = {
     { to: '/admin/employees', icon: Users, labelKey: 'nav_employees' },
     PROFILE,
   ],
-  manager: [{ to: '/manager', icon: ClipboardList, labelKey: 'nav_orders' }, PROFILE],
+  manager: [
+    { to: '/manager', icon: ClipboardList, labelKey: 'nav_orders' },
+    { to: '/admin/stoplist', icon: PackageX, labelKey: 'nav_stoplist' },
+    PROFILE,
+  ],
   courier: [{ to: '/courier', icon: ClipboardList, labelKey: 'nav_deliveries' }, PROFILE],
 };
 
@@ -62,3 +67,9 @@ export const ROOT_PATHS: ReadonlySet<string> = new Set([
   ...Object.values(STAFF).flatMap((items) => items.map((item) => item.to)),
   '/success',
 ]);
+
+// The same for one role: a screen that is a tab of the manager's (the stop-list) is a page with a way back for the owner,
+// who opens it from the menu.
+export function getRootPaths(role: UserRole | null | undefined): ReadonlySet<string> {
+  return new Set([...getNavItems(role).map((item) => item.to), '/success']);
+}
