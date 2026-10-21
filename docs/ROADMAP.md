@@ -68,7 +68,7 @@ takrorlanmaydi, faqat uskuna bilan ishlaydigan qism (`pos_hardware`) farqlanadi.
 |---|---|---|
 | 0 | Hozirgi ishni yakunlash | Review, tuzatishlar, VPS yo'lini olib tashlash, CI yashil, PR #1 merge |
 | 1 | Poydevor | Yangi papkalar tuzilmasi; backend modullari; OpenAPI va avtomatik TS/Dart klientlar; auth (refresh token, qurilmalar, POS uchun PIN); ruxsatlar (ofitsiant, kassir, oshpaz); hisoblarni telefon bo'yicha birlashtirish; push (FCM/APNs); menyu modifikatorlari va stop-list; `Order.channel`; idempotency; PostGIS zonalari; staging va feature flag'lar |
-| 2 | Hamkor web va oshxona ekrani | Xodim ekranlarini mini-app'dan Next.js'ga ko'chirish; jonli buyurtmalar doskasi; menyu, stop-list, xodimlar, hisobotlar; `pos/apps/kds` |
+| 2 | Hamkor web va oshxona ekrani | Xodim ekranlari Next.js web panelda ham quriladi (Mini App'da ham qoladi, umumiy kod `packages/ts` da); batafsil: [PHASE2_PLAN.md](PHASE2_PLAN.md); jonli buyurtmalar doskasi; menyu, stop-list, xodimlar, hisobotlar; `pos/apps/kds` |
 | 3 | POS | Kassa va ofitsiant: stollar, chek, modifikatorlar, oshxonaga yuborish, to'lov (naqd, karta, QR), chekni bo'lish, chegirma, smena va X/Z hisobot, internetsiz ishlash, printerlar; fiskal chek; 1–2 restoranda pilot |
 | 4 | Kuryer ilovasi | Smena, push, fon GPS, navigatsiya, topshirishni tasdiqlash, naqd pul, daromad; o'z va Rizqim kuryerlari uchun taqsimot va hisob-kitob |
 | 5 | Hamkor mobil | Ega va menejer: buyurtmalar, xabarlar, tezkor hisobot |
