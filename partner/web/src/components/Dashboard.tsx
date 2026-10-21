@@ -4,6 +4,9 @@ import { useQuery } from '@tanstack/react-query';
 import { ClipboardList } from 'lucide-react';
 import { Card, CardSkeletons, EmptyState, formatDateTime, formatMoney, formatNumber, InlineError, Section, Skeleton, StatusBadge } from '@rizqim/ui';
 import { useApi } from '@/lib/apiConfig';
+import { hasAny } from '@/lib/permissions';
+import { useAccess, useOptionalAuth } from './AuthProvider';
+import { BoardSummary } from './orders/BoardSummary';
 import { orderTypeLabel, paymentLabel, statusLabel } from '@/lib/labels';
 import { useI18n } from './I18nProvider';
 import { PageHeader } from './PageHeader';
@@ -12,9 +15,10 @@ type Analytics = NonNullable<ReturnType<typeof useAnalyticsData>['data']>;
 
 // GET /v1/owner/analytics?period=today: every figure is computed by the backend; this page only shows them. The
 // backend caches the answer for 60 s, so asking more often is pointless.
-function useAnalyticsData() {
+function useAnalyticsData(enabled: boolean) {
   const api = useApi();
   return useQuery({
+    enabled,
     queryKey: ['owner-analytics', 'today'],
     refetchInterval: 60_000,
     queryFn: async () => {
@@ -25,18 +29,29 @@ function useAnalyticsData() {
   });
 }
 
+// The board summary for people who see orders (orders.view), the day's analytics for those who see reports
+// (reports.view). Outside the shell (a page test) only the analytics.
 export function Dashboard() {
   const { t, language } = useI18n();
-  const query = useAnalyticsData();
+  const auth = useOptionalAuth();
+  const access = useAccess();
+  const showBoard = access !== null && hasAny(access.permissions, ['orders.view']);
+  const showAnalytics = auth === null || (access !== null && hasAny(access.permissions, ['reports.view']));
+  const query = useAnalyticsData(showAnalytics);
 
   return (
     <>
       <PageHeader
         title={t('nav_dashboard')}
         subtitle={t('dashboardSubtitle')}
-        action={query.data && <p className="text-caption text-fg-muted">{t('updatedAt', { time: formatDateTime(query.data.generated_at, language) })}</p>}
+        action={showAnalytics && query.data && <p className="text-caption text-fg-muted">{t('updatedAt', { time: formatDateTime(query.data.generated_at, language) })}</p>}
       />
-      {query.isPending ? (
+      {showBoard && (
+        <div className="mb-8">
+          <BoardSummary />
+        </div>
+      )}
+      {!showAnalytics ? null : query.isPending ? (
         <DashboardSkeleton />
       ) : query.isError ? (
         <InlineError title={t('loadErrorTitle')} message={t('loadErrorText')} retryLabel={t('retry')} retrying={query.isFetching} onRetry={() => void query.refetch()} />

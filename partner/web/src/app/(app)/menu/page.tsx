@@ -1,5 +1,8 @@
-import { Placeholder } from '@/components/Placeholder';
+import type { Metadata } from 'next';
+import { MenuView } from '@/components/menu/MenuView';
+
+export const metadata: Metadata = { title: 'Menyu' };
 
 export default function Page() {
-  return <Placeholder title="nav_menu" />;
+  return <MenuView />;
 }

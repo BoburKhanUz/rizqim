@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { LogOut } from 'lucide-react';
 import { Button, cx } from '@rizqim/ui';
-import type { NavItem } from '@/lib/permissions';
+import { sectionOf, type NavItem, type NavKey } from '@/lib/permissions';
 import { roleLabel } from '@/lib/labels';
 import { LanguageSwitcher } from './LanguageSwitcher';
 import { useT } from './I18nProvider';
@@ -16,9 +16,11 @@ interface SidebarProps {
   // Narrow windows: the sidebar is a drawer, open or closed
   open: boolean;
   onLogout: () => void;
+  // A number next to a section (orders waiting for acceptance); 0 or missing: none
+  badges?: Partial<Record<NavKey, number>>;
 }
 
-export function Sidebar({ items, userName, role, open, onLogout }: SidebarProps) {
+export function Sidebar({ items, userName, role, open, onLogout, badges = {} }: SidebarProps) {
   const t = useT();
   const pathname = usePathname();
   return (
@@ -37,8 +39,9 @@ export function Sidebar({ items, userName, role, open, onLogout }: SidebarProps)
 
       <nav aria-label={t('navAria')} className="flex flex-1 flex-col gap-1 overflow-y-auto">
         {items.map((item) => {
-          const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+          const active = sectionOf(pathname)?.key === item.key;
           const Icon = item.icon;
+          const badge = badges[item.key] ?? 0;
           return (
             <Link
               key={item.key}
@@ -51,7 +54,13 @@ export function Sidebar({ items, userName, role, open, onLogout }: SidebarProps)
               )}
             >
               <Icon aria-hidden="true" className="size-5 shrink-0" />
-              {t(item.label)}
+              <span className="min-w-0 flex-1 truncate">{t(item.label)}</span>
+              {badge > 0 && (
+                <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-brand px-1.5 text-caption font-bold text-on-brand">
+                  {badge > 99 ? '99+' : badge}
+                  <span className="sr-only"> ({t('newOrdersCount', { n: badge })})</span>
+                </span>
+              )}
             </Link>
           );
         })}

@@ -14,6 +14,8 @@ export const en: Messages = {
   nav_reports: 'Reports',
   nav_finance: 'Finance',
   nav_settings: 'Settings',
+  nav_zones: 'Delivery zones',
+  nav_batches: 'Batches (kazan)',
   navAria: 'Main menu',
   openMenu: 'Open menu',
   closeMenu: 'Close menu',
@@ -27,6 +29,22 @@ export const en: Messages = {
   unknownError: 'Something went wrong. Please try again.',
   networkError: 'Could not reach the server. Check your connection.',
   signedInAs: 'Signed in as',
+
+  // Branch picker (top bar)
+  branchLabel: 'Branch',
+  branchAll: 'All branches',
+  branchOnly: 'Your branch: {{name}}',
+  branchUnknown: 'Branch #{{id}}',
+
+  // Live updates and sound (top bar)
+  liveOn: 'Live',
+  liveConnecting: 'Connecting...',
+  livePolling: 'Refreshes every {{seconds}} s',
+  liveHint: 'No real-time connection: the list refreshes by polling',
+  soundMute: 'Mute the new order sound',
+  soundUnmute: 'Turn on the new order sound',
+  soundNeedsClick: 'Click anywhere on the page once to allow the sound',
+  newOrdersCount: '{{n}} new orders',
 
   loginTitle: 'Sign in to the partner dashboard',
   loginSubtitle: 'Enter your phone number and we will text you a code.',

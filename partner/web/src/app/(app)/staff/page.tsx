@@ -1,5 +1,5 @@
-import { Placeholder } from '@/components/Placeholder';
+import { StaffView } from '@/components/management/StaffView';
 
 export default function Page() {
-  return <Placeholder title="nav_staff" />;
+  return <StaffView />;
 }

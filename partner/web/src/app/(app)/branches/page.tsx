@@ -1,5 +1,5 @@
-import { Placeholder } from '@/components/Placeholder';
+import { BranchesView } from '@/components/management/BranchesView';
 
 export default function Page() {
-  return <Placeholder title="nav_branches" />;
+  return <BranchesView />;
 }

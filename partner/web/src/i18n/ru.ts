@@ -14,6 +14,8 @@ export const ru: Messages = {
   nav_reports: 'Отчёты',
   nav_finance: 'Финансы',
   nav_settings: 'Настройки',
+  nav_zones: 'Зоны доставки',
+  nav_batches: 'Казан',
   navAria: 'Главное меню',
   openMenu: 'Открыть меню',
   closeMenu: 'Закрыть меню',
@@ -27,6 +29,22 @@ export const ru: Messages = {
   unknownError: 'Произошла ошибка. Повторите попытку.',
   networkError: 'Нет связи с сервером. Проверьте интернет.',
   signedInAs: 'Вы вошли как',
+
+  // Выбор филиала (верхняя панель)
+  branchLabel: 'Филиал',
+  branchAll: 'Все филиалы',
+  branchOnly: 'Ваш филиал: {{name}}',
+  branchUnknown: 'Филиал №{{id}}',
+
+  // Обновление в реальном времени и звук (верхняя панель)
+  liveOn: 'Онлайн',
+  liveConnecting: 'Подключение...',
+  livePolling: 'Обновляется каждые {{seconds}} с',
+  liveHint: 'Нет соединения в реальном времени: список обновляется запросами',
+  soundMute: 'Выключить звук новых заказов',
+  soundUnmute: 'Включить звук новых заказов',
+  soundNeedsClick: 'Чтобы включился звук, нажмите один раз в любом месте страницы',
+  newOrdersCount: 'Новых заказов: {{n}}',
 
   loginTitle: 'Вход в панель партнёра',
   loginSubtitle: 'Введите номер телефона, мы отправим код по SMS.',
