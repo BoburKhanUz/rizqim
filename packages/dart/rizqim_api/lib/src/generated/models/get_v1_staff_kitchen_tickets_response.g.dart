@@ -12,7 +12,7 @@ GetV1StaffKitchenTicketsResponse _$GetV1StaffKitchenTicketsResponseFromJson(
   success: json['success'] as bool,
   message: json['message'] as String,
   data: (json['data'] as List<dynamic>)
-      .map((e) => Data80.fromJson(e as Map<String, dynamic>))
+      .map((e) => Data82.fromJson(e as Map<String, dynamic>))
       .toList(),
   meta: Meta.fromJson(json['meta'] as Map<String, dynamic>),
 );

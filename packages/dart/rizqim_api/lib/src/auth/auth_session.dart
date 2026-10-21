@@ -129,6 +129,26 @@ class AuthSession {
     _emit(const AuthEvent(AuthEventKind.terminalForgotten));
   }
 
+  /// "Terminalni uzish": terminal avval serverda o'zini bekor qiladi (`DELETE /terminal`: tokenlari va xodim
+  /// sessiyalari to'xtaydi), so'ng qurilmadan unutiladi. Server javob bermasa (tarmoq yo'q) ham qurilmadan
+  /// unutiladi va `false` qaytadi: unda serverdagi yozuvni panelda o'chirish kerak.
+  Future<bool> unpairTerminal() async {
+    if (_terminal == null) return true;
+    var revoked = true;
+    try {
+      await remote.revokeTerminal();
+    } on ApiException catch (e) {
+      // 401: the server already revoked this terminal, the same outcome
+      revoked = e.statusCode == 401;
+    }
+    if (_staff != null) {
+      _staff = null;
+      _emit(const AuthEvent(AuthEventKind.staffSignedOut, reason: 'unpair'));
+    }
+    await forgetTerminal();
+    return revoked;
+  }
+
   // --- Terminal: xodim ---------------------------------------------------------------------------------------
 
   Future<List<StaffMember>> loadStaff() => remote.terminalStaff();

@@ -4,25 +4,41 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'device10.dart';
-import 'store2.dart';
-import 'branch10.dart';
+import 'owner.dart';
 
 part 'data92.g.dart';
 
 @JsonSerializable()
 class Data92 {
   const Data92({
-    required this.device,
-    required this.store,
-    required this.branch,
+    required this.id,
+    required this.uuid,
+    required this.name,
+    required this.phone,
+    required this.slug,
+    required this.isActive,
+    required this.commissionRate,
+    required this.branchesCount,
+    required this.createdAt,
+    required this.owner,
   });
 
   factory Data92.fromJson(Map<String, Object?> json) => _$Data92FromJson(json);
 
-  final Device10 device;
-  final Store2? store;
-  final Branch10? branch;
+  final int id;
+  final String uuid;
+  final String name;
+  final String? phone;
+  final String slug;
+  @JsonKey(name: 'is_active')
+  final bool isActive;
+  @JsonKey(name: 'commission_rate')
+  final String commissionRate;
+  @JsonKey(name: 'branches_count')
+  final int? branchesCount;
+  @JsonKey(name: 'created_at')
+  final DateTime? createdAt;
+  final Owner? owner;
 
   Map<String, Object?> toJson() => _$Data92ToJson(this);
 }

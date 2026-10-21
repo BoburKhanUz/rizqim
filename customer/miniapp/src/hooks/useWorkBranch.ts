@@ -6,37 +6,38 @@ const NO_BRANCHES: BranchListItem[] = [];
 
 export interface WorkBranch {
   branches: BranchListItem[];
-  // The branch the screen works with: an owner's pick (the first branch until they pick), undefined for a manager (the
-  // backend works on their own branch whatever is asked)
+  // The branch the screen works with: the pick of an owner or of store-wide staff (the first branch until they pick),
+  // undefined for branch-bound staff (the backend works on their own branch whatever is asked)
   branchId: number | undefined;
   setBranchId: (id: number) => void;
-  // The owner has more than one branch to choose from
+  // There is more than one branch to choose from
   canPick: boolean;
-  // A screen that needs the branch id (the owner's stop-list and batches) waits for this
+  // A screen that needs the branch id (the stop-list and batches of store-wide staff) waits for this
   ready: boolean;
   isLoading: boolean;
   isError: boolean;
   refetch: () => void;
 }
 
-// Which branch a staff screen works with (stop-list, batches, working hours). Owners pick one of their branches; a manager's
-// requests are bound to their branch by the backend, so they send none.
+// Which branch a staff screen works with (stop-list, batches, working hours). The backend's rule
+// (PermissionService::isBranchScoped): staff with a branch_id, other than the owner, are bound to that branch and send
+// none; the owner and store-wide staff (a manager without a branch) must name one (branch_id, else 422), so they pick.
 export function useWorkBranch(): WorkBranch {
-  const role = useAuthStore((state) => state.user?.role);
-  const isOwner = role === 'owner';
-  const { data, isLoading, isError, refetch } = useBranchList({ enabled: isOwner });
+  const user = useAuthStore((state) => state.user);
+  const storeWide = user !== null && (user.role === 'owner' || user.role === 'super_admin' || user.branch_id === null);
+  const { data, isLoading, isError, refetch } = useBranchList({ enabled: storeWide });
   const branches = data ?? NO_BRANCHES;
   const [chosen, setChosen] = useState<number | null>(null);
 
   const picked = branches.find((branch) => branch.id === chosen) ?? branches[0];
   return {
     branches,
-    branchId: isOwner ? picked?.id : undefined,
+    branchId: storeWide ? picked?.id : undefined,
     setBranchId: setChosen,
-    canPick: isOwner && branches.length > 1,
-    ready: !isOwner || picked !== undefined,
-    isLoading: isOwner && isLoading,
-    isError: isOwner && isError,
+    canPick: storeWide && branches.length > 1,
+    ready: !storeWide || picked !== undefined,
+    isLoading: storeWide && isLoading,
+    isError: storeWide && isError,
     refetch: () => void refetch(),
   };
 }

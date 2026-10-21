@@ -72,6 +72,7 @@ function makeOrder(over: Partial<StaffOrder> = {}): StaffOrder {
     preparing_at: null,
     ready_at: null,
     closed_at: null,
+    waiting_seconds: 120,
     ...over,
   };
 }
@@ -99,7 +100,7 @@ function renderBoard(permissions = OWNER, ui: ReactElement = <OrdersBoard />) {
 
 const signIn = (permissions: string[]) => ({
   'POST /api/session/refresh': () => json({ access_token: 'access', expires_at: new Date(Date.now() + 900_000).toISOString(), user: { id: 1, name: 'Aziz', role: 'owner' } }),
-  'GET /api/v1/me/permissions': () => json({ success: true, message: 'ok', data: { role: 'owner', store_id: 1, branch_id: null, branch_scoped: false, permissions, device_uuid: null } }),
+  'GET /api/v1/me/permissions': () => json({ success: true, message: 'ok', data: { role: 'owner', store_id: 1, branch_id: null, branch_scoped: false, permissions, device_uuid: null, timezone: 'Asia/Tashkent' } }),
 });
 
 // GET /staff/orders answered by scope: `active` and `history` lists
@@ -221,11 +222,11 @@ describe('the orders board', () => {
       [`POST /api/v1/orders/${order.uuid}/assign-courier`]: () => ok({ uuid: order.uuid, status: 'courier_assigned' }),
     });
     renderBoard();
-    await user.click(await screen.findByRole('button', { name: 'Kuryerni tayinlash' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Kuryerni tayinlash' });
+    await user.click(await screen.findByRole('button', { name: 'Kuryerni biriktirish' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Kuryerni biriktirish' });
     await user.click(await within(dialog).findByLabelText(/Bobur/));
     await user.click(within(dialog).getByRole('button', { name: 'Tayinlash' }));
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Kuryerni tayinlash' })).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Kuryerni biriktirish' })).not.toBeInTheDocument());
     const couriers = calls.find((call) => call.url.includes('/couriers'))!;
     expect(new URL(couriers.url).searchParams.get('branch_id')).toBe('2');
     expect(await calls.find((call) => call.url.endsWith('/assign-courier'))!.json()).toEqual({ courier_id: 9 });
@@ -260,6 +261,17 @@ describe('the orders board', () => {
     expect(within(drawer).getByText("−5 000 so'm")).toBeInTheDocument();
     // The status timeline comes with the detail
     expect(await within(drawer).findByText('Qabul qilindi')).toBeInTheDocument();
+
+    // aria-modal: Tab stays inside the drawer (past the last control back to the first, and the other way round)
+    const controls = Array.from(drawer.querySelectorAll<HTMLElement>('button:not([disabled]), [href]'));
+    const first = controls[0]!;
+    const last = controls[controls.length - 1]!;
+    expect(first).toHaveFocus();
+    await user.tab({ shift: true });
+    expect(last).toHaveFocus();
+    await user.tab();
+    expect(first).toHaveFocus();
+
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });

@@ -11,7 +11,7 @@ PostV1OwnerModifierGroupsResponse _$PostV1OwnerModifierGroupsResponseFromJson(
 ) => PostV1OwnerModifierGroupsResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data54.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data55.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1OwnerModifierGroupsResponseToJson(

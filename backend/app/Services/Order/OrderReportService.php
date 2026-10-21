@@ -2,7 +2,6 @@
 
 namespace App\Services\Order;
 
-use App\Enums\UserRole;
 use App\Jobs\SendOrderReport;
 use App\Models\Category;
 use App\Models\Order;
@@ -38,7 +37,8 @@ class OrderReportService
         // On its own queue (config orders.reports.queue, see SendOrderReport), so a long report never holds up Telegram alerts
         SendOrderReport::dispatch(
             (int) $user->store_id,
-            $user->role === UserRole::MANAGER && $user->branch_id ? (int) $user->branch_id : null,
+            // P2-33: a branch manager's branch, or the terminal's branch for a PIN session
+            app(\App\Services\Auth\PermissionService::class)->actingBranchId($user),
             (string) $input['timeframe'],
             $input['start_date'] ?? null,
             $input['end_date'] ?? null,

@@ -5,8 +5,13 @@ import type { JsonRequest, OkData } from './types';
 
 // --- Products (the owner's menu) ------------------------------------------------------------------------------------
 
-// GET /owner/products: every product of the store with its variants and category.
-export async function fetchOwnerProducts(api: StaffApi): Promise<Product[]> {
+// A product of GET /owner/products: with its variants, category and `modifier_group_links` (the modifier groups it
+// offers, in order, with this product's own rules: null is the group's).
+export type OwnerProduct = OkData<'ownerCatalog.getProducts'>[number];
+export type ModifierGroupLink = OwnerProduct['modifier_group_links'][number];
+
+// GET /owner/products (menu.view): every product of the store.
+export async function fetchOwnerProducts(api: StaffApi): Promise<OwnerProduct[]> {
   const body = unwrap(await api.client.GET('/v1/owner/products'));
   return body.data ?? [];
 }
@@ -55,14 +60,18 @@ export async function saveProduct(api: StaffApi, id: number | string | null | un
   return result.data ?? null;
 }
 
-// POST /owner/products/{id}?toggle_active=1: switches the product on or off (nothing else is sent). The query flag is
-// not in the spec.
+// POST /owner/products/{id}?toggle_active=1: switches the product on or off (nothing else is sent).
 export async function toggleProductActive(api: StaffApi, id: number | string): Promise<void> {
   const result = await api.client.POST('/v1/owner/products/{id}', {
-    params: { path: { id: String(id) }, query: { toggle_active: 1 } as never },
+    params: { path: { id: String(id) }, query: { toggle_active: 1 } },
     body: undefined as never,
   });
   unwrap(result);
+}
+
+// DELETE /owner/products/{id}/image: removes the product's picture (and its thumbnails).
+export async function removeProductImage(api: StaffApi, id: number | string): Promise<Product> {
+  return unwrap(await api.client.DELETE('/v1/owner/products/{id}/image', { params: { path: { id: String(id) } } })).data;
 }
 
 // DELETE /owner/products/{id}

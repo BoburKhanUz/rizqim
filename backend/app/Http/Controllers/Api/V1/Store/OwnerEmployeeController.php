@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api\V1\Store;
 
 use App\Http\Controllers\Controller;
 use Dedoc\Scramble\Attributes\Group;
+use Dedoc\Scramble\Attributes\Response as ApiDocResponse;
+use App\Enums\CourierType;
 use Illuminate\Http\Request;
 use App\Models\User;
 use Illuminate\Support\Str;
@@ -17,7 +19,11 @@ class OwnerEmployeeController extends Controller
 
     /**
      * Get list of employees (managers, cashiers, waiters, cooks, couriers) for the current store.
+     *
+     * The store's staff as users, newest first, with their branch and, for one who has not joined yet, the invite
+     * token of their link.
      */
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: list<array{id: int, uuid: string, store_id: int|null, name: string, email: string|null, telegram_id: string|null, telegram_username: string|null, telegram_photo_url: string|null, phone: string|null, role: UserRole, email_verified_at: string|null, created_at: string|null, updated_at: string|null, deleted_at: string|null, address: string|null, phone_verified_at: string|null, branch_id: int|null, referred_by: int|null, balance: string, pin_set_at: string|null, staff_code: string|null, courier_type: CourierType, branch: array{id: int, name: string}|null, telegram_invite_token: string|null}>}')]
     public function index(Request $request)
     {
         $user = $request->user();

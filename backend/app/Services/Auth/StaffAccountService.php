@@ -23,7 +23,8 @@ class StaffAccountService
     ) {}
 
     /**
-     * Roles $actor may give: the owner (and a super admin) any staff role, a manager those ranked below them.
+     * Roles $actor may give: the owner (and a super admin) any staff role, a manager those ranked below them. P2-33:
+     * nobody else gives roles (a cashier the store let see the staff list included): none.
      *
      * @return list<UserRole>
      */
@@ -31,15 +32,45 @@ class StaffAccountService
     {
         $role = $actor?->role;
 
+        return match ($role) {
+            UserRole::OWNER, UserRole::SUPER_ADMIN => UserRole::assignableStaffRoles(),
+            UserRole::MANAGER => $this->rankedBelow(UserRole::MANAGER),
+            default => [],
+        };
+    }
+
+    /**
+     * Roles whose people $actor sees in the staff list: the ones they may give; P2-33: other staff the store let see
+     * the list (staff.view) see what their branch manager sees, the roles below a manager.
+     *
+     * @return list<UserRole>
+     */
+    public function visibleRoles(?User $actor): array
+    {
+        if ($actor === null || !$actor->role->isStoreStaff()) {
+            return $this->assignableRoles($actor);
+        }
+
+        return in_array($actor->role, [UserRole::OWNER, UserRole::MANAGER], true)
+            ? $this->assignableRoles($actor)
+            : $this->rankedBelow(UserRole::MANAGER);
+    }
+
+    /**
+     * @return list<UserRole>
+     */
+    private function rankedBelow(UserRole $role): array
+    {
         return array_values(array_filter(
             UserRole::assignableStaffRoles(),
-            fn (UserRole $candidate) => $role !== UserRole::MANAGER || $candidate->rank() < $role->rank()
+            fn (UserRole $candidate) => $candidate->rank() < $role->rank()
         ));
     }
 
     /**
-     * Narrow a users query to the staff $actor manages in the store: the roles they may give, and for a branch manager
-     * the people of their branch and the store-wide ones (as the API's courier list).
+     * Narrow a users query to the staff $actor sees in the store: visibleRoles, and for anyone tied to a branch
+     * (P2-33: PermissionService::isBranchScoped, not only a manager) the people of their branch and the store-wide
+     * ones (as the API's courier list).
      *
      * @template TQuery of Builder<User>
      *
@@ -53,10 +84,19 @@ class StaffAccountService
             return $query->whereRaw('1 = 0');
         }
 
-        $query->where('store_id', $storeId)
-            ->whereIn('role', array_map(fn (UserRole $role) => $role->value, $this->assignableRoles($actor)));
+        $roles = $this->visibleRoles($actor);
+        if ($roles === []) {
+            return $query->whereRaw('1 = 0');
+        }
 
-        if ($actor?->role === UserRole::MANAGER && $branchId !== null) {
+        $query->where('store_id', $storeId)
+            ->whereIn('role', array_map(fn (UserRole $role) => $role->value, $roles));
+
+        // P2-33: whoever is tied to a branch sees their branch (and the store-wide staff), whatever the caller passed
+        if ($actor !== null && app(PermissionService::class)->isBranchScoped($actor)) {
+            $branchId = (int) $actor->branch_id;
+        }
+        if ($branchId !== null) {
             $query->where(fn ($query) => $query->where('branch_id', $branchId)->orWhereNull('branch_id'));
         }
 

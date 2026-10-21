@@ -7,18 +7,18 @@ import 'package:rizqim_core/rizqim_core.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
 import '../realtime/branch_realtime.dart';
-import '../settings/kds_settings.dart';
 import '../widgets/connection_status.dart';
-import '../widgets/settings_dialog.dart';
 
 /// Terminal ulangan, lekin hech kim kirmagan: xodim ismini tanlaydi va PIN teradi (`GET /terminal/staff`,
 /// `POST /devices/{uuid}/staff-session`). Terminalning o'zi ulangan qoladi; real-time ham ishlaydi.
+///
+/// Bu ekranda sozlamalar va "Terminalni uzish" yo'q (PIN'siz kishi ovozni, avtomatik chiqishni o'chira yoki planshetni
+/// uza olmasin): ular PIN bilan kirilgan doskada, uzish — faqat menejer/ega (`devices.manage`).
 class StaffSignInScreen extends StatefulWidget {
   const StaffSignInScreen({
     super.key,
     required this.auth,
     required this.terminal,
-    required this.settings,
     this.realtime,
     this.notice,
     this.waitingTickets,
@@ -27,7 +27,6 @@ class StaffSignInScreen extends StatefulWidget {
 
   final AuthSession auth;
   final PairedTerminal terminal;
-  final KdsSettingsController settings;
   final BranchRealtime? realtime;
 
   /// Nima uchun bu ekran ochildi (masalan, "Faollik bo'lmagani uchun ekran qulflandi").
@@ -144,31 +143,6 @@ class _StaffSignInScreenState extends State<StaffSignInScreen> {
     _failure = null;
   });
 
-  Future<void> _unpair() async {
-    final bool? confirmed = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext context) => AlertDialog(
-        title: const Text('Terminalni uzish'),
-        content: const Text(
-          "Bu qurilma do'kondan uziladi. Qayta ulash uchun yangi kod kerak bo'ladi.",
-        ),
-        actions: <Widget>[
-          RzButton(
-            label: 'Bekor qilish',
-            variant: RzButtonVariant.ghost,
-            onPressed: () => Navigator.pop(context, false),
-          ),
-          RzButton(
-            label: 'Uzish',
-            variant: RzButtonVariant.danger,
-            onPressed: () => Navigator.pop(context, true),
-          ),
-        ],
-      ),
-    );
-    if (confirmed == true) await widget.auth.forgetTerminal();
-  }
-
   @override
   Widget build(BuildContext context) {
     final RzColors c = context.rz;
@@ -197,19 +171,9 @@ class _StaffSignInScreenState extends State<StaffSignInScreen> {
             realtime: widget.realtime,
             compact: MediaQuery.sizeOf(context).width < 600,
           ),
-          const SizedBox(width: 8),
-          IconButton(
-            tooltip: 'Sozlamalar',
-            icon: const Icon(Icons.settings_outlined),
-            onPressed: () =>
-                unawaited(showKdsSettings(context, widget.settings)),
-          ),
-          IconButton(
-            tooltip: 'Terminalni uzish',
-            icon: const Icon(Icons.link_off),
-            onPressed: () => unawaited(_unpair()),
-          ),
-          const SizedBox(width: 8),
+          // Sozlamalar va "Terminalni uzish" bu yerda yo'q: PIN'siz hech kim ekranni o'zgartira olmasin. Ular PIN bilan
+          // kirilgan doskada; uzish faqat `devices.manage` bilan (menejer o'z PIN'i bilan kiradi yoki panelda o'chiradi)
+          const SizedBox(width: 16),
         ],
       ),
       body: Column(

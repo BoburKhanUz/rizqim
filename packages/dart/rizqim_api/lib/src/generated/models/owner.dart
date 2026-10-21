@@ -20,7 +20,7 @@ class Owner {
   final String name;
   final String? phone;
   @JsonKey(name: 'invite_link')
-  final String inviteLink;
+  final String? inviteLink;
   @JsonKey(name: 'has_joined')
   final bool hasJoined;
 

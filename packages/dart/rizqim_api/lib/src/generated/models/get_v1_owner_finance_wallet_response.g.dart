@@ -11,7 +11,7 @@ GetV1OwnerFinanceWalletResponse _$GetV1OwnerFinanceWalletResponseFromJson(
 ) => GetV1OwnerFinanceWalletResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data50.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data51.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1OwnerFinanceWalletResponseToJson(

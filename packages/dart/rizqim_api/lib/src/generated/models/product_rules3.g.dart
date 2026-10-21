@@ -8,9 +8,9 @@ part of 'product_rules3.dart';
 
 ProductRules3 _$ProductRules3FromJson(Map<String, dynamic> json) =>
     ProductRules3(
-      minSelect: json['min_select'] as String,
-      maxSelect: json['max_select'] as String,
-      isRequired: json['is_required'] as String,
+      minSelect: (json['min_select'] as num?)?.toInt(),
+      maxSelect: (json['max_select'] as num?)?.toInt(),
+      isRequired: json['is_required'] as bool?,
       sortOrder: (json['sort_order'] as num).toInt(),
     );
 

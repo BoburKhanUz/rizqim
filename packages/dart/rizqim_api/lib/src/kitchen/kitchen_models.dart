@@ -150,7 +150,8 @@ class KitchenTicket {
   final String uuid;
   final String? shortCode;
 
-  /// Buyurtma holati: `accepted`, `preparing` (`include_ready=1` bilan `ready` ham).
+  /// Buyurtma holati: `accepted`, `preparing`, tayyor bo'lmagan taomi bor `courier_assigned` (`include_ready=1` bilan
+  /// `ready` va hamma `courier_assigned` ham; docs/API.md 9.1).
   final String status;
 
   /// `delivery`, `pickup`, `dine_in`.
@@ -221,12 +222,35 @@ class KitchenTicket {
 
 /// `GET /staff/kitchen/tickets` natijasi: eskisidan yangisiga, ko'pi bilan 200 ta.
 class KitchenTicketList {
-  const KitchenTicketList({required this.tickets, this.truncated = false});
+  const KitchenTicketList({
+    required this.tickets,
+    this.truncated = false,
+    this.skipped = const <KitchenTicketSkip>[],
+  });
 
   final List<KitchenTicket> tickets;
 
   /// 200 tadan ko'p: ro'yxat to'liq emas.
   final bool truncated;
+
+  /// O'qib bo'lmagan chiptalar: ro'yxatdan tushirildi (qolganlari ko'rsatiladi). Ilova buni bildirishi va log'ga
+  /// yozishi kerak: odatda ilova versiyasi serverdan eski.
+  final List<KitchenTicketSkip> skipped;
+}
+
+/// Ro'yxatdagi o'qib bo'lmagan bitta chipta.
+class KitchenTicketSkip {
+  const KitchenTicketSkip({required this.index, this.uuid, this.error});
+
+  /// Javobdagi o'rni (0 dan).
+  final int index;
+
+  /// Chiptada `uuid` bo'lsa.
+  final String? uuid;
+  final Object? error;
+
+  @override
+  String toString() => 'KitchenTicketSkip(#$index, $uuid): $error';
 }
 
 List<T> _list<T>(Object? raw, T Function(Map<String, Object?>) parse) =>

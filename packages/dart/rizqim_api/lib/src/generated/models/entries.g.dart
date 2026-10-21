@@ -16,6 +16,7 @@ Entries _$EntriesFromJson(Map<String, dynamic> json) => Entries(
   reason: json['reason'] as String?,
   until: json['until'] as String?,
   createdBy: (json['created_by'] as num?)?.toInt(),
+  createdByName: json['created_by_name'] as String?,
   createdAt: json['created_at'] as String?,
 );
 
@@ -29,5 +30,6 @@ Map<String, dynamic> _$EntriesToJson(Entries instance) => <String, dynamic>{
   'reason': instance.reason,
   'until': instance.until,
   'created_by': instance.createdBy,
+  'created_by_name': instance.createdByName,
   'created_at': instance.createdAt,
 };

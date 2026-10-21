@@ -25,6 +25,7 @@ export const makeMember = (over: Partial<StaffMember> = {}): StaffMember => ({
   courier_type: null,
   phone: '+998901234567',
   login_phone_enabled: true,
+  login_phone_proof: 'vouched',
   has_pin: false,
   staff_code: null,
   telegram_linked: false,

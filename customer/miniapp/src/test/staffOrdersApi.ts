@@ -60,6 +60,7 @@ export function makeStaffOrder(overrides: Partial<StaffOrder> = {}): StaffOrder 
     preparing_at: null,
     ready_at: null,
     closed_at: null,
+    waiting_seconds: 0,
     ...overrides,
   };
 }

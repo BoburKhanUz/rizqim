@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'payment_settings.dart';
+import 'payment_settings2.dart';
 
 part 'v1_owner_settings_request_body.g.dart';
 
@@ -41,8 +41,10 @@ class V1OwnerSettingsRequestBody {
   final bool isOpen;
   @JsonKey(name: 'min_order_amount')
   final num? minOrderAmount;
+
+  /// To'lov va yetkazish sozlamalari (obyekt).
   @JsonKey(name: 'payment_settings')
-  final List<PaymentSettings> paymentSettings;
+  final PaymentSettings2 paymentSettings;
 
   Map<String, Object?> toJson() => _$V1OwnerSettingsRequestBodyToJson(this);
 }

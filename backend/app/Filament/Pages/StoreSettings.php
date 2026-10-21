@@ -99,7 +99,10 @@ class StoreSettings extends Page implements HasForms
                                 TextInput::make('timezone')
                                     ->label('Vaqt zonasi')
                                     ->default('Asia/Tashkent')
-                                    ->required(),
+                                    ->required()
+                                    // P2-33: as POST /owner/settings; an unknown zone broke date filters
+                                    ->rule('timezone:all')
+                                    ->validationMessages(['timezone' => "Vaqt mintaqasi noto'g'ri (masalan Asia/Tashkent)."]),
 
                                 TextInput::make('open_time')
                                     ->label('Ochilish vaqti (HH:MM:SS)')

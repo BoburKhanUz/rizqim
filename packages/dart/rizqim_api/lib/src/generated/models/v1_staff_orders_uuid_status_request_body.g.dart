@@ -9,7 +9,7 @@ part of 'v1_staff_orders_uuid_status_request_body.dart';
 V1StaffOrdersUuidStatusRequestBody _$V1StaffOrdersUuidStatusRequestBodyFromJson(
   Map<String, dynamic> json,
 ) => V1StaffOrdersUuidStatusRequestBody(
-  status: Status4.fromJson(json['status'] as String),
+  status: Status5.fromJson(json['status'] as String),
   reason: json['reason'] == null
       ? null
       : Reason2.fromJson(json['reason'] as String?),

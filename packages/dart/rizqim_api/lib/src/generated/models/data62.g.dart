@@ -7,15 +7,23 @@ part of 'data62.dart';
 // **************************************************************************
 
 Data62 _$Data62FromJson(Map<String, dynamic> json) => Data62(
-  productId: (json['product_id'] as num).toInt(),
-  channels: json['channels'] as List<dynamic>,
-  prices: (json['prices'] as List<dynamic>)
-      .map((e) => Prices.fromJson(e as Map<String, dynamic>))
+  roles: (json['roles'] as List<dynamic>)
+      .map((e) => Roles.fromJson(e as Map<String, dynamic>))
       .toList(),
+  permissions: (json['permissions'] as List<dynamic>)
+      .map((e) => Permissions.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  matrix: (json['matrix'] as Map<String, dynamic>).map(
+    (k, e) => MapEntry(k, Map<String, bool>.from(e as Map)),
+  ),
+  defaults: (json['defaults'] as Map<String, dynamic>).map(
+    (k, e) => MapEntry(k, Map<String, bool>.from(e as Map)),
+  ),
 );
 
 Map<String, dynamic> _$Data62ToJson(Data62 instance) => <String, dynamic>{
-  'product_id': instance.productId,
-  'channels': instance.channels,
-  'prices': instance.prices,
+  'roles': instance.roles,
+  'permissions': instance.permissions,
+  'matrix': instance.matrix,
+  'defaults': instance.defaults,
 };

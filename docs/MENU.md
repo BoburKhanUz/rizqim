@@ -13,7 +13,19 @@ Barcha endpointlar `/api/v1` ostida. Mavjud javob maydonlari o'zgarmagan, yangil
 - **Modifikator** (`modifiers`): `name`, `price_delta` (narx qo'shimchasi, so'm), `max_quantity` (bitta taomga necha
   marta), ixtiyoriy `product_variant_id` (keyinchalik ingredient qoldig'i uchun), `sort_order`, `is_active`.
 - **Taomga ulash** (`product_modifier_groups`): har bir taom uchun guruh qoidalarini almashtirish mumkin
-  (`min_select`, `max_select`, `is_required`; bo'sh bo'lsa guruhniki).
+  (`min_select`, `max_select`, `is_required`; bo'sh bo'lsa guruhniki). `PUT /owner/products/{id}/modifier-groups`
+  ro'yxatni almashtiradi; P2-30: qatorda yuborilmagan qoida taomning saqlangan qoidasini saqlab qoladi (`null` —
+  guruhnikiga qaytaradi), shuning uchun faqat bog'lash ro'yxatini saqlash qoidalarni o'chirmaydi. `GET /owner/products`
+  har bir taomni `modifier_group_links` bilan qaytaradi (tartib bo'yicha: `modifier_group_id`, `min_select`,
+  `max_select`, `is_required`, `sort_order`).
+- **Kim nima qiladi (P2-30).** `GET /owner/products`, `GET /owner/categories` — `menu.view` (ega, menejer, kassir,
+  ofitsiant, oshpaz); mahsulot yaratish, tahrirlash, o'chirish, rasmni o'chirish — `menu.manage` (standart: ega; ega
+  boshqa rolga berishi mumkin). Boshqa do'kon mahsuloti — 404 ("Mahsulot topilmadi."), do'konsiz hisob — 403
+  `store_required`. Xatolar o'zbekcha, umumiy shaklda (`{success: false, message, data}`).
+- **So'rov tanasi.** `POST /owner/modifier-groups` va `PUT /owner/modifier-groups/{id}` tanasi OpenAPI'da
+  (`ModifierGroupRequest`, P2-30): `name`, `name_i18n` (`{"ru": "..."}`), `min_select`, `max_select`, `is_required`,
+  `sort_order`, `is_active`, `modifiers[]` (`id?`, `name`, `name_i18n`, `price_delta`, `max_quantity`,
+  `product_variant_id`, `sort_order`, `is_active`).
 
 Buyurtmada `items.*.modifiers` — uuid'lar ro'yxati yoki `{id: uuid, quantity}`. Server tekshiradi: modifikator shu
 taomga ulangan faol guruhda va o'zi faol, filial stop-listida emas, `max_quantity` dan oshmagan, har bir guruhda tanlovlar
@@ -55,7 +67,11 @@ Partiya variantsiz ochilsa, taomning hamma variantlari undan oladi: har bir vari
   buyurtmalar hech qachon qolgandan ko'p sotmaydi, qoldiq manfiy bo'lmaydi). Yetmasa 422: "Uzr, 'Osh (1 porsiya)'
   tugadi." yoki "... yetarli emas (faqat 2 ta qoldi)".
 - Taom **"qozon bo'yicha sotiladi"** (`products.batch_tracked`) bo'lsa, filialda ochiq partiya bo'lmasa ham "tugadi".
-  Belgilanmagan taom partiyasiz oddiy qoldiq bilan sotiladi.
+  Belgilanmagan taom partiyasiz oddiy qoldiq bilan sotiladi. `GET /owner/branch-variants` ham har bir taomda
+  `batch_tracked` ni beradi (P2-30).
+- **Variant qoldig'i (P2-30).** Mahsulot yaratilganda (yoki tahrirlashda yangi variant qo'shilganda) `variants` JSON
+  qatorida ixtiyoriy `stock` (0–1 000 000; donali taomda butun son, kg/l da 3 xonagacha) — yuborilmasa avvalgidek 999.
+  Mavjud variantning qoldig'i tahrirlash formasida o'zgarmaydi (uni buyurtmalar o'zgartiradi).
 - Bekor qilingan buyurtma partiyaga qaytariladi (partiya hali ochiq bo'lsa).
 - Xodimlar (`batches.manage`: ega, menejer, oshpaz): `GET /owner/batches?branch_id=&include_closed=1`,
   `POST /owner/batches {branch_id?, product_id, product_variant_id?, quantity, label?}`,
@@ -71,7 +87,8 @@ yangilang." `until` o'tgach yozuv o'zi o'chadi (har daqiqada `menu:expire-stop-l
 ham avvalgidek ishlaydi va stop-list sifatida ko'rinadi.
 
 Xodimlar (`stoplist.manage`: ega, menejer): `GET /owner/stop-list?branch_id=`, `POST /owner/stop-list {branch_id?, type:
-product|variant|modifier, id, reason?, until?}`, `DELETE /owner/stop-list/{id}`. Filialga biriktirilgan xodim faqat o'z
+product|variant|modifier, id, reason?, until?}`, `DELETE /owner/stop-list/{id}`. Yozuvda `created_by` (id) va P2-30 dan
+`created_by_name` — kim qo'shgani (faqat `stoplist.manage` borlarga; `menu.view` bilan o'qiganda `null`). Filialga biriktirilgan xodim faqat o'z
 filialida. Panelda "Stop-list" ekrani. Jurnal: `menu.stop_list_added`, `menu.stop_list_removed`.
 
 ## 6. Mavjudlik va real-time
@@ -143,7 +160,9 @@ Telegram kartasida nol bo'lmasa alohida qator. Ega: `GET/PUT /owner/service-fees
 
 Mahsulot va kategoriya rasmlari `MENU_IMAGE_DISK` diskida (standart: `FILESYSTEM_DISK=s3` bo'lsa `s3`, aks holda
 `public`). Yuklangan rasm WebP ga o'giriladi (eni ko'pi bilan 1200 px), navbatdagi ish kichik nusxalarni yaratadi
-(`sm` 160 px, `md` 480 px). API: `image_url` (avvalgidek) va `image_thumb_urls: {sm, md}` (tayyor bo'lmaguncha `null`).
+(`sm` 160 px, `md` 480 px). API: `image_url` (avvalgidek) va `image_thumb_urls: {sm, md}` (tayyor bo'lmaguncha `null`). Rasmni o'chirish —
+`DELETE /owner/products/{id}/image` (`menu.manage`, P2-30): rasm va kichik nusxalari o'chadi, `image_url` `null`
+bo'ladi; rasmsiz mahsulotda ham 200.
 **Eslatma:** S3 uchun `league/flysystem-aws-s3-v3` paketi hali o'rnatilmagan; u qo'shilmaguncha rasmlar `public`
 diskka yoziladi (log'da ogohlantirish).
 

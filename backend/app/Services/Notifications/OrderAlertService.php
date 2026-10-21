@@ -3,6 +3,7 @@
 namespace App\Services\Notifications;
 
 use App\Enums\NotificationType;
+use App\Enums\OrderType;
 use App\Enums\UserRole;
 use App\Models\Order;
 use App\Models\User;
@@ -62,8 +63,9 @@ class OrderAlertService
     public function statusChanged(Order $order, string $status): void
     {
         try {
-            // READY -> notify branch manager OR courier
-            if ($status === 'ready') {
+            // READY -> notify branch manager OR courier. P2-33: only a delivery order needs a courier (a pickup or hall
+            // order is handed over at the counter: the customer hears from SendCustomerStatusAlert)
+            if ($status === 'ready' && $order->order_type === OrderType::DELIVERY) {
                 list($displayAddress, $keyboard) = $this->addressAndKeyboard($order->delivery_address, $order->shipping_address);
 
                 // If a courier is assigned, notify that specific courier

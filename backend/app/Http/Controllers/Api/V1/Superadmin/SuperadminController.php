@@ -24,8 +24,11 @@ class SuperadminController extends Controller
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
-        $regions = \App\Models\Region::where('is_active', true)->get(['id', 'name_uz as name']);
-        $districts = \App\Models\District::where('is_active', true)->get(['id', 'region_id', 'name_uz as name']);
+        // P2-30: plain {id, name} rows (the Uzbek name), so the OpenAPI document says what is sent
+        $regions = \App\Models\Region::where('is_active', true)->get(['id', 'name_uz'])
+            ->map(fn (\App\Models\Region $region) => ['id' => (int) $region->id, 'name' => (string) $region->name_uz])->values();
+        $districts = \App\Models\District::where('is_active', true)->get(['id', 'region_id', 'name_uz'])
+            ->map(fn (\App\Models\District $district) => ['id' => (int) $district->id, 'region_id' => (int) $district->region_id, 'name' => (string) $district->name_uz])->values();
 
         return response()->json([
             'success' => true,
@@ -80,8 +83,9 @@ class SuperadminController extends Controller
 
         // Additional Platform Metrics
         $pendingPayouts = \App\Models\PayoutRequest::where('status', 'pending')->count();
-        $totalStoreDebt = Store::where('debt_balance', '>', 0)->sum('debt_balance');
-        $totalCashbackBalance = User::where('role', \App\Enums\UserRole::CUSTOMER->value)->sum('balance');
+        // P2-30: numbers, like the other money figures here (a SQL sum arrives as a string)
+        $totalStoreDebt = \App\Support\Money::of(Store::where('debt_balance', '>', 0)->sum('debt_balance'))->toFloat();
+        $totalCashbackBalance = \App\Support\Money::of(User::where('role', \App\Enums\UserRole::CUSTOMER->value)->sum('balance'))->toFloat();
 
         return response()->json([
             'success' => true,
@@ -119,10 +123,8 @@ class SuperadminController extends Controller
             $owner = User::where('store_id', $store->id)->where('role', 'owner')->first();
             
             $botUsername = config('services.telegram.bot_username');
-            $inviteLink = null;
-            if ($owner && $owner->telegram_invite_token) {
-                $inviteLink = "https://t.me/{$botUsername}?start=invite_{$owner->telegram_invite_token}";
-            }
+            // Null once the owner has joined (the invite is spent)
+            $inviteLink = $owner && $owner->telegram_invite_token ? "https://t.me/{$botUsername}?start=invite_{$owner->telegram_invite_token}" : null;
 
             return [
                 'id' => $store->id,

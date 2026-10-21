@@ -44,8 +44,9 @@ abstract class MenuStaffController extends Controller
         $storeId = $this->storeId($request);
         $branchId ??= $request->input('branch_id');
 
-        if (($branchId === null || $branchId === '') && $this->permissions->isBranchScoped($user)) {
-            $branchId = $user->branch_id;
+        // P2-33: the caller's branch, or the terminal's for a PIN session
+        if (($branchId === null || $branchId === '') && ($acting = $this->permissions->actingBranchId($user)) !== null) {
+            $branchId = $acting;
         }
         if ($branchId === null || $branchId === '' || filter_var($branchId, FILTER_VALIDATE_INT) === false) {
             throw new HttpResponseException($this->error('Filialni tanlang (branch_id).', ['errors' => ['branch_id' => ['Filialni tanlang.']]], 422));

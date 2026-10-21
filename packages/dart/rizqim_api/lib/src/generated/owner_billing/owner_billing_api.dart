@@ -15,12 +15,15 @@ part 'owner_billing_api.g.dart';
 abstract class OwnerBillingApi {
   factory OwnerBillingApi(Dio dio, {String? baseUrl}) = _OwnerBillingApi;
 
-  /// The store's subscription invoices, newest month first
+  /// The store's subscription invoices, newest month first.
+  ///
+  /// [page] - P2-30: the Laravel page (documented, so the generated clients carry it).
   @GET('/v1/owner/invoices')
   Future<GetV1OwnerInvoicesResponse> ownerBillingInvoices({
     @Query('status') SubscriptionInvoiceStatus? status,
     @Query('period') String? period,
     @Query('per_page') int? perPage,
+    @Query('page') int? page,
   });
 
   /// The current plan and period, the terminals counted so far and an estimate of the period's invoice.

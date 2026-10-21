@@ -150,4 +150,38 @@ class ApiDocsSpecTest extends TestCase
             File::delete($path);
         }
     }
+
+    /**
+     * P2-30: the shapes the wave 2 screens had to correct by hand (packages/ts/staff/src/api/specGaps.ts) are right in
+     * the document now, and no payout response documents a card number.
+     */
+    public function test_the_shapes_the_staff_screens_corrected_by_hand_are_documented(): void
+    {
+        $paths = $this->doc['paths'];
+        $data = fn (string $path, string $method = 'get', string $code = '200') => $paths[$path][$method]['responses'][$code]['content']['application/json']['schema']['properties']['data'];
+
+        $employee = $data('/v1/owner/employees')['items'];
+        $this->assertSame('#/components/schemas/UserRole', $employee['properties']['role']['$ref']);
+        $this->assertSame(['object', 'null'], $employee['properties']['branch']['type']);
+        $this->assertArrayHasKey('telegram_invite_token', $employee['properties']);
+
+        $this->assertSame(['id', 'name'], array_keys($data('/v1/superadmin/locations')['properties']['regions']['items']['properties']));
+        $this->assertSame('number', $data('/v1/superadmin/dashboard')['properties']['total_store_debt']['type']);
+        $this->assertSame(['string', 'null'], $data('/v1/superadmin/stores')['items']['properties']['owner']['properties']['invite_link']['type']);
+
+        $this->assertSame('object', $data('/v1/owner/settings')['properties']['payment_settings']['type']);
+        $this->assertSame('object', $paths['/v1/owner/settings']['post']['requestBody']['content']['application/json']['schema']['properties']['payment_settings']['type']);
+        $this->assertContains('toggle_active', array_column($paths['/v1/owner/products/{id}']['post']['parameters'], 'name'));
+        $this->assertArrayHasKey('requestBody', $paths['/v1/owner/modifier-groups']['post']);
+        $this->assertArrayHasKey('requestBody', $paths['/v1/owner/modifier-groups/{id}']['put']);
+
+        foreach (['/v1/owner/finance/ledger', '/v1/owner/finance/wallet', '/v1/owner/payouts', '/v1/owner/payments', '/v1/owner/invoices'] as $path) {
+            $this->assertContains('page', array_column($paths[$path]['get']['parameters'], 'name'), $path);
+        }
+
+        $payout = $data('/v1/owner/payouts', 'post');
+        $this->assertSame(['pending', 'completed', 'rejected'], $payout['properties']['status']['enum']);
+        $this->assertArrayHasKey('card', $payout['properties']);
+        $this->assertStringNotContainsString('#/components/schemas/PayoutRequest', (string) json_encode($paths), 'a payout model (with its card number) is never a response');
+    }
 }

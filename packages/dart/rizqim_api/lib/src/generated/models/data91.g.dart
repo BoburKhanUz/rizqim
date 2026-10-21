@@ -7,11 +7,15 @@ part of 'data91.dart';
 // **************************************************************************
 
 Data91 _$Data91FromJson(Map<String, dynamic> json) => Data91(
-  storeId: (json['store_id'] as num).toInt(),
-  inviteLink: json['invite_link'] as String,
+  regions: (json['regions'] as List<dynamic>)
+      .map((e) => Regions2.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  districts: (json['districts'] as List<dynamic>)
+      .map((e) => Districts2.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data91ToJson(Data91 instance) => <String, dynamic>{
-  'store_id': instance.storeId,
-  'invite_link': instance.inviteLink,
+  'regions': instance.regions,
+  'districts': instance.districts,
 };

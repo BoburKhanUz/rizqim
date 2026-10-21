@@ -18,6 +18,7 @@ class Entries {
     required this.reason,
     required this.until,
     required this.createdBy,
+    required this.createdByName,
     required this.createdAt,
   });
 
@@ -37,6 +38,10 @@ class Entries {
   final String? until;
   @JsonKey(name: 'created_by')
   final int? createdBy;
+
+  /// The store's own staff only (a super admin's entry shows no name)
+  @JsonKey(name: 'created_by_name')
+  final String? createdByName;
   @JsonKey(name: 'created_at')
   final String? createdAt;
 

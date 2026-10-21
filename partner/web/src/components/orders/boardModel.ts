@@ -1,4 +1,4 @@
-import { getApiErrorMessage, isStaffApiError, statusGroup, type StaffOrder } from '@rizqim/staff';
+import { getApiErrorMessage, getOrderWaiting, isStaffApiError, statusGroup, type StaffOrder, type WaitTone } from '@rizqim/staff';
 import type { MessageKey, Translate } from '@/i18n';
 
 // How the board lays out what the API returns: which column an order sits in (by its status group, the same groups as
@@ -44,16 +44,15 @@ export function groupBoard(active: readonly StaffOrder[], finished: readonly Sta
   return groups;
 }
 
-export type WaitTone = 'calm' | 'warning' | 'late';
+export type { WaitTone } from '@rizqim/staff';
 
-// Minutes since the order came in, and how worrying that is: a new order should be accepted within minutes, one in the
-// kitchen or on the way within half an hour (display only; the thresholds are the board's own).
-export function waitingOf(order: Pick<StaffOrder, 'status' | 'created_at'>, now: number): { minutes: number; tone: WaitTone } | null {
-  const since = time(order.created_at);
-  if (!since || columnOf(order.status) === 'done') return null;
-  const minutes = Math.max(0, Math.floor((now - since) / 60_000));
-  const [warning, late] = order.status === 'new' ? [5, 10] : [20, 40];
-  return { minutes, tone: minutes >= late ? 'late' : minutes >= warning ? 'warning' : 'calm' };
+// How long the order has waited and how worrying that is, by the rule the Mini App's staff screens share
+// (@rizqim/staff getOrderWaiting: the server's `waiting_seconds`, ticking on while the clock runs; the thresholds of
+// WAITING_THRESHOLDS). Finished orders show none.
+export function waitingOf(order: Pick<StaffOrder, 'status' | 'created_at' | 'accepted_at' | 'waiting_seconds'>, now: number): { minutes: number; tone: WaitTone } | null {
+  const column = columnOf(order.status);
+  if (column === null || column === 'done') return null;
+  return getOrderWaiting(order, now);
 }
 
 // "Today" for the finished column: the date in the store's time zone (the API counts days there)

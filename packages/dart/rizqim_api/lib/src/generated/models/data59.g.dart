@@ -7,23 +7,23 @@ part of 'data59.dart';
 // **************************************************************************
 
 Data59 _$Data59FromJson(Map<String, dynamic> json) => Data59(
-  data: (json['data'] as List<dynamic>)
-      .map((e) => Data58.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  currentPage: (json['current_page'] as num).toInt(),
-  lastPage: (json['last_page'] as num).toInt(),
-  perPage: (json['per_page'] as num).toInt(),
-  total: (json['total'] as num).toInt(),
-  from: (json['from'] as num?)?.toInt(),
-  to: (json['to'] as num?)?.toInt(),
+  id: (json['id'] as num).toInt(),
+  amount: json['amount'] as String,
+  card: json['card'] as String,
+  status: Status4.fromJson(json['status'] as String),
+  notes: json['notes'] as String?,
+  resolutionNotes: json['resolution_notes'] as String?,
+  processedAt: json['processed_at'] as String?,
+  createdAt: json['created_at'] as String,
 );
 
 Map<String, dynamic> _$Data59ToJson(Data59 instance) => <String, dynamic>{
-  'data': instance.data,
-  'current_page': instance.currentPage,
-  'last_page': instance.lastPage,
-  'per_page': instance.perPage,
-  'total': instance.total,
-  'from': instance.from,
-  'to': instance.to,
+  'id': instance.id,
+  'amount': instance.amount,
+  'card': instance.card,
+  'status': instance.status,
+  'notes': instance.notes,
+  'resolution_notes': instance.resolutionNotes,
+  'processed_at': instance.processedAt,
+  'created_at': instance.createdAt,
 };

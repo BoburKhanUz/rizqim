@@ -17,6 +17,11 @@ class SendCustomerStatusAlert implements ShouldQueue
 
     public function handle(OrderStatusUpdated $event): void
     {
+        // P2-33: a kitchen correction (recall from ready, ready again) is not news to the customer
+        if ($event->quiet) {
+            return;
+        }
+
         $this->telegramService->sendOrderStatusChanged($event->order);
     }
 }

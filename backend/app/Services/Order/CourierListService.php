@@ -13,7 +13,7 @@ class CourierListService
     ) {}
 
     /**
-     * Exactly the employees assign-courier accepts from this owner/manager (couriers, managers and owners of the
+     * Exactly the employees assign-courier accepts from this assigner (orders.assign_courier) (couriers, managers and owners of the
      * store/branch), labelled for the courier picker. A branch_id filter applies unless the assigner is tied to a branch.
      *
      * @param array $filters request input; only the presence and value of branch_id matter
@@ -22,7 +22,7 @@ class CourierListService
     {
         $query = $this->orderStatus->assignableStaff((int) $assigner->store_id, $assigner);
 
-        if (($assigner->role !== UserRole::MANAGER || !$assigner->branch_id) && array_key_exists('branch_id', $filters)) {
+        if (app(\App\Services\Auth\PermissionService::class)->actingBranchId($assigner) === null && array_key_exists('branch_id', $filters)) {
             $query->where(function ($q) use ($filters) {
                 $q->where('branch_id', $filters['branch_id'])
                   ->orWhereNull('branch_id')

@@ -167,3 +167,13 @@ Bitta do'konga alohida narx kerak bo'lsa, yangi tarif yarating va faqat o'sha do
   `GET /api/v1/owner/payments`. Hammasi `finance.view` bilan, faqat o'qish uchun, pul — ikki xonali satr, `from`/`to` —
   do'kon vaqt mintaqasidagi kunlar ([API.md](API.md), 12-bo'lim).
 - `GET /api/v1/owner/finance` dagi `commission_rate` endi amalda olinadigan foizni ko'rsatadi (tarif yoki do'kon foizi).
+- P2-30: `GET /api/v1/owner/finance` ham `finance.view` bilan (avval faqat ega roli; ega menejerga berishi mumkin),
+  terminal PIN sessiyasidan emas. Pul yechish (`POST /owner/payouts`) va to'ldirish avvalgidek faqat ega.
+- P2-30 (xavfsizlik): karta raqami hech qaysi javobda to'liq qaytmaydi. `POST /owner/payouts` javobi va
+  `GET /owner/finance` dagi `payout_requests` — `GET /owner/payouts` shakli (`card`: `"8600 **** **** 9012"`; eski
+  mijozlar uchun `card_number` ham bor, lekin u ham niqoblangan), hamyon va qarz yozuvlari izohidagi karta raqamlari ham
+  niqoblanadi. To'liq raqam faqat bazada qoladi (superadmin pulni o'tkazishi uchun).
+- `GET /owner/invoices`, `/owner/finance/ledger`, `/owner/finance/wallet`, `/owner/payouts`, `/owner/payments` da `page`
+  (Laravel sahifasi) OpenAPI'da ham yozilgan (P2-30). Pul summalari bu yangi endpointlarda ikki xonali satr; eski
+  `GET /owner/finance` balanslari va hisob-faktura summalari (`/owner/invoices`, `/owner/subscription`) v1 qoidasiga ko'ra
+  son bo'lib qoladi.

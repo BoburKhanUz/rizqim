@@ -12,7 +12,7 @@ _$GetV1OwnerProductsIdChannelPricesResponseFromJson(
 ) => GetV1OwnerProductsIdChannelPricesResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data62.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data64.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1OwnerProductsIdChannelPricesResponseToJson(

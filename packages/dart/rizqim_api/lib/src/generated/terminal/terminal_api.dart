@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
 import '../models/delete_v1_devices_device_uuid_staff_session_response.dart';
+import '../models/delete_v1_terminal_response.dart';
 import '../models/get_v1_terminal_response.dart';
 import '../models/get_v1_terminal_staff_response.dart';
 import '../models/post_v1_devices_device_uuid_staff_session_response.dart';
@@ -40,10 +41,30 @@ abstract class TerminalApi {
   Future<DeleteV1DevicesDeviceUuidStaffSessionResponse>
   terminalEndStaffSession({@Path('deviceUuid') required String deviceUuid});
 
+  /// GET /terminal: the terminal, its store and branch.
+  ///
+  /// P2-30: `branches`, the branches whose real-time channel (`private-pos-branch.{id}`) it may join: its own branch,.
+  /// or every branch of the store for a terminal paired without one (a store-wide kitchen display subscribes to each).
   @GET('/v1/terminal')
   Future<GetV1TerminalResponse> terminalShow();
 
-  /// GET /terminal/staff: who can sign in on this terminal (name, role, staff code), for the PIN pad
+  /// Unpair this terminal (P2-33).
+  ///
+  /// The terminal revokes itself with its own token (`auth:device`), e.g. before the kitchen display forgets its.
+  /// pairing: the same as the owner's `POST /owner/devices/{uuid}/revoke` — the device is revoked, its token and every.
+  /// staff PIN session on it stop working at once, and the audit log records `device.revoked` (`self_revoked: true`).
+  /// Pairing again needs a new code. Calling it again with the old token: 401.
+  @DELETE('/v1/terminal')
+  Future<DeleteV1TerminalResponse> terminalDestroy();
+
+  /// GET /terminal/staff: who can sign in on this terminal (name, role, staff code), for the PIN pad.
+  ///
+  /// P2-30: `role` (comma-separated, e.g. `cook,manager,owner` on a kitchen display) lists only those roles; an.
+  /// unknown role: 422.
+  ///
+  /// [role] - Comma-separated roles to list: owner, manager, cashier, waiter, cook.
   @GET('/v1/terminal/staff')
-  Future<GetV1TerminalStaffResponse> terminalStaff();
+  Future<GetV1TerminalStaffResponse> terminalStaff({
+    @Query('role') String? role,
+  });
 }

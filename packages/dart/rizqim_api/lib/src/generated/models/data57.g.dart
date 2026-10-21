@@ -7,23 +7,25 @@ part of 'data57.dart';
 // **************************************************************************
 
 Data57 _$Data57FromJson(Map<String, dynamic> json) => Data57(
-  data: (json['data'] as List<dynamic>)
-      .map((e) => Data56.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  currentPage: (json['current_page'] as num).toInt(),
-  lastPage: (json['last_page'] as num).toInt(),
-  perPage: (json['per_page'] as num).toInt(),
-  total: (json['total'] as num).toInt(),
-  from: (json['from'] as num?)?.toInt(),
-  to: (json['to'] as num?)?.toInt(),
+  uuid: json['uuid'] as String,
+  provider: json['provider'] as String,
+  providerTransactionId: json['provider_transaction_id'] as String?,
+  status: json['status'] as String,
+  amount: json['amount'] as String,
+  paidAt: json['paid_at'] as String?,
+  cancelledAt: json['cancelled_at'] as String?,
+  createdAt: json['created_at'] as String,
+  order: Order3.fromJson(json['order'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data57ToJson(Data57 instance) => <String, dynamic>{
-  'data': instance.data,
-  'current_page': instance.currentPage,
-  'last_page': instance.lastPage,
-  'per_page': instance.perPage,
-  'total': instance.total,
-  'from': instance.from,
-  'to': instance.to,
+  'uuid': instance.uuid,
+  'provider': instance.provider,
+  'provider_transaction_id': instance.providerTransactionId,
+  'status': instance.status,
+  'amount': instance.amount,
+  'paid_at': instance.paidAt,
+  'cancelled_at': instance.cancelledAt,
+  'created_at': instance.createdAt,
+  'order': instance.order,
 };

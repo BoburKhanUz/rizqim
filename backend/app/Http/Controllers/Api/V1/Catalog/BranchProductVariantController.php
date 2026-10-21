@@ -24,18 +24,18 @@ class BranchProductVariantController extends Controller
     {
         $user = $request->user();
         if (!$user) {
-            return $this->error('Unauthorized.', [], 401);
+            return $this->error('Avtorizatsiyadan o\'tilmagan.', [], 401);
         }
 
         $userRole = $user->role->value ?? null; // null for an in-memory user created without a role
         if (!in_array($userRole, ['owner', 'manager'])) {
-            return $this->error('Unauthorized.', [], 403);
+            return $this->error('Ruxsat etilmagan', [], 403);
         }
 
         // An id past bigint reads as missing (a 422), never as a failing query
         $branchId = $userRole === 'manager' ? $user->branch_id : \App\Support\RowId::parse($request->query('branch_id'));
         if (!$branchId) {
-            return $this->error('Branch ID is required.', [], 422);
+            return $this->error('Filialni tanlang (branch_id).', [], 422);
         }
 
         // Ensure branch belongs to store
@@ -44,7 +44,7 @@ class BranchProductVariantController extends Controller
             ->first();
 
         if (!$branch) {
-            return $this->error('Branch not found.', [], 404);
+            return $this->error('Filial topilmadi.', [], 404);
         }
 
         // Fetch all products of the store with their variants
@@ -75,6 +75,8 @@ class BranchProductVariantController extends Controller
                 'name' => $product->name,
                 'description' => $product->description,
                 'image_url' => $product->image_url,
+                // P2-30: sold from a batch (kazan): without an open batch on the branch it is sold out (docs/MENU.md §4)
+                'batch_tracked' => (bool) $product->batch_tracked,
                 'variants' => $variants,
             ];
         });
@@ -89,12 +91,12 @@ class BranchProductVariantController extends Controller
     {
         $user = $request->user();
         if (!$user) {
-            return $this->error('Unauthorized.', [], 401);
+            return $this->error('Avtorizatsiyadan o\'tilmagan.', [], 401);
         }
 
         $userRole = $user->role->value ?? null; // null for an in-memory user created without a role
         if (!in_array($userRole, ['owner', 'manager'])) {
-            return $this->error('Unauthorized.', [], 403);
+            return $this->error('Ruxsat etilmagan', [], 403);
         }
 
         $request->validate([
@@ -114,7 +116,7 @@ class BranchProductVariantController extends Controller
             ->first();
 
         if (!$branch) {
-            return $this->error('Branch not found.', [], 404);
+            return $this->error('Filial topilmadi.', [], 404);
         }
 
         // Verify product belongs to store
@@ -123,12 +125,12 @@ class BranchProductVariantController extends Controller
             ->first();
 
         if (!$product) {
-            return $this->error('Product not found.', [], 404);
+            return $this->error('Mahsulot topilmadi.', [], 404);
         }
 
         // P1-21: the variant must be this product's (it could name another store's variant before)
         if (!\App\Models\ProductVariant::where('product_id', $product->id)->whereKey($request->product_variant_id)->exists()) {
-            return $this->error('Product not found.', [], 404);
+            return $this->error('Mahsulot topilmadi.', [], 404);
         }
 
         $wasActive = \App\Models\BranchProductVariant::where('branch_id', $branchId)
@@ -155,6 +157,6 @@ class BranchProductVariantController extends Controller
             ], 'branch_override'));
         }
 
-        return $this->success($variantOverride, 'Branch product variant status updated successfully.');
+        return $this->success($variantOverride, 'Filialdagi holati saqlandi.');
     }
 }

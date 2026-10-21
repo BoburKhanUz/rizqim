@@ -4,12 +4,15 @@ namespace App\Services\Auth;
 
 use App\Enums\Permission;
 use App\Enums\UserRole;
+use App\Http\Middleware\RejectStaffSession;
 use App\Models\Branch;
+use App\Models\Device;
 use App\Models\RolePermissionOverride;
 use App\Models\Store;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Cache;
+use Laravel\Sanctum\PersonalAccessToken;
 
 /**
  * Resolves what a user may do: the role's defaults (RolePermissions) with the store's overrides applied, then
@@ -83,6 +86,13 @@ class PermissionService
             return false;
         }
 
+        // P2-33: the branch the user acts in (their own, or the terminal's for a PIN session); a PIN session whose
+        // terminal is gone acts nowhere (fails closed), not even store-wide
+        $acting = $this->actingBranchId($user);
+        if ($acting === self::NO_BRANCH) {
+            return false;
+        }
+
         if (!$subject instanceof Model) {
             return true;
         }
@@ -93,7 +103,7 @@ class PermissionService
             return false;
         }
 
-        return !$hasBranch || !$this->isBranchScoped($user) || (int) $user->branch_id === $branchId;
+        return !$hasBranch || $acting === null || $acting === $branchId;
     }
 
     /**
@@ -102,6 +112,74 @@ class PermissionService
     public function isBranchScoped(User $user): bool
     {
         return $user->branch_id !== null && !in_array($user->role, [UserRole::OWNER, UserRole::SUPER_ADMIN], true);
+    }
+
+    // --- P2-33: terminal PIN sessions act in the terminal's branch -------------------------------------------------
+
+    /** actingBranchId() of a PIN session whose terminal is missing, revoked or not a terminal: no branch at all. */
+    public const NO_BRANCH = 0;
+
+    /** @var \WeakMap<PersonalAccessToken, Device|false>|null terminal of a PIN session token (per token object) */
+    private ?\WeakMap $terminals = null;
+
+    /**
+     * The one branch the user acts in, null for the whole store: their own branch when they are tied to one
+     * (isBranchScoped); for a staff PIN session on a terminal paired to a branch, that branch (the owner and
+     * store-wide staff included: a store-wide cook on branch A's kitchen display works branch A); NO_BRANCH (0) for a
+     * PIN session whose terminal cannot be found, is revoked or is not a POS/KDS terminal (fails closed). Every
+     * subject check (allows) and the store-wide lists (staff orders, GET /orders, reports, analytics) narrow to it.
+     */
+    public function actingBranchId(User $user): ?int
+    {
+        if ($this->isBranchScoped($user)) {
+            return (int) $user->branch_id;
+        }
+
+        if (!$this->isStaffSession($user)) {
+            return null;
+        }
+
+        $terminal = $this->terminalOf($user);
+        if ($terminal === null) {
+            return self::NO_BRANCH;
+        }
+
+        return $terminal->branch_id !== null ? (int) $terminal->branch_id : null;
+    }
+
+    /**
+     * Whether this request is a staff PIN session on a terminal (POST /devices/{uuid}/staff-session).
+     */
+    public function isStaffSession(User $user): bool
+    {
+        /** @var mixed $token a TransientToken for a session sign-in (panel, tests) */
+        $token = $user->currentAccessToken();
+
+        return $token instanceof PersonalAccessToken && RejectStaffSession::isStaffSession($token);
+    }
+
+    /**
+     * The paired, unrevoked POS/KDS terminal this request's staff PIN session is bound to; null for any other sign-in
+     * and for a PIN session whose terminal is gone (actingBranchId() then fails closed).
+     */
+    public function terminalOf(User $user): ?Device
+    {
+        /** @var mixed $token */
+        $token = $user->currentAccessToken();
+        if (!$token instanceof PersonalAccessToken || !RejectStaffSession::isStaffSession($token)) {
+            return null;
+        }
+
+        $this->terminals ??= new \WeakMap();
+        if (!isset($this->terminals[$token])) {
+            $deviceId = $token->getAttribute('device_id');
+            $device = $deviceId !== null ? Device::whereKey((int) $deviceId)->whereNull('revoked_at')->first() : null;
+            $this->terminals[$token] = $device !== null && $device->isTerminal() && (int) $device->store_id === (int) $user->store_id
+                ? $device
+                : false;
+        }
+
+        return $this->terminals[$token] ?: null;
     }
 
     /**

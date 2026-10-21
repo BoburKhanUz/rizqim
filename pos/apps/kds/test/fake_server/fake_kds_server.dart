@@ -1,5 +1,6 @@
 // Soxta backend + Reverb: oshxona ekranini Linux'da (Xvfb) haqiqiy ilova sifatida ishga tushirib ko'rish va suratga
-// olish uchun. Testlar bilan bir xil holat ([FakeKitchenState]) ishlatiladi.
+// olish uchun. Testlar bilan bir xil holat ([FakeKitchenState]) ishlatiladi. [FakeKdsServer] sinfini `flutter test` ham
+// ishlatadi (`test/kds_over_http_test.dart`: haqiqiy HTTP/WebSocket bilan butun oqim).
 //
 //   cd pos/apps/kds
 //   dart run test/fake_server/fake_kds_server.dart --port 8787
@@ -15,41 +16,91 @@ import 'dart:io';
 
 import '../support/fake_kitchen_state.dart';
 
+/// Haqiqiy `HttpServer` (loopback): REST ([FakeKitchenState]) va Reverb WebSocket (`/app/<key>`) bitta portda. Linux'da
+/// qo'lda ishga tushiriladi ([main]) yoki `flutter test` ichida ilovani haqiqiy HTTP/WebSocket orqali sinash uchun
+/// (`test/kds_over_http_test.dart`).
+class FakeKdsServer {
+  FakeKdsServer._(this._server, this.state, this._sockets);
+
+  /// [port] 0 — bo'sh port. [demo] — namunaviy buyurtmalar bilan boshlanadi.
+  static Future<FakeKdsServer> start({int port = 0, bool demo = false}) async {
+    final List<_Ws> sockets = <_Ws>[];
+    final FakeKitchenState state = FakeKitchenState(
+      onEvent: (String event, Map<String, Object?> data) {
+        for (final _Ws s in sockets) {
+          for (final String channel in s.channels) {
+            s.send(event, channel: channel, data: data);
+          }
+        }
+      },
+    );
+    if (demo) state.seedDemo();
+    final HttpServer server = await HttpServer.bind(
+      InternetAddress.loopbackIPv4,
+      port,
+    );
+    final FakeKdsServer fake = FakeKdsServer._(server, state, sockets);
+    unawaited(fake._serve());
+    return fake;
+  }
+
+  final HttpServer _server;
+  final List<_Ws> _sockets;
+  final FakeKitchenState state;
+
+  /// `true` — server javob bermaydi (tarmoq uzilgandek).
+  bool offline = false;
+
+  /// Konsolga so'rovlar jurnali (qo'lda ishga tushirishda).
+  bool verbose = false;
+
+  int get port => _server.port;
+
+  /// `RIZQIM_API_URL`: `/api` bilan tugaydi.
+  String get apiBaseUrl => 'http://127.0.0.1:$port/api';
+
+  /// Reverb (`RIZQIM_REVERB_URL`).
+  String get reverbUrl => 'ws://127.0.0.1:$port';
+
+  /// Hozir ochiq WebSocket'lar va ular obuna bo'lgan kanallar (imzosi tekshirilgan).
+  List<Set<String>> get subscriptions =>
+      _sockets.map((_Ws s) => Set<String>.of(s.channels)).toList();
+
+  Future<void> _serve() async {
+    await for (final HttpRequest request in _server) {
+      unawaited(_handle(request, state, _sockets, this));
+    }
+  }
+
+  /// Hamma WebSocket'larni uzadi (qayta ulanishni sinash).
+  Future<void> dropSockets() async {
+    for (final _Ws s in _sockets.toList()) {
+      await s.socket.close();
+    }
+  }
+
+  Future<void> stop() async {
+    for (final _Ws s in _sockets.toList()) {
+      await s.socket.close();
+    }
+    await _server.close(force: true);
+  }
+}
+
 Future<void> main(List<String> args) async {
   final int port = int.tryParse(_arg(args, '--port') ?? '') ?? 8787;
-  final List<_Ws> sockets = <_Ws>[];
-  var offline = false;
-  final FakeKitchenState state = FakeKitchenState(
-    onEvent: (String event, Map<String, Object?> data) {
-      for (final _Ws s in sockets) {
-        for (final String channel in s.channels) {
-          s.send(event, channel: channel, data: data);
-        }
-      }
-    },
-  )..seedDemo();
-
-  final HttpServer server = await HttpServer.bind(
-    InternetAddress.loopbackIPv4,
-    port,
-  );
+  final FakeKdsServer server = await FakeKdsServer.start(port: port, demo: true)
+    ..verbose = true;
   stdout.writeln(
-    'Soxta KDS backend: http://127.0.0.1:$port/api (Reverb: ws://127.0.0.1:$port/app/kds-key)',
+    'Soxta KDS backend: ${server.apiBaseUrl} (Reverb: ws://127.0.0.1:${server.port}/app/kds-key)',
   );
-
-  await for (final HttpRequest request in server) {
-    unawaited(
-      _handle(request, state, sockets, () => offline, (bool v) => offline = v),
-    );
-  }
 }
 
 Future<void> _handle(
   HttpRequest request,
   FakeKitchenState state,
   List<_Ws> sockets,
-  bool Function() isOffline,
-  void Function(bool) setOffline,
+  FakeKdsServer server,
 ) async {
   final String path = request.uri.path;
   try {
@@ -67,12 +118,10 @@ Future<void> _handle(
           );
           _json(request, 200, <String, Object?>{'uuid': uuid});
         case '/__control/offline':
-          setOffline(request.uri.queryParameters['on'] == '1');
-          _json(request, 200, <String, Object?>{'offline': isOffline()});
+          server.offline = request.uri.queryParameters['on'] == '1';
+          _json(request, 200, <String, Object?>{'offline': server.offline});
         case '/__control/drop':
-          for (final _Ws s in sockets.toList()) {
-            await s.socket.close();
-          }
+          await server.dropSockets();
           _json(request, 200, <String, Object?>{'dropped': true});
         default:
           _json(request, 404, <String, Object?>{'message': 'unknown control'});
@@ -80,7 +129,7 @@ Future<void> _handle(
       return;
     }
 
-    if (isOffline()) {
+    if (server.offline) {
       // Tarmoq uzilgandek: javobsiz yopiladi
       final Socket raw = await request.response.detachSocket(
         writeHeaders: false,
@@ -155,7 +204,9 @@ Future<void> _handle(
       body,
       auth?.replaceFirst('Bearer ', ''),
     );
-    stdout.writeln('${request.method} $path -> ${r.status}');
+    if (server.verbose) {
+      stdout.writeln('${request.method} $path -> ${r.status}');
+    }
     r.headers.forEach(request.response.headers.set);
     _json(request, r.status, r.body);
   } on Object catch (e) {

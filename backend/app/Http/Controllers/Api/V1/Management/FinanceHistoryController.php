@@ -8,6 +8,7 @@ use App\Enums\StoreTransactionType;
 use App\Models\Store;
 use App\Services\Order\SalesReportService;
 use App\Support\Money;
+use App\Support\PayoutView;
 use App\Support\UzValidation;
 use Carbon\CarbonImmutable;
 use Dedoc\Scramble\Attributes\Group;
@@ -42,6 +43,7 @@ class FinanceHistoryController extends ManagementController
     #[QueryParameter('from', description: 'YYYY-MM-DD (do\'kon vaqti).', type: 'string', required: false)]
     #[QueryParameter('to', description: 'YYYY-MM-DD (do\'kon vaqti).', type: 'string', required: false)]
     #[QueryParameter('per_page', description: '1–100, standart 25.', type: 'int', required: false)]
+    #[QueryParameter('page', description: 'Sahifa raqami, 1 dan (Laravel sahifalari).', type: 'int', required: false)]
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{data: list<' . self::TRANSACTION . '>, ' . self::PAGE . '}}')]
     public function ledger(Request $request): JsonResponse
     {
@@ -58,6 +60,7 @@ class FinanceHistoryController extends ManagementController
     #[QueryParameter('from', description: 'YYYY-MM-DD (do\'kon vaqti).', type: 'string', required: false)]
     #[QueryParameter('to', description: 'YYYY-MM-DD (do\'kon vaqti).', type: 'string', required: false)]
     #[QueryParameter('per_page', description: '1–100, standart 25.', type: 'int', required: false)]
+    #[QueryParameter('page', description: 'Sahifa raqami, 1 dan (Laravel sahifalari).', type: 'int', required: false)]
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{data: list<' . self::TRANSACTION . '>, ' . self::PAGE . '}}')]
     public function wallet(Request $request): JsonResponse
     {
@@ -69,11 +72,12 @@ class FinanceHistoryController extends ManagementController
      *
      * The store's requests to withdraw from the wallet and how the platform handled them. The card number is masked.
      */
-    #[QueryParameter('status', description: 'pending | completed | rejected.', type: 'string', required: false)]
+    #[QueryParameter('status', description: 'pending | completed | rejected.', type: "'pending'|'completed'|'rejected'", required: false)]
     #[QueryParameter('from', description: 'YYYY-MM-DD (do\'kon vaqti).', type: 'string', required: false)]
     #[QueryParameter('to', description: 'YYYY-MM-DD (do\'kon vaqti).', type: 'string', required: false)]
     #[QueryParameter('per_page', description: '1–100, standart 25.', type: 'int', required: false)]
-    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{data: list<array{id: int, amount: string, card: string, status: string, notes: string|null, resolution_notes: string|null, processed_at: string|null, created_at: string}>, ' . self::PAGE . '}}')]
+    #[QueryParameter('page', description: 'Sahifa raqami, 1 dan (Laravel sahifalari).', type: 'int', required: false)]
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{data: list<' . PayoutView::SHAPE . '>, ' . self::PAGE . '}}')]
     public function payouts(Request $request): JsonResponse
     {
         $this->validateFilters($request, ['status' => 'nullable|string|in:pending,completed,rejected']);
@@ -85,16 +89,8 @@ class FinanceHistoryController extends ManagementController
         $this->dateRange($query, 'payout_requests.created_at', $request, $store);
 
         $page = $query->orderByDesc('id')->paginate($this->perPage($request));
-        $page->getCollection()->transform(fn (object $row): array => [
-            'id' => (int) $row->id,
-            'amount' => Money::of($row->amount)->toString(),
-            'card' => $this->maskCard((string) $row->card_number),
-            'status' => (string) $row->status,
-            'notes' => $this->maskCardsIn($row->notes),
-            'resolution_notes' => $this->maskCardsIn($row->resolution_notes ?? null),
-            'processed_at' => $this->iso($row->processed_at),
-            'created_at' => (string) $this->iso($row->created_at),
-        ]);
+        // P2-30: the same masked shape as GET /owner/finance and POST /owner/payouts (PayoutView)
+        $page->getCollection()->transform(fn (object $row): array => PayoutView::present($row));
 
         return $this->success($page);
     }
@@ -112,6 +108,7 @@ class FinanceHistoryController extends ManagementController
     #[QueryParameter('from', description: 'YYYY-MM-DD (do\'kon vaqti).', type: 'string', required: false)]
     #[QueryParameter('to', description: 'YYYY-MM-DD (do\'kon vaqti).', type: 'string', required: false)]
     #[QueryParameter('per_page', description: '1–100, standart 25.', type: 'int', required: false)]
+    #[QueryParameter('page', description: 'Sahifa raqami, 1 dan (Laravel sahifalari).', type: 'int', required: false)]
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{data: list<array{uuid: string, provider: string, provider_transaction_id: string|null, status: string, amount: string, paid_at: string|null, cancelled_at: string|null, created_at: string, order: array{uuid: string, short_code: string|null, branch_id: int|null, total_price: string}}>, ' . self::PAGE . '}}')]
     public function payments(Request $request): JsonResponse
     {
@@ -199,7 +196,7 @@ class FinanceHistoryController extends ManagementController
             'order' => $row->order_uuid !== null ? ['uuid' => (string) $row->order_uuid, 'short_code' => $row->order_short_code] : null,
             'reference_id' => $row->reference_id,
             // Payout rows note the card they went to ("Payout completed to card: ...")
-            'notes' => $this->maskCardsIn($row->notes),
+            'notes' => PayoutView::maskCardsIn($row->notes),
             'created_at' => (string) $this->iso($row->created_at),
         ];
     }
@@ -243,20 +240,5 @@ class FinanceHistoryController extends ManagementController
     private function iso(mixed $value): ?string
     {
         return $value === null ? null : CarbonImmutable::parse((string) $value, 'UTC')->toIso8601String();
-    }
-
-    private function maskCardsIn(?string $text): ?string
-    {
-        return $text === null ? null : (string) preg_replace_callback('/\b\d(?:[ -]?\d){12,18}\b/', fn (array $match) => $this->maskCard($match[0]), $text);
-    }
-
-    /**
-     * "8600 **** **** 9012": enough to recognise the card, not to use it.
-     */
-    private function maskCard(string $number): string
-    {
-        $digits = preg_replace('/\D+/', '', $number) ?? '';
-
-        return strlen($digits) >= 8 ? substr($digits, 0, 4) . ' **** **** ' . substr($digits, -4) : '****';
     }
 }

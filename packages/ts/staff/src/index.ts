@@ -29,6 +29,16 @@ export {
 export { CANCEL_NOTE_MAX_LENGTH, getStaffCancelReasons, STAFF_CANCEL_REASONS } from './orders/cancel';
 export { formatDuration, getStageDurations, stageRows, type StageDurations } from './orders/stages';
 export { formatModifiers, getItemModifiers, getShippingAddress, type OrderItemModifier, type ShippingAddress } from './orders/display';
+// P2-33: the new-order chime and the waiting-time thresholds of the staff screens (partner web and Mini App alike)
+export { createChime, type Chime } from './orders/chime';
+export {
+  getOrderWaiting,
+  WAITING_RUNNING_STATUSES,
+  WAITING_THRESHOLDS,
+  waitingSecondsOf,
+  waitingToneOf,
+  type WaitTone,
+} from './orders/waiting';
 export {
   applyFinishedOrderChange,
   mergeOrders,
@@ -75,7 +85,6 @@ export {
   unwrap,
 } from './api/errors';
 export type { JsonBody, JsonRequest, OkData } from './api/types';
-export type * from './api/specGaps';
 export * from './api/orders';
 export * from './api/menu';
 export * from './api/team';

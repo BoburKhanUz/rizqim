@@ -178,6 +178,78 @@ void main() {
     },
   );
 
+  testWidgets(
+    'touches inside the settings dialog count as activity; idle sign-out then closes the dialog',
+    (WidgetTester tester) async {
+      final KdsHarness h = harness();
+      h.settings.value = const KdsSettings(idleTimeout: Duration(minutes: 5));
+      await pumpBoard(tester, h);
+      await tester.tap(find.byTooltip('Sozlamalar'));
+      await tester.pumpAndSettle();
+      expect(find.byType(Dialog), findsOneWidget);
+
+      for (var i = 0; i < 3; i++) {
+        await tester.pump(const Duration(minutes: 4));
+        await tester.tap(find.text('Shrift'));
+      }
+      await tester.pump();
+      expect(
+        h.client.auth.staff,
+        isNotNull,
+        reason: '12 minutes of work inside the dialog kept the cook signed in',
+      );
+      expect(find.byType(Dialog), findsOneWidget);
+
+      await tester.pump(const Duration(minutes: 5));
+      await tester.pumpAndSettle();
+      expect(h.client.auth.staff, isNull);
+      expect(
+        find.byType(Dialog),
+        findsNothing,
+        reason: "the cook's dialog does not stay over the PIN screen",
+      );
+      expect(find.text('Kim ishlaydi?'), findsOneWidget);
+      expect(
+        find.textContaining('uzoq tegilmagani uchun chiqildi'),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets('a session the server ends also closes an open dialog', (
+    WidgetTester tester,
+  ) async {
+    final KdsHarness h = harness();
+    await pumpBoard(tester, h);
+    await tester.tap(find.byTooltip('Sozlamalar'));
+    await tester.pumpAndSettle();
+    h.backend.respond = (RequestOptions o) =>
+        o.uri.path.contains('/kitchen/tickets')
+        ? const FakeResponse(401, <String, Object?>{
+            'message': 'Unauthenticated.',
+          })
+        : null;
+    await tester.pump(const Duration(seconds: 16));
+    await tester.pumpAndSettle();
+    expect(find.byType(Dialog), findsNothing);
+    expect(
+      find.text('Sessiya tugadi. PIN bilan qayta kiring.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('no idle countdown runs on the PIN screen', (
+    WidgetTester tester,
+  ) async {
+    final KdsHarness h = harness();
+    h.settings.value = const KdsSettings(idleTimeout: Duration(minutes: 5));
+    await pumpPaired(tester, h);
+    await tester.pump(const Duration(minutes: 30));
+    await tester.pumpAndSettle();
+    expect(find.text('Kim ishlaydi?'), findsOneWidget);
+    expect(find.textContaining('chiqildi'), findsNothing);
+  });
+
   testWidgets('idle sign-out can be turned off in settings', (
     WidgetTester tester,
   ) async {

@@ -119,6 +119,17 @@ class AuthRemote {
     );
   }
 
+  /// `DELETE /v1/terminal` (terminal tokeni bilan): terminal o'zini serverda bekor qiladi — tokenlari va xodim
+  /// sessiyalari darhol to'xtaydi (docs/AUTH.md 4-bo'lim).
+  Future<void> revokeTerminal() async {
+    await _raw(
+      () => _dio.delete<Object?>(
+        '/v1/terminal',
+        options: scoped(AuthScope.terminal),
+      ),
+    );
+  }
+
   /// `POST /v1/auth/refresh`: eski refresh token sarflanadi, yangi juftlik qaytadi. Faqat [AuthSession] chaqiradi
   /// (bir vaqtda bittadan: single-flight).
   Future<UserSession> refresh({

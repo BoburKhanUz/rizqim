@@ -100,6 +100,7 @@ npm run test:e2e                    # `npm run build` + `npm run preview` (127.0
 - Yangi test: kerakli ma'lumotni `api.addOrder(...)` / `api.signInAs('manager')` bilan tayyorlang, `page.goto(...)` qiling, so'rovlarni `api.callsTo('POST', '/orders')` orqali tekshiring. Locator'lar rol va matn bo'yicha, kutish uchun `expect` ning o'zi (sleep yo'q).
 - Vitest `e2e/` ni olmaydi (`include: src/**/*.test.{ts,tsx}`); `tsc -b` (`tsconfig.e2e.json`) va `eslint .` esa ularni tekshiradi.
 - Qamrab olinmagan: xaritada nuqta tanlash va geokodlash (Leaflet); yetkazib berish testi oldindan saqlangan manzildan foydalanadi.
+- Haqiqiy backend bilan umumiy sinov (P2-31): `scripts/e2e-stack.sh` Mini App'ni (`vite preview`, `/api` proksisi `API_PROXY_TARGET` bilan backend'ga) partner web, Laravel va Reverb bilan birga ishga tushiradi; testlar `e2e/stack/` da.
 
 ## Docker image
 

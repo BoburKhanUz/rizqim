@@ -13,6 +13,7 @@ import {
   removeStopListEntry,
   saveProduct,
   toggleProductActive,
+  removeProductImage,
   type Batch,
   type BatchAdjustment,
   type BatchInput,
@@ -57,6 +58,20 @@ export function useToggleProductActive(options: MutationExtras<void, number | st
   return useMutation({
     ...options,
     mutationFn: (id: number | string) => toggleProductActive(api, id),
+    onSuccess: (...args) => {
+      void queryClient.invalidateQueries({ queryKey: staffKeys.products });
+      return options.onSuccess?.(...args);
+    },
+  });
+}
+
+// P2-30: DELETE /owner/products/{id}/image
+export function useRemoveProductImage(options: MutationExtras<Product, number | string> = {}) {
+  const api = useStaffApi();
+  const queryClient = useQueryClient();
+  return useMutation({
+    ...options,
+    mutationFn: (id: number | string) => removeProductImage(api, id),
     onSuccess: (...args) => {
       void queryClient.invalidateQueries({ queryKey: staffKeys.products });
       return options.onSuccess?.(...args);

@@ -23,7 +23,7 @@ const TEXT = {
   optional: { uz: 'Ixtiyoriy', ru: 'По желанию' },
   pickRange: { uz: '{{min}}–{{max}} ta', ru: '{{min}}–{{max}} шт.' },
   pickUpTo: { uz: "ko'pi bilan {{max}} ta", ru: 'не более {{max}}' },
-  inactive: { uz: 'Nofaol', ru: 'Неактивно' },
+  inactive: { uz: 'Faol emas', ru: 'Неактивно' },
   editOnWeb: { uz: 'Web panelda tahrirlash', ru: 'Редактировать в веб-панели' },
   editOnWebHint: { uz: 'Vazn, modifikatorlar va kanal narxlari faqat web panelda tahrirlanadi.', ru: 'Вес, модификаторы и цены по каналам редактируются только в веб-панели.' },
   readOnly: { uz: "Faqat ko'rish", ru: 'Только просмотр' },

@@ -82,6 +82,10 @@ return [
 
     'fallback_locale' => env('APP_FALLBACK_LOCALE', 'en'),
 
+    // [P2-30] The API's own locale (validation and other built-in messages of /api requests: lang/uz), whatever
+    // APP_LOCALE the panels use. App\Http\Middleware\SetApiLocale applies it.
+    'api_locale' => env('API_LOCALE', 'uz'),
+
     'faker_locale' => env('APP_FAKER_LOCALE', 'en_US'),
 
     /*

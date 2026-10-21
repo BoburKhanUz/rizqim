@@ -12,6 +12,8 @@ export interface Permissions {
   storeId: number | null;
   branchId: number | null;
   userId: number | null;
+  // The store's time zone (order days, report days) for staff who read orders or reports; null otherwise
+  timezone: string | null;
 }
 
 export type AuthState =
@@ -38,26 +40,40 @@ export function AuthProvider({ apiBaseUrl, children }: { apiBaseUrl: string; chi
   // A newer load wins over an older one still running
   const generation = useRef(0);
 
+  // The signed-in user's id while the state is ready (to notice another tab signing in as someone else)
+  const signedInUser = useRef<number | null | undefined>(undefined);
+  const status = useRef<AuthState['status']>('loading');
+  useEffect(() => {
+    status.current = state.status;
+  }, [state.status]);
+
   const loadAccess = useCallback(
     async (session: Session) => {
       const id = ++generation.current;
-      const { data, error } = await getApi(apiBaseUrl).GET('/v1/me/permissions');
+      const api = getApi(apiBaseUrl);
+      // A session restored from the refresh cookie names its user (the device's); should it not, GET /user does
+      const [{ data, error }, named] = await Promise.all([
+        api.GET('/v1/me/permissions'),
+        session.user ? Promise.resolve(session.user) : api.GET('/v1/user').then(({ data: me }) => (me ? { id: me.data.user.id, name: me.data.user.name ?? '' } : null)),
+      ]);
       if (id !== generation.current) return;
       if (!data) {
         // A 401 here already ended the session (subscribeSession below); anything else is a failure to retry
         setState((previous) => (previous.status === 'anonymous' ? previous : { status: error ? 'error' : 'anonymous' }));
         return;
       }
+      signedInUser.current = named?.id ?? null;
       setState({
         status: 'ready',
-        userName: session.user?.name ?? '',
+        userName: named?.name ?? '',
         access: {
           role: data.data.role,
           permissions: data.data.permissions,
           branchScoped: data.data.branch_scoped,
           storeId: data.data.store_id ?? null,
           branchId: data.data.branch_id ?? null,
-          userId: session.user?.id ?? null,
+          userId: named?.id ?? null,
+          timezone: data.data.timezone ?? null,
         },
       });
     },
@@ -78,15 +94,30 @@ export function AuthProvider({ apiBaseUrl, children }: { apiBaseUrl: string; chi
 
   useEffect(
     () =>
-      subscribeSession((session) => {
+      subscribeSession((session, fromOtherTab) => {
         if (!session) {
           generation.current++;
+          signedInUser.current = undefined;
           // The next person to sign in on this screen must not see the previous one's orders
           queryClient.clear();
           setState({ status: 'anonymous' });
+          return;
+        }
+        // Another tab signed in (this one shows the sign-in page), or signed in as someone else: follow it
+        if (!fromOtherTab) return;
+        const known = signedInUser.current;
+        if (known === undefined) {
+          if (status.current === 'anonymous' || status.current === 'error') {
+            setState({ status: 'loading' });
+            void loadAccess(session);
+          }
+        } else if (session.user && known !== null && session.user.id !== known) {
+          queryClient.clear();
+          setState({ status: 'loading' });
+          void loadAccess(session);
         }
       }),
-    [queryClient],
+    [queryClient, loadAccess],
   );
 
   const value = useMemo<AuthValue>(

@@ -139,11 +139,13 @@ export function openBoardChannels(echo: EchoLike, channelNames: readonly string[
   }));
   let closed = false;
   let socketUp = false;
-  let reported = false;
+  // null until the first answer: a socket that never opens (Reverb down, blocked) must still be reported as down, so the
+  // page leaves "connecting" for its polling text. While the first attempt is merely under way nothing is reported.
+  let reported: boolean | null = null;
 
-  const report = () => {
+  const report = (settled = true) => {
     const connected = socketUp && channels.length > 0 && channels.every((state) => state.subscribed);
-    if (connected === reported) return;
+    if (connected === reported || (!connected && !settled && reported === null)) return;
     reported = connected;
     handlers.onConnectionChange(connected);
   };
@@ -183,7 +185,8 @@ export function openBoardChannels(echo: EchoLike, channelNames: readonly string[
   const stopWatching = echo.connector.onConnectionChange((status) => {
     socketUp = status === 'connected';
     if (!socketUp) for (const state of channels) state.subscribed = false; // pusher-js subscribes again on reconnect and says so
-    report();
+    // 'connecting' is not an answer yet; 'failed' (unavailable) and 'disconnected' are
+    report(status !== 'connecting');
   });
   channels.forEach(subscribe);
 

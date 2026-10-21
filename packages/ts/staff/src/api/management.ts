@@ -1,7 +1,7 @@
 import type { StaffApi } from './client';
 import { unwrap } from './errors';
 import type { MenuBranch } from './menuAdmin';
-import type { OwnerSettings, OwnerSettingsInput } from './specGaps';
+import type { OwnerSettings, OwnerSettingsInput } from './settings';
 import type { JsonRequest, OkData } from './types';
 
 // The management screens of the partner web (P2-23): staff, branches and working hours, delivery zones, store settings,
@@ -111,22 +111,22 @@ export async function deleteDeliveryZone(api: StaffApi, id: number): Promise<voi
 
 // --- Store settings (/owner/settings) --------------------------------------------------------------------------------------
 
-// GET answers `timezone` (the spec has it; the hand-corrected OwnerSettings of specGaps.ts predates it).
-export type StoreSettings = OwnerSettings & { timezone: string };
+// GET /owner/settings (with the store's `timezone`)
+export type StoreSettings = OwnerSettings;
 
 // POST /owner/settings overwrites logo, banner, description, address, location_url, is_open and min_order_amount with what
 // is sent (an omitted one becomes empty): a screen sends back every stored value next to the one it changed. `name` and
 // `timezone` are kept when left out; `phone` too.
-export type StoreSettingsInput = OwnerSettingsInput & { name?: string; timezone?: string; phone?: string | null };
+export type StoreSettingsInput = OwnerSettingsInput;
 
 export async function fetchStoreSettings(api: StaffApi): Promise<StoreSettings | null> {
   const body = unwrap(await api.client.GET('/v1/owner/settings'));
-  return (body.data as unknown as StoreSettings | null | undefined) ?? null;
+  return body.data ?? null;
 }
 
 // 422: `errors.name`, `errors.timezone`, `errors.payment_settings` (a provider that cannot be enabled yet).
 export async function saveStoreSettings(api: StaffApi, input: StoreSettingsInput): Promise<void> {
-  unwrap(await api.client.POST('/v1/owner/settings', { body: input as never }));
+  unwrap(await api.client.POST('/v1/owner/settings', { body: input }));
 }
 
 // --- Service charge and place fee (/owner/service-fees) --------------------------------------------------------------------

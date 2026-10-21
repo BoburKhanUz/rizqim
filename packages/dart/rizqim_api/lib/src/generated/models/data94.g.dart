@@ -7,15 +7,21 @@ part of 'data94.dart';
 // **************************************************************************
 
 Data94 _$Data94FromJson(Map<String, dynamic> json) => Data94(
-  user: User.fromJson(json['user'] as Map<String, dynamic>),
+  device: Device10.fromJson(json['device'] as Map<String, dynamic>),
   store: json['store'] == null
       ? null
-      : Store.fromJson(json['store'] as Map<String, dynamic>),
-  smsVerificationRequired: json['sms_verification_required'] as bool,
+      : Store2.fromJson(json['store'] as Map<String, dynamic>),
+  branch: json['branch'] == null
+      ? null
+      : Branch11.fromJson(json['branch'] as Map<String, dynamic>),
+  branches: (json['branches'] as List<dynamic>)
+      .map((e) => Branches2.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data94ToJson(Data94 instance) => <String, dynamic>{
-  'user': instance.user,
+  'device': instance.device,
   'store': instance.store,
-  'sms_verification_required': instance.smsVerificationRequired,
+  'branch': instance.branch,
+  'branches': instance.branches,
 };

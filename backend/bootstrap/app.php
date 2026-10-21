@@ -44,6 +44,9 @@ return Application::configure(basePath: dirname(__DIR__))
         // Har bir so'rovga X-Request-Id beradi va log kontekstiga qo'shadi (loglarni so'rov bo'yicha topish uchun)
         $middleware->append(\App\Http\Middleware\AssignRequestId::class);
 
+        // [P2-30] API javoblari o'zbekcha: Laravel'ning validatsiya xabarlari lang/uz dan (Filament paneli APP_LOCALE da qoladi)
+        $middleware->api(prepend: [\App\Http\Middleware\SetApiLocale::class]);
+
         $middleware->alias([
             'role' => \App\Http\Middleware\EnsureUserHasRole::class,
             'staff.store' => \App\Http\Middleware\EnsureStaffHasStore::class,

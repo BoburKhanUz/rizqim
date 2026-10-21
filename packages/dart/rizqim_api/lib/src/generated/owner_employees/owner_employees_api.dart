@@ -18,7 +18,10 @@ part 'owner_employees_api.g.dart';
 abstract class OwnerEmployeesApi {
   factory OwnerEmployeesApi(Dio dio, {String? baseUrl}) = _OwnerEmployeesApi;
 
-  /// Get list of employees (managers, cashiers, waiters, cooks, couriers) for the current store
+  /// Get list of employees (managers, cashiers, waiters, cooks, couriers) for the current store.
+  ///
+  /// The store's staff as users, newest first, with their branch and, for one who has not joined yet, the invite.
+  /// token of their link.
   @GET('/v1/owner/employees')
   Future<GetV1OwnerEmployeesResponse> ownerEmployeeIndex();
 

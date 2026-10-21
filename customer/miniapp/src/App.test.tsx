@@ -125,7 +125,7 @@ describe('navigation bar', () => {
   });
 
   it.each([
-    ['owner', ['Analitika', 'Katalog', 'Buyurtmalar', 'Xodimlar', 'Profil']],
+    ['owner', ['Analitika', 'Menyu', 'Buyurtmalar', 'Xodimlar', 'Profil']],
     ['manager', ['Buyurtmalar', 'Profil']],
     ['courier', ['Yetkazmalar', 'Profil']],
     ['super_admin', ['Asosiy', 'Restoranlar', "Qo'shish", 'Profil']],

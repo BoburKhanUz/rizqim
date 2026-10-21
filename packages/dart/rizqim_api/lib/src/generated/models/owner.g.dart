@@ -9,7 +9,7 @@ part of 'owner.dart';
 Owner _$OwnerFromJson(Map<String, dynamic> json) => Owner(
   name: json['name'] as String,
   phone: json['phone'] as String?,
-  inviteLink: json['invite_link'] as String,
+  inviteLink: json['invite_link'] as String?,
   hasJoined: json['has_joined'] as bool,
 );
 

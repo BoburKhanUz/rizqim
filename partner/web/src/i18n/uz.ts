@@ -93,20 +93,6 @@ export const uz = {
   noOrdersTodayText: "Birinchi buyurtma kelgach, ko'rsatkichlar shu yerda paydo bo'ladi.",
   updatedAt: 'Yangilandi: {{time}}',
 
-  // Buyurtmalar
-  ordersSubtitle: "Faol buyurtmalar (faqat ko'rish)",
-  colCode: 'Raqam',
-  colStatus: 'Holat',
-  colCustomer: 'Mijoz',
-  colType: 'Turi',
-  colPayment: "To'lov",
-  colTotal: 'Summa',
-  colTime: 'Vaqt',
-  noActiveOrders: "Faol buyurtma yo'q",
-  noActiveOrdersText: "Yangi buyurtma kelganda shu yerda paydo bo'ladi. Ro'yxat o'zi yangilanadi.",
-  ordersTruncated: "Ro'yxat eng so'nggi 200 ta buyurtma bilan cheklangan.",
-  guest: 'Mijoz',
-
   // Rollar
   role_owner: 'Ega',
   role_manager: 'Menejer',

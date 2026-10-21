@@ -195,7 +195,7 @@ describe('ManagerDashboard: the branch filter', () => {
     fireEvent.change(screen.getByRole('combobox', { name: "Filial bo'yicha" }), { target: { value: '2' } });
     await settle();
 
-    fireEvent.click(screen.getByRole('button', { name: /Yakunlanganlar/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Yakunlangan/ }));
     await settle();
 
     const history = callsTo(calls, '/staff/orders').filter((call) => call.query.scope === 'history');

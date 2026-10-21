@@ -5,7 +5,10 @@ import { authFetch, getAccessToken, getSession, login, logout, refreshSession, s
 const user = { id: 7, name: 'Aziz', role: 'owner' };
 const payload = (token: string, minutes = 15) => ({ access_token: token, expires_at: new Date(Date.now() + minutes * 60_000).toISOString(), user });
 
-afterEach(() => setSession(null));
+afterEach(() => {
+  setSession(null);
+  localStorage.clear();
+});
 
 describe('refreshSession', () => {
   it('is single-flight: callers that ask while a refresh runs share its one request', async () => {

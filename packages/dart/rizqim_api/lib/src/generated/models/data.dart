@@ -4,42 +4,93 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'user.dart';
+import 'category.dart';
+import 'channel_price.dart';
+import 'image_thumb_urls2.dart';
+import 'menu_batch.dart';
+import 'modifier_group.dart';
+import 'product.dart';
+import 'product_modifier_group.dart';
+import 'product_variant.dart';
 import 'store.dart';
-import 'device.dart';
 
 part 'data.g.dart';
 
 @JsonSerializable()
 class Data {
   const Data({
-    required this.token,
-    required this.user,
-    required this.store,
-    required this.smsVerificationRequired,
-    required this.isNewUser,
-    required this.tokenExpiresAt,
-    required this.refreshToken,
-    required this.refreshTokenExpiresAt,
-    required this.device,
+    required this.id,
+    required this.uuid,
+    required this.storeId,
+    required this.categoryId,
+    required this.name,
+    required this.slug,
+    required this.description,
+    required this.type,
+    required this.sku,
+    required this.status,
+    required this.sortOrder,
+    required this.hasVariants,
+    required this.createdAt,
+    required this.updatedAt,
+    required this.deletedAt,
+    required this.image,
+    required this.batchTracked,
+    required this.isActive,
+    required this.imageUrl,
+    required this.imageThumbUrls,
+    required this.modifierGroupLinks,
+    this.store,
+    this.category,
+    this.variants,
+    this.modifierGroups,
+    this.channelPrices,
+    this.batches,
   });
 
   factory Data.fromJson(Map<String, Object?> json) => _$DataFromJson(json);
 
-  final String token;
-  final User user;
+  final int id;
+  final String uuid;
+  @JsonKey(name: 'store_id')
+  final int storeId;
+  @JsonKey(name: 'category_id')
+  final int categoryId;
+  final String name;
+  final String slug;
+  final String? description;
+  final String type;
+  final String? sku;
+  final String status;
+  @JsonKey(name: 'sort_order')
+  final int sortOrder;
+  @JsonKey(name: 'has_variants')
+  final bool hasVariants;
+  @JsonKey(name: 'created_at')
+  final DateTime? createdAt;
+  @JsonKey(name: 'updated_at')
+  final DateTime? updatedAt;
+  @JsonKey(name: 'deleted_at')
+  final DateTime? deletedAt;
+  final String? image;
+  @JsonKey(name: 'batch_tracked')
+  final bool batchTracked;
+  @JsonKey(name: 'is_active')
+  final bool isActive;
+  @JsonKey(name: 'image_url')
+  final String? imageUrl;
+  @JsonKey(name: 'image_thumb_urls')
+  final ImageThumbUrls2 imageThumbUrls;
   final Store? store;
-  @JsonKey(name: 'sms_verification_required')
-  final bool smsVerificationRequired;
-  @JsonKey(name: 'is_new_user')
-  final bool isNewUser;
-  @JsonKey(name: 'token_expires_at')
-  final String tokenExpiresAt;
-  @JsonKey(name: 'refresh_token')
-  final String refreshToken;
-  @JsonKey(name: 'refresh_token_expires_at')
-  final String refreshTokenExpiresAt;
-  final Device device;
+  final Category? category;
+  final List<ProductVariant>? variants;
+  @JsonKey(name: 'modifier_groups')
+  final List<ModifierGroup>? modifierGroups;
+  @JsonKey(name: 'modifier_group_links')
+  final List<ProductModifierGroup> modifierGroupLinks;
+  @JsonKey(name: 'channel_prices')
+  final List<ChannelPrice>? channelPrices;
+  final List<MenuBatch>? batches;
 
   Map<String, Object?> toJson() => _$DataToJson(this);
 }

@@ -5,8 +5,11 @@ namespace App\Services\Store;
 use App\Domain\Delivery\ZoneResolver;
 use App\Enums\BranchStatus;
 use App\Models\Branch;
+use App\Models\DeliveryZone;
+use App\Models\Device;
 use App\Models\Order;
 use App\Models\Store;
+use App\Models\User;
 use App\Services\Audit\AuditLogger;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Validator;
@@ -102,7 +105,8 @@ class BranchService
 
     /**
      * Why the branch may not be deleted from the API, or null. Its orders keep the books and reports right (deleting
-     * would cut them loose), and a store always keeps one branch: such a branch is made inactive instead.
+     * would cut them loose), and a store always keeps one branch: such a branch is made inactive instead. P2-33: and
+     * nothing may still be tied to it (referencesRefusal).
      */
     public function deletionRefusal(Branch $branch): ?string
     {
@@ -113,7 +117,46 @@ class BranchService
             return "Do'konning yagona filialini o'chirib bo'lmaydi.";
         }
 
-        return null;
+        return $this->referencesRefusal($branch);
+    }
+
+    /**
+     * P2-33: what is still tied to the branch. Deleting it would set their branch_id to NULL (the foreign keys are
+     * nullOnDelete), and NULL means "the whole store": the branch's manager would see every branch's orders and staff,
+     * its terminals would serve every branch and its zones would deliver from any branch. Staff accounts, terminals
+     * and personal devices not revoked, and delivery zones count.
+     *
+     * @return array{staff: int, devices: int, zones: int}
+     */
+    public function references(Branch $branch): array
+    {
+        return [
+            'staff' => User::where('branch_id', $branch->id)->count(),
+            'devices' => Device::where('branch_id', $branch->id)->whereNull('revoked_at')->count(),
+            'zones' => DeliveryZone::where('branch_id', $branch->id)->count(),
+        ];
+    }
+
+    /**
+     * Why the branch may not be deleted while staff, devices or zones are tied to it (with the counts), or null. Used
+     * by the API and by the panels' delete actions (Filament: BranchResource, the superadmin's branches tab).
+     */
+    public function referencesRefusal(Branch $branch): ?string
+    {
+        $counts = $this->references($branch);
+        $parts = array_filter([
+            $counts['staff'] > 0 ? "{$counts['staff']} ta xodim" : null,
+            $counts['devices'] > 0 ? "{$counts['devices']} ta faol qurilma (terminal)" : null,
+            $counts['zones'] > 0 ? "{$counts['zones']} ta yetkazib berish hududi" : null,
+        ]);
+
+        if ($parts === []) {
+            return null;
+        }
+
+        return "Filialni o'chirib bo'lmaydi: unga " . implode(', ', $parts) . " biriktirilgan. "
+            . "Avval xodimlarni boshqa filialga o'tkazing, qurilmalarni bekor qiling va hududlarni boshqa filialga "
+            . "biriktiring yoki o'chiring. O'chirilsa ular butun do'konga tegishli bo'lib qolardi.";
     }
 
     public function delete(Branch $branch): void
@@ -151,7 +194,7 @@ class BranchService
                 'close' => $allDay ? null : $close,
                 'all_day' => $allDay,
                 'overnight' => !$allDay && $close < $open,
-                'timezone' => $store?->timezone ?: ZoneResolver::DEFAULT_TIMEZONE,
+                'timezone' => \App\Support\StoreTimezone::of($store),
             ],
             // What delivery checkout sees right now (ZoneResolver: status, is_active and the hours)
             'is_open_now' => $this->zones->isBranchOpen($branch, $now ?? CarbonImmutable::now(), $store),

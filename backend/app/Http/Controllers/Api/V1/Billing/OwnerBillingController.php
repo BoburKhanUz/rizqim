@@ -55,6 +55,8 @@ class OwnerBillingController extends Controller
             'status' => ['nullable', Rule::enum(SubscriptionInvoiceStatus::class)],
             'period' => ['nullable', 'string', 'regex:/^\d{4}-\d{2}$/'],
             'per_page' => 'nullable|integer|min:1|max:100',
+            // P2-30: the Laravel page (documented, so the generated clients carry it)
+            'page' => 'nullable|integer|min:1|max:100000',
         ]);
 
         /** @var User $user */

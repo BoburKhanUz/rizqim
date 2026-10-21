@@ -35,7 +35,7 @@ function Probe() {
 }
 
 function fakeChime(): Chime & { play: ReturnType<typeof vi.fn> } {
-  return { ready: true, unlock: vi.fn(async () => true), play: vi.fn(() => true) };
+  return { ready: true, unlock: vi.fn(async () => true), play: vi.fn(() => true), close: vi.fn() };
 }
 
 function setup({ role = 'owner', branch = { id: null as number | null, scoped: false }, config = CONFIG as RealtimeConfig | null } = {}) {
@@ -51,7 +51,7 @@ function setup({ role = 'owner', branch = { id: null as number | null, scoped: f
   const connect = vi.fn(async () => echo);
   const chime = fakeChime();
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  render(
+  const { unmount } = render(
     <I18nProvider language="uz">
       <ApiConfigContext.Provider value={{ apiBaseUrl: API }}>
         <RealtimeConfigContext.Provider value={config}>
@@ -71,7 +71,7 @@ function setup({ role = 'owner', branch = { id: null as number | null, scoped: f
     </I18nProvider>,
   );
   const ordersCalls = () => calls.filter((call) => new URL(call.url).pathname === '/api/v1/staff/orders').length;
-  return { state, echo, connect, chime, ordersCalls };
+  return { state, echo, connect, chime, ordersCalls, unmount };
 }
 
 describe('LiveOrdersProvider', () => {
@@ -104,12 +104,27 @@ describe('LiveOrdersProvider', () => {
     expect(ordersCalls()).toBe(2);
     expect(chime.play).toHaveBeenCalledTimes(1);
     expect(document.title).toBe('(1) Rizqim Hamkor');
+    // Next sets another page's title (metadata) after a navigation: the count comes back in front of it
+    document.title = 'Menyu | Rizqim Hamkor';
+    await waitFor(() => expect(document.title).toBe('(1) Menyu | Rizqim Hamkor'));
 
     // An accepted order leaves the count, without a chime
     state.orders = [];
     echo.channel('store.3').emit('order.status_changed', { order: { uuid: 'n1', status: 'accepted' } });
     await waitFor(() => expect(screen.getByTestId('live')).toHaveTextContent(/ 0$/));
     expect(chime.play).toHaveBeenCalledTimes(1);
+  });
+
+  it('gives the audio back and takes the count off the tab title when the shell goes away', async () => {
+    const { state, echo, chime, ordersCalls, unmount } = setup();
+    await waitFor(() => expect(echo.channels).toHaveLength(1));
+    await waitFor(() => expect(ordersCalls()).toBe(1));
+    state.orders = [{ uuid: 'n3', status: 'new' }];
+    echo.channel('store.3').emit('order.created', { order: { uuid: 'n3', status: 'new' } });
+    await waitFor(() => expect(document.title).toBe('(1) Rizqim Hamkor'));
+    unmount();
+    expect(chime.close).toHaveBeenCalled();
+    expect(document.title).toBe('Rizqim Hamkor');
   });
 
   it('does not chime while muted', async () => {

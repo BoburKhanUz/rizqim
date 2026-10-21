@@ -5,11 +5,19 @@ import 'package:rizqim_api/rizqim_api.dart';
 
 /// Filialning POS kanali (`private-pos-branch.{branchId}`, docs/API.md 8-bo'lim) — terminal tokeni bilan imzolanadi,
 /// shuning uchun oshpaz PIN bilan kirmagan bo'lsa ham ishlaydi. Terminal ulanganda boshlanadi, uzilganda to'xtaydi.
+///
+/// "Jonli" ([isLive]) — ulangan **va** kanal obunasi tasdiqlangan. Ulanish bor, lekin imzo rad etilgan (403, 429) yoki
+/// server obunani tasdiqlamagan bo'lsa hodisalar kelmaydi: ekran polling holatini ko'rsatadi va har 15 soniyada so'raydi.
 class BranchRealtime {
   BranchRealtime({required PusherClient client, required this.branchId})
     : _client = client {
     status.value = client.status;
+    subscription.value =
+        client.channelState(channel) ?? RealtimeSubscriptionState.pending;
     _statusSub = client.statuses.listen((RealtimeStatus s) => status.value = s);
+    _channelSub = client.channelStates.listen((RealtimeChannelState s) {
+      if (s.channel == channel) subscription.value = s.state;
+    });
   }
 
   /// Ilova sozlamalaridan: kalit bo'lmasa yoki terminal filialga ulanmagan bo'lsa `null` (faqat polling).
@@ -47,18 +55,42 @@ class BranchRealtime {
   final int branchId;
   final PusherClient _client;
   late final StreamSubscription<RealtimeStatus> _statusSub;
+  late final StreamSubscription<RealtimeChannelState> _channelSub;
 
+  String get channel => channelFor(branchId);
+
+  /// WebSocket ulanishi.
   final ValueNotifier<RealtimeStatus> status = ValueNotifier<RealtimeStatus>(
     RealtimeStatus.idle,
   );
 
+  /// Filial kanaliga obuna.
+  final ValueNotifier<RealtimeSubscriptionState> subscription =
+      ValueNotifier<RealtimeSubscriptionState>(
+        RealtimeSubscriptionState.pending,
+      );
+
+  /// [status] yoki [subscription] o'zgarsa.
+  late final Listenable changes = Listenable.merge(<Listenable>[
+    status,
+    subscription,
+  ]);
+
   Stream<RealtimeEvent> get events => _client.events;
 
-  bool get isLive => status.value == RealtimeStatus.connected;
+  /// Ulangan va obuna tasdiqlangan: hodisalar keladi.
+  bool get isLive =>
+      status.value == RealtimeStatus.connected &&
+      subscription.value == RealtimeSubscriptionState.subscribed;
+
+  /// Ulangan, lekin kanalga obuna rad etildi (imzo 403/429 yoki server xatosi): fonda qayta so'ralmoqda.
+  bool get subscriptionFailed =>
+      status.value == RealtimeStatus.connected &&
+      subscription.value == RealtimeSubscriptionState.failed;
 
   void start() {
     _client
-      ..subscribe(channelFor(branchId))
+      ..subscribe(channel)
       ..connect();
   }
 
@@ -66,7 +98,9 @@ class BranchRealtime {
     // Ulanish va taymerlar darhol (sinxron) to'xtaydi
     final Future<void> closing = _client.dispose();
     await _statusSub.cancel();
+    await _channelSub.cancel();
     await closing;
     status.dispose();
+    subscription.dispose();
   }
 }

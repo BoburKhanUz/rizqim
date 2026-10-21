@@ -18,7 +18,8 @@ abstract class OwnerStopListApi {
 
   /// A branch's stop-list.
   ///
-  /// The entries in force (expired ones are not listed). Branch-bound staff always get their own branch.
+  /// The entries in force (expired ones are not listed). Branch-bound staff always get their own branch. P2-30:.
+  /// `created_by_name` (who put it there) for staff with stoplist.manage; null for a menu.view reader.
   ///
   /// [branchId] - Required unless the caller is bound to a branch.
   @GET('/v1/owner/stop-list')

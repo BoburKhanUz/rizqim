@@ -72,7 +72,7 @@ describe('Dashboard', () => {
       'POST /api/session/refresh': () => json({ access_token: 'a', expires_at: new Date(Date.now() + 900_000).toISOString(), user: { id: 1, name: 'A', role: 'cashier' } }),
       'GET /api/v1/me/permissions': () => json({ success: true, message: 'ok', data: { role: 'cashier', store_id: 1, branch_id: 2, branch_scoped: true, permissions, device_uuid: null } }),
     });
-    const order = (status: string, minutesAgo = 1) => ({ uuid: `${status}-${minutesAgo}`, status, created_at: new Date(Date.now() - minutesAgo * 60_000).toISOString(), updated_at: null });
+    const order = (status: string, minutesAgo = 1) => ({ uuid: `${status}-${minutesAgo}`, status, created_at: new Date(Date.now() - minutesAgo * 60_000).toISOString(), updated_at: null, accepted_at: null, waiting_seconds: minutesAgo * 60 });
 
     function renderSignedIn() {
       render(

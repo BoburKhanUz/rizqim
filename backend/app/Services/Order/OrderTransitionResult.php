@@ -14,5 +14,7 @@ final class OrderTransitionResult
         public readonly bool $changed,
         public readonly ?User $assignedCourier = null,
         public readonly bool $manualRefundRequired = false,
+        // P2-33: a kitchen correction nobody outside the kitchen hears about (a recall from ready, the ready after it)
+        public readonly bool $quiet = false,
     ) {}
 }

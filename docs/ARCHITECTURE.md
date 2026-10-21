@@ -365,7 +365,9 @@ Avval `changes` job o'zgargan papkalarni aniqlaydi, keyin faqat kerakli joblar i
 | Infra | `docker compose config` (production va staging), shellcheck, backend image'da `ext-uv`, backup image'da `pg_dump 17` |
 | TS API client | yaratilgan turlar spetsifikatsiyaga mosmi, typecheck, build |
 | Partner web | lint, typecheck, testlar, build |
-| Flutter | `dart format`, `flutter analyze`, `flutter test`, Dart klient spetsifikatsiyaga mosmi |
+| Partner web e2e (P2-31) | Playwright (Chromium), production build, soxta backend va soxta Reverb: kirish, doska, menyu, stop-list, xodimlar, hududlar, hisobotlar, yorug'/qorong'i mavzu |
+| Cross-app e2e (P2-31, `e2e-stack`) | haqiqiy stack: PostgreSQL + Laravel + Reverb + partner web + Mini App, `scripts/e2e-stack.sh`: mijoz buyurtmasi → doska (real-time) → oshxona PIN sessiyasi → Mini App menejer ekrani |
+| Flutter | `dart format`, `flutter analyze`, `flutter test` (KDS: haqiqiy HTTP/WebSocket integratsiya testi ham), Dart klient spetsifikatsiyaga mosmi |
 
 ## 12. Deploy (Docker)
 

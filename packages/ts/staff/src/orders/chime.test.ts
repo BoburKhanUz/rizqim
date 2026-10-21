@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createChime } from './sound';
+import { createChime } from './chime';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -14,6 +14,9 @@ class FakeAudioContext {
   }
   async resume() {
     this.state = 'running';
+  }
+  async close() {
+    this.state = 'closed';
   }
   createOscillator() {
     this.oscillators += 1;
@@ -42,5 +45,18 @@ describe('the new order chime', () => {
     const chime = createChime();
     expect(await chime.unlock()).toBe(false);
     expect(chime.play()).toBe(false);
+  });
+
+  it('gives the audio device back when closed, and a later gesture opens a new one', async () => {
+    vi.stubGlobal('AudioContext', FakeAudioContext);
+    const chime = createChime();
+    await chime.unlock();
+    const first = FakeAudioContext.instances.at(-1)!;
+    chime.close();
+    expect(first.state).toBe('closed');
+    expect(chime.ready).toBe(false);
+    expect(chime.play()).toBe(false);
+    expect(await chime.unlock()).toBe(true);
+    expect(FakeAudioContext.instances.at(-1)).not.toBe(first);
   });
 });

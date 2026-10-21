@@ -117,7 +117,8 @@ class BranchResource extends Resource
             ])
             ->toolbarActions([
                 \Filament\Actions\BulkActionGroup::make([
-                    \Filament\Actions\DeleteBulkAction::make(),
+                    // P2-33: refused while staff, devices or zones are tied to a branch
+                    \App\Filament\Support\BranchDeletionGuard::bulk(\Filament\Actions\DeleteBulkAction::make()),
                 ]),
             ]);
     }

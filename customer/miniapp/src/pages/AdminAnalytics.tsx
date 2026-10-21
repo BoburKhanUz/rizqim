@@ -1,9 +1,10 @@
 import { useState, type ReactNode } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useLanguageStore } from '../store/languageStore';
 import { formatMoney } from '../lib/format';
-import { Card, InlineError, PageHeader, Section, Skeleton } from '../components/ui';
+import { Button, Card, InlineError, PageHeader, Section, Skeleton } from '../components/ui';
 import { SegmentedControl } from '../components/staff/SegmentedControl';
-import { Award, Bike, ChefHat, TrendingUp } from 'lucide-react';
+import { Award, Bike, ChefHat, FileSpreadsheet, TrendingUp } from 'lucide-react';
 import { useOwnerAnalytics } from '../hooks/useOwnerAnalytics';
 
 type AnalyticsTimeframe = 'today' | 'weekly' | 'monthly' | 'yearly';
@@ -20,8 +21,9 @@ const formatDeliveryTime = (secs: number | null | undefined) => (secs === null |
 const TOP_SHOWN = 3;
 
 export default function AdminAnalytics() {
-  const { language } = useLanguageStore();
+  const { language, t } = useLanguageStore();
   const uz = language === 'uz';
+  const navigate = useNavigate();
   const [timeframe, setTimeframe] = useState<AnalyticsTimeframe>('today');
 
   // The server's figures for the timeframe: one request, refreshed every minute while the screen is visible
@@ -67,6 +69,11 @@ export default function AdminAnalytics() {
   return (
     <div className="flex flex-col gap-4 px-4 pt-2">
       <PageHeader title={title} subtitle={subtitle} />
+
+      {/* The reports of any period, with the CSV export (the screen has no other way in) */}
+      <Button variant="secondary" icon={FileSpreadsheet} onClick={() => navigate('/admin/reports')} fullWidth>
+        {t('ownerReports_link')}
+      </Button>
 
       <SegmentedControl segments={timeframes} value={timeframe} onChange={setTimeframe} label={uz ? 'Davr' : 'Период'} />
 

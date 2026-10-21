@@ -71,4 +71,6 @@ Route::middleware(['auth:device', 'throttle:terminal'])->group(function () {
     Route::get('/terminal/staff', [TerminalController::class, 'staff']);
     Route::post('/devices/{uuid}/staff-session', [TerminalController::class, 'startStaffSession'])->whereUuid('uuid')->middleware('throttle:staff-session');
     Route::delete('/devices/{uuid}/staff-session', [TerminalController::class, 'endStaffSession'])->whereUuid('uuid');
+    // [P2-33] the terminal unpairs itself (the KDS calls it before forgetting its pairing)
+    Route::delete('/terminal', [TerminalController::class, 'destroy'])->middleware('throttle:6,1');
 });

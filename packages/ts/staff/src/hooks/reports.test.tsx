@@ -28,6 +28,39 @@ describe('report hooks', () => {
     expect(queryClient.getQueryData(reportKeys.sales(query))).toBeDefined();
   });
 
+  it('keep the figures of the same branch while another period loads, never another branch\'s', async () => {
+    const gates: Array<() => void> = [];
+    mockFetch({
+      'GET /api/v1/owner/reports/sales': async (request) => {
+        const url = new URL(request.url);
+        if (url.searchParams.get('to') !== '2026-10-07') await new Promise<void>((resolve) => gates.push(resolve));
+        return ok({ summary: { orders_count: 5, revenue: `${url.searchParams.get('branch_id') ?? 'all'}:${url.searchParams.get('to')}` }, series: [] });
+      },
+    });
+    const wrapper = wrapperFor(makeQueryClient());
+    const { result, rerender } = renderHook(({ to, branch }: { to: string; branch?: number }) => useSalesReport({ from: '2026-10-01', to, ...(branch ? { branch_id: branch } : {}) }), {
+      wrapper,
+      initialProps: { to: '2026-10-07', branch: 2 } as { to: string; branch?: number },
+    });
+    await waitFor(() => expect(result.current.data?.summary.revenue).toBe('2:2026-10-07'));
+
+    // Another period, same branch: the old figures stay (as placeholder) until the new ones arrive
+    rerender({ to: '2026-10-08', branch: 2 });
+    await waitFor(() => expect(result.current.isPlaceholderData).toBe(true));
+    expect(result.current.data?.summary.revenue).toBe('2:2026-10-07');
+    await act(async () => gates.shift()?.());
+    await waitFor(() => expect(result.current.data?.summary.revenue).toBe('2:2026-10-08'));
+
+    // Another branch: nothing until its own figures arrive
+    rerender({ to: '2026-10-08', branch: 3 });
+    await waitFor(() => expect(result.current.isFetching).toBe(true));
+    expect(result.current.data).toBeUndefined();
+    rerender({ to: '2026-10-08', branch: undefined });
+    await waitFor(() => expect(result.current.isFetching).toBe(true));
+    expect(result.current.data).toBeUndefined();
+    await act(async () => gates.splice(0).forEach((open) => open()));
+  });
+
   it('load the best sellers', async () => {
     mockFetch({ 'GET /api/v1/owner/reports/top-products': () => ok({ products: [{ name: 'Osh', quantity: 2, revenue: '60000.00', orders: 2 }] }) });
     const { result } = renderHook(() => useTopProducts({ from: '2026-10-01', to: '2026-10-07', sort: 'revenue' }), { wrapper: wrapperFor(makeQueryClient()) });

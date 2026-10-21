@@ -62,6 +62,11 @@ class FakeKitchenState {
   /// Kirgan xodimning ruxsatlari.
   List<String> permissions = <String>['orders.view', 'kitchen.manage'];
 
+  /// Rolga qo'shimcha ruxsatlar (backend `RolePermissions` dagidek: menejer qurilmalarni boshqaradi).
+  Map<String, List<String>> rolePermissions = <String, List<String>>{
+    'manager': <String>['devices.manage'],
+  };
+
   String? _staffToken;
 
   /// Buyurtmalar (chipta JSON'i, `accepted_at` DateTime sifatida).
@@ -231,6 +236,13 @@ class FakeKitchenState {
       });
     }
 
+    if (p == '/v1/terminal' && method == 'DELETE') {
+      if (bearer != terminalToken) return _unauthenticated();
+      // Self-revoke: the terminal's staff sessions stop with it
+      _staffToken = null;
+      return _ok(null);
+    }
+
     if (p == '/v1/terminal/staff' ||
         p == '/v1/devices/$deviceUuid/staff-session') {
       if (bearer != terminalToken) return _unauthenticated();
@@ -339,7 +351,10 @@ class FakeKitchenState {
         'role': member['role'],
         'branch_id': branchId,
       },
-      'permissions': permissions,
+      'permissions': <String>[
+        ...permissions,
+        ...?rolePermissions[member['role']],
+      ],
     }, status: 201);
   }
 

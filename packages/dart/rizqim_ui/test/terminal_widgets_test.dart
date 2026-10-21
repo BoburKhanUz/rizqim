@@ -168,6 +168,54 @@ void main() {
     expect(idle, 1);
   });
 
+  testWidgets(
+    'RzIdleDetector above the Navigator counts touches inside dialogs',
+    (WidgetTester tester) async {
+      var idle = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: RzTheme.dark(),
+          builder: (BuildContext context, Widget? child) => RzIdleDetector(
+            timeout: const Duration(minutes: 5),
+            onIdle: () => idle++,
+            child: child!,
+          ),
+          home: Builder(
+            builder: (BuildContext context) => Scaffold(
+              body: Center(
+                child: TextButton(
+                  onPressed: () => showDialog<void>(
+                    context: context,
+                    builder: (BuildContext context) => const Dialog(
+                      child: SizedBox.square(
+                        dimension: 300,
+                        child: Center(child: Text('in dialog')),
+                      ),
+                    ),
+                  ),
+                  child: const Text('open'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      for (var i = 0; i < 3; i++) {
+        await tester.pump(const Duration(minutes: 4));
+        await tester.tap(find.text('in dialog'));
+      }
+      expect(
+        idle,
+        0,
+        reason: 'touches inside the dialog restart the countdown',
+      );
+      await tester.pump(const Duration(minutes: 5));
+      expect(idle, 1);
+    },
+  );
+
   testWidgets('RzOfflineBanner shows the message and the action', (
     WidgetTester tester,
   ) async {

@@ -103,8 +103,8 @@ describe('cancel reasons and buttons', () => {
     expect(actionLabel('accept', 'uz')).toBe('Qabul qilish');
     expect(actionLabel('accept', 'ru')).toBe('Принять');
     expect(actionLabel('pick_up', 'uz')).toBe("Yo'lga chiqdi");
-    expect(actionLabel('pick_up', 'uz', 'courier')).toBe("Olib ketdim (Yo'lga chiqdim)");
-    expect(actionLabel('confirm_delivery', 'ru', 'courier')).toBe('Доставил (Завершить)');
+    expect(actionLabel('pick_up', 'uz', 'courier')).toBe("Yo'lga chiqdim");
+    expect(actionLabel('confirm_delivery', 'ru', 'courier')).toBe('Доставил');
     // a role without its own wording uses the shared one
     expect(actionLabel('cancel', 'uz', 'courier')).toBe('Bekor qilish');
     expect(actionLabel('unknown_action', 'uz')).toBe('unknown_action');

@@ -19,11 +19,11 @@ class ProductRules2 {
       _$ProductRules2FromJson(json);
 
   @JsonKey(name: 'min_select')
-  final String minSelect;
+  final int? minSelect;
   @JsonKey(name: 'max_select')
-  final String maxSelect;
+  final int? maxSelect;
   @JsonKey(name: 'is_required')
-  final String isRequired;
+  final bool? isRequired;
   @JsonKey(name: 'sort_order')
   final int sortOrder;
 

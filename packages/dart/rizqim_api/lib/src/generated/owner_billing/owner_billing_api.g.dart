@@ -25,12 +25,14 @@ class _OwnerBillingApi implements OwnerBillingApi {
     SubscriptionInvoiceStatus? status,
     String? period,
     int? perPage,
+    int? page,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{
       r'status': status?.toJson(),
       r'period': period,
       r'per_page': perPage,
+      r'page': page,
     };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};

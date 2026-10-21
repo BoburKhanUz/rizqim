@@ -3,7 +3,7 @@ import { API_ROOT, json, makeOrder, mockFetch, ok, testApi } from '../test/helpe
 import { createAuthFetch } from './auth';
 import { createStaffApi, toApiRoot } from './client';
 import { getApiErrorMessage, getApiErrorStatus, getApiFieldError, isStaffApiError, StaffApiError } from './errors';
-import { addStopListEntry, deleteProduct, fetchBatches, fetchMenuAvailability, fetchOwnerProducts, fetchStopList, productFormData, removeStopListEntry, saveProduct, toggleProductActive } from './menu';
+import { addStopListEntry, deleteProduct, fetchBatches, fetchMenuAvailability, fetchOwnerProducts, fetchStopList, productFormData, removeProductImage, removeStopListEntry, saveProduct, toggleProductActive } from './menu';
 import { assignCourier, changeOrderStatus, completeOrder, fetchActiveOrders, fetchCouriers, fetchOrdersPage, performOrderAction, updateOrderStatus } from './orders';
 
 afterEach(() => vi.unstubAllGlobals());
@@ -278,13 +278,16 @@ describe('menu', () => {
     const { calls } = mockFetch({
       'POST /api/v1/owner/products/7': () => ok(null),
       'DELETE /api/v1/owner/products/7': () => json({ success: true, message: 'ok' }),
+      'DELETE /api/v1/owner/products/7/image': () => json({ success: true, message: "Rasm o'chirildi.", data: { id: 7, image: null } }),
     });
     const api = testApi();
     await toggleProductActive(api, 7);
     await deleteProduct(api, 7);
+    expect((await removeProductImage(api, 7)).image).toBeNull();
     expect(new URL(calls[0]!.url).searchParams.get('toggle_active')).toBe('1');
     expect(await calls[0]!.text()).toBe('');
     expect(calls[1]!.method).toBe('DELETE');
+    expect(new URL(calls[2]!.url).pathname).toBe('/api/v1/owner/products/7/image');
   });
 
   it('reads and edits the stop-list of a branch', async () => {

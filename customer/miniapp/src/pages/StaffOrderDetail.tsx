@@ -108,7 +108,7 @@ function OrderDetailBody({ order }: { order: StaffOrderDetailData }) {
             {order.guests_count ? ` · ${tx('guests', { n: order.guests_count })}` : ''}
           </span>
           {minutes !== null && isWaiting(order) && (
-            <Pill tone={waitingTone(minutes)} icon={Clock} className="ml-auto">
+            <Pill tone={waitingTone(minutes, order.status)} icon={Clock} className="ml-auto">
               {tx('waiting', { time: formatWaiting(minutes, language) })}
             </Pill>
           )}

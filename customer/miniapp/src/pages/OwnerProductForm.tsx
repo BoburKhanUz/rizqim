@@ -12,6 +12,7 @@ import { Button, Card, Field, IconButton, PageHeader, Section, Skeleton, cx, fie
 import { Switch } from '../components/staff/Switch';
 import { ModifierGroupsInfo, VariantSaleInfo, WebEditHint } from '../components/staff/ProductSaleInfo';
 import { Pill } from '../components/staff/Pill';
+import { useLanguageStore } from '../store/languageStore';
 
 // A price row of the form. `id` is set for variants that already exist on the server.
 interface VariantDraft {
@@ -24,6 +25,7 @@ export default function OwnerProductForm() {
   const { id } = useParams();
   const isEditing = !!id;
   const navigate = useNavigate();
+  const { t } = useLanguageStore();
 
   const [loading, setLoading] = useState(isEditing);
   const [saving, setSaving] = useState(false);
@@ -40,9 +42,7 @@ export default function OwnerProductForm() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
-  const [variants, setVariants] = useState<VariantDraft[]>([
-    { id: null, name: '1-chi Porsiya', price: '' }
-  ]);
+  const [variants, setVariants] = useState<VariantDraft[]>(() => [{ id: null, name: useLanguageStore.getState().t('ownerProduct_defaultVariant'), price: '' }]);
 
   // What the saved variants are sold in (unit, step, minimum) and whether the dish sells from a batch: shown read only,
   // the full editor is the web panel's. They are not part of `variants`, so saving here sends none of them (the backend
@@ -79,7 +79,7 @@ export default function OwnerProductForm() {
         }
       } catch (err) {
         logApiError('Failed to load product:', err);
-        void showAlert('Ma\'lumotlarni yuklashda xatolik');
+        void showAlert(useLanguageStore.getState().t('loadErrorTitle'));
       } finally {
         setLoading(false);
       }
@@ -91,7 +91,7 @@ export default function OwnerProductForm() {
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 5 * 1024 * 1024) {
-        void showAlert("Rasm hajmi 5MB dan oshmasligi kerak!");
+        void showAlert(t('ownerProduct_imageTooBig'));
         return;
       }
       setImageFile(file);
@@ -106,7 +106,7 @@ export default function OwnerProductForm() {
 
   const removeVariant = (index: number) => {
     if (variants.length === 1) {
-      void showAlert("Kamida bitta variant (narx) bo'lishi shart!");
+      void showAlert(t('ownerProduct_oneVariant'));
       return;
     }
     hapticFeedback('medium');
@@ -122,7 +122,7 @@ export default function OwnerProductForm() {
     hapticFeedback('medium');
 
     if (!name || !categoryId || variants.some(v => !v.name || !v.price)) {
-      void showAlert("Iltimos, nomi, kategoriya va barcha variantlarning narxlarini kiriting!");
+      void showAlert(t('ownerProduct_fillAll'));
       return;
     }
 
@@ -139,7 +139,7 @@ export default function OwnerProductForm() {
     } catch (err) {
       logApiError('Failed to save product:', err);
       notificationOccurred('error');
-      void showAlert(getApiErrorMessage(err) || 'Xatolik yuz berdi');
+      void showAlert(getApiErrorMessage(err) || t('ownerProduct_saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -147,17 +147,17 @@ export default function OwnerProductForm() {
 
   // The one action of the screen, always at the bottom. requestSubmit runs the form's own validation first.
   useMainButton({
-    text: isEditing ? "O'zgarishlarni saqlash" : "Mahsulotni qo'shish",
+    text: isEditing ? t('ownerProduct_save') : t('ownerProduct_create'),
     onClick: () => formRef.current?.requestSubmit(),
     progress: saving,
     visible: !loading,
   });
 
-  const title = isEditing ? 'Tahrirlash' : 'Yangi mahsulot';
+  const title = isEditing ? t('ownerProduct_edit') : t('ownerProduct_new');
 
   if (loading) {
     return (
-      <div className="flex flex-col gap-4 px-4 pt-2" role="status" aria-label="Yuklanmoqda">
+      <div className="flex flex-col gap-4 px-4 pt-2" role="status" aria-label={t('loading')}>
         <PageHeader title={title} back />
         <Skeleton className="mx-auto size-36 rounded-sheet" />
         <Skeleton className="h-64 rounded-card" />
@@ -174,7 +174,7 @@ export default function OwnerProductForm() {
         <div className="flex flex-col items-center gap-3">
           <button
             type="button"
-            aria-label={imagePreview ? "Rasmni almashtirish" : 'Rasm yuklash'}
+            aria-label={imagePreview ? t('ownerProduct_replaceImage') : t('ownerProduct_uploadImage')}
             onClick={() => fileInputRef.current?.click()}
             className="relative flex size-36 cursor-pointer flex-col items-center justify-center gap-2 overflow-hidden rounded-sheet border border-line bg-surface-2 text-fg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
           >
@@ -183,7 +183,7 @@ export default function OwnerProductForm() {
             ) : (
               <>
                 <ImageIcon aria-hidden="true" className="size-9 text-brand" />
-                <span className="text-footnote font-bold">Rasm yuklash</span>
+                <span className="text-footnote font-bold">{t('ownerProduct_uploadImage')}</span>
               </>
             )}
           </button>
@@ -204,34 +204,34 @@ export default function OwnerProductForm() {
                 setImagePreview(null);
               }}
             >
-              Rasmni o'chirish
+              {t('ownerProduct_removeImage')}
             </Button>
           )}
         </div>
 
-        <Section title="Asosiy ma'lumotlar">
+        <Section title={t('ownerProduct_sectionMain')}>
           <Card className="flex flex-col gap-4">
             <div className="flex items-center justify-between gap-3">
-              <span className="text-body font-medium text-fg">Sotuvda</span>
-              <Switch checked={isActive} onChange={setIsActive} label="Sotuvda" />
+              <span className="text-body font-medium text-fg">{t('ownerMenu_onSale')}</span>
+              <Switch checked={isActive} onChange={setIsActive} label={t('ownerMenu_onSale')} />
             </div>
 
-            <Field label="Kategoriya *">
+            <Field label={t('ownerProduct_category')}>
               {(props) => (
                 <select {...props} value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className={fieldClass} required>
-                  <option value="" disabled>Tanlang...</option>
+                  <option value="" disabled>{t('ownerProduct_choose')}</option>
                   {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               )}
             </Field>
 
-            <Field label="Nomi *">
+            <Field label={t('ownerProduct_name')}>
               {(props) => (
-                <input {...props} value={name} onChange={(e) => setName(e.target.value)} className={fieldClass} placeholder="Masalan: Achchiq lavash" required />
+                <input {...props} value={name} onChange={(e) => setName(e.target.value)} className={fieldClass} placeholder={t('ownerProduct_namePlaceholder')} required />
               )}
             </Field>
 
-            <Field label="Ta'rifi (ixtiyoriy)">
+            <Field label={t('ownerProduct_description')}>
               {(props) => (
                 <textarea
                   {...props}
@@ -239,36 +239,36 @@ export default function OwnerProductForm() {
                   onChange={(e) => setDescription(e.target.value)}
                   rows={3}
                   className={cx(fieldClass, 'resize-none')}
-                  placeholder="Mahsulot tarkibi va ma'lumotlari..."
+                  placeholder={t('ownerProduct_descriptionPlaceholder')}
                 />
               )}
             </Field>
           </Card>
         </Section>
 
-        <Section title="Narx va variantlar">
+        <Section title={t('ownerProduct_sectionVariants')}>
           <div className="flex flex-col gap-3">
             {variants.map((variant, index) => (
               <Card key={index} className="flex flex-col gap-3">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-body font-bold text-fg">Variant {index + 1}</h3>
-                  <IconButton icon={Trash2} variant="danger" label={`Variant ${index + 1}ni o'chirish`} onClick={() => removeVariant(index)} className="-my-1 -mr-2" />
+                  <h3 className="text-body font-bold text-fg">{t('ownerProduct_variant', { n: index + 1 })}</h3>
+                  <IconButton icon={Trash2} variant="danger" label={t('ownerProduct_removeVariant', { n: index + 1 })} onClick={() => removeVariant(index)} className="-my-1 -mr-2" />
                 </div>
                 {variant.id !== null && saleInfo[variant.id] && <VariantSaleInfo variant={saleInfo[variant.id]} batchTracked={batchTracked} />}
                 <div className="grid grid-cols-2 gap-3">
-                  <Field label="Nomi">
+                  <Field label={t('ownerProduct_variantName')}>
                     {(props) => (
                       <input
                         {...props}
                         value={variant.name}
                         onChange={(e) => updateVariant(index, 'name', e.target.value)}
-                        placeholder="Mini, Katta, 1 L..."
+                        placeholder={t('ownerProduct_variantNamePlaceholder')}
                         className={fieldClass}
                         required
                       />
                     )}
                   </Field>
-                  <Field label="Narxi (so'm)">
+                  <Field label={t('ownerProduct_price')}>
                     {(props) => (
                       <input
                         {...props}
@@ -287,14 +287,14 @@ export default function OwnerProductForm() {
             ))}
 
             <Button variant="secondary" icon={Plus} onClick={addVariant} fullWidth>
-              Yana variant qo'shish
+              {t('ownerProduct_addVariant')}
             </Button>
           </div>
         </Section>
 
         {isEditing && batchTracked && (
           <div>
-            <Pill tone="info">Qozon bo'yicha sotiladi</Pill>
+            <Pill tone="info">{t('ownerProduct_batchTracked')}</Pill>
           </div>
         )}
 

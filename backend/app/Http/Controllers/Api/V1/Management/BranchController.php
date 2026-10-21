@@ -35,8 +35,10 @@ class BranchController extends ManagementController
         $store = $this->currentStore($request);
         $user = $request->user();
 
+        // P2-33: a branch-bound caller, or a PIN session on a branch terminal, sees that branch only
+        $acting = $this->permissions->actingBranchId($user);
         $list = Branch::where('store_id', $store->id)
-            ->when($this->permissions->isBranchScoped($user), fn ($query) => $query->whereKey((int) $user->branch_id))
+            ->when($acting !== null, fn ($query) => $query->whereKey($acting))
             ->orderBy('id')
             ->get();
 
@@ -139,17 +141,18 @@ class BranchController extends ManagementController
      * Delete a branch
      *
      * Owner only (settings.manage). Refused (422) for a branch that has orders, or the store's only branch: make it
-     * inactive instead.
+     * inactive instead. P2-33: refused too while staff, unrevoked devices (terminals) or delivery zones are tied to it
+     * (they would become store-wide); `data` carries their counts (`staff`, `devices`, `zones`).
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: null}')]
-    #[ApiDocResponse(422, type: 'array{success: false, message: string, data: array{reason: string}}', description: "Filialni o'chirib bo'lmaydi (`branch_in_use`)")]
+    #[ApiDocResponse(422, type: 'array{success: false, message: string, data: array{reason: string, staff: int, devices: int, zones: int}}', description: "Filialni o'chirib bo'lmaydi (`branch_in_use`)")]
     public function destroy(Request $request, int $id, BranchService $branches): JsonResponse
     {
         $branch = $this->branchOf($request, $id);
 
         $refusal = $branches->deletionRefusal($branch);
         if ($refusal !== null) {
-            return $this->error($refusal, ['reason' => 'branch_in_use'], 422);
+            return $this->error($refusal, ['reason' => 'branch_in_use'] + $branches->references($branch), 422);
         }
 
         $branches->delete($branch);
@@ -173,7 +176,8 @@ class BranchController extends ManagementController
     private function scopedTo(Request $request, Branch $branch): void
     {
         $user = $request->user();
-        if ($this->permissions->isBranchScoped($user) && (int) $user->branch_id !== (int) $branch->id) {
+        $acting = $this->permissions->actingBranchId($user); // P2-33: a terminal PIN session too
+        if ($acting !== null && $acting !== (int) $branch->id) {
             throw new HttpResponseException($this->error('Ruxsat etilmagan', [], 403));
         }
     }

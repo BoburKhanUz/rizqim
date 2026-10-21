@@ -7,7 +7,7 @@ Flutter ilovalari uchun umumiy Dart paketlari. Hammasi bitta **Dart workspace**d
 |---|---|---|
 | `rizqim_core` | Pul (`Money`, butun so'm, `25 000 so'm` ajralmas bo'shliq bilan), sana (`19-okt, 20:12`), davomiylik (`formatDuration`: `4:05`), buyurtma holatlari va rang guruhlari, buyurtma turi va kanali (`OrderType.shortLabel`: "Zal", `OrderChannel`), xodim rollari (`StaffRole`: "Oshpaz"). Mini App (`customer/miniapp/src/lib/format.ts`, `orderStatus.ts`) bilan bir xil natija | yo'q (`dart test`) |
 | `rizqim_api` | OpenAPI'dan yaratilgan klient + qo'lda yozilgan kirish qatlami (terminalni ulash, xodim PIN sessiyasi, refresh token aylanishi, PIN xatolari `PinFailure`), oshxona ekrani (`KitchenService`, `KitchenTicket`), Reverb real-time klienti (`PusherClient`, `ChannelAuth`) | yo'q (`dart test`) |
-| `rizqim_ui` | Material 3 mavzusi (Rizqim tokenlari, yorug' va qorong'i), `RzButton`, `StatusBadge`, `EmptyState`, `InlineError`; terminal ilovalari uchun `RzPinEntry`/`RzPinPad`, `RzStaffTile`, `RzOfflineBanner` ("Aloqa yo'q"), `RzIdleDetector` (harakatsizlikda chiqarish) | ha (`flutter test`) |
+| `rizqim_ui` | Material 3 mavzusi (Rizqim tokenlari, yorug' va qorong'i), `RzButton`, `StatusBadge`, `EmptyState`, `InlineError`; terminal ilovalari uchun `RzPinEntry`/`RzPinPad`, `RzStaffTile`, `RzOfflineBanner` ("Aloqa yo'q"), `RzIdleDetector` (harakatsizlikda chiqarish; Navigator'dan yuqorida — `MaterialApp.builder` — qo'ying, dialoglar ham hisoblansin) | ha (`flutter test`) |
 
 Namunaviy ilova: [`pos/apps/kds`](../../pos/apps/kds/README.md).
 
@@ -105,6 +105,9 @@ yangilangan `KitchenTicket` (server amalni bajarib, javobni o'qib bo'lmasa `null
 `markOrderReady(uuid)`. `KitchenTicket` yaratilgan `Data80`/`Data83` nomlariga bog'liq emas: `code` (`#E101`), `lines`
 (`quantityLabel`, `modifiers`, `isReady`), `waitingAt(now)` — kutish vaqti serverning `waiting_seconds` va javob kelgan
 paytdan sanaladi (planshet soati noto'g'ri bo'lsa ham to'g'ri). Qaysi buyurtma qachon "tayyor" bo'lishi — serverda.
+`tickets` javobi xom olinadi va har chipta yaratilgan model bilan alohida tekshiriladi: mos kelmagan chipta tushiriladi va
+`KitchenTicketList.skipped` da qaytadi (qolganlari ko'rsatiladi). Butun javobni o'qib bo'lmasa — `ApiException`
+`reason = unexpected_response` va HTTP kodi bilan (`isUnexpectedResponse`; `isNetworkError` emas: bu "Aloqa yo'q" emas).
 
 ### Real-time: `PusherClient`
 
@@ -120,8 +123,16 @@ final PusherClient rt = PusherClient(
   authorize: client.channelAuth.terminal,          // POST /api/broadcasting/auth, terminal tokeni bilan
 )..subscribe('private-pos-branch.3')..connect();
 rt.events.listen((e) => refetch());                // hodisada faqat id va holat: ro'yxatni API'dan qayta so'rang
-rt.statuses.listen((s) { if (s == RealtimeStatus.connected) refetch(); });   // qayta ulanganda ham
+// "jonli" = ulangan VA obuna tasdiqlangan; qayta ulanganda ham to'liq qayta yuklash obuna tasdiqlangach
+rt.channelStates.listen((c) { if (c.state == RealtimeSubscriptionState.subscribed) refetch(); });
 ```
+
+`RealtimeStatus.connected` faqat ulanish (handshake): kanal hodisalari `pusher_internal:subscription_succeeded` dan keyin
+keladi. Imzo rad etilsa (`/broadcasting/auth` 403/429) yoki server obunani rad etsa kanal `failed` bo'ladi va fonda qayta
+so'raladi — shu paytda ilova polling'ga tayanadi (`isSubscribed(channel)` / `channelState(channel)`). Ulanish
+`connectTimeout` ichida ochilmasa urinish tashlanadi, kech ochilgan ulanish darhol yopiladi; `ioRealtimeConnector` o'zi
+ham 15 s ichida handshake bo'lmasa so'rovni majburan yopadi (TCP'ni qabul qilib javob bermaydigan server ulanishlarni
+osiltirib qo'ymaydi).
 
 Uzilsa `Backoff` bo'yicha (1, 2, 4 ... 30 s, ±20%) o'zi qayta ulanadi va kanallarga qayta obuna bo'ladi; server
 `activity_timeout` jim tursa `pusher:ping`, 30 s ichida javob bo'lmasa ulanishni yangilaydi; imzo olinmasa obunani

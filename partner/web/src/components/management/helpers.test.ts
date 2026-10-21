@@ -5,7 +5,6 @@ import { errorText, firstFieldError, reasonOf } from './errors';
 import { parseDecimal, phoneToE164, phoneToInput } from './fields';
 import { hoursText, clock } from './hours';
 import { cashOn, draftFromSettings, inputFromDraft, onlineOn, providerAvailable } from './paymentSettings';
-import { isSmsProvenRefusal } from './phoneRefusal';
 
 const t = createTranslator('uz');
 
@@ -28,19 +27,6 @@ describe('errorText', () => {
     expect(reasonOf(new Error('x'))).toBeUndefined();
     expect(firstFieldError(new StaffApiError(500, { errors: { a: ['x'] } }))).toBeUndefined();
     expect(firstFieldError(new StaffApiError(422, { errors: { a: '  ' } }))).toBeUndefined();
-  });
-});
-
-describe('isSmsProvenRefusal', () => {
-  it('knows the refusal of a phone the member proved by SMS themselves', () => {
-    expect(isSmsProvenRefusal("Bu raqamni xodimning o'zi SMS kod bilan tasdiqlagan, uni bu yerda o'zgartirib yoki o'chirib bo'lmaydi.")).toBe(true);
-    expect(isSmsProvenRefusal('Bu raqamni xodimning oʻzi SMS kod bilan tasdiqlagan.')).toBe(true);
-  });
-
-  it("is not fooled by the other refusals that mention SMS or by a missing message", () => {
-    expect(isSmsProvenRefusal("Bu raqam egasi uni boshqa do'kondagi xodim hisobida SMS kod bilan tasdiqlagan.")).toBe(false);
-    expect(isSmsProvenRefusal("Bu raqam do'koningizning boshqa xodimiga biriktirilgan.")).toBe(false);
-    expect(isSmsProvenRefusal(undefined)).toBe(false);
   });
 });
 

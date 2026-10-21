@@ -64,10 +64,14 @@ Hech qaysi hududga tushmasa — `null` (yetkazib berilmaydi).
 
 - Hududda **Filial** tanlangan bo'lsa, buyurtmani faqat o'sha filial qabul qiladi. U yopiq (faol emas, vaqtincha
   yopiq yoki ish vaqtidan tashqarida) bo'lsa, narx so'rovi `branch_closed` bilan rad etiladi.
+- P2-33: hudud bog'langan filialni o'chirib bo'lmaydi (API: 422 `branch_in_use`, `data.zones` — nechta hudud; Filament
+  ham rad etadi). Aks holda hudud filialsiz qolib, istalgan filialdan yetkazadigan bo'lardi. Avval hududni boshqa
+  filialga biriktiring yoki o'chiring.
 - Bo'sh bo'lsa, `ZoneResolver::nearestOpenBranch($store, $lat, $lng, $at)`: manzilga eng yaqin **ochiq** filial.
   Ochiq filial: holati `active`, `is_active`, koordinatalari bor va ish vaqti `$at` ni qamraydi. Masofa — haversine
   (km). Teng masofada `id` kichigi. Hech bir filial ochiq bo'lmasa, `null`.
-- Ish vaqti (`open_time`–`close_time`) do'konning vaqt mintaqasida (standart `Asia/Tashkent`) o'qiladi. Ochilish
+- Ish vaqti (`open_time`–`close_time`) do'konning vaqt mintaqasida (standart `Asia/Tashkent`; P2-33: noma'lum
+  mintaqa yozilgan bo'lsa ham `Asia/Tashkent`, `App\Support\StoreTimezone`) o'qiladi. Ochilish
   vaqti kiradi, yopilish vaqti kirmaydi. Vaqtlar yo'q yoki teng (`00:00`–`00:00`) bo'lsa — sutka bo'yi ochiq.
   Yopilish ochilishdan oldin bo'lsa (`18:00`–`02:00`) — tungi ish vaqti.
 

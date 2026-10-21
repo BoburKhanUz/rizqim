@@ -197,6 +197,9 @@ class AuthCommandsTest extends TestCase
 
         config(['broadcasting.connections.reverb.secret' => str_repeat('s', 64), 'reverb.apps.apps.0.allowed_origins' => ['*']]);
         $this->artisan('app:check-production')->expectsOutputToContain('REVERB_ALLOWED_ORIGINS')->assertSuccessful();
+        // P2-33: the warning names every screen that opens the socket (docs/DEPLOY.md §9)
+        $this->artisan('app:check-production')->expectsOutputToContain('panel.<domen>')->assertSuccessful();
+        $this->artisan('app:check-production')->expectsOutputToContain('RIZQIM_API_URL')->assertSuccessful();
 
         config(['reverb.apps.apps.0.allowed_origins' => ['mini.example.uz']]);
         $this->artisan('app:check-production')->doesntExpectOutputToContain('REVERB_ALLOWED_ORIGINS')->assertSuccessful();

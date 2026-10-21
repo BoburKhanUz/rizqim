@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Phone, X } from 'lucide-react';
-import { Button, cx, formatDateTime, formatMoney, formatOrderCode, formatTime, IconButton, InlineError, parseAmount, Skeleton, StatusBadge } from '@rizqim/ui';
+import { Button, cx, FOCUSABLE, formatDateTime, formatMoney, formatOrderCode, formatTime, IconButton, InlineError, keepTabInside, parseAmount, Skeleton, StatusBadge } from '@rizqim/ui';
 import { actionLabel, cancelReasonLabel, paymentMethodLabel, type OrderAction, type StaffOrder, type StaffOrderDetail } from '@rizqim/staff';
 import type { MessageKey } from '@/i18n';
 import { orderTypeLabel, statusLabel } from '@/lib/labels';
@@ -25,8 +25,6 @@ interface OrderDrawerProps {
   onClose: () => void;
 }
 
-const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
-
 // The detail of one order in a panel on the right: its actions, items with modifiers and weights and their kitchen state,
 // the note, customer and delivery (when the person may see them), money, and the status timeline.
 export function OrderDrawer({ order, detail, detailLoading, detailError, onRetry, actions, busyAction, now, onAction, onClose }: OrderDrawerProps) {
@@ -43,8 +41,11 @@ export function OrderDrawer({ order, detail, detailLoading, detailError, onRetry
     const panel = panelRef.current;
     panel?.querySelector<HTMLElement>(FOCUSABLE)?.focus();
     const onKeyDown = (event: KeyboardEvent) => {
-      // A dialog over the drawer (reason, courier) handles its own Escape
-      if (event.key === 'Escape' && !document.querySelector('[role="alertdialog"], [role="dialog"][aria-modal="true"]:not([data-drawer])')) onCloseRef.current();
+      // A dialog over the drawer (reason, courier) handles its own Escape and Tab
+      if (document.querySelector('[role="alertdialog"], [role="dialog"][aria-modal="true"]:not([data-drawer])')) return;
+      if (event.key === 'Escape') onCloseRef.current();
+      // aria-modal: Tab stays in the drawer, as in @rizqim/ui's Dialog
+      else if (panel) keepTabInside(event, panel);
     };
     document.addEventListener('keydown', onKeyDown);
     return () => {

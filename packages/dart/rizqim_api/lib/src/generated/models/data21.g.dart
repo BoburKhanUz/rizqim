@@ -15,6 +15,7 @@ Data21 _$Data21FromJson(Map<String, dynamic> json) => Data21(
       .map((e) => e as String)
       .toList(),
   deviceUuid: json['device_uuid'] as String?,
+  timezone: json['timezone'] as String?,
 );
 
 Map<String, dynamic> _$Data21ToJson(Data21 instance) => <String, dynamic>{
@@ -24,4 +25,5 @@ Map<String, dynamic> _$Data21ToJson(Data21 instance) => <String, dynamic>{
   'branch_scoped': instance.branchScoped,
   'permissions': instance.permissions,
   'device_uuid': instance.deviceUuid,
+  'timezone': instance.timezone,
 };

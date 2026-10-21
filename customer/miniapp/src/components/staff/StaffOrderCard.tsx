@@ -57,7 +57,7 @@ export function StaffOrderCard({ order, now, showBranch, couriers, courierId, on
   const preview = items.map((item) => `${item.product_name} ${lineQuantity(item, language)}`).join(', ');
   const progress = kitchenProgress(order);
   const minutes = waitingMinutes(order, now);
-  const tone = minutes === null ? 'neutral' : waitingTone(minutes);
+  const tone = minutes === null ? 'neutral' : waitingTone(minutes, order.status);
   const table = [order.hall_ref ? tx('hall', { hall: order.hall_ref }) : '', order.table_ref ? tx('table', { table: order.table_ref }) : ''].filter(Boolean).join(' · ');
 
   const actions = getOrderActions(toOrderRef(order), 'manager');

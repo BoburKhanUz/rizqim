@@ -49,7 +49,9 @@ return [
 
     'allowed_headers' => ['*'],
 
-    'exposed_headers' => [],
+    // P2-33: a cross-origin page (the partner web on its own domain) must be able to read the CSV export's file
+    // name and the rate limiter's wait time
+    'exposed_headers' => ['Content-Disposition', 'Retry-After'],
 
     'max_age' => 0,
 

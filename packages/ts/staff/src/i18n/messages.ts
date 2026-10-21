@@ -113,7 +113,8 @@ export const STAFF_MESSAGES = {
   filterPreparing: { uz: 'Tayyorlash', ru: 'Готовка' },
   filterReady: { uz: 'Tayyor', ru: 'Готовы' },
   filterCourier: { uz: 'Kuryer', ru: 'Курьер' },
-  tabCompleted: { uz: 'Yakunlanganlar', ru: 'Завершенные' },
+  // All finished orders (the partner web's board column is today's only: "Bugun yakunlangan")
+  tabCompleted: { uz: 'Yakunlangan', ru: 'Завершённые' },
   noActiveOrdersTitle: { uz: "Hozircha faol buyurtmalar yo'q", ru: 'Активных заказов пока нет' },
   noActiveOrdersText: { uz: "Yangi buyurtma kelganda shu yerda paydo bo'ladi.", ru: 'Новые заказы появятся здесь.' },
   noOrdersInStatus: { uz: "Bu holatda buyurtma yo'q", ru: 'В этом статусе заказов нет' },
@@ -166,17 +167,18 @@ export const ACTION_LABELS: Record<string, Localized> = {
   reject: { uz: 'Rad etish', ru: 'Отклонить' },
   start_preparing: { uz: 'Tayyorlashni boshlash', ru: 'Начать готовку' },
   mark_ready: { uz: "Tayyor bo'ldi", ru: 'Готово' },
-  assign_courier: { uz: 'Kuryerni tayinlash', ru: 'Назначить курьера' },
+  assign_courier: { uz: 'Kuryerni biriktirish', ru: 'Назначить курьера' },
   hand_over: { uz: 'Mijozga topshirish', ru: 'Выдать заказ' },
   pick_up: { uz: "Yo'lga chiqdi", ru: 'В пути' },
-  confirm_delivery: { uz: 'Yetkazilganini tasdiqlash', ru: 'Подтвердить доставку' },
+  confirm_delivery: { uz: 'Yetkazib berildi', ru: 'Доставлен' },
   cancel: { uz: 'Bekor qilish', ru: 'Отменить заказ' },
 };
 
-// What the courier's own screen calls the same steps (he does them himself)
+// What the courier's own screen calls the same steps: the same words, said by the one who does them (P2-33: one wording
+// for the courier steps: biriktirish, yo'lga chiqish, yetkazib berish)
 export const COURIER_ACTION_LABELS: Record<string, Localized> = {
-  pick_up: { uz: "Olib ketdim (Yo'lga chiqdim)", ru: 'Забрал (В пути)' },
-  confirm_delivery: { uz: 'Yetkazib berdim (Yakunlash)', ru: 'Доставил (Завершить)' },
+  pick_up: { uz: "Yo'lga chiqdim", ru: 'В пути' },
+  confirm_delivery: { uz: 'Yetkazib berdim', ru: 'Доставил' },
 };
 
 export function actionLabel(id: string, language: Language | string, role?: string): string {

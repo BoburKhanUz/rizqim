@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1\Menu;
 
+use App\Http\Requests\Menu\ModifierGroupRequest;
 use App\Models\Modifier;
 use App\Models\ModifierGroup;
 use App\Models\ProductVariant;
@@ -39,10 +40,10 @@ class ModifierGroupController extends MenuStaffController
      * price (per piece; once per line for items sold by weight). `product_variant_id` optionally links a modifier to a
      * variant of the store (for stock later).
      */
-    public function store(Request $request): JsonResponse
+    public function store(ModifierGroupRequest $request): JsonResponse
     {
         $storeId = $this->storeId($request);
-        $data = $this->validated($request, $storeId);
+        $data = $this->validated($request->validated(), $storeId);
 
         $group = DB::transaction(function () use ($storeId, $data) {
             $group = ModifierGroup::create(['store_id' => $storeId] + $this->groupFields($data));
@@ -60,7 +61,7 @@ class ModifierGroupController extends MenuStaffController
      * `modifiers` replaces the list: an entry with `id` updates that modifier, one without creates it, and a modifier
      * left out is deleted (order history keeps its snapshot).
      */
-    public function update(Request $request, int $id): JsonResponse
+    public function update(ModifierGroupRequest $request, int $id): JsonResponse
     {
         $storeId = $this->storeId($request);
         $group = ModifierGroup::where('store_id', $storeId)->find($id);
@@ -68,7 +69,7 @@ class ModifierGroupController extends MenuStaffController
             return $this->error('Modifikator guruhi topilmadi.', [], 404);
         }
 
-        $data = $this->validated($request, $storeId);
+        $data = $this->validated($request->validated(), $storeId);
 
         DB::transaction(function () use ($group, $data) {
             $group->update($this->groupFields($data));
@@ -105,7 +106,8 @@ class ModifierGroupController extends MenuStaffController
      * Set the modifier groups a product offers
      *
      * Replaces the product's groups. Per product, `min_select`, `max_select` and `is_required` override the group's own
-     * rules (null: the group's); `sort_order` orders them.
+     * rules (null: the group's; P2-30: a rule left out of a row keeps the product's saved one); `sort_order` orders
+     * them (left out: the list order). GET /owner/products returns them as `modifier_group_links`.
      */
     public function syncProduct(Request $request, int $id): JsonResponse
     {
@@ -127,15 +129,25 @@ class ModifierGroupController extends MenuStaffController
             throw ValidationException::withMessages(['groups' => "Modifikator guruhi bu do'konga tegishli emas."]);
         }
 
+        // P2-30: a rule left out of a row keeps what the product has for that group (an attach list saved without the
+        // rules no longer wipes them); null resets it to the group's own
+        $saved = DB::table('product_modifier_groups')->where('product_id', $product->id)->get()->keyBy('modifier_group_id');
+
         $sync = [];
         foreach ($data['groups'] as $position => $row) {
-            if (isset($row['min_select'], $row['max_select']) && $row['max_select'] < $row['min_select']) {
+            $groupId = (int) $row['modifier_group_id'];
+            $current = $saved->get($groupId);
+            $rules = [];
+            foreach (['min_select', 'max_select', 'is_required'] as $rule) {
+                $rules[$rule] = array_key_exists($rule, $row) ? $row[$rule] : ($current !== null ? $current->{$rule} : null);
+            }
+            if ($rules['min_select'] !== null && $rules['max_select'] !== null && (int) $rules['max_select'] < (int) $rules['min_select']) {
                 throw ValidationException::withMessages(["groups.{$position}.max_select" => "Eng ko'p tanlov eng kamidan kichik bo'lmasligi kerak."]);
             }
-            $sync[(int) $row['modifier_group_id']] = [
-                'min_select' => $row['min_select'] ?? null,
-                'max_select' => $row['max_select'] ?? null,
-                'is_required' => $row['is_required'] ?? null,
+            $sync[$groupId] = [
+                'min_select' => $rules['min_select'] !== null ? (int) $rules['min_select'] : null,
+                'max_select' => $rules['max_select'] !== null ? (int) $rules['max_select'] : null,
+                'is_required' => $rules['is_required'] !== null ? (bool) $rules['is_required'] : null,
                 'sort_order' => $row['sort_order'] ?? $position,
             ];
         }
@@ -149,30 +161,21 @@ class ModifierGroupController extends MenuStaffController
     }
 
     /**
+     * The checks beyond the request's shape (ModifierGroupRequest): the bounds agree, linked variants are the store's.
+     *
+     * @param  array<string, mixed>  $data
      * @return array<string, mixed>
      */
-    private function validated(Request $request, int $storeId): array
+    private function validated(array $data, int $storeId): array
     {
-        $data = $request->validate([
-            'name' => 'required|string|max:255',
-            'name_i18n' => 'nullable|array',
-            'name_i18n.*' => 'nullable|string|max:255',
-            'min_select' => 'nullable|integer|min:0|max:50',
-            'max_select' => 'nullable|integer|min:1|max:50',
-            'is_required' => 'nullable|boolean',
-            'sort_order' => 'nullable|integer',
-            'is_active' => 'nullable|boolean',
-            'modifiers' => 'sometimes|array|max:100',
-            'modifiers.*.id' => 'nullable|integer',
-            'modifiers.*.name' => 'required|string|max:255',
-            'modifiers.*.name_i18n' => 'nullable|array',
-            'modifiers.*.name_i18n.*' => 'nullable|string|max:255',
-            'modifiers.*.price_delta' => 'nullable|numeric|min:0|max:100000000|decimal:0,2',
-            'modifiers.*.max_quantity' => 'nullable|integer|min:1|max:50',
-            'modifiers.*.product_variant_id' => 'nullable|integer',
-            'modifiers.*.sort_order' => 'nullable|integer',
-            'modifiers.*.is_active' => 'nullable|boolean',
-        ]);
+        // A modifier's names in other languages (its own rule would hide their object shape from the OpenAPI document)
+        foreach ($data['modifiers'] ?? [] as $position => $modifier) {
+            foreach ((array) ($modifier['name_i18n'] ?? []) as $locale => $name) {
+                if ($name !== null && (!is_string($name) || mb_strlen($name) > 255)) {
+                    throw ValidationException::withMessages(["modifiers.{$position}.name_i18n.{$locale}" => "Nomi matn bo'lishi kerak (ko'pi bilan 255 belgi)."]);
+                }
+            }
+        }
 
         if (isset($data['max_select']) && (int) $data['max_select'] < (int) ($data['min_select'] ?? 0)) {
             throw ValidationException::withMessages(['max_select' => "Eng ko'p tanlov eng kamidan kichik bo'lmasligi kerak."]);
@@ -282,9 +285,9 @@ class ModifierGroupController extends MenuStaffController
         $pivot = $withPivot && $group->relationLoaded('pivot') ? $group->getRelation('pivot') : null;
         if ($pivot instanceof \Illuminate\Database\Eloquent\Model) {
             $data['product_rules'] = [
-                'min_select' => $pivot->getAttribute('min_select'),
-                'max_select' => $pivot->getAttribute('max_select'),
-                'is_required' => $pivot->getAttribute('is_required'),
+                'min_select' => $pivot->getAttribute('min_select') !== null ? (int) $pivot->getAttribute('min_select') : null,
+                'max_select' => $pivot->getAttribute('max_select') !== null ? (int) $pivot->getAttribute('max_select') : null,
+                'is_required' => $pivot->getAttribute('is_required') !== null ? (bool) $pivot->getAttribute('is_required') : null,
                 'sort_order' => (int) $pivot->getAttribute('sort_order'),
             ];
         }

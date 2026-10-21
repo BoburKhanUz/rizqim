@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\DB;
  * The aggregates behind the Mini App's analytics screen (GET /api/v1/owner/analytics), computed in the database for
  * a store (or one branch): a handful of grouped queries instead of the app paging through every order of the period.
  *
- * Periods are calendar days in Asia/Tashkent and cover the orders CREATED within them (the (store_id, created_at, id)
+ * Periods are calendar days in the store's time zone (P2-33; Asia/Tashkent by default) and cover the orders CREATED within them (the (store_id, created_at, id)
  * and (branch_id, created_at, id) indexes serve the range; an order is counted on the day it was placed, however
  * late it finishes). Revenue is the total of the period's delivered orders, the figure the screens always showed;
  * refunded orders are not revenue. All money is summed by the database and handled as Money, never as floats.
@@ -34,20 +34,21 @@ class OwnerAnalyticsService
     public const CACHE_SECONDS = 60;
 
     /**
-     * The first and last day (Asia/Tashkent) of a period. `custom` needs both dates (Y-m-d).
+     * The first and last day of a period, in $timezone (P2-33: the store's, as the reports; Asia/Tashkent by default).
+     * `custom` needs both dates (Y-m-d).
      *
      * @return array{from: CarbonImmutable, to: CarbonImmutable}
      */
-    public function resolvePeriod(string $period, ?string $from = null, ?string $to = null): array
+    public function resolvePeriod(string $period, ?string $from = null, ?string $to = null, string $timezone = self::TIMEZONE): array
     {
         if ($period === 'custom') {
             return [
-                'from' => CarbonImmutable::createFromFormat('!Y-m-d', (string) $from, self::TIMEZONE),
-                'to' => CarbonImmutable::createFromFormat('!Y-m-d', (string) $to, self::TIMEZONE),
+                'from' => CarbonImmutable::createFromFormat('!Y-m-d', (string) $from, $timezone),
+                'to' => CarbonImmutable::createFromFormat('!Y-m-d', (string) $to, $timezone),
             ];
         }
 
-        $today = CarbonImmutable::now(self::TIMEZONE)->startOfDay();
+        $today = CarbonImmutable::now($timezone)->startOfDay();
 
         return ['from' => $today->subDays((self::PERIOD_DAYS[$period] ?? 1) - 1), 'to' => $today];
     }
@@ -55,14 +56,14 @@ class OwnerAnalyticsService
     /**
      * @return array<string, mixed>
      */
-    public function forPeriod(int $storeId, ?int $branchId, string $period, ?string $from = null, ?string $to = null): array
+    public function forPeriod(int $storeId, ?int $branchId, string $period, ?string $from = null, ?string $to = null, string $timezone = self::TIMEZONE): array
     {
-        $range = $this->resolvePeriod($period, $from, $to);
+        $range = $this->resolvePeriod($period, $from, $to, $timezone);
         $first = $range['from'];
         $last = $range['to'];
 
-        // The days are in the key, so a cached "today" is never served on the next day
-        $key = sprintf('owner-analytics:%d:%s:%s:%s', $storeId, $branchId ?? 'all', $first->toDateString(), $last->toDateString());
+        // The days (and their time zone) are in the key, so a cached "today" is never served on the next day
+        $key = sprintf('owner-analytics:%d:%s:%s:%s:%s', $storeId, $branchId ?? 'all', $first->toDateString(), $last->toDateString(), $timezone);
 
         return Cache::remember($key, self::CACHE_SECONDS, fn () => $this->compute($storeId, $branchId, $period, $first, $last));
     }
@@ -91,7 +92,7 @@ class OwnerAnalyticsService
                 'from' => $first->toDateString(),
                 'to' => $last->toDateString(),
                 'days' => $first->diffInDays($last) + 1,
-                'timezone' => self::TIMEZONE,
+                'timezone' => $first->getTimezone()->getName(),
                 // What "in the period" means: the day the order was placed
                 'basis' => 'created_at',
             ],
@@ -120,7 +121,7 @@ class OwnerAnalyticsService
 
     /**
      * P2-12: the store's (a branch's) orders placed from the first day's start to the end of the last day, the days
-     * being calendar days of the dates' own timezone (Asia/Tashkent here, the store's in SalesReportService).
+     * being calendar days of the dates' own timezone (the store's, here and in SalesReportService).
      */
     public function ordersBetween(int $storeId, ?int $branchId, CarbonImmutable $first, CarbonImmutable $last): Builder
     {

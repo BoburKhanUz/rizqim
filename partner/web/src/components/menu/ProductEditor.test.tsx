@@ -76,10 +76,11 @@ describe('a new product', () => {
     await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/menu/9'));
   });
 
-  it('shows English field rules in Uzbek', async () => {
+  it("shows the server's Uzbek field messages, and a general Uzbek one for a message that came in English", async () => {
     mockFetch({
       ...base,
-      'POST /api/v1/owner/products': () => json({ message: 'The name field is required. (and 1 more error)', errors: { name: ['The name field is required.'], image: ['The image field must be an image.'] } }, 422),
+      'POST /api/v1/owner/products': () =>
+        json({ message: 'Nomi majburiy. (va yana 1 ta xato)', errors: { name: ['Nomi majburiy.'], image: ['The image field must be an image.'] } }, 422),
     });
     renderPage(<ProductEditor id="new" />);
     const user = userEvent.setup();
@@ -88,9 +89,9 @@ describe('a new product', () => {
     await user.type(screen.getByLabelText('Narxi (so\'m)'), '25000');
     await user.click(screen.getByRole('button', { name: 'Yaratish' }));
 
-    expect(await screen.findByText('Maydonni to\'ldiring.')).toBeInTheDocument();
-    expect(screen.getByText('Rasm tanlang (JPG, PNG yoki WebP, 5 MB gacha).')).toBeInTheDocument();
-    expect(screen.queryByText(/The name field/)).not.toBeInTheDocument();
+    expect(await screen.findByText('Nomi majburiy.')).toBeInTheDocument();
+    expect(screen.getByText("Qiymat noto'g'ri.")).toBeInTheDocument();
+    expect(screen.queryByText(/The image field/)).not.toBeInTheDocument();
   });
 
   it('previews a picked picture and refuses one that is too big or not a picture', async () => {
@@ -200,6 +201,9 @@ describe('an existing product', () => {
         { modifier_group_id: 4, sort_order: 1 },
       ],
     });
+    // The groups are fetched again after the save (the switches remount with what the server stored): the note stays
+    await waitFor(() => expect(calls.filter((call) => call.method === 'GET' && call.url.endsWith('/owner/modifier-groups')).length).toBeGreaterThan(1));
+    expect(await screen.findByText('Saqlandi.')).toBeInTheDocument();
   });
 
   it('sets channel prices and visibility, and sends the rows of other channels back unchanged', async () => {

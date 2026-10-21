@@ -19,7 +19,8 @@ class StopListController extends MenuStaffController
     /**
      * A branch's stop-list
      *
-     * The entries in force (expired ones are not listed). Branch-bound staff always get their own branch.
+     * The entries in force (expired ones are not listed). Branch-bound staff always get their own branch. P2-30:
+     * `created_by_name` (who put it there) for staff with stoplist.manage; null for a menu.view reader.
      */
     #[QueryParameter('branch_id', description: 'Required unless the caller is bound to a branch.', type: 'int')]
     public function index(Request $request, StopListService $stopList): JsonResponse
@@ -27,11 +28,15 @@ class StopListController extends MenuStaffController
         $permission = $this->permissions->has($request->user(), Permission::STOPLIST_MANAGE) ? Permission::STOPLIST_MANAGE : Permission::MENU_VIEW;
         $branch = $this->branch($request, $permission);
 
-        $entries = StopListEntry::where('branch_id', $branch->id)->active()->orderByDesc('id')->get();
+        // P2-30: who stopped it, by name, for those who manage the list (a menu.view reader gets the id only)
+        $names = $permission === Permission::STOPLIST_MANAGE;
+        $entries = StopListEntry::where('branch_id', $branch->id)->active()->orderByDesc('id')
+            ->when($names, fn ($query) => $query->with('creator:id,name,store_id'))
+            ->get();
 
         return $this->success([
             'branch_id' => (int) $branch->id,
-            'entries' => $entries->map(fn (StopListEntry $entry) => $this->present($entry))->values(),
+            'entries' => $entries->map(fn (StopListEntry $entry) => $this->present($entry, $names))->values(),
         ]);
     }
 
@@ -58,7 +63,7 @@ class StopListController extends MenuStaffController
 
         $entry = $stopList->add($branch, $type, $subject, $data['reason'] ?? null, $until, $request->user());
 
-        return $this->success($this->present($entry), "Stop-listga qo'shildi.", 201);
+        return $this->success($this->present($entry->load('creator:id,name,store_id'), true), "Stop-listga qo'shildi.", 201);
     }
 
     /**
@@ -82,8 +87,10 @@ class StopListController extends MenuStaffController
     /**
      * @return array<string, mixed>
      */
-    private function present(StopListEntry $entry): array
+    private function present(StopListEntry $entry, bool $withName = false): array
     {
+        $creator = $withName && $entry->relationLoaded('creator') ? $entry->getRelation('creator') : null;
+
         $subject = $entry->subject();
 
         return [
@@ -96,6 +103,8 @@ class StopListController extends MenuStaffController
             'reason' => $entry->reason,
             'until' => $entry->until?->toJSON(),
             'created_by' => $entry->created_by !== null ? (int) $entry->created_by : null,
+            // The store's own staff only (a super admin's entry shows no name)
+            'created_by_name' => $creator instanceof \App\Models\User && (int) $creator->store_id === (int) $entry->store_id ? (string) $creator->name : null,
             'created_at' => $entry->created_at?->toJSON(),
         ];
     }

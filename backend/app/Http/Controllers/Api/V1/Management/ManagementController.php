@@ -38,10 +38,12 @@ abstract class ManagementController extends MenuStaffController
         $value = $request->input('branch_id');
 
         if ($value === null || $value === '') {
-            if (!$this->permissions->isBranchScoped($user)) {
+            // P2-33: a branch-bound caller, or a PIN session on a branch terminal: that branch
+            $acting = $this->permissions->actingBranchId($user);
+            if ($acting === null) {
                 return null;
             }
-            $value = (int) $user->branch_id;
+            $value = $acting;
         }
 
         $branchId = RowId::parse(is_int($value) ? $value : (is_string($value) ? $value : null));

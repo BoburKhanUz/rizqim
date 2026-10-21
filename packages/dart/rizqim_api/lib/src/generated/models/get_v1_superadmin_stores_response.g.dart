@@ -11,7 +11,7 @@ GetV1SuperadminStoresResponse _$GetV1SuperadminStoresResponseFromJson(
 ) => GetV1SuperadminStoresResponse(
   success: json['success'] as bool,
   data: (json['data'] as List<dynamic>)
-      .map((e) => Data90.fromJson(e as Map<String, dynamic>))
+      .map((e) => Data92.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 

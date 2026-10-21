@@ -9,14 +9,13 @@ import { useI18n } from '../I18nProvider';
 import { errorText } from './errors';
 import { PhoneField, phoneToE164, phoneToInput } from './fields';
 import { FormError } from './Notice';
-import { isSmsProvenRefusal } from './phoneRefusal';
 
 export const ASSIGNABLE_ROLES: readonly AssignableRole[] = ['manager', 'cashier', 'waiter', 'cook', 'courier'];
 
 // Add a member (name, role, branch, login phone) or change one's name, branch and login phone. A role of an existing member
 // has its own dialog; the phone is sent only when it was really changed, because the backend treats a phone in the request
-// as the owner's word for it (docs/AUTH.md: it becomes the login phone). A phone the member proved by SMS is refused (422); the form then
-// shows the server's message and the number as fixed.
+// as the owner's word for it (docs/AUTH.md: it becomes the login phone). A phone the member proved by SMS themselves
+// (`login_phone_proof: 'sms'` in the staff list) cannot be replaced or cleared here: the form shows it as fixed.
 export function StaffFormDialog({
   member,
   branches,
@@ -37,7 +36,7 @@ export function StaffFormDialog({
   const [branchId, setBranchId] = useState<string>(String(member?.branch?.id ?? (branches.length === 1 ? branches[0]!.id : '')));
   const originalPhone = phoneToInput(member?.phone);
   const [phone, setPhone] = useState(originalPhone);
-  const [phoneLocked, setPhoneLocked] = useState(false);
+  const phoneLocked = member?.login_phone_proof === 'sms';
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -53,10 +52,6 @@ export function StaffFormDialog({
     }
     setErrors(next);
     setFormError(Object.keys(next).length === 0 ? errorText(err, t) : null);
-    if (isSmsProvenRefusal(next.phone)) {
-      setPhone(originalPhone);
-      setPhoneLocked(true);
-    }
   };
 
   const submit = (event: FormEvent) => {

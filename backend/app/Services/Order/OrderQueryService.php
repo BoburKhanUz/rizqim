@@ -6,6 +6,7 @@ use App\Enums\OrderStatus;
 use App\Enums\UserRole;
 use App\Models\Order;
 use App\Models\User;
+use App\Services\Auth\PermissionService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Gate;
@@ -164,15 +165,16 @@ class OrderQueryService
      */
     private function scopedTo(User $user): Builder
     {
+        $acting = in_array($user->role, [UserRole::OWNER, UserRole::MANAGER], true) ? app(PermissionService::class)->actingBranchId($user) : null;
+
         return match ($user->role) {
             // Unassigned orders carry customer contact details and couriers can't claim them
             UserRole::COURIER => Order::where('store_id', $user->store_id)
                 ->where('courier_id', $user->id)
                 ->with(['items.variant.product', 'user', 'branch']),
-            UserRole::OWNER => Order::where('store_id', $user->store_id)
-                ->with(['items.variant.product.category', 'user', 'courier', 'manager', 'branch', 'statusHistories']),
-            UserRole::MANAGER => Order::where('store_id', $user->store_id)
-                ->when($user->branch_id, fn ($q) => $q->where('branch_id', $user->branch_id))
+            // P2-33: the branch they act in (a branch manager's own; a PIN session's terminal branch, NO_BRANCH: none)
+            UserRole::OWNER, UserRole::MANAGER => Order::where('store_id', $user->store_id)
+                ->when($acting !== null, fn ($q) => $q->where('branch_id', $acting))
                 ->with(['items.variant.product.category', 'user', 'courier', 'manager', 'branch', 'statusHistories']),
             default => $user->orders()->getQuery()
                 ->with(['items.variant.product']),

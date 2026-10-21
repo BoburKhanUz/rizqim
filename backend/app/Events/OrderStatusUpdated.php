@@ -15,8 +15,13 @@ class OrderStatusUpdated implements ShouldDispatchAfterCommit
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
+    /**
+     * @param  bool  $quiet  P2-33: a kitchen correction (a line recalled from a ready order, and the order becoming
+     *                       ready again after it): the customer is not told again (SendCustomerStatusAlert)
+     */
     public function __construct(
-        public \App\Models\Order $order
+        public \App\Models\Order $order,
+        public bool $quiet = false,
     ) {}
 
     /**

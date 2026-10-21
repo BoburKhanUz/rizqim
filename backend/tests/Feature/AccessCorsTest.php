@@ -36,6 +36,17 @@ class AccessCorsTest extends TestCase
         $this->assertSame('https://food.example.uz', $this->preflight('https://food.example.uz')->headers->get('Access-Control-Allow-Origin'));
     }
 
+    public function test_the_file_name_and_retry_after_headers_are_readable_cross_origin(): void
+    {
+        config(['cors.allowed_origins' => ['https://partner.example.uz']]);
+
+        $response = $this->call('GET', '/api/v1/user', [], [], [], ['HTTP_ORIGIN' => 'https://partner.example.uz', 'HTTP_ACCEPT' => 'application/json']);
+
+        $exposed = array_map('trim', explode(',', strtolower((string) $response->headers->get('Access-Control-Expose-Headers'))));
+        $this->assertContains('content-disposition', $exposed);
+        $this->assertContains('retry-after', $exposed);
+    }
+
     public function test_origins_come_from_env_and_default_to_webapp_and_app_urls(): void
     {
         $original = [

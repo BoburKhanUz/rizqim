@@ -164,7 +164,7 @@ describe('StaffOrderDetail', () => {
     renderDetail();
     await settle();
 
-    expect(screen.queryByRole('button', { name: /Kuryerni tayinlash/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Kuryerni biriktirish/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Bekor qilish/ })).not.toBeInTheDocument();
   });
 

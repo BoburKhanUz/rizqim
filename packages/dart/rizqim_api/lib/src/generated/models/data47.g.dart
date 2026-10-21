@@ -7,23 +7,27 @@ part of 'data47.dart';
 // **************************************************************************
 
 Data47 _$Data47FromJson(Map<String, dynamic> json) => Data47(
-  data: (json['data'] as List<dynamic>)
-      .map((e) => Data46.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  currentPage: (json['current_page'] as num).toInt(),
-  lastPage: (json['last_page'] as num).toInt(),
-  perPage: (json['per_page'] as num).toInt(),
-  total: (json['total'] as num).toInt(),
-  from: (json['from'] as num?)?.toInt(),
-  to: (json['to'] as num?)?.toInt(),
+  id: (json['id'] as num).toInt(),
+  type: json['type'] as String,
+  amount: json['amount'] as String,
+  balanceBefore: json['balance_before'] as String,
+  balanceAfter: json['balance_after'] as String,
+  order: json['order'] == null
+      ? null
+      : Order.fromJson(json['order'] as Map<String, dynamic>),
+  referenceId: json['reference_id'] as String?,
+  notes: json['notes'] as String?,
+  createdAt: json['created_at'] as String,
 );
 
 Map<String, dynamic> _$Data47ToJson(Data47 instance) => <String, dynamic>{
-  'data': instance.data,
-  'current_page': instance.currentPage,
-  'last_page': instance.lastPage,
-  'per_page': instance.perPage,
-  'total': instance.total,
-  'from': instance.from,
-  'to': instance.to,
+  'id': instance.id,
+  'type': instance.type,
+  'amount': instance.amount,
+  'balance_before': instance.balanceBefore,
+  'balance_after': instance.balanceAfter,
+  'order': instance.order,
+  'reference_id': instance.referenceId,
+  'notes': instance.notes,
+  'created_at': instance.createdAt,
 };

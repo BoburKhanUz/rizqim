@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { ClipboardList, Flag } from 'lucide-react';
+import { Bell, BellOff, ClipboardList, Flag } from 'lucide-react';
 import {
   boardKeys,
   GROUP_STATUSES,
@@ -15,6 +15,7 @@ import {
   useStaffOrders,
   type OrderAction,
   type StaffOrder,
+  type Localized,
   type StaffOrdersQuery,
 } from '@rizqim/staff';
 import { useLanguageStore } from '../store/languageStore';
@@ -23,7 +24,7 @@ import { useRealtimeStore } from '../store/realtimeStore';
 import { hapticFeedback } from '../lib/telegram';
 import { notificationOccurred, selectionChanged } from '../lib/twa';
 import { showAlert } from '../lib/dialogs';
-import { Button, CardSkeletons, EmptyState, InlineError, PageHeader, StatusBadge, cx, fieldClass } from '../components/ui';
+import { Button, CardSkeletons, EmptyState, IconButton, InlineError, PageHeader, StatusBadge, cx, fieldClass } from '../components/ui';
 import { SegmentedControl } from '../components/staff/SegmentedControl';
 import { StaffOrderCard } from '../components/staff/StaffOrderCard';
 import { OrderDetailsLink } from '../components/staff/OrderDetailsLink';
@@ -35,6 +36,7 @@ import { getPollInterval, POLL_INTERVAL_MS, pollingQueryOptions } from '../lib/p
 import { toOrderRef } from '../lib/staffOrders';
 import { useNow } from '../hooks/useNow';
 import { useStaffText } from '../hooks/useStaffText';
+import { useNewOrderChime } from '../hooks/useNewOrderChime';
 import { StaffCancelDialog } from '../components/CancelDialogs';
 import { LoadMoreOrders, TruncatedOrdersNotice } from '../components/OrderListParts';
 import { getStaffCancelReasonLabel } from '../lib/cancelReasons';
@@ -63,6 +65,12 @@ interface CancelRequest {
 }
 
 const NO_ORDERS: StaffOrder[] = [];
+
+const SOUND_TEXT = {
+  soundOn: { uz: "Yangi buyurtma ovozi yoqilgan. O'chirish", ru: 'Звук новых заказов включён. Выключить' },
+  soundOff: { uz: "Yangi buyurtma ovozi o'chirilgan. Yoqish", ru: 'Звук новых заказов выключен. Включить' },
+  soundHint: { uz: 'Yangi buyurtma ovozi uchun ekranga bir marta teging.', ru: 'Чтобы слышать новые заказы, коснитесь экрана один раз.' },
+} satisfies Record<string, Localized>;
 const NO_COURIER_CHOICES: Record<string, number> = {};
 
 function CompletedOrderCard({ order }: { order: StaffOrder }) {
@@ -96,6 +104,7 @@ export default function ManagerDashboard() {
   const { user } = useAuthStore();
   const { language } = useLanguageStore();
   const tx = useStaffText(ORDER_TEXT);
+  const soundText = useStaffText(SOUND_TEXT);
   const queryClient = useQueryClient();
   const realtimeConnected = useRealtimeStore((state) => state.connected);
   const now = useNow();
@@ -138,6 +147,9 @@ export default function ManagerDashboard() {
   useEffect(() => {
     seen.current = null;
   }, [branchId]);
+
+  // A chime for each new order (P2-33: as on the partner web board); switching the branch announces nothing
+  const sound = useNewOrderChime(activeData?.orders, String(branchId));
 
   // The finished orders (the archive tab) come a page at a time, once the tab is opened
   const history = useStaffOrderPages({ scope: 'history', per_page: 20, ...branchQuery }, { enabled: activeTab === 'completed' });
@@ -215,7 +227,22 @@ export default function ManagerDashboard() {
 
   return (
     <div className="flex flex-col gap-3 px-4 pt-2">
-      <PageHeader title={user?.name} subtitle={staffText('managerSubtitle', language)} />
+      <PageHeader
+        title={user?.name}
+        subtitle={staffText('managerSubtitle', language)}
+        action={
+          <IconButton
+            icon={sound.muted ? BellOff : Bell}
+            label={soundText(sound.muted ? 'soundOff' : 'soundOn')}
+            aria-pressed={!sound.muted}
+            onClick={() => {
+              selectionChanged();
+              sound.toggleMuted();
+            }}
+          />
+        }
+      />
+      {sound.needsGesture && <p className="text-footnote text-fg-muted">{soundText('soundHint')}</p>}
 
       {showBranches && (
         <select

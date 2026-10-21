@@ -4,6 +4,7 @@ namespace App\Policies;
 
 use App\Enums\CancelReason;
 use App\Enums\OrderStatus;
+use App\Enums\OrderType;
 use App\Enums\Permission;
 use App\Enums\UserRole;
 use App\Models\Order;
@@ -78,9 +79,25 @@ class OrderPolicy
                 && in_array($to, [OrderStatus::ON_THE_WAY, OrderStatus::DELIVERY, OrderStatus::DELIVERED], true);
         }
 
-        // P2-11: the kitchen's own two moves (start cooking, ready) with kitchen.manage: a cook has no orders.manage
+        // P2-11: the kitchen's own two moves (start cooking, ready) with kitchen.manage: a cook has no orders.manage.
+        // P2-30: and ready -> preparing, a line recalled after the last bump made the order ready (only through
+        // KitchenService::recall: the state machine opens it for that call alone, see OrderStatusService)
         if ($this->isKitchenMove($order, $to) && $this->permissions->allows($user, Permission::KITCHEN_MANAGE, $order)) {
             return true;
+        }
+
+        // P2-30: whoever assigns couriers marks the assigned courier's pick-up (courier_assigned -> on_the_way)
+        if ($to === OrderStatus::ON_THE_WAY && $order->status === OrderStatus::COURIER_ASSIGNED && $order->courier_id !== null
+            && $this->permissions->allows($user, Permission::ORDERS_ASSIGN_COURIER, $order)) {
+            return true;
+        }
+
+        // P2-33: a delivery order is handed over by the courier who has it, or by whoever dispatches couriers
+        // (orders.assign_courier: owner, manager) standing in for one; not by everyone who runs orders (cashier, waiter)
+        if ($to === OrderStatus::DELIVERED && $order->order_type === OrderType::DELIVERY
+            && ($order->courier_id === null || (int) $order->courier_id !== (int) $user->id)
+            && !$this->permissions->allows($user, Permission::ORDERS_ASSIGN_COURIER, $order)) {
+            return false;
         }
 
         // Cancelling or rejecting is its own permission (a cashier may run orders but not cancel them)
@@ -89,12 +106,14 @@ class OrderPolicy
     }
 
     /**
-     * accepted -> preparing and preparing -> ready: what the kitchen display does (docs/API.md, P2-11).
+     * accepted -> preparing and preparing -> ready: what the kitchen display does (docs/API.md, P2-11); P2-30: and
+     * ready -> preparing, the recall of a line after the order became ready.
      */
     public static function isKitchenMove(Order $order, OrderStatus $to): bool
     {
         return ($order->status === OrderStatus::ACCEPTED && $to === OrderStatus::PREPARING)
-            || ($order->status === OrderStatus::PREPARING && $to === OrderStatus::READY);
+            || ($order->status === OrderStatus::PREPARING && $to === OrderStatus::READY)
+            || ($order->status === OrderStatus::READY && $to === OrderStatus::PREPARING);
     }
 
     public function assignCourier(User $user, Order $order): bool

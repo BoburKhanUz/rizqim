@@ -352,7 +352,7 @@ class Store extends Model
                 return true;
             }
 
-            $now = now()->setTimezone($this->timezone ?? 'Asia/Tashkent')->format('H:i:s');
+            $now = now()->setTimezone(\App\Support\StoreTimezone::of($this))->format('H:i:s');
 
             if ($closeTime > $openTime) {
                 // Standard hours: e.g. 09:00:00 to 22:00:00

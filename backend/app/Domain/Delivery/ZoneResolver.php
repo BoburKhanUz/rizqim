@@ -96,7 +96,7 @@ class ZoneResolver
             return true;
         }
 
-        $now = CarbonImmutable::instance($at)->setTimezone($store?->timezone ?: self::DEFAULT_TIMEZONE)->format('H:i:s');
+        $now = CarbonImmutable::instance($at)->setTimezone(\App\Support\StoreTimezone::of($store))->format('H:i:s');
 
         return $open < $close
             ? ($now >= $open && $now < $close)

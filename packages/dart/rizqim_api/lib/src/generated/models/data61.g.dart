@@ -7,13 +7,31 @@ part of 'data61.dart';
 // **************************************************************************
 
 Data61 _$Data61FromJson(Map<String, dynamic> json) => Data61(
-  role: json['role'] as String,
-  permission: json['permission'] as String,
-  allowed: json['allowed'] as bool,
+  id: (json['id'] as num).toInt(),
+  amount: json['amount'] as String,
+  card: json['card'] as String,
+  status: Status4.fromJson(json['status'] as String),
+  notes: json['notes'] as String?,
+  resolutionNotes: json['resolution_notes'] as String?,
+  processedAt: json['processed_at'] as String?,
+  createdAt: json['created_at'] as String,
+  storeId: (json['store_id'] as num).toInt(),
+  cardNumber: json['card_number'] as String,
+  processedBy: (json['processed_by'] as num?)?.toInt(),
+  updatedAt: json['updated_at'] as String?,
 );
 
 Map<String, dynamic> _$Data61ToJson(Data61 instance) => <String, dynamic>{
-  'role': instance.role,
-  'permission': instance.permission,
-  'allowed': instance.allowed,
+  'id': instance.id,
+  'amount': instance.amount,
+  'card': instance.card,
+  'status': instance.status,
+  'notes': instance.notes,
+  'resolution_notes': instance.resolutionNotes,
+  'processed_at': instance.processedAt,
+  'created_at': instance.createdAt,
+  'store_id': instance.storeId,
+  'card_number': instance.cardNumber,
+  'processed_by': instance.processedBy,
+  'updated_at': instance.updatedAt,
 };

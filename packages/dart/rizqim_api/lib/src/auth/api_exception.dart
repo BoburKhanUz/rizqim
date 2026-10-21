@@ -46,7 +46,15 @@ class ApiException implements Exception {
 
   final Object? cause;
 
-  bool get isNetworkError => statusCode == null;
+  /// `data.reason`: server javob berdi (2xx), lekin ilova uni o'qiy olmadi (spetsifikatsiyaga mos emas). Bu "aloqa yo'q"
+  /// emas: ilova yoki server versiyasi mos kelmaydi.
+  static const String unexpectedResponse = 'unexpected_response';
+
+  /// Server javobini o'qib bo'lmadi ([unexpectedResponse]).
+  bool get isUnexpectedResponse => reason == unexpectedResponse;
+
+  /// Server bilan aloqa bo'lmadi (javob umuman kelmadi). O'qib bo'lmagan javob bunga kirmaydi.
+  bool get isNetworkError => statusCode == null && !isUnexpectedResponse;
   bool get isUnauthorized => statusCode == 401;
   bool get isRateLimited => statusCode == 429;
 

@@ -3,9 +3,15 @@
 namespace App\Http\Controllers\Api\V1\Store;
 
 use App\Http\Controllers\Controller;
+use App\Traits\ApiResponse;
 use Dedoc\Scramble\Attributes\Group;
+use Dedoc\Scramble\Attributes\QueryParameter;
+use Dedoc\Scramble\Attributes\Response as ApiDocResponse;
+use Illuminate\Http\Exceptions\HttpResponseException;
+use Illuminate\Support\Facades\Log;
 use App\Models\Category;
 use App\Models\Product;
+use App\Models\ProductModifierGroup;
 use App\Models\ProductVariant;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -13,18 +19,23 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use App\Services\Catalog\MenuImageService;
 
-#[Group('Owner: catalog', "Do'kon menyusini boshqarish (ega). Kategoriya yaratish faqat superadmin uchun.")]
+/**
+ * The store's menu: products with their variants (P2-30: menu.view reads, menu.manage writes; the owner by default, an
+ * owner may grant either to other roles), global categories (reading: menu.view; creating: super admin). Errors are
+ * Uzbek in the standard shape ({success: false, message, data}).
+ */
+#[Group('Owner: catalog', "Do'kon menyusini boshqarish (menu.view — ko'rish, menu.manage — o'zgartirish). Kategoriya yaratish faqat superadmin uchun.")]
 class OwnerCatalogController extends Controller
 {
+    use ApiResponse;
+
     /**
      * Get global categories for the dropdown
+     *
+     * menu.view (the route's).
      */
     public function getCategories(Request $request)
     {
-        if ($request->user()->role !== \App\Enums\UserRole::SUPER_ADMIN && $request->user()->role !== \App\Enums\UserRole::OWNER) {
-            return response()->json(['error' => 'Unauthorized'], 403);
-        }
-
         $categories = Category::where('is_active', true)
             ->whereDoesntHave('children')
             ->orderBy('sort_order')
@@ -42,7 +53,7 @@ class OwnerCatalogController extends Controller
     public function storeCategory(Request $request)
     {
         if ($request->user()->role !== \App\Enums\UserRole::SUPER_ADMIN) {
-            return response()->json(['error' => 'Unauthorized'], 403);
+            return $this->error('Ruxsat etilmagan', [], 403);
         }
 
         $validated = $request->validate([
@@ -66,20 +77,20 @@ class OwnerCatalogController extends Controller
 
     /**
      * Get all products for the owner's store
+     *
+     * menu.view. Each product with its category and variants, and `modifier_group_links`: the modifier groups it offers
+     * in order, with this product's own rules (`min_select`, `max_select`, `is_required`; null: the group's), as
+     * PUT /owner/products/{id}/modifier-groups saves them.
      */
+    #[ApiDocResponse(200, type: 'array{success: true, data: list<Product&array{modifier_group_links: list<ProductModifierGroup>}>}')]
     public function getProducts(Request $request)
     {
-        $user = $request->user();
-        if ($user->role !== \App\Enums\UserRole::SUPER_ADMIN && $user->role !== \App\Enums\UserRole::OWNER) {
-            return response()->json(['error' => 'Unauthorized'], 403);
-        }
+        $storeId = $this->storeId($request);
 
-        if (!$user->store_id) {
-            return response()->json(['error' => 'No store assigned'], 400);
-        }
-
-        $products = Product::where('store_id', $user->store_id)
-            ->with(['category', 'variants'])
+        // P2-30: each product's links to its modifier groups (the pivot rows, in order), so the attach list can be saved
+        // without losing the per-product rules
+        $products = Product::where('store_id', $storeId)
+            ->with(['category', 'variants', 'modifierGroupLinks' => fn ($query) => $query->orderBy('sort_order')->orderBy('id')])
             ->orderBy('category_id')
             ->orderBy('sort_order')
             ->get();
@@ -92,17 +103,13 @@ class OwnerCatalogController extends Controller
 
     /**
      * Create a new product with variants
+     *
+     * multipart/form-data, menu.manage. `variants` is a JSON array of {name, price, unit?, quantity_step?,
+     * min_quantity?, batch_consumption?, stock?}; `stock` left out starts the variant at 999.
      */
     public function storeProduct(Request $request)
     {
-        $user = $request->user();
-        if ($user->role !== \App\Enums\UserRole::SUPER_ADMIN && $user->role !== \App\Enums\UserRole::OWNER) {
-            return response()->json(['error' => 'Unauthorized'], 403);
-        }
-
-        if (!$user->store_id) {
-            return response()->json(['error' => 'No store assigned'], 400);
-        }
+        $storeId = $this->storeId($request);
 
         $validated = $request->validate([
             'name' => 'required|string|max:255',
@@ -112,7 +119,7 @@ class OwnerCatalogController extends Controller
             // Max 5MB
             'image' => 'nullable|image|max:5120',
             // JSON array of variants: [{"name": "...", "price": 25000}, ...]; P1-21 adds optional "unit" (piece|kg|l),
-            // "quantity_step", "min_quantity" (kg/l) and "batch_consumption"
+            // "quantity_step", "min_quantity" (kg/l) and "batch_consumption"; P2-30: optional "stock" (left out: 999)
             'variants' => 'required|json',
             'batch_tracked' => 'boolean',
             // P2-12: position in the menu, as the panel's product form sets it (left out = 0 / kept)
@@ -127,7 +134,7 @@ class OwnerCatalogController extends Controller
             $image = $request->hasFile('image') ? app(MenuImageService::class)->store($request->file('image'), 'products') : null;
 
             $product = Product::create([
-                'store_id' => $user->store_id,
+                'store_id' => $storeId,
                 'category_id' => $validated['category_id'],
                 'name' => $validated['name'],
                 'slug' => Str::slug($validated['name']) . '-' . Str::random(6),
@@ -148,7 +155,7 @@ class OwnerCatalogController extends Controller
                     'product_id' => $product->id,
                     'name' => $variantData['name'],
                     'price' => $variantData['price'],
-                    'stock' => 999,
+                    'stock' => $this->initialStock($variantData),
                     'is_active' => true,
                 ] + $this->variantUnitFields($variantData));
             }
@@ -157,16 +164,15 @@ class OwnerCatalogController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Product created successfully',
+                'message' => "Mahsulot qo'shildi.",
                 'data' => $product->load('variants')
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to create product',
-                'error' => $e->getMessage()
-            ], 500);
+            // The reason goes to the log (with the request id), never to the client
+            Log::error('Product could not be created', ['store_id' => $storeId, 'error' => $e->getMessage()]);
+
+            return $this->error("Mahsulotni saqlab bo'lmadi. Birozdan so'ng qayta urinib ko'ring.", [], 500);
         }
     }
 
@@ -174,16 +180,13 @@ class OwnerCatalogController extends Controller
      * Update an existing product
      *
      * multipart/form-data (POST, so the image can be sent). With `toggle_active` (any value) only the product's
-     * active status is flipped and the other fields are not needed.
+     * active status is flipped and the other fields are not needed. menu.manage. A variant's stock is not changed
+     * here (orders move it); a new variant takes `stock` like on create.
      */
+    #[QueryParameter('toggle_active', description: 'Any value: only switch the product on/off (no other field needed).', type: 'int', required: false)]
     public function updateProduct(Request $request, $id)
     {
-        $user = $request->user();
-        if ($user->role !== \App\Enums\UserRole::SUPER_ADMIN && $user->role !== \App\Enums\UserRole::OWNER) {
-            return response()->json(['error' => 'Unauthorized'], 403);
-        }
-
-        $product = Product::where('store_id', $user->store_id)->findOrFail($id);
+        $product = $this->product($request, $id);
 
         // Allow toggling active status without full payload
         if ($request->has('toggle_active')) {
@@ -249,7 +252,7 @@ class OwnerCatalogController extends Controller
                         'product_id' => $product->id,
                         'name' => $variantData['name'],
                         'price' => $variantData['price'],
-                        'stock' => 999,
+                        'stock' => $this->initialStock($variantData),
                         'is_active' => true,
                     ] + $this->variantUnitFields($variantData));
                     $existingVariantIds[] = $newVariant->id;
@@ -265,16 +268,14 @@ class OwnerCatalogController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Product updated successfully',
+                'message' => 'Mahsulot saqlandi.',
                 'data' => $product->fresh('variants')
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to update product',
-                'error' => $e->getMessage()
-            ], 500);
+            Log::error('Product could not be updated', ['product_id' => $product->id, 'error' => $e->getMessage()]);
+
+            return $this->error("Mahsulotni saqlab bo'lmadi. Birozdan so'ng qayta urinib ko'ring.", [], 500);
         }
     }
 
@@ -283,21 +284,73 @@ class OwnerCatalogController extends Controller
      */
     public function deleteProduct(Request $request, $id)
     {
-        $user = $request->user();
-        if ($user->role !== \App\Enums\UserRole::SUPER_ADMIN && $user->role !== \App\Enums\UserRole::OWNER) {
-            return response()->json(['error' => 'Unauthorized'], 403);
-        }
+        $product = $this->product($request, $id);
 
-        $product = Product::where('store_id', $user->store_id)->findOrFail($id);
-        
         app(MenuImageService::class)->delete($product);
 
         $product->delete();
 
         return response()->json([
             'success' => true,
-            'message' => 'Product deleted successfully'
+            'message' => "Mahsulot o'chirildi."
         ]);
+    }
+
+    /**
+     * Remove a product's image
+     *
+     * menu.manage. The image and its thumbnails are deleted; the product shows no picture until a new one is uploaded
+     * (POST /owner/products/{id} with `image`). Without an image: 200, nothing changes.
+     */
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: Product}')]
+    public function deleteImage(Request $request, $id)
+    {
+        $product = $this->product($request, $id);
+
+        if ($product->image !== null && $product->image !== '') {
+            app(MenuImageService::class)->delete($product);
+            $product->forceFill(['image' => null, 'image_disk' => null, 'image_thumbs' => null])->save();
+        }
+
+        return $this->success($product->fresh('variants'), "Rasm o'chirildi.");
+    }
+
+    /**
+     * The caller's store (the route checked menu.view / menu.manage); an account without one (a super admin): 403.
+     */
+    private function storeId(Request $request): int
+    {
+        $storeId = $request->user()?->store_id;
+        if ($storeId === null) {
+            throw new HttpResponseException($this->error("Do'kon biriktirilmagan.", ['reason' => 'store_required'], 403));
+        }
+
+        return (int) $storeId;
+    }
+
+    /**
+     * A product of the caller's store; another store's or a missing one: 404 (the id is bounded like every row id).
+     */
+    private function product(Request $request, mixed $id): Product
+    {
+        $storeId = $this->storeId($request);
+        $rowId = \App\Support\RowId::parse($id);
+        $product = $rowId !== null ? Product::where('store_id', $storeId)->find($rowId) : null;
+        if (!$product instanceof Product) {
+            throw new HttpResponseException($this->error('Mahsulot topilmadi.', [], 404));
+        }
+
+        return $product;
+    }
+
+    /**
+     * P2-30: a new variant's stock: the row's `stock` when given (0–1 000 000, up to 3 decimals for kg/l), else 999.
+     *
+     * @param  array<string, mixed>  $row
+     */
+    private function initialStock(array $row): string|int
+    {
+        return isset($row['stock']) && $row['stock'] !== '' ? \App\Support\Quantity::of($row['stock'])->toString() : 999;
     }
 
     /**
@@ -317,7 +370,8 @@ class OwnerCatalogController extends Controller
             'variants.*.quantity_step' => 'nullable|numeric|gt:0|max:1000|decimal:0,3',
             'variants.*.min_quantity' => 'nullable|numeric|gt:0|max:1000|decimal:0,3',
             'variants.*.batch_consumption' => 'nullable|numeric|gt:0|max:1000|decimal:0,3',
-        ]);
+            'variants.*.stock' => 'nullable|numeric|min:0|max:1000000|decimal:0,3', // P2-30
+        ], [], ['variants.*.stock' => 'Qoldiq']);
         $validator->after(function (\Illuminate\Validation\Validator $validator) use ($rows, $product) {
             if ($validator->errors()->isNotEmpty()) {
                 return;
@@ -329,6 +383,11 @@ class OwnerCatalogController extends Controller
                 $saved = $product !== null && isset($row['id']) ? $product->variants()->whereKey($row['id'])->first() : null;
                 // An empty unit keeps the saved one (variantUnitFields drops it); empty step/minimum reset to the defaults
                 $unit = $row['unit'] ?? $saved?->unit->value;
+                // P2-30: a new variant sold by the piece starts with a whole number in stock
+                if (!isset($row['id']) && isset($row['stock']) && $row['stock'] !== '' && ($unit === null || !\App\Enums\MenuUnit::from((string) $unit)->isMeasured())
+                    && floor((float) $row['stock']) !== (float) $row['stock']) {
+                    $validator->errors()->add("variants.{$index}.stock", "Donali taomning qoldig'i butun son bo'lishi kerak.");
+                }
                 if ($unit === null || !\App\Enums\MenuUnit::from((string) $unit)->isMeasured()) {
                     continue;
                 }

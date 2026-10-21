@@ -1,0 +1,13 @@
+{
+  // The Playwright tests and their fake backend: the app's settings, less the strict index access (the fake does a lot of
+  // `match[1]`), plus the Node types
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "noUncheckedIndexedAccess": false,
+    "incremental": false,
+    "plugins": [],
+    "types": ["node"]
+  },
+  "include": ["./**/*.ts", "../playwright.config.ts"],
+  "exclude": ["../node_modules"]
+}

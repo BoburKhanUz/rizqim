@@ -117,7 +117,7 @@ export async function downloadReport(api: StaffApi, query: ReportDownloadQuery):
 // --- Money history ---------------------------------------------------------------------------------------------------
 
 // Filters the history endpoints share: days of the store's timezone, a Laravel page (1-based) and its size (1-100,
-// 25 by default). `page` is not in the OpenAPI document of these endpoints, but the server paginates on it.
+// 25 by default).
 export interface HistoryQuery {
   from?: string;
   to?: string;

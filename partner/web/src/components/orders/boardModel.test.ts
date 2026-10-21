@@ -4,7 +4,7 @@ import { createTranslator } from '@/i18n';
 import { actionErrorMessage, channelLabel, columnOf, groupBoard, searchTerm, todayIn, waitingOf } from './boardModel';
 
 const order = (uuid: string, status: string, created: string, extra: Partial<StaffOrder> = {}) =>
-  ({ uuid, status, created_at: created, updated_at: created, closed_at: null, ...extra }) as StaffOrder;
+  ({ uuid, status, created_at: created, updated_at: created, accepted_at: null, closed_at: null, waiting_seconds: 0, ...extra }) as StaffOrder;
 
 describe('the board layout', () => {
   it('puts each status in its column', () => {
@@ -37,6 +37,17 @@ describe('the board layout', () => {
     expect(waitingOf(order('a', 'preparing', '2026-10-20T10:00:00+05:00'), now)?.tone).toBe('calm');
     expect(waitingOf(order('a', 'preparing', '2026-10-20T09:30:00+05:00'), now)?.tone).toBe('late');
     expect(waitingOf(order('a', 'delivered', '2026-10-20T09:30:00+05:00'), now)).toBeNull();
+  });
+
+  it("counts by the server's rule: from acceptance while cooking, the server's number once ready", () => {
+    const now = Date.parse('2026-10-20T10:12:00+05:00');
+    // Accepted at 10:02 (created 09:50): 10 minutes in the kitchen, not 22
+    expect(waitingOf(order('a', 'preparing', '2026-10-20T09:50:00+05:00', { accepted_at: '2026-10-20T10:02:00+05:00', waiting_seconds: 480 }), now)).toEqual({ minutes: 10, tone: 'calm' });
+    // The server's snapshot when the local clock is behind it
+    expect(waitingOf(order('a', 'accepted', '2026-10-20T10:12:00+05:00', { accepted_at: '2026-10-20T10:13:00+05:00', waiting_seconds: 120 }), now)?.minutes).toBe(2);
+    // Ready: the clock stopped when it became ready (25 minutes), however late it is now
+    expect(waitingOf(order('a', 'ready', '2026-10-20T08:00:00+05:00', { waiting_seconds: 1500 }), now)).toEqual({ minutes: 25, tone: 'warning' });
+    expect(waitingOf(order('a', 'on_the_way', '2026-10-20T08:00:00+05:00', { waiting_seconds: 2700 }), now)).toEqual({ minutes: 45, tone: 'late' });
   });
 
   it('cleans the search box to what the API takes', () => {

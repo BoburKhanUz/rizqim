@@ -21,34 +21,12 @@ export async function fetchMenuBranches(api: StaffApi): Promise<MenuBranch[]> {
 export type ModifierGroup = OkData<'modifierGroup.index'>[number];
 export type ModifierOption = ModifierGroup['modifiers'][number];
 
-// One modifier of a ModifierGroupInput. With `id` it updates that modifier; without, it creates one. A modifier left
-// out of the list is deleted (order history keeps its snapshot).
-export interface ModifierOptionInput {
-  id?: number | null;
-  name: string;
-  name_i18n?: Record<string, string> | null;
-  // so'm, at most two decimals; per piece (once per line for items sold by weight)
-  price_delta?: number | string | null;
-  max_quantity?: number | null;
-  product_variant_id?: number | null;
-  sort_order?: number | null;
-  is_active?: boolean | null;
-}
-
-// The body of POST /owner/modifier-groups and PUT /owner/modifier-groups/{id}. The spec has no request body for them
-// (spec gap: the endpoints are annotated by their description only); this is ModifierGroupController::validated().
-export interface ModifierGroupInput {
-  name: string;
-  name_i18n?: Record<string, string> | null;
-  min_select?: number | null;
-  // null: any number
-  max_select?: number | null;
-  is_required?: boolean | null;
-  sort_order?: number | null;
-  is_active?: boolean | null;
-  // Present: replaces the list. Left out on an update: the modifiers stay.
-  modifiers?: ModifierOptionInput[];
-}
+// The body of POST /owner/modifier-groups and PUT /owner/modifier-groups/{id} (ModifierGroupRequest). `max_select` null:
+// any number. `modifiers` present replaces the list (left out on an update: the modifiers stay).
+export type ModifierGroupInput = JsonRequest<'modifierGroup.store'>;
+// One modifier of it: with `id` it updates that modifier; without, it creates one; one left out of the list is deleted
+// (order history keeps its snapshot). `price_delta`: so'm, per piece (once per line for items sold by weight).
+export type ModifierOptionInput = NonNullable<ModifierGroupInput['modifiers']>[number];
 
 // GET /owner/modifier-groups: every group with its modifiers (inactive ones too) and the ids of the products offering it.
 export async function fetchModifierGroups(api: StaffApi): Promise<ModifierGroup[]> {
@@ -58,7 +36,7 @@ export async function fetchModifierGroups(api: StaffApi): Promise<ModifierGroup[
 
 // POST /owner/modifier-groups (no id) or PUT /owner/modifier-groups/{id}
 export async function saveModifierGroup(api: StaffApi, id: number | null | undefined, input: ModifierGroupInput): Promise<ModifierGroup> {
-  const options = { body: input as never };
+  const options = { body: input };
   if (id === null || id === undefined) return unwrap(await api.client.POST('/v1/owner/modifier-groups', options)).data;
   return unwrap(await api.client.PUT('/v1/owner/modifier-groups/{id}', { params: { path: { id } }, ...options })).data;
 }
@@ -71,7 +49,8 @@ export async function deleteModifierGroup(api: StaffApi, id: number): Promise<vo
 export type ProductModifierGroups = JsonRequest<'modifierGroup.syncProduct'>['groups'];
 
 // PUT /owner/products/{id}/modifier-groups: REPLACES the groups a product offers. Per product `min_select`, `max_select`
-// and `is_required` override the group's own (null: the group's); `sort_order` orders them.
+// and `is_required` override the group's own (null: the group's; left out of a row: the product's saved rule stays);
+// `sort_order` orders them. GET /owner/products returns them as `modifier_group_links`.
 export async function syncProductModifierGroups(api: StaffApi, productId: number, groups: ProductModifierGroups): Promise<void> {
   unwrap(await api.client.PUT('/v1/owner/products/{id}/modifier-groups', { params: { path: { id: productId } }, body: { groups } }));
 }

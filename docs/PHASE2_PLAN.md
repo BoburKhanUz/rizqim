@@ -45,7 +45,8 @@ To'lqin 2    P2-21 Web: jonli buyurtmalar doskasi ┐
              P2-24 Web: hisobotlar va moliya      │             │
              P2-25 Mini App xodim ekranlari       │             │
              P2-26 Oshxona ekrani (KDS)           ┘             ▼
-To'lqin 3    P2-31 E2E testlar (web, Mini App, KDS) ┐
+To'lqin 3    P2-30 Backend kamchiliklari             ┐
+             P2-31 E2E testlar (web, Mini App, KDS) │
              P2-32 Foydalanuvchi qo'llanmalari      ├ parallel ─┐
              P2-33 Mustaqil review va tuzatishlar ──────────────┤
                                                                 ▼
@@ -90,6 +91,7 @@ Ilovalar o'z PR'iga ega (ulkan PR yo'q): to'lqin 1 — **PR #6**; to'lqin 2 — 
 
 | Kod | Ish | Bajaruvchi | Tekshiruv |
 |---|---|---|---|
+| P2-30 | **2-to'lqinda topilgan backend kamchiliklari:** menejer menyuni ko'ra olmasligi, kuryer endpoint'lari ruxsat bo'yicha emas rol bo'yicha, xodim ro'yxatida telefon qanday tasdiqlangani, buyurtma ro'yxatida kutish vaqti, do'kon vaqt mintaqasi, payout javobida karta ma'lumoti, server xabarlari o'zbekcha, spetsifikatsiyadagi xatolar, oshxonada tayyor taomni qaytarish, terminal xodimlari ro'yxati; so'ng frontend'dagi aylanma yechimlar olib tashlanadi | Opus | Har tuzatish uchun test, CI yashil |
 | P2-31 | **E2E testlar:** web panelda buyurtmani qabul qilishdan yakunlashgacha; Mini App va web bir vaqtda ochiq bo'lganda ikkalasi ham yangilanishi; KDS'da "tayyor" bosilganda doskada ko'rinishi | Sonnet | CI'da o'tadi, 3 marta ketma-ket barqaror |
 | P2-32 | **Qo'llanmalar** (o'zbekcha, oddiy tilda): ega va menejer uchun web panel, oshpaz uchun oshxona ekrani | Sonnet | Siz o'qib tasdiqlaysiz |
 | P2-33 | **Mustaqil review** (backend, web va Mini App, KDS) va topilmalarni tuzatish | 3 × Opus + tuzatuvchilar | Topilmalar yopilgan, CI yashil |

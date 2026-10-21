@@ -21,7 +21,8 @@ abstract class OwnerStaffApi {
   ///
   /// The staff the caller manages, newest first: for the owner every manager, cashier, waiter, cook and courier;.
   /// for a branch manager the staff below them of their branch and the store-wide ones. `login_phone_enabled`: the.
-  /// phone signs in by SMS code.
+  /// phone signs in by SMS code; `login_phone_proof`: `sms` (the member proved it: it cannot be replaced or cleared.
+  /// here) or `vouched` (written by an owner, manager or super admin), null without a login phone.
   @GET('/v1/owner/staff')
   Future<GetV1OwnerStaffResponse> staffIndex();
 

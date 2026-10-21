@@ -96,11 +96,12 @@ class BranchesRelationManager extends RelationManager
             ])
             ->actions([
                 \Filament\Actions\EditAction::make(),
-                \Filament\Actions\DeleteAction::make(),
+                // P2-33: refused while staff, devices or zones are tied to the branch
+                \App\Filament\Support\BranchDeletionGuard::action(\Filament\Actions\DeleteAction::make()),
             ])
             ->bulkActions([
                 \Filament\Actions\BulkActionGroup::make([
-                    \Filament\Actions\DeleteBulkAction::make(),
+                    \App\Filament\Support\BranchDeletionGuard::bulk(\Filament\Actions\DeleteBulkAction::make()),
                 ]),
             ]);
     }

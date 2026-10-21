@@ -35,7 +35,7 @@ test('manager rejects a new order with a reason', async ({ page, api }) => {
   expect(api.callsTo('POST', `/staff/orders/${accepted.uuid}/status`)).toHaveLength(0)
 
   // ... and is in the finished ones with its reason
-  await page.getByRole('button', { name: /^Yakunlanganlar/ }).click()
+  await page.getByRole('button', { name: /^Yakunlangan/ }).click()
   await expect(page.getByText('#N100')).toBeVisible()
   await expect(page.getByText('Rad etildi')).toBeVisible()
   await expect(page.getByText('Mahsulot qolmagan')).toBeVisible()
