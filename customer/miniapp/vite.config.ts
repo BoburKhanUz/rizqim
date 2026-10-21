@@ -39,7 +39,8 @@ export default defineConfig({
     fs: { allow: ['../..'] },
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:8000',
+        // P2-31: scripts/e2e-stack.sh runs the backend on another port and points `vite preview` (which uses this proxy) at it
+        target: process.env.API_PROXY_TARGET || 'http://127.0.0.1:8000',
         changeOrigin: true,
         secure: false
       }

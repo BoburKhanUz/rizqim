@@ -5,6 +5,7 @@ import { ChartColumn } from 'lucide-react';
 import { Card, CardSkeletons, EmptyState, InlineError, Skeleton, formatMoney, formatNumber } from '@rizqim/ui';
 import { getApiErrorMessage, getApiErrorStatus, useOwnerAnalytics, useSalesReport, useTopProducts, type TopProductsSort } from '@rizqim/staff';
 import { orderTypeLabel, paymentLabel } from '@/lib/labels';
+import { useAccess } from '../AuthProvider';
 import { useI18n } from '../I18nProvider';
 import { PageHeader } from '../PageHeader';
 import { useBranchScope } from '../shell/BranchScope';
@@ -27,8 +28,9 @@ export function ReportsView() {
 
   // The store's calendar day and timezone come from the server (a store need not be in Tashkent's zone)
   const today = useOwnerAnalytics('today');
-  const storeToday = today.data?.period.from ?? (today.isError ? todayIn(DEFAULT_TIMEZONE) : null);
-  const timezone = today.data?.period.timezone ?? DEFAULT_TIMEZONE;
+  const storeZone = useAccess()?.timezone ?? null;
+  const storeToday = today.data?.period.from ?? (today.isError ? todayIn(storeZone ?? DEFAULT_TIMEZONE) : null);
+  const timezone = today.data?.period.timezone ?? storeZone ?? DEFAULT_TIMEZONE;
 
   const range = useMemo(() => (storeToday ? resolvePeriod(state.preset, storeToday, state.custom) : null), [state.preset, state.custom, storeToday]);
   const problem = storeToday && (state.preset === 'custom' ? getPeriodProblem(range) : null);

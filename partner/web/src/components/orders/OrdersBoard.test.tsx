@@ -72,6 +72,7 @@ function makeOrder(over: Partial<StaffOrder> = {}): StaffOrder {
     preparing_at: null,
     ready_at: null,
     closed_at: null,
+    waiting_seconds: 120,
     ...over,
   };
 }
@@ -99,7 +100,7 @@ function renderBoard(permissions = OWNER, ui: ReactElement = <OrdersBoard />) {
 
 const signIn = (permissions: string[]) => ({
   'POST /api/session/refresh': () => json({ access_token: 'access', expires_at: new Date(Date.now() + 900_000).toISOString(), user: { id: 1, name: 'Aziz', role: 'owner' } }),
-  'GET /api/v1/me/permissions': () => json({ success: true, message: 'ok', data: { role: 'owner', store_id: 1, branch_id: null, branch_scoped: false, permissions, device_uuid: null } }),
+  'GET /api/v1/me/permissions': () => json({ success: true, message: 'ok', data: { role: 'owner', store_id: 1, branch_id: null, branch_scoped: false, permissions, device_uuid: null, timezone: 'Asia/Tashkent' } }),
 });
 
 // GET /staff/orders answered by scope: `active` and `history` lists

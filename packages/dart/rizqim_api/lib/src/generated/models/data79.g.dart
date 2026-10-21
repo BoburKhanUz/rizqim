@@ -8,18 +8,28 @@ part of 'data79.dart';
 
 Data79 _$Data79FromJson(Map<String, dynamic> json) => Data79(
   id: (json['id'] as num).toInt(),
-  code: json['code'] as String,
-  type: Type7.fromJson(json['type'] as String),
-  amount: json['amount'] as num,
-  discountAmount: json['discount_amount'] as num?,
-  description: json['description'] as String,
+  branchId: (json['branch_id'] as num).toInt(),
+  type: json['type'] as String,
+  subjectId: (json['subject_id'] as num).toInt(),
+  subjectUuid: json['subject_uuid'],
+  name: json['name'],
+  reason: json['reason'] as String?,
+  until: json['until'] as String?,
+  createdBy: (json['created_by'] as num?)?.toInt(),
+  createdByName: json['created_by_name'] as String?,
+  createdAt: json['created_at'] as String?,
 );
 
 Map<String, dynamic> _$Data79ToJson(Data79 instance) => <String, dynamic>{
   'id': instance.id,
-  'code': instance.code,
+  'branch_id': instance.branchId,
   'type': instance.type,
-  'amount': instance.amount,
-  'discount_amount': instance.discountAmount,
-  'description': instance.description,
+  'subject_id': instance.subjectId,
+  'subject_uuid': instance.subjectUuid,
+  'name': instance.name,
+  'reason': instance.reason,
+  'until': instance.until,
+  'created_by': instance.createdBy,
+  'created_by_name': instance.createdByName,
+  'created_at': instance.createdAt,
 };

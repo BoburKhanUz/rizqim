@@ -12,6 +12,8 @@ export interface Permissions {
   storeId: number | null;
   branchId: number | null;
   userId: number | null;
+  // The store's time zone (order days, report days) for staff who read orders or reports; null otherwise
+  timezone: string | null;
 }
 
 export type AuthState =
@@ -58,6 +60,7 @@ export function AuthProvider({ apiBaseUrl, children }: { apiBaseUrl: string; chi
           storeId: data.data.store_id ?? null,
           branchId: data.data.branch_id ?? null,
           userId: session.user?.id ?? null,
+          timezone: data.data.timezone ?? null,
         },
       });
     },

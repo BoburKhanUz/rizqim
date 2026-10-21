@@ -25,7 +25,8 @@ abstract class StaffOrdersApi {
   /// work in is 403, another store's 404), `scope` (`active`: still in progress, `history`: delivered, cancelled,.
   /// rejected, refunded), `status` (comma-separated), `type`, `channel`, `date` or `from`/`to` (days in the store's.
   /// time zone, at most 93 days), `q` (the start of the order number). Needs orders.view (owner, manager, cashier,.
-  /// waiter, cook). Contact details and the address only for orders.manage.
+  /// waiter, cook). Contact details and the address only for orders.manage. P2-30: `waiting_seconds` as on the kitchen.
+  /// tickets (from acceptance, or creation, to now or to when it became ready).
   ///
   /// [branchId] - One branch of the store; omit for every branch the caller works in.
   ///
@@ -79,6 +80,8 @@ abstract class StaffOrdersApi {
   /// ready (preparing → ready); cancelling or rejecting needs orders.cancel and a `reason`. The order's state machine.
   /// decides what can follow what (422 otherwise). Couriers are assigned with POST /orders/{uuid}/assign-courier.
   /// Marking an order ready marks all its lines ready in the kitchen. The same status again answers 200 unchanged.
+  /// P2-30: `on_the_way` (the assigned courier picked the order up: courier_assigned → on_the_way) with.
+  /// orders.assign_courier; an order without an assigned courier is a 422 (assign one first).
   @POST('/v1/staff/orders/{uuid}/status')
   Future<PostV1StaffOrdersUuidStatusResponse> staffOrderUpdateStatus({
     @Path('uuid') required String uuid,

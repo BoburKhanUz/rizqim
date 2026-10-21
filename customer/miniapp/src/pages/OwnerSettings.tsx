@@ -104,7 +104,7 @@ function OwnerSettingsForm({ storeInfo }: { storeInfo: OwnerStoreSettings }) {
   const formRef = useRef<HTMLFormElement>(null);
 
   const paySettings: OwnerPaymentSettings = storeInfo.payment_settings ?? {};
-  const hours: { open?: string; close?: string } = paySettings.working_hours ?? {};
+  const hours: { open?: string | null; close?: string | null } = paySettings.working_hours ?? {};
   const uzumAvailable = isProviderAvailable(paySettings.uzum);
   const paynetAvailable = isProviderAvailable(paySettings.paynet);
 

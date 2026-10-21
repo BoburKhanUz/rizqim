@@ -7,17 +7,31 @@ part of 'data92.dart';
 // **************************************************************************
 
 Data92 _$Data92FromJson(Map<String, dynamic> json) => Data92(
-  device: Device10.fromJson(json['device'] as Map<String, dynamic>),
-  store: json['store'] == null
+  id: (json['id'] as num).toInt(),
+  uuid: json['uuid'] as String,
+  name: json['name'] as String,
+  phone: json['phone'] as String?,
+  slug: json['slug'] as String,
+  isActive: json['is_active'] as bool,
+  commissionRate: json['commission_rate'] as String,
+  branchesCount: (json['branches_count'] as num?)?.toInt(),
+  createdAt: json['created_at'] == null
       ? null
-      : Store2.fromJson(json['store'] as Map<String, dynamic>),
-  branch: json['branch'] == null
+      : DateTime.parse(json['created_at'] as String),
+  owner: json['owner'] == null
       ? null
-      : Branch10.fromJson(json['branch'] as Map<String, dynamic>),
+      : Owner.fromJson(json['owner'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data92ToJson(Data92 instance) => <String, dynamic>{
-  'device': instance.device,
-  'store': instance.store,
-  'branch': instance.branch,
+  'id': instance.id,
+  'uuid': instance.uuid,
+  'name': instance.name,
+  'phone': instance.phone,
+  'slug': instance.slug,
+  'is_active': instance.isActive,
+  'commission_rate': instance.commissionRate,
+  'branches_count': instance.branchesCount,
+  'created_at': instance.createdAt?.toIso8601String(),
+  'owner': instance.owner,
 };

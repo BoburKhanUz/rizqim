@@ -29,6 +29,7 @@ jobs:
       partnerweb: ${{ steps.filter.outputs.partnerweb }}
       staffpkg: ${{ steps.filter.outputs.staffpkg }}
       flutter: ${{ steps.filter.outputs.flutter }}
+      e2estack: ${{ steps.filter.outputs.e2estack }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -94,6 +95,17 @@ jobs:
               - 'customer/mobile/**'
               - 'pubspec*'
               - 'analysis_options.yaml'
+              - '.github/workflows/ci.yml'
+            # P2-31: the cross-app end-to-end test against the real stack (e2e-stack job): the backend (and the spec its clients
+            # are generated from), both web apps, the TypeScript packages and the test itself
+            e2estack:
+              - 'backend/**'
+              - 'packages/api-spec/**'
+              - 'partner/web/**'
+              - 'customer/miniapp/**'
+              - 'packages/ts/**'
+              - 'e2e/**'
+              - 'scripts/e2e-stack.sh'
               - '.github/workflows/ci.yml'
 
   backend-tests:
@@ -465,6 +477,11 @@ jobs:
         working-directory: partner/web
         run: npm run typecheck
 
+      # P2-31: the Playwright tests and their fake backend (partner/web/e2e) are TypeScript too
+      - name: Typecheck (e2e)
+        working-directory: partner/web
+        run: npm run typecheck:e2e
+
       - name: Tests
         working-directory: partner/web
         run: npm test
@@ -472,6 +489,160 @@ jobs:
       - name: Build
         working-directory: partner/web
         run: npm run build
+
+  # --- P2-31 Partner web e2e (Playwright; runs with the partner-web filter) ---------------------------------------
+  partner-web-e2e:
+    name: Partner web e2e (Playwright, fake backend)
+    needs: changes
+    if: needs.changes.outputs.partnerweb == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: partner/web
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            partner/web/package-lock.json
+            packages/ts/api-client/package-lock.json
+
+      - name: Build the API client
+        working-directory: packages/ts/api-client
+        run: |
+          npm ci
+          npm run build
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Playwright's own Chromium. The backend is a fake inside the test worker and Reverb is answered by the page's
+      # WebSocket mock: nothing else is started. The test builds and starts the production panel itself (next build + start).
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: E2E tests
+        run: npm run test:e2e
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: partner-web-playwright-report
+          path: |
+            partner/web/playwright-report
+            partner/web/test-results
+          retention-days: 7
+
+  # --- P2-31 Cross-app e2e with the REAL stack (runs when e2estack paths changed, see the `e2estack` filter) -----
+  # Postgres-backed Laravel (php artisan serve), Reverb, the partner web (next start) and the Mini App (vite preview with
+  # its /api proxy), driven by Playwright (e2e/stack): a customer's order appears on the partner web board over the socket,
+  # the kitchen bumps its lines through the staff API with a PIN session, the board and the manager's Mini App follow.
+  # scripts/e2e-stack.sh does all of it (it is the same command to run locally).
+  e2e-stack:
+    name: Cross-app e2e (Laravel, Reverb, partner web, Mini App)
+    needs: changes
+    if: needs.changes.outputs.e2estack == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        # Same major version as docker-compose.yml
+        image: postgres:17
+        env:
+          POSTGRES_DB: rizqim_e2e
+          POSTGRES_USER: rizqim
+          POSTGRES_PASSWORD: rizqim
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U rizqim -d rizqim_e2e"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      E2E_DB_DATABASE: rizqim_e2e
+      E2E_DB_USERNAME: rizqim
+      E2E_DB_PASSWORD: rizqim
+      # Only the manual test-browser.js script of the Mini App uses puppeteer
+      PUPPETEER_SKIP_DOWNLOAD: 'true'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_pgsql, pgsql, redis, intl, gd, bcmath, zip
+          coverage: none
+
+      - name: Composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v6
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: composer-${{ runner.os }}-php8.3-${{ hashFiles('backend/composer.lock') }}
+          restore-keys: composer-${{ runner.os }}-php8.3-
+
+      # No backend/.env: the script passes the whole configuration as environment variables
+      - name: Install backend dependencies
+        working-directory: backend
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            partner/web/package-lock.json
+            customer/miniapp/package-lock.json
+            packages/ts/api-client/package-lock.json
+            e2e/stack/package-lock.json
+
+      - name: Build the API client
+        working-directory: packages/ts/api-client
+        run: |
+          npm ci
+          npm run build
+
+      - name: Install the apps and the test
+        run: |
+          npm ci --prefix partner/web
+          npm ci --prefix customer/miniapp
+          npm ci --prefix e2e/stack
+
+      - name: Install Chromium
+        working-directory: e2e/stack
+        run: npx playwright install --with-deps chromium
+
+      - name: Typecheck the test
+        working-directory: e2e/stack
+        run: npm run typecheck
+
+      - name: Build, start the stack and run the tests
+        run: scripts/e2e-stack.sh
+
+      - name: Upload Playwright report and server logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-stack-report
+          # .run (the servers' logs) is a hidden folder
+          include-hidden-files: true
+          path: |
+            e2e/stack/playwright-report
+            e2e/stack/test-results
+            e2e/stack/.run/*.log
+          retention-days: 7
 
   # --- P2-13 Staff package (runs when packages/ts/staff or what it builds on changed, see the `staffpkg` filter) ---
   staff-package:

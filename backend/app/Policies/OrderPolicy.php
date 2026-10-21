@@ -78,8 +78,16 @@ class OrderPolicy
                 && in_array($to, [OrderStatus::ON_THE_WAY, OrderStatus::DELIVERY, OrderStatus::DELIVERED], true);
         }
 
-        // P2-11: the kitchen's own two moves (start cooking, ready) with kitchen.manage: a cook has no orders.manage
+        // P2-11: the kitchen's own two moves (start cooking, ready) with kitchen.manage: a cook has no orders.manage.
+        // P2-30: and ready -> preparing, a line recalled after the last bump made the order ready (only through
+        // KitchenService::recall: the state machine opens it for that call alone, see OrderStatusService)
         if ($this->isKitchenMove($order, $to) && $this->permissions->allows($user, Permission::KITCHEN_MANAGE, $order)) {
+            return true;
+        }
+
+        // P2-30: whoever assigns couriers marks the assigned courier's pick-up (courier_assigned -> on_the_way)
+        if ($to === OrderStatus::ON_THE_WAY && $order->status === OrderStatus::COURIER_ASSIGNED && $order->courier_id !== null
+            && $this->permissions->allows($user, Permission::ORDERS_ASSIGN_COURIER, $order)) {
             return true;
         }
 
@@ -89,12 +97,14 @@ class OrderPolicy
     }
 
     /**
-     * accepted -> preparing and preparing -> ready: what the kitchen display does (docs/API.md, P2-11).
+     * accepted -> preparing and preparing -> ready: what the kitchen display does (docs/API.md, P2-11); P2-30: and
+     * ready -> preparing, the recall of a line after the order became ready.
      */
     public static function isKitchenMove(Order $order, OrderStatus $to): bool
     {
         return ($order->status === OrderStatus::ACCEPTED && $to === OrderStatus::PREPARING)
-            || ($order->status === OrderStatus::PREPARING && $to === OrderStatus::READY);
+            || ($order->status === OrderStatus::PREPARING && $to === OrderStatus::READY)
+            || ($order->status === OrderStatus::READY && $to === OrderStatus::PREPARING);
     }
 
     public function assignCourier(User $user, Order $order): bool

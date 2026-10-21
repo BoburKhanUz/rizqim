@@ -15,7 +15,7 @@ import {
   type StaffRoleInput,
   type StaffRoleResult,
 } from '../api/team';
-import type { Employee } from '../api/specGaps';
+import type { Employee } from '../api/team';
 import { useStaffApi } from './context';
 import { staffKeys } from './keys';
 import type { MutationExtras, QueryExtras } from './orders';

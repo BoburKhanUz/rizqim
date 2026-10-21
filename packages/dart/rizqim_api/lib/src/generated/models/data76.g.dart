@@ -7,13 +7,13 @@ part of 'data76.dart';
 // **************************************************************************
 
 Data76 _$Data76FromJson(Map<String, dynamic> json) => Data76(
-  branchId: (json['branch_id'] as num).toInt(),
-  entries: (json['entries'] as List<dynamic>)
-      .map((e) => Entries.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  userId: (json['user_id'] as num).toInt(),
+  staffCode: json['staff_code'] as String?,
+  pinSetAt: json['pin_set_at'] as String?,
 );
 
 Map<String, dynamic> _$Data76ToJson(Data76 instance) => <String, dynamic>{
-  'branch_id': instance.branchId,
-  'entries': instance.entries,
+  'user_id': instance.userId,
+  'staff_code': instance.staffCode,
+  'pin_set_at': instance.pinSetAt,
 };

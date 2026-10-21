@@ -15,6 +15,7 @@ class Data21 {
     required this.branchScoped,
     required this.permissions,
     required this.deviceUuid,
+    required this.timezone,
   });
 
   factory Data21.fromJson(Map<String, Object?> json) => _$Data21FromJson(json);
@@ -29,6 +30,7 @@ class Data21 {
   final List<String> permissions;
   @JsonKey(name: 'device_uuid')
   final String? deviceUuid;
+  final String? timezone;
 
   Map<String, Object?> toJson() => _$Data21ToJson(this);
 }

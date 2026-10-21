@@ -189,29 +189,29 @@ describe('StaffView: edit and the login phone', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Ali Yangi saqlandi.');
   });
 
-  it('shows the server message for a phone the member proved by SMS and then fixes the number', async () => {
-    const message = "Bu raqamni xodimning o'zi SMS kod bilan tasdiqlagan, uni bu yerda o'zgartirib yoki o'chirib bo'lmaydi. Raqam almashsa, xodim yangi raqamni ilovada SMS kod bilan tasdiqlaydi.";
+  it('shows a phone the member proved by SMS as fixed and never sends it', async () => {
     const { calls } = mockFetch({
       'GET /api/v1/me/permissions': () => permissions(),
       'GET /api/v1/owner/branches': () => ok(BRANCHES),
-      'GET /api/v1/owner/staff': () => ok([makeMember()]),
-      'PATCH /api/v1/owner/staff/1': () => refusal('Xato', 422, { errors: { phone: [message] } }),
+      'GET /api/v1/owner/staff': () => ok([makeMember({ login_phone_proof: 'sms' })]),
+      'PATCH /api/v1/owner/staff/1': () => ok(makeMember({ name: 'Ali Yangi', login_phone_proof: 'sms' })),
     });
     const typing = userEvent.setup();
     renderPage(<StaffView />);
     await typing.click(await (await ready()).findByRole('button', { name: 'Ali Valiyev: tahrirlash' }));
     const dialog = within(await screen.findByRole('dialog'));
 
+    // login_phone_proof: 'sms' (the staff list says it): the number cannot be edited here
     const phone = dialog.getByLabelText('Kirish telefoni');
-    await typing.clear(phone);
-    await typing.type(phone, '935559999');
-    await typing.click(dialog.getByRole('button', { name: 'Saqlash' }));
-
-    expect(await dialog.findByText(message)).toBeInTheDocument();
-    expect(await calls.find((call) => call.method === 'PATCH')!.json()).toEqual({ phone: '+998935559999' });
-    // The number goes back to the stored one and cannot be edited any more
     expect(phone).toHaveValue('90 123 45 67');
     expect(phone).toHaveAttribute('readonly');
+    const name = dialog.getByLabelText('Ismi');
+    await typing.clear(name);
+    await typing.type(name, 'Ali Yangi');
+    await typing.click(dialog.getByRole('button', { name: 'Saqlash' }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(await calls.find((call) => call.method === 'PATCH')!.json()).toEqual({ name: 'Ali Yangi' });
   });
 
   it('lets a plain phone refusal be undone with the old number', async () => {

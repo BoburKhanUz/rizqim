@@ -45,8 +45,10 @@ abstract class KitchenApi {
 
   /// Recall a line (kitchen display).
   ///
-  /// Undo a mistaken bump: the line is back to pending (kitchen.manage). Only while the order is accepted or.
-  /// preparing (422 once it is ready). Returns the ticket.
+  /// Undo a mistaken bump: the line is back to pending (kitchen.manage). While the order is accepted or preparing,.
+  /// and (P2-30) while it is ready but not yet with a courier or handed over: the order goes back to preparing.
+  /// (`order.status_changed` and the history say so). 422 once a courier is assigned, it is on its way or finished.
+  /// Returns the ticket.
   @POST('/v1/staff/orders/{uuid}/items/{item}/recall')
   Future<PostV1StaffOrdersUuidItemsItemRecallResponse> staffOrderRecallItem({
     @Path('uuid') required String uuid,

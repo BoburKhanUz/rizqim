@@ -1,7 +1,7 @@
 import type { Schema } from '@rizqim/api-client';
 
 // The shapes of the API's JSON are the generated ones (packages/ts/api-client/src/schema.d.ts, from the OpenAPI spec);
-// nothing here is written by hand. Where the spec is looser or wrong, api/specGaps.ts says so and corrects it.
+// nothing here is written by hand.
 export type Order = Schema<'Order'>;
 export type OrderItem = Schema<'OrderItem'>;
 export type OrderStatusHistory = Schema<'OrderStatusHistory'>;

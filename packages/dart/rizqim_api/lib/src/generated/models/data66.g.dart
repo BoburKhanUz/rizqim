@@ -7,17 +7,11 @@ part of 'data66.dart';
 // **************************************************************************
 
 Data66 _$Data66FromJson(Map<String, dynamic> json) => Data66(
-  period: Period3.fromJson(json['period'] as Map<String, dynamic>),
-  branchId: (json['branch_id'] as num?)?.toInt(),
-  sort: json['sort'] as String,
-  products: (json['products'] as List<dynamic>)
-      .map((e) => Products.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  productId: (json['product_id'] as num).toInt(),
+  modifierGroups: json['modifier_groups'] as String,
 );
 
 Map<String, dynamic> _$Data66ToJson(Data66 instance) => <String, dynamic>{
-  'period': instance.period,
-  'branch_id': instance.branchId,
-  'sort': instance.sort,
-  'products': instance.products,
+  'product_id': instance.productId,
+  'modifier_groups': instance.modifierGroups,
 };

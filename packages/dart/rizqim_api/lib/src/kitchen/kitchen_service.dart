@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 
 import '../auth/api_exception.dart';
-import '../generated/models/status4.dart';
+import '../generated/models/status5.dart';
 import '../generated/models/v1_staff_orders_uuid_status_request_body.dart';
 import '../generated/rizqim_api.dart';
 import 'kitchen_models.dart';
@@ -74,7 +74,7 @@ class KitchenService {
   Future<void> markOrderReady(String orderUuid) => _change(() async {
     await _api.staffOrders.staffOrderUpdateStatus(
       uuid: orderUuid,
-      body: const V1StaffOrdersUuidStatusRequestBody(status: Status4.ready),
+      body: const V1StaffOrdersUuidStatusRequestBody(status: Status5.ready),
     );
   });
 

@@ -34,6 +34,8 @@ bo'lishi shart (pastga qarang). Kirish uchun faol hisob kerak: telefon raqamiga 
 | `npm run lint` | ESLint (`eslint-config-next`) |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm test` | Vitest + Testing Library (kirish oqimi, dashboard, buyurtmalar, route handler'lar, single-flight refresh, i18n) |
+| `npm run test:e2e` | Playwright (brauzer, production build) soxta backend bilan: [E2E testlar](#e2e-testlar-p2-31) |
+| `npm run typecheck:e2e` | `e2e/` papkasi uchun `tsc` |
 
 ## Sozlamalar (muhit o'zgaruvchilari, `.env.example`)
 
@@ -115,6 +117,26 @@ sarlavhada son.
 prefiksi bilan); `src/i18n/index.ts` ularni asosiy lug'atga qo'shadi, test kalitlar to'liqligi va takrorlanmasligini tekshiradi.
 
 Ruxsati bo'lmagan bo'limga o'tilsa, birinchi ruxsat etilgan bo'limga yo'naltiriladi; hech qanday ruxsat bo'lmasa "kirish yo'q" ekrani.
+
+## E2E testlar (P2-31)
+
+Playwright, Chromium, production build (`next build` + `next start`, `playwright.config.ts` o'zi ishga tushiradi). Backend **soxta**
+(`e2e/fake/`): test jarayonida ishlaydigan oddiy HTTP server, u ham Next serverining sessiya handler'lariga (`/api/session/*` →
+`/v1/auth/...`), ham brauzerning o'z so'rovlariga javob beradi (holat xotirada, har test oldidan yangilanadi). Reverb'ni sahifaning
+o'zi `page.routeWebSocket` bilan almashtiradi (`e2e/fake/reverb.ts`: haqiqiy `laravel-echo` va `pusher-js` ulanadi, test hodisani o'zi
+yuboradi), xarita plitkalari — 1x1 rasm. Hech qanday Laravel, baza yoki Reverb kerak emas.
+
+```bash
+cd partner/web && npm ci
+npx playwright install chromium            # yoki PW_CHROMIUM_PATH=/opt/pw-browsers/chromium-1194/chrome-linux/chrome
+npm run test:e2e                           # build + start + testlar (E2E_SKIP_BUILD=1: oxirgi build'ni ishlatish)
+```
+
+Qamrab olinadi: SMS kod bilan kirish (xato kod, raqam topilmadi, ikki do'kon — hisob tanlash, chiqish, sessiyani tiklash), doska (yangi
+buyurtma real-time bilan va so'rov bilan, qabul → tayyorlash → tayyor → topshirish, kuryer tayinlash → yo'lda → yetkazildi, sabab bilan
+rad etish, serverning o'zbekcha rad javobi), menyu (kg variantli taom va modifikator guruhi), stop-list, xodim qo'shish va PIN, hudud
+chizish, hisobot davri va CSV, yorug'/qorong'i mavzu. Testlar ko'rinadigan matn va yuborilgan so'rovlarni tekshiradi, ichki holatni emas.
+Bitta worker (soxta backend umumiy), 28 test ~35 soniya. Haqiqiy backend bilan umumiy sinov: `scripts/e2e-stack.sh` (`e2e/stack/`).
 
 ## Docker
 

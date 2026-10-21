@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\DB;
  * The kitchen display's per line "ready" (bump) and its undo (recall), P2-11, docs/API.md.
  *
  * Under the order's row lock, like every status change. A line can be bumped while the order is accepted or
- * preparing; bumping a line of an accepted order starts it (accepted -> preparing). When the last line is ready a
+ * preparing, and recalled also while it is ready (P2-30: the order goes back to preparing); bumping a line of an accepted order starts it (accepted -> preparing). When the last line is ready a
  * delivery or pickup order becomes `ready` by itself (the customer or courier is waiting for it); a hall order
  * (dine_in) stays `preparing` until it is closed (docs/POS_SPEC.md §3), its lines show ready one by one. Every status
  * change goes through OrderStatusService (permission, history, audit, events); each line change broadcasts
@@ -38,8 +38,9 @@ class KitchenService
     }
 
     /**
-     * Undo a mistaken bump: the line is back to pending. Only while the order is still being cooked (a ready order
-     * cannot go back to preparing).
+     * Undo a mistaken bump: the line is back to pending. While the order is still being cooked, and (P2-30) while it
+     * is `ready` but not yet with a courier or handed over: then the order goes back to `preparing` too (the last bump
+     * had made it ready), with kitchen.manage. Once a courier is assigned, it is on its way or delivered: 422.
      *
      * @return array{order: Order, item: OrderItem, changed: bool, statuses: list<OrderStatus>}
      *
@@ -65,7 +66,9 @@ class KitchenService
                 return ['order' => $order, 'item' => $item, 'changed' => false, 'statuses' => $statuses];
             }
 
-            if (!in_array($order->status, [OrderStatus::ACCEPTED, OrderStatus::PREPARING], true)) {
+            // P2-30: a recall also while the order is ready (not yet with a courier or handed over)
+            $recallFromReady = $to === KitchenItemStatus::PENDING && $order->status === OrderStatus::READY;
+            if (!$recallFromReady && !in_array($order->status, [OrderStatus::ACCEPTED, OrderStatus::PREPARING], true)) {
                 throw new OrderTransitionException(
                     $to === KitchenItemStatus::READY
                         ? "Bu buyurtma oshxonada emas: uning taomlarini \"tayyor\" deb belgilab bo'lmaydi."
@@ -79,6 +82,16 @@ class KitchenService
             if ($to === KitchenItemStatus::READY && $order->status === OrderStatus::ACCEPTED) {
                 $order = $this->orderStatus->transition($order, OrderStatus::PREPARING, $actor, [
                     'notes' => "Oshxona tayyorlashni boshladi: {$actor->name}",
+                ])->order;
+                $statuses[] = OrderStatus::PREPARING;
+            }
+
+            // P2-30: a line recalled from a ready order takes the order back to the kitchen (the next last bump makes it
+            // ready again); OrderStatusService checks kitchen.manage and opens ready -> preparing for this call only
+            if ($recallFromReady) {
+                $order = $this->orderStatus->transition($order, OrderStatus::PREPARING, $actor, [
+                    'kitchen_recall' => true,
+                    'notes' => "Oshxona taomni qaytardi, buyurtma yana tayyorlanmoqda: {$actor->name}",
                 ])->order;
                 $statuses[] = OrderStatus::PREPARING;
             }

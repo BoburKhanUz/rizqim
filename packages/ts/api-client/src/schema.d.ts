@@ -305,8 +305,9 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Couriers an order can be assigned to (owner, manager)
-         * @description The store's couriers (and staff who deliver), with a label for their role.
+         * Couriers an order can be assigned to (orders.assign_courier)
+         * @description The store's couriers (and staff who deliver), with a label for their role. P2-30: by the orders.assign_courier
+         *     permission (owner and manager by default), not the role; staff tied to a branch get their branch's couriers.
          */
         get: operations["order.couriers"];
         put?: never;
@@ -668,8 +669,9 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Assign a courier to an order (owner, manager)
-         * @description 403/422 when the order's status does not allow it or the courier is not the store's.
+         * Assign a courier to an order (orders.assign_courier)
+         * @description 403/422 when the order's status does not allow it or the courier is not the store's. P2-30: by permission
+         *     (orders.assign_courier with orders.manage on this order: OrderPolicy::assignCourier), not by role.
          */
         post: operations["order.assignCourier"];
         delete?: never;
@@ -939,7 +941,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get global categories for the dropdown */
+        /**
+         * Get global categories for the dropdown
+         * @description menu.view (the route's).
+         */
         get: operations["ownerCatalog.getCategories"];
         put?: never;
         /** Create a new global category */
@@ -1080,7 +1085,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get list of employees (managers, cashiers, waiters, cooks, couriers) for the current store */
+        /**
+         * Get list of employees (managers, cashiers, waiters, cooks, couriers) for the current store
+         * @description The store's staff as users, newest first, with their branch and, for one who has not joined yet, the invite
+         *     token of their link.
+         */
         get: operations["ownerEmployee.index"];
         put?: never;
         post?: never;
@@ -1148,7 +1157,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get store balance details and recent financial transactions */
+        /**
+         * Get store balance details and recent financial transactions
+         * @description finance.view (the owner; an owner may grant it to managers), never from a terminal PIN session. The balances are
+         *     numbers (as since v1); every other amount is a two-decimal string. Card numbers are masked, in notes too.
+         */
         get: operations["ownerFinance.index"];
         put?: never;
         post?: never;
@@ -1320,7 +1333,10 @@ export interface paths {
          */
         get: operations["financeHistory.payouts"];
         put?: never;
-        /** Create a new payout request */
+        /**
+         * Create a new payout request
+         * @description Answers the request in the shape of GET /owner/payouts (card masked), never the stored card number.
+         */
         post: operations["ownerFinance.requestPayout"];
         delete?: never;
         options?: never;
@@ -1353,10 +1369,19 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get all products for the owner's store */
+        /**
+         * Get all products for the owner's store
+         * @description menu.view. Each product with its category and variants, and `modifier_group_links`: the modifier groups it offers
+         *     in order, with this product's own rules (`min_select`, `max_select`, `is_required`; null: the group's), as
+         *     PUT /owner/products/{id}/modifier-groups saves them.
+         */
         get: operations["ownerCatalog.getProducts"];
         put?: never;
-        /** Create a new product with variants */
+        /**
+         * Create a new product with variants
+         * @description multipart/form-data, menu.manage. `variants` is a JSON array of {name, price, unit?, quantity_step?,
+         *     min_quantity?, batch_consumption?, stock?}; `stock` left out starts the variant at 999.
+         */
         post: operations["ownerCatalog.storeProduct"];
         delete?: never;
         options?: never;
@@ -1376,7 +1401,8 @@ export interface paths {
         /**
          * Update an existing product
          * @description multipart/form-data (POST, so the image can be sent). With `toggle_active` (any value) only the product's
-         *     active status is flipped and the other fields are not needed.
+         *     active status is flipped and the other fields are not needed. menu.manage. A variant's stock is not changed
+         *     here (orders move it); a new variant takes `stock` like on create.
          */
         post: operations["ownerCatalog.updateProduct"];
         /** Delete a product */
@@ -1412,6 +1438,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/owner/products/{id}/image": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove a product's image
+         * @description menu.manage. The image and its thumbnails are deleted; the product shows no picture until a new one is uploaded
+         *     (POST /owner/products/{id} with `image`). Without an image: 200, nothing changes.
+         */
+        delete: operations["ownerCatalog.deleteImage"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/owner/products/{id}/modifier-groups": {
         parameters: {
             query?: never;
@@ -1423,7 +1470,8 @@ export interface paths {
         /**
          * Set the modifier groups a product offers
          * @description Replaces the product's groups. Per product, `min_select`, `max_select` and `is_required` override the group's own
-         *     rules (null: the group's); `sort_order` orders them.
+         *     rules (null: the group's; P2-30: a rule left out of a row keeps the product's saved one); `sort_order` orders
+         *     them (left out: the list order). GET /owner/products returns them as `modifier_group_links`.
          */
         put: operations["modifierGroup.syncProduct"];
         post?: never;
@@ -1536,7 +1584,11 @@ export interface paths {
         /** Get store settings */
         get: operations["ownerSettings.index"];
         put?: never;
-        /** Update store settings */
+        /**
+         * Update store settings
+         * @description `payment_settings` is an object (not a list): the delivery fee and switches, working hours and one entry per
+         *     provider. A provider that cannot be enabled yet (uzum, paynet) is a 422 on `payment_settings`.
+         */
         post: operations["ownerSettings.update"];
         delete?: never;
         options?: never;
@@ -1572,7 +1624,8 @@ export interface paths {
          * Staff list
          * @description The staff the caller manages, newest first: for the owner every manager, cashier, waiter, cook and courier;
          *     for a branch manager the staff below them of their branch and the store-wide ones. `login_phone_enabled`: the
-         *     phone signs in by SMS code.
+         *     phone signs in by SMS code; `login_phone_proof`: `sms` (the member proved it: it cannot be replaced or cleared
+         *     here) or `vouched` (written by an owner, manager or super admin), null without a login phone.
          */
         get: operations["staff.index"];
         put?: never;
@@ -1654,7 +1707,8 @@ export interface paths {
         };
         /**
          * A branch's stop-list
-         * @description The entries in force (expired ones are not listed). Branch-bound staff always get their own branch.
+         * @description The entries in force (expired ones are not listed). Branch-bound staff always get their own branch. P2-30:
+         *     `created_by_name` (who put it there) for staff with stoplist.manage; null for a menu.view reader.
          */
         get: operations["stopList.index"];
         put?: never;
@@ -1865,7 +1919,8 @@ export interface paths {
          *     work in is 403, another store's 404), `scope` (`active`: still in progress, `history`: delivered, cancelled,
          *     rejected, refunded), `status` (comma-separated), `type`, `channel`, `date` or `from`/`to` (days in the store's
          *     time zone, at most 93 days), `q` (the start of the order number). Needs orders.view (owner, manager, cashier,
-         *     waiter, cook). Contact details and the address only for orders.manage.
+         *     waiter, cook). Contact details and the address only for orders.manage. P2-30: `waiting_seconds` as on the kitchen
+         *     tickets (from acceptance, or creation, to now or to when it became ready).
          */
         get: operations["staffOrder.index"];
         put?: never;
@@ -1931,8 +1986,10 @@ export interface paths {
         put?: never;
         /**
          * Recall a line (kitchen display)
-         * @description Undo a mistaken bump: the line is back to pending (kitchen.manage). Only while the order is accepted or
-         *     preparing (422 once it is ready). Returns the ticket.
+         * @description Undo a mistaken bump: the line is back to pending (kitchen.manage). While the order is accepted or preparing,
+         *     and (P2-30) while it is ready but not yet with a courier or handed over: the order goes back to preparing
+         *     (`order.status_changed` and the history say so). 422 once a courier is assigned, it is on its way or finished.
+         *     Returns the ticket.
          */
         post: operations["staffOrder.recallItem"];
         delete?: never;
@@ -1957,6 +2014,8 @@ export interface paths {
          *     ready (preparing → ready); cancelling or rejecting needs orders.cancel and a `reason`. The order's state machine
          *     decides what can follow what (422 otherwise). Couriers are assigned with POST /orders/{uuid}/assign-courier.
          *     Marking an order ready marks all its lines ready in the kitchen. The same status again answers 200 unchanged.
+         *     P2-30: `on_the_way` (the assigned courier picked the order up: courier_assigned → on_the_way) with
+         *     orders.assign_courier; an order without an assigned courier is a 422 (assign one first).
          */
         post: operations["staffOrder.updateStatus"];
         delete?: never;
@@ -2108,6 +2167,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * GET /terminal: the terminal, its store and branch
+         * @description P2-30: `branches`, the branches whose real-time channel (`private-pos-branch.{id}`) it may join: its own branch,
+         *     or every branch of the store for a terminal paired without one (a store-wide kitchen display subscribes to each).
+         */
         get: operations["terminal.show"];
         put?: never;
         post?: never;
@@ -2124,7 +2188,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** GET /terminal/staff: who can sign in on this terminal (name, role, staff code), for the PIN pad */
+        /**
+         * GET /terminal/staff: who can sign in on this terminal (name, role, staff code), for the PIN pad
+         * @description P2-30: `role` (comma-separated, e.g. `cook,manager,owner` on a kitchen display) lists only those roles; an
+         *     unknown role: 422.
+         */
         get: operations["terminal.staff"];
         put?: never;
         post?: never;
@@ -2562,6 +2630,35 @@ export interface components {
             store?: components["schemas"]["Store"];
             modifiers?: components["schemas"]["Modifier"][];
             products?: components["schemas"]["Product"][];
+        };
+        /**
+         * ModifierGroupRequest
+         * @description The body of POST /owner/modifier-groups and PUT /owner/modifier-groups/{id} (P1-21; P2-30: a form request, so the
+         *     OpenAPI document and the generated clients carry it). The permission (menu.manage) is the route's; the checks that
+         *     need the store (linked variants, bounds) stay in ModifierGroupController.
+         */
+        ModifierGroupRequest: {
+            name: string;
+            name_i18n?: {
+                [key: string]: string;
+            } | null;
+            min_select?: number | null;
+            max_select?: number | null;
+            is_required?: boolean | null;
+            sort_order?: number | null;
+            is_active?: boolean | null;
+            modifiers?: {
+                id?: number | null;
+                name: string;
+                name_i18n?: {
+                    [key: string]: string;
+                } | null;
+                price_delta?: number | null;
+                max_quantity?: number | null;
+                product_variant_id?: number | null;
+                sort_order?: number | null;
+                is_active?: boolean | null;
+            }[];
         };
         /** Order */
         Order: {
@@ -4855,6 +4952,7 @@ export interface operations {
                             branch_scoped: boolean;
                             permissions: string[];
                             device_uuid: string | null;
+                            timezone: string | null;
                         };
                     };
                 };
@@ -5649,6 +5747,8 @@ export interface operations {
                             name: string;
                             description: string | null;
                             image_url: string | null;
+                            /** @description P2-30: sold from a batch (kazan): without an open batch on the branch it is sold out (docs/MENU.md §4) */
+                            batch_tracked: boolean;
                             variants: {
                                 variant_id: number;
                                 variant_uuid: string;
@@ -6023,17 +6123,6 @@ export interface operations {
                 };
             };
             401: components["responses"]["AuthenticationException"];
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** @constant */
-                        error: "Unauthorized";
-                    };
-                };
-            };
         };
     };
     "ownerCatalog.storeCategory": {
@@ -6069,10 +6158,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        /** @constant */
-                        error: "Unauthorized";
-                    };
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             422: components["responses"]["ValidationException"];
@@ -6589,7 +6675,35 @@ export interface operations {
                     "application/json": {
                         success: boolean;
                         message: string;
-                        data: string;
+                        data: {
+                            id: number;
+                            uuid: string;
+                            store_id: number | null;
+                            name: string;
+                            email: string | null;
+                            telegram_id: string | null;
+                            telegram_username: string | null;
+                            telegram_photo_url: string | null;
+                            phone: string | null;
+                            role: components["schemas"]["UserRole"];
+                            email_verified_at: string | null;
+                            created_at: string | null;
+                            updated_at: string | null;
+                            deleted_at: string | null;
+                            address: string | null;
+                            phone_verified_at: string | null;
+                            branch_id: number | null;
+                            referred_by: number | null;
+                            balance: string;
+                            pin_set_at: string | null;
+                            staff_code: string | null;
+                            courier_type: components["schemas"]["CourierType"];
+                            branch: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            telegram_invite_token: string | null;
+                        }[];
                     };
                 };
             };
@@ -6764,25 +6878,30 @@ export interface operations {
                             min_payout_reserve: number;
                             payment_account_type: string;
                             commission_rate: number;
-                            /** @description P1-23: the rate actually charged (tariff plan or the store's own) */
-                            status: string | components["schemas"]["StoreStatus"];
+                            status: components["schemas"]["StoreStatus"];
                             is_order_locked: boolean;
                             ledger_transactions: components["schemas"]["StoreTransaction"][];
                             wallet_transactions: components["schemas"]["StoreWalletTransaction"][];
-                            payout_requests: components["schemas"]["PayoutRequest"][];
+                            payout_requests: {
+                                id: number;
+                                amount: string;
+                                card: string;
+                                /** @enum {string} */
+                                status: "pending" | "completed" | "rejected";
+                                notes: string | null;
+                                resolution_notes: string | null;
+                                processed_at: string | null;
+                                created_at: string;
+                                store_id: number;
+                                card_number: string;
+                                processed_by: number | null;
+                                updated_at: string | null;
+                            }[];
                         };
                     };
                 };
             };
             401: components["responses"]["AuthenticationException"];
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -6804,6 +6923,8 @@ export interface operations {
                 to?: string;
                 /** @description 1–100, standart 25. */
                 per_page?: number;
+                /** @description Sahifa raqami, 1 dan (Laravel sahifalari). */
+                page?: number;
             };
             header?: never;
             path?: never;
@@ -6910,6 +7031,8 @@ export interface operations {
                 to?: string;
                 /** @description 1–100, standart 25. */
                 per_page?: number;
+                /** @description Sahifa raqami, 1 dan (Laravel sahifalari). */
+                page?: number;
             };
             header?: never;
             path?: never;
@@ -6959,6 +7082,8 @@ export interface operations {
                 status?: components["schemas"]["SubscriptionInvoiceStatus"] | null;
                 period?: string | null;
                 per_page?: number | null;
+                /** @description P2-30: the Laravel page (documented, so the generated clients carry it) */
+                page?: number | null;
             };
             header?: never;
             path?: never;
@@ -7067,9 +7192,9 @@ export interface operations {
                             }[];
                             product_ids: number[];
                             product_rules: {
-                                min_select: string;
-                                max_select: string;
-                                is_required: string;
+                                min_select: number | null;
+                                max_select: number | null;
+                                is_required: boolean | null;
                                 sort_order: number;
                             };
                         }[];
@@ -7086,7 +7211,11 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModifierGroupRequest"];
+            };
+        };
         responses: {
             201: {
                 headers: {
@@ -7123,9 +7252,9 @@ export interface operations {
                             }[];
                             product_ids: number[];
                             product_rules: {
-                                min_select: string;
-                                max_select: string;
-                                is_required: string;
+                                min_select: number | null;
+                                max_select: number | null;
+                                is_required: boolean | null;
                                 sort_order: number;
                             };
                         };
@@ -7133,6 +7262,7 @@ export interface operations {
                 };
             };
             401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
         };
     };
     "modifierGroup.update": {
@@ -7144,7 +7274,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModifierGroupRequest"];
+            };
+        };
         responses: {
             200: {
                 headers: {
@@ -7181,9 +7315,9 @@ export interface operations {
                             }[];
                             product_ids: number[];
                             product_rules: {
-                                min_select: string;
-                                max_select: string;
-                                is_required: string;
+                                min_select: number | null;
+                                max_select: number | null;
+                                is_required: boolean | null;
                                 sort_order: number;
                             };
                         };
@@ -7199,6 +7333,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            422: components["responses"]["ValidationException"];
         };
     };
     "modifierGroup.destroy": {
@@ -7250,6 +7385,8 @@ export interface operations {
                 to?: string;
                 /** @description 1–100, standart 25. */
                 per_page?: number;
+                /** @description Sahifa raqami, 1 dan (Laravel sahifalari). */
+                page?: number;
             };
             header?: never;
             path?: never;
@@ -7299,13 +7436,15 @@ export interface operations {
         parameters: {
             query?: {
                 /** @description pending | completed | rejected. */
-                status?: string;
+                status?: "pending" | "completed" | "rejected";
                 /** @description YYYY-MM-DD (do'kon vaqti). */
                 from?: string;
                 /** @description YYYY-MM-DD (do'kon vaqti). */
                 to?: string;
                 /** @description 1–100, standart 25. */
                 per_page?: number;
+                /** @description Sahifa raqami, 1 dan (Laravel sahifalari). */
+                page?: number;
             };
             header?: never;
             path?: never;
@@ -7326,7 +7465,8 @@ export interface operations {
                                 id: number;
                                 amount: string;
                                 card: string;
-                                status: string;
+                                /** @enum {string} */
+                                status: "pending" | "completed" | "rejected";
                                 notes: string | null;
                                 resolution_notes: string | null;
                                 processed_at: string | null;
@@ -7370,7 +7510,21 @@ export interface operations {
                     "application/json": {
                         success: boolean;
                         message: string;
-                        data: components["schemas"]["PayoutRequest"];
+                        data: {
+                            id: number;
+                            amount: string;
+                            card: string;
+                            /** @enum {string} */
+                            status: "pending" | "completed" | "rejected";
+                            notes: string | null;
+                            resolution_notes: string | null;
+                            processed_at: string | null;
+                            created_at: string;
+                            store_id: number;
+                            card_number: string;
+                            processed_by: number | null;
+                            updated_at: string | null;
+                        };
                     };
                 };
             };
@@ -7509,33 +7663,13 @@ export interface operations {
                 content: {
                     "application/json": {
                         success: boolean;
-                        data: components["schemas"]["Product"][];
-                    };
-                };
-            };
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** @constant */
-                        error: "No store assigned";
+                        data: (components["schemas"]["Product"] & {
+                            modifier_group_links: components["schemas"]["ProductModifierGroup"][];
+                        })[];
                     };
                 };
             };
             401: components["responses"]["AuthenticationException"];
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** @constant */
-                        error: "Unauthorized";
-                    };
-                };
-            };
         };
     };
     "ownerCatalog.storeProduct": {
@@ -7559,7 +7693,7 @@ export interface operations {
                     image?: string | null;
                     /**
                      * @description JSON array of variants: [{"name": "...", "price": 25000}, ...]; P1-21 adds optional "unit" (piece|kg|l),
-                     *     "quantity_step", "min_quantity" (kg/l) and "batch_consumption"
+                     *     "quantity_step", "min_quantity" (kg/l) and "batch_consumption"; P2-30: optional "stock" (left out: 999)
                      */
                     variants: string;
                     batch_tracked?: boolean;
@@ -7581,29 +7715,7 @@ export interface operations {
                     };
                 };
             };
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** @constant */
-                        error: "No store assigned";
-                    };
-                };
-            };
             401: components["responses"]["AuthenticationException"];
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** @constant */
-                        error: "Unauthorized";
-                    };
-                };
-            };
             422: components["responses"]["ValidationException"];
             500: {
                 headers: {
@@ -7617,7 +7729,10 @@ export interface operations {
     };
     "ownerCatalog.updateProduct": {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Any value: only switch the product on/off (no other field needed). */
+                toggle_active?: number;
+            };
             header?: never;
             path: {
                 id: string;
@@ -7663,17 +7778,6 @@ export interface operations {
                 };
             };
             401: components["responses"]["AuthenticationException"];
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** @constant */
-                        error: "Unauthorized";
-                    };
-                };
-            };
             422: components["responses"]["ValidationException"];
             500: {
                 headers: {
@@ -7708,17 +7812,6 @@ export interface operations {
                 };
             };
             401: components["responses"]["AuthenticationException"];
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** @constant */
-                        error: "Unauthorized";
-                    };
-                };
-            };
         };
     };
     "channelPrice.index": {
@@ -7801,6 +7894,32 @@ export interface operations {
             };
             401: components["responses"]["AuthenticationException"];
             422: components["responses"]["ValidationException"];
+        };
+    };
+    "ownerCatalog.deleteImage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: components["schemas"]["Product"];
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
         };
     };
     "modifierGroup.syncProduct": {
@@ -8124,7 +8243,6 @@ export interface operations {
                             id: number;
                             name: string;
                             timezone: string;
-                            /** @description P2-12: reports and branch hours use it */
                             logo: string | null;
                             logo_url: string | null;
                             banner: string | null;
@@ -8135,11 +8253,56 @@ export interface operations {
                             location_url: string | null;
                             is_open: boolean;
                             min_order_amount: number;
-                            payment_settings: string;
-                            payment_account_type: string;
-                            status: string | components["schemas"]["StoreStatus"];
+                            payment_settings: {
+                                cash?: boolean | {
+                                    enabled?: boolean;
+                                    merchant_id?: string | null;
+                                    service_id?: string | null;
+                                    available?: boolean;
+                                    has_secret_key?: boolean;
+                                };
+                                click?: boolean | {
+                                    enabled?: boolean;
+                                    merchant_id?: string | null;
+                                    service_id?: string | null;
+                                    available?: boolean;
+                                    has_secret_key?: boolean;
+                                };
+                                payme?: boolean | {
+                                    enabled?: boolean;
+                                    merchant_id?: string | null;
+                                    service_id?: string | null;
+                                    available?: boolean;
+                                    has_secret_key?: boolean;
+                                };
+                                uzum?: boolean | {
+                                    enabled?: boolean;
+                                    merchant_id?: string | null;
+                                    service_id?: string | null;
+                                    available?: boolean;
+                                    has_secret_key?: boolean;
+                                };
+                                paynet?: boolean | {
+                                    enabled?: boolean;
+                                    merchant_id?: string | null;
+                                    service_id?: string | null;
+                                    available?: boolean;
+                                    has_secret_key?: boolean;
+                                };
+                                delivery_fee?: number | string;
+                                delivery_enabled?: boolean;
+                                pickup_enabled?: boolean;
+                                working_hours?: {
+                                    open?: string | null;
+                                    close?: string | null;
+                                };
+                                allowed_methods?: string[];
+                            };
+                            /** @enum {string} */
+                            payment_account_type: "own_account" | "platform_account";
+                            status: components["schemas"]["StoreStatus"];
                             is_order_locked: boolean;
-                            allowed_methods: unknown[];
+                            allowed_methods: string[];
                         };
                     };
                 };
@@ -8184,11 +8347,46 @@ export interface operations {
                     location_url?: string | null;
                     is_open: boolean;
                     min_order_amount?: number | null;
+                    /** @description To'lov va yetkazish sozlamalari (obyekt). */
                     payment_settings: {
-                        merchant_id?: string | null;
-                        service_id?: string | null;
-                        secret_key?: string | null;
-                    }[];
+                        delivery_fee?: number | null;
+                        delivery_enabled?: boolean | null;
+                        pickup_enabled?: boolean | null;
+                        working_hours?: {
+                            open?: string | null;
+                            close?: string | null;
+                        } | null;
+                        cash?: {
+                            enabled?: boolean;
+                            merchant_id?: string | null;
+                            service_id?: string | null;
+                            secret_key?: string | null;
+                        };
+                        click?: {
+                            enabled?: boolean;
+                            merchant_id?: string | null;
+                            service_id?: string | null;
+                            secret_key?: string | null;
+                        };
+                        payme?: {
+                            enabled?: boolean;
+                            merchant_id?: string | null;
+                            service_id?: string | null;
+                            secret_key?: string | null;
+                        };
+                        uzum?: {
+                            enabled?: boolean;
+                            merchant_id?: string | null;
+                            service_id?: string | null;
+                            secret_key?: string | null;
+                        };
+                        paynet?: {
+                            enabled?: boolean;
+                            merchant_id?: string | null;
+                            service_id?: string | null;
+                            secret_key?: string | null;
+                        };
+                    };
                 };
             };
         };
@@ -8308,6 +8506,8 @@ export interface operations {
                             courier_type: string | null;
                             phone: string | null;
                             login_phone_enabled: boolean;
+                            /** @enum {string|null} */
+                            login_phone_proof: "sms" | "vouched" | null;
                             has_pin: boolean;
                             staff_code: string | null;
                             telegram_linked: boolean;
@@ -8361,6 +8561,8 @@ export interface operations {
                                 courier_type: string | null;
                                 phone: string | null;
                                 login_phone_enabled: boolean;
+                                /** @enum {string|null} */
+                                login_phone_proof: "sms" | "vouched" | null;
                                 has_pin: boolean;
                                 staff_code: string | null;
                                 telegram_linked: boolean;
@@ -8416,6 +8618,8 @@ export interface operations {
                             courier_type: string | null;
                             phone: string | null;
                             login_phone_enabled: boolean;
+                            /** @enum {string|null} */
+                            login_phone_proof: "sms" | "vouched" | null;
                             has_pin: boolean;
                             staff_code: string | null;
                             telegram_linked: boolean;
@@ -8589,6 +8793,8 @@ export interface operations {
                                 reason: string | null;
                                 until: string | null;
                                 created_by: number | null;
+                                /** @description The store's own staff only (a super admin's entry shows no name) */
+                                created_by_name: string | null;
                                 created_at: string | null;
                             }[];
                         };
@@ -8637,6 +8843,8 @@ export interface operations {
                             reason: string | null;
                             until: string | null;
                             created_by: number | null;
+                            /** @description The store's own staff only (a super admin's entry shows no name) */
+                            created_by_name: string | null;
                             created_at: string | null;
                         };
                     };
@@ -9420,6 +9628,7 @@ export interface operations {
                             preparing_at: string | null;
                             ready_at: string | null;
                             closed_at: string | null;
+                            waiting_seconds: number;
                         }[];
                         meta: {
                             next_cursor: string | null;
@@ -9517,6 +9726,7 @@ export interface operations {
                             preparing_at: string | null;
                             ready_at: string | null;
                             closed_at: string | null;
+                            waiting_seconds: number;
                             status_history: {
                                 from_status: string | null;
                                 status: string;
@@ -9686,7 +9896,7 @@ export interface operations {
             content: {
                 "application/json": {
                     /** @enum {string} */
-                    status: "accepted" | "preparing" | "ready" | "delivered" | "canceled" | "rejected";
+                    status: "accepted" | "preparing" | "ready" | "on_the_way" | "delivered" | "canceled" | "rejected";
                     /** @enum {string|null} */
                     reason?: "customer_request" | "no_show" | "out_of_stock" | "store_closed" | "courier_unavailable" | "other" | null;
                     note?: string | null;
@@ -9768,6 +9978,7 @@ export interface operations {
                             preparing_at: string | null;
                             ready_at: string | null;
                             closed_at: string | null;
+                            waiting_seconds: number;
                             status_history: {
                                 from_status: string | null;
                                 status: string;
@@ -9778,6 +9989,14 @@ export interface operations {
                 };
             };
             401: components["responses"]["AuthenticationException"];
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             422: components["responses"]["ValidationException"];
         };
     };
@@ -9935,8 +10154,8 @@ export interface operations {
                             today_orders: number;
                             today_commission: number;
                             pending_payouts: number;
-                            total_store_debt: unknown;
-                            total_cashback_balance: unknown;
+                            total_store_debt: number;
+                            total_cashback_balance: number;
                         };
                     };
                 };
@@ -9972,8 +10191,15 @@ export interface operations {
                     "application/json": {
                         success: boolean;
                         data: {
-                            regions: components["schemas"]["Region"][];
-                            districts: components["schemas"]["District"][];
+                            regions: {
+                                id: number;
+                                name: string;
+                            }[];
+                            districts: {
+                                id: number;
+                                region_id: number;
+                                name: string;
+                            }[];
                         };
                     };
                 };
@@ -10022,7 +10248,7 @@ export interface operations {
                             owner: {
                                 name: string;
                                 phone: string | null;
-                                invite_link: string;
+                                invite_link: string | null;
                                 has_joined: boolean;
                             } | null;
                         }[];
@@ -10224,6 +10450,10 @@ export interface operations {
                                 id: number;
                                 name: string;
                             } | null;
+                            branches: {
+                                id: number;
+                                name: string;
+                            }[];
                         };
                     };
                 };
@@ -10233,7 +10463,10 @@ export interface operations {
     };
     "terminal.staff": {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Comma-separated roles to list: owner, manager, cashier, waiter, cook. */
+                role?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -10259,6 +10492,7 @@ export interface operations {
                 };
             };
             401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
         };
     };
 }

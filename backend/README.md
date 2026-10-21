@@ -62,6 +62,7 @@ Namuna: [.env.example](.env.example). "Standart" ustunida `.env.example` qiymati
 | `APP_DEBUG` | `false` | productionda `true` bo'lishi mumkin emas |
 | `APP_URL` | `http://localhost` | ommaviy manzil; webhook URL'i, geokoder `User-Agent`'i va CORS ruxsatlari ham shundan olinadi |
 | `APP_LOCALE`, `APP_FALLBACK_LOCALE`, `APP_FAKER_LOCALE` | `en`, `en`, `en_US` | Laravel tili |
+| `API_LOCALE` | `uz` | API javoblaridagi Laravel xabarlari tili (validatsiya: `lang/uz`), `APP_LOCALE` dan qat'i nazar (P2-30) |
 | `APP_MAINTENANCE_DRIVER` | `file` | texnik ish rejimi |
 | `BCRYPT_ROUNDS` | `12` | parol xeshlash |
 | `LOG_CHANNEL`, `LOG_STACK`, `LOG_LEVEL` | `stack`, `single`, `debug` | loglar `storage/logs/laravel.log` ga; productionda `LOG_LEVEL=warning` tavsiya etiladi (webhook payload'lari `info` da logga tushadi) |

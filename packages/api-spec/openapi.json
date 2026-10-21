@@ -59,7 +59,7 @@
         },
         {
             "name": "Owner: catalog",
-            "description": "Do'kon menyusini boshqarish (ega). Kategoriya yaratish faqat superadmin uchun."
+            "description": "Do'kon menyusini boshqarish (menu.view — ko'rish, menu.manage — o'zgartirish). Kategoriya yaratish faqat superadmin uchun."
         },
         {
             "name": "Owner: branch availability",
@@ -2539,8 +2539,8 @@
         "/v1/couriers": {
             "get": {
                 "operationId": "order.couriers",
-                "description": "The store's couriers (and staff who deliver), with a label for their role.",
-                "summary": "Couriers an order can be assigned to (owner, manager)",
+                "description": "The store's couriers (and staff who deliver), with a label for their role. P2-30: by the orders.assign_courier\npermission (owner and manager by default), not the role; staff tied to a branch get their branch's couriers.",
+                "summary": "Couriers an order can be assigned to (orders.assign_courier)",
                 "tags": [
                     "Couriers"
                 ],
@@ -4662,6 +4662,12 @@
                                                         "string",
                                                         "null"
                                                     ]
+                                                },
+                                                "timezone": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
                                                 }
                                             },
                                             "required": [
@@ -4670,7 +4676,8 @@
                                                 "branch_id",
                                                 "branch_scoped",
                                                 "permissions",
-                                                "device_uuid"
+                                                "device_uuid",
+                                                "timezone"
                                             ]
                                         }
                                     },
@@ -5266,8 +5273,8 @@
         "/v1/orders/{uuid}/assign-courier": {
             "post": {
                 "operationId": "order.assignCourier",
-                "description": "403/422 when the order's status does not allow it or the courier is not the store's.",
-                "summary": "Assign a courier to an order (owner, manager)",
+                "description": "403/422 when the order's status does not allow it or the courier is not the store's. P2-30: by permission\n(orders.assign_courier with orders.manage on this order: OrderPolicy::assignCourier), not by role.",
+                "summary": "Assign a courier to an order (orders.assign_courier)",
                 "tags": [
                     "Orders"
                 ],
@@ -7029,6 +7036,10 @@
                                                             "null"
                                                         ]
                                                     },
+                                                    "batch_tracked": {
+                                                        "type": "boolean",
+                                                        "description": "P2-30: sold from a batch (kazan): without an open batch on the branch it is sold out (docs/MENU.md §4)"
+                                                    },
                                                     "variants": {
                                                         "type": "array",
                                                         "items": {
@@ -7079,6 +7090,7 @@
                                                     "name",
                                                     "description",
                                                     "image_url",
+                                                    "batch_tracked",
                                                     "variants"
                                                 ]
                                             }
@@ -8115,6 +8127,7 @@
         "/v1/owner/categories": {
             "get": {
                 "operationId": "ownerCatalog.getCategories",
+                "description": "menu.view (the route's).",
                 "summary": "Get global categories for the dropdown",
                 "tags": [
                     "Owner: catalog"
@@ -8140,25 +8153,6 @@
                                     "required": [
                                         "success",
                                         "data"
-                                    ]
-                                }
-                            }
-                        }
-                    },
-                    "403": {
-                        "description": "",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "type": "string",
-                                            "const": "Unauthorized"
-                                        }
-                                    },
-                                    "required": [
-                                        "error"
                                     ]
                                 }
                             }
@@ -8226,16 +8220,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "type": "string",
-                                            "const": "Unauthorized"
-                                        }
-                                    },
-                                    "required": [
-                                        "error"
-                                    ]
+                                    "$ref": "#/components/schemas/ErrorResponse"
                                 }
                             }
                         }
@@ -9785,6 +9770,7 @@
         "/v1/owner/employees": {
             "get": {
                 "operationId": "ownerEmployee.index",
+                "description": "The store's staff as users, newest first, with their branch and, for one who has not joined yet, the invite\ntoken of their link.",
                 "summary": "Get list of employees (managers, cashiers, waiters, cooks, couriers) for the current store",
                 "tags": [
                     "Owner: employees"
@@ -9804,7 +9790,176 @@
                                             "type": "string"
                                         },
                                         "data": {
-                                            "type": "string"
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "id": {
+                                                        "type": "integer"
+                                                    },
+                                                    "uuid": {
+                                                        "type": "string"
+                                                    },
+                                                    "store_id": {
+                                                        "type": [
+                                                            "integer",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "name": {
+                                                        "type": "string"
+                                                    },
+                                                    "email": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "telegram_id": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "telegram_username": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "telegram_photo_url": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "phone": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "role": {
+                                                        "$ref": "#/components/schemas/UserRole"
+                                                    },
+                                                    "email_verified_at": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "created_at": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "updated_at": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "deleted_at": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "address": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "phone_verified_at": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "branch_id": {
+                                                        "type": [
+                                                            "integer",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "referred_by": {
+                                                        "type": [
+                                                            "integer",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "balance": {
+                                                        "type": "string"
+                                                    },
+                                                    "pin_set_at": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "staff_code": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "courier_type": {
+                                                        "$ref": "#/components/schemas/CourierType"
+                                                    },
+                                                    "branch": {
+                                                        "type": [
+                                                            "object",
+                                                            "null"
+                                                        ],
+                                                        "properties": {
+                                                            "id": {
+                                                                "type": "integer"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "id",
+                                                            "name"
+                                                        ]
+                                                    },
+                                                    "telegram_invite_token": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    }
+                                                },
+                                                "required": [
+                                                    "id",
+                                                    "uuid",
+                                                    "store_id",
+                                                    "name",
+                                                    "email",
+                                                    "telegram_id",
+                                                    "telegram_username",
+                                                    "telegram_photo_url",
+                                                    "phone",
+                                                    "role",
+                                                    "email_verified_at",
+                                                    "created_at",
+                                                    "updated_at",
+                                                    "deleted_at",
+                                                    "address",
+                                                    "phone_verified_at",
+                                                    "branch_id",
+                                                    "referred_by",
+                                                    "balance",
+                                                    "pin_set_at",
+                                                    "staff_code",
+                                                    "courier_type",
+                                                    "branch",
+                                                    "telegram_invite_token"
+                                                ]
+                                            }
                                         }
                                     },
                                     "required": [
@@ -10102,6 +10257,7 @@
         "/v1/owner/finance": {
             "get": {
                 "operationId": "ownerFinance.index",
+                "description": "finance.view (the owner; an owner may grant it to managers), never from a terminal PIN session. The balances are\nnumbers (as since v1); every other amount is a two-decimal string. Card numbers are masked, in notes too.",
                 "summary": "Get store balance details and recent financial transactions",
                 "tags": [
                     "Owner: finance"
@@ -10142,15 +10298,7 @@
                                                     "type": "number"
                                                 },
                                                 "status": {
-                                                    "description": "P1-23: the rate actually charged (tariff plan or the store's own)",
-                                                    "anyOf": [
-                                                        {
-                                                            "type": "string"
-                                                        },
-                                                        {
-                                                            "$ref": "#/components/schemas/StoreStatus"
-                                                        }
-                                                    ]
+                                                    "$ref": "#/components/schemas/StoreStatus"
                                                 },
                                                 "is_order_locked": {
                                                     "type": "boolean"
@@ -10170,7 +10318,79 @@
                                                 "payout_requests": {
                                                     "type": "array",
                                                     "items": {
-                                                        "$ref": "#/components/schemas/PayoutRequest"
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "id": {
+                                                                "type": "integer"
+                                                            },
+                                                            "amount": {
+                                                                "type": "string"
+                                                            },
+                                                            "card": {
+                                                                "type": "string"
+                                                            },
+                                                            "status": {
+                                                                "type": "string",
+                                                                "enum": [
+                                                                    "pending",
+                                                                    "completed",
+                                                                    "rejected"
+                                                                ]
+                                                            },
+                                                            "notes": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "resolution_notes": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "processed_at": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "created_at": {
+                                                                "type": "string"
+                                                            },
+                                                            "store_id": {
+                                                                "type": "integer"
+                                                            },
+                                                            "card_number": {
+                                                                "type": "string"
+                                                            },
+                                                            "processed_by": {
+                                                                "type": [
+                                                                    "integer",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "updated_at": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "id",
+                                                            "amount",
+                                                            "card",
+                                                            "status",
+                                                            "notes",
+                                                            "resolution_notes",
+                                                            "processed_at",
+                                                            "created_at",
+                                                            "store_id",
+                                                            "card_number",
+                                                            "processed_by",
+                                                            "updated_at"
+                                                        ]
                                                     }
                                                 }
                                             },
@@ -10199,16 +10419,6 @@
                         }
                     },
                     "404": {
-                        "description": "",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ErrorResponse"
-                                }
-                            }
-                        }
-                    },
-                    "403": {
                         "description": "",
                         "content": {
                             "application/json": {
@@ -10261,6 +10471,14 @@
                         "name": "per_page",
                         "in": "query",
                         "description": "1–100, standart 25.",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "description": "Sahifa raqami, 1 dan (Laravel sahifalari).",
                         "schema": {
                             "type": "integer"
                         }
@@ -10546,6 +10764,14 @@
                         "schema": {
                             "type": "integer"
                         }
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "description": "Sahifa raqami, 1 dan (Laravel sahifalari).",
+                        "schema": {
+                            "type": "integer"
+                        }
                     }
                 ],
                 "responses": {
@@ -10729,6 +10955,19 @@
                             ],
                             "minimum": 1,
                             "maximum": 100
+                        }
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "description": "P2-30: the Laravel page (documented, so the generated clients carry it)",
+                        "schema": {
+                            "type": [
+                                "integer",
+                                "null"
+                            ],
+                            "minimum": 1,
+                            "maximum": 100000
                         }
                     }
                 ],
@@ -11053,13 +11292,22 @@
                                                         "type": "object",
                                                         "properties": {
                                                             "min_select": {
-                                                                "type": "string"
+                                                                "type": [
+                                                                    "integer",
+                                                                    "null"
+                                                                ]
                                                             },
                                                             "max_select": {
-                                                                "type": "string"
+                                                                "type": [
+                                                                    "integer",
+                                                                    "null"
+                                                                ]
                                                             },
                                                             "is_required": {
-                                                                "type": "string"
+                                                                "type": [
+                                                                    "boolean",
+                                                                    "null"
+                                                                ]
                                                             },
                                                             "sort_order": {
                                                                 "type": "integer"
@@ -11111,6 +11359,16 @@
                 "tags": [
                     "Owner: menu modifiers"
                 ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ModifierGroupRequest"
+                            }
+                        }
+                    }
+                },
                 "responses": {
                     "201": {
                         "description": "",
@@ -11229,13 +11487,22 @@
                                                     "type": "object",
                                                     "properties": {
                                                         "min_select": {
-                                                            "type": "string"
+                                                            "type": [
+                                                                "integer",
+                                                                "null"
+                                                            ]
                                                         },
                                                         "max_select": {
-                                                            "type": "string"
+                                                            "type": [
+                                                                "integer",
+                                                                "null"
+                                                            ]
                                                         },
                                                         "is_required": {
-                                                            "type": "string"
+                                                            "type": [
+                                                                "boolean",
+                                                                "null"
+                                                            ]
                                                         },
                                                         "sort_order": {
                                                             "type": "integer"
@@ -11276,6 +11543,9 @@
                     },
                     "401": {
                         "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
                     }
                 }
             }
@@ -11298,6 +11568,16 @@
                         }
                     }
                 ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ModifierGroupRequest"
+                            }
+                        }
+                    }
+                },
                 "responses": {
                     "200": {
                         "description": "",
@@ -11416,13 +11696,22 @@
                                                     "type": "object",
                                                     "properties": {
                                                         "min_select": {
-                                                            "type": "string"
+                                                            "type": [
+                                                                "integer",
+                                                                "null"
+                                                            ]
                                                         },
                                                         "max_select": {
-                                                            "type": "string"
+                                                            "type": [
+                                                                "integer",
+                                                                "null"
+                                                            ]
                                                         },
                                                         "is_required": {
-                                                            "type": "string"
+                                                            "type": [
+                                                                "boolean",
+                                                                "null"
+                                                            ]
                                                         },
                                                         "sort_order": {
                                                             "type": "integer"
@@ -11473,6 +11762,9 @@
                     },
                     "401": {
                         "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
                     }
                 }
             },
@@ -11589,6 +11881,14 @@
                         "name": "per_page",
                         "in": "query",
                         "description": "1–100, standart 25.",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "description": "Sahifa raqami, 1 dan (Laravel sahifalari).",
                         "schema": {
                             "type": "integer"
                         }
@@ -11757,7 +12057,12 @@
                         "in": "query",
                         "description": "pending | completed | rejected.",
                         "schema": {
-                            "type": "string"
+                            "type": "string",
+                            "enum": [
+                                "pending",
+                                "completed",
+                                "rejected"
+                            ]
                         }
                     },
                     {
@@ -11780,6 +12085,14 @@
                         "name": "per_page",
                         "in": "query",
                         "description": "1–100, standart 25.",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "description": "Sahifa raqami, 1 dan (Laravel sahifalari).",
                         "schema": {
                             "type": "integer"
                         }
@@ -11817,7 +12130,12 @@
                                                                 "type": "string"
                                                             },
                                                             "status": {
-                                                                "type": "string"
+                                                                "type": "string",
+                                                                "enum": [
+                                                                    "pending",
+                                                                    "completed",
+                                                                    "rejected"
+                                                                ]
                                                             },
                                                             "notes": {
                                                                 "type": [
@@ -11905,6 +12223,7 @@
             },
             "post": {
                 "operationId": "ownerFinance.requestPayout",
+                "description": "Answers the request in the shape of GET /owner/payouts (card masked), never the stored card number.",
                 "summary": "Create a new payout request",
                 "tags": [
                     "Owner: finance"
@@ -11954,7 +12273,79 @@
                                             "type": "string"
                                         },
                                         "data": {
-                                            "$ref": "#/components/schemas/PayoutRequest"
+                                            "type": "object",
+                                            "properties": {
+                                                "id": {
+                                                    "type": "integer"
+                                                },
+                                                "amount": {
+                                                    "type": "string"
+                                                },
+                                                "card": {
+                                                    "type": "string"
+                                                },
+                                                "status": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "pending",
+                                                        "completed",
+                                                        "rejected"
+                                                    ]
+                                                },
+                                                "notes": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "resolution_notes": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "processed_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "created_at": {
+                                                    "type": "string"
+                                                },
+                                                "store_id": {
+                                                    "type": "integer"
+                                                },
+                                                "card_number": {
+                                                    "type": "string"
+                                                },
+                                                "processed_by": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "updated_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "id",
+                                                "amount",
+                                                "card",
+                                                "status",
+                                                "notes",
+                                                "resolution_notes",
+                                                "processed_at",
+                                                "created_at",
+                                                "store_id",
+                                                "card_number",
+                                                "processed_by",
+                                                "updated_at"
+                                            ]
                                         }
                                     },
                                     "required": [
@@ -12221,6 +12612,7 @@
         "/v1/owner/products": {
             "get": {
                 "operationId": "ownerCatalog.getProducts",
+                "description": "menu.view. Each product with its category and variants, and `modifier_group_links`: the modifier groups it offers\nin order, with this product's own rules (`min_select`, `max_select`, `is_required`; null: the group's), as\nPUT /owner/products/{id}/modifier-groups saves them.",
                 "summary": "Get all products for the owner's store",
                 "tags": [
                     "Owner: catalog"
@@ -12239,51 +12631,31 @@
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/components/schemas/Product"
+                                                "allOf": [
+                                                    {
+                                                        "$ref": "#/components/schemas/Product"
+                                                    },
+                                                    {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "modifier_group_links": {
+                                                                "type": "array",
+                                                                "items": {
+                                                                    "$ref": "#/components/schemas/ProductModifierGroup"
+                                                                }
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "modifier_group_links"
+                                                        ]
+                                                    }
+                                                ]
                                             }
                                         }
                                     },
                                     "required": [
                                         "success",
                                         "data"
-                                    ]
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "type": "string",
-                                            "const": "No store assigned"
-                                        }
-                                    },
-                                    "required": [
-                                        "error"
-                                    ]
-                                }
-                            }
-                        }
-                    },
-                    "403": {
-                        "description": "",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "type": "string",
-                                            "const": "Unauthorized"
-                                        }
-                                    },
-                                    "required": [
-                                        "error"
                                     ]
                                 }
                             }
@@ -12296,6 +12668,7 @@
             },
             "post": {
                 "operationId": "ownerCatalog.storeProduct",
+                "description": "multipart/form-data, menu.manage. `variants` is a JSON array of {name, price, unit?, quantity_step?,\nmin_quantity?, batch_consumption?, stock?}; `stock` left out starts the variant at 999.",
                 "summary": "Create a new product with variants",
                 "tags": [
                     "Owner: catalog"
@@ -12334,7 +12707,7 @@
                                     },
                                     "variants": {
                                         "type": "string",
-                                        "description": "JSON array of variants: [{\"name\": \"...\", \"price\": 25000}, ...]; P1-21 adds optional \"unit\" (piece|kg|l),\n\"quantity_step\", \"min_quantity\" (kg/l) and \"batch_consumption\""
+                                        "description": "JSON array of variants: [{\"name\": \"...\", \"price\": 25000}, ...]; P1-21 adds optional \"unit\" (piece|kg|l),\n\"quantity_step\", \"min_quantity\" (kg/l) and \"batch_consumption\"; P2-30: optional \"stock\" (left out: 999)"
                                     },
                                     "batch_tracked": {
                                         "type": "boolean"
@@ -12395,44 +12768,6 @@
                             }
                         }
                     },
-                    "400": {
-                        "description": "",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "type": "string",
-                                            "const": "No store assigned"
-                                        }
-                                    },
-                                    "required": [
-                                        "error"
-                                    ]
-                                }
-                            }
-                        }
-                    },
-                    "403": {
-                        "description": "",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "type": "string",
-                                            "const": "Unauthorized"
-                                        }
-                                    },
-                                    "required": [
-                                        "error"
-                                    ]
-                                }
-                            }
-                        }
-                    },
                     "422": {
                         "$ref": "#/components/responses/ValidationException"
                     },
@@ -12445,7 +12780,7 @@
         "/v1/owner/products/{id}": {
             "post": {
                 "operationId": "ownerCatalog.updateProduct",
-                "description": "multipart/form-data (POST, so the image can be sent). With `toggle_active` (any value) only the product's\nactive status is flipped and the other fields are not needed.",
+                "description": "multipart/form-data (POST, so the image can be sent). With `toggle_active` (any value) only the product's\nactive status is flipped and the other fields are not needed. menu.manage. A variant's stock is not changed\nhere (orders move it); a new variant takes `stock` like on create.",
                 "summary": "Update an existing product",
                 "tags": [
                     "Owner: catalog"
@@ -12457,6 +12792,14 @@
                         "required": true,
                         "schema": {
                             "type": "string"
+                        }
+                    },
+                    {
+                        "name": "toggle_active",
+                        "in": "query",
+                        "description": "Any value: only switch the product on/off (no other field needed).",
+                        "schema": {
+                            "type": "integer"
                         }
                     }
                 ],
@@ -12580,25 +12923,6 @@
                             }
                         }
                     },
-                    "403": {
-                        "description": "",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "type": "string",
-                                            "const": "Unauthorized"
-                                        }
-                                    },
-                                    "required": [
-                                        "error"
-                                    ]
-                                }
-                            }
-                        }
-                    },
                     "422": {
                         "$ref": "#/components/responses/ValidationException"
                     },
@@ -12641,25 +12965,6 @@
                                     "required": [
                                         "success",
                                         "message"
-                                    ]
-                                }
-                            }
-                        }
-                    },
-                    "403": {
-                        "description": "",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "type": "string",
-                                            "const": "Unauthorized"
-                                        }
-                                    },
-                                    "required": [
-                                        "error"
                                     ]
                                 }
                             }
@@ -12916,10 +13221,61 @@
                 }
             }
         },
+        "/v1/owner/products/{id}/image": {
+            "delete": {
+                "operationId": "ownerCatalog.deleteImage",
+                "description": "menu.manage. The image and its thumbnails are deleted; the product shows no picture until a new one is uploaded\n(POST /owner/products/{id} with `image`). Without an image: 200, nothing changes.",
+                "summary": "Remove a product's image",
+                "tags": [
+                    "Owner: catalog"
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "$ref": "#/components/schemas/Product"
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
         "/v1/owner/products/{id}/modifier-groups": {
             "put": {
                 "operationId": "modifierGroup.syncProduct",
-                "description": "Replaces the product's groups. Per product, `min_select`, `max_select` and `is_required` override the group's own\nrules (null: the group's); `sort_order` orders them.",
+                "description": "Replaces the product's groups. Per product, `min_select`, `max_select` and `is_required` override the group's own\nrules (null: the group's; P2-30: a rule left out of a row keeps the product's saved one); `sort_order` orders\nthem (left out: the list order). GET /owner/products returns them as `modifier_group_links`.",
                 "summary": "Set the modifier groups a product offers",
                 "tags": [
                     "Owner: menu modifiers"
@@ -13882,8 +14238,7 @@
                                                     "type": [
                                                         "string",
                                                         "null"
-                                                    ],
-                                                    "description": "P2-12: reports and branch hours use it"
+                                                    ]
                                                 },
                                                 "logo_url": {
                                                     "type": [
@@ -13934,27 +14289,228 @@
                                                     "type": "number"
                                                 },
                                                 "payment_settings": {
-                                                    "type": "string"
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "cash": {
+                                                            "anyOf": [
+                                                                {
+                                                                    "type": "boolean"
+                                                                },
+                                                                {
+                                                                    "type": "object",
+                                                                    "properties": {
+                                                                        "enabled": {
+                                                                            "type": "boolean"
+                                                                        },
+                                                                        "merchant_id": {
+                                                                            "type": [
+                                                                                "string",
+                                                                                "null"
+                                                                            ]
+                                                                        },
+                                                                        "service_id": {
+                                                                            "type": [
+                                                                                "string",
+                                                                                "null"
+                                                                            ]
+                                                                        },
+                                                                        "available": {
+                                                                            "type": "boolean"
+                                                                        },
+                                                                        "has_secret_key": {
+                                                                            "type": "boolean"
+                                                                        }
+                                                                    }
+                                                                }
+                                                            ]
+                                                        },
+                                                        "click": {
+                                                            "anyOf": [
+                                                                {
+                                                                    "type": "boolean"
+                                                                },
+                                                                {
+                                                                    "type": "object",
+                                                                    "properties": {
+                                                                        "enabled": {
+                                                                            "type": "boolean"
+                                                                        },
+                                                                        "merchant_id": {
+                                                                            "type": [
+                                                                                "string",
+                                                                                "null"
+                                                                            ]
+                                                                        },
+                                                                        "service_id": {
+                                                                            "type": [
+                                                                                "string",
+                                                                                "null"
+                                                                            ]
+                                                                        },
+                                                                        "available": {
+                                                                            "type": "boolean"
+                                                                        },
+                                                                        "has_secret_key": {
+                                                                            "type": "boolean"
+                                                                        }
+                                                                    }
+                                                                }
+                                                            ]
+                                                        },
+                                                        "payme": {
+                                                            "anyOf": [
+                                                                {
+                                                                    "type": "boolean"
+                                                                },
+                                                                {
+                                                                    "type": "object",
+                                                                    "properties": {
+                                                                        "enabled": {
+                                                                            "type": "boolean"
+                                                                        },
+                                                                        "merchant_id": {
+                                                                            "type": [
+                                                                                "string",
+                                                                                "null"
+                                                                            ]
+                                                                        },
+                                                                        "service_id": {
+                                                                            "type": [
+                                                                                "string",
+                                                                                "null"
+                                                                            ]
+                                                                        },
+                                                                        "available": {
+                                                                            "type": "boolean"
+                                                                        },
+                                                                        "has_secret_key": {
+                                                                            "type": "boolean"
+                                                                        }
+                                                                    }
+                                                                }
+                                                            ]
+                                                        },
+                                                        "uzum": {
+                                                            "anyOf": [
+                                                                {
+                                                                    "type": "boolean"
+                                                                },
+                                                                {
+                                                                    "type": "object",
+                                                                    "properties": {
+                                                                        "enabled": {
+                                                                            "type": "boolean"
+                                                                        },
+                                                                        "merchant_id": {
+                                                                            "type": [
+                                                                                "string",
+                                                                                "null"
+                                                                            ]
+                                                                        },
+                                                                        "service_id": {
+                                                                            "type": [
+                                                                                "string",
+                                                                                "null"
+                                                                            ]
+                                                                        },
+                                                                        "available": {
+                                                                            "type": "boolean"
+                                                                        },
+                                                                        "has_secret_key": {
+                                                                            "type": "boolean"
+                                                                        }
+                                                                    }
+                                                                }
+                                                            ]
+                                                        },
+                                                        "paynet": {
+                                                            "anyOf": [
+                                                                {
+                                                                    "type": "boolean"
+                                                                },
+                                                                {
+                                                                    "type": "object",
+                                                                    "properties": {
+                                                                        "enabled": {
+                                                                            "type": "boolean"
+                                                                        },
+                                                                        "merchant_id": {
+                                                                            "type": [
+                                                                                "string",
+                                                                                "null"
+                                                                            ]
+                                                                        },
+                                                                        "service_id": {
+                                                                            "type": [
+                                                                                "string",
+                                                                                "null"
+                                                                            ]
+                                                                        },
+                                                                        "available": {
+                                                                            "type": "boolean"
+                                                                        },
+                                                                        "has_secret_key": {
+                                                                            "type": "boolean"
+                                                                        }
+                                                                    }
+                                                                }
+                                                            ]
+                                                        },
+                                                        "delivery_fee": {
+                                                            "type": [
+                                                                "number",
+                                                                "string"
+                                                            ]
+                                                        },
+                                                        "delivery_enabled": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "pickup_enabled": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "working_hours": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "open": {
+                                                                    "type": [
+                                                                        "string",
+                                                                        "null"
+                                                                    ]
+                                                                },
+                                                                "close": {
+                                                                    "type": [
+                                                                        "string",
+                                                                        "null"
+                                                                    ]
+                                                                }
+                                                            }
+                                                        },
+                                                        "allowed_methods": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "string"
+                                                            }
+                                                        }
+                                                    }
                                                 },
                                                 "payment_account_type": {
-                                                    "type": "string"
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "own_account",
+                                                        "platform_account"
+                                                    ]
                                                 },
                                                 "status": {
-                                                    "anyOf": [
-                                                        {
-                                                            "type": "string"
-                                                        },
-                                                        {
-                                                            "$ref": "#/components/schemas/StoreStatus"
-                                                        }
-                                                    ]
+                                                    "$ref": "#/components/schemas/StoreStatus"
                                                 },
                                                 "is_order_locked": {
                                                     "type": "boolean"
                                                 },
                                                 "allowed_methods": {
                                                     "type": "array",
-                                                    "items": {}
+                                                    "items": {
+                                                        "type": "string"
+                                                    }
                                                 }
                                             },
                                             "required": [
@@ -14015,6 +14571,7 @@
             },
             "post": {
                 "operationId": "ownerSettings.update",
+                "description": "`payment_settings` is an object (not a list): the delivery fee and switches, working hours and one entry per\nprovider. A provider that cannot be enabled yet (uzum, paynet) is a 422 on `payment_settings`.",
                 "summary": "Update store settings",
                 "tags": [
                     "Owner: settings"
@@ -14087,30 +14644,175 @@
                                         "minimum": 0
                                     },
                                     "payment_settings": {
-                                        "type": "array",
-                                        "items": {
-                                            "type": "object",
-                                            "properties": {
-                                                "merchant_id": {
-                                                    "type": [
-                                                        "string",
-                                                        "null"
-                                                    ],
-                                                    "maxLength": 255
-                                                },
-                                                "service_id": {
-                                                    "type": [
-                                                        "string",
-                                                        "null"
-                                                    ],
-                                                    "maxLength": 255
-                                                },
-                                                "secret_key": {
-                                                    "type": [
-                                                        "string",
-                                                        "null"
-                                                    ],
-                                                    "maxLength": 255
+                                        "type": "object",
+                                        "description": "To'lov va yetkazish sozlamalari (obyekt).",
+                                        "properties": {
+                                            "delivery_fee": {
+                                                "type": [
+                                                    "number",
+                                                    "null"
+                                                ]
+                                            },
+                                            "delivery_enabled": {
+                                                "type": [
+                                                    "boolean",
+                                                    "null"
+                                                ]
+                                            },
+                                            "pickup_enabled": {
+                                                "type": [
+                                                    "boolean",
+                                                    "null"
+                                                ]
+                                            },
+                                            "working_hours": {
+                                                "type": [
+                                                    "object",
+                                                    "null"
+                                                ],
+                                                "properties": {
+                                                    "open": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "close": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    }
+                                                }
+                                            },
+                                            "cash": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "enabled": {
+                                                        "type": "boolean"
+                                                    },
+                                                    "merchant_id": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "service_id": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "secret_key": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    }
+                                                }
+                                            },
+                                            "click": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "enabled": {
+                                                        "type": "boolean"
+                                                    },
+                                                    "merchant_id": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "service_id": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "secret_key": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    }
+                                                }
+                                            },
+                                            "payme": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "enabled": {
+                                                        "type": "boolean"
+                                                    },
+                                                    "merchant_id": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "service_id": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "secret_key": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    }
+                                                }
+                                            },
+                                            "uzum": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "enabled": {
+                                                        "type": "boolean"
+                                                    },
+                                                    "merchant_id": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "service_id": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "secret_key": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    }
+                                                }
+                                            },
+                                            "paynet": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "enabled": {
+                                                        "type": "boolean"
+                                                    },
+                                                    "merchant_id": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "service_id": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "secret_key": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    }
                                                 }
                                             }
                                         }
@@ -14286,7 +14988,7 @@
         "/v1/owner/staff": {
             "get": {
                 "operationId": "staff.index",
-                "description": "The staff the caller manages, newest first: for the owner every manager, cashier, waiter, cook and courier;\nfor a branch manager the staff below them of their branch and the store-wide ones. `login_phone_enabled`: the\nphone signs in by SMS code.",
+                "description": "The staff the caller manages, newest first: for the owner every manager, cashier, waiter, cook and courier;\nfor a branch manager the staff below them of their branch and the store-wide ones. `login_phone_enabled`: the\nphone signs in by SMS code; `login_phone_proof`: `sms` (the member proved it: it cannot be replaced or cleared\nhere) or `vouched` (written by an owner, manager or super admin), null without a login phone.",
                 "summary": "Staff list",
                 "tags": [
                     "Owner: staff"
@@ -14355,6 +15057,17 @@
                                                     "login_phone_enabled": {
                                                         "type": "boolean"
                                                     },
+                                                    "login_phone_proof": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ],
+                                                        "enum": [
+                                                            "sms",
+                                                            "vouched",
+                                                            null
+                                                        ]
+                                                    },
                                                     "has_pin": {
                                                         "type": "boolean"
                                                     },
@@ -14389,6 +15102,7 @@
                                                     "courier_type",
                                                     "phone",
                                                     "login_phone_enabled",
+                                                    "login_phone_proof",
                                                     "has_pin",
                                                     "staff_code",
                                                     "telegram_linked",
@@ -14528,6 +15242,17 @@
                                                         "login_phone_enabled": {
                                                             "type": "boolean"
                                                         },
+                                                        "login_phone_proof": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ],
+                                                            "enum": [
+                                                                "sms",
+                                                                "vouched",
+                                                                null
+                                                            ]
+                                                        },
                                                         "has_pin": {
                                                             "type": "boolean"
                                                         },
@@ -14562,6 +15287,7 @@
                                                         "courier_type",
                                                         "phone",
                                                         "login_phone_enabled",
+                                                        "login_phone_proof",
                                                         "has_pin",
                                                         "staff_code",
                                                         "telegram_linked",
@@ -14705,6 +15431,17 @@
                                                 "login_phone_enabled": {
                                                     "type": "boolean"
                                                 },
+                                                "login_phone_proof": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "enum": [
+                                                        "sms",
+                                                        "vouched",
+                                                        null
+                                                    ]
+                                                },
                                                 "has_pin": {
                                                     "type": "boolean"
                                                 },
@@ -14739,6 +15476,7 @@
                                                 "courier_type",
                                                 "phone",
                                                 "login_phone_enabled",
+                                                "login_phone_proof",
                                                 "has_pin",
                                                 "staff_code",
                                                 "telegram_linked",
@@ -15047,7 +15785,7 @@
         "/v1/owner/stop-list": {
             "get": {
                 "operationId": "stopList.index",
-                "description": "The entries in force (expired ones are not listed). Branch-bound staff always get their own branch.",
+                "description": "The entries in force (expired ones are not listed). Branch-bound staff always get their own branch. P2-30:\n`created_by_name` (who put it there) for staff with stoplist.manage; null for a menu.view reader.",
                 "summary": "A branch's stop-list",
                 "tags": [
                     "Owner: stop-list"
@@ -15119,6 +15857,13 @@
                                                                     "null"
                                                                 ]
                                                             },
+                                                            "created_by_name": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ],
+                                                                "description": "The store's own staff only (a super admin's entry shows no name)"
+                                                            },
                                                             "created_at": {
                                                                 "type": [
                                                                     "string",
@@ -15136,6 +15881,7 @@
                                                             "reason",
                                                             "until",
                                                             "created_by",
+                                                            "created_by_name",
                                                             "created_at"
                                                         ]
                                                     }
@@ -15264,6 +16010,13 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "created_by_name": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "description": "The store's own staff only (a super admin's entry shows no name)"
+                                                },
                                                 "created_at": {
                                                     "type": [
                                                         "string",
@@ -15281,6 +16034,7 @@
                                                 "reason",
                                                 "until",
                                                 "created_by",
+                                                "created_by_name",
                                                 "created_at"
                                             ]
                                         }
@@ -17330,7 +18084,7 @@
         "/v1/staff/orders": {
             "get": {
                 "operationId": "staffOrder.index",
-                "description": "The orders of the caller's branches, newest first, keyset-paginated: send `meta.next_cursor` back as `cursor`\n(with the same filters) until it is null. Filters: `branch_id` (one branch; another branch the caller does not\nwork in is 403, another store's 404), `scope` (`active`: still in progress, `history`: delivered, cancelled,\nrejected, refunded), `status` (comma-separated), `type`, `channel`, `date` or `from`/`to` (days in the store's\ntime zone, at most 93 days), `q` (the start of the order number). Needs orders.view (owner, manager, cashier,\nwaiter, cook). Contact details and the address only for orders.manage.",
+                "description": "The orders of the caller's branches, newest first, keyset-paginated: send `meta.next_cursor` back as `cursor`\n(with the same filters) until it is null. Filters: `branch_id` (one branch; another branch the caller does not\nwork in is 403, another store's 404), `scope` (`active`: still in progress, `history`: delivered, cancelled,\nrejected, refunded), `status` (comma-separated), `type`, `channel`, `date` or `from`/`to` (days in the store's\ntime zone, at most 93 days), `q` (the start of the order number). Needs orders.view (owner, manager, cashier,\nwaiter, cook). Contact details and the address only for orders.manage. P2-30: `waiting_seconds` as on the kitchen\ntickets (from acceptance, or creation, to now or to when it became ready).",
                 "summary": "Branch orders for staff (board)",
                 "tags": [
                     "Staff orders"
@@ -17763,6 +18517,9 @@
                                                             "string",
                                                             "null"
                                                         ]
+                                                    },
+                                                    "waiting_seconds": {
+                                                        "type": "integer"
                                                     }
                                                 },
                                                 "required": [
@@ -17800,7 +18557,8 @@
                                                     "accepted_at",
                                                     "preparing_at",
                                                     "ready_at",
-                                                    "closed_at"
+                                                    "closed_at",
+                                                    "waiting_seconds"
                                                 ]
                                             }
                                         },
@@ -18187,6 +18945,9 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "waiting_seconds": {
+                                                    "type": "integer"
+                                                },
                                                 "status_history": {
                                                     "type": "array",
                                                     "items": {
@@ -18252,6 +19013,7 @@
                                                 "preparing_at",
                                                 "ready_at",
                                                 "closed_at",
+                                                "waiting_seconds",
                                                 "status_history"
                                             ]
                                         }
@@ -18528,7 +19290,7 @@
         "/v1/staff/orders/{uuid}/items/{item}/recall": {
             "post": {
                 "operationId": "staffOrder.recallItem",
-                "description": "Undo a mistaken bump: the line is back to pending (kitchen.manage). Only while the order is accepted or\npreparing (422 once it is ready). Returns the ticket.",
+                "description": "Undo a mistaken bump: the line is back to pending (kitchen.manage). While the order is accepted or preparing,\nand (P2-30) while it is ready but not yet with a courier or handed over: the order goes back to preparing\n(`order.status_changed` and the history say so). 422 once a courier is assigned, it is on its way or finished.\nReturns the ticket.",
                 "summary": "Recall a line (kitchen display)",
                 "tags": [
                     "Kitchen"
@@ -18782,7 +19544,7 @@
         "/v1/staff/orders/{uuid}/status": {
             "post": {
                 "operationId": "staffOrder.updateStatus",
-                "description": "By permission (docs/AUTH.md §6): orders.manage (owner, manager, cashier, waiter) accepts, starts, marks ready and\nhands over (pickup, hall: delivered); a cook (kitchen.manage) only starts cooking (accepted → preparing) and marks\nready (preparing → ready); cancelling or rejecting needs orders.cancel and a `reason`. The order's state machine\ndecides what can follow what (422 otherwise). Couriers are assigned with POST /orders/{uuid}/assign-courier.\nMarking an order ready marks all its lines ready in the kitchen. The same status again answers 200 unchanged.",
+                "description": "By permission (docs/AUTH.md §6): orders.manage (owner, manager, cashier, waiter) accepts, starts, marks ready and\nhands over (pickup, hall: delivered); a cook (kitchen.manage) only starts cooking (accepted → preparing) and marks\nready (preparing → ready); cancelling or rejecting needs orders.cancel and a `reason`. The order's state machine\ndecides what can follow what (422 otherwise). Couriers are assigned with POST /orders/{uuid}/assign-courier.\nMarking an order ready marks all its lines ready in the kitchen. The same status again answers 200 unchanged.\nP2-30: `on_the_way` (the assigned courier picked the order up: courier_assigned → on_the_way) with\norders.assign_courier; an order without an assigned courier is a 422 (assign one first).",
                 "summary": "Change an order's status (staff)",
                 "tags": [
                     "Staff orders"
@@ -18810,6 +19572,7 @@
                                             "accepted",
                                             "preparing",
                                             "ready",
+                                            "on_the_way",
                                             "delivered",
                                             "canceled",
                                             "rejected"
@@ -19172,6 +19935,9 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "waiting_seconds": {
+                                                    "type": "integer"
+                                                },
                                                 "status_history": {
                                                     "type": "array",
                                                     "items": {
@@ -19237,6 +20003,7 @@
                                                 "preparing_at",
                                                 "ready_at",
                                                 "closed_at",
+                                                "waiting_seconds",
                                                 "status_history"
                                             ]
                                         }
@@ -19252,6 +20019,16 @@
                     },
                     "422": {
                         "$ref": "#/components/responses/ValidationException"
+                    },
+                    "403": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
                     },
                     "401": {
                         "$ref": "#/components/responses/AuthenticationException"
@@ -19628,8 +20405,12 @@
                                                     "type": "integer",
                                                     "minimum": 0
                                                 },
-                                                "total_store_debt": {},
-                                                "total_cashback_balance": {}
+                                                "total_store_debt": {
+                                                    "type": "number"
+                                                },
+                                                "total_cashback_balance": {
+                                                    "type": "number"
+                                                }
                                             },
                                             "required": [
                                                 "total_stores",
@@ -19708,13 +20489,41 @@
                                                 "regions": {
                                                     "type": "array",
                                                     "items": {
-                                                        "$ref": "#/components/schemas/Region"
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "id": {
+                                                                "type": "integer"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "id",
+                                                            "name"
+                                                        ]
                                                     }
                                                 },
                                                 "districts": {
                                                     "type": "array",
                                                     "items": {
-                                                        "$ref": "#/components/schemas/District"
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "id": {
+                                                                "type": "integer"
+                                                            },
+                                                            "region_id": {
+                                                                "type": "integer"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "id",
+                                                            "region_id",
+                                                            "name"
+                                                        ]
                                                     }
                                                 }
                                             },
@@ -19833,7 +20642,10 @@
                                                                 ]
                                                             },
                                                             "invite_link": {
-                                                                "type": "string"
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
                                                             },
                                                             "has_joined": {
                                                                 "type": "boolean"
@@ -20296,6 +21108,8 @@
         "/v1/terminal": {
             "get": {
                 "operationId": "terminal.show",
+                "description": "P2-30: `branches`, the branches whose real-time channel (`private-pos-branch.{id}`) it may join: its own branch,\nor every branch of the store for a terminal paired without one (a store-wide kitchen display subscribes to each).",
+                "summary": "GET /terminal: the terminal, its store and branch",
                 "tags": [
                     "Terminal"
                 ],
@@ -20446,12 +21260,31 @@
                                                         "id",
                                                         "name"
                                                     ]
+                                                },
+                                                "branches": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "id": {
+                                                                "type": "integer"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "id",
+                                                            "name"
+                                                        ]
+                                                    }
                                                 }
                                             },
                                             "required": [
                                                 "device",
                                                 "store",
-                                                "branch"
+                                                "branch",
+                                                "branches"
                                             ]
                                         }
                                     },
@@ -20474,9 +21307,20 @@
         "/v1/terminal/staff": {
             "get": {
                 "operationId": "terminal.staff",
+                "description": "P2-30: `role` (comma-separated, e.g. `cook,manager,owner` on a kitchen display) lists only those roles; an\nunknown role: 422.",
                 "summary": "GET /terminal/staff: who can sign in on this terminal (name, role, staff code), for the PIN pad",
                 "tags": [
                     "Terminal"
+                ],
+                "parameters": [
+                    {
+                        "name": "role",
+                        "in": "query",
+                        "description": "Comma-separated roles to list: owner, manager, cashier, waiter, cook.",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
                 ],
                 "responses": {
                     "200": {
@@ -20537,6 +21381,9 @@
                                 }
                             }
                         }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
                     },
                     "401": {
                         "$ref": "#/components/responses/AuthenticationException"
@@ -22087,6 +22934,126 @@
                     "deleted_at"
                 ],
                 "title": "ModifierGroup"
+            },
+            "ModifierGroupRequest": {
+                "type": "object",
+                "description": "The body of POST /owner/modifier-groups and PUT /owner/modifier-groups/{id} (P1-21; P2-30: a form request, so the\nOpenAPI document and the generated clients carry it). The permission (menu.manage) is the route's; the checks that\nneed the store (linked variants, bounds) stay in ModifierGroupController.",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "maxLength": 255
+                    },
+                    "name_i18n": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "additionalProperties": {
+                            "type": "string"
+                        }
+                    },
+                    "min_select": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "minimum": 0,
+                        "maximum": 50
+                    },
+                    "max_select": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "minimum": 1,
+                        "maximum": 50
+                    },
+                    "is_required": {
+                        "type": [
+                            "boolean",
+                            "null"
+                        ]
+                    },
+                    "sort_order": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ]
+                    },
+                    "is_active": {
+                        "type": [
+                            "boolean",
+                            "null"
+                        ]
+                    },
+                    "modifiers": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": [
+                                        "integer",
+                                        "null"
+                                    ]
+                                },
+                                "name": {
+                                    "type": "string",
+                                    "maxLength": 255
+                                },
+                                "name_i18n": {
+                                    "type": [
+                                        "object",
+                                        "null"
+                                    ],
+                                    "additionalProperties": {
+                                        "type": "string"
+                                    }
+                                },
+                                "price_delta": {
+                                    "type": [
+                                        "number",
+                                        "null"
+                                    ]
+                                },
+                                "max_quantity": {
+                                    "type": [
+                                        "integer",
+                                        "null"
+                                    ],
+                                    "minimum": 1,
+                                    "maximum": 50
+                                },
+                                "product_variant_id": {
+                                    "type": [
+                                        "integer",
+                                        "null"
+                                    ]
+                                },
+                                "sort_order": {
+                                    "type": [
+                                        "integer",
+                                        "null"
+                                    ]
+                                },
+                                "is_active": {
+                                    "type": [
+                                        "boolean",
+                                        "null"
+                                    ]
+                                }
+                            },
+                            "required": [
+                                "name"
+                            ]
+                        },
+                        "maxItems": 100
+                    }
+                },
+                "required": [
+                    "name"
+                ],
+                "title": "ModifierGroupRequest"
             },
             "Order": {
                 "type": "object",

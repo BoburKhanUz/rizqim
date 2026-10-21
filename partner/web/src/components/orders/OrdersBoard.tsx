@@ -87,7 +87,8 @@ export function OrdersBoard() {
     }),
     [branchId, type, channel, term],
   );
-  const timeZone = branches[0]?.working_hours.timezone ?? DEFAULT_TIME_ZONE;
+  // The store's time zone from GET /me/permissions (Tashkent's until it is known)
+  const timeZone = access?.timezone ?? DEFAULT_TIME_ZONE;
   const today = todayIn(timeZone, new Date(now));
 
   // --- Data -----------------------------------------------------------------------------------------------------

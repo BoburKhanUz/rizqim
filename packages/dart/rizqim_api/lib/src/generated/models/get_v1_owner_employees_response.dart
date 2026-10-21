@@ -4,6 +4,8 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'data44.dart';
+
 part 'get_v1_owner_employees_response.g.dart';
 
 @JsonSerializable()
@@ -19,7 +21,7 @@ class GetV1OwnerEmployeesResponse {
 
   final bool success;
   final String message;
-  final String data;
+  final List<Data44> data;
 
   Map<String, Object?> toJson() => _$GetV1OwnerEmployeesResponseToJson(this);
 }

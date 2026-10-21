@@ -7,35 +7,13 @@ part of 'data65.dart';
 // **************************************************************************
 
 Data65 _$Data65FromJson(Map<String, dynamic> json) => Data65(
-  period: Period2.fromJson(json['period'] as Map<String, dynamic>),
-  branchId: (json['branch_id'] as num?)?.toInt(),
-  summary: Summary2.fromJson(json['summary'] as Map<String, dynamic>),
-  byStatus: Map<String, int>.from(json['by_status'] as Map),
-  series: (json['series'] as List<dynamic>)
-      .map((e) => Series.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  byChannel: (json['by_channel'] as List<dynamic>)
-      .map((e) => ByChannel2.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  byBranch: (json['by_branch'] as List<dynamic>)
-      .map((e) => ByBranch.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  byPaymentMethod: (json['by_payment_method'] as List<dynamic>)
-      .map((e) => ByPaymentMethod2.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  byOrderType: (json['by_order_type'] as List<dynamic>)
-      .map((e) => ByOrderType2.fromJson(e as Map<String, dynamic>))
+  productId: (json['product_id'] as num).toInt(),
+  prices: (json['prices'] as List<dynamic>)
+      .map((e) => Prices2.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 
 Map<String, dynamic> _$Data65ToJson(Data65 instance) => <String, dynamic>{
-  'period': instance.period,
-  'branch_id': instance.branchId,
-  'summary': instance.summary,
-  'by_status': instance.byStatus,
-  'series': instance.series,
-  'by_channel': instance.byChannel,
-  'by_branch': instance.byBranch,
-  'by_payment_method': instance.byPaymentMethod,
-  'by_order_type': instance.byOrderType,
+  'product_id': instance.productId,
+  'prices': instance.prices,
 };

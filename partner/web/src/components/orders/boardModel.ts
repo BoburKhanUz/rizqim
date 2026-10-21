@@ -46,12 +46,19 @@ export function groupBoard(active: readonly StaffOrder[], finished: readonly Sta
 
 export type WaitTone = 'calm' | 'warning' | 'late';
 
-// Minutes since the order came in, and how worrying that is: a new order should be accepted within minutes, one in the
-// kitchen or on the way within half an hour (display only; the thresholds are the board's own).
-export function waitingOf(order: Pick<StaffOrder, 'status' | 'created_at'>, now: number): { minutes: number; tone: WaitTone } | null {
-  const since = time(order.created_at);
-  if (!since || columnOf(order.status) === 'done') return null;
-  const minutes = Math.max(0, Math.floor((now - since) / 60_000));
+const RUNNING = ['new', 'accepted', 'preparing'];
+
+// How long the order has waited, by the server's rule (`waiting_seconds`, the same as the kitchen display's): from its
+// acceptance (its creation while it is new), counting while it is new or in the kitchen and stopped once it was ready.
+// A running clock ticks on from the server's start time between two refreshes; a stopped one is the server's number.
+// The tone says how worrying that is: a new order should be accepted within minutes, one in the kitchen ready within
+// half an hour (display only; the thresholds are the board's own).
+export function waitingOf(order: Pick<StaffOrder, 'status' | 'created_at' | 'accepted_at' | 'waiting_seconds'>, now: number): { minutes: number; tone: WaitTone } | null {
+  const column = columnOf(order.status);
+  if (column === null || column === 'done') return null;
+  const since = time(order.accepted_at ?? order.created_at);
+  const ticking = RUNNING.includes(order.status) && since ? (now - since) / 1000 : 0;
+  const minutes = Math.max(0, Math.floor(Math.max(order.waiting_seconds, ticking) / 60));
   const [warning, late] = order.status === 'new' ? [5, 10] : [20, 40];
   return { minutes, tone: minutes >= late ? 'late' : minutes >= warning ? 'warning' : 'calm' };
 }

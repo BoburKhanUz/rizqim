@@ -10,9 +10,9 @@ V1OwnerSettingsRequestBody _$V1OwnerSettingsRequestBodyFromJson(
   Map<String, dynamic> json,
 ) => V1OwnerSettingsRequestBody(
   isOpen: json['is_open'] as bool,
-  paymentSettings: (json['payment_settings'] as List<dynamic>)
-      .map((e) => PaymentSettings.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  paymentSettings: PaymentSettings2.fromJson(
+    json['payment_settings'] as Map<String, dynamic>,
+  ),
   name: json['name'] as String?,
   timezone: json['timezone'] as String?,
   logo: json['logo'] as String?,

@@ -48,9 +48,9 @@ class StaffOrderController extends Controller
 
     private const ITEM = 'array{id: int, product_name: string, variant_name: string|null, quantity: int|float, unit: string, quantity_label: string, modifiers: list<array{name: string, group_name?: string, quantity: int, price_delta?: string}>, kitchen_status: string, ready_at: string|null, unit_price?: string, modifiers_total?: string, total_price?: string}';
 
-    private const ORDER = 'array{uuid: string, short_code: string|null, status: string, status_label: string, type: string, channel: string, store_id: int, branch_id: int|null, branch_name: string|null, payment_method: string, payment_status: string, subtotal: string, discount: string, delivery_price: string, service_charge_amount: string, place_fee_amount: string, total_price: string, notes: string|null, guests_count: int|null, hall_ref: string|null, table_ref: string|null, cancel_reason: string|null, cancel_note: string|null, customer: array{name: string|null, phone: string|null}|null, delivery: array{address: string|null, latitude: float|null, longitude: float|null, zone_name: string|null}|null, courier: array{id: int, name: string|null, phone: string|null}|null, items_total: int, items_ready: int, items: list<' . self::ITEM . '>, created_at: string|null, updated_at: string|null, accepted_at: string|null, preparing_at: string|null, ready_at: string|null, closed_at: string|null}';
+    private const ORDER = 'array{uuid: string, short_code: string|null, status: string, status_label: string, type: string, channel: string, store_id: int, branch_id: int|null, branch_name: string|null, payment_method: string, payment_status: string, subtotal: string, discount: string, delivery_price: string, service_charge_amount: string, place_fee_amount: string, total_price: string, notes: string|null, guests_count: int|null, hall_ref: string|null, table_ref: string|null, cancel_reason: string|null, cancel_note: string|null, customer: array{name: string|null, phone: string|null}|null, delivery: array{address: string|null, latitude: float|null, longitude: float|null, zone_name: string|null}|null, courier: array{id: int, name: string|null, phone: string|null}|null, items_total: int, items_ready: int, items: list<' . self::ITEM . '>, created_at: string|null, updated_at: string|null, accepted_at: string|null, preparing_at: string|null, ready_at: string|null, closed_at: string|null, waiting_seconds: int}';
 
-    private const DETAIL = 'array{uuid: string, short_code: string|null, status: string, status_label: string, type: string, channel: string, store_id: int, branch_id: int|null, branch_name: string|null, payment_method: string, payment_status: string, subtotal: string, discount: string, delivery_price: string, service_charge_amount: string, place_fee_amount: string, total_price: string, notes: string|null, guests_count: int|null, hall_ref: string|null, table_ref: string|null, cancel_reason: string|null, cancel_note: string|null, customer: array{name: string|null, phone: string|null}|null, delivery: array{address: string|null, latitude: float|null, longitude: float|null, zone_name: string|null}|null, courier: array{id: int, name: string|null, phone: string|null}|null, items_total: int, items_ready: int, items: list<' . self::ITEM . '>, created_at: string|null, updated_at: string|null, accepted_at: string|null, preparing_at: string|null, ready_at: string|null, closed_at: string|null, status_history: list<array{from_status: string|null, status: string, created_at: string|null}>}';
+    private const DETAIL = 'array{uuid: string, short_code: string|null, status: string, status_label: string, type: string, channel: string, store_id: int, branch_id: int|null, branch_name: string|null, payment_method: string, payment_status: string, subtotal: string, discount: string, delivery_price: string, service_charge_amount: string, place_fee_amount: string, total_price: string, notes: string|null, guests_count: int|null, hall_ref: string|null, table_ref: string|null, cancel_reason: string|null, cancel_note: string|null, customer: array{name: string|null, phone: string|null}|null, delivery: array{address: string|null, latitude: float|null, longitude: float|null, zone_name: string|null}|null, courier: array{id: int, name: string|null, phone: string|null}|null, items_total: int, items_ready: int, items: list<' . self::ITEM . '>, created_at: string|null, updated_at: string|null, accepted_at: string|null, preparing_at: string|null, ready_at: string|null, closed_at: string|null, waiting_seconds: int, status_history: list<array{from_status: string|null, status: string, created_at: string|null}>}';
 
     private const TICKET = 'array{uuid: string, short_code: string|null, status: string, type: string, channel: string, branch_id: int|null, hall_ref: string|null, table_ref: string|null, guests_count: int|null, notes: string|null, items_total: int, items_ready: int, items: list<' . self::ITEM . '>, created_at: string|null, accepted_at: string|null, preparing_at: string|null, ready_at: string|null, waiting_seconds: int}';
 
@@ -81,7 +81,8 @@ class StaffOrderController extends Controller
      * work in is 403, another store's 404), `scope` (`active`: still in progress, `history`: delivered, cancelled,
      * rejected, refunded), `status` (comma-separated), `type`, `channel`, `date` or `from`/`to` (days in the store's
      * time zone, at most 93 days), `q` (the start of the order number). Needs orders.view (owner, manager, cashier,
-     * waiter, cook). Contact details and the address only for orders.manage.
+     * waiter, cook). Contact details and the address only for orders.manage. P2-30: `waiting_seconds` as on the kitchen
+     * tickets (from acceptance, or creation, to now or to when it became ready).
      */
     #[QueryParameter('branch_id', description: 'One branch of the store; omit for every branch the caller works in.', type: 'int')]
     #[QueryParameter('scope', description: '`active` (in progress) or `history` (finished).', type: "'active'|'history'")]
@@ -214,6 +215,8 @@ class StaffOrderController extends Controller
      * ready (preparing → ready); cancelling or rejecting needs orders.cancel and a `reason`. The order's state machine
      * decides what can follow what (422 otherwise). Couriers are assigned with POST /orders/{uuid}/assign-courier.
      * Marking an order ready marks all its lines ready in the kitchen. The same status again answers 200 unchanged.
+     * P2-30: `on_the_way` (the assigned courier picked the order up: courier_assigned → on_the_way) with
+     * orders.assign_courier; an order without an assigned courier is a 422 (assign one first).
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . self::DETAIL . '}')]
     public function updateStatus(Request $request, string $uuid): JsonResponse
@@ -221,7 +224,7 @@ class StaffOrderController extends Controller
         $user = $this->user($request);
 
         $request->validate([
-            'status' => 'required|string|in:accepted,preparing,ready,delivered,canceled,rejected',
+            'status' => 'required|string|in:accepted,preparing,ready,on_the_way,delivered,canceled,rejected',
             'reason' => ['nullable', 'required_if:status,canceled,rejected', 'string', Rule::in(CancelReason::staffValues())],
             'note' => 'nullable|string|max:500',
         ], [
@@ -232,6 +235,16 @@ class StaffOrderController extends Controller
 
         $order = $this->find($user, $uuid, Permission::ORDERS_VIEW);
         $status = OrderStatus::from((string) $request->input('status'));
+
+        // P2-30: the pick-up is the assigned courier's; with none assigned the state machine would pick one by itself
+        if ($status === OrderStatus::ON_THE_WAY && $order->status !== OrderStatus::ON_THE_WAY) {
+            if (!$this->scope->allows($user, Permission::ORDERS_ASSIGN_COURIER, $order)) {
+                return $this->error('Ruxsat etilmagan', [], 403);
+            }
+            if ($order->courier_id === null) {
+                return $this->error('Avval buyurtmaga kuryer biriktiring.', ['reason' => 'courier_required'], 422);
+            }
+        }
 
         try {
             $result = $this->orderStatus->transition($order, $status, $user, [
@@ -320,8 +333,10 @@ class StaffOrderController extends Controller
     /**
      * Recall a line (kitchen display)
      *
-     * Undo a mistaken bump: the line is back to pending (kitchen.manage). Only while the order is accepted or
-     * preparing (422 once it is ready). Returns the ticket.
+     * Undo a mistaken bump: the line is back to pending (kitchen.manage). While the order is accepted or preparing,
+     * and (P2-30) while it is ready but not yet with a courier or handed over: the order goes back to preparing
+     * (`order.status_changed` and the history say so). 422 once a courier is assigned, it is on its way or finished.
+     * Returns the ticket.
      */
     #[Group('Kitchen')]
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . self::TICKET . '}')]

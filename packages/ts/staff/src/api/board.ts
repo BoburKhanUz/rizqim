@@ -78,7 +78,7 @@ export async function fetchStaffOrder(api: StaffApi, uuid: string): Promise<Staf
 type StaffStatusBody = JsonRequest<'staffOrder.updateStatus'>;
 // The statuses POST /staff/orders/{uuid}/status takes (the role decides which of them a person may set)
 export type StaffStatusTarget = StaffStatusBody['status'];
-export const STAFF_STATUS_TARGETS: readonly StaffStatusTarget[] = ['accepted', 'preparing', 'ready', 'delivered', 'canceled', 'rejected'];
+export const STAFF_STATUS_TARGETS: readonly StaffStatusTarget[] = ['accepted', 'preparing', 'ready', 'on_the_way', 'delivered', 'canceled', 'rejected'];
 export const isStaffStatusTarget = (status: string): status is StaffStatusTarget => (STAFF_STATUS_TARGETS as readonly string[]).includes(status);
 
 export interface StaffStatusChange {
@@ -109,7 +109,7 @@ export const BOARD_ACTION_PERMISSIONS: Record<OrderActionId, readonly string[]> 
   mark_ready: ['orders.manage', 'kitchen.manage'],
   assign_courier: ['orders.assign_courier'],
   hand_over: ['orders.manage'],
-  // courier_assigned → on_the_way is only on POST /orders/{uuid}/status (owner, manager)
+  // courier_assigned → on_the_way: the assigned courier picked it up (POST /staff/orders/{uuid}/status)
   pick_up: ['orders.assign_courier'],
   confirm_delivery: ['orders.manage'],
   cancel: ['orders.cancel'],
@@ -130,8 +130,8 @@ export interface BoardActionRequest {
   note?: string;
 }
 
-// Performs a board action on the endpoint that takes it: the staff status endpoint for what it accepts (any role with
-// the permission), assign-courier for a courier, the older POST /orders/{uuid}/status for the rest (on_the_way).
+// Performs a board action on the endpoint that takes it: assign-courier for a courier, the staff status endpoint for
+// every status a board offers (the pick-up, on_the_way, included); the courier app's own `complete` stays on /orders.
 export async function performBoardAction(api: StaffApi, request: BoardActionRequest): Promise<{ uuid: string; status: string }> {
   const { uuid, action, courierId, reason, note } = request;
   if (action.via === 'assign-courier') {

@@ -50,7 +50,9 @@ Kod cheklovlari (5 urinish, sutkasiga 30 ta, kod bir martalik) xuddi yuqoridagid
   o'zidan pastdagilarga). Bir do'konda bitta raqam bitta xodimga. Profilda kodsiz o'zgartirilgan raqam kirish raqami
   bo'lmaydi.
 - **Raqam qanday tasdiqlangani saqlanadi (P1-34)** — `users.phone_verified_via`: `sms` (egasi kodni o'zi kiritgan) yoki
-  `vouched` (ega, menejer yoki superadmin yozgan). API javoblarida ko'rinmaydi. Migratsiyadan oldin tasdiqlangan raqamlar
+  `vouched` (ega, menejer yoki superadmin yozgan). Ustunning o'zi API javoblarida ko'rinmaydi; P2-30 dan xodimlar ro'yxati
+  (`GET /owner/staff`) uni `login_phone_proof` (`sms` | `vouched` | kirish raqami bo'lmasa `null`) sifatida beradi: forma
+  `sms` raqamni oldindan qulflaydi, rad javobini kutmaydi. Migratsiyadan oldin tasdiqlangan raqamlar
   `sms` deb belgilanadi (ega yozgan raqam shu reliz bilan paydo bo'ladi). Xodimlar formasida:
   - raqam faqat forma uni haqiqatan **o'zgartirganda** kirish raqami bo'ladi: boshqa maydonni (ism, filial) saqlash xodim
     profilida o'zi yozgan raqamni tasdiqlamaydi;
@@ -174,8 +176,8 @@ Terminal endpointlari (`Authorization: Bearer <terminal token>`):
 
 | Endpoint | Nima qiladi |
 |---|---|
-| `GET /terminal` | terminal, do'kon va filial |
-| `GET /terminal/staff` | PIN o'rnatilgan, shu terminalda ishlay oladigan xodimlar (PIN klaviaturasi uchun) |
+| `GET /terminal` | terminal, do'kon va filial; P2-30: `branches` — terminal real-time kanaliga qo'shila oladigan filiallar (filialga ulangan — o'z filiali; filialsiz — do'konning hamma filiallari, KDS har biriga obuna bo'ladi) |
+| `GET /terminal/staff` | PIN o'rnatilgan, shu terminalda ishlay oladigan xodimlar (PIN klaviaturasi uchun); P2-30: `?role=cook,manager` — faqat shu rollar (noma'lum rol — 422) |
 | `POST /devices/{uuid}/staff-session` | xodim PIN bilan kiradi |
 | `DELETE /devices/{uuid}/staff-session` | terminaldagi xodimni chiqarish (ekran qulfi, smena oxiri) |
 
@@ -239,14 +241,14 @@ superadmin uchun.
 | `orders.cancel` | Buyurtmani bekor qilish yoki rad etish | ✓ | ✓ |  |  |  |  |
 | `orders.discount` | Chegirma berish | ✓ | ✓ |  |  |  |  |
 | `orders.void_item` | Taomni chekdan o'chirish | ✓ | ✓ |  |  |  |  |
-| `orders.assign_courier` | Kuryer biriktirish | ✓ | ✓ |  |  |  |  |
+| `orders.assign_courier` | Kuryer biriktirish (`GET /couriers`, `POST /orders/{uuid}/assign-courier`) va biriktirilgan kuryer olib ketganini belgilash (`on_the_way`, P2-30) | ✓ | ✓ |  |  |  |  |
 | `orders.refund` | Pulni qaytarish |  |  |  |  |  |  |
-| `kitchen.manage` | Oshxona ekrani: taom qatorini "tayyor" deb belgilash va qaytarish, buyurtmani `accepted → preparing → ready` (P2-11) | ✓ | ✓ |  |  | ✓ |  |
+| `kitchen.manage` | Oshxona ekrani: taom qatorini "tayyor" deb belgilash va qaytarish, buyurtmani `accepted → preparing → ready` (P2-11); P2-30: tayyor bo'lgan buyurtmadan taomni qaytarish (`ready → preparing`, faqat `.../recall` orqali, kuryer biriktirilmaguncha) | ✓ | ✓ |  |  | ✓ |  |
 | `deliveries.manage` | Yetkazib berish (kuryer) | ✓ |  |  |  |  | ✓ |
 | `tables.manage` | Stollarni boshqarish | ✓ | ✓ | ✓ | ✓ |  |  |
-| `menu.view` | Menyuni ko'rish | ✓ | ✓ | ✓ | ✓ | ✓ |  |
-| `menu.manage` | Menyu va narxlarni tahrirlash | ✓ |  |  |  |  |  |
-| `stoplist.manage` | Stop-list (tugadi belgisi) | ✓ | ✓ |  |  |  |  |
+| `menu.view` | Menyuni ko'rish (P2-30: `GET /owner/products`, `GET /owner/categories` ham) | ✓ | ✓ | ✓ | ✓ | ✓ |  |
+| `menu.manage` | Menyu va narxlarni tahrirlash (P2-30: `/owner/products*` ham) | ✓ |  |  |  |  |  |
+| `stoplist.manage` | Stop-list (tugadi belgisi); P2-30: ro'yxatda kim qo'shgani (`created_by_name`) | ✓ | ✓ |  |  |  |  |
 | `batches.manage` | Qozon va partiya qoldig'i: ochish, to'ldirish, yopish (P1-21, docs/MENU.md) | ✓ | ✓ |  |  | ✓ |  |
 | `staff.view` | Xodimlarni ko'rish | ✓ | ✓ |  |  |  |  |
 | `staff.manage` | Xodimlar va rollarni boshqarish | ✓ |  |  |  |  |  |
@@ -254,7 +256,7 @@ superadmin uchun.
 | `devices.view` | Qurilmalarni ko'rish | ✓ | ✓ |  |  |  |  |
 | `devices.manage` | Qurilmalarni ulash va o'chirish | ✓ | ✓ |  |  |  |  |
 | `reports.view` | Hisobotlar | ✓ | ✓ |  |  |  |  |
-| `finance.view` | Moliyani ko'rish | ✓ |  |  |  |  |  |
+| `finance.view` | Moliyani ko'rish (P2-30: `GET /owner/finance` ham) | ✓ |  |  |  |  |  |
 | `finance.manage` | Pul yechish va to'ldirish | ✓ |  |  |  |  |  |
 | `settings.manage` | Do'kon sozlamalari | ✓ |  |  |  |  |  |
 | `zones.manage` | Yetkazib berish hududlari va narxlari (docs/ZONES.md) | ✓ |  |  |  |  |  |
@@ -292,12 +294,16 @@ filialga ulangan terminaldagi PIN sessiyasi faqat shu terminal filiali bilan ish
 **Kodda.** Huquq nomi Laravel Gate'ga ulangan: `$user->can('orders.cancel', $order)`, Blade `@can`, marshrutda
 `->middleware('permission:devices.manage')`. Mavjud policy'lar ishlashda davom etadi; `OrderPolicy` va
 `ProductPolicy` shu qatlam orqali ishlaydi (standart jadval bilan ega va menejer avvalgidek). Eski buyurtma API'si
-(`/orders/*`) rolni ham tekshiradi (ega, menejer, kuryer) va o'zgarmagan. Kassir, ofitsiant va oshpaz (ega va menejer
+(`/orders/*`) rolni ham tekshiradi (ega, menejer, kuryer) va o'zgarmagan; faqat kuryerlar (`GET /couriers`,
+`POST /orders/{uuid}/assign-courier`) P2-30 dan `orders.assign_courier` ruxsati bilan (filialga biriktirilgan xodim —
+o'z filiali va filialsiz kuryerlar). Menyu (`/owner/products*`, `GET /owner/categories`) — `menu.view`/`menu.manage`,
+`GET /owner/finance` — `finance.view` (terminal PIN sessiyasidan emas); pul yechish va to'ldirish — avvalgidek ega. Kassir, ofitsiant va oshpaz (ega va menejer
 ham) buyurtmalar bilan `/staff/orders*` va `/staff/kitchen/tickets` orqali ishlaydi (P2-11, [API.md](API.md) 9.1-bo'lim):
 u yerda faqat ruxsatlar tekshiriladi. `OrderPolicy::changeStatus` ga oshxona yo'li qo'shilgan: `kitchen.manage` bilan
 `accepted → preparing` va `preparing → ready` (oshpazda `orders.manage` yo'q). Yangi ruxsat qo'shilmagan.
 
-**Ilova uchun.** `GET /me/permissions` → `{role, store_id, branch_id, branch_scoped, permissions[], device_uuid}`.
+**Ilova uchun.** `GET /me/permissions` → `{role, store_id, branch_id, branch_scoped, permissions[], device_uuid, timezone}`
+(`timezone` — do'kon vaqt mintaqasi, `orders.view` yoki `reports.view` bor xodimga; boshqalarga `null`; P2-30).
 Ilova faqat ishlaydigan tugmalarni ko'rsatadi; server baribir har bir amalni o'zi tekshiradi.
 
 **Rolni o'zgartirish.** `PUT /owner/staff/{id}/role {role, branch_id?}` (faqat ega, `staff.manage`): menejer,

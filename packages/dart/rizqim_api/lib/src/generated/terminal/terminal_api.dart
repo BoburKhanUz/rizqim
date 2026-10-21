@@ -40,10 +40,21 @@ abstract class TerminalApi {
   Future<DeleteV1DevicesDeviceUuidStaffSessionResponse>
   terminalEndStaffSession({@Path('deviceUuid') required String deviceUuid});
 
+  /// GET /terminal: the terminal, its store and branch.
+  ///
+  /// P2-30: `branches`, the branches whose real-time channel (`private-pos-branch.{id}`) it may join: its own branch,.
+  /// or every branch of the store for a terminal paired without one (a store-wide kitchen display subscribes to each).
   @GET('/v1/terminal')
   Future<GetV1TerminalResponse> terminalShow();
 
-  /// GET /terminal/staff: who can sign in on this terminal (name, role, staff code), for the PIN pad
+  /// GET /terminal/staff: who can sign in on this terminal (name, role, staff code), for the PIN pad.
+  ///
+  /// P2-30: `role` (comma-separated, e.g. `cook,manager,owner` on a kitchen display) lists only those roles; an.
+  /// unknown role: 422.
+  ///
+  /// [role] - Comma-separated roles to list: owner, manager, cashier, waiter, cook.
   @GET('/v1/terminal/staff')
-  Future<GetV1TerminalStaffResponse> terminalStaff();
+  Future<GetV1TerminalStaffResponse> terminalStaff({
+    @Query('role') String? role,
+  });
 }

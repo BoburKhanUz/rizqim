@@ -6,16 +6,10 @@ import 'package:json_annotation/json_annotation.dart';
 
 @JsonEnum()
 enum Status4 {
-  @JsonValue('accepted')
-  accepted('accepted'),
-  @JsonValue('preparing')
-  preparing('preparing'),
-  @JsonValue('ready')
-  ready('ready'),
-  @JsonValue('delivered')
-  delivered('delivered'),
-  @JsonValue('canceled')
-  canceled('canceled'),
+  @JsonValue('pending')
+  pending('pending'),
+  @JsonValue('completed')
+  completed('completed'),
   @JsonValue('rejected')
   rejected('rejected'),
 

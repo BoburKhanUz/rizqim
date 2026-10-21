@@ -72,9 +72,10 @@ abstract class OrdersApi {
     @Header('Idempotency-Key') String? idempotencyKey,
   });
 
-  /// Assign a courier to an order (owner, manager).
+  /// Assign a courier to an order (orders.assign_courier).
   ///
-  /// 403/422 when the order's status does not allow it or the courier is not the store's.
+  /// 403/422 when the order's status does not allow it or the courier is not the store's. P2-30: by permission.
+  /// (orders.assign_courier with orders.manage on this order: OrderPolicy::assignCourier), not by role.
   @POST('/v1/orders/{uuid}/assign-courier')
   Future<PostV1OrdersUuidAssignCourierResponse> orderAssignCourier({
     @Path('uuid') required String uuid,

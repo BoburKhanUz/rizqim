@@ -75,7 +75,6 @@ export {
   unwrap,
 } from './api/errors';
 export type { JsonBody, JsonRequest, OkData } from './api/types';
-export type * from './api/specGaps';
 export * from './api/orders';
 export * from './api/menu';
 export * from './api/team';

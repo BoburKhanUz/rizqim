@@ -101,8 +101,10 @@ describe('board actions', () => {
     expect(calls.map((call) => new URL(call.url).pathname)).toEqual([
       `/api/v1/staff/orders/${order.uuid}/status`,
       `/api/v1/orders/${order.uuid}/assign-courier`,
-      `/api/v1/orders/${order.uuid}/status`,
+      // P2-30: the pick-up goes to the staff endpoint too
+      `/api/v1/staff/orders/${order.uuid}/status`,
     ]);
     expect(await calls[1]!.json()).toEqual({ courier_id: 9 });
+    expect(await calls[2]!.json()).toEqual({ status: 'on_the_way' });
   });
 });

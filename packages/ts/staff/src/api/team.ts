@@ -1,14 +1,19 @@
 import type { StaffApi } from './client';
 import { unwrap } from './errors';
-import type { AssignableRole, Employee } from './specGaps';
 import type { JsonRequest, OkData } from './types';
 
 // --- Employees (owner) -----------------------------------------------------------------------------------------------
 
-// GET /owner/employees: the store's staff (the spec types the list as a string: api/specGaps.ts).
+// GET /owner/employees: the store's staff as users, with their branch (id, name) and, for one who has not joined yet,
+// the invite token of their link.
+export type Employee = OkData<'ownerEmployee.index'>[number];
+
+// The roles an owner can give (App\Enums\UserRole::assignableStaffRoles)
+export type AssignableRole = 'manager' | 'cashier' | 'waiter' | 'cook' | 'courier';
+
 export async function fetchEmployees(api: StaffApi): Promise<Employee[]> {
   const body = unwrap(await api.client.GET('/v1/owner/employees'));
-  return (body.data as unknown as Employee[] | null) ?? [];
+  return body.data ?? [];
 }
 
 export interface InviteInput {

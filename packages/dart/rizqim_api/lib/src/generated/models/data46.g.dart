@@ -7,27 +7,35 @@ part of 'data46.dart';
 // **************************************************************************
 
 Data46 _$Data46FromJson(Map<String, dynamic> json) => Data46(
-  id: (json['id'] as num).toInt(),
-  type: json['type'] as String,
-  amount: json['amount'] as String,
-  balanceBefore: json['balance_before'] as String,
-  balanceAfter: json['balance_after'] as String,
-  order: json['order'] == null
-      ? null
-      : Order.fromJson(json['order'] as Map<String, dynamic>),
-  referenceId: json['reference_id'] as String?,
-  notes: json['notes'] as String?,
-  createdAt: json['created_at'] as String,
+  debtBalance: json['debt_balance'] as num,
+  walletBalance: json['wallet_balance'] as num,
+  creditLimit: json['credit_limit'] as num,
+  minPayoutReserve: json['min_payout_reserve'] as num,
+  paymentAccountType: json['payment_account_type'] as String,
+  commissionRate: json['commission_rate'] as num,
+  status: StoreStatus.fromJson(json['status'] as String),
+  isOrderLocked: json['is_order_locked'] as bool,
+  ledgerTransactions: (json['ledger_transactions'] as List<dynamic>)
+      .map((e) => StoreTransaction.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  walletTransactions: (json['wallet_transactions'] as List<dynamic>)
+      .map((e) => StoreWalletTransaction.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  payoutRequests: (json['payout_requests'] as List<dynamic>)
+      .map((e) => PayoutRequests.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data46ToJson(Data46 instance) => <String, dynamic>{
-  'id': instance.id,
-  'type': instance.type,
-  'amount': instance.amount,
-  'balance_before': instance.balanceBefore,
-  'balance_after': instance.balanceAfter,
-  'order': instance.order,
-  'reference_id': instance.referenceId,
-  'notes': instance.notes,
-  'created_at': instance.createdAt,
+  'debt_balance': instance.debtBalance,
+  'wallet_balance': instance.walletBalance,
+  'credit_limit': instance.creditLimit,
+  'min_payout_reserve': instance.minPayoutReserve,
+  'payment_account_type': instance.paymentAccountType,
+  'commission_rate': instance.commissionRate,
+  'status': instance.status,
+  'is_order_locked': instance.isOrderLocked,
+  'ledger_transactions': instance.ledgerTransactions,
+  'wallet_transactions': instance.walletTransactions,
+  'payout_requests': instance.payoutRequests,
 };

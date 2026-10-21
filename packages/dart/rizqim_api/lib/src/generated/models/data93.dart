@@ -8,23 +8,14 @@ part 'data93.g.dart';
 
 @JsonSerializable()
 class Data93 {
-  const Data93({
-    required this.id,
-    required this.name,
-    required this.role,
-    required this.staffCode,
-    required this.photoUrl,
-  });
+  const Data93({required this.storeId, required this.inviteLink});
 
   factory Data93.fromJson(Map<String, Object?> json) => _$Data93FromJson(json);
 
-  final int id;
-  final String name;
-  final String role;
-  @JsonKey(name: 'staff_code')
-  final String? staffCode;
-  @JsonKey(name: 'photo_url')
-  final String? photoUrl;
+  @JsonKey(name: 'store_id')
+  final int storeId;
+  @JsonKey(name: 'invite_link')
+  final String inviteLink;
 
   Map<String, Object?> toJson() => _$Data93ToJson(this);
 }

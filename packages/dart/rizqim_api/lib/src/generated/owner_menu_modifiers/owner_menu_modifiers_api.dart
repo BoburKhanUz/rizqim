@@ -7,6 +7,7 @@ import 'package:retrofit/retrofit.dart';
 
 import '../models/delete_v1_owner_modifier_groups_id_response.dart';
 import '../models/get_v1_owner_modifier_groups_response.dart';
+import '../models/modifier_group_request.dart';
 import '../models/post_v1_owner_modifier_groups_response.dart';
 import '../models/put_v1_owner_modifier_groups_id_response.dart';
 import '../models/put_v1_owner_products_id_modifier_groups_response.dart';
@@ -31,7 +32,9 @@ abstract class OwnerMenuModifiersApi {
   /// price (per piece; once per line for items sold by weight). `product_variant_id` optionally links a modifier to a.
   /// variant of the store (for stock later).
   @POST('/v1/owner/modifier-groups')
-  Future<PostV1OwnerModifierGroupsResponse> modifierGroupStore();
+  Future<PostV1OwnerModifierGroupsResponse> modifierGroupStore({
+    @Body() required ModifierGroupRequest body,
+  });
 
   /// Update a modifier group.
   ///
@@ -40,6 +43,7 @@ abstract class OwnerMenuModifiersApi {
   @PUT('/v1/owner/modifier-groups/{id}')
   Future<PutV1OwnerModifierGroupsIdResponse> modifierGroupUpdate({
     @Path('id') required int id,
+    @Body() required ModifierGroupRequest body,
   });
 
   /// Delete a modifier group.
@@ -53,7 +57,8 @@ abstract class OwnerMenuModifiersApi {
   /// Set the modifier groups a product offers.
   ///
   /// Replaces the product's groups. Per product, `min_select`, `max_select` and `is_required` override the group's own.
-  /// rules (null: the group's); `sort_order` orders them.
+  /// rules (null: the group's; P2-30: a rule left out of a row keeps the product's saved one); `sort_order` orders.
+  /// them (left out: the list order). GET /owner/products returns them as `modifier_group_links`.
   @PUT('/v1/owner/products/{id}/modifier-groups')
   Future<PutV1OwnerProductsIdModifierGroupsResponse> modifierGroupSyncProduct({
     @Path('id') required int id,

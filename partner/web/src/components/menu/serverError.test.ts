@@ -13,12 +13,21 @@ describe('describeError', () => {
     expect(view.fields['variants.0.min_quantity']).toBe(message);
   });
 
-  it("puts an Uzbek sentence in place of Laravel's English rules", () => {
+  it("shows Laravel's rule messages as the server sends them (Uzbek since P2-30)", () => {
+    const view = describeError(
+      new StaffApiError(422, { message: 'Nomi majburiy. (va yana 1 ta xato)', errors: { name: ['Nomi majburiy.'], category_id: ['Kategoriya topilmadi.'] } }),
+      t,
+    );
+    expect(view.fields).toEqual({ name: 'Nomi majburiy.', category_id: 'Kategoriya topilmadi.' });
+    expect(view.message).toBe('Nomi majburiy. (va yana 1 ta xato)');
+  });
+
+  it('falls back to a general Uzbek sentence for a message that still comes in English', () => {
     const view = describeError(
       new StaffApiError(422, { message: 'The name field is required. (and 1 more error)', errors: { name: ['The name field is required.'], category_id: ['The selected category id is invalid.'] } }),
       t,
     );
-    expect(view.fields.name).toBe(t('menu_err_required'));
+    expect(view.fields.name).toBe(t('menu_err_invalid'));
     expect(view.fields.category_id).toBe(t('menu_err_invalid'));
     expect(view.message).toBe(t('menu_check_fields'));
     expect(Object.values(view.fields).some(isEnglish)).toBe(false);
@@ -37,12 +46,10 @@ describe('describeError', () => {
 });
 
 describe('localizeFieldMessage', () => {
-  it('keeps Uzbek and translates the common English rules', () => {
+  it("keeps the server's Uzbek and replaces English", () => {
     expect(localizeFieldMessage("Narx variant uchun beriladi (product_variant_id).", t)).toContain('Narx variant');
-    expect(localizeFieldMessage('The image field must be an image.', t)).toBe(t('menu_err_image'));
-    expect(localizeFieldMessage('The price field must be a number.', t)).toBe(t('menu_err_number'));
-    expect(localizeFieldMessage('The name field must not be greater than 255 characters.', t)).toBe(t('menu_err_too_big'));
-    expect(localizeFieldMessage('The quantity field must be at least 1.', t)).toBe(t('menu_err_too_small'));
+    expect(localizeFieldMessage("Rasm rasm bo'lishi kerak (jpg, png, webp...).", t)).toBe("Rasm rasm bo'lishi kerak (jpg, png, webp...).");
+    expect(localizeFieldMessage('The image field must be an image.', t)).toBe(t('menu_err_invalid'));
   });
 });
 

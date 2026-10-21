@@ -9,6 +9,7 @@ import '../models/get_v1_owner_finance_ledger_response.dart';
 import '../models/get_v1_owner_finance_wallet_response.dart';
 import '../models/get_v1_owner_payments_response.dart';
 import '../models/get_v1_owner_payouts_response.dart';
+import '../models/status4.dart';
 
 part 'owner_finance_history_api.g.dart';
 
@@ -29,12 +30,15 @@ abstract class OwnerFinanceHistoryApi {
   /// [to] - YYYY-MM-DD (do'kon vaqti).
   ///
   /// [perPage] - 1–100, standart 25.
+  ///
+  /// [page] - Sahifa raqami, 1 dan (Laravel sahifalari).
   @GET('/v1/owner/finance/ledger')
   Future<GetV1OwnerFinanceLedgerResponse> financeHistoryLedger({
     @Query('type') String? type,
     @Query('from') String? from,
     @Query('to') String? to,
     @Query('per_page') int? perPage,
+    @Query('page') int? page,
   });
 
   /// Wallet.
@@ -49,12 +53,15 @@ abstract class OwnerFinanceHistoryApi {
   /// [to] - YYYY-MM-DD (do'kon vaqti).
   ///
   /// [perPage] - 1–100, standart 25.
+  ///
+  /// [page] - Sahifa raqami, 1 dan (Laravel sahifalari).
   @GET('/v1/owner/finance/wallet')
   Future<GetV1OwnerFinanceWalletResponse> financeHistoryWallet({
     @Query('type') String? type,
     @Query('from') String? from,
     @Query('to') String? to,
     @Query('per_page') int? perPage,
+    @Query('page') int? page,
   });
 
   /// Online payments.
@@ -74,6 +81,8 @@ abstract class OwnerFinanceHistoryApi {
   /// [to] - YYYY-MM-DD (do'kon vaqti).
   ///
   /// [perPage] - 1–100, standart 25.
+  ///
+  /// [page] - Sahifa raqami, 1 dan (Laravel sahifalari).
   @GET('/v1/owner/payments')
   Future<GetV1OwnerPaymentsResponse> financeHistoryPayments({
     @Query('status') String? status,
@@ -82,6 +91,7 @@ abstract class OwnerFinanceHistoryApi {
     @Query('from') String? from,
     @Query('to') String? to,
     @Query('per_page') int? perPage,
+    @Query('page') int? page,
   });
 
   /// Payout requests.
@@ -95,11 +105,14 @@ abstract class OwnerFinanceHistoryApi {
   /// [to] - YYYY-MM-DD (do'kon vaqti).
   ///
   /// [perPage] - 1–100, standart 25.
+  ///
+  /// [page] - Sahifa raqami, 1 dan (Laravel sahifalari).
   @GET('/v1/owner/payouts')
   Future<GetV1OwnerPayoutsResponse> financeHistoryPayouts({
-    @Query('status') String? status,
+    @Query('status') Status4? status,
     @Query('from') String? from,
     @Query('to') String? to,
     @Query('per_page') int? perPage,
+    @Query('page') int? page,
   });
 }

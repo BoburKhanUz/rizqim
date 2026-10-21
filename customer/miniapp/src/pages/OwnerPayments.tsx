@@ -372,7 +372,7 @@ export default function OwnerPayments() {
                     <div className="min-w-0">
                       <span className="block text-body font-bold text-fg">{formatPrice(req.amount)}</span>
                       <span className="block text-footnote text-fg-muted">
-                        Karta: {req.card_number.replace(/(\d{4})\d{8}(\d{4})/, '$1 **** **** $2')}
+                        Karta: {req.card}
                       </span>
                     </div>
                     <div className="flex shrink-0 flex-col items-end gap-1">

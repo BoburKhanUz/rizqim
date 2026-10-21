@@ -4,18 +4,19 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'regions2.dart';
+import 'districts2.dart';
+
 part 'data91.g.dart';
 
 @JsonSerializable()
 class Data91 {
-  const Data91({required this.storeId, required this.inviteLink});
+  const Data91({required this.regions, required this.districts});
 
   factory Data91.fromJson(Map<String, Object?> json) => _$Data91FromJson(json);
 
-  @JsonKey(name: 'store_id')
-  final int storeId;
-  @JsonKey(name: 'invite_link')
-  final String inviteLink;
+  final List<Regions2> regions;
+  final List<Districts2> districts;
 
   Map<String, Object?> toJson() => _$Data91ToJson(this);
 }

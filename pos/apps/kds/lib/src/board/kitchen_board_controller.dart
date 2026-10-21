@@ -295,8 +295,9 @@ class KitchenBoardController extends ChangeNotifier {
       _replace(updated);
     } on ApiException catch (e) {
       if (entry != null) {
-        // Server rad etdi: lentaga qaytadi (masalan, tarmoq bo'lmasa keyin yana urinish mumkin) — buyurtma tayyor
-        // bo'lib bo'lgan bo'lsa (422) qaytarib bo'lmaydi, lentadan olib tashlanadi
+        // Server rad etdi: tarmoq yoki server xatosida lentaga qaytadi (keyin yana urinish mumkin). Oxirgi "tayyor"
+        // buyurtmani o'zi `ready` qilgan bo'lsa ham qaytarish ishlaydi (P2-30: buyurtma yana `preparing` bo'ladi);
+        // 422 faqat kuryer biriktirilgan, yo'lda yoki topshirilgan buyurtmada — u lentadan olib tashlanadi
         if (e.statusCode == null || e.statusCode! >= 500) {
           _recent.insert(index.clamp(0, _recent.length), entry);
         }

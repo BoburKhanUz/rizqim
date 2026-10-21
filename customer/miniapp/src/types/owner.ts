@@ -66,6 +66,8 @@ export interface PayoutRequest {
   id: number;
   store_id: number;
   amount: Decimal;
+  // The card, masked by the server ("8600 **** **** 1234"); card_number is the same masked text (P2-30)
+  card: string;
   card_number: string;
   status: PayoutStatus;
   processed_by: number | null;

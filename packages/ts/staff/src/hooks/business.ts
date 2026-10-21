@@ -35,7 +35,8 @@ import {
   type SuperadminStore,
 } from '../api/superadmin';
 import { fetchOwnerSettings, saveOwnerSettings, uploadSettingsFile, type UploadedFile } from '../api/settings';
-import type { Locations, OwnerSettings, OwnerSettingsInput } from '../api/specGaps';
+import type { OwnerSettings, OwnerSettingsInput } from '../api/settings';
+import type { Locations } from '../api/superadmin';
 import { useStaffApi } from './context';
 import { staffKeys } from './keys';
 import type { MutationExtras, QueryExtras } from './orders';

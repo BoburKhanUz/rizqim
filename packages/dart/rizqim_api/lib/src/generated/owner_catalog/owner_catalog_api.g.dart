@@ -178,6 +178,7 @@ class _OwnerCatalogApi implements OwnerCatalogApi {
     required String name,
     required int categoryId,
     required String variants,
+    int? toggleActive,
     String? description,
     bool? isActive,
     File? image,
@@ -185,7 +186,7 @@ class _OwnerCatalogApi implements OwnerCatalogApi {
     int? sortOrder,
   }) async {
     final _extra = <String, dynamic>{};
-    final queryParameters = <String, dynamic>{};
+    final queryParameters = <String, dynamic>{r'toggle_active': toggleActive};
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
     final _data = FormData();
@@ -257,6 +258,35 @@ class _OwnerCatalogApi implements OwnerCatalogApi {
     late DeleteV1OwnerProductsIdResponse _value;
     try {
       _value = DeleteV1OwnerProductsIdResponse.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
+  Future<DeleteV1OwnerProductsIdImageResponse> ownerCatalogDeleteImage({
+    required String id,
+  }) async {
+    final _extra = <String, dynamic>{};
+    final queryParameters = <String, dynamic>{};
+    final _headers = <String, dynamic>{};
+    const Map<String, dynamic>? _data = null;
+    final _options = _setStreamType<DeleteV1OwnerProductsIdImageResponse>(
+      Options(method: 'DELETE', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/v1/owner/products/${id}/image',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late DeleteV1OwnerProductsIdImageResponse _value;
+    try {
+      _value = DeleteV1OwnerProductsIdImageResponse.fromJson(_result.data!);
     } on Object catch (e, s) {
       errorLogger?.logError(e, s, _options, response: _result);
       rethrow;

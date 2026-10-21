@@ -1,10 +1,10 @@
 import { isStaffApiError } from '@rizqim/staff';
 import type { Translate } from '@/i18n';
 
-// What a failed request shows on the menu screens. The backend answers in Uzbek where the message is its own
-// ("Eng kam miqdor (0,3) qadamga (0,5) karrali bo'lishi kerak ..."), but a field rule of Laravel's (required, numeric,
-// max ...) comes in English while the backend's locale is "en". The screens show the Uzbek messages as they are and
-// put an Uzbek sentence in place of an English one.
+// What a failed request shows on the menu screens. The backend answers in Uzbek, its own messages ("Eng kam miqdor (0,3)
+// qadamga (0,5) karrali bo'lishi kerak ...") and Laravel's field rules alike (P2-30: the API's locale is uz), so the
+// screens show the server's words as they are. Only a message that still arrives in English (an older backend) is
+// replaced by a general Uzbek sentence.
 
 export interface ErrorView {
   // One line for the banner above the form
@@ -13,21 +13,14 @@ export interface ErrorView {
   fields: Record<string, string>;
 }
 
-// Laravel's default English wording: these words do not occur in the backend's own Uzbek messages
+// English wording (Laravel's defaults): these words do not occur in the backend's Uzbek messages
 const ENGLISH = /\b(the|must|field|fields|required|invalid|greater|selected|taken|not|been|characters|please|failed|unauthorized|server|error)\b/i;
 
 export const isEnglish = (message: string): boolean => ENGLISH.test(message);
 
-// An Uzbek sentence for a field rule that came in English
+// The server's field message; a general Uzbek sentence in place of one that came in English (the fallback)
 export function localizeFieldMessage(message: string, t: Translate): string {
-  if (!isEnglish(message)) return message;
-  if (/already been taken/i.test(message)) return t('menu_err_taken');
-  if (/\b(image|jpeg|jpg|png|webp|mimes|kilobytes)\b/i.test(message)) return t('menu_err_image');
-  if (/required|must be present|is missing/i.test(message)) return t('menu_err_required');
-  if (/not be greater|less than|too long|characters|maximum|may not/i.test(message)) return t('menu_err_too_big');
-  if (/greater than|at least|must be a positive|minimum/i.test(message)) return t('menu_err_too_small');
-  if (/number|numeric|integer|decimal|digits/i.test(message)) return t('menu_err_number');
-  return t('menu_err_invalid');
+  return isEnglish(message) ? t('menu_err_invalid') : message;
 }
 
 function firstMessage(value: unknown): string | undefined {

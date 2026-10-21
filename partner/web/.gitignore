@@ -11,3 +11,7 @@ coverage/
 # Written by `next dev` (agent hints from the Next.js package), not project files
 /AGENTS.md
 /CLAUDE.md
+
+# Playwright (npm run test:e2e)
+playwright-report/
+test-results/

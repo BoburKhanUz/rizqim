@@ -7,19 +7,13 @@ part of 'data78.dart';
 // **************************************************************************
 
 Data78 _$Data78FromJson(Map<String, dynamic> json) => Data78(
-  subscription: json['subscription'] == null
-      ? null
-      : Subscription.fromJson(json['subscription'] as Map<String, dynamic>),
-  commissionRate: json['commission_rate'] as num,
-  terminals: Terminals.fromJson(json['terminals'] as Map<String, dynamic>),
-  nextInvoice: json['next_invoice'] == null
-      ? null
-      : NextInvoice.fromJson(json['next_invoice'] as Map<String, dynamic>),
+  branchId: (json['branch_id'] as num).toInt(),
+  entries: (json['entries'] as List<dynamic>)
+      .map((e) => Entries.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data78ToJson(Data78 instance) => <String, dynamic>{
-  'subscription': instance.subscription,
-  'commission_rate': instance.commissionRate,
-  'terminals': instance.terminals,
-  'next_invoice': instance.nextInvoice,
+  'branch_id': instance.branchId,
+  'entries': instance.entries,
 };

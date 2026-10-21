@@ -1,0 +1,5 @@
+node_modules/
+test-results/
+playwright-report/
+# Logs, built Mini App, seed file and pid files of scripts/e2e-stack.sh
+.run/

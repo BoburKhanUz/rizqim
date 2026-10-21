@@ -40,6 +40,8 @@ class OrderStatusService
      *  - cancel_reason (CancelReason|string), required for canceled/rejected: staff pick any but payment_timeout,
      *    which is the system's (null actor) own, and no_show only for a pickup order already accepted
      *    (CancelReason::appliesTo); cancel_note: optional free text (max 500);
+     *  - kitchen_recall: KitchenService::recall takes a ready order (not yet with a courier or handed over) back to
+     *    preparing (P2-30);
      *  - customer: the actor cancels their own order (POST /orders/{uuid}/cancel): refused with 422 unless it is still
      *    new and unpaid (or already cancelled by them: a retried cancel is the no-op), and only for customer_request.
      * Requesting the current status is a no-op (changed = false), so retries never repeat side effects.
@@ -83,9 +85,12 @@ class OrderStatusService
                 throw OrderTransitionException::stale($from, $to);
             }
 
-            // Same status with another courier: only a waiting assignment can be handed to someone else
+            // Same status with another courier: only a waiting assignment can be handed to someone else.
+            // P2-30: ready -> preparing is not a move of the state machine: only the kitchen's recall of a line
+            // (KitchenService::recall, option kitchen_recall) takes an order that became ready back to the kitchen
             $reassign = $from === $to;
-            if (($reassign && $to !== OrderStatus::COURIER_ASSIGNED) || (!$reassign && !$from->canTransitionTo($to, $order->type))) {
+            $recall = !empty($options['kitchen_recall']) && $from === OrderStatus::READY && $to === OrderStatus::PREPARING;
+            if (($reassign && $to !== OrderStatus::COURIER_ASSIGNED) || (!$reassign && !$recall && !$from->canTransitionTo($to, $order->type))) {
                 throw OrderTransitionException::illegal($from, $to);
             }
 
@@ -224,7 +229,7 @@ class OrderStatusService
 
     /**
      * Staff an order of this store may be handed to: couriers, managers and owners (who stand in for couriers);
-     * a branch manager only picks from their branch, store-wide staff or the owner. Invited couriers and managers
+     * an assigner tied to a branch (a branch manager) only picks from their branch, store-wide staff or the owner. Invited couriers and managers
      * count only once they joined; owners can always act from the admin panel.
      *
      * @return Builder<User>
@@ -238,7 +243,8 @@ class OrderStatusService
                 $query->where('role', UserRole::OWNER->value)
                     ->orWhere(fn (Builder $query) => $this->joined($query));
             })
-            ->when($assigner?->role === UserRole::MANAGER && $assigner->branch_id, function (Builder $query) use ($assigner) {
+            // P2-30: anyone tied to a branch who may assign (a manager by default; any role the store grants it to)
+            ->when($assigner !== null && app(\App\Services\Auth\PermissionService::class)->isBranchScoped($assigner), function (Builder $query) use ($assigner) {
                 $query->where(function (Builder $query) use ($assigner) {
                     $query->where('branch_id', $assigner->branch_id)
                         ->orWhereNull('branch_id')

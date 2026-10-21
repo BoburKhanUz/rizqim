@@ -26,6 +26,7 @@ class _OwnerFinanceHistoryApi implements OwnerFinanceHistoryApi {
     String? from,
     String? to,
     int? perPage,
+    int? page,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{
@@ -33,6 +34,7 @@ class _OwnerFinanceHistoryApi implements OwnerFinanceHistoryApi {
       r'from': from,
       r'to': to,
       r'per_page': perPage,
+      r'page': page,
     };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
@@ -64,6 +66,7 @@ class _OwnerFinanceHistoryApi implements OwnerFinanceHistoryApi {
     String? from,
     String? to,
     int? perPage,
+    int? page,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{
@@ -71,6 +74,7 @@ class _OwnerFinanceHistoryApi implements OwnerFinanceHistoryApi {
       r'from': from,
       r'to': to,
       r'per_page': perPage,
+      r'page': page,
     };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
@@ -104,6 +108,7 @@ class _OwnerFinanceHistoryApi implements OwnerFinanceHistoryApi {
     String? from,
     String? to,
     int? perPage,
+    int? page,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{
@@ -113,6 +118,7 @@ class _OwnerFinanceHistoryApi implements OwnerFinanceHistoryApi {
       r'from': from,
       r'to': to,
       r'per_page': perPage,
+      r'page': page,
     };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
@@ -140,17 +146,19 @@ class _OwnerFinanceHistoryApi implements OwnerFinanceHistoryApi {
 
   @override
   Future<GetV1OwnerPayoutsResponse> financeHistoryPayouts({
-    String? status,
+    Status4? status,
     String? from,
     String? to,
     int? perPage,
+    int? page,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{
-      r'status': status,
+      r'status': status?.toJson(),
       r'from': from,
       r'to': to,
       r'per_page': perPage,
+      r'page': page,
     };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};

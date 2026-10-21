@@ -4,47 +4,19 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'period2.dart';
-import 'summary2.dart';
-import 'series.dart';
-import 'by_channel2.dart';
-import 'by_branch.dart';
-import 'by_payment_method2.dart';
-import 'by_order_type2.dart';
+import 'prices2.dart';
 
 part 'data65.g.dart';
 
 @JsonSerializable()
 class Data65 {
-  const Data65({
-    required this.period,
-    required this.branchId,
-    required this.summary,
-    required this.byStatus,
-    required this.series,
-    required this.byChannel,
-    required this.byBranch,
-    required this.byPaymentMethod,
-    required this.byOrderType,
-  });
+  const Data65({required this.productId, required this.prices});
 
   factory Data65.fromJson(Map<String, Object?> json) => _$Data65FromJson(json);
 
-  final Period2 period;
-  @JsonKey(name: 'branch_id')
-  final int? branchId;
-  final Summary2 summary;
-  @JsonKey(name: 'by_status')
-  final Map<String, int> byStatus;
-  final List<Series> series;
-  @JsonKey(name: 'by_channel')
-  final List<ByChannel2> byChannel;
-  @JsonKey(name: 'by_branch')
-  final List<ByBranch> byBranch;
-  @JsonKey(name: 'by_payment_method')
-  final List<ByPaymentMethod2> byPaymentMethod;
-  @JsonKey(name: 'by_order_type')
-  final List<ByOrderType2> byOrderType;
+  @JsonKey(name: 'product_id')
+  final int productId;
+  final List<Prices2> prices;
 
   Map<String, Object?> toJson() => _$Data65ToJson(this);
 }

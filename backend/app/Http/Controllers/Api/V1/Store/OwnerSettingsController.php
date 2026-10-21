@@ -4,11 +4,15 @@ namespace App\Http\Controllers\Api\V1\Store;
 
 use App\Http\Controllers\Controller;
 use Dedoc\Scramble\Attributes\Group;
+use Dedoc\Scramble\Attributes\BodyParameter;
+use Dedoc\Scramble\Attributes\IgnoreParam;
+use Dedoc\Scramble\Attributes\Response as ApiDocResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use App\Traits\ApiResponse;
 use App\Models\Store;
 use App\Enums\UserRole;
+use App\Enums\StoreStatus;
 use Illuminate\Validation\ValidationException;
 
 #[Group('Owner: settings', "Do'kon sozlamalari va fayl yuklash (ega).")]
@@ -16,9 +20,20 @@ class OwnerSettingsController extends Controller
 {
     use ApiResponse;
 
+    /** A payment provider as the owner sees it: secrets never, only whether one is set (has_secret_key...). */
+    private const PROVIDER_OUT = 'array{enabled?: bool, merchant_id?: string|null, service_id?: string|null, available?: bool, has_secret_key?: bool}';
+
+    /** The store's payment_settings JSON as GET /owner/settings sends it (a legacy provider may be a bare boolean). */
+    private const SETTINGS_OUT = 'array{cash?: bool|' . self::PROVIDER_OUT . ', click?: bool|' . self::PROVIDER_OUT . ', payme?: bool|' . self::PROVIDER_OUT . ', uzum?: bool|' . self::PROVIDER_OUT . ', paynet?: bool|' . self::PROVIDER_OUT . ', delivery_fee?: float|int|string, delivery_enabled?: bool, pickup_enabled?: bool, working_hours?: array{open?: string|null, close?: string|null}, allowed_methods?: list<string>}';
+
+    /** A provider in POST /owner/settings: `enabled`; with an own merchant account its credentials (a blank or masked secret keeps the stored one). */
+    private const PROVIDER_IN = 'array{enabled?: bool, merchant_id?: string|null, service_id?: string|null, secret_key?: string|null}';
+
+
     /**
      * Get store settings.
      */
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{id: int, name: string, timezone: string, logo: string|null, logo_url: string|null, banner: string|null, banner_url: string|null, description: string|null, phone: string|null, address: string|null, location_url: string|null, is_open: bool, min_order_amount: float, payment_settings: ' . self::SETTINGS_OUT . ', payment_account_type: \'own_account\'|\'platform_account\', status: StoreStatus, is_order_locked: bool, allowed_methods: list<string>}}')]
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -65,7 +80,21 @@ class OwnerSettingsController extends Controller
 
     /**
      * Update store settings.
+     *
+     * `payment_settings` is an object (not a list): the delivery fee and switches, working hours and one entry per
+     * provider. A provider that cannot be enabled yet (uzum, paynet) is a 422 on `payment_settings`.
      */
+    // The nested rules below describe the object (BodyParameter); left in, Scramble would fold them into a list
+    #[IgnoreParam('payment_settings.delivery_fee')]
+    #[IgnoreParam('payment_settings.delivery_enabled')]
+    #[IgnoreParam('payment_settings.pickup_enabled')]
+    #[IgnoreParam('payment_settings.working_hours')]
+    #[IgnoreParam('payment_settings.working_hours.open')]
+    #[IgnoreParam('payment_settings.working_hours.close')]
+    #[IgnoreParam('payment_settings.*.merchant_id')]
+    #[IgnoreParam('payment_settings.*.service_id')]
+    #[IgnoreParam('payment_settings.*.secret_key')]
+    #[BodyParameter('payment_settings', description: "To'lov va yetkazish sozlamalari (obyekt).", required: true, infer: false, type: 'array{delivery_fee?: float|null, delivery_enabled?: bool|null, pickup_enabled?: bool|null, working_hours?: array{open?: string|null, close?: string|null}|null, cash?: ' . self::PROVIDER_IN . ', click?: ' . self::PROVIDER_IN . ', payme?: ' . self::PROVIDER_IN . ', uzum?: ' . self::PROVIDER_IN . ', paynet?: ' . self::PROVIDER_IN . '}')]
     public function update(Request $request): JsonResponse
     {
         $user = $request->user();

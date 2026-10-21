@@ -15,6 +15,7 @@ class Data31 {
     required this.name,
     required this.description,
     required this.imageUrl,
+    required this.batchTracked,
     required this.variants,
   });
 
@@ -26,6 +27,10 @@ class Data31 {
   final String? description;
   @JsonKey(name: 'image_url')
   final String? imageUrl;
+
+  /// P2-30: sold from a batch (kazan): without an open batch on the branch it is sold out (docs/MENU.md §4)
+  @JsonKey(name: 'batch_tracked')
+  final bool batchTracked;
   final List<Variants> variants;
 
   Map<String, Object?> toJson() => _$Data31ToJson(this);

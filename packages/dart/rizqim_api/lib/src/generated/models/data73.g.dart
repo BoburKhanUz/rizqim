@@ -13,10 +13,13 @@ Data73 _$Data73FromJson(Map<String, dynamic> json) => Data73(
   roleLabel: json['role_label'] as String,
   branch: json['branch'] == null
       ? null
-      : Branch9.fromJson(json['branch'] as Map<String, dynamic>),
+      : Branch8.fromJson(json['branch'] as Map<String, dynamic>),
   courierType: json['courier_type'] as String?,
   phone: json['phone'] as String?,
   loginPhoneEnabled: json['login_phone_enabled'] as bool,
+  loginPhoneProof: json['login_phone_proof'] == null
+      ? null
+      : LoginPhoneProof.fromJson(json['login_phone_proof'] as String?),
   hasPin: json['has_pin'] as bool,
   staffCode: json['staff_code'] as String?,
   telegramLinked: json['telegram_linked'] as bool,
@@ -34,6 +37,7 @@ Map<String, dynamic> _$Data73ToJson(Data73 instance) => <String, dynamic>{
   'courier_type': instance.courierType,
   'phone': instance.phone,
   'login_phone_enabled': instance.loginPhoneEnabled,
+  'login_phone_proof': instance.loginPhoneProof,
   'has_pin': instance.hasPin,
   'staff_code': instance.staffCode,
   'telegram_linked': instance.telegramLinked,

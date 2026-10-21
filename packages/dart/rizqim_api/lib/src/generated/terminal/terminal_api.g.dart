@@ -148,9 +148,10 @@ class _TerminalApi implements TerminalApi {
   }
 
   @override
-  Future<GetV1TerminalStaffResponse> terminalStaff() async {
+  Future<GetV1TerminalStaffResponse> terminalStaff({String? role}) async {
     final _extra = <String, dynamic>{};
-    final queryParameters = <String, dynamic>{};
+    final queryParameters = <String, dynamic>{r'role': role};
+    queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
     const Map<String, dynamic>? _data = null;
     final _options = _setStreamType<GetV1TerminalStaffResponse>(

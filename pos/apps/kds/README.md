@@ -103,6 +103,12 @@ chegaralar, optimistik "tayyor" va xatoda orqaga qaytish, qaytarish, "Hammasi ta
 rejimi, "Aloqa yo'q", polling, ovoz va ovozsiz, ustunlar va overflow, 48px tugmalar, sozlamalar); real-time (terminal
 tokeni bilan imzo, PIN'siz ishlashi, hodisada darhol yangilanish, uzilish — backoff — polling — qayta ulanib yangilash).
 
+**Haqiqiy HTTP/WebSocket bilan integratsiya testi (P2-31)** — `test/kds_over_http_test.dart`: ilovaning o'z Dio klienti va Pusher
+klienti loopback'dagi `FakeKdsServer` (`test/fake_server/fake_kds_server.dart`, `dart:io` `HttpServer` + WebSocket) bilan haqiqiy
+socket orqali gaplashadi. Oqim: ulash kodi → PIN → doska → yangi buyurtma **socket hodisasi** bilan keladi (widget testning soati
+soxta, shuning uchun polling navbat olmaydi) → ikkala taom "tayyor" → server buyurtmani `ready` qiladi va u doskadan ketadi. Haqiqiy
+tarmoq kutish `tester.runAsync` + `pump` bilan (`eventually`); test ~4 soniya, CI'dagi `flutter test` bilan birga ishlaydi.
+
 ### Linux'da soxta server bilan ishga tushirish
 
 ```bash

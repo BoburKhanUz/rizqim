@@ -102,6 +102,8 @@ class StaffOrderPresenter
             'preparing_at' => $times['preparing_at']?->toJSON(),
             'ready_at' => $times['ready_at']?->toJSON(),
             'closed_at' => $times['closed_at']?->toJSON(),
+            // P2-30: the kitchen tickets' rule, so a board shows the same wait as the kitchen display
+            'waiting_seconds' => $this->waitingSeconds($order, $times),
         ];
 
         if ($detail) {
@@ -128,10 +130,6 @@ class StaffOrderPresenter
         $times = $this->times($order);
         $items = $order->items->sortBy('id')->values();
 
-        $start = $times['accepted_at'] ?? $order->created_at;
-        $cooking = in_array($order->status, [OrderStatus::NEW, OrderStatus::ACCEPTED, OrderStatus::PREPARING], true);
-        $end = !$cooking && $times['ready_at'] !== null ? $times['ready_at'] : ($now ?? now());
-
         return [
             'uuid' => (string) $order->uuid,
             'short_code' => $order->short_code,
@@ -150,8 +148,25 @@ class StaffOrderPresenter
             'accepted_at' => $times['accepted_at']?->toJSON(),
             'preparing_at' => $times['preparing_at']?->toJSON(),
             'ready_at' => $times['ready_at']?->toJSON(),
-            'waiting_seconds' => $start !== null ? max(0, (int) $start->diffInSeconds($end, false)) : 0,
+            'waiting_seconds' => $this->waitingSeconds($order, $times, $now),
         ];
+    }
+
+    /**
+     * How long the order has waited: from acceptance (creation for an order never accepted) to now while it is new or
+     * being cooked, else to when it became ready (or closed, if it never was): P2-11 kitchen tickets, P2-30 the board.
+     *
+     * @param  array{accepted_at: ?CarbonInterface, preparing_at: ?CarbonInterface, ready_at: ?CarbonInterface, closed_at: ?CarbonInterface}  $times
+     */
+    public function waitingSeconds(Order $order, array $times, ?Carbon $now = null): int
+    {
+        $start = $times['accepted_at'] ?? $order->created_at;
+        $cooking = in_array($order->status, [OrderStatus::NEW, OrderStatus::ACCEPTED, OrderStatus::PREPARING], true);
+        // A finished order that never passed `ready` (a pickup handed over from the kitchen, a cancelled one) stops when
+        // it closed, so a history row does not keep counting
+        $end = $cooking ? ($now ?? now()) : ($times['ready_at'] ?? $times['closed_at'] ?? $now ?? now());
+
+        return $start !== null ? max(0, (int) $start->diffInSeconds($end, false)) : 0;
     }
 
     /**

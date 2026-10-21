@@ -13,7 +13,10 @@ use App\Models\StoreWalletTransaction;
 use App\Models\PayoutRequest;
 use App\Services\Finance\LedgerService;
 use App\Support\Money;
+use App\Support\PayoutView;
+use Dedoc\Scramble\Attributes\Response as ApiDocResponse;
 use App\Enums\UserRole;
+use App\Enums\StoreStatus;
 
 #[Group('Owner: finance', "Balans, tranzaksiyalar, pul yechish va to'ldirish (ega).")]
 class OwnerFinanceController extends Controller
@@ -22,14 +25,14 @@ class OwnerFinanceController extends Controller
 
     /**
      * Get store balance details and recent financial transactions.
+     *
+     * finance.view (the owner; an owner may grant it to managers), never from a terminal PIN session. The balances are
+     * numbers (as since v1); every other amount is a two-decimal string. Card numbers are masked, in notes too.
      */
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{debt_balance: float, wallet_balance: float, credit_limit: float, min_payout_reserve: float, payment_account_type: string, commission_rate: float, status: StoreStatus, is_order_locked: bool, ledger_transactions: list<StoreTransaction>, wallet_transactions: list<StoreWalletTransaction>, payout_requests: list<' . PayoutView::LEGACY_SHAPE . '>}}')]
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
-
-        if ($user->role !== UserRole::OWNER) {
-            return $this->error('Ruxsat etilmagan', [], 403);
-        }
 
         $store = $user->store;
 
@@ -64,15 +67,19 @@ class OwnerFinanceController extends Controller
             'commission_rate' => (float) $store->commissionRate(), // P1-23: the rate actually charged (tariff plan or the store's own)
             'status' => $store->status->value ?? $store->status,
             'is_order_locked' => $store->is_order_locked,
-            'ledger_transactions' => $ledgerTransactions,
-            'wallet_transactions' => $walletTransactions,
-            'payout_requests' => $payoutRequests,
+            // P2-30: a payout's wallet row notes the card it went to; never the full number
+            'ledger_transactions' => $ledgerTransactions->each(fn (StoreTransaction $row) => $row->setAttribute('notes', PayoutView::maskCardsIn($row->notes))),
+            'wallet_transactions' => $walletTransactions->each(fn (StoreWalletTransaction $row) => $row->setAttribute('notes', PayoutView::maskCardsIn($row->notes))),
+            'payout_requests' => $payoutRequests->map(fn (PayoutRequest $payout) => PayoutView::presentLegacy($payout))->values(),
         ]);
     }
 
     /**
      * Create a new payout request.
+     *
+     * Answers the request in the shape of GET /owner/payouts (card masked), never the stored card number.
      */
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . PayoutView::LEGACY_SHAPE . '}')]
     public function requestPayout(Request $request, LedgerService $ledger): JsonResponse
     {
         $user = $request->user();
@@ -105,7 +112,7 @@ class OwnerFinanceController extends Controller
             return $this->error($e->getMessage(), [], 422);
         }
 
-        return $this->success($payout, 'Payout so\'rovi muvaffaqiyatli yuborildi.');
+        return $this->success(PayoutView::presentLegacy($payout), 'Payout so\'rovi muvaffaqiyatli yuborildi.');
     }
 
     /**

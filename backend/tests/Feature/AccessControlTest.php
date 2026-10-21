@@ -77,14 +77,16 @@ class AccessControlTest extends TestCase
     public function test_role_middleware_guards_sensitive_routes_independently_of_controllers(): void
     {
         $expected = [
-            ['GET', 'api/v1/owner/finance', 'role:owner'],
+            // P2-30: by permission (an owner may grant finance.view / menu.view to managers)
+            ['GET', 'api/v1/owner/finance', 'permission:finance.view'],
             ['POST', 'api/v1/owner/payouts', 'role:owner'],
             ['POST', 'api/v1/owner/finance/top-up', 'role:owner'],
             ['GET', 'api/v1/owner/settings', 'role:owner'],
             ['POST', 'api/v1/owner/settings', 'role:owner'],
             ['POST', 'api/v1/owner/settings/upload', 'role:owner'],
             ['POST', 'api/v1/owner/employees/invite', 'role:owner'],
-            ['POST', 'api/v1/owner/products', 'role:owner'],
+            ['POST', 'api/v1/owner/products', 'permission:menu.manage'],
+            ['GET', 'api/v1/owner/products', 'permission:menu.view'],
             ['POST', 'api/v1/owner/branch-variants', 'role:owner,manager'],
             ['POST', 'api/v1/owner/categories', 'role:super_admin'],
             ['GET', 'api/v1/superadmin/dashboard', 'role:super_admin'],
@@ -114,7 +116,8 @@ class AccessControlTest extends TestCase
             ['getJson', '/api/v1/owner/settings', []],
             ['postJson', '/api/v1/owner/settings', ['is_open' => false, 'payment_settings' => ['delivery_fee' => 77777]]],
             ['getJson', '/api/v1/owner/employees', []],
-            ['getJson', '/api/v1/owner/products', []],
+            // P2-30: GET /owner/products is menu.view (a manager reads the menu); writing it stays the owner's
+            ['postJson', '/api/v1/owner/products', ['name' => 'X', 'category_id' => 1, 'variants' => '[]']],
         ];
 
         foreach ([UserRole::MANAGER, UserRole::COURIER, UserRole::CUSTOMER, UserRole::SUPER_ADMIN] as $role) {

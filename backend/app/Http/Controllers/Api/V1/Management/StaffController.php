@@ -25,7 +25,7 @@ use Illuminate\Validation\ValidationException;
 #[Group('Owner: staff', "Xodimlar ro'yxati, xodim qo'shish, ismi, filiali va kirish telefoni (P2-12).")]
 class StaffController extends ManagementController
 {
-    private const STAFF = 'array{id: int, name: string, role: string, role_label: string, branch: array{id: int, name: string}|null, courier_type: string|null, phone: string|null, login_phone_enabled: bool, has_pin: bool, staff_code: string|null, telegram_linked: bool, invite_pending: bool, can_edit: bool, created_at: string|null}';
+    private const STAFF = 'array{id: int, name: string, role: string, role_label: string, branch: array{id: int, name: string}|null, courier_type: string|null, phone: string|null, login_phone_enabled: bool, login_phone_proof: \'sms\'|\'vouched\'|null, has_pin: bool, staff_code: string|null, telegram_linked: bool, invite_pending: bool, can_edit: bool, created_at: string|null}';
 
     public function __construct(
         \App\Services\Auth\PermissionService $permissions,
@@ -39,7 +39,8 @@ class StaffController extends ManagementController
      *
      * The staff the caller manages, newest first: for the owner every manager, cashier, waiter, cook and courier;
      * for a branch manager the staff below them of their branch and the store-wide ones. `login_phone_enabled`: the
-     * phone signs in by SMS code.
+     * phone signs in by SMS code; `login_phone_proof`: `sms` (the member proved it: it cannot be replaced or cleared
+     * here) or `vouched` (written by an owner, manager or super admin), null without a login phone.
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: list<' . self::STAFF . '>}')]
     public function index(Request $request): JsonResponse
@@ -247,6 +248,9 @@ class StaffController extends ManagementController
             'courier_type' => $user->role === UserRole::COURIER ? $this->courierType($user) : null,
             'phone' => $user->phone,
             'login_phone_enabled' => StaffPhoneLoginService::loginPhone($user) !== null,
+            // P2-30: how the login phone was proven: `sms` (the member typed the code: the form cannot replace or clear
+            // it) or `vouched` (an owner, manager or super admin wrote it); null without a login phone
+            'login_phone_proof' => StaffPhoneLoginService::loginPhone($user) !== null && in_array($user->phone_verified_via, ['sms', 'vouched'], true) ? $user->phone_verified_via : null,
             'has_pin' => $user->hasPin(),
             'staff_code' => $user->staff_code,
             'telegram_linked' => $telegramId !== '' && !str_starts_with($telegramId, 'temp_'),

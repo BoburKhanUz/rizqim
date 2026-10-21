@@ -16,6 +16,7 @@ use App\Models\Device;
 use App\Services\Idempotency\IdempotencyService;
 use Illuminate\Support\Facades\DB;
 use App\Enums\OrderStatus;
+use App\Enums\UserRole;
 use App\Models\Order;
 use App\Services\Notifications\NotificationFeedService;
 use App\Services\Notifications\OrderAlertService;
@@ -384,9 +385,10 @@ class OrderController extends Controller
     }
 
     /**
-     * Couriers an order can be assigned to (owner, manager)
+     * Couriers an order can be assigned to (orders.assign_courier)
      *
-     * The store's couriers (and staff who deliver), with a label for their role.
+     * The store's couriers (and staff who deliver), with a label for their role. P2-30: by the orders.assign_courier
+     * permission (owner and manager by default), not the role; staff tied to a branch get their branch's couriers.
      */
     #[Group('Couriers')]
     #[QueryParameter('branch_id', description: "Owner only: that branch's couriers plus those of no branch. A manager always gets their own branch.", type: 'int')]
@@ -397,8 +399,8 @@ class OrderController extends Controller
             return $this->error('Unauthorized.', [], 401);
         }
 
-        $userRole = $user->role->value ?? null; // null for an in-memory user created without a role
-        if (!in_array($userRole, ['owner', 'manager']) || !$user->store_id) {
+        // The permission is the route's; couriers and customers never hold it
+        if (!$user->store_id || !$user->role->isStoreStaff() || $user->role === UserRole::COURIER) {
             return $this->error('Ruxsat etilmagan.', [], 403);
         }
 
@@ -406,9 +408,10 @@ class OrderController extends Controller
     }
 
     /**
-     * Assign a courier to an order (owner, manager)
+     * Assign a courier to an order (orders.assign_courier)
      *
-     * 403/422 when the order's status does not allow it or the courier is not the store's.
+     * 403/422 when the order's status does not allow it or the courier is not the store's. P2-30: by permission
+     * (orders.assign_courier with orders.manage on this order: OrderPolicy::assignCourier), not by role.
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: Order}')]
     public function assignCourier(Request $request, string $uuid): JsonResponse
@@ -418,9 +421,8 @@ class OrderController extends Controller
             return $this->error('Unauthorized.', [], 401);
         }
 
-        $userRole = $user->role->value ?? null; // null for an in-memory user created without a role
-        if (!in_array($userRole, ['owner', 'manager'])) {
-            return $this->error('Unauthorized.', [], 403);
+        if (!$user->role->isStoreStaff() || $user->role === UserRole::COURIER) {
+            return $this->error('Ruxsat etilmagan', [], 403);
         }
 
         $request->validate([

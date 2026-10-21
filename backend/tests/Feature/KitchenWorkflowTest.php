@@ -139,8 +139,7 @@ class KitchenWorkflowTest extends TestCase
         $this->assertSame(OrderStatus::READY, $order->fresh()->status);
         $this->assertSame(['new', 'accepted', 'preparing', 'ready'], $order->statusHistories()->orderBy('id')->pluck('status')->map->value->all());
 
-        // Once ready nothing can be recalled or bumped
-        $this->bump($this->cook, $order, $osh, 'recall')->assertUnprocessable()->assertJsonPath('data.reason', 'kitchen_status');
+        // A recall once it is ready: test_a_line_recalled_after_the_order_became_ready_takes_it_back_to_the_kitchen (P2-30)
 
         // Four line changes, two status changes; payloads carry ids and kitchen state only
         Event::assertDispatchedTimes(KitchenItemStatusChangedBroadcast::class, 4);
@@ -163,6 +162,55 @@ class KitchenWorkflowTest extends TestCase
         $this->assertStringNotContainsString($this->customer->phone, $json);
         $this->assertStringNotContainsString('Amir Temur', $json);
         $this->assertStringNotContainsString('Cheeseburger', $json);
+    }
+
+    /**
+     * P2-30: the last bump made the pickup order ready, then the cook finds a line was not ready after all: the recall
+     * takes the order back to preparing (kitchen.manage only, through the recall only), and the next last bump makes
+     * it ready again. Once it is handed over (or with a courier) nothing can be recalled.
+     */
+    public function test_a_line_recalled_after_the_order_became_ready_takes_it_back_to_the_kitchen(): void
+    {
+        Event::fake([KitchenItemStatusChangedBroadcast::class, OrderStatusChangedBroadcast::class]);
+        $order = $this->orderWithItems(OrderStatus::ACCEPTED);
+        [$burger, $osh] = $order->items->sortBy('id')->values()->all();
+        $this->bump($this->cook, $order, $burger)->assertOk();
+        $this->bump($this->cook, $order, $osh)->assertOk()->assertJsonPath('data.status', 'ready');
+
+        // Neither a cashier (no kitchen.manage) nor the status endpoint takes a ready order back to the kitchen
+        $this->bump($this->cashier, $order, $osh, 'recall')->assertForbidden();
+        $this->move($this->cook, $order, 'preparing')->assertUnprocessable();
+        $this->move($this->manager, $order, 'preparing')->assertUnprocessable();
+        $this->assertSame(OrderStatus::READY, $order->fresh()->status);
+
+        $this->bump($this->cook, $order, $osh, 'recall')->assertOk()
+            ->assertJsonPath('message', 'Taom qaytarildi.')
+            ->assertJsonPath('data.status', 'preparing')
+            ->assertJsonPath('data.items_ready', 1)
+            ->assertJsonPath('data.items.1.kitchen_status', 'pending');
+        $this->assertSame(OrderStatus::PREPARING, $order->fresh()->status);
+        $this->assertNull($osh->fresh()->ready_at);
+        $this->assertSame(['new', 'accepted', 'preparing', 'ready', 'preparing'], $order->statusHistories()->orderBy('id')->pluck('status')->map->value->all());
+        $this->assertTrue(AuditLog::where('action', 'order.status_changed')->where('model_id', $order->id)->where('after->status', 'preparing')->exists());
+        Event::assertDispatched(OrderStatusChangedBroadcast::class, fn ($event) => $event->broadcastWith()['order']['status'] === 'preparing');
+
+        // The next last bump: ready again
+        $this->bump($this->cook, $order, $osh)->assertOk()->assertJsonPath('data.status', 'ready');
+
+        // Handed over: too late
+        $this->move($this->cashier, $order, 'delivered')->assertOk();
+        $this->bump($this->cook, $order, $osh, 'recall')->assertUnprocessable()->assertJsonPath('data.reason', 'kitchen_status');
+        $this->assertSame(OrderStatus::DELIVERED, $order->fresh()->status);
+
+        // A delivery order already with a courier: too late as well
+        $delivery = $this->orderWithItems(OrderStatus::ACCEPTED, ['order_type' => 'delivery']);
+        foreach ($delivery->items as $item) {
+            $this->bump($this->cook, $delivery, $item)->assertOk();
+        }
+        $this->assertSame(OrderStatus::READY, $delivery->fresh()->status);
+        $this->actingAs($this->manager, 'sanctum')->postJson("/api/v1/orders/{$delivery->uuid}/assign-courier", ['courier_id' => $this->courier->id])->assertOk();
+        $this->bump($this->cook, $delivery, $delivery->items->first(), 'recall')->assertUnprocessable()->assertJsonPath('data.reason', 'kitchen_status');
+        $this->assertSame(OrderStatus::COURIER_ASSIGNED, $delivery->fresh()->status);
     }
 
     public function test_a_hall_order_stays_preparing_when_every_line_is_ready(): void

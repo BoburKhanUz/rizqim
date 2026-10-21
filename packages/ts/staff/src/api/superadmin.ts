@@ -1,39 +1,33 @@
 import type { StaffApi } from './client';
 import { unwrap } from './errors';
-import type { Locations } from './specGaps';
-import type { Amount } from '@rizqim/ui';
 import type { JsonRequest, OkData } from './types';
 
 // The platform's own screens (super admin only; the backend answers 403 to anyone else).
 
-// The spec types the two sums the controller does not cast (`total_store_debt`, `total_cashback_balance`) as `unknown`;
-// they are numbers or numeric strings like the other money figures.
-export type DashboardStats = Omit<OkData<'superadmin.dashboard'>, 'total_store_debt' | 'total_cashback_balance'> & {
-  total_store_debt: Amount;
-  total_cashback_balance: Amount;
-};
+// GET /superadmin/dashboard: counts and money figures (numbers, UZS).
+export type DashboardStats = OkData<'superadmin.dashboard'>;
 
-// GET /superadmin/dashboard: the money figures are PHP/SQL sums, so each is a number or a numeric string.
 export async function fetchSuperadminDashboard(api: StaffApi): Promise<DashboardStats> {
   const body = unwrap(await api.client.GET('/v1/superadmin/dashboard'));
-  return body.data as DashboardStats;
+  return body.data;
 }
 
-// The spec has `owner.invite_link: string`; it is null once the owner has joined (SuperadminController::stores).
-type SpecStore = OkData<'superadmin.stores'>[number];
-export type SuperadminStore = Omit<SpecStore, 'owner'> & {
-  owner: (Omit<NonNullable<SpecStore['owner']>, 'invite_link'> & { invite_link: string | null }) | null;
-};
+// GET /superadmin/stores: every store with its owner (`invite_link` is null once the owner has joined).
+export type SuperadminStore = OkData<'superadmin.stores'>[number];
 
 export async function fetchSuperadminStores(api: StaffApi): Promise<SuperadminStore[]> {
   const body = unwrap(await api.client.GET('/v1/superadmin/stores'));
-  return (body.data ?? []) as SuperadminStore[];
+  return body.data ?? [];
 }
 
-// GET /superadmin/locations: regions and districts for the forms (the spec shows `name_uz`: api/specGaps.ts).
+// GET /superadmin/locations: regions and districts (their Uzbek names) for the forms.
+export type Locations = OkData<'superadmin.getLocations'>;
+export type LocationItem = Locations['regions'][number];
+export type DistrictItem = Locations['districts'][number];
+
 export async function fetchLocations(api: StaffApi): Promise<Locations> {
   const body = unwrap(await api.client.GET('/v1/superadmin/locations'));
-  return body.data as unknown as Locations;
+  return body.data;
 }
 
 // The form keeps its select inputs' ids and the commission as strings; Laravel's integer / numeric rules take both.
