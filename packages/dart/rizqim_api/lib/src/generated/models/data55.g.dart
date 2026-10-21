@@ -7,19 +7,39 @@ part of 'data55.dart';
 // **************************************************************************
 
 Data55 _$Data55FromJson(Map<String, dynamic> json) => Data55(
-  subscription: json['subscription'] == null
-      ? null
-      : Subscription.fromJson(json['subscription'] as Map<String, dynamic>),
-  commissionRate: json['commission_rate'] as num,
-  terminals: Terminals.fromJson(json['terminals'] as Map<String, dynamic>),
-  nextInvoice: json['next_invoice'] == null
-      ? null
-      : NextInvoice.fromJson(json['next_invoice'] as Map<String, dynamic>),
+  id: (json['id'] as num).toInt(),
+  uuid: json['uuid'] as String,
+  name: json['name'] as String,
+  nameI18n: (json['name_i18n'] as Map<String, dynamic>?)?.map(
+    (k, e) => MapEntry(k, e as String),
+  ),
+  minSelect: (json['min_select'] as num).toInt(),
+  maxSelect: (json['max_select'] as num?)?.toInt(),
+  isRequired: json['is_required'] as bool,
+  sortOrder: (json['sort_order'] as num).toInt(),
+  isActive: json['is_active'] as bool,
+  modifiers: (json['modifiers'] as List<dynamic>)
+      .map((e) => Modifiers3.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  productIds: (json['product_ids'] as List<dynamic>)
+      .map((e) => (e as num).toInt())
+      .toList(),
+  productRules: ProductRules3.fromJson(
+    json['product_rules'] as Map<String, dynamic>,
+  ),
 );
 
 Map<String, dynamic> _$Data55ToJson(Data55 instance) => <String, dynamic>{
-  'subscription': instance.subscription,
-  'commission_rate': instance.commissionRate,
-  'terminals': instance.terminals,
-  'next_invoice': instance.nextInvoice,
+  'id': instance.id,
+  'uuid': instance.uuid,
+  'name': instance.name,
+  'name_i18n': instance.nameI18n,
+  'min_select': instance.minSelect,
+  'max_select': instance.maxSelect,
+  'is_required': instance.isRequired,
+  'sort_order': instance.sortOrder,
+  'is_active': instance.isActive,
+  'modifiers': instance.modifiers,
+  'product_ids': instance.productIds,
+  'product_rules': instance.productRules,
 };

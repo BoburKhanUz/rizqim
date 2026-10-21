@@ -41,6 +41,7 @@ class OwnerSettingsController extends Controller
         return $this->success([
             'id' => $store->id,
             'name' => $store->name,
+            'timezone' => $store->timezone ?: 'Asia/Tashkent', // P2-12: reports and branch hours use it
             'logo' => $store->logo,
             'logo_url' => $store->logo_url,
             'banner' => $store->banner,
@@ -80,6 +81,9 @@ class OwnerSettingsController extends Controller
         }
 
         $request->validate([
+            // P2-12: the store's name and timezone (the panel's settings page edits them too); left out = kept
+            'name' => 'sometimes|required|string|max:255',
+            'timezone' => 'sometimes|required|string|timezone:all',
             'logo' => 'nullable|string|max:500',
             'banner' => 'nullable|string|max:500',
             'description' => 'nullable|string|max:1000',
@@ -98,6 +102,11 @@ class OwnerSettingsController extends Controller
             'payment_settings.*.merchant_id' => 'nullable|string|max:255',
             'payment_settings.*.service_id' => 'nullable|string|max:255',
             'payment_settings.*.secret_key' => 'nullable|string|max:255',
+        ], [
+            'name.required' => "Do'kon nomini kiriting.",
+            'name.max' => "Do'kon nomi ko'pi bilan 255 belgi bo'lishi mumkin.",
+            'timezone.required' => 'Vaqt mintaqasini kiriting.',
+            'timezone.timezone' => "Vaqt mintaqasi noto'g'ri (masalan Asia/Tashkent).",
         ]);
 
         $currentSettings = $store->payment_settings ?? [];
@@ -150,7 +159,8 @@ class OwnerSettingsController extends Controller
             'is_open' => $request->is_open,
             'min_order_amount' => $request->min_order_amount ?? 0,
             'payment_settings' => $currentSettings,
-        ] + ($request->has('phone') ? ['phone' => $request->phone] : [])); // a client that never sends phone keeps it
+        ] + ($request->has('phone') ? ['phone' => $request->phone] : []) // a client that never sends phone keeps it
+            + $request->only(['name', 'timezone'])); // P2-12
 
         // The main (first) branch follows the store's address, and its location when the link holds one
         $branch = $store->branches()->oldest('id')->first();

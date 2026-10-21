@@ -4,6 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'kitchen_item_status.dart';
 import 'menu_batch.dart';
 import 'menu_unit.dart';
 import 'order.dart';
@@ -30,6 +31,8 @@ class OrderItem {
     required this.modifiersTotal,
     required this.batchId,
     required this.batchQuantity,
+    required this.kitchenStatus,
+    required this.readyAt,
     this.order,
     this.productVariant,
     this.batch,
@@ -66,6 +69,10 @@ class OrderItem {
   final int? batchId;
   @JsonKey(name: 'batch_quantity')
   final String? batchQuantity;
+  @JsonKey(name: 'kitchen_status')
+  final KitchenItemStatus kitchenStatus;
+  @JsonKey(name: 'ready_at')
+  final DateTime? readyAt;
   final Order? order;
   @JsonKey(name: 'product_variant')
   final ProductVariant? productVariant;

@@ -161,4 +161,9 @@ Bitta do'konga alohida narx kerak bo'lsa, yangi tarif yarating va faqat o'sha do
 - Ikkalasi ham `finance.view` ruxsatini talab qiladi (standart bo'yicha faqat ega; ega menejerga ham berishi mumkin),
   terminaldagi xodim PIN sessiyasi bilan ishlamaydi, faqat o'z do'koni ko'rinadi.
 - Do'kon panelida "Tarif va hisob-fakturalar" sahifasi (faqat ko'rish uchun).
+- P2-12 (hamkor web paneli): qarz hisobi va hamyon tarixi sahifalab — `GET /api/v1/owner/finance/ledger?type=&from=&to=`
+  (bu yerdagi `subscription` yozuvlari va ularning bekor qilinishi shu ro'yxatda), `GET /api/v1/owner/finance/wallet`,
+  pul yechish so'rovlari `GET /api/v1/owner/payouts` (karta raqami niqoblangan) va mijozlarning onlayn to'lovlari
+  `GET /api/v1/owner/payments`. Hammasi `finance.view` bilan, faqat o'qish uchun, pul — ikki xonali satr, `from`/`to` —
+  do'kon vaqt mintaqasidagi kunlar ([API.md](API.md), 12-bo'lim).
 - `GET /api/v1/owner/finance` dagi `commission_rate` endi amalda olinadigan foizni ko'rsatadi (tarif yoki do'kon foizi).

@@ -772,6 +772,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Audit log
+         * @description The store's entries, newest first, Laravel pages (`per_page` 1–100, default 50). Filters: `action` (exact, or a
+         *     prefix such as `order.*`), `user_id`, `device_uuid`, `branch_id`, `subject_type` + `subject_id`, `from` / `to`
+         *     (dates). PINs, tokens, codes and card data never reach the log and phone numbers are masked (AuditRedactor);
+         *     `ip` is shown to the owner only.
+         */
         get: operations["auditLog.index"];
         put?: never;
         post?: never;
@@ -870,6 +877,61 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/owner/branches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The store's branches
+         * @description Oldest first. A branch-bound caller gets their own branch only. `working_hours` is one daily window in the
+         *     store's timezone (`all_day`: no hours set; `overnight`: closes after midnight); `is_open_now` is what delivery
+         *     checkout sees now (status, active flag and hours).
+         */
+        get: operations["branch.index"];
+        put?: never;
+        /**
+         * Create a branch
+         * @description Owner only (settings.manage). Required as in the panel: `name`, `address`, `region_id`, `district_id` (of that
+         *     region), `latitude`, `longitude`. `open_time` and `close_time` ("HH:MM", both or neither): one daily window;
+         *     equal times or none = round the clock, closing before opening = overnight (e.g. 18:00–02:00).
+         */
+        post: operations["branch.store"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/branches/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One branch */
+        get: operations["branch.show"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete a branch
+         * @description Owner only (settings.manage). Refused (422) for a branch that has orders, or the store's only branch: make it
+         *     inactive instead.
+         */
+        delete: operations["branch.destroy"];
+        options?: never;
+        head?: never;
+        /**
+         * Update a branch
+         * @description Any subset of the create fields, plus `status` (active, inactive, temporarily_closed) and `is_active`.
+         *     branches.manage: a branch-bound manager edits their own branch only (403 for another one).
+         */
+        patch: operations["branch.update"];
+        trace?: never;
+    };
     "/v1/owner/categories": {
         parameters: {
             query?: never;
@@ -886,6 +948,60 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/delivery-zones": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The store's delivery zones
+         * @description Every zone of the store, inactive ones included, in the order ZoneResolver tries them (priority, then the
+         *     smaller area, then the older). A short list: not paginated. Money is a string with two decimals.
+         */
+        get: operations["deliveryZoneManage.index"];
+        put?: never;
+        /**
+         * Create a delivery zone
+         * @description `polygon`: a GeoJSON Polygon or MultiPolygon (also a Feature or a FeatureCollection of one feature, as an object
+         *     or a JSON string), positions [lng, lat]; at most 20 polygons and 500 points; closed rings, no zero area. It is
+         *     stored cleaned (6 decimals, repeated points dropped). `branch_id`: an active branch of the store that alone
+         *     takes this zone's orders; empty = the nearest open branch. Money in UZS, up to two decimals.
+         */
+        post: operations["deliveryZoneManage.store"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/delivery-zones/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One delivery zone */
+        get: operations["deliveryZoneManage.show"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete a delivery zone
+         * @description Past orders keep their copy of the zone (only their link to it is cleared). Without any active zone left the
+         *     store goes back to branch radius delivery (docs/ZONES.md).
+         */
+        delete: operations["deliveryZoneManage.destroy"];
+        options?: never;
+        head?: never;
+        /**
+         * Update a delivery zone
+         * @description Any subset of the create fields. Orders already placed keep the price and zone name they were placed with.
+         */
+        patch: operations["deliveryZoneManage.update"];
         trace?: never;
     };
     "/v1/owner/devices": {
@@ -1042,6 +1158,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/owner/finance/ledger": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Debt ledger
+         * @description The store's debt balance movements (store_transactions): commission (debt up), top-up (debt down),
+         *     subscription invoices and their voids, refunds and adjustments. A positive `amount` raises the debt.
+         */
+        get: operations["financeHistory.ledger"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/owner/finance/top-up": {
         parameters: {
             query?: never;
@@ -1053,6 +1190,27 @@ export interface paths {
         put?: never;
         /** Initiate a store balance top-up payment */
         post: operations["ownerFinance.initiateTopup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/finance/wallet": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Wallet
+         * @description The store's wallet movements (store_wallet_transactions): customers' online payments settled to the store
+         *     (wallet up) and payouts (wallet down).
+         */
+        get: operations["financeHistory.wallet"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1127,6 +1285,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/owner/payments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Online payments
+         * @description Customers' payments for the store's orders through Click, Payme… (the payments table), with the provider's
+         *     transaction id for reconciliation. A branch-bound caller sees their branch's orders only. Raw provider payloads
+         *     are never returned.
+         */
+        get: operations["financeHistory.payments"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/owner/payouts": {
         parameters: {
             query?: never;
@@ -1134,7 +1314,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * Payout requests
+         * @description The store's requests to withdraw from the wallet and how the platform handled them. The card number is masked.
+         */
+        get: operations["financeHistory.payouts"];
         put?: never;
         /** Create a new payout request */
         post: operations["ownerFinance.requestPayout"];
@@ -1249,6 +1433,73 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/owner/reports/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download a report as CSV
+         * @description `report`: `orders` (one row per order, at most 93 days and 50 000 orders), `sales` (the `group_by` series and a
+         *     total row, at most 366 days) or `products` (the top 50, `sort` as in top-products). Streamed as
+         *     `text/csv; charset=UTF-8` with a BOM; money in UZS with two decimals; times in the store's timezone.
+         *     Too many orders for one file: 422, pick a shorter period. Rate limited (`report-csv`).
+         */
+        get: operations["report.export"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/reports/sales": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Sales for a period
+         * @description `from` and `to` (YYYY-MM-DD, both included, at most 366 days) are calendar days of the store's timezone; an
+         *     order counts on the day it was placed. `revenue` is the total of the delivered orders. `series` has one row per
+         *     `group_by` bucket (day; week from Monday; month), zeros included. `branch_id` narrows to a branch (a branch-bound
+         *     manager always gets theirs). Money is a string with two decimals.
+         */
+        get: operations["report.sales"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/reports/top-products": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Best sellers for a period
+         * @description Among the delivered orders, by the name the item had when sold: `sort` quantity (default) or revenue, `limit`
+         *     1–50 (default 10). `quantity` is a whole number for pieces and a decimal for kg / l.
+         */
+        get: operations["report.topProducts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/owner/service-fees": {
         parameters: {
             query?: never;
@@ -1308,6 +1559,55 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/staff": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Staff list
+         * @description The staff the caller manages, newest first: for the owner every manager, cashier, waiter, cook and courier;
+         *     for a branch manager the staff below them of their branch and the store-wide ones. `login_phone_enabled`: the
+         *     phone signs in by SMS code.
+         */
+        get: operations["staff.index"];
+        put?: never;
+        /**
+         * Add a staff member
+         * @description `role`: one the caller may give (a manager: cashier, waiter, cook, courier); `branch_id`: a branch of the store
+         *     (a branch manager: their own). `phone` (+998XXXXXXXXX, optional) becomes their login phone for the partner panel
+         *     and the staff apps; one staff account per phone in a store. The response carries the Telegram invite link.
+         */
+        post: operations["staff.store"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/staff/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Edit a staff member
+         * @description `name`, `branch_id`, `phone` (any subset). A new phone becomes their login phone and ends their app sessions
+         *     signed in with the old one; a phone they proved by SMS themselves cannot be replaced or cleared here (422).
+         */
+        patch: operations["staff.update"];
         trace?: never;
     };
     "/v1/owner/staff/{id}/pin": {
@@ -1522,6 +1822,143 @@ export interface paths {
          *     it was queued. A custom period needs both dates and is at most 93 days.
          */
         post: operations["order.exportReport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/staff/kitchen/tickets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Kitchen display tickets
+         * @description The orders the kitchen is cooking (accepted and preparing; with `include_ready=1` also the ready ones not yet
+         *     handed over), oldest first, at most 200 (`meta.truncated`). Each ticket: lines with modifiers and
+         *     quantities/weights, each line's kitchen state, the notes (phone numbers masked), when it came in and was
+         *     accepted, and `waiting_seconds`. No customer data, no prices. Needs kitchen.manage or orders.view.
+         */
+        get: operations["staffOrder.tickets"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/staff/orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Branch orders for staff (board)
+         * @description The orders of the caller's branches, newest first, keyset-paginated: send `meta.next_cursor` back as `cursor`
+         *     (with the same filters) until it is null. Filters: `branch_id` (one branch; another branch the caller does not
+         *     work in is 403, another store's 404), `scope` (`active`: still in progress, `history`: delivered, cancelled,
+         *     rejected, refunded), `status` (comma-separated), `type`, `channel`, `date` or `from`/`to` (days in the store's
+         *     time zone, at most 93 days), `q` (the start of the order number). Needs orders.view (owner, manager, cashier,
+         *     waiter, cook). Contact details and the address only for orders.manage.
+         */
+        get: operations["staffOrder.index"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/staff/orders/{uuid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One order for staff (detail)
+         * @description Items with modifiers, weights and kitchen state, notes, every timestamp and the status history. 404 for an order
+         *     of another store or of a branch the caller does not work in.
+         */
+        get: operations["staffOrder.show"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/staff/orders/{uuid}/items/{item}/ready": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Bump a line ready (kitchen display)
+         * @description The line is ready (kitchen.manage). The first bump of an accepted order starts it (preparing). When every line is
+         *     ready a delivery or pickup order becomes ready by itself; a hall order (dine_in) stays preparing until it is
+         *     closed. 422 when the order is not in the kitchen (new, ready, on its way, finished). Bumping a ready line again
+         *     answers 200 unchanged. Returns the ticket.
+         */
+        post: operations["staffOrder.bumpItem"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/staff/orders/{uuid}/items/{item}/recall": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Recall a line (kitchen display)
+         * @description Undo a mistaken bump: the line is back to pending (kitchen.manage). Only while the order is accepted or
+         *     preparing (422 once it is ready). Returns the ticket.
+         */
+        post: operations["staffOrder.recallItem"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/staff/orders/{uuid}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Change an order's status (staff)
+         * @description By permission (docs/AUTH.md §6): orders.manage (owner, manager, cashier, waiter) accepts, starts, marks ready and
+         *     hands over (pickup, hall: delivered); a cook (kitchen.manage) only starts cooking (accepted → preparing) and marks
+         *     ready (preparing → ready); cancelling or rejecting needs orders.cancel and a `reason`. The order's state machine
+         *     decides what can follow what (422 otherwise). Couriers are assigned with POST /orders/{uuid}/assign-courier.
+         *     Marking an order ready marks all its lines ready in the kitchen. The same status again answers 200 unchanged.
+         */
+        post: operations["staffOrder.updateStatus"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2020,6 +2457,12 @@ export interface components {
                 [key: string]: string[];
             };
         };
+        /**
+         * KitchenItemStatus
+         * @description Where an order line is in the kitchen (order_items.kitchen_status, P2-11): `pending` until a cook bumps it on the kitchen display, then `ready`. docs/POS_SPEC.md §10.3 reserves more values for the POS phase (sent, served, void); they are added here when the POS starts sending lines to the kitchen.
+         * @enum {string}
+         */
+        KitchenItemStatus: "pending" | "ready";
         /** LengthAwarePaginator */
         LengthAwarePaginator: {
             current_page: number;
@@ -2213,6 +2656,9 @@ export interface components {
             modifiers_total: string;
             batch_id: number | null;
             batch_quantity: string | null;
+            kitchen_status: components["schemas"]["KitchenItemStatus"];
+            /** Format: date-time */
+            ready_at: string | null;
             order?: components["schemas"]["Order"];
             product_variant?: components["schemas"]["ProductVariant"] | null;
             batch?: components["schemas"]["MenuBatch"] | null;
@@ -2293,7 +2739,7 @@ export interface components {
          * @description What a store staff member may do. Each role gets a default set (App\Services\Auth\RolePermissions) that an owner can adjust per store (role_permission_overrides); App\Services\Auth\PermissionService resolves the effective set, and the Gate answers `$user->can('orders.cancel', $order)` with it (branch scoping included).
          * @enum {string}
          */
-        Permission: "orders.view" | "orders.manage" | "orders.cancel" | "orders.discount" | "orders.void_item" | "orders.assign_courier" | "orders.refund" | "kitchen.manage" | "deliveries.manage" | "tables.manage" | "menu.view" | "menu.manage" | "stoplist.manage" | "batches.manage" | "staff.view" | "staff.manage" | "staff.pin" | "devices.view" | "devices.manage" | "reports.view" | "finance.view" | "finance.manage" | "settings.manage" | "zones.manage" | "audit.view" | "permissions.manage" | "pos.open_shift" | "pos.close_shift" | "pos.cash_in_out" | "pos.take_payment" | "pos.reprint_bill";
+        Permission: "orders.view" | "orders.manage" | "orders.cancel" | "orders.discount" | "orders.void_item" | "orders.assign_courier" | "orders.refund" | "kitchen.manage" | "deliveries.manage" | "tables.manage" | "menu.view" | "menu.manage" | "stoplist.manage" | "batches.manage" | "staff.view" | "staff.manage" | "staff.pin" | "devices.view" | "devices.manage" | "reports.view" | "finance.view" | "finance.manage" | "settings.manage" | "zones.manage" | "audit.view" | "permissions.manage" | "pos.open_shift" | "pos.close_shift" | "pos.cash_in_out" | "pos.take_payment" | "pos.reprint_bill" | "branches.manage";
         /** Product */
         Product: {
             id: number;
@@ -4925,7 +5371,7 @@ export interface operations {
                 user_id?: number | null;
                 device_uuid?: string | null;
                 branch_id?: number | null;
-                subject_type?: "Order" | "User" | "Device" | "Product" | "ProductVariant" | "Store" | "Branch" | "DevicePairingCode" | null;
+                subject_type?: "Order" | "User" | "Device" | "Product" | "ProductVariant" | "Store" | "Branch" | "DevicePairingCode" | "DeliveryZone" | null;
                 subject_id?: number | null;
                 from?: string | null;
                 to?: string | null;
@@ -4945,7 +5391,40 @@ export interface operations {
                     "application/json": {
                         success: boolean;
                         message: string;
-                        data: components["schemas"]["LengthAwarePaginator"];
+                        data: {
+                            data: {
+                                id: number;
+                                action: string;
+                                actor: {
+                                    id: number;
+                                    name: string;
+                                    role: string;
+                                } | null;
+                                device: {
+                                    uuid: string;
+                                    name: string | null;
+                                    type: string;
+                                } | null;
+                                subject_type: string | null;
+                                subject_id: number | null;
+                                branch_id: number | null;
+                                before: {
+                                    [key: string]: unknown;
+                                } | null;
+                                after: {
+                                    [key: string]: unknown;
+                                } | null;
+                                meta: {
+                                    [key: string]: unknown;
+                                } | null;
+                                ip: string | null;
+                                created_at: string;
+                            }[];
+                            current_page: number;
+                            last_page: number;
+                            per_page: number;
+                            total: number;
+                        };
                     };
                 };
             };
@@ -5262,6 +5741,267 @@ export interface operations {
             422: components["responses"]["ValidationException"];
         };
     };
+    "branch.index": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            name: string;
+                            phone: string | null;
+                            address: string | null;
+                            region_id: number | null;
+                            district_id: number | null;
+                            latitude: number | null;
+                            longitude: number | null;
+                            radius_km: number;
+                            status: string;
+                            is_active: boolean;
+                            working_hours: {
+                                open: string | null;
+                                close: string | null;
+                                all_day: boolean;
+                                overnight: boolean;
+                                timezone: string;
+                            };
+                            is_open_now: boolean;
+                            created_at: string | null;
+                            updated_at: string | null;
+                        }[];
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "branch.store": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name: string;
+                    phone?: string | null;
+                    address: string;
+                    region_id: number;
+                    district_id: number;
+                    latitude: number;
+                    longitude: number;
+                    radius_km?: number;
+                    open_time?: string | null;
+                    close_time?: string | null;
+                    is_active?: boolean;
+                    /** @enum {string} */
+                    status?: "active" | "inactive" | "temporarily_closed";
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            name: string;
+                            phone: string | null;
+                            address: string | null;
+                            region_id: number | null;
+                            district_id: number | null;
+                            latitude: number | null;
+                            longitude: number | null;
+                            radius_km: number;
+                            status: string;
+                            is_active: boolean;
+                            working_hours: {
+                                open: string | null;
+                                close: string | null;
+                                all_day: boolean;
+                                overnight: boolean;
+                                timezone: string;
+                            };
+                            is_open_now: boolean;
+                            created_at: string | null;
+                            updated_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "branch.show": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            name: string;
+                            phone: string | null;
+                            address: string | null;
+                            region_id: number | null;
+                            district_id: number | null;
+                            latitude: number | null;
+                            longitude: number | null;
+                            radius_km: number;
+                            status: string;
+                            is_active: boolean;
+                            working_hours: {
+                                open: string | null;
+                                close: string | null;
+                                all_day: boolean;
+                                overnight: boolean;
+                                timezone: string;
+                            };
+                            is_open_now: boolean;
+                            created_at: string | null;
+                            updated_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "branch.destroy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: null;
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description Filialni o'chirib bo'lmaydi (`branch_in_use`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "branch.update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    name?: string;
+                    phone?: string | null;
+                    address?: string;
+                    region_id?: number;
+                    district_id?: number;
+                    latitude?: number;
+                    longitude?: number;
+                    radius_km?: number;
+                    open_time?: string | null;
+                    close_time?: string | null;
+                    is_active?: boolean;
+                    /** @enum {string} */
+                    status?: "active" | "inactive" | "temporarily_closed";
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            name: string;
+                            phone: string | null;
+                            address: string | null;
+                            region_id: number | null;
+                            district_id: number | null;
+                            latitude: number | null;
+                            longitude: number | null;
+                            radius_km: number;
+                            status: string;
+                            is_active: boolean;
+                            working_hours: {
+                                open: string | null;
+                                close: string | null;
+                                all_day: boolean;
+                                overnight: boolean;
+                                timezone: string;
+                            };
+                            is_open_now: boolean;
+                            created_at: string | null;
+                            updated_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
     "ownerCatalog.getCategories": {
         parameters: {
             query?: never;
@@ -5335,6 +6075,291 @@ export interface operations {
                     };
                 };
             };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "deliveryZoneManage.index": {
+        parameters: {
+            query?: {
+                /** @description Faqat faol (1) yoki faol bo'lmagan (0) hududlar. */
+                active?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            name: string;
+                            branch_id: number | null;
+                            branch: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            polygon: {
+                                type: string;
+                                coordinates: unknown[];
+                            };
+                            bbox: {
+                                min_lat: string;
+                                max_lat: string;
+                                min_lng: string;
+                                max_lng: string;
+                            };
+                            area_km2: string;
+                            delivery_price: string;
+                            min_order_amount: string;
+                            free_delivery_from: string | null;
+                            eta_minutes: number | null;
+                            priority: number;
+                            active: boolean;
+                            created_at: string | null;
+                            updated_at: string | null;
+                        }[];
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "deliveryZoneManage.store": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name: string;
+                    branch_id?: number | null;
+                    priority?: number;
+                    active?: boolean;
+                    delivery_price?: number;
+                    min_order_amount?: number;
+                    free_delivery_from?: number | null;
+                    eta_minutes?: number | null;
+                    /** @description GeoJSON Polygon / MultiPolygon geometry ([lng, lat] positions), or the same as a JSON string. */
+                    polygon: {
+                        type: string;
+                        coordinates: unknown[];
+                    } | string;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            name: string;
+                            branch_id: number | null;
+                            branch: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            polygon: {
+                                type: string;
+                                coordinates: unknown[];
+                            };
+                            bbox: {
+                                min_lat: string;
+                                max_lat: string;
+                                min_lng: string;
+                                max_lng: string;
+                            };
+                            area_km2: string;
+                            delivery_price: string;
+                            min_order_amount: string;
+                            free_delivery_from: string | null;
+                            eta_minutes: number | null;
+                            priority: number;
+                            active: boolean;
+                            created_at: string | null;
+                            updated_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "deliveryZoneManage.show": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            name: string;
+                            branch_id: number | null;
+                            branch: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            polygon: {
+                                type: string;
+                                coordinates: unknown[];
+                            };
+                            bbox: {
+                                min_lat: string;
+                                max_lat: string;
+                                min_lng: string;
+                                max_lng: string;
+                            };
+                            area_km2: string;
+                            delivery_price: string;
+                            min_order_amount: string;
+                            free_delivery_from: string | null;
+                            eta_minutes: number | null;
+                            priority: number;
+                            active: boolean;
+                            created_at: string | null;
+                            updated_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description Hudud topilmadi (yoki boshqa do'konniki) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "deliveryZoneManage.destroy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: null;
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "deliveryZoneManage.update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    name?: string;
+                    branch_id?: number | null;
+                    priority?: number;
+                    active?: boolean;
+                    delivery_price?: number;
+                    min_order_amount?: number;
+                    free_delivery_from?: number | null;
+                    eta_minutes?: number | null;
+                    /** @description GeoJSON Polygon / MultiPolygon geometry ([lng, lat] positions), or the same as a JSON string. */
+                    polygon?: {
+                        type: string;
+                        coordinates: unknown[];
+                    } | string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            name: string;
+                            branch_id: number | null;
+                            branch: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            polygon: {
+                                type: string;
+                                coordinates: unknown[];
+                            };
+                            bbox: {
+                                min_lat: string;
+                                max_lat: string;
+                                min_lng: string;
+                                max_lng: string;
+                            };
+                            area_km2: string;
+                            delivery_price: string;
+                            min_order_amount: string;
+                            free_delivery_from: string | null;
+                            eta_minutes: number | null;
+                            priority: number;
+                            active: boolean;
+                            created_at: string | null;
+                            updated_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
             422: components["responses"]["ValidationException"];
         };
     };
@@ -5768,6 +6793,60 @@ export interface operations {
             };
         };
     };
+    "financeHistory.ledger": {
+        parameters: {
+            query?: {
+                /** @description commission | topup | refund | adjustment | subscription | settlement | payout. */
+                type?: string;
+                /** @description YYYY-MM-DD (do'kon vaqti). */
+                from?: string;
+                /** @description YYYY-MM-DD (do'kon vaqti). */
+                to?: string;
+                /** @description 1–100, standart 25. */
+                per_page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            data: {
+                                id: number;
+                                type: string;
+                                amount: string;
+                                balance_before: string;
+                                balance_after: string;
+                                order: {
+                                    uuid: string;
+                                    short_code: string | null;
+                                } | null;
+                                reference_id: string | null;
+                                notes: string | null;
+                                created_at: string;
+                            }[];
+                            current_page: number;
+                            last_page: number;
+                            per_page: number;
+                            total: number;
+                            from: number | null;
+                            to: number | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
     "ownerFinance.initiateTopup": {
         parameters: {
             query?: never;
@@ -5818,6 +6897,60 @@ export interface operations {
                 };
             };
             422: components["responses"]["ValidationException"];
+        };
+    };
+    "financeHistory.wallet": {
+        parameters: {
+            query?: {
+                /** @description settlement | payout | ... */
+                type?: string;
+                /** @description YYYY-MM-DD (do'kon vaqti). */
+                from?: string;
+                /** @description YYYY-MM-DD (do'kon vaqti). */
+                to?: string;
+                /** @description 1–100, standart 25. */
+                per_page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            data: {
+                                id: number;
+                                type: string;
+                                amount: string;
+                                balance_before: string;
+                                balance_after: string;
+                                order: {
+                                    uuid: string;
+                                    short_code: string | null;
+                                } | null;
+                                reference_id: string | null;
+                                notes: string | null;
+                                created_at: string;
+                            }[];
+                            current_page: number;
+                            last_page: number;
+                            per_page: number;
+                            total: number;
+                            from: number | null;
+                            to: number | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
         };
     };
     "ownerBilling.invoices": {
@@ -6102,6 +7235,116 @@ export interface operations {
             };
         };
     };
+    "financeHistory.payments": {
+        parameters: {
+            query?: {
+                /** @description pending | paid | failed | cancelled | expired | refunded. */
+                status?: string;
+                /** @description click | payme | ... */
+                provider?: string;
+                /** @description Filial. */
+                branch_id?: number;
+                /** @description YYYY-MM-DD (do'kon vaqti). */
+                from?: string;
+                /** @description YYYY-MM-DD (do'kon vaqti). */
+                to?: string;
+                /** @description 1–100, standart 25. */
+                per_page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            data: {
+                                uuid: string;
+                                provider: string;
+                                provider_transaction_id: string | null;
+                                status: string;
+                                amount: string;
+                                paid_at: string | null;
+                                cancelled_at: string | null;
+                                created_at: string;
+                                order: {
+                                    uuid: string;
+                                    short_code: string | null;
+                                    branch_id: number | null;
+                                    total_price: string;
+                                };
+                            }[];
+                            current_page: number;
+                            last_page: number;
+                            per_page: number;
+                            total: number;
+                            from: number | null;
+                            to: number | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "financeHistory.payouts": {
+        parameters: {
+            query?: {
+                /** @description pending | completed | rejected. */
+                status?: string;
+                /** @description YYYY-MM-DD (do'kon vaqti). */
+                from?: string;
+                /** @description YYYY-MM-DD (do'kon vaqti). */
+                to?: string;
+                /** @description 1–100, standart 25. */
+                per_page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            data: {
+                                id: number;
+                                amount: string;
+                                card: string;
+                                status: string;
+                                notes: string | null;
+                                resolution_notes: string | null;
+                                processed_at: string | null;
+                                created_at: string;
+                            }[];
+                            current_page: number;
+                            last_page: number;
+                            per_page: number;
+                            total: number;
+                            from: number | null;
+                            to: number | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
     "ownerFinance.requestPayout": {
         parameters: {
             query?: never;
@@ -6320,6 +7563,8 @@ export interface operations {
                      */
                     variants: string;
                     batch_tracked?: boolean;
+                    /** @description P2-12: position in the menu, as the panel's product form sets it (left out = 0 / kept) */
+                    sort_order?: number | null;
                 };
             };
         };
@@ -6397,6 +7642,7 @@ export interface operations {
                      */
                     variants: string;
                     batch_tracked?: boolean;
+                    sort_order?: number | null;
                 };
             };
         };
@@ -6599,6 +7845,186 @@ export interface operations {
             422: components["responses"]["ValidationException"];
         };
     };
+    "report.export": {
+        parameters: {
+            query?: {
+                /** @description orders | sales | products. */
+                report?: string;
+                /** @description Birinchi kun (YYYY-MM-DD). */
+                from?: string;
+                /** @description Oxirgi kun (YYYY-MM-DD). */
+                to?: string;
+                /** @description Filial. */
+                branch_id?: number;
+                /** @description sales uchun: day | week | month. */
+                group_by?: string;
+                /** @description products uchun: quantity | revenue. */
+                sort?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description CSV fayl (UTF-8, BOM bilan) */
+            200: {
+                headers: {
+                    "Transfer-Encoding": "chunked";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv; charset=UTF-8": string;
+                    "text/csv": string;
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description Davrda juda ko'p buyurtma (`too_many_rows`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "report.sales": {
+        parameters: {
+            query?: {
+                /** @description Birinchi kun (YYYY-MM-DD). */
+                from?: string;
+                /** @description Oxirgi kun (YYYY-MM-DD), ko'pi bilan 366 kun. */
+                to?: string;
+                /** @description Filial. */
+                branch_id?: number;
+                /** @description day | week | month (standart day). */
+                group_by?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            period: {
+                                from: string;
+                                to: string;
+                                days: number;
+                                timezone: string;
+                                basis: string;
+                                group_by: string;
+                            };
+                            branch_id: number | null;
+                            summary: {
+                                orders_count: number;
+                                delivered_count: number;
+                                canceled_count: number;
+                                refunded_count: number;
+                                active_count: number;
+                                revenue: string;
+                                average_check: string;
+                            };
+                            by_status: {
+                                [key: string]: number;
+                            };
+                            series: {
+                                date: string;
+                                orders: number;
+                                delivered: number;
+                                revenue: string;
+                            }[];
+                            by_channel: {
+                                channel: string;
+                                label: string;
+                                orders: number;
+                                revenue: string;
+                            }[];
+                            by_branch: {
+                                branch_id: number | null;
+                                name: string | null;
+                                orders: number;
+                                delivered: number;
+                                revenue: string;
+                            }[];
+                            by_payment_method: {
+                                method: string;
+                                orders: number;
+                                revenue: string;
+                            }[];
+                            by_order_type: {
+                                type: string;
+                                orders: number;
+                                revenue: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "report.topProducts": {
+        parameters: {
+            query?: {
+                /** @description Birinchi kun (YYYY-MM-DD). */
+                from?: string;
+                /** @description Oxirgi kun (YYYY-MM-DD), ko'pi bilan 366 kun. */
+                to?: string;
+                /** @description Filial. */
+                branch_id?: number;
+                /** @description 1–50, standart 10. */
+                limit?: number;
+                /** @description quantity | revenue. */
+                sort?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            period: {
+                                from: string;
+                                to: string;
+                                days: number;
+                                timezone: string;
+                                basis: string;
+                            };
+                            branch_id: number | null;
+                            sort: string;
+                            products: {
+                                name: string;
+                                quantity: number;
+                                revenue: string;
+                                orders: number;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
     "serviceFee.index": {
         parameters: {
             query?: never;
@@ -6697,6 +8123,8 @@ export interface operations {
                         data: {
                             id: number;
                             name: string;
+                            timezone: string;
+                            /** @description P2-12: reports and branch hours use it */
                             logo: string | null;
                             logo_url: string | null;
                             banner: string | null;
@@ -6745,6 +8173,9 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
+                    /** @description P2-12: the store's name and timezone (the panel's settings page edits them too); left out = kept */
+                    name?: string;
+                    timezone?: string;
                     logo?: string | null;
                     banner?: string | null;
                     description?: string | null;
@@ -6845,6 +8276,157 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "staff.index": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            name: string;
+                            role: string;
+                            role_label: string;
+                            branch: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            courier_type: string | null;
+                            phone: string | null;
+                            login_phone_enabled: boolean;
+                            has_pin: boolean;
+                            staff_code: string | null;
+                            telegram_linked: boolean;
+                            invite_pending: boolean;
+                            can_edit: boolean;
+                            created_at: string | null;
+                        }[];
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "staff.store": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name: string;
+                    /** @enum {string} */
+                    role: "manager" | "cashier" | "waiter" | "cook" | "courier";
+                    branch_id: number;
+                    phone?: string | null;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            staff: {
+                                id: number;
+                                name: string;
+                                role: string;
+                                role_label: string;
+                                branch: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                courier_type: string | null;
+                                phone: string | null;
+                                login_phone_enabled: boolean;
+                                has_pin: boolean;
+                                staff_code: string | null;
+                                telegram_linked: boolean;
+                                invite_pending: boolean;
+                                can_edit: boolean;
+                                created_at: string | null;
+                            };
+                            invite_link: string;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "staff.update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    name?: string;
+                    branch_id?: number;
+                    phone?: string | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            name: string;
+                            role: string;
+                            role_label: string;
+                            branch: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            courier_type: string | null;
+                            phone: string | null;
+                            login_phone_enabled: boolean;
+                            has_pin: boolean;
+                            staff_code: string | null;
+                            telegram_linked: boolean;
+                            invite_pending: boolean;
+                            can_edit: boolean;
+                            created_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
             422: components["responses"]["ValidationException"];
         };
     };
@@ -7660,6 +9242,543 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+        };
+    };
+    "staffOrder.tickets": {
+        parameters: {
+            query?: {
+                /** @description One branch; omit for every branch the caller works in (a branch terminal: its branch). */
+                branch_id?: number;
+                /** @description 1 to also list orders that are ready but not handed over yet. */
+                include_ready?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            short_code: string | null;
+                            status: string;
+                            type: string;
+                            channel: string;
+                            branch_id: number | null;
+                            hall_ref: string | null;
+                            table_ref: string | null;
+                            guests_count: number | null;
+                            notes: string | null;
+                            items_total: number;
+                            items_ready: number;
+                            items: {
+                                id: number;
+                                product_name: string;
+                                variant_name: string | null;
+                                quantity: number;
+                                unit: string;
+                                quantity_label: string;
+                                modifiers: {
+                                    name: string;
+                                    group_name?: string;
+                                    quantity: number;
+                                    price_delta?: string;
+                                }[];
+                                kitchen_status: string;
+                                ready_at: string | null;
+                                unit_price?: string;
+                                modifiers_total?: string;
+                                total_price?: string;
+                            }[];
+                            created_at: string | null;
+                            accepted_at: string | null;
+                            preparing_at: string | null;
+                            ready_at: string | null;
+                            waiting_seconds: number;
+                        }[];
+                        meta: {
+                            truncated: boolean;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "staffOrder.index": {
+        parameters: {
+            query?: {
+                /** @description One branch of the store; omit for every branch the caller works in. */
+                branch_id?: number;
+                /** @description `active` (in progress) or `history` (finished). */
+                scope?: "active" | "history";
+                /** @description Comma-separated order statuses, e.g. `new,accepted`. */
+                status?: string;
+                /** @description delivery, pickup or dine_in. */
+                type?: "delivery" | "pickup" | "dine_in";
+                /** @description telegram, mobile, pos_hall, pos_takeaway or aggregator. */
+                channel?: string;
+                /** @description One day (Y-m-d, store time zone); same as from=to=date. */
+                date?: string;
+                /** @description First day (Y-m-d, store time zone), inclusive. */
+                from?: string;
+                /** @description Last day (Y-m-d, store time zone), inclusive. */
+                to?: string;
+                /** @description Start of the order number (short code), 1-20 letters or digits. */
+                q?: string;
+                /** @description Page size, 1-100 (larger values are capped). */
+                per_page?: number;
+                /** @description `meta.next_cursor` of the previous page. */
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            short_code: string | null;
+                            status: string;
+                            status_label: string;
+                            type: string;
+                            channel: string;
+                            store_id: number;
+                            branch_id: number | null;
+                            branch_name: string | null;
+                            payment_method: string;
+                            payment_status: string;
+                            subtotal: string;
+                            discount: string;
+                            delivery_price: string;
+                            service_charge_amount: string;
+                            place_fee_amount: string;
+                            total_price: string;
+                            notes: string | null;
+                            guests_count: number | null;
+                            hall_ref: string | null;
+                            table_ref: string | null;
+                            cancel_reason: string | null;
+                            cancel_note: string | null;
+                            customer: {
+                                name: string | null;
+                                phone: string | null;
+                            } | null;
+                            delivery: {
+                                address: string | null;
+                                latitude: number | null;
+                                longitude: number | null;
+                                zone_name: string | null;
+                            } | null;
+                            courier: {
+                                id: number;
+                                name: string | null;
+                                phone: string | null;
+                            } | null;
+                            items_total: number;
+                            items_ready: number;
+                            items: {
+                                id: number;
+                                product_name: string;
+                                variant_name: string | null;
+                                quantity: number;
+                                unit: string;
+                                quantity_label: string;
+                                modifiers: {
+                                    name: string;
+                                    group_name?: string;
+                                    quantity: number;
+                                    price_delta?: string;
+                                }[];
+                                kitchen_status: string;
+                                ready_at: string | null;
+                                unit_price?: string;
+                                modifiers_total?: string;
+                                total_price?: string;
+                            }[];
+                            created_at: string | null;
+                            updated_at: string | null;
+                            accepted_at: string | null;
+                            preparing_at: string | null;
+                            ready_at: string | null;
+                            closed_at: string | null;
+                        }[];
+                        meta: {
+                            next_cursor: string | null;
+                            per_page: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "staffOrder.show": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            short_code: string | null;
+                            status: string;
+                            status_label: string;
+                            type: string;
+                            channel: string;
+                            store_id: number;
+                            branch_id: number | null;
+                            branch_name: string | null;
+                            payment_method: string;
+                            payment_status: string;
+                            subtotal: string;
+                            discount: string;
+                            delivery_price: string;
+                            service_charge_amount: string;
+                            place_fee_amount: string;
+                            total_price: string;
+                            notes: string | null;
+                            guests_count: number | null;
+                            hall_ref: string | null;
+                            table_ref: string | null;
+                            cancel_reason: string | null;
+                            cancel_note: string | null;
+                            customer: {
+                                name: string | null;
+                                phone: string | null;
+                            } | null;
+                            delivery: {
+                                address: string | null;
+                                latitude: number | null;
+                                longitude: number | null;
+                                zone_name: string | null;
+                            } | null;
+                            courier: {
+                                id: number;
+                                name: string | null;
+                                phone: string | null;
+                            } | null;
+                            items_total: number;
+                            items_ready: number;
+                            items: {
+                                id: number;
+                                product_name: string;
+                                variant_name: string | null;
+                                quantity: number;
+                                unit: string;
+                                quantity_label: string;
+                                modifiers: {
+                                    name: string;
+                                    group_name?: string;
+                                    quantity: number;
+                                    price_delta?: string;
+                                }[];
+                                kitchen_status: string;
+                                ready_at: string | null;
+                                unit_price?: string;
+                                modifiers_total?: string;
+                                total_price?: string;
+                            }[];
+                            created_at: string | null;
+                            updated_at: string | null;
+                            accepted_at: string | null;
+                            preparing_at: string | null;
+                            ready_at: string | null;
+                            closed_at: string | null;
+                            status_history: {
+                                from_status: string | null;
+                                status: string;
+                                created_at: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "staffOrder.bumpItem": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+                item: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            short_code: string | null;
+                            status: string;
+                            type: string;
+                            channel: string;
+                            branch_id: number | null;
+                            hall_ref: string | null;
+                            table_ref: string | null;
+                            guests_count: number | null;
+                            notes: string | null;
+                            items_total: number;
+                            items_ready: number;
+                            items: {
+                                id: number;
+                                product_name: string;
+                                variant_name: string | null;
+                                quantity: number;
+                                unit: string;
+                                quantity_label: string;
+                                modifiers: {
+                                    name: string;
+                                    group_name?: string;
+                                    quantity: number;
+                                    price_delta?: string;
+                                }[];
+                                kitchen_status: string;
+                                ready_at: string | null;
+                                unit_price?: string;
+                                modifiers_total?: string;
+                                total_price?: string;
+                            }[];
+                            created_at: string | null;
+                            accepted_at: string | null;
+                            preparing_at: string | null;
+                            ready_at: string | null;
+                            waiting_seconds: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "staffOrder.recallItem": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+                item: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            short_code: string | null;
+                            status: string;
+                            type: string;
+                            channel: string;
+                            branch_id: number | null;
+                            hall_ref: string | null;
+                            table_ref: string | null;
+                            guests_count: number | null;
+                            notes: string | null;
+                            items_total: number;
+                            items_ready: number;
+                            items: {
+                                id: number;
+                                product_name: string;
+                                variant_name: string | null;
+                                quantity: number;
+                                unit: string;
+                                quantity_label: string;
+                                modifiers: {
+                                    name: string;
+                                    group_name?: string;
+                                    quantity: number;
+                                    price_delta?: string;
+                                }[];
+                                kitchen_status: string;
+                                ready_at: string | null;
+                                unit_price?: string;
+                                modifiers_total?: string;
+                                total_price?: string;
+                            }[];
+                            created_at: string | null;
+                            accepted_at: string | null;
+                            preparing_at: string | null;
+                            ready_at: string | null;
+                            waiting_seconds: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "staffOrder.updateStatus": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    status: "accepted" | "preparing" | "ready" | "delivered" | "canceled" | "rejected";
+                    /** @enum {string|null} */
+                    reason?: "customer_request" | "no_show" | "out_of_stock" | "store_closed" | "courier_unavailable" | "other" | null;
+                    note?: string | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            short_code: string | null;
+                            status: string;
+                            status_label: string;
+                            type: string;
+                            channel: string;
+                            store_id: number;
+                            branch_id: number | null;
+                            branch_name: string | null;
+                            payment_method: string;
+                            payment_status: string;
+                            subtotal: string;
+                            discount: string;
+                            delivery_price: string;
+                            service_charge_amount: string;
+                            place_fee_amount: string;
+                            total_price: string;
+                            notes: string | null;
+                            guests_count: number | null;
+                            hall_ref: string | null;
+                            table_ref: string | null;
+                            cancel_reason: string | null;
+                            cancel_note: string | null;
+                            customer: {
+                                name: string | null;
+                                phone: string | null;
+                            } | null;
+                            delivery: {
+                                address: string | null;
+                                latitude: number | null;
+                                longitude: number | null;
+                                zone_name: string | null;
+                            } | null;
+                            courier: {
+                                id: number;
+                                name: string | null;
+                                phone: string | null;
+                            } | null;
+                            items_total: number;
+                            items_ready: number;
+                            items: {
+                                id: number;
+                                product_name: string;
+                                variant_name: string | null;
+                                quantity: number;
+                                unit: string;
+                                quantity_label: string;
+                                modifiers: {
+                                    name: string;
+                                    group_name?: string;
+                                    quantity: number;
+                                    price_delta?: string;
+                                }[];
+                                kitchen_status: string;
+                                ready_at: string | null;
+                                unit_price?: string;
+                                modifiers_total?: string;
+                                total_price?: string;
+                            }[];
+                            created_at: string | null;
+                            updated_at: string | null;
+                            accepted_at: string | null;
+                            preparing_at: string | null;
+                            ready_at: string | null;
+                            closed_at: string | null;
+                            status_history: {
+                                from_status: string | null;
+                                status: string;
+                                created_at: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
         };
     };
     "store.index": {

@@ -12,7 +12,7 @@ GetV1StoresStoreZonesResponse _$GetV1StoresStoreZonesResponseFromJson(
   success: json['success'] as bool,
   message: json['message'] as String,
   data: (json['data'] as List<dynamic>)
-      .map((e) => Data58.fromJson(e as Map<String, dynamic>))
+      .map((e) => Data87.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 

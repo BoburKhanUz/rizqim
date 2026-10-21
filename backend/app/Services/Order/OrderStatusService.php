@@ -102,6 +102,12 @@ class OrderStatusService
                 $this->recordAssignment($order, $courier, $actor);
             }
 
+            // P2-11: a ready order is ready in the kitchen too, whoever marked it (kitchen display, panel, Telegram)
+            if ($to === OrderStatus::READY) {
+                $order->items()->where('kitchen_status', \App\Enums\KitchenItemStatus::PENDING->value)
+                    ->update(['kitchen_status' => \App\Enums\KitchenItemStatus::READY->value, 'ready_at' => now()]);
+            }
+
             $notes = array_filter([$options['notes'] ?? null, $courier ? "Kuryer: {$courier->name}" : null]);
             if ($cancellation) {
                 $notes[] = 'Sabab: ' . CancelReason::from($cancellation['cancel_reason'])->label()

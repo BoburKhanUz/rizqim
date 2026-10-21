@@ -22,6 +22,8 @@ enum SubjectType {
   branch('Branch'),
   @JsonValue('DevicePairingCode')
   devicePairingCode('DevicePairingCode'),
+  @JsonValue('DeliveryZone')
+  deliveryZone('DeliveryZone'),
 
   /// The name has been replaced because it contains a keyword. Original name: `null`.
   @JsonValue(null)

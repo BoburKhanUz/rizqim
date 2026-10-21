@@ -23,19 +23,26 @@ import 'owner_analytics/owner_analytics_api.dart';
 import 'owner_audit_log/owner_audit_log_api.dart';
 import 'owner_batches/owner_batches_api.dart';
 import 'owner_branch_availability/owner_branch_availability_api.dart';
+import 'owner_branches/owner_branches_api.dart';
 import 'owner_catalog/owner_catalog_api.dart';
+import 'owner_delivery_zones/owner_delivery_zones_api.dart';
 import 'owner_devices/owner_devices_api.dart';
 import 'owner_employees/owner_employees_api.dart';
 import 'owner_finance/owner_finance_api.dart';
+import 'owner_finance_history/owner_finance_history_api.dart';
 import 'owner_billing/owner_billing_api.dart';
 import 'owner_menu_modifiers/owner_menu_modifiers_api.dart';
 import 'owner_staff_access/owner_staff_access_api.dart';
 import 'owner_channel_prices/owner_channel_prices_api.dart';
+import 'owner_reports/owner_reports_api.dart';
 import 'owner_service_fees/owner_service_fees_api.dart';
 import 'owner_settings/owner_settings_api.dart';
+import 'owner_staff/owner_staff_api.dart';
 import 'owner_stop_list/owner_stop_list_api.dart';
 import 'promo_codes/promo_codes_api.dart';
 import 'reports/reports_api.dart';
+import 'kitchen/kitchen_api.dart';
+import 'staff_orders/staff_orders_api.dart';
 import 'stores/stores_api.dart';
 import 'superadmin/superadmin_api.dart';
 import 'fallback/fallback_api.dart';
@@ -77,19 +84,26 @@ class RizqimApi {
   OwnerAuditLogApi? _ownerAuditLog;
   OwnerBatchesApi? _ownerBatches;
   OwnerBranchAvailabilityApi? _ownerBranchAvailability;
+  OwnerBranchesApi? _ownerBranches;
   OwnerCatalogApi? _ownerCatalog;
+  OwnerDeliveryZonesApi? _ownerDeliveryZones;
   OwnerDevicesApi? _ownerDevices;
   OwnerEmployeesApi? _ownerEmployees;
   OwnerFinanceApi? _ownerFinance;
+  OwnerFinanceHistoryApi? _ownerFinanceHistory;
   OwnerBillingApi? _ownerBilling;
   OwnerMenuModifiersApi? _ownerMenuModifiers;
   OwnerStaffAccessApi? _ownerStaffAccess;
   OwnerChannelPricesApi? _ownerChannelPrices;
+  OwnerReportsApi? _ownerReports;
   OwnerServiceFeesApi? _ownerServiceFees;
   OwnerSettingsApi? _ownerSettings;
+  OwnerStaffApi? _ownerStaff;
   OwnerStopListApi? _ownerStopList;
   PromoCodesApi? _promoCodes;
   ReportsApi? _reports;
+  KitchenApi? _kitchen;
+  StaffOrdersApi? _staffOrders;
   StoresApi? _stores;
   SuperadminApi? _superadmin;
   FallbackApi? _fallback;
@@ -149,8 +163,14 @@ class RizqimApi {
         baseUrl: _baseUrl,
       );
 
+  OwnerBranchesApi get ownerBranches =>
+      _ownerBranches ??= OwnerBranchesApi(_dio, baseUrl: _baseUrl);
+
   OwnerCatalogApi get ownerCatalog =>
       _ownerCatalog ??= OwnerCatalogApi(_dio, baseUrl: _baseUrl);
+
+  OwnerDeliveryZonesApi get ownerDeliveryZones =>
+      _ownerDeliveryZones ??= OwnerDeliveryZonesApi(_dio, baseUrl: _baseUrl);
 
   OwnerDevicesApi get ownerDevices =>
       _ownerDevices ??= OwnerDevicesApi(_dio, baseUrl: _baseUrl);
@@ -160,6 +180,9 @@ class RizqimApi {
 
   OwnerFinanceApi get ownerFinance =>
       _ownerFinance ??= OwnerFinanceApi(_dio, baseUrl: _baseUrl);
+
+  OwnerFinanceHistoryApi get ownerFinanceHistory =>
+      _ownerFinanceHistory ??= OwnerFinanceHistoryApi(_dio, baseUrl: _baseUrl);
 
   OwnerBillingApi get ownerBilling =>
       _ownerBilling ??= OwnerBillingApi(_dio, baseUrl: _baseUrl);
@@ -173,11 +196,17 @@ class RizqimApi {
   OwnerChannelPricesApi get ownerChannelPrices =>
       _ownerChannelPrices ??= OwnerChannelPricesApi(_dio, baseUrl: _baseUrl);
 
+  OwnerReportsApi get ownerReports =>
+      _ownerReports ??= OwnerReportsApi(_dio, baseUrl: _baseUrl);
+
   OwnerServiceFeesApi get ownerServiceFees =>
       _ownerServiceFees ??= OwnerServiceFeesApi(_dio, baseUrl: _baseUrl);
 
   OwnerSettingsApi get ownerSettings =>
       _ownerSettings ??= OwnerSettingsApi(_dio, baseUrl: _baseUrl);
+
+  OwnerStaffApi get ownerStaff =>
+      _ownerStaff ??= OwnerStaffApi(_dio, baseUrl: _baseUrl);
 
   OwnerStopListApi get ownerStopList =>
       _ownerStopList ??= OwnerStopListApi(_dio, baseUrl: _baseUrl);
@@ -186,6 +215,11 @@ class RizqimApi {
       _promoCodes ??= PromoCodesApi(_dio, baseUrl: _baseUrl);
 
   ReportsApi get reports => _reports ??= ReportsApi(_dio, baseUrl: _baseUrl);
+
+  KitchenApi get kitchen => _kitchen ??= KitchenApi(_dio, baseUrl: _baseUrl);
+
+  StaffOrdersApi get staffOrders =>
+      _staffOrders ??= StaffOrdersApi(_dio, baseUrl: _baseUrl);
 
   StoresApi get stores => _stores ??= StoresApi(_dio, baseUrl: _baseUrl);
 

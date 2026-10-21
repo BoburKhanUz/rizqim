@@ -7,15 +7,19 @@ part of 'data31.dart';
 // **************************************************************************
 
 Data31 _$Data31FromJson(Map<String, dynamic> json) => Data31(
-  code: json['code'] as String,
-  expiresAt: json['expires_at'] as String,
-  type: json['type'] as String,
-  branchId: (json['branch_id'] as num?)?.toInt(),
+  productId: (json['product_id'] as num).toInt(),
+  name: json['name'] as String,
+  description: json['description'] as String?,
+  imageUrl: json['image_url'] as String?,
+  variants: (json['variants'] as List<dynamic>)
+      .map((e) => Variants.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data31ToJson(Data31 instance) => <String, dynamic>{
-  'code': instance.code,
-  'expires_at': instance.expiresAt,
-  'type': instance.type,
-  'branch_id': instance.branchId,
+  'product_id': instance.productId,
+  'name': instance.name,
+  'description': instance.description,
+  'image_url': instance.imageUrl,
+  'variants': instance.variants,
 };

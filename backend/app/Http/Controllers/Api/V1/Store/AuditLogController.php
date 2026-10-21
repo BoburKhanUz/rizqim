@@ -21,19 +21,30 @@ class AuditLogController extends Controller
 {
     use ApiResponse;
 
+    /**
+     * Audit log
+     *
+     * The store's entries, newest first, Laravel pages (`per_page` 1–100, default 50). Filters: `action` (exact, or a
+     * prefix such as `order.*`), `user_id`, `device_uuid`, `branch_id`, `subject_type` + `subject_id`, `from` / `to`
+     * (dates). PINs, tokens, codes and card data never reach the log and phone numbers are masked (AuditRedactor);
+     * `ip` is shown to the owner only.
+     */
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{data: list<array{id: int, action: string, actor: array{id: int, name: string, role: string}|null, device: array{uuid: string, name: string|null, type: string}|null, subject_type: string|null, subject_id: int|null, branch_id: int|null, before: array<string, mixed>|null, after: array<string, mixed>|null, meta: array<string, mixed>|null, ip: string|null, created_at: string}>, current_page: int, last_page: int, per_page: int, total: int}}')]
     public function index(Request $request): JsonResponse
     {
+        // P2-12: ids within bigint (a longer number is a 422, not a database error); zone changes are audited too
+        $id = 'nullable|integer|min:1|max:999999999999999999';
         $request->validate([
             'action' => 'nullable|string|max:64',
-            'user_id' => 'nullable|integer',
+            'user_id' => $id,
             'device_uuid' => 'nullable|uuid',
-            'branch_id' => 'nullable|integer',
-            'subject_type' => 'nullable|string|in:Order,User,Device,Product,ProductVariant,Store,Branch,DevicePairingCode',
-            'subject_id' => 'nullable|integer',
+            'branch_id' => $id,
+            'subject_type' => 'nullable|string|in:Order,User,Device,Product,ProductVariant,Store,Branch,DevicePairingCode,DeliveryZone',
+            'subject_id' => $id,
             'from' => 'nullable|date',
             'to' => 'nullable|date',
             'per_page' => 'nullable|integer|min:1|max:100',
-        ]);
+        ], \App\Support\UzValidation::messages());
 
         /** @var User $user */
         $user = $request->user();

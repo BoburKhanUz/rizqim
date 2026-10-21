@@ -132,6 +132,10 @@ enum Permission {
   @JsonValue('pos.reprint_bill')
   undefined30('pos.reprint_bill'),
 
+  /// Incorrect name has been replaced. Original name: `branches.manage`.
+  @JsonValue('branches.manage')
+  undefined31('branches.manage'),
+
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);
 

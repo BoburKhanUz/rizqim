@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Domain\Delivery\Geometry;
+use App\Services\Audit\AuditLogger;
 use App\Support\Money;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -29,6 +30,17 @@ use InvalidArgumentException;
  */
 class DeliveryZone extends Model
 {
+    // P2-12: the zone form's limits, shared by the panel editor and the API (DeliveryZoneController)
+    public const NAME_MAX = 120;
+    public const AMOUNT_MAX = 99999999;
+    public const PRIORITY_MIN = -1000;
+    public const PRIORITY_MAX = 1000;
+    public const ETA_MIN = 1;
+    public const ETA_MAX = 600;
+
+    /** P2-12: the fields a zone change is audited with (the polygon itself is too big: `polygon_changed` instead). */
+    public const AUDITED = ['name', 'branch_id', 'priority', 'active', 'delivery_price', 'min_order_amount', 'free_delivery_from', 'eta_minutes'];
+
     protected $guarded = ['id', 'min_lat', 'max_lat', 'min_lng', 'max_lng', 'area_km2'];
 
     protected function casts(): array
@@ -65,6 +77,19 @@ class DeliveryZone extends Model
                 $zone->forceFill($box + ['area_km2' => round(Geometry::areaKm2($geometry), 4)]);
             }
         });
+
+        // P2-12: who changed a zone's price or shape and when, from the panel and the API alike (docs/ZONES.md)
+        static::created(fn (DeliveryZone $zone) => app(AuditLogger::class)->record('delivery_zone.created', $zone, [], $zone->only(self::AUDITED)));
+        static::updated(function (DeliveryZone $zone) {
+            $changed = array_intersect(array_keys($zone->getChanges()), self::AUDITED);
+            $polygonChanged = $zone->wasChanged('polygon');
+            if ($changed === [] && !$polygonChanged) {
+                return;
+            }
+            $before = array_intersect_key($zone->getOriginal(), array_flip($changed));
+            app(AuditLogger::class)->record('delivery_zone.updated', $zone, $before, $zone->only($changed), $polygonChanged ? ['polygon_changed' => true] : []);
+        });
+        static::deleted(fn (DeliveryZone $zone) => app(AuditLogger::class)->record('delivery_zone.deleted', $zone, $zone->only(self::AUDITED), [], [], ['store_id' => (int) $zone->store_id]));
     }
 
     /**

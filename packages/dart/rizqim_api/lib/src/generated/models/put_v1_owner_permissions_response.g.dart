@@ -11,7 +11,7 @@ PutV1OwnerPermissionsResponse _$PutV1OwnerPermissionsResponseFromJson(
 ) => PutV1OwnerPermissionsResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data43.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data61.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PutV1OwnerPermissionsResponseToJson(

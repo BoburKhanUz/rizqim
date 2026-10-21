@@ -84,7 +84,8 @@ abstract class OrderBroadcast implements ShouldBroadcast, ShouldDispatchAfterCom
     }
 
     /**
-     * store.{id} and, for an order of a branch, branch.{id}
+     * store.{id} and, for an order of a branch, branch.{id} and pos-branch.{id} (P2-11: everyone working in the
+     * branch and its paired terminals)
      *
      * @return array<int, PrivateChannel>
      */
@@ -94,6 +95,7 @@ abstract class OrderBroadcast implements ShouldBroadcast, ShouldDispatchAfterCom
 
         if ($this->branchId !== null) {
             $channels[] = new PrivateChannel("branch.{$this->branchId}");
+            $channels[] = new PrivateChannel("pos-branch.{$this->branchId}");
         }
 
         return $channels;

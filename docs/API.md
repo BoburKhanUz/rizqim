@@ -73,8 +73,10 @@ Qo'shimcha cheklovlar:
   partiyalari bilan ishlaydi. Begona yozuv 404 bo'ladi (403 emas: mavjudligi ham oshkor qilinmaydi).
 - **Ilova uchun:** `GET /me/permissions` → `{role, store_id, branch_id, branch_scoped, permissions[], device_uuid}`.
   Ilova faqat ishlaydigan tugmalarni ko'rsatadi, lekin server baribir har bir amalni o'zi tekshiradi.
-- **Hozirgi cheklov:** buyurtma API'si (`/orders/*`) hozircha ega, menejer, kuryer va mijoz uchun. Kassir, ofitsiant va
-  oshpaz uchun buyurtma endpointlari POS bosqichida ochiladi ([POS_SPEC.md](POS_SPEC.md)).
+- **Xodimlar uchun buyurtmalar (P2-11):** `/orders/*` avvalgidek ega, menejer, kuryer va mijoz uchun (ma'nosi va javob
+  shakli o'zgarmagan). Ega, menejer, kassir, ofitsiant va oshpaz filial buyurtmalari bilan `/staff/orders*` va
+  `/staff/kitchen/tickets` orqali ishlaydi (9-bo'lim, "Xodim buyurtmalari"). Kuryer va mijoz bu yo'llarga kira olmaydi
+  (403). POS'ning buyurtma ochish, schyot va to'lov endpointlari 3-bosqichda ([POS_SPEC.md](POS_SPEC.md)).
 
 ## 4. Javob va xato formati
 
@@ -120,6 +122,8 @@ Xato (`ApiResponse::error`):
 | `outside_zone` | 422 | `/delivery/quote` | nuqta hech qaysi hududda emas |
 | `zones_not_configured` | 422 | `/delivery/quote` | do'konda faol hudud yo'q |
 | `branch_closed` | 422 | `/delivery/quote` | hududga xizmat qiladigan filial yopiq |
+| `branch_in_use` | 422 | `DELETE /owner/branches/{id}` | filialda buyurtmalar bor yoki u do'konning yagona filiali (P2-12) |
+| `too_many_rows` | 422 | `/owner/reports/export` | davrda CSV uchun buyurtmalar juda ko'p (`data.limit`), qisqaroq davr tanlang (P2-12) |
 
 P1-32 tugagach `outside_zone` va boshqa hudud sabablari `POST /orders` da ham qaytadi (**to'lqin 3 da o'zgarmoqda**).
 
@@ -150,7 +154,10 @@ Hozir uchta usul bor (endpointga qarab):
 | `GET /orders?scope=history` | kursor (keyset) | `per_page` (1–50), `cursor`; javobda `meta.next_cursor` — `null` bo'lguncha qaytarib yuboring |
 | `GET /orders?scope=active` | sahifasiz, eng ko'pi 200 | `meta.truncated: true` — yana bor |
 | `GET /orders` (scope'siz) | sahifasiz, to'liq ro'yxat | eski ilova versiyalari uchun saqlangan; yangi ilovalar `scope` ishlatsin |
+| `GET /staff/orders` (P2-11) | kursor (keyset) | `per_page` (1–100, standart 30), `cursor`; `meta.next_cursor`. Filtrlarni har sahifada bir xil yuboring |
+| `GET /staff/kitchen/tickets` | sahifasiz, eng ko'pi 200 | `meta.truncated: true` — yana bor |
 | `GET /owner/audit-logs`, `GET /owner/invoices` | Laravel sahifalari | `page`, `per_page` (1–100); `data` ichida `current_page`, `data`, `last_page`, `total`... |
+| `GET /owner/finance/ledger`, `/owner/finance/wallet`, `/owner/payouts`, `/owner/payments` (P2-12) | Laravel sahifalari | xuddi shu, `per_page` standart 25 |
 | `GET /notifications` | Laravel sahifalari | 20 tadan |
 
 Yangi ro'yxat endpointlari uchun tavsiya: o'sib boradigan ro'yxatda kursor (`meta.next_cursor`), kichik ro'yxatda
@@ -175,6 +182,7 @@ Umumiy: kirgan foydalanuvchiga daqiqasiga 300 ta (`api`). Oshsa 429 va `Retry-Af
 | Promo-kod | 20/daq |
 | Shikoyat | 5/daq; baho — 10/daq |
 | Hisobot eksporti | 3/daq, 20/kun |
+| CSV yuklab olish (`GET /owner/reports/export`, P2-12) | 6/daq, 100/kun (`report-csv`) |
 | Geokodlash | 30/daq |
 | Hududlar / narx so'rovi (ochiq) | IP bo'yicha 120/daq / 60/daq |
 | Real-time obuna (`/broadcasting/auth`) | 60/daq |
@@ -186,11 +194,14 @@ Umumiy: kirgan foydalanuvchiga daqiqasiga 300 ta (`api`). Oshsa 429 va `Retry-Af
 
 WebSocket: Laravel Reverb (Pusher protokoli). Ulanish: `wss://<domen>/app/<REVERB_APP_KEY>` (Pusher/Echo klient).
 Private kanalga obuna `POST /api/broadcasting/auth` (Bearer token) bilan imzolanadi: mehmonga 401, ruxsatsizga 403.
+Bu endpoint foydalanuvchi tokenidan tashqari **ulangan terminalning o'z tokenini** ham qabul qiladi (P2-11), lekin
+terminal faqat `private-pos-branch.{branchId}` kanaliga qo'shila oladi (boshqa kanallarga 403).
 
 | Kanal | Kim qo'shiladi | Hodisalar |
 |---|---|---|
 | `private-store.{storeId}` | ega, filialsiz menejer | `order.created`, `order.status_changed`, `order.assigned`, `menu.availability_changed` |
 | `private-branch.{branchId}` | shu filial menejeri, ega | xuddi shu |
+| `private-pos-branch.{branchId}` (P2-11) | filialda ishlaydigan hamma: shu filialda `orders.view` huquqi bor xodim (ega va filialsiz xodim — do'konning istalgan filiali; filialga biriktirilgan menejer, kassir, ofitsiant, oshpaz — o'z filiali; terminaldagi PIN sessiyasi — faqat terminal filiali) va shu filialning ulangan POS/KDS terminali (terminal tokeni bilan; filialsiz ulangan terminal — do'konning har bir filiali) | `order.created`, `order.status_changed`, `order.assigned`, `kitchen.item_status_changed`, `menu.availability_changed` |
 | `private-courier.{userId}` | kuryerning o'zi (o'rnini bosgan ega/menejer ham) | `order.status_changed`, `order.assigned` |
 | `private-user.{userId}` | mijozning o'zi | `order.status_changed` |
 | `menu.{storeId}` | ochiq, obunasiz | `menu.availability_changed` |
@@ -201,9 +212,17 @@ Hodisa tanalari:
 // order.created, order.status_changed, order.assigned
 {"order": {"uuid": "...", "status": "preparing", "store_id": 3, "branch_id": 5, "courier_id": null, "updated_at": "..."}}
 
+// kitchen.item_status_changed (P2-11): oshpaz taom qatorini "tayyor" deb belgiladi yoki qaytardi
+{"order": {"uuid": "...", "status": "preparing", "store_id": 3, "branch_id": 5, "courier_id": null, "updated_at": "..."},
+ "item": {"id": 812, "kitchen_status": "ready", "ready_at": "..."}, "items_total": 3, "items_ready": 2}
+
 // menu.availability_changed
 {"store_id": 3, "branch_id": 5, "reason": "stop_list", "items": [{"type": "variant", "id": 41, "available": false}], "changed_at": "..."}
 ```
+
+Buyurtma bekor qilinishi yoki rad etilishi alohida hodisa emas: `order.status_changed` (`status`: `canceled` yoki
+`rejected`). Buyurtma hodisalari `branch_id` bor bo'lsa `store`, `branch` va `pos-branch` kanallariga, `branch_id`
+siz eski buyurtmalar faqat `store` kanaliga boradi. Oshxona hodisasi ham xuddi shu kanallarga.
 
 Qoidalar:
 
@@ -211,8 +230,10 @@ Qoidalar:
   (`GET /catalog/availability`) **API'dan qayta so'raydi**.
 - Real-time kafolat emas: Reverb o'chiq bo'lishi yoki hodisa yo'qolishi mumkin. Ilova har doim so'rov (polling) bilan
   ham yangilanadi va qayta ulanganda ro'yxatni to'liq qayta yuklaydi.
-- Kassir, ofitsiant, oshpaz va terminal tokeni hozir xodim kanallariga qo'shila olmaydi; POS uchun kanal
-  [POS_SPEC.md](POS_SPEC.md) da taklif qilingan.
+- Kassir, ofitsiant, oshpaz va terminallar `private-pos-branch.{branchId}` ga qo'shiladi (P2-11); `store`, `branch`,
+  `courier`, `user` kanallari avvalgidek. Hodisada kim ko'rishidan qat'i nazar shaxsiy ma'lumot (ism, telefon, manzil,
+  narx) yo'q: ilova `GET /staff/orders/{uuid}` yoki `GET /staff/kitchen/tickets` ni qayta so'raydi va server rolga qarab
+  javob beradi (oshpaz telefon va manzilni ko'rmaydi).
 
 Sozlash: [DEPLOY.md](DEPLOY.md), 9-bo'lim.
 
@@ -231,16 +252,83 @@ Barchasi `/api/v1` ostida. To'liq ro'yxat, parametrlar va javob shakllari — Op
 | Manzil va xarita | `GET/POST/PUT/DELETE /addresses`, `GET /locations`, `GET /geocode/reverse`, `/geocode/search` | mijoz manzillari, viloyat/tuman, geokodlash proksisi |
 | Yetkazish hududlari | `GET /stores/{store}/zones`, `GET /delivery/quote` | ochiq: hududlar va yetkazish narxi |
 | Buyurtmalar | `GET/POST /orders`, `POST /orders/{uuid}/status`, `/cancel`, `/complete`, `/assign-courier`, `GET /couriers` | yaratish (Idempotency-Key), ro'yxat, holat o'zgartirish, kuryer |
+| Xodim buyurtmalari (P2-11) | `GET /staff/orders`, `GET /staff/orders/{uuid}`, `POST /staff/orders/{uuid}/status` | filial doskasi (filtrlar, kursor), tafsilot, rolga qarab holat o'zgartirish |
+| Oshxona ekrani (P2-11) | `GET /staff/kitchen/tickets`, `POST /staff/orders/{uuid}/items/{id}/ready`, `.../recall` | oshxona chiptalari, taom qatorini "tayyor" deb belgilash va qaytarish |
 | Promo, shikoyat | `POST /promo/validate`, `GET/POST /complaints`, `/complaints/{id}/reply`, `/escalate` | promo-kodni oldindan ko'rish, shikoyatlar |
 | Ega: menyu | `/owner/categories`, `/owner/products`, `/owner/modifier-groups`, `/owner/products/{id}/modifier-groups`, `/owner/products/{id}/channel-prices`, `/owner/branch-variants` | menyu, modifikatorlar, kanal narxlari, filial mavjudligi |
 | Ega: oshxona va stop-list | `/owner/batches` (+ `/adjust`, `/close`), `/owner/stop-list` | qozon/partiya qoldig'i, stop-list |
 | Ega: xodimlar va kirish | `/owner/employees` (+ `invite`, `transfer`), `/owner/staff/{id}/pin`, `/owner/staff/{id}/role`, `/owner/permissions`, `/owner/devices` (+ `pairing-codes`, `revoke`), `/owner/audit-logs` | xodimlar, PIN, rollar, ruxsatlar, terminallar, jurnal |
 | Ega: moliya va sozlamalar | `/owner/finance`, `/owner/finance/top-up`, `/owner/payouts`, `/owner/settings` (+ `upload`), `/owner/service-fees`, `/owner/subscription`, `/owner/invoices` | balans, to'ldirish, pul yechish, sozlamalar, xizmat haqi, tarif |
 | Ega: hisobot | `GET /owner/analytics`, `POST /reports/export` | ko'rsatkichlar, CSV hisobot (Telegram'ga) |
+| Ega: boshqaruv (P2-12) | `/owner/branches`, `/owner/delivery-zones`, `/owner/staff`, `/owner/reports/sales`, `/owner/reports/top-products`, `/owner/reports/export`, `/owner/finance/ledger`, `/owner/finance/wallet`, `GET /owner/payouts`, `GET /owner/payments` | web panel uchun filiallar, hududlar, xodimlar, hisobotlar, moliya tarixi (12-bo'lim) |
 | Feature flag'lar | `GET /features` | do'kon bo'yicha yoqilgan imkoniyatlar |
 | Superadmin | `/superadmin/dashboard`, `/superadmin/stores`, `/superadmin/locations` | Mini App'dagi superadmin ekranlari (asosiy boshqaruv Filament'da) |
 | Webhooklar | `POST /payments/click/webhook`, `/payments/payme/webhook`, `/telegram/webhook` | serverdan serverga, imzo bilan |
 | Xizmat | `GET /health` (va `/api/v1/health`), `POST /api/broadcasting/auth` | monitoring, real-time obuna |
+
+### 9.1. Xodim buyurtmalari va oshxona ekrani (P2-11)
+
+Hamkor veb-paneli doskasi, Mini App xodim ekranlari va oshxona ekrani (KDS) uchun. Oddiy xodim kirishi (Mini App,
+ilova, panel) yoki terminaldagi xodim PIN sessiyasi tokeni bilan ishlaydi; terminalning o'z tokeni bu endpointlarga
+kirmaydi (401). Kim nimani ko'radi:
+
+| Kim | Qaysi buyurtmalar |
+|---|---|
+| Ega | do'konning barcha filiallari |
+| Menejer, kassir, ofitsiant, oshpaz (filialga biriktirilgan) | faqat o'z filiali |
+| Filialsiz xodim | do'konning barcha filiallari |
+| Filialga ulangan terminaldagi PIN sessiyasi | faqat shu terminal filiali (masalan, filialsiz oshpaz A filial KDS'ida faqat A ni ko'radi) |
+| Kuryer, mijoz | kira olmaydi (403); `GET /orders` avvalgidek |
+
+Boshqa do'kon yoki boshqa filial buyurtmasi — 404 (mavjudligi oshkor qilinmaydi). Filtrda (`branch_id`) o'zi ishlamaydigan
+filial — 403, boshqa do'kon filiali — 404.
+
+**`GET /staff/orders`** (`orders.view`) — yangidan eskiga, kursor bilan. Filtrlar: `branch_id`, `scope`
+(`active` — jarayonda, `history` — yakunlangan, bekor qilingan, rad etilgan, qaytarilgan), `status` (vergul bilan:
+`new,accepted`), `type` (`delivery`, `pickup`, `dine_in`), `channel`, `date` yoki `from`/`to` (do'kon vaqt
+mintaqasidagi kunlar, `Y-m-d`, ko'pi bilan 93 kun), `q` (buyurtma raqamining boshi, 1–20 harf/raqam), `per_page`,
+`cursor`. Noto'g'ri qiymat — 422.
+
+**`GET /staff/orders/{uuid}`** (`orders.view`) — tafsilot: taomlar (modifikatorlar, miqdor va birlik — `quantity`,
+`unit`, `quantity_label`: `"1.5 kg"`; narxlar; `kitchen_status`, `ready_at`), izoh, `customer`, `delivery`, `courier`,
+summalar, vaqtlar (`created_at`, `accepted_at`, `preparing_at`, `ready_at`, `closed_at`) va `status_history`.
+Ro'yxat elementida ham xuddi shu maydonlar bor (`status_history` dan tashqari).
+
+**Kim nimani ko'radi (maydonlar).** Mijozning ismi va telefoni (`customer`), yetkazish manzili (`delivery`) va kuryer
+(`courier`) faqat `orders.manage` huquqi borlarga (standart: ega, menejer, kassir, ofitsiant). Oshpazga (`orders.view` +
+`kitchen.manage`) bu maydonlar `null`, izohdagi telefon raqami niqoblanadi (`+99890*****67`).
+
+**`POST /staff/orders/{uuid}/status`** `{status, reason?, note?}` — `status`: `accepted`, `preparing`, `ready`,
+`delivered`, `canceled`, `rejected`. Yangi holat qo'shilmagan, mavjud `OrderStatus` va uning o'tish qoidalari ishlatiladi.
+Kim nima qila oladi:
+
+| Kim | O'tishlar |
+|---|---|
+| `orders.manage` (ega, menejer, kassir, ofitsiant) | qabul qilish, tayyorlash, tayyor, topshirish (olib ketish va zal: `delivered`) |
+| `kitchen.manage` (oshpaz; ega va menejerda ham bor) | faqat `accepted → preparing` va `preparing → ready` |
+| `orders.cancel` (ega, menejer) | bekor qilish va rad etish (`reason` majburiy, `POST /orders/{uuid}/status` dagidek) |
+
+Ruxsat yo'q — 403, holat mashinasi ruxsat bermasa — 422, xuddi shu holat — 200 (o'zgarishsiz). Kuryer biriktirish —
+avvalgidek `POST /orders/{uuid}/assign-courier`. Buyurtma `ready` bo'lganda (qaysi yo'l bilan bo'lmasin: KDS, panel,
+Telegram tugmasi) uning hamma qatorlari ham `ready` bo'ladi. Har o'zgarish holat tarixiga va harakatlar jurnaliga
+(PIN sessiyasida terminal bilan) yoziladi, mijozga avvalgidek xabar boradi.
+
+**`GET /staff/kitchen/tickets`** (`kitchen.manage` yoki `orders.view`) — oshxona chiptalari: `accepted` va
+`preparing` buyurtmalar (`include_ready=1` bilan `ready` ham), eskisidan yangisiga, eng ko'pi 200. `branch_id` ixtiyoriy.
+Chiptada: buyurtma raqami, turi, kanali, stol (`hall_ref`, `table_ref`), mehmonlar soni, izoh (telefon niqoblangan),
+taomlar (modifikatorlar, miqdor/vazn, `kitchen_status`, `ready_at`; narxsiz), `items_total`, `items_ready`,
+`created_at`, `accepted_at`, `preparing_at`, `ready_at` va `waiting_seconds` (qabul qilingandan — qabul qilinmagan
+bo'lsa yaratilgandan — hozirgacha yoki tayyor bo'lgunicha). Mijoz ma'lumoti yo'q. Ekran vaqtni `accepted_at` dan o'zi
+sanab turadi.
+
+**`POST /staff/orders/{uuid}/items/{id}/ready`** (`kitchen.manage`) — taom qatori tayyor ("bump"). Faqat buyurtma
+`accepted` yoki `preparing` bo'lganda (aks holda 422, `data.reason = kitchen_status`). Qabul qilingan buyurtmada birinchi
+"tayyor" uni `preparing` ga o'tkazadi. **Oxirgi qator tayyor bo'lganda buyurtma o'zi `ready` bo'ladi** — faqat
+yetkazish va olib ketish buyurtmalarida (mijoz yoki kuryer kutyapti). Zal buyurtmasi (`dine_in`) stol yopilguncha
+`preparing` da qoladi ([POS_SPEC.md](POS_SPEC.md), 3-bo'lim); uni oshpaz xohlasa `status = ready` bilan o'zi belgilaydi.
+Qayta yuborilsa — 200, o'zgarishsiz. **`.../recall`** — xato bosilgan "tayyor"ni qaytarish (qator yana `pending`),
+faqat buyurtma hali `accepted`/`preparing` bo'lsa. Ikkalasi ham chiptani qaytaradi va `kitchen.item_status_changed`
+hodisasini yuboradi. Boshqa buyurtma qatori — 404.
 
 ## 10. OpenAPI spetsifikatsiyasi va klientlar
 
@@ -279,3 +367,110 @@ izohlang, aks holda klientda tur `unknown` bo'lib qoladi.
 - Kerak bo'lsa alohida rate limiter (`AppServiceProvider` yoki `AccessServiceProvider`).
 - Muhim harakat — `AuditLogger` orqali jurnalga.
 - Oxirida spetsifikatsiya va ikkala klientni qayta yarating (10-bo'lim).
+
+## 12. Boshqaruv API xaritasi (P2-12)
+
+Hamkor web paneli (`partner/web`, 2-bosqich, to'lqin 2) ega va menejer bugun Filament do'kon panelida va Mini App'ning ega
+ekranlarida qiladigan hamma ishni API orqali qilishi kerak. Quyida har bir imkoniyat qaysi endpointga to'g'ri kelishi.
+"Yangi" — P2-12 da qo'shilgan; "bor" — oldin ham bor edi; "faqat Filament" — nima uchun API'ga chiqmagani pastda.
+Hamma yangi endpointlar: `auth:sanctum` + `staff.store` + ruxsat, do'kon va filial bo'yicha ajratilgan (boshqa do'konniki
+— 404, o'z do'konidagi begona filial — 403), id'lar 18 xonagacha (`RowId`), xato xabarlari o'zbekcha, pul — ikki xonali
+satr (`"12000.00"`), sanalar do'kon vaqt mintaqasida (`stores.timezone`, standart `Asia/Tashkent`).
+
+### Xarita
+
+| Ekran (Filament / Mini App) | Imkoniyat | API | Ruxsat | Holat |
+|---|---|---|---|---|
+| Buyurtmalar / Mini App menejer ekrani | ro'yxat, tafsilot, holat, bekor qilish, kuryer | `GET /orders`, `/staff/orders*` (P2-11), `POST /orders/{uuid}/status`, `/cancel`, `/assign-courier`, `GET /couriers` | `orders.*` | bor (P2-11) |
+| Buyurtmalar | pulni qaytarish | — | `orders.refund` (faqat superadmin) | faqat Filament (superadmin) |
+| Mahsulotlar / Mini App menyu | taom, variant, vazn, rasm, faol/nofaol | `GET/POST /owner/products`, `POST/DELETE /owner/products/{id}` | ega | bor; menyudagi o'rni (`sort_order`) — yangi |
+| Mahsulotlar | kategoriyalar | `GET /owner/categories` (yaratish — superadmin) | ega | bor |
+| Modifikator guruhlari | guruh, modifikator, taomga ulash | `/owner/modifier-groups*`, `PUT /owner/products/{id}/modifier-groups` | `menu.manage` | bor |
+| Mahsulotlar | kanal narxlari | `GET/PUT /owner/products/{id}/channel-prices` | `menu.manage` | bor |
+| Stop-list | qo'shish, olib tashlash | `/owner/stop-list*` | `stoplist.manage` | bor |
+| Qozon qoldig'i | ochish, to'ldirish, yopish | `/owner/batches*` | `batches.manage` | bor |
+| Filiallar | ro'yxat | `GET /owner/branches`, `GET /owner/branches/{id}` | buyurtma, menyu, xodim yoki hisobot ruxsati | yangi |
+| Filiallar | yaratish, o'chirish | `POST /owner/branches`, `DELETE /owner/branches/{id}` | `settings.manage` (ega) | yangi |
+| Filiallar | manzil, joylashuv, radius, ish vaqti, ochiq/yopiq | `PATCH /owner/branches/{id}` | `branches.manage` (ega, menejer — o'z filiali) | yangi |
+| Yetkazib berish hududlari | ro'yxat, yaratish, tahrirlash, o'chirish | `GET/POST /owner/delivery-zones`, `GET/PATCH/DELETE /owner/delivery-zones/{id}` | `zones.manage` (faqat ega) | yangi |
+| Xodimlar / Mini App xodimlar | ro'yxat | `GET /owner/staff` (ega va menejer) ; `GET /owner/employees` (ega, eski shakl) | `staff.view` | yangi / bor |
+| Xodimlar | qo'shish (kirish telefoni bilan) | `POST /owner/staff`; taklif havolasi `POST /owner/employees/invite` | `staff.view` + rol darajasi | yangi / bor |
+| Xodimlar | ism, filial, kirish telefoni | `PATCH /owner/staff/{id}` | `staff.view` + rol darajasi | yangi |
+| Xodimlar | filialga o'tkazish, o'chirish | `POST /owner/employees/{id}/transfer`, `DELETE /owner/employees/{id}` | ega | bor |
+| Xodimlar | rol, PIN, "Mening PIN kodim" | `PUT /owner/staff/{id}/role`, `PUT/DELETE /owner/staff/{id}/pin` | `staff.manage`, `staff.pin` | bor |
+| Ruxsatlar | jadval, o'zgartirish | `GET/PUT /owner/permissions` | `permissions.manage` | bor |
+| Qurilmalar | ro'yxat, nom, o'chirish, ulash kodi | `/owner/devices*` | `devices.view`, `devices.manage` | bor |
+| Harakatlar jurnali | o'qish, filtrlar | `GET /owner/audit-logs` | `audit.view` (ega) | bor; id chegarasi, `DeliveryZone` filtri, javob hujjatlandi |
+| Analitika / Mini App analitika | qisqa ko'rsatkichlar | `GET /owner/analytics` | `reports.view` | bor |
+| Analitika | davr bo'yicha savdo, kanal, filial, to'lov usuli, kunlik/haftalik/oylik qator | `GET /owner/reports/sales` | `reports.view` | yangi |
+| Analitika | eng ko'p sotilgan taomlar | `GET /owner/reports/top-products` | `reports.view` | yangi |
+| Mini App hisobotlar | CSV Telegram'ga | `POST /reports/export` | ega, menejer | bor |
+| — | CSV yuklab olish (buyurtmalar, savdo, taomlar) | `GET /owner/reports/export` | `reports.view` | yangi |
+| To'lovlar | mijozlarning onlayn to'lovlari | `GET /owner/payments` | `finance.view` | yangi |
+| Moliya / Mini App to'lovlar | balans, oxirgi 20 ta yozuv | `GET /owner/finance` | ega | bor |
+| Moliya | qarz hisobi, hamyon tarixi (sahifalab) | `GET /owner/finance/ledger`, `GET /owner/finance/wallet` | `finance.view` | yangi |
+| Moliya | pul yechish so'rovlari tarixi | `GET /owner/payouts` | `finance.view` | yangi |
+| Moliya | pul yechish, balansni to'ldirish | `POST /owner/payouts`, `POST /owner/finance/top-up` | ega | bor |
+| Tarif va hisob-fakturalar | tarif, hisob-fakturalar | `GET /owner/subscription`, `GET /owner/invoices` | `finance.view` | bor |
+| Sozlamalar / Mini App sozlamalar | logo, banner, tavsif, manzil, telefon, ochiq/yopiq, minimal summa, ish vaqti, to'lov usullari, yetkazish/olib ketish | `GET/POST /owner/settings`, `POST /owner/settings/upload` | ega | bor; do'kon nomi (`name`) va vaqt mintaqasi (`timezone`) — yangi |
+| Sozlamalar | xizmat haqi va joy narxi | `GET/PUT /owner/service-fees` | `settings.manage` | bor |
+
+### Faqat Filament'da qoladiganlar va sababi
+
+- **Pulni qaytarish (refund), kategoriya yaratish, kuryer turi `fleet`** — superadmin ishi (Rizqim kuryerlarini platforma
+  biriktiradi), hamkor paneliga kerak emas.
+- **`telegram_admin_chat_id` (buyurtmalar guruhi)** — guruh botdagi `?start=store_<uuid>` havolasi bilan ulanadi; raqamni
+  qo'lda yozish superadmin yordami uchun. API'da ochilsa, begona chatga buyurtma yuborish xavfi bor.
+- **Dashboard vidjetlari** (soatlik grafiklar, "war room", jonli lenta), **Inventar** va **Staff** sahifalari — navigatsiyada
+  yashirin yoki bezak uchun (bo'sh bazada namunaviy raqam ko'rsatadi), biznes qoidasi yo'q. Web panel ko'rsatkichlarni
+  `/owner/reports/*` va `/staff/orders` dan oladi; haqiqiy qoldiq — variant `stock` va `/owner/batches`.
+- **Buyurtmasi bor filialni o'chirish** — Filament ruxsat beradi, API rad etadi (`branch_in_use`): buyurtmalar va hisobotlar
+  filialsiz qolmasin. Bunday filial "faol emas" qilinadi.
+
+### Yangi endpointlar qisqacha
+
+**Yetkazib berish hududlari** (`zones.manage`, terminal PIN sessiyasidan emas). Qoidalar panel tahrirlovchisi bilan bir
+xil ([ZONES.md](ZONES.md)): `polygon` — GeoJSON `Polygon`/`MultiPolygon` (yoki `Feature`, bitta hududli
+`FeatureCollection`, obyekt yoki JSON satr), ko'pi bilan 20 ko'pburchak va 500 nuqta, yopiq halqa, maydoni noldan katta.
+Saqlashda tozalanadi, chegara to'rtburchagi (`bbox`) va maydon (`area_km2`) qayta hisoblanadi. `branch_id` — do'konning
+faol filiali yoki `null`. Narxlar 0–99 999 999, ko'pi bilan 2 kasr; `priority` −1000..1000; `eta_minutes` 1–600. Har
+o'zgarish jurnalga (`delivery_zone.created/updated/deleted`; shakl o'zgarsa `polygon_changed`). Ro'yxat qisqa — sahifasiz.
+
+**Filiallar.** Maydonlar: `name`, `phone`, `address`, `region_id`, `district_id` (shu viloyatniki), `latitude`,
+`longitude`, `radius_km` (0–100), `open_time`/`close_time` (`"HH:MM"`, ikkalasi birga yoki ikkalasi ham bo'sh),
+`status` (`active`, `inactive`, `temporarily_closed`), `is_active`. Ish vaqti — kunda bitta oraliq (panel va
+`ZoneResolver` kabi): vaqt yo'q yoki teng — sutka bo'yi; yopilish ochilishdan oldin — tungi. Javobda `working_hours
+{open, close, all_day, overnight, timezone}` va `is_open_now` (yetkazib berish hozir shu filialni ochiq deb biladimi).
+O'chirish rad etiladi (422, `branch_in_use`): filialda buyurtma bo'lsa yoki do'konning yagona filiali bo'lsa.
+Jurnal: `branch.created/updated/deleted`.
+
+**Hisobotlar** (`reports.view`). `from`, `to` — `YYYY-MM-DD`, ikkalasi kiradi, do'kon vaqt mintaqasidagi kunlar,
+ko'pi bilan 366 kun. Buyurtma joylashtirilgan kuni hisoblanadi; tushum — yetkazilgan buyurtmalar summasi (Mini App
+analitikasi bilan bir xil raqam). Filialga biriktirilgan menejer doim o'z filialini oladi.
+- `GET /owner/reports/sales?from&to&branch_id&group_by=day|week|month` → `summary`, `series`, `by_channel`,
+  `by_branch`, `by_payment_method`, `by_order_type`, `by_status`.
+- `GET /owner/reports/top-products?from&to&branch_id&limit=1..50&sort=quantity|revenue`.
+- `GET /owner/reports/export?report=orders|sales|products&from&to&...` — `text/csv; charset=UTF-8` (BOM bilan), oqim
+  bilan yuboriladi. `orders` — ko'pi bilan 93 kun va 50 000 buyurtma (oshsa 422, `too_many_rows`); `sales`,
+  `products` — 366 kun. Formula sifatida o'qilishi mumkin bo'lgan katak (`=`, `+`, `-`, `@` bilan boshlanadi) oldiga `'`
+  qo'yiladi. Mijoz telefoni CSV'ga yozilmaydi.
+
+**Moliya tarixi** (`finance.view`, terminal PIN sessiyasidan emas; Laravel sahifalari, `per_page` 1–100, standart 25;
+`from`/`to` do'kon vaqtida):
+- `GET /owner/finance/ledger?type=` — qarz hisobi (`store_transactions`), musbat summa qarzni oshiradi.
+- `GET /owner/finance/wallet?type=` — hamyon (`store_wallet_transactions`).
+- `GET /owner/payouts?status=pending|completed|rejected` — karta raqami niqoblangan (`8600 **** **** 9012`), izohlardagi
+  karta raqamlari ham.
+- `GET /owner/payments?status=&provider=&branch_id=` — onlayn to'lovlar (provayder tranzaksiya raqami bilan, xom
+  payload'siz). Filialga biriktirilgan xodim — faqat o'z filiali.
+
+**Xodimlar** (`staff.view`, terminal PIN sessiyasidan emas). Kim kimni boshqaradi — panelning xodimlar ekrani bilan bir
+xil (`StaffAccountService`): ega — hamma xodimni, menejer — o'z filialidagi o'zidan past rollarni.
+- `GET /owner/staff` — `login_phone_enabled`, `has_pin`, `staff_code`, `telegram_linked`, `invite_pending`, `can_edit`.
+- `POST /owner/staff {name, role, branch_id, phone?}` — `phone` (`+998XXXXXXXXX`) kirish raqami bo'ladi (ega yoki
+  menejer kafolati, [AUTH.md](AUTH.md)); javobda `invite_link`.
+- `PATCH /owner/staff/{id} {name?, branch_id?, phone?}` — xodimning o'zi SMS bilan tasdiqlagan raqamni almashtirib yoki
+  o'chirib bo'lmaydi (422).
+
+**Sozlamalar.** `POST /owner/settings` ixtiyoriy `name` va `timezone` (masalan `Asia/Tashkent`) qabul qiladi; yuborilmasa
+o'zgarmaydi. `GET /owner/settings` javobida `timezone`.

@@ -13,6 +13,8 @@ class V1OwnerSettingsRequestBody {
   const V1OwnerSettingsRequestBody({
     required this.isOpen,
     required this.paymentSettings,
+    this.name,
+    this.timezone,
     this.logo,
     this.banner,
     this.description,
@@ -25,6 +27,9 @@ class V1OwnerSettingsRequestBody {
   factory V1OwnerSettingsRequestBody.fromJson(Map<String, Object?> json) =>
       _$V1OwnerSettingsRequestBodyFromJson(json);
 
+  /// P2-12: the store's name and timezone (the panel's settings page edits them too); left out = kept
+  final String? name;
+  final String? timezone;
   final String? logo;
   final String? banner;
   final String? description;

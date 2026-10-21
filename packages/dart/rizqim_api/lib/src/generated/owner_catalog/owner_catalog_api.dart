@@ -41,6 +41,8 @@ abstract class OwnerCatalogApi {
   ///
   /// [variants] - JSON array of variants: [{"name": "...", "price": 25000}, ...]; P1-21 adds optional "unit" (piece|kg|l),.
   /// "quantity_step", "min_quantity" (kg/l) and "batch_consumption".
+  ///
+  /// [sortOrder] - P2-12: position in the menu, as the panel's product form sets it (left out = 0 / kept).
   @MultiPart()
   @POST('/v1/owner/products')
   Future<PostV1OwnerProductsResponse> ownerCatalogStoreProduct({
@@ -51,6 +53,7 @@ abstract class OwnerCatalogApi {
     @Part(name: 'is_active') bool? isActive,
     @Part(name: 'image') File? image,
     @Part(name: 'batch_tracked') bool? batchTracked,
+    @Part(name: 'sort_order') int? sortOrder,
   });
 
   /// Update an existing product.
@@ -73,6 +76,7 @@ abstract class OwnerCatalogApi {
     @Part(name: 'is_active') bool? isActive,
     @Part(name: 'image') File? image,
     @Part(name: 'batch_tracked') bool? batchTracked,
+    @Part(name: 'sort_order') int? sortOrder,
   });
 
   /// Delete a product

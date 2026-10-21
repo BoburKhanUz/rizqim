@@ -13,6 +13,8 @@ V1OwnerSettingsRequestBody _$V1OwnerSettingsRequestBodyFromJson(
   paymentSettings: (json['payment_settings'] as List<dynamic>)
       .map((e) => PaymentSettings.fromJson(e as Map<String, dynamic>))
       .toList(),
+  name: json['name'] as String?,
+  timezone: json['timezone'] as String?,
   logo: json['logo'] as String?,
   banner: json['banner'] as String?,
   description: json['description'] as String?,
@@ -25,6 +27,8 @@ V1OwnerSettingsRequestBody _$V1OwnerSettingsRequestBodyFromJson(
 Map<String, dynamic> _$V1OwnerSettingsRequestBodyToJson(
   V1OwnerSettingsRequestBody instance,
 ) => <String, dynamic>{
+  'name': instance.name,
+  'timezone': instance.timezone,
   'logo': instance.logo,
   'banner': instance.banner,
   'description': instance.description,

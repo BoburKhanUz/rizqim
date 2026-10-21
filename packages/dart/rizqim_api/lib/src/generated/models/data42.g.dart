@@ -7,23 +7,33 @@ part of 'data42.dart';
 // **************************************************************************
 
 Data42 _$Data42FromJson(Map<String, dynamic> json) => Data42(
-  roles: (json['roles'] as List<dynamic>)
-      .map((e) => Roles.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  permissions: (json['permissions'] as List<dynamic>)
-      .map((e) => Permissions.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  matrix: (json['matrix'] as Map<String, dynamic>).map(
-    (k, e) => MapEntry(k, Map<String, bool>.from(e as Map)),
-  ),
-  defaults: (json['defaults'] as Map<String, dynamic>).map(
-    (k, e) => MapEntry(k, Map<String, bool>.from(e as Map)),
-  ),
+  uuid: json['uuid'] as String,
+  type: json['type'] as String,
+  name: json['name'] as String,
+  platform: json['platform'] as String?,
+  appVersion: json['app_version'] as String?,
+  storeId: (json['store_id'] as num?)?.toInt(),
+  branchId: (json['branch_id'] as num?)?.toInt(),
+  user: json['user'] == null
+      ? null
+      : User12.fromJson(json['user'] as Map<String, dynamic>),
+  hasPushToken: json['has_push_token'] as bool,
+  lastSeenAt: json['last_seen_at'] as String?,
+  revokedAt: json['revoked_at'] as String?,
+  createdAt: json['created_at'] as String?,
 );
 
 Map<String, dynamic> _$Data42ToJson(Data42 instance) => <String, dynamic>{
-  'roles': instance.roles,
-  'permissions': instance.permissions,
-  'matrix': instance.matrix,
-  'defaults': instance.defaults,
+  'uuid': instance.uuid,
+  'type': instance.type,
+  'name': instance.name,
+  'platform': instance.platform,
+  'app_version': instance.appVersion,
+  'store_id': instance.storeId,
+  'branch_id': instance.branchId,
+  'user': instance.user,
+  'has_push_token': instance.hasPushToken,
+  'last_seen_at': instance.lastSeenAt,
+  'revoked_at': instance.revokedAt,
+  'created_at': instance.createdAt,
 };

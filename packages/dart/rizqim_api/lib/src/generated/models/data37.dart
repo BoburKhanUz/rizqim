@@ -4,62 +4,57 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'plan.dart';
-import 'lines.dart';
+import 'branch4.dart';
+import 'polygon2.dart';
+import 'bbox2.dart';
 
 part 'data37.g.dart';
 
 @JsonSerializable()
 class Data37 {
   const Data37({
-    required this.uuid,
-    required this.number,
-    required this.period,
-    required this.periodStart,
-    required this.periodEnd,
-    required this.plan,
-    required this.terminalsCount,
-    required this.includedTerminals,
-    required this.baseFee,
-    required this.feePerTerminal,
-    required this.lines,
-    required this.amount,
-    required this.status,
-    required this.dueDate,
-    required this.issuedAt,
-    required this.paidAt,
-    required this.voidedAt,
+    required this.id,
+    required this.name,
+    required this.branchId,
+    required this.branch,
+    required this.polygon,
+    required this.bbox,
+    required this.areaKm2,
+    required this.deliveryPrice,
+    required this.minOrderAmount,
+    required this.freeDeliveryFrom,
+    required this.etaMinutes,
+    required this.priority,
+    required this.active,
+    required this.createdAt,
+    required this.updatedAt,
   });
 
   factory Data37.fromJson(Map<String, Object?> json) => _$Data37FromJson(json);
 
-  final String uuid;
-  final String number;
-  final String period;
-  @JsonKey(name: 'period_start')
-  final String periodStart;
-  @JsonKey(name: 'period_end')
-  final String periodEnd;
-  final Plan? plan;
-  @JsonKey(name: 'terminals_count')
-  final int terminalsCount;
-  @JsonKey(name: 'included_terminals')
-  final int includedTerminals;
-  @JsonKey(name: 'base_fee')
-  final num baseFee;
-  @JsonKey(name: 'fee_per_terminal')
-  final num feePerTerminal;
-  final List<Lines> lines;
-  final num amount;
-  final String status;
-  @JsonKey(name: 'due_date')
-  final String dueDate;
-  @JsonKey(name: 'issued_at')
-  final String issuedAt;
-  @JsonKey(name: 'paid_at')
-  final String? paidAt;
-  @JsonKey(name: 'voided_at')
-  final String? voidedAt;
+  final int id;
+  final String name;
+  @JsonKey(name: 'branch_id')
+  final int? branchId;
+  final Branch4? branch;
+  final Polygon2 polygon;
+  final Bbox2 bbox;
+  @JsonKey(name: 'area_km2')
+  final String areaKm2;
+  @JsonKey(name: 'delivery_price')
+  final String deliveryPrice;
+  @JsonKey(name: 'min_order_amount')
+  final String minOrderAmount;
+  @JsonKey(name: 'free_delivery_from')
+  final String? freeDeliveryFrom;
+  @JsonKey(name: 'eta_minutes')
+  final int? etaMinutes;
+  final int priority;
+  final bool active;
+  @JsonKey(name: 'created_at')
+  final String? createdAt;
+  @JsonKey(name: 'updated_at')
+  final String? updatedAt;
 
   Map<String, Object?> toJson() => _$Data37ToJson(this);
 }

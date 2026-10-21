@@ -179,6 +179,10 @@ Terminal endpointlari (`Authorization: Bearer <terminal token>`):
 | `POST /devices/{uuid}/staff-session` | xodim PIN bilan kiradi |
 | `DELETE /devices/{uuid}/staff-session` | terminaldagi xodimni chiqarish (ekran qulfi, smena oxiri) |
 
+Terminal tokeni bilan real-time obunasi ham imzolanadi (P2-11): `POST /api/broadcasting/auth` uni qabul qiladi, lekin
+terminal faqat o'z filialining `private-pos-branch.{branchId}` kanaliga qo'shiladi (filialsiz ulangan terminal — do'konning
+istalgan filiali). Buyurtmalarni o'qish va o'zgartirish — xodim PIN sessiyasi bilan ([API.md](API.md), 9.1-bo'lim).
+
 Terminal tokeni `AUTH_DEVICE_TOKEN_TTL_DAYS` gacha yoki ega o'chirguncha amal qiladi. Global
 `SANCTUM_TOKEN_EXPIRATION` unga ta'sir qilmaydi. Shuning uchun rejalashtirilgan tozalash `sanctum:prune-expired`
 o'rniga `auth:prune-tokens` (u terminal tokenlarini o'chirmaydi). **`sanctum:prune-expired` ni qo'lda ishga
@@ -202,7 +206,9 @@ tushirmang** — u barcha terminallarni uzib qo'yadi.
   va pul yechish (`/owner/finance*`, `/owner/payouts`), sozlamalar (`/owner/settings*`), xodimlar (`/owner/employees*`),
   ruxsatlar jadvali (`/owner/permissions`), PIN va rol (`/owner/staff/*`), qurilmalar va ulash kodlari (`/devices*`,
   `/owner/devices*`), harakatlar jurnali (`/owner/audit-logs`), `POST /auth/logout-all`, profil va telefon
-  (`POST /user/profile`, `/phone/send-code`, `/phone/verify-code`). Ega va menejer terminalga PIN bilan kirib buyurtmalar
+  (`POST /user/profile`, `/phone/send-code`, `/phone/verify-code`); P2-12 dan: filiallarni o'zgartirish
+  (`POST/PATCH/DELETE /owner/branches*`), hududlar (`/owner/delivery-zones*`), xodimlar (`/owner/staff`), moliya tarixi
+  (`/owner/finance/ledger`, `/owner/finance/wallet`, `GET /owner/payouts`, `/owner/payments`). Ega va menejer terminalga PIN bilan kirib buyurtmalar
   bilan ishlashi mumkin, lekin bu amallar uchun o'z ilovasi yoki panel orqali kiradi.
 - Terminalda yangi xodim kirsa, oldingisining sessiyasi yopiladi. PIN o'zgarsa yoki o'chirilsa, terminal o'chirilsa —
   sessiyalar darhol yopiladi.
@@ -228,14 +234,14 @@ superadmin uchun.
 
 | Ruxsat | Ma'nosi | Ega | Menejer | Kassir | Ofitsiant | Oshpaz | Kuryer |
 |---|---|:-:|:-:|:-:|:-:|:-:|:-:|
-| `orders.view` | Buyurtmalarni ko'rish | ✓ | ✓ | ✓ | ✓ | ✓ |  |
+| `orders.view` | Buyurtmalarni ko'rish (P2-11: `GET /staff/orders*`, `pos-branch` kanali, o'z filiali) | ✓ | ✓ | ✓ | ✓ | ✓ |  |
 | `orders.manage` | Buyurtma yaratish va holatini o'zgartirish | ✓ | ✓ | ✓ | ✓ |  |  |
 | `orders.cancel` | Buyurtmani bekor qilish yoki rad etish | ✓ | ✓ |  |  |  |  |
 | `orders.discount` | Chegirma berish | ✓ | ✓ |  |  |  |  |
 | `orders.void_item` | Taomni chekdan o'chirish | ✓ | ✓ |  |  |  |  |
 | `orders.assign_courier` | Kuryer biriktirish | ✓ | ✓ |  |  |  |  |
 | `orders.refund` | Pulni qaytarish |  |  |  |  |  |  |
-| `kitchen.manage` | Oshxona ekrani: "tayyor" belgilash | ✓ | ✓ |  |  | ✓ |  |
+| `kitchen.manage` | Oshxona ekrani: taom qatorini "tayyor" deb belgilash va qaytarish, buyurtmani `accepted → preparing → ready` (P2-11) | ✓ | ✓ |  |  | ✓ |  |
 | `deliveries.manage` | Yetkazib berish (kuryer) | ✓ |  |  |  |  | ✓ |
 | `tables.manage` | Stollarni boshqarish | ✓ | ✓ | ✓ | ✓ |  |  |
 | `menu.view` | Menyuni ko'rish | ✓ | ✓ | ✓ | ✓ | ✓ |  |
@@ -252,6 +258,7 @@ superadmin uchun.
 | `finance.manage` | Pul yechish va to'ldirish | ✓ |  |  |  |  |  |
 | `settings.manage` | Do'kon sozlamalari | ✓ |  |  |  |  |  |
 | `zones.manage` | Yetkazib berish hududlari va narxlari (docs/ZONES.md) | ✓ |  |  |  |  |  |
+| `branches.manage` | Filiallar: manzil, joylashuv, ish vaqti, ochiq/yopiq (P2-12; menejer — faqat o'z filiali) | ✓ | ✓ |  |  |  |  |
 | `audit.view` | Harakatlar jurnali | ✓ |  |  |  |  |  |
 | `permissions.manage` | Ruxsatlarni o'zgartirish | ✓ |  |  |  |  |  |
 | `pos.open_shift` | Smenani ochish | ✓ | ✓ | ✓ |  |  |  |
@@ -268,16 +275,27 @@ standartga qaytarish). Ega huquqlari o'zgarmaydi. Quyidagilarni boshqa rolga ber
 superadmin 403 (`data.reason = store_required`) oladi va do'kon ruxsatlarini panel orqali boshqaradi.
 
 **Hisobotlar.** `GET /owner/analytics` ega va menejer uchun, `reports.view` bilan (do'kon o'zgartirishlari hisobga
-olinadi): menejerdan `reports.view` olib qo'yilsa, 403.
+olinadi): menejerdan `reports.view` olib qo'yilsa, 403. Web panel hisobotlari (`/owner/reports/*`, P2-12) ham faqat
+`reports.view` bilan; ega uni kassirga ham berishi mumkin (filialga biriktirilgan bo'lsa — faqat o'z filiali).
+
+**Boshqaruv (P2-12, web panel).** Filiallar: ro'yxat — buyurtma, menyu, xodim yoki hisobot ruxsati bor xodim (filialga
+biriktirilgan — o'z filiali); yaratish va o'chirish — `settings.manage` (ega); tahrirlash — `branches.manage` (ega,
+menejer — o'z filiali; panelning `BranchPolicy` qoidasi). Xodimlar: `GET/POST /owner/staff`, `PATCH /owner/staff/{id}` —
+`staff.view` va panelning xodimlar ekranidagi qoida: ega hamma xodimni, menejer o'z filialidagi o'zidan past rollarni
+(kassir, ofitsiant, oshpaz, kuryer) qo'shadi va tahrirlaydi; formadagi telefon kirish raqami bo'ladi (yuqorida, 1-bo'lim).
+Moliya tarixi — `finance.view`. Hududlar — `zones.manage`. To'liq xarita: [API.md](API.md), 12-bo'lim.
 
 **Filial bo'yicha cheklov.** Filialga biriktirilgan xodim (ega bundan mustasno) faqat o'z filialidagi buyurtma, qurilma
-va xodimlar bilan ishlaydi. Filialsiz xodim butun do'konda ishlaydi.
+va xodimlar bilan ishlaydi. Filialsiz xodim butun do'konda ishlaydi. Xodim buyurtmalari va oshxona ekranida (P2-11)
+filialga ulangan terminaldagi PIN sessiyasi faqat shu terminal filiali bilan ishlaydi (filialsiz xodim ham).
 
 **Kodda.** Huquq nomi Laravel Gate'ga ulangan: `$user->can('orders.cancel', $order)`, Blade `@can`, marshrutda
 `->middleware('permission:devices.manage')`. Mavjud policy'lar ishlashda davom etadi; `OrderPolicy` va
-`ProductPolicy` shu qatlam orqali ishlaydi (standart jadval bilan ega va menejer avvalgidek). Buyurtma API
-controllerlari hozircha rolni ham tekshiradi (ega, menejer, kuryer): kassir va ofitsiant uchun buyurtma API'si POS
-bosqichida ochiladi.
+`ProductPolicy` shu qatlam orqali ishlaydi (standart jadval bilan ega va menejer avvalgidek). Eski buyurtma API'si
+(`/orders/*`) rolni ham tekshiradi (ega, menejer, kuryer) va o'zgarmagan. Kassir, ofitsiant va oshpaz (ega va menejer
+ham) buyurtmalar bilan `/staff/orders*` va `/staff/kitchen/tickets` orqali ishlaydi (P2-11, [API.md](API.md) 9.1-bo'lim):
+u yerda faqat ruxsatlar tekshiriladi. `OrderPolicy::changeStatus` ga oshxona yo'li qo'shilgan: `kitchen.manage` bilan
+`accepted → preparing` va `preparing → ready` (oshpazda `orders.manage` yo'q). Yangi ruxsat qo'shilmagan.
 
 **Ilova uchun.** `GET /me/permissions` → `{role, store_id, branch_id, branch_scoped, permissions[], device_uuid}`.
 Ilova faqat ishlaydigan tugmalarni ko'rsatadi; server baribir har bir amalni o'zi tekshiradi.
@@ -305,6 +323,8 @@ yoziladi (mijozning manzili saqlanmaydi) va faqat ega hamda superadminga ko'rsat
 | `staff.login_phone_set`, `staff.login_phone_changed`, `staff.login_phone_cleared` | xodimning kirish raqami qo'yilsa, o'zgartirilsa yoki o'chirilsa (raqam niqoblangan; `via`: `sms`/`vouched`) |
 | `permissions.changed` | do'kon ruxsatlari o'zgarsa |
 | `device.pairing_code_created`, `device.paired`, `device.renamed`, `device.revoked` | terminal va qurilmalar |
+| `delivery_zone.created`, `delivery_zone.updated`, `delivery_zone.deleted` | yetkazib berish hududi (panel yoki API; narx, filial, faollik; shakl o'zgarsa `polygon_changed`) (P2-12) |
+| `branch.created`, `branch.updated`, `branch.deleted` | filial API orqali yaratilsa, o'zgarsa yoki o'chirilsa (P2-12) |
 | `account.linked` | Telegram hisobi telefon bo'yicha boshqa hisobga birlashtirilsa |
 
 Xodim PIN sessiyasi orqali qilingan har bir amalda terminal ham yoziladi. Jurnalga **hech qachon** PIN, parol, token,

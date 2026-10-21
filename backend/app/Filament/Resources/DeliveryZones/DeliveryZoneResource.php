@@ -106,7 +106,7 @@ class DeliveryZoneResource extends Resource
                         ->label('Nomi')
                         ->placeholder('Masalan: Markaz')
                         ->required()
-                        ->maxLength(120),
+                        ->maxLength(DeliveryZone::NAME_MAX),
                     Select::make('branch_id')
                         ->label('Filial')
                         ->options(fn () => static::branches()->pluck('name', 'id')->all())
@@ -118,8 +118,8 @@ class DeliveryZoneResource extends Resource
                         ->integer()
                         ->default(0)
                         ->required()
-                        ->minValue(-1000)
-                        ->maxValue(1000)
+                        ->minValue(DeliveryZone::PRIORITY_MIN)
+                        ->maxValue(DeliveryZone::PRIORITY_MAX)
                         ->helperText("Hududlar ustma-ust tushsa, ustuvorligi kattasi tanlanadi; teng bo'lsa maydoni kichigi."),
                     Toggle::make('active')
                         ->label('Faol')
@@ -130,22 +130,22 @@ class DeliveryZoneResource extends Resource
                 ->schema([
                     TextInput::make('delivery_price')
                         ->label('Yetkazib berish narxi')
-                        ->numeric()->minValue(0)->maxValue(99999999)
+                        ->numeric()->minValue(0)->maxValue(DeliveryZone::AMOUNT_MAX)
                         ->default(0)->required()
                         ->suffix("so'm"),
                     TextInput::make('min_order_amount')
                         ->label('Minimal buyurtma')
-                        ->numeric()->minValue(0)->maxValue(99999999)
+                        ->numeric()->minValue(0)->maxValue(DeliveryZone::AMOUNT_MAX)
                         ->default(0)->required()
                         ->suffix("so'm"),
                     TextInput::make('free_delivery_from')
                         ->label('Bepul yetkazib berish')
-                        ->numeric()->minValue(0)->maxValue(99999999)
+                        ->numeric()->minValue(0)->maxValue(DeliveryZone::AMOUNT_MAX)
                         ->suffix("so'm dan")
                         ->helperText("Buyurtma summasi shu miqdordan oshsa, yetkazib berish bepul. Bo'sh = hech qachon bepul emas."),
                     TextInput::make('eta_minutes')
                         ->label('Taxminiy vaqt')
-                        ->numeric()->integer()->minValue(1)->maxValue(600)
+                        ->numeric()->integer()->minValue(DeliveryZone::ETA_MIN)->maxValue(DeliveryZone::ETA_MAX)
                         ->suffix('daqiqa'),
                 ])->columns(2),
 

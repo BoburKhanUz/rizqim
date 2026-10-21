@@ -113,6 +113,7 @@ class _OwnerCatalogApi implements OwnerCatalogApi {
     bool? isActive,
     File? image,
     bool? batchTracked,
+    int? sortOrder,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{};
@@ -141,6 +142,9 @@ class _OwnerCatalogApi implements OwnerCatalogApi {
     }
     if (batchTracked != null) {
       _data.fields.add(MapEntry('batch_tracked', batchTracked.toString()));
+    }
+    if (sortOrder != null) {
+      _data.fields.add(MapEntry('sort_order', sortOrder.toString()));
     }
     final _options = _setStreamType<PostV1OwnerProductsResponse>(
       Options(
@@ -178,6 +182,7 @@ class _OwnerCatalogApi implements OwnerCatalogApi {
     bool? isActive,
     File? image,
     bool? batchTracked,
+    int? sortOrder,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{};
@@ -206,6 +211,9 @@ class _OwnerCatalogApi implements OwnerCatalogApi {
     }
     if (batchTracked != null) {
       _data.fields.add(MapEntry('batch_tracked', batchTracked.toString()));
+    }
+    if (sortOrder != null) {
+      _data.fields.add(MapEntry('sort_order', sortOrder.toString()));
     }
     final _options = _setStreamType<dynamic>(
       Options(

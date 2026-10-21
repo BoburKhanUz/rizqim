@@ -14,6 +14,12 @@ part 'owner_audit_log_api.g.dart';
 abstract class OwnerAuditLogApi {
   factory OwnerAuditLogApi(Dio dio, {String? baseUrl}) = _OwnerAuditLogApi;
 
+  /// Audit log.
+  ///
+  /// The store's entries, newest first, Laravel pages (`per_page` 1–100, default 50). Filters: `action` (exact, or a.
+  /// prefix such as `order.*`), `user_id`, `device_uuid`, `branch_id`, `subject_type` + `subject_id`, `from` / `to`.
+  /// (dates). PINs, tokens, codes and card data never reach the log and phone numbers are masked (AuditRedactor);.
+  /// `ip` is shown to the owner only.
   @GET('/v1/owner/audit-logs')
   Future<GetV1OwnerAuditLogsResponse> auditLogIndex({
     @Query('action') String? action,

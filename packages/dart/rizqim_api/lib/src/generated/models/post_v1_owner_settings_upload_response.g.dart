@@ -11,7 +11,7 @@ PostV1OwnerSettingsUploadResponse _$PostV1OwnerSettingsUploadResponseFromJson(
 ) => PostV1OwnerSettingsUploadResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data50.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data70.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1OwnerSettingsUploadResponseToJson(

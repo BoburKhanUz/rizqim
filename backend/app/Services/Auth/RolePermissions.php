@@ -26,6 +26,7 @@ final class RolePermissions
                 P::STAFF_VIEW, P::STAFF_PIN, P::DEVICES_VIEW, P::DEVICES_MANAGE, P::REPORTS_VIEW,
                 P::POS_OPEN_SHIFT, P::POS_CLOSE_SHIFT, P::POS_CASH_IN_OUT, P::POS_TAKE_PAYMENT, P::POS_REPRINT_BILL,
                 P::BATCHES_MANAGE, // P1-21
+                P::BRANCHES_MANAGE, // P2-12: their own branch's hours and details, as BranchPolicy lets them in the panel
             ],
             // Closes bills and takes payment; cancelling, discounts and voids need a manager
             UserRole::CASHIER->value => [

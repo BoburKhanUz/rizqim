@@ -7,19 +7,25 @@ part of 'data56.dart';
 // **************************************************************************
 
 Data56 _$Data56FromJson(Map<String, dynamic> json) => Data56(
-  id: (json['id'] as num).toInt(),
-  code: json['code'] as String,
-  type: Type7.fromJson(json['type'] as String),
-  amount: json['amount'] as num,
-  discountAmount: json['discount_amount'] as num?,
-  description: json['description'] as String,
+  uuid: json['uuid'] as String,
+  provider: json['provider'] as String,
+  providerTransactionId: json['provider_transaction_id'] as String?,
+  status: json['status'] as String,
+  amount: json['amount'] as String,
+  paidAt: json['paid_at'] as String?,
+  cancelledAt: json['cancelled_at'] as String?,
+  createdAt: json['created_at'] as String,
+  order: Order3.fromJson(json['order'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data56ToJson(Data56 instance) => <String, dynamic>{
-  'id': instance.id,
-  'code': instance.code,
-  'type': instance.type,
+  'uuid': instance.uuid,
+  'provider': instance.provider,
+  'provider_transaction_id': instance.providerTransactionId,
+  'status': instance.status,
   'amount': instance.amount,
-  'discount_amount': instance.discountAmount,
-  'description': instance.description,
+  'paid_at': instance.paidAt,
+  'cancelled_at': instance.cancelledAt,
+  'created_at': instance.createdAt,
+  'order': instance.order,
 };

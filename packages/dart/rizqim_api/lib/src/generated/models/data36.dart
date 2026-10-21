@@ -4,18 +4,57 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'branch3.dart';
+import 'polygon.dart';
+import 'bbox.dart';
+
 part 'data36.g.dart';
 
 @JsonSerializable()
 class Data36 {
-  const Data36({required this.topupUuid, required this.paymentUrl});
+  const Data36({
+    required this.id,
+    required this.name,
+    required this.branchId,
+    required this.branch,
+    required this.polygon,
+    required this.bbox,
+    required this.areaKm2,
+    required this.deliveryPrice,
+    required this.minOrderAmount,
+    required this.freeDeliveryFrom,
+    required this.etaMinutes,
+    required this.priority,
+    required this.active,
+    required this.createdAt,
+    required this.updatedAt,
+  });
 
   factory Data36.fromJson(Map<String, Object?> json) => _$Data36FromJson(json);
 
-  @JsonKey(name: 'topup_uuid')
-  final String topupUuid;
-  @JsonKey(name: 'payment_url')
-  final String paymentUrl;
+  final int id;
+  final String name;
+  @JsonKey(name: 'branch_id')
+  final int? branchId;
+  final Branch3? branch;
+  final Polygon polygon;
+  final Bbox bbox;
+  @JsonKey(name: 'area_km2')
+  final String areaKm2;
+  @JsonKey(name: 'delivery_price')
+  final String deliveryPrice;
+  @JsonKey(name: 'min_order_amount')
+  final String minOrderAmount;
+  @JsonKey(name: 'free_delivery_from')
+  final String? freeDeliveryFrom;
+  @JsonKey(name: 'eta_minutes')
+  final int? etaMinutes;
+  final int priority;
+  final bool active;
+  @JsonKey(name: 'created_at')
+  final String? createdAt;
+  @JsonKey(name: 'updated_at')
+  final String? updatedAt;
 
   Map<String, Object?> toJson() => _$Data36ToJson(this);
 }

@@ -108,6 +108,13 @@ class AuditLogResource extends Resource
             'subscription.plan_change_scheduled' => "Tarif keyingi oydan o'zgaradi",
             'subscription.plan_changed' => "Tarif o'zgardi",
             'subscription.cancelled' => 'Obuna bekor qilindi',
+            // P2-12: delivery zones and branches (panel and partner web panel)
+            'delivery_zone.created' => 'Yetkazib berish hududi yaratildi',
+            'delivery_zone.updated' => "Yetkazib berish hududi o'zgardi",
+            'delivery_zone.deleted' => "Yetkazib berish hududi o'chirildi",
+            'branch.created' => 'Filial yaratildi',
+            'branch.updated' => "Filial o'zgardi",
+            'branch.deleted' => "Filial o'chirildi",
             'subscription_invoice.voided' => 'Hisob-faktura bekor qilindi',
             'subscription_invoice.paid' => "Hisob-faktura to'landi",
         ];

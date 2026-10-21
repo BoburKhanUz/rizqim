@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'length_aware_paginator.dart';
+import 'data26.dart';
 
 part 'get_v1_owner_audit_logs_response.g.dart';
 
@@ -21,7 +21,7 @@ class GetV1OwnerAuditLogsResponse {
 
   final bool success;
   final String message;
-  final LengthAwarePaginator data;
+  final Data26 data;
 
   Map<String, Object?> toJson() => _$GetV1OwnerAuditLogsResponseToJson(this);
 }

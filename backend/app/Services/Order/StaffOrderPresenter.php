@@ -1,0 +1,226 @@
+<?php
+
+namespace App\Services\Order;
+
+use App\Enums\OrderStatus;
+use App\Enums\Permission;
+use App\Models\Order;
+use App\Models\OrderItem;
+use App\Models\OrderStatusHistory;
+use App\Models\User;
+use App\Services\Audit\AuditRedactor;
+use App\Services\Auth\PermissionService;
+use Carbon\CarbonInterface;
+use Illuminate\Support\Carbon;
+
+/**
+ * The order as the staff screens show it (P2-11, docs/API.md): the board card and detail, and the kitchen ticket.
+ *
+ * Who sees what: the customer's name and phone and the delivery address only reach staff who run orders
+ * (orders.manage: owner, manager, cashier, waiter by default). A cook (orders.view + kitchen.manage) gets the food,
+ * the notes with any phone number in them masked, and the times; never contact details. Kitchen tickets carry no
+ * personal data and no prices for anyone.
+ */
+class StaffOrderPresenter
+{
+    /** Relations every staff shape reads; the customer and courier only for staff who run orders. */
+    public const RELATIONS = ['items', 'branch:id,name', 'statusHistories'];
+
+    public const CONTACT_RELATIONS = ['user:id,name,phone', 'courier:id,name,phone'];
+
+    public function __construct(
+        protected PermissionService $permissions,
+    ) {}
+
+    /**
+     * Whether this viewer gets the customer's contact details and address (their visibility of the order itself is
+     * the caller's check, so the branch is already right).
+     */
+    public function seesContact(User $viewer): bool
+    {
+        return $this->permissions->has($viewer, Permission::ORDERS_MANAGE);
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function relationsFor(User $viewer): array
+    {
+        return $this->seesContact($viewer) ? [...self::RELATIONS, ...self::CONTACT_RELATIONS] : self::RELATIONS;
+    }
+
+    /**
+     * The board card (GET /staff/orders) and, with $detail, the detail screen (GET /staff/orders/{uuid}).
+     *
+     * @return array<string, mixed>
+     */
+    public function order(Order $order, User $viewer, bool $detail = false): array
+    {
+        $contact = $this->seesContact($viewer);
+        $order->loadMissing($this->relationsFor($viewer));
+        $times = $this->times($order);
+        $items = $order->items->sortBy('id')->values();
+
+        $data = [
+            'uuid' => (string) $order->uuid,
+            'short_code' => $order->short_code,
+            'status' => $order->status->value,
+            'status_label' => $order->status->label(),
+            'type' => $order->order_type->value,
+            'channel' => $order->channel->value,
+            'store_id' => (int) $order->store_id,
+            'branch_id' => $order->branch_id !== null ? (int) $order->branch_id : null,
+            'branch_name' => $order->branch?->name,
+            'payment_method' => $order->payment_method,
+            'payment_status' => $order->payment_status->value,
+            'subtotal' => $order->subtotal,
+            'discount' => $order->discount,
+            'delivery_price' => $order->delivery_price,
+            'service_charge_amount' => $order->service_charge_amount,
+            'place_fee_amount' => $order->place_fee_amount,
+            'total_price' => $order->total_price,
+            'notes' => $contact ? $order->notes : $this->maskedNotes($order->notes),
+            'guests_count' => $order->guests_count,
+            'hall_ref' => $order->hall_ref,
+            'table_ref' => $order->table_ref,
+            'cancel_reason' => $order->cancel_reason?->value,
+            'cancel_note' => $contact ? $order->cancel_note : $this->maskedNotes($order->cancel_note),
+            'customer' => $contact && $order->user ? ['name' => $order->user->name, 'phone' => $order->user->phone] : null,
+            'delivery' => $contact && $order->order_type->value === 'delivery' ? [
+                'address' => $order->shipping_address['address'] ?? null,
+                'latitude' => isset($order->shipping_address['latitude']) ? (float) $order->shipping_address['latitude'] : null,
+                'longitude' => isset($order->shipping_address['longitude']) ? (float) $order->shipping_address['longitude'] : null,
+                'zone_name' => $order->delivery_zone_name,
+            ] : null,
+            'courier' => $contact && $order->courier ? ['id' => (int) $order->courier->id, 'name' => $order->courier->name, 'phone' => $order->courier->phone] : null,
+            'items_total' => $items->count(),
+            'items_ready' => $items->filter(fn (OrderItem $item) => $item->kitchen_status->value === 'ready')->count(),
+            'items' => $items->map(fn (OrderItem $item) => $this->item($item, true))->all(),
+            'created_at' => $order->created_at?->toJSON(),
+            'updated_at' => $order->updated_at?->toJSON(),
+            'accepted_at' => $times['accepted_at']?->toJSON(),
+            'preparing_at' => $times['preparing_at']?->toJSON(),
+            'ready_at' => $times['ready_at']?->toJSON(),
+            'closed_at' => $times['closed_at']?->toJSON(),
+        ];
+
+        if ($detail) {
+            $data['status_history'] = $order->statusHistories->sortBy('id')->values()
+                ->map(fn (OrderStatusHistory $history) => [
+                    'from_status' => $history->from_status?->value,
+                    'status' => $history->status->value,
+                    'created_at' => $history->created_at?->toJSON(),
+                ])->all();
+        }
+
+        return $data;
+    }
+
+    /**
+     * A kitchen display ticket (GET /staff/kitchen/tickets): the food, notes and times, nothing personal, no prices.
+     * waiting_seconds runs from acceptance (creation for an order never accepted) to now, or to when it became ready.
+     *
+     * @return array<string, mixed>
+     */
+    public function ticket(Order $order, ?Carbon $now = null): array
+    {
+        $order->loadMissing(self::RELATIONS);
+        $times = $this->times($order);
+        $items = $order->items->sortBy('id')->values();
+
+        $start = $times['accepted_at'] ?? $order->created_at;
+        $cooking = in_array($order->status, [OrderStatus::NEW, OrderStatus::ACCEPTED, OrderStatus::PREPARING], true);
+        $end = !$cooking && $times['ready_at'] !== null ? $times['ready_at'] : ($now ?? now());
+
+        return [
+            'uuid' => (string) $order->uuid,
+            'short_code' => $order->short_code,
+            'status' => $order->status->value,
+            'type' => $order->order_type->value,
+            'channel' => $order->channel->value,
+            'branch_id' => $order->branch_id !== null ? (int) $order->branch_id : null,
+            'hall_ref' => $order->hall_ref,
+            'table_ref' => $order->table_ref,
+            'guests_count' => $order->guests_count,
+            'notes' => $this->maskedNotes($order->notes),
+            'items_total' => $items->count(),
+            'items_ready' => $items->filter(fn (OrderItem $item) => $item->kitchen_status->value === 'ready')->count(),
+            'items' => $items->map(fn (OrderItem $item) => $this->item($item, false))->all(),
+            'created_at' => $order->created_at?->toJSON(),
+            'accepted_at' => $times['accepted_at']?->toJSON(),
+            'preparing_at' => $times['preparing_at']?->toJSON(),
+            'ready_at' => $times['ready_at']?->toJSON(),
+            'waiting_seconds' => $start !== null ? max(0, (int) $start->diffInSeconds($end, false)) : 0,
+        ];
+    }
+
+    /**
+     * One line: quantity with its unit (1.5 kg), the chosen modifiers, and where it is in the kitchen.
+     *
+     * @return array<string, mixed>
+     */
+    public function item(OrderItem $item, bool $withPrices): array
+    {
+        $data = [
+            'id' => (int) $item->id,
+            'product_name' => $item->product_name,
+            'variant_name' => $item->variant_name,
+            'quantity' => $item->quantity,
+            'unit' => $item->unit->value,
+            'quantity_label' => $item->quantityLabel(),
+            'modifiers' => array_map(fn (array $modifier) => array_filter([
+                'name' => (string) ($modifier['name'] ?? ''),
+                'group_name' => isset($modifier['group_name']) ? (string) $modifier['group_name'] : null,
+                'quantity' => (int) ($modifier['quantity'] ?? 1),
+                'price_delta' => $withPrices && isset($modifier['price_delta']) ? (string) $modifier['price_delta'] : null,
+            ], fn ($value) => $value !== null), $item->modifiers ?? []),
+            'kitchen_status' => $item->kitchen_status->value,
+            'ready_at' => $item->ready_at?->toJSON(),
+        ];
+
+        if ($withPrices) {
+            $data += [
+                'unit_price' => (string) $item->unit_price,
+                'modifiers_total' => $item->modifiers_total,
+                'total_price' => (string) $item->total_price,
+            ];
+        }
+
+        return $data;
+    }
+
+    /**
+     * When the order was accepted, started cooking, became ready and was closed (delivered, cancelled, rejected or
+     * refunded), from its status history (the latest row of each).
+     *
+     * @return array{accepted_at: ?CarbonInterface, preparing_at: ?CarbonInterface, ready_at: ?CarbonInterface, closed_at: ?CarbonInterface}
+     */
+    public function times(Order $order): array
+    {
+        /** @var array<string, CarbonInterface|null> $at */
+        $at = [];
+        foreach ($order->statusHistories->sortBy('id') as $history) {
+            $at[$history->status->value] = $history->created_at;
+        }
+
+        $closed = null;
+        foreach (OrderQueryService::TERMINAL_STATUSES as $status) {
+            $closed = $at[$status->value] ?? $closed;
+        }
+
+        return [
+            'accepted_at' => $at[OrderStatus::ACCEPTED->value] ?? null,
+            'preparing_at' => $at[OrderStatus::PREPARING->value] ?? null,
+            'ready_at' => $at[OrderStatus::READY->value] ?? null,
+            'closed_at' => in_array($order->status, OrderQueryService::TERMINAL_STATUSES, true) ? $closed : null,
+        ];
+    }
+
+    /**
+     * Free text for staff who do not run orders: a phone number typed into a note is masked.
+     */
+    protected function maskedNotes(?string $notes): ?string
+    {
+        return $notes === null ? null : (string) (AuditRedactor::clean(['notes' => $notes])['notes'] ?? '');
+    }
+}

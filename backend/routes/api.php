@@ -158,4 +158,10 @@ Route::prefix('v1')->group(function () {
 
     // P1-23: tariff plan and subscription invoices for the owner (docs/BILLING.md)
     require __DIR__ . '/api_billing.php';
+
+    // P2-12: management API for the partner web panel: zones, branches, staff, reports, money history (docs/API.md)
+    require __DIR__ . '/api_management.php';
+
+    // P2-11: staff orders (board, Mini App staff screens, kitchen display) and the kitchen bump (docs/API.md §9)
+    require __DIR__ . '/api_staff_orders.php';
 });

@@ -17,7 +17,8 @@ ishlashi, API va P1-32 buyurtma yaratishga uni qanday ulashi haqida (P1-24).
 
 ## Ega hududni qanday chizadi
 
-Do'kon paneli → **Yetkazib berish hududlari** → **Create**. Bo'lim faqat egaga ko'rinadi (`zones.manage`; uni boshqa
+Do'kon paneli → **Yetkazib berish hududlari** → **Create** (hamkor web panelida — xuddi shu qoidalar bilan API orqali,
+pastda "API (ega: hududlarni boshqarish)"). Bo'lim faqat egaga ko'rinadi (`zones.manage`; uni boshqa
 rolga berib bo'lmaydi, `docs/AUTH.md`). Menejer va boshqa xodimlar bu sahifani ochsa, 403 oladi.
 
 1. **Nomi** (masalan, "Markaz"), kerak bo'lsa **Filial** va **Ustuvorlik**.
@@ -148,6 +149,37 @@ buyurtmadagidek shu filial bo'yicha hisoblanadi. Cheklov: IP bo'yicha daqiqasiga
 Boshqa xatolar: noto'g'ri `lat`/`lng`/`subtotal` — 422 (Laravel `errors` bilan), noma'lum yoki ko'rinmaydigan
 do'kon — 404, cheklov oshsa — 429.
 
+## API (ega: hududlarni boshqarish, P2-12)
+
+Hamkor web paneli hududlarni shu endpointlar bilan chizadi va tahrirlaydi. Faqat ega (`zones.manage`), terminal PIN
+sessiyasidan emas; boshqa do'kon hududi — 404. Qoidalar panel tahrirlovchisi bilan bir xil: yuqoridagi "Ko'pburchak
+qoidalari" (`Geometry::normalize`, `ValidGeoJsonPolygon`), narxlar 0–99 999 999 (ko'pi bilan 2 kasr), ustuvorlik
+−1000..1000, taxminiy vaqt 1–600 daqiqa, filial — do'konning **faol** filiali yoki bo'sh. Chegaralar bitta joyda:
+`DeliveryZone::NAME_MAX`, `AMOUNT_MAX`, `PRIORITY_*`, `ETA_*` (panel ham shularni ishlatadi).
+
+| Endpoint | Nima qiladi |
+|---|---|
+| `GET /api/v1/owner/delivery-zones?active=` | do'konning barcha hududlari (faol bo'lmaganlari ham), `ZoneResolver` tartibida |
+| `GET /api/v1/owner/delivery-zones/{id}` | bitta hudud |
+| `POST /api/v1/owner/delivery-zones` | yaratish: `name`, `polygon` majburiy; `branch_id`, `priority` (0), `active` (true), `delivery_price` (0), `min_order_amount` (0), `free_delivery_from`, `eta_minutes` |
+| `PATCH /api/v1/owner/delivery-zones/{id}` | istalgan maydonlar |
+| `DELETE /api/v1/owner/delivery-zones/{id}` | o'chirish (eski buyurtmalardagi nusxa qoladi) |
+
+Javobda ochiq API'dagi maydonlardan tashqari `branch_id`, `branch {id, name}`, `active`, `bbox {min_lat, max_lat,
+min_lng, max_lng}` va `area_km2` bor; pul — ikki xonali satr. `polygon` obyekt yoki JSON satr bo'lishi mumkin
+(`Feature`, bitta hududli `FeatureCollection` ham), saqlashda tozalanadi va chegara to'rtburchagi qayta hisoblanadi.
+Noto'g'ri GeoJSON — 422, `errors.polygon` da o'zbekcha sabab.
+
+**Jurnal.** Hudud yaratilsa, o'zgarsa yoki o'chirilsa (panel yoki API — farqi yo'q) harakatlar jurnaliga
+`delivery_zone.created`, `delivery_zone.updated`, `delivery_zone.deleted` yoziladi: kim, qachon, narx, minimal summa,
+bepul chegara, filial, ustuvorlik, faollikning oldingi va yangi qiymati; shakl o'zgarsa `polygon_changed: true`
+(ko'pburchakning o'zi jurnalga yozilmaydi).
+
+**Filiallar va ish vaqti** ("Filial" bo'limidagi qoidalar) web panelda `GET/POST /api/v1/owner/branches`,
+`PATCH/DELETE /api/v1/owner/branches/{id}` orqali o'zgartiriladi: `open_time`/`close_time` (`"HH:MM"`, ikkalasi birga),
+`status` (`active`, `inactive`, `temporarily_closed`), `is_active`; javobdagi `is_open_now` — `ZoneResolver::isBranchOpen`
+hozir nima deydi ([API.md](API.md), 12-bo'lim).
+
 ## Buyurtma berishda hududlar (P1-32)
 
 `POST /api/v1/orders` da `type: delivery` bo'lsa va do'konda kamida bitta **faol** hudud bo'lsa:
@@ -209,6 +241,6 @@ qayta hisoblanadi.
 | Model | `App\Models\DeliveryZone` (saqlashda chegara va maydon hisoblanadi) |
 | Tekshiruv qoidasi | `App\Rules\ValidGeoJsonPolygon` |
 | Panel | `App\Filament\Resources\DeliveryZones`, `resources/views/filament/forms/components/zone-map-editor.blade.php` |
-| API | `App\Http\Controllers\Api\V1\Delivery\DeliveryZoneController` |
+| API | `App\Http\Controllers\Api\V1\Delivery\DeliveryZoneController` (ochiq), `App\Http\Controllers\Api\V1\Management\DeliveryZoneManageController` (ega, P2-12) |
 | Migratsiyalar | `2026_10_22_400000_create_delivery_zones_table`, `2026_10_22_400100_add_courier_type_to_users_table`, `2026_10_23_100000_add_delivery_zone_snapshot_to_orders_table` |
-| Testlar | `DeliveryZoneResolverTest`, `DeliveryQuoteApiTest`, `DeliveryZoneCheckoutTest` (P1-32) |
+| Testlar | `DeliveryZoneResolverTest`, `DeliveryQuoteApiTest`, `DeliveryZoneCheckoutTest` (P1-32), `ManagementZonesApiTest`, `ManagementBranchesApiTest` (P2-12) |

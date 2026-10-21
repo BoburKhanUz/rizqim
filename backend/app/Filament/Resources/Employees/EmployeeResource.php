@@ -9,6 +9,7 @@ use App\Filament\Support\StorePanelScope;
 use App\Models\User;
 use App\Enums\UserRole;
 use App\Services\Auth\PermissionService;
+use App\Services\Auth\StaffAccountService;
 use App\Services\Auth\StaffPhoneLoginService;
 use BackedEnum;
 use Filament\Actions\BulkActionGroup;
@@ -143,27 +144,17 @@ class EmployeeResource extends Resource
 
     public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
     {
-        $storeId = StorePanelScope::storeId();
-        // Not tenant-scoped (see $isScopedToTenant), so no panel tenancy scope to take off; works outside a panel too
-        $query = User::query();
+        // Not tenant-scoped (see $isScopedToTenant), so no panel tenancy scope to take off; works outside a panel too.
+        // A branch manager: the staff below them of their branch and the store-wide ones; the owner: every staff
+        // member (StaffAccountService, shared with the API's staff list)
+        $actor = auth()->user();
 
-        // A NULL store would become "store_id IS NULL" and list every customer and super admin
-        if ($storeId === null) {
-            return $query->whereRaw('1 = 0');
-        }
-
-        $query->where('store_id', $storeId);
-
-        // A branch manager: the staff below them (couriers, cashiers, waiters, cooks) of their branch and the store-wide
-        // ones, as the API's courier list; the owner: every staff member
-        $query->whereIn('role', array_map(fn (UserRole $role) => $role->value, static::assignableRoles()));
-        if (auth()->user()->role === UserRole::MANAGER) {
-            $query->when(StorePanelScope::branchId(), fn ($query, int $branchId) => $query->where(
-                fn ($query) => $query->where('branch_id', $branchId)->orWhereNull('branch_id')
-            ));
-        }
-        
-        return $query;
+        return app(StaffAccountService::class)->scopeVisible(
+            User::query(),
+            $actor instanceof User ? $actor : null,
+            StorePanelScope::storeId(),
+            StorePanelScope::branchId(),
+        );
     }
 
     public static function table(Table $table): Table
@@ -373,48 +364,21 @@ class EmployeeResource extends Resource
     }
 
     /**
-     * A new employee's phone from the form is their login phone, on the authority of the owner or manager who saved it
-     * (StaffPhoneLoginService::vouch, audited). A typed phone elsewhere (the person's own profile) stays unverified.
+     * A new employee's phone from the form is their login phone (StaffAccountService::vouchLoginPhone).
      */
     public static function vouchLoginPhone(User $record): void
     {
-        if ($record->phone !== null && $record->phone_verified_at === null && $record->role->isStoreStaff()) {
-            app(StaffPhoneLoginService::class)->vouch($record, $record->phone);
-        }
+        app(StaffAccountService::class)->vouchLoginPhone($record);
     }
 
     /**
-     * Save an edited employee. The phone is vouched for only when the form changed it (P1-34): saving the form for
-     * anything else does not turn a number the employee typed into their own profile into a login phone. Changing or
-     * clearing it is audited and ends their app sessions (StaffPhoneLoginService); the form's validation has refused
-     * replacing a phone they proved by SMS.
+     * Save an edited employee; the phone is vouched for only when the form changed it (StaffAccountService::save).
      *
      * @param  array<string, mixed>  $data
      */
     public static function saveEmployee(User $record, array $data): User
     {
-        $phoneChanged = false;
-        $phone = null;
-        if (array_key_exists('phone', $data)) {
-            $phone = is_string($data['phone']) && trim($data['phone']) !== '' ? trim($data['phone']) : null;
-            $phoneChanged = $phone !== $record->phone;
-            unset($data['phone']);
-        }
-
-        \Illuminate\Support\Facades\DB::transaction(function () use ($record, $data, $phone, $phoneChanged) {
-            $record->update($data);
-
-            if (!$phoneChanged) {
-                return;
-            }
-            if ($record->role->isStoreStaff()) {
-                app(StaffPhoneLoginService::class)->vouch($record, $phone);
-            } else {
-                $record->update(['phone' => $phone]);
-            }
-        });
-
-        return $record;
+        return app(StaffAccountService::class)->save($record, $data);
     }
 
     /**
@@ -424,12 +388,9 @@ class EmployeeResource extends Resource
      */
     public static function assignableRoles(): array
     {
-        $role = auth()->user()?->role;
+        $actor = auth()->user();
 
-        return array_values(array_filter(
-            UserRole::assignableStaffRoles(),
-            fn (UserRole $candidate) => $role !== UserRole::MANAGER || $candidate->rank() < $role->rank()
-        ));
+        return app(StaffAccountService::class)->assignableRoles($actor instanceof User ? $actor : null);
     }
 
     /**

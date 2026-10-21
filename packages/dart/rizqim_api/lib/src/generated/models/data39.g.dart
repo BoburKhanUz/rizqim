@@ -8,38 +8,38 @@ part of 'data39.dart';
 
 Data39 _$Data39FromJson(Map<String, dynamic> json) => Data39(
   id: (json['id'] as num).toInt(),
-  uuid: json['uuid'] as String,
   name: json['name'] as String,
-  nameI18n: (json['name_i18n'] as Map<String, dynamic>?)?.map(
-    (k, e) => MapEntry(k, e as String),
-  ),
-  minSelect: (json['min_select'] as num).toInt(),
-  maxSelect: (json['max_select'] as num?)?.toInt(),
-  isRequired: json['is_required'] as bool,
-  sortOrder: (json['sort_order'] as num).toInt(),
-  isActive: json['is_active'] as bool,
-  modifiers: (json['modifiers'] as List<dynamic>)
-      .map((e) => Modifiers.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  productIds: (json['product_ids'] as List<dynamic>)
-      .map((e) => (e as num).toInt())
-      .toList(),
-  productRules: ProductRules.fromJson(
-    json['product_rules'] as Map<String, dynamic>,
-  ),
+  branchId: (json['branch_id'] as num?)?.toInt(),
+  branch: json['branch'] == null
+      ? null
+      : Branch6.fromJson(json['branch'] as Map<String, dynamic>),
+  polygon: Polygon4.fromJson(json['polygon'] as Map<String, dynamic>),
+  bbox: Bbox4.fromJson(json['bbox'] as Map<String, dynamic>),
+  areaKm2: json['area_km2'] as String,
+  deliveryPrice: json['delivery_price'] as String,
+  minOrderAmount: json['min_order_amount'] as String,
+  freeDeliveryFrom: json['free_delivery_from'] as String?,
+  etaMinutes: (json['eta_minutes'] as num?)?.toInt(),
+  priority: (json['priority'] as num).toInt(),
+  active: json['active'] as bool,
+  createdAt: json['created_at'] as String?,
+  updatedAt: json['updated_at'] as String?,
 );
 
 Map<String, dynamic> _$Data39ToJson(Data39 instance) => <String, dynamic>{
   'id': instance.id,
-  'uuid': instance.uuid,
   'name': instance.name,
-  'name_i18n': instance.nameI18n,
-  'min_select': instance.minSelect,
-  'max_select': instance.maxSelect,
-  'is_required': instance.isRequired,
-  'sort_order': instance.sortOrder,
-  'is_active': instance.isActive,
-  'modifiers': instance.modifiers,
-  'product_ids': instance.productIds,
-  'product_rules': instance.productRules,
+  'branch_id': instance.branchId,
+  'branch': instance.branch,
+  'polygon': instance.polygon,
+  'bbox': instance.bbox,
+  'area_km2': instance.areaKm2,
+  'delivery_price': instance.deliveryPrice,
+  'min_order_amount': instance.minOrderAmount,
+  'free_delivery_from': instance.freeDeliveryFrom,
+  'eta_minutes': instance.etaMinutes,
+  'priority': instance.priority,
+  'active': instance.active,
+  'created_at': instance.createdAt,
+  'updated_at': instance.updatedAt,
 };
