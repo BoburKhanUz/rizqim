@@ -14,6 +14,9 @@ enum NotificationType: string
     case STAFF_NEW_ORDER = 'staff_new_order';
     // An order that is ready or was handed to the courier (managers and owners stand in when there is no courier)
     case COURIER_TASKS = 'courier_tasks';
+    // P3 integration fix (R20): the till's money decisions for the owner — voids after sending, waived charges,
+    // cancelled orders, deposits refunded or retained, nasiya, rooms open too long (App\Domain\Pos\Accounts\PosOwnerAlerts)
+    case POS_ALERTS = 'pos_alerts';
 
     public function label(): string
     {
@@ -22,6 +25,7 @@ enum NotificationType: string
             self::PROMOTIONS => 'Aksiyalar va chegirmalar',
             self::STAFF_NEW_ORDER => 'Yangi buyurtmalar',
             self::COURIER_TASKS => 'Kuryer topshiriqlari',
+            self::POS_ALERTS => 'Kassa ogohlantirishlari',
         };
     }
 
@@ -32,6 +36,7 @@ enum NotificationType: string
             self::PROMOTIONS => 'Yangi aksiyalar va maxsus takliflar haqida',
             self::STAFF_NEW_ORDER => "Do'koningizga yangi buyurtma kelganda",
             self::COURIER_TASKS => 'Buyurtma tayyor bo\'lganda yoki sizga biriktirilganda',
+            self::POS_ALERTS => "Kassada: yuborilgan taom o'chirilsa, xona puli yoki xizmat haqi olib tashlansa, buyurtma bekor qilinsa, avans qaytarilsa yoki ushlab qolinsa, nasiya, xona uzoq ochiq qolsa",
         };
     }
 
@@ -64,6 +69,7 @@ enum NotificationType: string
             self::PROMOTIONS => $role === UserRole::CUSTOMER,
             self::STAFF_NEW_ORDER => in_array($role, [UserRole::OWNER, UserRole::MANAGER], true),
             self::COURIER_TASKS => in_array($role, [UserRole::COURIER, UserRole::MANAGER, UserRole::OWNER], true),
+            self::POS_ALERTS => $role === UserRole::OWNER,
         };
     }
 
@@ -77,6 +83,7 @@ enum NotificationType: string
         return match ($this) {
             self::ORDER_UPDATES, self::PROMOTIONS => [DeviceType::CUSTOMER_MOBILE, DeviceType::WEB, DeviceType::PARTNER_MOBILE, DeviceType::COURIER],
             self::STAFF_NEW_ORDER, self::COURIER_TASKS => [DeviceType::PARTNER_MOBILE, DeviceType::COURIER, DeviceType::WEB],
+            self::POS_ALERTS => [DeviceType::PARTNER_MOBILE, DeviceType::WEB],
         };
     }
 

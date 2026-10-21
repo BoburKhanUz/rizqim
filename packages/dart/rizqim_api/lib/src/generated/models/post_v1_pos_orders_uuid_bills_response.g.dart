@@ -11,7 +11,7 @@ PostV1PosOrdersUuidBillsResponse _$PostV1PosOrdersUuidBillsResponseFromJson(
 ) => PostV1PosOrdersUuidBillsResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data149.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data150.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1PosOrdersUuidBillsResponseToJson(

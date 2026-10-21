@@ -13,6 +13,7 @@ V1PosOrdersUuidSendRequestBody _$V1PosOrdersUuidSendRequestBodyFromJson(
   itemIds: (json['item_ids'] as List<dynamic>?)
       ?.map((e) => (e as num).toInt())
       .toList(),
+  approvalToken: json['approval_token'] as String?,
 );
 
 Map<String, dynamic> _$V1PosOrdersUuidSendRequestBodyToJson(
@@ -20,4 +21,5 @@ Map<String, dynamic> _$V1PosOrdersUuidSendRequestBodyToJson(
 ) => <String, dynamic>{
   'version': instance.version,
   'item_ids': instance.itemIds,
+  'approval_token': instance.approvalToken,
 };

@@ -17,16 +17,16 @@ Data153 _$Data153FromJson(Map<String, dynamic> json) => Data153(
   version: (json['version'] as num).toInt(),
   hall: json['hall'] == null
       ? null
-      : Hall5.fromJson(json['hall'] as Map<String, dynamic>),
+      : Hall6.fromJson(json['hall'] as Map<String, dynamic>),
   table: json['table'] == null
       ? null
-      : Table5.fromJson(json['table'] as Map<String, dynamic>),
+      : Table6.fromJson(json['table'] as Map<String, dynamic>),
   hallRef: json['hall_ref'] as String?,
   tableRef: json['table_ref'] as String?,
   guestsCount: (json['guests_count'] as num?)?.toInt(),
   waiter: json['waiter'] == null
       ? null
-      : Waiter7.fromJson(json['waiter'] as Map<String, dynamic>),
+      : Waiter8.fromJson(json['waiter'] as Map<String, dynamic>),
   openedBy: (json['opened_by'] as num).toInt(),
   deviceId: (json['device_id'] as num?)?.toInt(),
   bookingId: (json['booking_id'] as num?)?.toInt(),
@@ -44,7 +44,7 @@ Data153 _$Data153FromJson(Map<String, dynamic> json) => Data153(
   charges: Charges10.fromJson(json['charges'] as Map<String, dynamic>),
   rounds: (json['rounds'] as num).toInt(),
   items: (json['items'] as List<dynamic>)
-      .map((e) => Items28.fromJson(e as Map<String, dynamic>))
+      .map((e) => Items27.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 

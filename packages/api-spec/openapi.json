@@ -13003,6 +13003,9 @@
                                                                         "prepayment": {
                                                                             "type": "boolean"
                                                                         },
+                                                                        "credit": {
+                                                                            "type": "boolean"
+                                                                        },
                                                                         "card_type": {
                                                                             "type": [
                                                                                 "string",
@@ -13020,6 +13023,7 @@
                                                                         "form",
                                                                         "amount",
                                                                         "prepayment",
+                                                                        "credit",
                                                                         "card_type",
                                                                         "transaction_id"
                                                                     ]
@@ -13362,6 +13366,9 @@
                                                             "prepayment": {
                                                                 "type": "boolean"
                                                             },
+                                                            "credit": {
+                                                                "type": "boolean"
+                                                            },
                                                             "card_type": {
                                                                 "type": [
                                                                     "string",
@@ -13379,6 +13386,7 @@
                                                             "form",
                                                             "amount",
                                                             "prepayment",
+                                                            "credit",
                                                             "card_type",
                                                             "transaction_id"
                                                         ]
@@ -13682,6 +13690,9 @@
                                                             "prepayment": {
                                                                 "type": "boolean"
                                                             },
+                                                            "credit": {
+                                                                "type": "boolean"
+                                                            },
                                                             "card_type": {
                                                                 "type": [
                                                                     "string",
@@ -13699,6 +13710,7 @@
                                                             "form",
                                                             "amount",
                                                             "prepayment",
+                                                            "credit",
                                                             "card_type",
                                                             "transaction_id"
                                                         ]
@@ -35957,6 +35969,237 @@
             }
         },
         "/v1/pos/orders": {
+            "get": {
+                "operationId": "posOrder.index",
+                "description": "One queue for the till (POS_SPEC 2.5): every POS order still open (accepted, preparing, ready, not closed —\npaid ones still waiting for their receipt included, `fiscal_pending`) and every accepted online order (Telegram,\nmobile, aggregator: accepted, preparing, ready), oldest first, at most 300. `scope`: `open` (the default, the\nonly one so far). `branch_id`: the caller's branch by default (a terminal PIN session: its terminal's). Needs\norders.view in the branch.",
+                "summary": "Open orders of the branch",
+                "tags": [
+                    "POS: orders"
+                ],
+                "parameters": [
+                    {
+                        "name": "scope",
+                        "in": "query",
+                        "description": "open (default)",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "branch_id",
+                        "in": "query",
+                        "description": "The branch; default: the caller's (or their terminal's).",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "uuid": {
+                                                        "type": "string"
+                                                    },
+                                                    "short_code": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "status": {
+                                                        "type": "string"
+                                                    },
+                                                    "channel": {
+                                                        "type": "string"
+                                                    },
+                                                    "type": {
+                                                        "type": "string"
+                                                    },
+                                                    "branch_id": {
+                                                        "type": "integer"
+                                                    },
+                                                    "version": {
+                                                        "type": "integer"
+                                                    },
+                                                    "hall": {
+                                                        "type": [
+                                                            "object",
+                                                            "null"
+                                                        ],
+                                                        "properties": {
+                                                            "id": {
+                                                                "type": "integer"
+                                                            },
+                                                            "name": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "id",
+                                                            "name"
+                                                        ]
+                                                    },
+                                                    "table": {
+                                                        "type": [
+                                                            "object",
+                                                            "null"
+                                                        ],
+                                                        "properties": {
+                                                            "id": {
+                                                                "type": "integer"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            },
+                                                            "kind": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "id",
+                                                            "name",
+                                                            "kind"
+                                                        ]
+                                                    },
+                                                    "hall_ref": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "table_ref": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "guests_count": {
+                                                        "type": [
+                                                            "integer",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "waiter": {
+                                                        "type": [
+                                                            "object",
+                                                            "null"
+                                                        ],
+                                                        "properties": {
+                                                            "id": {
+                                                                "type": "integer"
+                                                            },
+                                                            "name": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "id",
+                                                            "name"
+                                                        ]
+                                                    },
+                                                    "items_count": {
+                                                        "type": "integer"
+                                                    },
+                                                    "subtotal": {
+                                                        "type": "string"
+                                                    },
+                                                    "total_price": {
+                                                        "type": "string"
+                                                    },
+                                                    "payment_status": {
+                                                        "type": "string"
+                                                    },
+                                                    "bill_locked": {
+                                                        "type": "boolean"
+                                                    },
+                                                    "fiscal_pending": {
+                                                        "type": "boolean"
+                                                    },
+                                                    "booking_id": {
+                                                        "type": [
+                                                            "integer",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "opened_at": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "updated_at": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    }
+                                                },
+                                                "required": [
+                                                    "uuid",
+                                                    "short_code",
+                                                    "status",
+                                                    "channel",
+                                                    "type",
+                                                    "branch_id",
+                                                    "version",
+                                                    "hall",
+                                                    "table",
+                                                    "hall_ref",
+                                                    "table_ref",
+                                                    "guests_count",
+                                                    "waiter",
+                                                    "items_count",
+                                                    "subtotal",
+                                                    "total_price",
+                                                    "payment_status",
+                                                    "bill_locked",
+                                                    "fiscal_pending",
+                                                    "booking_id",
+                                                    "opened_at",
+                                                    "updated_at"
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            },
             "post": {
                 "operationId": "posOrder.store",
                 "description": "A hall order (`pos_hall`) at a table, room or tapchan (`table_id`) or without one, or a takeaway\n(`pos_takeaway`). `guests_count` (hall: at least 1) drives the per-guest charges and the automatic \"choy-non\"\nlines. `items` (optional) is the first round; `send: true` sends its `now` lines to the kitchen at once.\n`external_id`: the device's own id for the order; a repeat returns the same order. A room with an open order is\n422 `table_occupied`; a closed zone or inactive place 422 `table_inactive`. Needs orders.manage.",
@@ -37765,7 +38008,7 @@
             },
             "post": {
                 "operationId": "posBill.store",
-                "description": "Bills what is left to bill of the order (bills already being paid stay; other open or printed bills are voided\nand made again). `mode`: `single` (one bill), `equal` (`parts` bills with the same total; the remainder tiyin on\nthe first), `items` (`bills`: each with its `items` — `order_item_id` and `quantity`, fractions too, e.g. 0.5 of\n1.5 kg; every line left must be given out in full; optional `guests` for the per-guest amount). The discount and\nthe charges (room fee, minimum spend top-up, service charge, place fee) are shared in proportion; all shares are\nexact to the tiyin. `version`: the order's (409 `version_conflict` when stale). One bill: orders.manage or\npos.take_payment; splitting: pos.take_payment (403 `permission_denied`). 409 `nothing_to_bill`, `order_closed`,\n`not_pos_order`; 422 `items_not_covered`, `bill_empty`, `item_not_billable`, `parts_invalid`.",
+                "description": "Bills what is left to bill of the order (bills already being paid stay; other open or printed bills are voided\nand made again). `mode`: `single` (one bill), `equal` (`parts` bills with the same total; the remainder tiyin on\nthe first), `items` (`bills`: each with its `items` — `order_item_id` and `quantity`, fractions too, e.g. 0.5 of\n1.5 kg; every line left must be given out in full; optional `guests` for the per-guest amount). The discount and\nthe charges (room fee, minimum spend top-up, service charge, place fee) are shared in proportion; all shares are\nexact to the tiyin. `version`: the order's (409 `version_conflict` when stale). One bill: orders.manage or\npos.take_payment; splitting: pos.take_payment (403 `permission_denied`). A waiter bills only their own orders\n(another waiter's: a manager's `approval_token` for orders.manage, else 403 `approval_required`). 409\n`nothing_to_bill`, `order_closed`,\n`not_pos_order`; 422 `items_not_covered`, `bill_empty`, `item_not_billable`, `parts_invalid`.",
                 "summary": "Make or split the bill",
                 "tags": [
                     "POS: billing"
@@ -37855,6 +38098,13 @@
                                         },
                                         "minItems": 1,
                                         "maxItems": 30
+                                    },
+                                    "approval_token": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "maxLength": 100
                                     }
                                 },
                                 "required": [
@@ -38321,6 +38571,643 @@
                 }
             }
         },
+        "/v1/pos/orders/{uuid}/cancel": {
+            "post": {
+                "operationId": "posOrder.cancel",
+                "description": "`reason` is required. orders.cancel, or a manager's one-time `approval_token` for orders.cancel (POST\n/pos/approvals; 403 `approval_required`). An order with a payment is refused: 409 `has_payments` (refund the\npayments first, POST /pos/refunds). Every line still on the order is voided — lines already sent get a kitchen\nvoid (\"O'CHIRILDI\"), unsent lines give their stock and kazan portion back — open or printed bills are voided, the\norder becomes `canceled` and its table free; a booking's order completes the booking (its deposits stay\n`taken`, to refund or retain). Audited; the owner is alerted. 422 `order_closed`, 409 `version_conflict`.",
+                "summary": "Cancel the whole order",
+                "tags": [
+                    "POS: orders"
+                ],
+                "parameters": [
+                    {
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "description": "Required: a new UUID per action, the same one when retrying it (428 without).",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "version": {
+                                        "type": "integer",
+                                        "minimum": 0
+                                    },
+                                    "reason": {
+                                        "type": "string",
+                                        "minLength": 2,
+                                        "maxLength": 255
+                                    },
+                                    "approval_token": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "maxLength": 255
+                                    }
+                                },
+                                "required": [
+                                    "version",
+                                    "reason"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "uuid": {
+                                                    "type": "string"
+                                                },
+                                                "short_code": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "status": {
+                                                    "type": "string"
+                                                },
+                                                "channel": {
+                                                    "type": "string"
+                                                },
+                                                "type": {
+                                                    "type": "string"
+                                                },
+                                                "store_id": {
+                                                    "type": "integer"
+                                                },
+                                                "branch_id": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "version": {
+                                                    "type": "integer"
+                                                },
+                                                "hall": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "properties": {
+                                                        "id": {
+                                                            "type": "integer"
+                                                        },
+                                                        "name": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "id",
+                                                        "name"
+                                                    ]
+                                                },
+                                                "table": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "properties": {
+                                                        "id": {
+                                                            "type": "integer"
+                                                        },
+                                                        "name": {
+                                                            "type": "string"
+                                                        },
+                                                        "kind": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "id",
+                                                        "name",
+                                                        "kind"
+                                                    ]
+                                                },
+                                                "hall_ref": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "table_ref": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "guests_count": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "waiter": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "properties": {
+                                                        "id": {
+                                                            "type": "integer"
+                                                        },
+                                                        "name": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "id",
+                                                        "name"
+                                                    ]
+                                                },
+                                                "opened_by": {
+                                                    "type": "integer"
+                                                },
+                                                "device_id": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "booking_id": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "bill_locked": {
+                                                    "type": "boolean"
+                                                },
+                                                "notes": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "opened_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "updated_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "subtotal": {
+                                                    "type": "string"
+                                                },
+                                                "discount": {
+                                                    "type": "string"
+                                                },
+                                                "service_charge_amount": {
+                                                    "type": "string"
+                                                },
+                                                "place_fee_amount": {
+                                                    "type": "string"
+                                                },
+                                                "room_fee_amount": {
+                                                    "type": "string"
+                                                },
+                                                "min_spend_topup_amount": {
+                                                    "type": "string"
+                                                },
+                                                "total_price": {
+                                                    "type": "string"
+                                                },
+                                                "charges": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "items_subtotal": {
+                                                            "type": "string"
+                                                        },
+                                                        "discount": {
+                                                            "type": "string"
+                                                        },
+                                                        "service_charge_percent": {
+                                                            "type": "string"
+                                                        },
+                                                        "service_charge_amount": {
+                                                            "type": "string"
+                                                        },
+                                                        "place_fee_amount": {
+                                                            "type": "string"
+                                                        },
+                                                        "room_fee_amount": {
+                                                            "type": "string"
+                                                        },
+                                                        "room_tariff_id": {
+                                                            "type": [
+                                                                "integer",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "business_date": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "day_type": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "min_spend": {
+                                                            "type": "string"
+                                                        },
+                                                        "min_spend_topup_amount": {
+                                                            "type": "string"
+                                                        },
+                                                        "waived": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "total": {
+                                                            "type": "string"
+                                                        },
+                                                        "waivers": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "charge": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "reason": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "waived_by": {
+                                                                        "type": [
+                                                                            "integer",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "approved_by": {
+                                                                        "type": [
+                                                                            "integer",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "waived_at": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "charge",
+                                                                    "reason",
+                                                                    "waived_by",
+                                                                    "approved_by",
+                                                                    "waived_at"
+                                                                ]
+                                                            }
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "items_subtotal",
+                                                        "discount",
+                                                        "service_charge_percent",
+                                                        "service_charge_amount",
+                                                        "place_fee_amount",
+                                                        "room_fee_amount",
+                                                        "room_tariff_id",
+                                                        "business_date",
+                                                        "day_type",
+                                                        "min_spend",
+                                                        "min_spend_topup_amount",
+                                                        "waived",
+                                                        "total",
+                                                        "waivers"
+                                                    ]
+                                                },
+                                                "rounds": {
+                                                    "type": "integer"
+                                                },
+                                                "items": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "id": {
+                                                                "type": "integer"
+                                                            },
+                                                            "round_no": {
+                                                                "type": [
+                                                                    "integer",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "product_variant_id": {
+                                                                "type": [
+                                                                    "integer",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "product_name": {
+                                                                "type": "string"
+                                                            },
+                                                            "variant_name": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "quantity": {
+                                                                "type": "number"
+                                                            },
+                                                            "unit": {
+                                                                "type": "string"
+                                                            },
+                                                            "quantity_label": {
+                                                                "type": "string"
+                                                            },
+                                                            "unit_price": {
+                                                                "type": "string"
+                                                            },
+                                                            "modifiers": {
+                                                                "type": "array",
+                                                                "items": {
+                                                                    "type": "object",
+                                                                    "properties": {
+                                                                        "id": {
+                                                                            "type": "integer"
+                                                                        },
+                                                                        "name": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "group_name": {
+                                                                            "type": [
+                                                                                "string",
+                                                                                "null"
+                                                                            ]
+                                                                        },
+                                                                        "quantity": {
+                                                                            "type": "integer"
+                                                                        },
+                                                                        "price_delta": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "required": [
+                                                                        "id",
+                                                                        "name",
+                                                                        "group_name",
+                                                                        "quantity",
+                                                                        "price_delta"
+                                                                    ]
+                                                                }
+                                                            },
+                                                            "modifiers_total": {
+                                                                "type": "string"
+                                                            },
+                                                            "total_price": {
+                                                                "type": "string"
+                                                            },
+                                                            "note": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "seat_no": {
+                                                                "type": [
+                                                                    "integer",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "fire_mode": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "due_at": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "kitchen_status": {
+                                                                "type": "string"
+                                                            },
+                                                            "station_id": {
+                                                                "type": [
+                                                                    "integer",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "sent_at": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "ready_at": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "added_by": {
+                                                                "type": [
+                                                                    "object",
+                                                                    "null"
+                                                                ],
+                                                                "properties": {
+                                                                    "id": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "name": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "id",
+                                                                    "name"
+                                                                ]
+                                                            },
+                                                            "added_at": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "voided_at": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "voided_by": {
+                                                                "type": [
+                                                                    "object",
+                                                                    "null"
+                                                                ],
+                                                                "properties": {
+                                                                    "id": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "name": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "id",
+                                                                    "name"
+                                                                ]
+                                                            },
+                                                            "void_reason": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "id",
+                                                            "round_no",
+                                                            "product_variant_id",
+                                                            "product_name",
+                                                            "variant_name",
+                                                            "quantity",
+                                                            "unit",
+                                                            "quantity_label",
+                                                            "unit_price",
+                                                            "modifiers",
+                                                            "modifiers_total",
+                                                            "total_price",
+                                                            "note",
+                                                            "seat_no",
+                                                            "fire_mode",
+                                                            "due_at",
+                                                            "kitchen_status",
+                                                            "station_id",
+                                                            "sent_at",
+                                                            "ready_at",
+                                                            "added_by",
+                                                            "added_at",
+                                                            "voided_at",
+                                                            "voided_by",
+                                                            "void_reason"
+                                                        ]
+                                                    }
+                                                }
+                                            },
+                                            "required": [
+                                                "uuid",
+                                                "short_code",
+                                                "status",
+                                                "channel",
+                                                "type",
+                                                "store_id",
+                                                "branch_id",
+                                                "version",
+                                                "hall",
+                                                "table",
+                                                "hall_ref",
+                                                "table_ref",
+                                                "guests_count",
+                                                "waiter",
+                                                "opened_by",
+                                                "device_id",
+                                                "booking_id",
+                                                "bill_locked",
+                                                "notes",
+                                                "opened_at",
+                                                "updated_at",
+                                                "subtotal",
+                                                "discount",
+                                                "service_charge_amount",
+                                                "place_fee_amount",
+                                                "room_fee_amount",
+                                                "min_spend_topup_amount",
+                                                "total_price",
+                                                "charges",
+                                                "rounds",
+                                                "items"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
         "/v1/pos/orders/{uuid}/charges/{charge}/restore": {
             "post": {
                 "operationId": "posOrder.restoreCharge",
@@ -38365,6 +39252,13 @@
                                     "version": {
                                         "type": "integer",
                                         "minimum": 0
+                                    },
+                                    "approval_token": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "maxLength": 255
                                     }
                                 },
                                 "required": [
@@ -40110,6 +41004,13 @@
                                         "type": "integer",
                                         "minimum": 1,
                                         "maximum": 500
+                                    },
+                                    "approval_token": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "maxLength": 255
                                     }
                                 },
                                 "required": [
@@ -40681,6 +41582,655 @@
                         }
                     },
                     "409": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/pos/orders/{uuid}/items/{item}/served": {
+            "post": {
+                "operationId": "posOrder.served",
+                "description": "The line reached the guests: `ready` (the kitchen display bumped it) or `sent` (a station without a display,\ne.g. tea) becomes `served`. 422 `already_served`, `item_not_ready` (not sent yet or voided). Needs orders.manage;\nthe waiter rule applies (`approval_token`).",
+                "summary": "Mark a line served",
+                "tags": [
+                    "POS: orders"
+                ],
+                "parameters": [
+                    {
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "item",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "description": "Required: a new UUID per action, the same one when retrying it (428 without).",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "version": {
+                                        "type": "integer",
+                                        "minimum": 0
+                                    },
+                                    "approval_token": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "maxLength": 255
+                                    }
+                                },
+                                "required": [
+                                    "version"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "uuid": {
+                                                    "type": "string"
+                                                },
+                                                "short_code": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "status": {
+                                                    "type": "string"
+                                                },
+                                                "channel": {
+                                                    "type": "string"
+                                                },
+                                                "type": {
+                                                    "type": "string"
+                                                },
+                                                "store_id": {
+                                                    "type": "integer"
+                                                },
+                                                "branch_id": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "version": {
+                                                    "type": "integer"
+                                                },
+                                                "hall": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "properties": {
+                                                        "id": {
+                                                            "type": "integer"
+                                                        },
+                                                        "name": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "id",
+                                                        "name"
+                                                    ]
+                                                },
+                                                "table": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "properties": {
+                                                        "id": {
+                                                            "type": "integer"
+                                                        },
+                                                        "name": {
+                                                            "type": "string"
+                                                        },
+                                                        "kind": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "id",
+                                                        "name",
+                                                        "kind"
+                                                    ]
+                                                },
+                                                "hall_ref": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "table_ref": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "guests_count": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "waiter": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "properties": {
+                                                        "id": {
+                                                            "type": "integer"
+                                                        },
+                                                        "name": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "id",
+                                                        "name"
+                                                    ]
+                                                },
+                                                "opened_by": {
+                                                    "type": "integer"
+                                                },
+                                                "device_id": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "booking_id": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "bill_locked": {
+                                                    "type": "boolean"
+                                                },
+                                                "notes": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "opened_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "updated_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "subtotal": {
+                                                    "type": "string"
+                                                },
+                                                "discount": {
+                                                    "type": "string"
+                                                },
+                                                "service_charge_amount": {
+                                                    "type": "string"
+                                                },
+                                                "place_fee_amount": {
+                                                    "type": "string"
+                                                },
+                                                "room_fee_amount": {
+                                                    "type": "string"
+                                                },
+                                                "min_spend_topup_amount": {
+                                                    "type": "string"
+                                                },
+                                                "total_price": {
+                                                    "type": "string"
+                                                },
+                                                "charges": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "items_subtotal": {
+                                                            "type": "string"
+                                                        },
+                                                        "discount": {
+                                                            "type": "string"
+                                                        },
+                                                        "service_charge_percent": {
+                                                            "type": "string"
+                                                        },
+                                                        "service_charge_amount": {
+                                                            "type": "string"
+                                                        },
+                                                        "place_fee_amount": {
+                                                            "type": "string"
+                                                        },
+                                                        "room_fee_amount": {
+                                                            "type": "string"
+                                                        },
+                                                        "room_tariff_id": {
+                                                            "type": [
+                                                                "integer",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "business_date": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "day_type": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "min_spend": {
+                                                            "type": "string"
+                                                        },
+                                                        "min_spend_topup_amount": {
+                                                            "type": "string"
+                                                        },
+                                                        "waived": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "total": {
+                                                            "type": "string"
+                                                        },
+                                                        "waivers": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "charge": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "reason": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "waived_by": {
+                                                                        "type": [
+                                                                            "integer",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "approved_by": {
+                                                                        "type": [
+                                                                            "integer",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "waived_at": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "charge",
+                                                                    "reason",
+                                                                    "waived_by",
+                                                                    "approved_by",
+                                                                    "waived_at"
+                                                                ]
+                                                            }
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "items_subtotal",
+                                                        "discount",
+                                                        "service_charge_percent",
+                                                        "service_charge_amount",
+                                                        "place_fee_amount",
+                                                        "room_fee_amount",
+                                                        "room_tariff_id",
+                                                        "business_date",
+                                                        "day_type",
+                                                        "min_spend",
+                                                        "min_spend_topup_amount",
+                                                        "waived",
+                                                        "total",
+                                                        "waivers"
+                                                    ]
+                                                },
+                                                "rounds": {
+                                                    "type": "integer"
+                                                },
+                                                "items": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "id": {
+                                                                "type": "integer"
+                                                            },
+                                                            "round_no": {
+                                                                "type": [
+                                                                    "integer",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "product_variant_id": {
+                                                                "type": [
+                                                                    "integer",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "product_name": {
+                                                                "type": "string"
+                                                            },
+                                                            "variant_name": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "quantity": {
+                                                                "type": "number"
+                                                            },
+                                                            "unit": {
+                                                                "type": "string"
+                                                            },
+                                                            "quantity_label": {
+                                                                "type": "string"
+                                                            },
+                                                            "unit_price": {
+                                                                "type": "string"
+                                                            },
+                                                            "modifiers": {
+                                                                "type": "array",
+                                                                "items": {
+                                                                    "type": "object",
+                                                                    "properties": {
+                                                                        "id": {
+                                                                            "type": "integer"
+                                                                        },
+                                                                        "name": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "group_name": {
+                                                                            "type": [
+                                                                                "string",
+                                                                                "null"
+                                                                            ]
+                                                                        },
+                                                                        "quantity": {
+                                                                            "type": "integer"
+                                                                        },
+                                                                        "price_delta": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "required": [
+                                                                        "id",
+                                                                        "name",
+                                                                        "group_name",
+                                                                        "quantity",
+                                                                        "price_delta"
+                                                                    ]
+                                                                }
+                                                            },
+                                                            "modifiers_total": {
+                                                                "type": "string"
+                                                            },
+                                                            "total_price": {
+                                                                "type": "string"
+                                                            },
+                                                            "note": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "seat_no": {
+                                                                "type": [
+                                                                    "integer",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "fire_mode": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "due_at": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "kitchen_status": {
+                                                                "type": "string"
+                                                            },
+                                                            "station_id": {
+                                                                "type": [
+                                                                    "integer",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "sent_at": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "ready_at": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "added_by": {
+                                                                "type": [
+                                                                    "object",
+                                                                    "null"
+                                                                ],
+                                                                "properties": {
+                                                                    "id": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "name": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "id",
+                                                                    "name"
+                                                                ]
+                                                            },
+                                                            "added_at": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "voided_at": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "voided_by": {
+                                                                "type": [
+                                                                    "object",
+                                                                    "null"
+                                                                ],
+                                                                "properties": {
+                                                                    "id": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "name": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "id",
+                                                                    "name"
+                                                                ]
+                                                            },
+                                                            "void_reason": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "id",
+                                                            "round_no",
+                                                            "product_variant_id",
+                                                            "product_name",
+                                                            "variant_name",
+                                                            "quantity",
+                                                            "unit",
+                                                            "quantity_label",
+                                                            "unit_price",
+                                                            "modifiers",
+                                                            "modifiers_total",
+                                                            "total_price",
+                                                            "note",
+                                                            "seat_no",
+                                                            "fire_mode",
+                                                            "due_at",
+                                                            "kitchen_status",
+                                                            "station_id",
+                                                            "sent_at",
+                                                            "ready_at",
+                                                            "added_by",
+                                                            "added_at",
+                                                            "voided_at",
+                                                            "voided_by",
+                                                            "void_reason"
+                                                        ]
+                                                    }
+                                                }
+                                            },
+                                            "required": [
+                                                "uuid",
+                                                "short_code",
+                                                "status",
+                                                "channel",
+                                                "type",
+                                                "store_id",
+                                                "branch_id",
+                                                "version",
+                                                "hall",
+                                                "table",
+                                                "hall_ref",
+                                                "table_ref",
+                                                "guests_count",
+                                                "waiter",
+                                                "opened_by",
+                                                "device_id",
+                                                "booking_id",
+                                                "bill_locked",
+                                                "notes",
+                                                "opened_at",
+                                                "updated_at",
+                                                "subtotal",
+                                                "discount",
+                                                "service_charge_amount",
+                                                "place_fee_amount",
+                                                "room_fee_amount",
+                                                "min_spend_topup_amount",
+                                                "total_price",
+                                                "charges",
+                                                "rounds",
+                                                "items"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
                         "description": "",
                         "content": {
                             "application/json": {
@@ -41405,6 +42955,13 @@
                                     "source_version": {
                                         "type": "integer",
                                         "minimum": 0
+                                    },
+                                    "approval_token": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "maxLength": 255
                                     }
                                 },
                                 "required": [
@@ -42035,6 +43592,13 @@
                                     "table_id": {
                                         "type": "integer",
                                         "minimum": 1
+                                    },
+                                    "approval_token": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "maxLength": 255
                                     }
                                 },
                                 "required": [
@@ -42742,6 +44306,13 @@
                                             "boolean",
                                             "null"
                                         ]
+                                    },
+                                    "approval_token": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "maxLength": 255
                                     }
                                 },
                                 "required": [
@@ -43378,6 +44949,13 @@
                                             "minimum": 1
                                         },
                                         "maxItems": 200
+                                    },
+                                    "approval_token": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "maxLength": 255
                                     }
                                 },
                                 "required": [
@@ -50632,6 +52210,18 @@
                         ],
                         "format": "date-time"
                     },
+                    "refunded_device_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ]
+                    },
+                    "refunded_shift_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ]
+                    },
                     "booking": {
                         "$ref": "#/components/schemas/Booking"
                     }
@@ -50665,7 +52255,9 @@
                     "user_id",
                     "idempotency_key",
                     "created_at",
-                    "updated_at"
+                    "updated_at",
+                    "refunded_device_id",
+                    "refunded_shift_id"
                 ],
                 "title": "BookingPayment"
             },
@@ -51101,7 +52693,7 @@
             },
             "CashMovementType": {
                 "type": "string",
-                "description": "cash_movements.type: what moved money into or out of the drawer (POS_SPEC 2.3, research R21, L7, L10). The cashier records `cash_in`, `cash_out`, `wage` (to an employee) and `purchase` (bazaar shopping) by hand; the others are written by the shift, sale and refund flows themselves. Booking deposits and nasiya repayments taken in cash (P3-17) are read from their own tables by the shift report (ShiftReport), not copied here.\n",
+                "description": "cash_movements.type: what moved money into or out of the drawer (POS_SPEC 2.3, research R21, L7, L10). The cashier records `cash_in`, `cash_out`, `wage` (to an employee) and `purchase` (bazaar shopping) by hand; the others are written by the shift, sale and refund flows themselves. Booking deposits and nasiya repayments taken in cash (P3-17), and cash deposit refunds, are read from their own tables by the shift report (ShiftReport), not copied here.\n",
                 "enum": [
                     "opening",
                     "sale",
@@ -52822,6 +54414,13 @@
                         ],
                         "format": "date-time"
                     },
+                    "long_open_alerted_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date-time"
+                    },
                     "type": {
                         "type": "string"
                     },
@@ -53026,6 +54625,7 @@
                     "queue_number",
                     "bill_locked_at",
                     "closed_at",
+                    "long_open_alerted_at",
                     "type",
                     "address"
                 ],

@@ -7,8 +7,6 @@ import 'package:json_annotation/json_annotation.dart';
 import 'hall.dart';
 import 'table.dart';
 import 'waiter3.dart';
-import 'charges6.dart';
-import 'items19.dart';
 
 part 'data146.g.dart';
 
@@ -20,7 +18,6 @@ class Data146 {
     required this.status,
     required this.channel,
     required this.type,
-    required this.storeId,
     required this.branchId,
     required this.version,
     required this.hall,
@@ -29,23 +26,15 @@ class Data146 {
     required this.tableRef,
     required this.guestsCount,
     required this.waiter,
-    required this.openedBy,
-    required this.deviceId,
-    required this.bookingId,
+    required this.itemsCount,
+    required this.subtotal,
+    required this.totalPrice,
+    required this.paymentStatus,
     required this.billLocked,
-    required this.notes,
+    required this.fiscalPending,
+    required this.bookingId,
     required this.openedAt,
     required this.updatedAt,
-    required this.subtotal,
-    required this.discount,
-    required this.serviceChargeAmount,
-    required this.placeFeeAmount,
-    required this.roomFeeAmount,
-    required this.minSpendTopupAmount,
-    required this.totalPrice,
-    required this.charges,
-    required this.rounds,
-    required this.items,
   });
 
   factory Data146.fromJson(Map<String, Object?> json) =>
@@ -57,10 +46,8 @@ class Data146 {
   final String status;
   final String channel;
   final String type;
-  @JsonKey(name: 'store_id')
-  final int storeId;
   @JsonKey(name: 'branch_id')
-  final int? branchId;
+  final int branchId;
   final int version;
   final Hall? hall;
   final Table? table;
@@ -71,34 +58,23 @@ class Data146 {
   @JsonKey(name: 'guests_count')
   final int? guestsCount;
   final Waiter3? waiter;
-  @JsonKey(name: 'opened_by')
-  final int openedBy;
-  @JsonKey(name: 'device_id')
-  final int? deviceId;
-  @JsonKey(name: 'booking_id')
-  final int? bookingId;
+  @JsonKey(name: 'items_count')
+  final int itemsCount;
+  final String subtotal;
+  @JsonKey(name: 'total_price')
+  final String totalPrice;
+  @JsonKey(name: 'payment_status')
+  final String paymentStatus;
   @JsonKey(name: 'bill_locked')
   final bool billLocked;
-  final String? notes;
+  @JsonKey(name: 'fiscal_pending')
+  final bool fiscalPending;
+  @JsonKey(name: 'booking_id')
+  final int? bookingId;
   @JsonKey(name: 'opened_at')
   final String? openedAt;
   @JsonKey(name: 'updated_at')
   final String? updatedAt;
-  final String subtotal;
-  final String discount;
-  @JsonKey(name: 'service_charge_amount')
-  final String serviceChargeAmount;
-  @JsonKey(name: 'place_fee_amount')
-  final String placeFeeAmount;
-  @JsonKey(name: 'room_fee_amount')
-  final String roomFeeAmount;
-  @JsonKey(name: 'min_spend_topup_amount')
-  final String minSpendTopupAmount;
-  @JsonKey(name: 'total_price')
-  final String totalPrice;
-  final Charges6 charges;
-  final int rounds;
-  final List<Items19> items;
 
   Map<String, Object?> toJson() => _$Data146ToJson(this);
 }

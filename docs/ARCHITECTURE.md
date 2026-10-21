@@ -345,7 +345,7 @@ hodisa (yangi buyurtma, holat o'zgardi, kuryer biriktirildi)
        └─ SMS      → faqat "muhim" va boshqa kanal yetmasa (hozir ishlatilmaydi)
 ```
 
-Xabar turlari: `order_updates`, `staff_new_order`, `courier_tasks`, `promotions`. Push kaliti berilmasa push o'chiq,
+Xabar turlari: `order_updates`, `staff_new_order`, `courier_tasks`, `pos_alerts` (kassa ogohlantirishlari egaga), `promotions`. Push kaliti berilmasa push o'chiq,
 xato chiqmaydi. Batafsil: [PUSH.md](PUSH.md). SMS (OTP) — Eskiz (`sms_driver = eskiz`) yoki `log`.
 
 ## 8. Navbatlar va rejalashtirilgan ishlar

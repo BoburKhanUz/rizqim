@@ -24,15 +24,21 @@ Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->group(functi
     Route::middleware('not-staff-session')->group(function () {
         Route::middleware('permission:tables.manage')->group(function () {
             Route::get('/owner/halls', [HallController::class, 'index']);
-            Route::post('/owner/halls', [HallController::class, 'store']);
-            Route::patch('/owner/halls/{id}', [HallController::class, 'update'])->where('id', RowId::ROUTE_PATTERN);
-            Route::delete('/owner/halls/{id}', [HallController::class, 'destroy'])->where('id', RowId::ROUTE_PATTERN);
-
             Route::get('/owner/dining-tables', [DiningTableController::class, 'index']);
-            Route::post('/owner/dining-tables', [DiningTableController::class, 'store']);
-            Route::put('/owner/dining-tables/layout', [DiningTableController::class, 'layout']);
-            Route::patch('/owner/dining-tables/{id}', [DiningTableController::class, 'update'])->where('id', RowId::ROUTE_PATTERN);
-            Route::delete('/owner/dining-tables/{id}', [DiningTableController::class, 'destroy'])->where('id', RowId::ROUTE_PATTERN);
+
+            // P3 integration fix: the floor layout is the owner's and the manager's. tables.manage alone is held by
+            // cashiers and waiters too (seat, move, merge on the POS), so changing halls and tables also needs the
+            // owner or manager role: the owner always holds tables.manage, a manager unless the store took it away
+            Route::middleware('role:owner,manager')->group(function () {
+                Route::post('/owner/halls', [HallController::class, 'store']);
+                Route::patch('/owner/halls/{id}', [HallController::class, 'update'])->where('id', RowId::ROUTE_PATTERN);
+                Route::delete('/owner/halls/{id}', [HallController::class, 'destroy'])->where('id', RowId::ROUTE_PATTERN);
+
+                Route::post('/owner/dining-tables', [DiningTableController::class, 'store']);
+                Route::put('/owner/dining-tables/layout', [DiningTableController::class, 'layout']);
+                Route::patch('/owner/dining-tables/{id}', [DiningTableController::class, 'update'])->where('id', RowId::ROUTE_PATTERN);
+                Route::delete('/owner/dining-tables/{id}', [DiningTableController::class, 'destroy'])->where('id', RowId::ROUTE_PATTERN);
+            });
         });
 
         Route::middleware('permission:settings.manage')->group(function () {
@@ -54,6 +60,8 @@ Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->group(functi
     // POS: the till and the waiter phones
     Route::prefix('pos')->group(function () {
         Route::get('/floor', [PosFloorController::class, 'show'])->middleware('permission:orders.view');
+        // P3 integration fix: the open orders of every channel (one queue for the till)
+        Route::get('/orders', [PosOrderController::class, 'index'])->middleware('permission:orders.view');
         Route::get('/orders/{uuid}', [PosOrderController::class, 'show'])->whereUuid('uuid')->middleware('permission:orders.view');
 
         $idempotent = fn (string $scope) => EnsureIdempotency::class . ':' . $scope;
@@ -66,7 +74,13 @@ Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->group(functi
             Route::post('/orders/{uuid}/guests', [PosOrderController::class, 'guests'])->whereUuid('uuid')->middleware($idempotent('pos.orders.guests'));
             Route::post('/orders/{uuid}/charges/{charge}/waive', [PosOrderController::class, 'waive'])->whereUuid('uuid')->where('charge', '[a-z_]{1,32}')->middleware($idempotent('pos.orders.waive'));
             Route::post('/orders/{uuid}/charges/{charge}/restore', [PosOrderController::class, 'restoreCharge'])->whereUuid('uuid')->where('charge', '[a-z_]{1,32}')->middleware($idempotent('pos.orders.restore'));
+            // P3 integration fix: a line reached the guests (ready → served)
+            Route::post('/orders/{uuid}/items/{item}/served', [PosOrderController::class, 'served'])->whereUuid('uuid')->where('item', RowId::ROUTE_PATTERN)->middleware($idempotent('pos.orders.served'));
         });
+
+        // P3 integration fix: cancel a whole order — orders.cancel, or orders.manage with a manager's approval token
+        // (checked in PosOrderService::cancel)
+        Route::post('/orders/{uuid}/cancel', [PosOrderController::class, 'cancel'])->whereUuid('uuid')->middleware(['permission:orders.cancel,orders.manage', $idempotent('pos.orders.cancel')]);
 
         Route::middleware('permission:tables.manage')->group(function () use ($idempotent) {
             Route::post('/orders/{uuid}/move', [PosOrderController::class, 'move'])->whereUuid('uuid')->middleware($idempotent('pos.orders.move'));

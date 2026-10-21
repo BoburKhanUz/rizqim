@@ -11,8 +11,12 @@ _$V1PosOrdersUuidChargesChargeRestoreRequestBodyFromJson(
   Map<String, dynamic> json,
 ) => V1PosOrdersUuidChargesChargeRestoreRequestBody(
   version: (json['version'] as num).toInt(),
+  approvalToken: json['approval_token'] as String?,
 );
 
 Map<String, dynamic> _$V1PosOrdersUuidChargesChargeRestoreRequestBodyToJson(
   V1PosOrdersUuidChargesChargeRestoreRequestBody instance,
-) => <String, dynamic>{'version': instance.version};
+) => <String, dynamic>{
+  'version': instance.version,
+  'approval_token': instance.approvalToken,
+};

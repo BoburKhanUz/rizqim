@@ -4,11 +4,11 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'customer3.dart';
-import 'delivery6.dart';
-import 'courier3.dart';
-import 'items40.dart';
-import 'status_history2.dart';
+import 'customer2.dart';
+import 'delivery5.dart';
+import 'courier2.dart';
+import 'items39.dart';
+import 'status_history.dart';
 
 part 'data173.g.dart';
 
@@ -96,14 +96,14 @@ class Data173 {
   final String? cancelReason;
   @JsonKey(name: 'cancel_note')
   final String? cancelNote;
-  final Customer3? customer;
-  final Delivery6? delivery;
-  final Courier3? courier;
+  final Customer2? customer;
+  final Delivery5? delivery;
+  final Courier2? courier;
   @JsonKey(name: 'items_total')
   final int itemsTotal;
   @JsonKey(name: 'items_ready')
   final int itemsReady;
-  final List<Items40> items;
+  final List<Items39> items;
   @JsonKey(name: 'created_at')
   final String? createdAt;
   @JsonKey(name: 'updated_at')
@@ -119,7 +119,7 @@ class Data173 {
   @JsonKey(name: 'waiting_seconds')
   final int waitingSeconds;
   @JsonKey(name: 'status_history')
-  final List<StatusHistory2> statusHistory;
+  final List<StatusHistory> statusHistory;
 
   Map<String, Object?> toJson() => _$Data173ToJson(this);
 }

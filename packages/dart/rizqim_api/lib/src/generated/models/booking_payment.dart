@@ -42,6 +42,8 @@ class BookingPayment {
     required this.idempotencyKey,
     required this.createdAt,
     required this.updatedAt,
+    required this.refundedDeviceId,
+    required this.refundedShiftId,
     this.booking,
   });
 
@@ -100,6 +102,10 @@ class BookingPayment {
   final DateTime? createdAt;
   @JsonKey(name: 'updated_at')
   final DateTime? updatedAt;
+  @JsonKey(name: 'refunded_device_id')
+  final int? refundedDeviceId;
+  @JsonKey(name: 'refunded_shift_id')
+  final int? refundedShiftId;
   final Booking? booking;
 
   Map<String, Object?> toJson() => _$BookingPaymentToJson(this);

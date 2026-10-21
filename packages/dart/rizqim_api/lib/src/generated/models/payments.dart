@@ -14,6 +14,7 @@ class Payments {
     required this.form,
     required this.amount,
     required this.prepayment,
+    required this.credit,
     required this.cardType,
     required this.transactionId,
   });
@@ -24,6 +25,7 @@ class Payments {
   final Form form;
   final String amount;
   final bool prepayment;
+  final bool credit;
   @JsonKey(name: 'card_type')
   final String? cardType;
   @JsonKey(name: 'transaction_id')

@@ -7,19 +7,11 @@ part of 'data167.dart';
 // **************************************************************************
 
 Data167 _$Data167FromJson(Map<String, dynamic> json) => Data167(
-  id: (json['id'] as num).toInt(),
-  code: json['code'] as String,
-  type: Type9.fromJson(json['type'] as String),
-  amount: json['amount'] as num,
-  discountAmount: json['discount_amount'] as num?,
-  description: json['description'] as String,
+  movement: Movement.fromJson(json['movement'] as Map<String, dynamic>),
+  shift: Shift2.fromJson(json['shift'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data167ToJson(Data167 instance) => <String, dynamic>{
-  'id': instance.id,
-  'code': instance.code,
-  'type': instance.type,
-  'amount': instance.amount,
-  'discount_amount': instance.discountAmount,
-  'description': instance.description,
+  'movement': instance.movement,
+  'shift': instance.shift,
 };

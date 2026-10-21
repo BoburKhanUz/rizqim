@@ -5,8 +5,8 @@ namespace App\Domain\Pos\Shifts;
 /**
  * cash_movements.type: what moved money into or out of the drawer (POS_SPEC 2.3, research R21, L7, L10). The cashier
  * records `cash_in`, `cash_out`, `wage` (to an employee) and `purchase` (bazaar shopping) by hand; the others are
- * written by the shift, sale and refund flows themselves. Booking deposits and nasiya repayments taken in cash (P3-17)
- * are read from their own tables by the shift report (ShiftReport), not copied here.
+ * written by the shift, sale and refund flows themselves. Booking deposits and nasiya repayments taken in cash (P3-17),
+ * and cash deposit refunds, are read from their own tables by the shift report (ShiftReport), not copied here.
  */
 enum CashMovementType: string
 {

@@ -15,6 +15,7 @@ V1PosOrdersUuidBillsRequestBody _$V1PosOrdersUuidBillsRequestBodyFromJson(
   bills: (json['bills'] as List<dynamic>?)
       ?.map((e) => Bills3.fromJson(e as Map<String, dynamic>))
       .toList(),
+  approvalToken: json['approval_token'] as String?,
 );
 
 Map<String, dynamic> _$V1PosOrdersUuidBillsRequestBodyToJson(
@@ -24,4 +25,5 @@ Map<String, dynamic> _$V1PosOrdersUuidBillsRequestBodyToJson(
   'mode': instance.mode,
   'parts': instance.parts,
   'bills': instance.bills,
+  'approval_token': instance.approvalToken,
 };

@@ -2956,7 +2956,15 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * Open orders of the branch
+         * @description One queue for the till (POS_SPEC 2.5): every POS order still open (accepted, preparing, ready, not closed —
+         *     paid ones still waiting for their receipt included, `fiscal_pending`) and every accepted online order (Telegram,
+         *     mobile, aggregator: accepted, preparing, ready), oldest first, at most 300. `scope`: `open` (the default, the
+         *     only one so far). `branch_id`: the caller's branch by default (a terminal PIN session: its terminal's). Needs
+         *     orders.view in the branch.
+         */
+        get: operations["posOrder.index"];
         put?: never;
         /**
          * Open a POS order
@@ -3020,10 +3028,37 @@ export interface paths {
          *     1.5 kg; every line left must be given out in full; optional `guests` for the per-guest amount). The discount and
          *     the charges (room fee, minimum spend top-up, service charge, place fee) are shared in proportion; all shares are
          *     exact to the tiyin. `version`: the order's (409 `version_conflict` when stale). One bill: orders.manage or
-         *     pos.take_payment; splitting: pos.take_payment (403 `permission_denied`). 409 `nothing_to_bill`, `order_closed`,
+         *     pos.take_payment; splitting: pos.take_payment (403 `permission_denied`). A waiter bills only their own orders
+         *     (another waiter's: a manager's `approval_token` for orders.manage, else 403 `approval_required`). 409
+         *     `nothing_to_bill`, `order_closed`,
          *     `not_pos_order`; 422 `items_not_covered`, `bill_empty`, `item_not_billable`, `parts_invalid`.
          */
         post: operations["posBill.store"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/orders/{uuid}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel the whole order
+         * @description `reason` is required. orders.cancel, or a manager's one-time `approval_token` for orders.cancel (POST
+         *     /pos/approvals; 403 `approval_required`). An order with a payment is refused: 409 `has_payments` (refund the
+         *     payments first, POST /pos/refunds). Every line still on the order is voided — lines already sent get a kitchen
+         *     void ("O'CHIRILDI"), unsent lines give their stock and kazan portion back — open or printed bills are voided, the
+         *     order becomes `canceled` and its table free; a booking's order completes the booking (its deposits stay
+         *     `taken`, to refund or retain). Audited; the owner is alerted. 422 `order_closed`, 409 `version_conflict`.
+         */
+        post: operations["posOrder.cancel"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3109,6 +3144,28 @@ export interface paths {
          *     orders.manage.
          */
         post: operations["posOrder.guests"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/orders/{uuid}/items/{item}/served": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark a line served
+         * @description The line reached the guests: `ready` (the kitchen display bumped it) or `sent` (a station without a display,
+         *     e.g. tea) becomes `served`. 422 `already_served`, `item_not_ready` (not sent yet or voided). Needs orders.manage;
+         *     the waiter rule applies (`approval_token`).
+         */
+        post: operations["posOrder.served"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4002,6 +4059,8 @@ export interface components {
             created_at: string | null;
             /** Format: date-time */
             updated_at: string | null;
+            refunded_device_id: number | null;
+            refunded_shift_id: number | null;
             booking?: components["schemas"]["Booking"];
         };
         /**
@@ -4115,7 +4174,7 @@ export interface components {
         };
         /**
          * CashMovementType
-         * @description cash_movements.type: what moved money into or out of the drawer (POS_SPEC 2.3, research R21, L7, L10). The cashier records `cash_in`, `cash_out`, `wage` (to an employee) and `purchase` (bazaar shopping) by hand; the others are written by the shift, sale and refund flows themselves. Booking deposits and nasiya repayments taken in cash (P3-17) are read from their own tables by the shift report (ShiftReport), not copied here.
+         * @description cash_movements.type: what moved money into or out of the drawer (POS_SPEC 2.3, research R21, L7, L10). The cashier records `cash_in`, `cash_out`, `wage` (to an employee) and `purchase` (bazaar shopping) by hand; the others are written by the shift, sale and refund flows themselves. Booking deposits and nasiya repayments taken in cash (P3-17), and cash deposit refunds, are read from their own tables by the shift report (ShiftReport), not copied here.
          * @enum {string}
          */
         CashMovementType: "opening" | "sale" | "refund" | "cash_in" | "cash_out" | "wage" | "purchase";
@@ -4540,6 +4599,8 @@ export interface components {
             bill_locked_at: string | null;
             /** Format: date-time */
             closed_at: string | null;
+            /** Format: date-time */
+            long_open_alerted_at: string | null;
             type: string;
             address: string | null;
             store?: components["schemas"]["Store"];
@@ -9687,6 +9748,7 @@ export interface operations {
                                     form: "cash" | "card" | "qr";
                                     amount: string;
                                     prepayment: boolean;
+                                    credit: boolean;
                                     card_type: string | null;
                                     transaction_id: string | null;
                                 }[];
@@ -9771,6 +9833,7 @@ export interface operations {
                                 form: "cash" | "card" | "qr";
                                 amount: string;
                                 prepayment: boolean;
+                                credit: boolean;
                                 card_type: string | null;
                                 transaction_id: string | null;
                             }[];
@@ -9847,6 +9910,7 @@ export interface operations {
                                 form: "cash" | "card" | "qr";
                                 amount: string;
                                 prepayment: boolean;
+                                credit: boolean;
                                 card_type: string | null;
                                 transaction_id: string | null;
                             }[];
@@ -16120,6 +16184,69 @@ export interface operations {
             422: components["responses"]["ValidationException"];
         };
     };
+    "posOrder.index": {
+        parameters: {
+            query?: {
+                /** @description open (default) */
+                scope?: string;
+                /** @description The branch; default: the caller's (or their terminal's). */
+                branch_id?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            short_code: string | null;
+                            status: string;
+                            channel: string;
+                            type: string;
+                            branch_id: number;
+                            version: number;
+                            hall: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            table: {
+                                id: number;
+                                name: string;
+                                kind: string;
+                            } | null;
+                            hall_ref: string | null;
+                            table_ref: string | null;
+                            guests_count: number | null;
+                            waiter: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            items_count: number;
+                            subtotal: string;
+                            total_price: string;
+                            payment_status: string;
+                            bill_locked: boolean;
+                            fiscal_pending: boolean;
+                            booking_id: number | null;
+                            opened_at: string | null;
+                            updated_at: string | null;
+                        }[];
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
     "posOrder.store": {
         parameters: {
             query?: never;
@@ -16551,6 +16678,7 @@ export interface operations {
                         }[];
                         guests?: number | null;
                     }[] | null;
+                    approval_token?: string | null;
                 };
             };
         };
@@ -16652,6 +16780,153 @@ export interface operations {
             422: components["responses"]["ValidationException"];
         };
     };
+    "posOrder.cancel": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required: a new UUID per action, the same one when retrying it (428 without). */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    version: number;
+                    reason: string;
+                    approval_token?: string | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            short_code: string | null;
+                            status: string;
+                            channel: string;
+                            type: string;
+                            store_id: number;
+                            branch_id: number | null;
+                            version: number;
+                            hall: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            table: {
+                                id: number;
+                                name: string;
+                                kind: string;
+                            } | null;
+                            hall_ref: string | null;
+                            table_ref: string | null;
+                            guests_count: number | null;
+                            waiter: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            opened_by: number;
+                            device_id: number | null;
+                            booking_id: number | null;
+                            bill_locked: boolean;
+                            notes: string | null;
+                            opened_at: string | null;
+                            updated_at: string | null;
+                            subtotal: string;
+                            discount: string;
+                            service_charge_amount: string;
+                            place_fee_amount: string;
+                            room_fee_amount: string;
+                            min_spend_topup_amount: string;
+                            total_price: string;
+                            charges: {
+                                items_subtotal: string;
+                                discount: string;
+                                service_charge_percent: string;
+                                service_charge_amount: string;
+                                place_fee_amount: string;
+                                room_fee_amount: string;
+                                room_tariff_id: number | null;
+                                business_date: string | null;
+                                day_type: string | null;
+                                min_spend: string;
+                                min_spend_topup_amount: string;
+                                waived: string[];
+                                total: string;
+                                waivers: {
+                                    charge: string;
+                                    reason: string;
+                                    waived_by: number | null;
+                                    approved_by: number | null;
+                                    waived_at: string | null;
+                                }[];
+                            };
+                            rounds: number;
+                            items: {
+                                id: number;
+                                round_no: number | null;
+                                product_variant_id: number | null;
+                                product_name: string;
+                                variant_name: string | null;
+                                quantity: number;
+                                unit: string;
+                                quantity_label: string;
+                                unit_price: string;
+                                modifiers: {
+                                    id: number;
+                                    name: string;
+                                    group_name: string | null;
+                                    quantity: number;
+                                    price_delta: string;
+                                }[];
+                                modifiers_total: string;
+                                total_price: string;
+                                note: string | null;
+                                seat_no: number | null;
+                                fire_mode: string | null;
+                                due_at: string | null;
+                                kitchen_status: string;
+                                station_id: number | null;
+                                sent_at: string | null;
+                                ready_at: string | null;
+                                added_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                added_at: string | null;
+                                voided_at: string | null;
+                                voided_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                void_reason: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
     "posOrder.restoreCharge": {
         parameters: {
             query?: never;
@@ -16669,6 +16944,7 @@ export interface operations {
             content: {
                 "application/json": {
                     version: number;
+                    approval_token?: string | null;
                 };
             };
         };
@@ -17070,6 +17346,7 @@ export interface operations {
                 "application/json": {
                     version: number;
                     guests_count: number;
+                    approval_token?: string | null;
                 };
             };
         };
@@ -17188,6 +17465,161 @@ export interface operations {
                 };
             };
             401: components["responses"]["AuthenticationException"];
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "posOrder.served": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required: a new UUID per action, the same one when retrying it (428 without). */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                uuid: string;
+                item: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    version: number;
+                    approval_token?: string | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            short_code: string | null;
+                            status: string;
+                            channel: string;
+                            type: string;
+                            store_id: number;
+                            branch_id: number | null;
+                            version: number;
+                            hall: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            table: {
+                                id: number;
+                                name: string;
+                                kind: string;
+                            } | null;
+                            hall_ref: string | null;
+                            table_ref: string | null;
+                            guests_count: number | null;
+                            waiter: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            opened_by: number;
+                            device_id: number | null;
+                            booking_id: number | null;
+                            bill_locked: boolean;
+                            notes: string | null;
+                            opened_at: string | null;
+                            updated_at: string | null;
+                            subtotal: string;
+                            discount: string;
+                            service_charge_amount: string;
+                            place_fee_amount: string;
+                            room_fee_amount: string;
+                            min_spend_topup_amount: string;
+                            total_price: string;
+                            charges: {
+                                items_subtotal: string;
+                                discount: string;
+                                service_charge_percent: string;
+                                service_charge_amount: string;
+                                place_fee_amount: string;
+                                room_fee_amount: string;
+                                room_tariff_id: number | null;
+                                business_date: string | null;
+                                day_type: string | null;
+                                min_spend: string;
+                                min_spend_topup_amount: string;
+                                waived: string[];
+                                total: string;
+                                waivers: {
+                                    charge: string;
+                                    reason: string;
+                                    waived_by: number | null;
+                                    approved_by: number | null;
+                                    waived_at: string | null;
+                                }[];
+                            };
+                            rounds: number;
+                            items: {
+                                id: number;
+                                round_no: number | null;
+                                product_variant_id: number | null;
+                                product_name: string;
+                                variant_name: string | null;
+                                quantity: number;
+                                unit: string;
+                                quantity_label: string;
+                                unit_price: string;
+                                modifiers: {
+                                    id: number;
+                                    name: string;
+                                    group_name: string | null;
+                                    quantity: number;
+                                    price_delta: string;
+                                }[];
+                                modifiers_total: string;
+                                total_price: string;
+                                note: string | null;
+                                seat_no: number | null;
+                                fire_mode: string | null;
+                                due_at: string | null;
+                                kitchen_status: string;
+                                station_id: number | null;
+                                sent_at: string | null;
+                                ready_at: string | null;
+                                added_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                added_at: string | null;
+                                voided_at: string | null;
+                                voided_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                void_reason: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -17375,6 +17807,7 @@ export interface operations {
                     /** Format: uuid */
                     source_uuid: string;
                     source_version: number;
+                    approval_token?: string | null;
                 };
             };
         };
@@ -17521,6 +17954,7 @@ export interface operations {
                 "application/json": {
                     version: number;
                     table_id: number;
+                    approval_token?: string | null;
                 };
             };
         };
@@ -17681,6 +18115,7 @@ export interface operations {
                     /** @enum {string|null} */
                     fire_mode?: "now" | "hold" | null;
                     send?: boolean | null;
+                    approval_token?: string | null;
                 };
             };
         };
@@ -17827,6 +18262,7 @@ export interface operations {
                 "application/json": {
                     version: number;
                     item_ids?: number[] | null;
+                    approval_token?: string | null;
                 };
             };
         };

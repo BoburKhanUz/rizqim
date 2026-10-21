@@ -6,20 +6,25 @@ import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
 import '../models/get_v1_pos_floor_response.dart';
+import '../models/get_v1_pos_orders_response.dart';
 import '../models/get_v1_pos_orders_uuid_response.dart';
 import '../models/post_v1_pos_orders_response.dart';
+import '../models/post_v1_pos_orders_uuid_cancel_response.dart';
 import '../models/post_v1_pos_orders_uuid_charges_charge_restore_response.dart';
 import '../models/post_v1_pos_orders_uuid_charges_charge_waive_response.dart';
 import '../models/post_v1_pos_orders_uuid_guests_response.dart';
+import '../models/post_v1_pos_orders_uuid_items_item_served_response.dart';
 import '../models/post_v1_pos_orders_uuid_items_item_void_response.dart';
 import '../models/post_v1_pos_orders_uuid_merge_response.dart';
 import '../models/post_v1_pos_orders_uuid_move_response.dart';
 import '../models/post_v1_pos_orders_uuid_rounds_response.dart';
 import '../models/post_v1_pos_orders_uuid_send_response.dart';
 import '../models/v1_pos_orders_request_body.dart';
+import '../models/v1_pos_orders_uuid_cancel_request_body.dart';
 import '../models/v1_pos_orders_uuid_charges_charge_restore_request_body.dart';
 import '../models/v1_pos_orders_uuid_charges_charge_waive_request_body.dart';
 import '../models/v1_pos_orders_uuid_guests_request_body.dart';
+import '../models/v1_pos_orders_uuid_items_item_served_request_body.dart';
 import '../models/v1_pos_orders_uuid_items_item_void_request_body.dart';
 import '../models/v1_pos_orders_uuid_merge_request_body.dart';
 import '../models/v1_pos_orders_uuid_move_request_body.dart';
@@ -47,6 +52,23 @@ abstract class PosOrdersApi {
     @Query('branch_id') int? branchId,
   });
 
+  /// Open orders of the branch.
+  ///
+  /// One queue for the till (POS_SPEC 2.5): every POS order still open (accepted, preparing, ready, not closed —.
+  /// paid ones still waiting for their receipt included, `fiscal_pending`) and every accepted online order (Telegram,.
+  /// mobile, aggregator: accepted, preparing, ready), oldest first, at most 300. `scope`: `open` (the default, the.
+  /// only one so far). `branch_id`: the caller's branch by default (a terminal PIN session: its terminal's). Needs.
+  /// orders.view in the branch.
+  ///
+  /// [scope] - open (default).
+  ///
+  /// [branchId] - The branch; default: the caller's (or their terminal's).
+  @GET('/v1/pos/orders')
+  Future<GetV1PosOrdersResponse> posOrderIndex({
+    @Query('scope') String? scope,
+    @Query('branch_id') int? branchId,
+  });
+
   /// Open a POS order.
   ///
   /// A hall order (`pos_hall`) at a table, room or tapchan (`table_id`) or without one, or a takeaway.
@@ -70,6 +92,23 @@ abstract class PosOrdersApi {
   @GET('/v1/pos/orders/{uuid}')
   Future<GetV1PosOrdersUuidResponse> posOrderShow({
     @Path('uuid') required String uuid,
+  });
+
+  /// Cancel the whole order.
+  ///
+  /// `reason` is required. orders.cancel, or a manager's one-time `approval_token` for orders.cancel (POST.
+  /// /pos/approvals; 403 `approval_required`). An order with a payment is refused: 409 `has_payments` (refund the.
+  /// payments first, POST /pos/refunds). Every line still on the order is voided — lines already sent get a kitchen.
+  /// void ("O'CHIRILDI"), unsent lines give their stock and kazan portion back — open or printed bills are voided, the.
+  /// order becomes `canceled` and its table free; a booking's order completes the booking (its deposits stay.
+  /// `taken`, to refund or retain). Audited; the owner is alerted. 422 `order_closed`, 409 `version_conflict`.
+  ///
+  /// [idempotencyKey] - Required: a new UUID per action, the same one when retrying it (428 without).
+  @POST('/v1/pos/orders/{uuid}/cancel')
+  Future<PostV1PosOrdersUuidCancelResponse> posOrderCancel({
+    @Path('uuid') required String uuid,
+    @Body() required V1PosOrdersUuidCancelRequestBody body,
+    @Header('Idempotency-Key') String? idempotencyKey,
   });
 
   /// Restore a waived charge line.
@@ -110,6 +149,21 @@ abstract class PosOrdersApi {
   Future<PostV1PosOrdersUuidGuestsResponse> posOrderGuests({
     @Path('uuid') required String uuid,
     @Body() required V1PosOrdersUuidGuestsRequestBody body,
+    @Header('Idempotency-Key') String? idempotencyKey,
+  });
+
+  /// Mark a line served.
+  ///
+  /// The line reached the guests: `ready` (the kitchen display bumped it) or `sent` (a station without a display,.
+  /// e.g. tea) becomes `served`. 422 `already_served`, `item_not_ready` (not sent yet or voided). Needs orders.manage;.
+  /// the waiter rule applies (`approval_token`).
+  ///
+  /// [idempotencyKey] - Required: a new UUID per action, the same one when retrying it (428 without).
+  @POST('/v1/pos/orders/{uuid}/items/{item}/served')
+  Future<PostV1PosOrdersUuidItemsItemServedResponse> posOrderServed({
+    @Path('uuid') required String uuid,
+    @Path('item') required String item,
+    @Body() required V1PosOrdersUuidItemsItemServedRequestBody body,
     @Header('Idempotency-Key') String? idempotencyKey,
   });
 

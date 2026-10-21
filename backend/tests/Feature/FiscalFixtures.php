@@ -101,7 +101,7 @@ trait FiscalFixtures
 
     protected function card(string $amount, string $transactionId = 'TX-1'): FiscalPayment
     {
-        return new FiscalPayment(FiscalPaymentForm::CARD, Money::of($amount), false, 'personal', $transactionId);
+        return new FiscalPayment(FiscalPaymentForm::CARD, Money::of($amount), cardType: 'personal', transactionId: $transactionId);
     }
 
     /**

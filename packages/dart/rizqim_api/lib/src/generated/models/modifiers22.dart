@@ -10,32 +10,20 @@ part 'modifiers22.g.dart';
 class Modifiers22 {
   const Modifiers22({
     required this.name,
-    this.id,
-    this.nameI18n,
+    required this.quantity,
+    this.groupName,
     this.priceDelta,
-    this.maxQuantity,
-    this.productVariantId,
-    this.sortOrder,
-    this.isActive,
   });
 
   factory Modifiers22.fromJson(Map<String, Object?> json) =>
       _$Modifiers22FromJson(json);
 
-  final int? id;
   final String name;
-  @JsonKey(name: 'name_i18n')
-  final Map<String, String>? nameI18n;
+  @JsonKey(name: 'group_name')
+  final String? groupName;
+  final int quantity;
   @JsonKey(name: 'price_delta')
-  final num? priceDelta;
-  @JsonKey(name: 'max_quantity')
-  final int? maxQuantity;
-  @JsonKey(name: 'product_variant_id')
-  final int? productVariantId;
-  @JsonKey(name: 'sort_order')
-  final int? sortOrder;
-  @JsonKey(name: 'is_active')
-  final bool? isActive;
+  final String? priceDelta;
 
   Map<String, Object?> toJson() => _$Modifiers22ToJson(this);
 }

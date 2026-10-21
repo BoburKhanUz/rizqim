@@ -4,6 +4,7 @@ namespace App\Domain\Pos\Orders;
 
 use App\Domain\Pos\Contracts\KitchenStationResolver;
 use App\Domain\Pos\Contracts\ManagerApprovals;
+use App\Domain\Pos\Billing\BillStatus;
 use App\Domain\Pos\Contracts\PosOrderOpener;
 use App\Enums\DiningTableKind;
 use App\Enums\FireMode;
@@ -22,6 +23,7 @@ use App\Models\Branch;
 use App\Models\DiningTable;
 use App\Models\Modifier;
 use App\Models\Order;
+use App\Models\OrderBill;
 use App\Models\OrderChargeWaiver;
 use App\Models\OrderItem;
 use App\Models\OrderStatusHistory;
@@ -52,8 +54,10 @@ use Throwable;
  * channels (order.items_changed).
  *
  * The staff member's access to the order's branch is the caller's check (StaffOrderScope); the permissions an action
- * needs beyond orders.manage (orders.void_item, orders.discount) are checked here, where a one-time manager approval
- * token (ManagerApprovals, P3-18) stands in for a missing one.
+ * needs beyond orders.manage (orders.void_item, orders.discount, orders.cancel) are checked here, where a one-time
+ * manager approval token (ManagerApprovals, P3-18) stands in for a missing one. A waiter changes only their own
+ * orders (WaiterAccess, POS_SPEC 11). Voids after sending, waived charges and cancellations alert the owner
+ * (PosOrderAlerts, R20).
  */
 class PosOrderService implements PosOrderOpener
 {
@@ -66,6 +70,8 @@ class PosOrderService implements PosOrderOpener
         protected OrderStatusService $orderStatus,
         protected PermissionService $permissions,
         protected AuditLogger $audit,
+        protected WaiterAccess $waiters,
+        protected PosOrderAlerts $alerts,
     ) {}
 
     /**
@@ -203,7 +209,7 @@ class PosOrderService implements PosOrderOpener
      * @param  list<array<string, mixed>>  $lines  PosLineBuilder::parse()
      * @return array{order: Order, items: Collection<int, OrderItem>}
      */
-    public function addRound(Order $order, int $version, User $actor, array $lines, bool $send = false): array
+    public function addRound(Order $order, int $version, User $actor, array $lines, bool $send = false, ?string $approvalToken = null): array
     {
         $items = collect();
 
@@ -225,7 +231,7 @@ class PosOrderService implements PosOrderOpener
             ], ['actor' => $actor]);
 
             return ['round_added', $items->pluck('id')->map(fn ($id) => (int) $id)->all()];
-        });
+        }, $approvalToken);
 
         return ['order' => $order, 'items' => $items];
     }
@@ -237,7 +243,7 @@ class PosOrderService implements PosOrderOpener
      *
      * @param  list<int>|null  $itemIds
      */
-    public function send(Order $order, int $version, User $actor, ?array $itemIds): Order
+    public function send(Order $order, int $version, User $actor, ?array $itemIds, ?string $approvalToken = null): Order
     {
         return $this->mutate($order, $version, $actor, function (Order $order) use ($actor, $itemIds) {
             $sent = $this->fire($order, $actor, $itemIds);
@@ -248,7 +254,7 @@ class PosOrderService implements PosOrderOpener
             $this->audit->record('pos.items_sent', $order, [], [], ['items' => $sent], ['actor' => $actor]);
 
             return ['sent', $sent];
-        });
+        }, $approvalToken);
     }
 
     /**
@@ -277,6 +283,8 @@ class PosOrderService implements PosOrderOpener
                 }
                 $approvedBy = $this->authorizeOrApprove($actor, $order, Permission::ORDERS_VOID_ITEM, $approvalToken);
             }
+            // A manager who approved the void also covers another waiter's order; else the token is the waiter rule's
+            $approvedBy = $this->waiters->guard($order, $actor, $approvedBy === null ? $approvalToken : null, $approvedBy) ?? $approvedBy;
 
             $item->forceFill([
                 'kitchen_status' => KitchenItemStatus::VOID->value,
@@ -305,17 +313,18 @@ class PosOrderService implements PosOrderOpener
             if ($sent) {
                 // The kitchen shows it struck through ("O'CHIRILDI")
                 event(new KitchenItemStatusChangedBroadcast($order, $item));
+                $this->alerts->voidedAfterSend($order, $item, $actor, $approvedBy, $reason);
             }
 
             return ['voided', [(int) $item->id]];
-        });
+        }, null, false);
     }
 
     /**
      * Changes the number of guests: the per-guest charges follow, and guests who joined get the "choy-non" items
      * (AutoGuestItem) as a new round. Guests leaving take nothing off (it was served; void a line instead).
      */
-    public function setGuests(Order $order, int $version, User $actor, int $guests): Order
+    public function setGuests(Order $order, int $version, User $actor, int $guests, ?string $approvalToken = null): Order
     {
         return $this->mutate($order, $version, $actor, function (Order $order) use ($actor, $guests) {
             $before = (int) ($order->guests_count ?? 0);
@@ -333,14 +342,14 @@ class PosOrderService implements PosOrderOpener
             $this->audit->record('pos.guests_changed', $order, ['guests_count' => $before], ['guests_count' => $guests], [], ['actor' => $actor]);
 
             return ['guests_changed', $items->pluck('id')->map(fn ($id) => (int) $id)->all()];
-        });
+        }, $approvalToken);
     }
 
     /**
      * Moves the order to another table, room or tapchan of its branch (R26): the hall's service charge and the new
      * place's room tariff and minimum spend apply from now on (the day type stays the one the order opened on).
      */
-    public function move(Order $order, int $version, User $actor, DiningTable $target): Order
+    public function move(Order $order, int $version, User $actor, DiningTable $target, ?string $approvalToken = null): Order
     {
         return $this->mutate($order, $version, $actor, function (Order $order) use ($actor, $target) {
             if ($order->channel !== OrderChannel::POS_HALL) {
@@ -370,7 +379,7 @@ class PosOrderService implements PosOrderOpener
             ], [], ['actor' => $actor]);
 
             return ['moved', []];
-        });
+        }, $approvalToken);
     }
 
     /**
@@ -379,21 +388,24 @@ class PosOrderService implements PosOrderOpener
      * into #…", no customer alert, no stock movement: the lines live on in the target). Both must be open POS hall
      * orders of the same branch with no printed bill and no payment.
      */
-    public function merge(Order $target, int $version, Order $source, int $sourceVersion, User $actor): Order
+    public function merge(Order $target, int $version, Order $source, int $sourceVersion, User $actor, ?string $approvalToken = null): Order
     {
         if ((int) $target->id === (int) $source->id) {
             throw new PosOrderException("Buyurtmani o'zi bilan birlashtirib bo'lmaydi.", 422, 'same_order');
         }
 
-        return DB::transaction(function () use ($target, $version, $source, $sourceVersion, $actor) {
+        return DB::transaction(function () use ($target, $version, $source, $sourceVersion, $actor, $approvalToken) {
             // Both rows locked in id order, so two merges the other way round cannot deadlock
             $locked = Order::whereIn('id', [$target->id, $source->id])->orderBy('id')->lockForUpdate()->get()->keyBy('id');
             /** @var Order $source */
             $source = $locked->get($source->id);
 
             $sourceItems = [];
-            $target = $this->mutate($locked->get($target->id), $version, $actor, function (Order $target) use ($source, $sourceVersion, $actor, &$sourceItems) {
+            $target = $this->mutate($locked->get($target->id), $version, $actor, function (Order $target) use ($source, $sourceVersion, $actor, $approvalToken, &$sourceItems) {
+                // The waiter rule for both orders: one manager's approval covers the pair
+                $approvedBy = $this->waiters->guard($target, $actor, $approvalToken);
                 $this->assertMutable($source);
+                $this->waiters->guard($source, $actor, $approvedBy === null ? $approvalToken : null, $approvedBy);
                 if ((int) $source->version !== $sourceVersion) {
                     throw new PosOrderException("Qo'shiladigan buyurtma boshqa qurilmada o'zgartirildi. Qayta yuklang.", 409, 'version_conflict', ['source_version' => (int) $source->version]);
                 }
@@ -447,7 +459,7 @@ class PosOrderService implements PosOrderOpener
                 event(new OrderStatusChangedBroadcast($source->refresh()));
 
                 return ['merged', $sourceItems];
-            });
+            }, null, false);
 
             return $target;
         });
@@ -460,6 +472,7 @@ class PosOrderService implements PosOrderOpener
     {
         return $this->mutate($order, $version, $actor, function (Order $order) use ($actor, $charge, $reason, $approvalToken) {
             $approvedBy = $this->authorizeOrApprove($actor, $order, Permission::ORDERS_DISCOUNT, $approvalToken);
+            $approvedBy = $this->waiters->guard($order, $actor, $approvedBy === null ? $approvalToken : null, $approvedBy) ?? $approvedBy;
             $amount = (string) $order->getAttribute($charge->column());
 
             OrderChargeWaiver::updateOrCreate(
@@ -474,15 +487,16 @@ class PosOrderService implements PosOrderOpener
                 'reason' => trim($reason),
                 'approved_by' => $approvedBy,
             ], fn ($value) => $value !== null), ['actor' => $actor]);
+            $this->alerts->chargeWaived($order, $charge, $amount, trim($reason), $actor, $approvedBy);
 
             return ['charges_changed', []];
-        });
+        }, null, false);
     }
 
     /**
      * Puts a waived charge back (it raises the bill: orders.manage is enough).
      */
-    public function restoreCharge(Order $order, int $version, User $actor, PosCharge $charge): Order
+    public function restoreCharge(Order $order, int $version, User $actor, PosCharge $charge, ?string $approvalToken = null): Order
     {
         return $this->mutate($order, $version, $actor, function (Order $order) use ($actor, $charge) {
             $deleted = OrderChargeWaiver::where('order_id', $order->id)->where('charge', $charge->value)->delete();
@@ -494,7 +508,161 @@ class PosOrderService implements PosOrderOpener
             $this->audit->record('pos.charge_restored', $order, [], [], ['charge' => $charge->value, 'amount' => (string) $order->getAttribute($charge->column())], ['actor' => $actor]);
 
             return ['charges_changed', []];
+        }, $approvalToken);
+    }
+
+    /**
+     * Marks a line served at the table (POS_SPEC 2.8: sent → ready → served): a line the kitchen marked ready, or one
+     * sent to a station without a kitchen display (tea, bread) that never will be. orders.manage; the waiter rule.
+     */
+    public function serve(Order $order, int $version, User $actor, int $itemId, ?string $approvalToken = null): Order
+    {
+        return $this->mutate($order, $version, $actor, function (Order $order) use ($actor, $itemId) {
+            $item = OrderItem::where('order_id', $order->id)->whereKey($itemId)->lockForUpdate()->first();
+            if ($item === null) {
+                throw new PosOrderException('Taom topilmadi.', 404, 'item_not_found');
+            }
+            if ($item->kitchen_status === KitchenItemStatus::SERVED) {
+                throw new PosOrderException('Bu taom allaqachon berilgan.', 422, 'already_served');
+            }
+            if (!in_array($item->kitchen_status, [KitchenItemStatus::READY, KitchenItemStatus::SENT], true) || $item->sent_at === null) {
+                throw new PosOrderException("Taom hali oshxonaga yuborilmagan yoki o'chirilgan: uni berib bo'lmaydi.", 422, 'item_not_ready');
+            }
+
+            $from = $item->kitchen_status;
+            $item->forceFill([
+                'kitchen_status' => KitchenItemStatus::SERVED->value,
+                'ready_at' => $item->ready_at ?? now(),
+            ])->save();
+
+            $this->audit->record('pos.item_served', $order, ['kitchen_status' => $from->value], ['kitchen_status' => KitchenItemStatus::SERVED->value], [
+                'item_id' => (int) $item->id,
+                'line' => $item->displayLine(),
+            ], ['actor' => $actor]);
+            event(new KitchenItemStatusChangedBroadcast($order, $item));
+
+            return ['served', [(int) $item->id]];
+        }, $approvalToken);
+    }
+
+    /**
+     * Cancels a whole POS order (POS_SPEC 2.10, 3): `reason` required; orders.cancel or a manager's approval token
+     * (which also covers another waiter's order). An order with a payment is refused (409 `has_payments`: refund it
+     * first, the refund receipt belongs to its sale receipt). Every line still on it is voided: lines already sent get
+     * a kitchen void ("O'CHIRILDI") and keep their portion (it was cooked); unsent ones give their stock and kazan
+     * portion back. Open or printed bills are voided, the order becomes `canceled` (its table is free), its booking is
+     * completed (PosBookingServiceProvider: the booking's deposits stay `taken`, to be refunded or retained), the
+     * change is audited and the owner alerted.
+     */
+    public function cancel(Order $order, int $version, User $actor, string $reason, ?string $approvalToken): Order
+    {
+        $reason = mb_substr(trim($reason), 0, 255);
+        if ($reason === '') {
+            throw ValidationException::withMessages(['reason' => 'Bekor qilish sababini yozing.']);
+        }
+
+        [$cancelled, $alert] = DB::transaction(function () use ($order, $version, $actor, $reason, $approvalToken) {
+            $locked = Order::whereKey($order->getKey())->lockForUpdate()->firstOrFail();
+            if (!$locked->channel->isPos()) {
+                throw PosOrderException::notPos();
+            }
+            if ($locked->getAttribute('closed_at') !== null || !in_array($locked->status, [...self::OPEN_STATUSES, OrderStatus::READY], true)) {
+                throw PosOrderException::closed();
+            }
+            if ((int) $locked->version !== $version) {
+                throw PosOrderException::versionConflict((int) $locked->version);
+            }
+
+            $approvedBy = $this->authorizeOrApprove($actor, $locked, Permission::ORDERS_CANCEL, $approvalToken);
+            $approvedBy = $this->waiters->guard($locked, $actor, $approvedBy === null ? $approvalToken : null, $approvedBy) ?? $approvedBy;
+
+            $paid = Payment::where('order_id', $locked->id)->where('status', PaymentStatus::PAID->value)->pluck('amount');
+            if ($paid->isNotEmpty()) {
+                throw new PosOrderException(
+                    "Buyurtmada to'lov bor: avval to'lovni qaytaring (qaytarish cheki bilan), keyin bekor qiling.",
+                    409,
+                    'has_payments',
+                    ['paid_amount' => \App\Support\Money::sum(...$paid->all())->toString()],
+                );
+            }
+
+            $bills = OrderBill::where('order_id', $locked->id)
+                ->whereIn('status', [BillStatus::OPEN->value, BillStatus::PRINTED->value])
+                ->lockForUpdate()
+                ->get();
+            foreach ($bills as $bill) {
+                $bill->forceFill(['status' => BillStatus::VOID->value, 'voided_at' => now()])->save();
+            }
+
+            $items = OrderItem::where('order_id', $locked->id)
+                ->where('kitchen_status', '!=', KitchenItemStatus::VOID->value)
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get();
+            $sentItems = [];
+            $restocked = 0;
+            foreach ($items as $item) {
+                $sent = $item->sent_at !== null;
+                $item->forceFill([
+                    'kitchen_status' => KitchenItemStatus::VOID->value,
+                    'voided_at' => now(),
+                    'voided_by' => $actor->id,
+                    'void_reason' => $reason,
+                ])->save();
+                if ($sent) {
+                    $sentItems[] = $item;
+                } else {
+                    $this->lines->release($item);
+                    $restocked++;
+                }
+            }
+
+            $amount = (string) $locked->total_price;
+            $locked->forceFill(['version' => (int) $locked->version + 1])->save();
+
+            try {
+                // The system's move (null actor): who may cancel was checked above, an approval token included
+                $this->orderStatus->transition($locked, OrderStatus::CANCELED, null, [
+                    'cancel_reason' => \App\Enums\CancelReason::OTHER,
+                    'cancel_note' => $reason,
+                    'notes' => "POS: bekor qilindi ({$actor->name})",
+                ]);
+            } catch (OrderTransitionException $e) {
+                throw new PosOrderException($e->getMessage(), $e->status, 'status');
+            }
+            $locked->refresh();
+            $locked->forceFill(['cancelled_by' => $actor->id])->save();
+            OrderStatusHistory::where('order_id', $locked->id)->where('status', OrderStatus::CANCELED->value)->whereNull('user_id')->update(['user_id' => $actor->id]);
+
+            $this->audit->record('pos.order_cancelled', $locked, [], [], array_filter([
+                'short_code' => $locked->short_code,
+                'table' => $locked->table_ref,
+                'amount' => $amount,
+                'reason' => $reason,
+                'approved_by' => $approvedBy,
+                'voided_items' => $items->count(),
+                'restocked_items' => $restocked,
+                'voided_bills' => $bills->pluck('uuid')->all() ?: null,
+            ], fn ($value) => $value !== null), ['actor' => $actor]);
+
+            foreach ($sentItems as $item) {
+                // The stations see the line struck through ("O'CHIRILDI")
+                event(new KitchenItemStatusChangedBroadcast($locked, $item));
+            }
+            event(new OrderItemsChangedBroadcast($locked, 'cancelled', $items->pluck('id')->map(fn ($id) => (int) $id)->all()));
+
+            return [$locked, ['amount' => $amount, 'approved_by' => $approvedBy]];
         });
+
+        $leftDeposit = $cancelled->getAttribute('booking_id') !== null
+            ? \App\Support\Money::of((string) \App\Models\BookingPayment::where('booking_id', $cancelled->getAttribute('booking_id'))
+                ->where('status', 'taken')
+                ->selectRaw('coalesce(sum(amount - applied_amount - refunded_amount - retained_amount), 0) as left_amount')
+                ->value('left_amount'))
+            : \App\Support\Money::zero();
+        $this->alerts->orderCancelled($cancelled, $alert['amount'], $reason, $actor, $alert['approved_by'], $leftDeposit);
+
+        return $cancelled;
     }
 
     /**
@@ -511,18 +679,22 @@ class PosOrderService implements PosOrderOpener
     }
 
     /**
-     * Runs a change under the order's row lock: open POS order, the version the client saw, then the change, then
-     * the version bump and the order.items_changed announcement. The closure returns [change, item ids].
+     * Runs a change under the order's row lock: open POS order, the version the client saw, the waiter rule
+     * (WaiterAccess, with $approvalToken; an action that checks it itself passes $guardWaiter false), then the
+     * change, then the version bump and the order.items_changed announcement. The closure returns [change, item ids].
      *
      * @param  Closure(Order): array{0: string, 1: list<int>}  $change
      */
-    protected function mutate(Order $order, int $version, User $actor, Closure $change): Order
+    protected function mutate(Order $order, int $version, User $actor, Closure $change, ?string $approvalToken = null, bool $guardWaiter = true): Order
     {
-        return DB::transaction(function () use ($order, $version, $change) {
+        return DB::transaction(function () use ($order, $version, $actor, $change, $approvalToken, $guardWaiter) {
             $locked = Order::whereKey($order->getKey())->lockForUpdate()->firstOrFail();
             $this->assertMutable($locked);
             if ((int) $locked->version !== $version) {
                 throw PosOrderException::versionConflict((int) $locked->version);
+            }
+            if ($guardWaiter) {
+                $this->waiters->guard($locked, $actor, $approvalToken);
             }
 
             [$what, $itemIds] = $change($locked);

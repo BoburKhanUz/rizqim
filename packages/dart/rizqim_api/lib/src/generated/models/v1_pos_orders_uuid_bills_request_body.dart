@@ -16,6 +16,7 @@ class V1PosOrdersUuidBillsRequestBody {
     required this.mode,
     this.parts,
     this.bills,
+    this.approvalToken,
   });
 
   factory V1PosOrdersUuidBillsRequestBody.fromJson(Map<String, Object?> json) =>
@@ -25,6 +26,8 @@ class V1PosOrdersUuidBillsRequestBody {
   final Mode2 mode;
   final int? parts;
   final List<Bills3>? bills;
+  @JsonKey(name: 'approval_token')
+  final String? approvalToken;
 
   Map<String, Object?> toJson() =>
       _$V1PosOrdersUuidBillsRequestBodyToJson(this);

@@ -21,8 +21,10 @@ use Illuminate\Support\Facades\DB;
  * movements and the cash expected in it. Amounts are decimal strings.
  *
  * What belongs to the shift: payments, refunds, cash movements and bills paid with its id; voided lines of its branch
- * during its time; deposits and repayments (P3-17 tables) taken on its terminal during its time. Cash deposits and
- * cash repayments count toward the expected cash: they went into this drawer.
+ * during its time; deposits and repayments (P3-17 tables) taken on its terminal during its time; deposits refunded
+ * on it (booking_payments.refunded_shift_id; cash ones were paid from its drawer). Cash deposits and cash repayments count toward the expected
+ * cash, cash deposit refunds against it: the booking and account tables stay the one record of that money (nothing
+ * of it is copied into cash_movements, so it can never be counted twice).
  */
 final class ShiftReport
 {
@@ -101,7 +103,7 @@ final class ShiftReport
                 $expected = $movement->type->sign() > 0 ? $expected->plus($movement->amount) : $expected->minus($movement->amount);
             }
         }
-        $expected = $expected->plus($deposits['taken_cash'])->plus($repayments['cash']);
+        $expected = $expected->plus($deposits['taken_cash'])->plus($repayments['cash'])->minus($deposits['refunded_cash']);
 
         $employees = User::whereIn('id', $movements->pluck('employee_id')->merge($movements->pluck('user_id'))->filter()->unique())->pluck('name', 'id');
 
@@ -144,7 +146,7 @@ final class ShiftReport
                     'count' => $payments->where('provider', PosTender::PREPAYMENT->value)->count(),
                     'amount' => $this->sum($payments->where('provider', PosTender::PREPAYMENT->value)->pluck('amount')),
                 ],
-                'refunded' => ['count' => $deposits['refunded_count'], 'amount' => $deposits['refunded']],
+                'refunded' => ['count' => $deposits['refunded_count'], 'amount' => $deposits['refunded'], 'cash' => $deposits['refunded_cash']],
             ],
             'credit' => [
                 'sales' => [
@@ -162,6 +164,7 @@ final class ShiftReport
                 'wages' => $cashOf(CashMovementType::WAGE),
                 'purchases' => $cashOf(CashMovementType::PURCHASE),
                 'deposits' => $deposits['taken_cash'],
+                'deposit_refunds' => $deposits['refunded_cash'],
                 'repayments' => $repayments['cash'],
                 'expected' => $expected->toString(),
             ],
@@ -188,9 +191,10 @@ final class ShiftReport
     }
 
     /**
-     * Booking deposits (P3-17's booking_payments) taken on this terminal during the shift, and refunded in its branch.
+     * Booking deposits (P3-17's booking_payments) taken on this terminal during the shift, and refunded on this
+     * shift (cash ones from its drawer).
      *
-     * @return array{count: int, amount: string, taken_cash: string, refunded_count: int, refunded: string}
+     * @return array{count: int, amount: string, taken_cash: string, refunded_count: int, refunded: string, refunded_cash: string}
      */
     private function deposits(PosShift $shift, Carbon $from, Carbon $to): array
     {
@@ -200,10 +204,9 @@ final class ShiftReport
             ->get(['amount', 'tender']);
 
         $refunded = DB::table('booking_payments')
-            ->where('branch_id', $shift->branch_id)
+            ->where('refunded_shift_id', $shift->id)
             ->where('refunded_amount', '>', 0)
-            ->whereBetween('settled_at', [$from, $to])
-            ->get(['refunded_amount']);
+            ->get(['refunded_amount', 'tender']);
 
         return [
             'count' => $taken->count(),
@@ -211,6 +214,7 @@ final class ShiftReport
             'taken_cash' => $this->sum($taken->where('tender', 'cash')->pluck('amount')),
             'refunded_count' => $refunded->count(),
             'refunded' => $this->sum($refunded->pluck('refunded_amount')),
+            'refunded_cash' => $this->sum($refunded->where('tender', 'cash')->pluck('refunded_amount')),
         ];
     }
 
@@ -227,10 +231,13 @@ final class ShiftReport
             ->whereBetween('created_at', [$from, $to])
             ->get(['amount', 'tender']);
 
+        // A repayment lowers the debt: its entry amount is negative (P3-17); the money taken is its absolute value
+        $taken = fn ($rows) => $rows->pluck('amount')->map(fn ($amount) => Money::of(is_numeric($amount) ? (string) $amount : 0)->abs()->toString());
+
         return [
             'count' => $rows->count(),
-            'amount' => $this->sum($rows->pluck('amount')),
-            'cash' => $this->sum($rows->where('tender', 'cash')->pluck('amount')),
+            'amount' => $this->sum($taken($rows)),
+            'cash' => $this->sum($taken($rows->where('tender', 'cash'))),
         ];
     }
 

@@ -161,8 +161,8 @@ class FiscalIssuerTest extends TestCase
         $mixed = $this->issuer()->issue($this->document(payments: [$this->cash('40000'), $this->card('60000')]));
         $this->assertSame(FiscalPaymentForm::MIXED, $this->receipt($mixed->receiptUuid)->payment_form);
         $this->assertEquals([
-            ['form' => 'cash', 'amount' => '40000.00', 'prepayment' => false, 'card_type' => null, 'transaction_id' => null],
-            ['form' => 'card', 'amount' => '60000.00', 'prepayment' => false, 'card_type' => 'personal', 'transaction_id' => 'TX-1'],
+            ['form' => 'cash', 'amount' => '40000.00', 'prepayment' => false, 'credit' => false, 'card_type' => null, 'transaction_id' => null],
+            ['form' => 'card', 'amount' => '60000.00', 'prepayment' => false, 'credit' => false, 'card_type' => 'personal', 'transaction_id' => 'TX-1'],
         ], $this->receipt($mixed->receiptUuid)->payments);
 
         // The advance offset is not money received now

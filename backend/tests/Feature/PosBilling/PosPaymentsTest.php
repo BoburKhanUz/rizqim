@@ -152,7 +152,9 @@ class PosPaymentsTest extends TestCase
         $this->assertSame([['account' => $account, 'amount' => '500000.00', 'bill_uuid' => $bill, 'approved_by' => $this->manager->id]], $this->accounts->charges);
         $document = $this->fiscal->document("pos-bill:{$bill}:sale");
         $this->assertSame('850000.00', $document->total->toString());
-        $this->assertSame([false, true], array_map(fn ($payment) => $payment->prepayment, $document->payments));
+        // The nasiya part is a credit part of the sale, not a prepayment (P3 integration fix)
+        $this->assertSame([false, false], array_map(fn ($payment) => $payment->prepayment, $document->payments));
+        $this->assertSame([false, true], array_map(fn ($payment) => $payment->credit, $document->payments));
         $this->assertEquals(['account_uuid' => $account, 'approved_by' => $this->manager->id], Payment::where('provider', 'account')->value('payload'));
 
         // A refused account (limit, blocked) takes nothing

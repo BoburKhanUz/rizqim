@@ -393,10 +393,10 @@ flowchart LR
 | Qism | Vazifasi |
 |---|---|
 | `FiscalIssuer` | Yagona kirish nuqtasi. `issue(FiscalDocument)` — chekni ro'yxatdan o'tkazadi yoki shu idempotentlik kaliti bilan avval chiqqan chekni qaytaradi. `recordExternal(...)` — to'lov tizimi o'zi chiqargan chekni yozadi (Payme `SetFiscalData`, Click fiskal ma'lumoti). `hasPending(...)` — chek hali provayder javobini kutyaptimi (smena yopilishini to'xtatadi) |
-| `FiscalLineBuilder` | POS qatoridan chek qatorini quradi: `forOrderItem` (taom yoki uning bo'lingan ulushi), `forCharge` (`room_fee`, `place_fee`, `min_spend_topup`, `service_charge`, `deposit`). MXIK, birlik va QQS menyudan va do'kon soliq rejimidan olinadi |
+| `FiscalLineBuilder` | POS qatoridan chek qatorini quradi: `forOrderItem` (taom yoki uning bo'lingan ulushi), `forCharge` (`room_fee`, `place_fee`, `min_spend_topup`, `service_charge`, `deposit`, `booking_fee`, `credit`, `delivery`). MXIK, birlik va QQS menyudan va do'kon soliq rejimidan olinadi. Fiskal rejim o'chiq do'konda MXIK'siz qator ham quriladi (chek `non_fiscal`), fiskal rejimda MXIK majburiy |
 | `FiscalDocument` | Provayderdan mustaqil chek: tur (`FiscalReceiptType`: `sale`, `refund`, `advance`, `credit`), do'kon, filial, terminal, qatorlar, to'lovlar, jami, idempotentlik kaliti, asl chek (qaytarish uchun), mavzu (buyurtma, schyot, bron to'lovi, nasiya yozuvi) |
 | `FiscalLine` | Chek qatori: nom, MXIK, qadoq kodi, birlik, miqdor, narx, summa, QQS stavkasi va summasi, komitent STIRi, markirovka kodi |
-| `FiscalPayment` | To'lov: shakl (`FiscalPaymentForm`: `cash`, `card`, `qr`, `mixed`), summa, karta turi, tranzaksiya raqami; `prepayment` belgisi — avval bo'nak cheki bilan olingan avans qismi (bugun olingan pul emas) |
+| `FiscalPayment` | To'lov: shakl (`FiscalPaymentForm`: `cash`, `card`, `qr`, `mixed`), summa, karta turi, tranzaksiya raqami; `prepayment` belgisi — avval bo'nak cheki bilan olingan avans qismi (bugun olingan pul emas); `credit` belgisi — nasiyaga sotilgan qism (pul keyin kredit cheklari bilan keladi). Ikkalasi ham faqat sotuv chekida va bitta to'lovda bittasi |
 | `FiscalIssueResult` | Natija: chek `uuid`'i, holat (`issued` yoki kutilmoqda), fiskal belgi, QR havola, xato |
 | `FiscalGateway` (drayver) | Provayderga xos qism. `SandboxFiscalGateway` provayderga o'xshab ishlaydi (fiskal belgi, QR, xato va kechikishlar ham) — pilotgacha shu. `NullFiscalGateway` — faqat demo. Haqiqiy provayder drayveri — P3-32. Qaysi drayver ishlashi do'kon sozlamasida (`stores.fiscal_settings`) |
 
@@ -454,7 +454,7 @@ keyingi haftaga qoldiradi.
 
 | Qadam | Chek | Summa | Izoh |
 |---|---|---|---|
-| Xizmat ko'rsatilgan kun | **Sotuv** | **850 000** (to'liq) | fiskal, QR bilan; 350 000 naqd, 500 000 nasiyaga (mijoz hisobida qarz) |
+| Xizmat ko'rsatilgan kun | **Sotuv** | **850 000** (to'liq) | fiskal, QR bilan; 350 000 naqd, 500 000 nasiyaga (to'lov qismida `credit` belgisi; mijoz hisobida qarz) |
 | Bir hafta o'tib | **Kredit** | 500 000 | QR va fiskal belgisiz; qarz yopiladi |
 | Bo'lib to'lansa | **Kredit** (har biri) | 200 000 + 300 000 | har bir to'lovga alohida chek |
 
@@ -878,7 +878,12 @@ o'zgartira oladi. Huquqi yo'q xodim menejer PIN'i bilan tasdiq so'raydi (`POST /
 
 Qo'shimcha qoidalar:
 
-- Ofitsiant standart bo'yicha faqat **o'z** xona va stollarini o'zgartiradi; boshqasinikini — menejer tasdig'i bilan.
+- Ofitsiant standart bo'yicha faqat **o'z** xona va stollarini o'zgartiradi; boshqasinikini — menejer tasdig'i bilan
+  (ega yoki menejerning `orders.manage` uchun bir martalik tasdig'i). Ofitsianti yo'q buyurtma uning birinchi
+  o'zgarishida unga o'tadi ([API.md](API.md), "Zal va xona hisobi").
+- Zal xaritasini (zal, stol, xona, tapchan, joylashuv) web panelda faqat ega va menejer o'zgartiradi: `tables.manage`
+  kassir va ofitsiantda ham bor (POS'da stol tanlash, ko'chirish, birlashtirish), shuning uchun boshqaruv endpointlari
+  yana ega yoki menejer rolini talab qiladi.
 - Terminaldagi PIN sessiyasi moliya, sozlamalar, xodimlar va qurilmalarga kira olmaydi (mavjud qoida).
 - Filialga biriktirilgan xodim faqat o'z filiali terminalida ishlaydi (mavjud qoida).
 - `orders.refund` (platforma hisobidagi qaytarish) o'zgarmaydi: faqat superadmin.

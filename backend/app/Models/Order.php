@@ -51,6 +51,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * P3-17: the booking the order was opened from ("Keldi") and when a pre-order is due
  * @property int|null $booking_id
  * @property \Illuminate\Support\Carbon|null $due_at
+ *
+ * P3 integration fix: when the owner was told the hall order is open too long (once per order, R20)
+ * @property \Illuminate\Support\Carbon|null $long_open_alerted_at
  */
 class Order extends Model
 {
@@ -125,6 +128,8 @@ class Order extends Model
             // P3-17: booking (its deposits are the order's prepayment) and the due time of a pre-order
             'booking_id' => 'integer',
             'due_at' => 'datetime',
+            // P3 integration fix: the long-open alert (App\Domain\Pos\Orders\PosOrderAlerts)
+            'long_open_alerted_at' => 'datetime',
         ];
     }
 

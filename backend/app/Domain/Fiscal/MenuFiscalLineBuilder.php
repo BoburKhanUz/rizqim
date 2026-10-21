@@ -18,7 +18,9 @@ use Brick\Math\RoundingMode;
  * and the VAT of the store's regime: `vat` 12% or the product's own vat_rate, `vat_simplified` 6%, `turnover` none.
  * Its unit price is the line's price per unit before discounts (modifiers included); its amount is what the caller
  * passes (the line's or a split-bill share, after discounts). A charge takes its MXIK, name and unit from the
- * store's fiscal settings (FiscalSettings::charge). No MXIK: FiscalException::MXIK_MISSING.
+ * store's fiscal settings (FiscalSettings::charge). No MXIK: FiscalException::MXIK_MISSING in fiscal mode; a store
+ * whose fiscal mode is off gets the line with an empty MXIK (FiscalDocumentValidator accepts it only for such a store,
+ * and its receipts go to the null driver, non_fiscal), so a menu without codes can still take POS payments.
  */
 class MenuFiscalLineBuilder implements FiscalLineBuilder
 {
@@ -31,21 +33,23 @@ class MenuFiscalLineBuilder implements FiscalLineBuilder
             ? ProductVariant::withTrashed()->find($item->product_variant_id)
             : null;
         $product = $variant !== null ? Product::withTrashed()->find($variant->product_id) : null;
-        if (!$product instanceof Product || blank($product->mxik_code)) {
+
+        $order = $item->order()->first();
+        $store = Store::find($order->store_id ?? $product?->store_id);
+        $coded = $product instanceof Product && filled($product->mxik_code);
+        if (!$coded && ($store === null || FiscalSettings::of($store)->enabled())) {
             throw FiscalException::missingMxik($name, $product?->id);
         }
 
-        $order = $item->order()->first();
-        $store = Store::find($order->store_id ?? $product->store_id);
         $regime = TaxRegime::ofStore($store?->tax_regime);
-        $rate = $this->rateFor($regime, $product->vat_rate);
+        $rate = $this->rateFor($regime, $product?->vat_rate);
 
-        $unit = filled($variant->unit_label) ? (string) $variant->unit_label : ($item->unit ?? MenuUnit::PIECE)->label();
+        $unit = $variant !== null && filled($variant->unit_label) ? (string) $variant->unit_label : ($item->unit ?? MenuUnit::PIECE)->label();
 
         return new FiscalLine(
             name: mb_substr($name, 0, 255),
-            mxikCode: (string) $product->mxik_code,
-            packageCode: filled($product->package_code) ? (string) $product->package_code : null,
+            mxikCode: $coded ? (string) $product->mxik_code : '',
+            packageCode: $coded && filled($product->package_code) ? (string) $product->package_code : null,
             unit: $unit,
             quantity: $quantity,
             unitPrice: $this->unitPrice($item),
@@ -58,7 +62,7 @@ class MenuFiscalLineBuilder implements FiscalLineBuilder
     public function forCharge(Store $store, string $charge, Money $amount): FiscalLine
     {
         $settings = FiscalSettings::of($store)->charge($charge);
-        if (blank($settings['mxik'])) {
+        if (blank($settings['mxik']) && FiscalSettings::of($store)->enabled()) {
             throw FiscalException::chargeWithoutMxik($charge, $settings['name']);
         }
         $this->checkShare($settings['name'], Quantity::of(1), $amount);
@@ -67,8 +71,8 @@ class MenuFiscalLineBuilder implements FiscalLineBuilder
 
         return new FiscalLine(
             name: $settings['name'],
-            mxikCode: (string) $settings['mxik'],
-            packageCode: $settings['package_code'],
+            mxikCode: (string) ($settings['mxik'] ?? ''),
+            packageCode: filled($settings['mxik']) ? $settings['package_code'] : null,
             unit: $settings['unit'],
             quantity: Quantity::of(1),
             unitPrice: $amount,

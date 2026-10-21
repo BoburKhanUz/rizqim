@@ -8,7 +8,11 @@ part 'v1_pos_orders_uuid_send_request_body.g.dart';
 
 @JsonSerializable()
 class V1PosOrdersUuidSendRequestBody {
-  const V1PosOrdersUuidSendRequestBody({required this.version, this.itemIds});
+  const V1PosOrdersUuidSendRequestBody({
+    required this.version,
+    this.itemIds,
+    this.approvalToken,
+  });
 
   factory V1PosOrdersUuidSendRequestBody.fromJson(Map<String, Object?> json) =>
       _$V1PosOrdersUuidSendRequestBodyFromJson(json);
@@ -16,6 +20,8 @@ class V1PosOrdersUuidSendRequestBody {
   final int version;
   @JsonKey(name: 'item_ids')
   final List<int>? itemIds;
+  @JsonKey(name: 'approval_token')
+  final String? approvalToken;
 
   Map<String, Object?> toJson() => _$V1PosOrdersUuidSendRequestBodyToJson(this);
 }

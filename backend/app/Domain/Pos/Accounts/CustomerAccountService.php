@@ -190,7 +190,7 @@ class CustomerAccountService implements CustomerAccountLedger
                     $entry->branch_id !== null ? (int) $entry->branch_id : null,
                     $deviceId,
                     [$line],
-                    [new FiscalPayment(BookingDepositService::formOf((string) $entry->tender), $amount, false, $entry->card_type, $entry->transaction_id)],
+                    [new FiscalPayment(BookingDepositService::formOf((string) $entry->tender), $amount, cardType: $entry->card_type, transactionId: $entry->transaction_id)],
                     $amount,
                     "customer_account_entry:{$entry->uuid}:credit",
                     null,

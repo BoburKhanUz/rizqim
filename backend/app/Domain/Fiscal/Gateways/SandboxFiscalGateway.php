@@ -7,6 +7,7 @@ use App\Domain\Fiscal\FiscalReceiptType;
 use App\Domain\Fiscal\FiscalSettings;
 use App\Models\FiscalReceipt;
 use App\Models\Store;
+use App\Support\Money;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Cache;
 
@@ -14,7 +15,8 @@ use Illuminate\Support\Facades\Cache;
  * A fake virtual kassa for development, tests and demos. It answers like a provider would: a terminal id, a receipt
  * number, and for sales and refunds a 12-digit fiscal sign and a QR link; advance and credit receipts get neither.
  * All of it is derived from the receipt uuid, so the same receipt always gets the same answer. Every receipt is
- * marked non_fiscal: none of this has legal force.
+ * marked non_fiscal: none of this has legal force. Like a provider it reports what part of a sale was not received
+ * now: `prepaid` (the advance offset) and `credit` (sold on nasiya).
  *
  * Behaviour per store (stores.fiscal_settings.sandbox): `latency_ms` waits before answering (at most
  * config('fiscal.sandbox.max_latency_ms')); `fail_attempts` N makes the first N attempts of every receipt fail as
@@ -78,6 +80,17 @@ class SandboxFiscalGateway implements FiscalGateway
             ]);
         }
 
+        $prepaid = Money::zero();
+        $credit = Money::zero();
+        foreach ($document->payments as $payment) {
+            if ($payment->prepayment) {
+                $prepaid = $prepaid->plus($payment->amount);
+            }
+            if ($payment->credit) {
+                $credit = $credit->plus($payment->amount);
+            }
+        }
+
         return [
             'sandbox' => true,
             'type' => $document->type->value,
@@ -87,6 +100,8 @@ class SandboxFiscalGateway implements FiscalGateway
             'qr_url' => $qrUrl,
             'date' => $time->toIso8601String(),
             'total' => $document->total->toString(),
+            'prepaid' => $prepaid->toString(),
+            'credit' => $credit->toString(),
         ];
     }
 

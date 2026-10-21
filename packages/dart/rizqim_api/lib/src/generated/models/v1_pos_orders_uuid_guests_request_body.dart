@@ -11,6 +11,7 @@ class V1PosOrdersUuidGuestsRequestBody {
   const V1PosOrdersUuidGuestsRequestBody({
     required this.version,
     required this.guestsCount,
+    this.approvalToken,
   });
 
   factory V1PosOrdersUuidGuestsRequestBody.fromJson(
@@ -20,6 +21,8 @@ class V1PosOrdersUuidGuestsRequestBody {
   final int version;
   @JsonKey(name: 'guests_count')
   final int guestsCount;
+  @JsonKey(name: 'approval_token')
+  final String? approvalToken;
 
   Map<String, Object?> toJson() =>
       _$V1PosOrdersUuidGuestsRequestBodyToJson(this);

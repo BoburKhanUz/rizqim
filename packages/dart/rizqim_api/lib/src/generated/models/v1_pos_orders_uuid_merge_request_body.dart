@@ -12,6 +12,7 @@ class V1PosOrdersUuidMergeRequestBody {
     required this.version,
     required this.sourceUuid,
     required this.sourceVersion,
+    this.approvalToken,
   });
 
   factory V1PosOrdersUuidMergeRequestBody.fromJson(Map<String, Object?> json) =>
@@ -22,6 +23,8 @@ class V1PosOrdersUuidMergeRequestBody {
   final String sourceUuid;
   @JsonKey(name: 'source_version')
   final int sourceVersion;
+  @JsonKey(name: 'approval_token')
+  final String? approvalToken;
 
   Map<String, Object?> toJson() =>
       _$V1PosOrdersUuidMergeRequestBodyToJson(this);

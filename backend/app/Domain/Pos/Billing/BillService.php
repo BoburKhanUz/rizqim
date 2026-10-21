@@ -25,7 +25,9 @@ use Illuminate\Support\Facades\DB;
  *  - the first print hands the bill to the guest and locks the order (`bill_locked_at`: voids and discounts need a
  *    manager from then on, P3-12); printing again is a copy ("NUSXA") and needs pos.reprint_bill or a manager's
  *    approval;
- *  - every change moves the order's `version` (409 for a terminal that holds an older one) and is audited.
+ *  - every change moves the order's `version` (409 for a terminal that holds an older one) and is audited;
+ *  - a waiter bills and prints only their own orders (WaiterAccess, POS_SPEC 11; another waiter's needs a manager's
+ *    approval token for orders.manage).
  */
 final class BillService
 {
@@ -43,15 +45,16 @@ final class BillService
      *
      * @throws PosActionException
      */
-    public function create(User $user, Order $order, string $mode, int $parts, array $billsSpec, int $version, ?Device $device, ?Closure $applied = null): array
+    public function create(User $user, Order $order, string $mode, int $parts, array $billsSpec, int $version, ?Device $device, ?Closure $applied = null, ?string $approvalToken = null): array
     {
         $splits = ($mode === 'equal' && $parts > 1) || ($mode === 'items' && count($billsSpec) > 1);
         if ($splits && !$this->permissions->allows($user, Permission::POS_TAKE_PAYMENT, $order)) {
             throw PosActionException::forbidden('permission_denied', "Hisobni bo'lish uchun to'lov qabul qilish huquqi kerak.", ['permission' => Permission::POS_TAKE_PAYMENT->value]);
         }
 
-        [$order, $bills, $voided] = DB::transaction(function () use ($user, $order, $mode, $parts, $billsSpec, $version, $device, $applied) {
+        [$order, $bills, $voided] = DB::transaction(function () use ($user, $order, $mode, $parts, $billsSpec, $version, $device, $applied, $approvalToken) {
             $order = self::lockOpenOrder($order, $version);
+            app(\App\Domain\Pos\Orders\WaiterAccess::class)->guard($order, $user, $approvalToken);
 
             $voided = [];
             $payable = OrderBill::where('order_id', $order->id)
@@ -115,6 +118,8 @@ final class BillService
             } elseif ($bill->status !== BillStatus::PAID && !$bill->payments()->exists() && $bill->basis !== BillableOrder::fingerprint($order)) {
                 throw self::orderChanged();
             }
+            // A manager who approved the copy also covers another waiter's order
+            $approvedBy = app(\App\Domain\Pos\Orders\WaiterAccess::class)->guard($order, $user, $approvedBy === null ? $approvalToken : null, $approvedBy) ?? $approvedBy;
 
             $bill->forceFill([
                 'printed_count' => $bill->printed_count + 1,

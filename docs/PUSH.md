@@ -96,7 +96,7 @@ chaqirilmaydi.
 
 | Kalit | Qiymat |
 |---|---|
-| `type` | `order_updates`, `staff_new_order`, `courier_tasks` |
+| `type` | `order_updates`, `staff_new_order`, `courier_tasks`, `pos_alerts` |
 | `order_uuid` | Buyurtma uuid'i: bosilganda ilova shu buyurtma ekranini ochadi |
 | `status` | Buyurtmaning joriy holati (`accepted`, `preparing`, `courier_assigned`, `on_the_way`, `delivered`, `canceled`…) |
 
@@ -110,6 +110,7 @@ Bitta buyurtma haqidagi yangi push eskisini almashtiradi (Android `collapse_key`
 | `order_updates` | Buyurtma egasi (mijoz) | Buyurtma holati har o'zgarganda (Telegram xabari ketadigan paytlarda), bekor qilish va qaytarish ham | barcha shaxsiy qurilmalar |
 | `staff_new_order` | Buyurtmaga tegishli filial menejerlari va do'kon bo'yicha menejerlar; menejer bo'lmasa ega | Yangi buyurtma yaratilganda | `partner_mobile`, `courier`, `web` |
 | `courier_tasks` | Kuryer (kuryer yo'q bo'lsa filial kuryerlari, ular ham yo'q bo'lsa menejer/ega) | Buyurtma kuryerga biriktirilganda va buyurtma tayyor bo'lganda | `partner_mobile`, `courier`, `web` |
+| `pos_alerts` | Ega (Telegram: yana do'konning admin chati, sozlamasiz) | Kassa ogohlantirishlari (R20): yuborilgan taom chegaradan qimmat o'chirilsa, xona puli yoki xizmat haqi olib tashlansa, POS buyurtma bekor qilinsa, bron avansi qaytarilsa yoki ushlab qolinsa, katta nasiya va nasiya to'lovi, xona `open_room_hours` dan uzoq ochiq qolsa (har buyurtmaga bir marta). Chegaralar filialning `pos_settings.alerts` da | `partner_mobile`, `web` |
 | `promotions` | Mijoz | Hozircha hech narsa yubormaydi; kelajakdagi aksiyalar uchun tayyor | barcha shaxsiy qurilmalar |
 
 **Standart qiymatlar.** Buyurtma va ish xabarlari Telegram va push uchun yoqilgan (Telegram avvalgidek). `promotions`

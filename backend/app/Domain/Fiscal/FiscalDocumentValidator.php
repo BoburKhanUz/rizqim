@@ -13,8 +13,13 @@ use InvalidArgumentException;
  * The rules a document must meet before it is sent (FiscalException::INVALID_DOCUMENT otherwise, Uzbek message):
  * the lines add up to the total and so do the payments; every line has a 17-digit MXIK, a unit, a positive quantity
  * and the VAT its amount and rate give; a turnover-tax store charges no VAT; only a sale may be paid by prepayment
- * (the advance offset); an advance or credit receipt is one line of the store's deposit or credit charge; a refund
- * names the issued sale (or advance) it refunds and never refunds more than is left of it.
+ * (the advance offset) or on credit (nasiya), and one payment is never both; an advance or credit receipt is one line
+ * of the store's deposit or credit charge; a refund names the issued sale (or advance) it refunds and never refunds
+ * more than is left of it.
+ *
+ * A store whose fiscal mode is off (FiscalSettings::enabled() false: its receipts go to the `null` driver and are
+ * non_fiscal) may have lines without an MXIK code: the menu need not be coded before the POS takes money. A code that
+ * is there must still be a valid one.
  */
 class FiscalDocumentValidator
 {
@@ -60,6 +65,7 @@ class FiscalDocumentValidator
         }
 
         $regime = TaxRegime::ofStore($store->tax_regime);
+        $fiscal = FiscalSettings::of($store)->enabled();
         $sum = Money::zero();
 
         foreach ($document->lines as $line) {
@@ -68,9 +74,10 @@ class FiscalDocumentValidator
                 throw FiscalException::invalid("Chek qatorining nomi bo'sh yoki juda uzun.");
             }
             if (trim($line->mxikCode) === '') {
-                throw FiscalException::missingMxik($name);
-            }
-            if (!preg_match(FiscalSettings::MXIK_PATTERN, $line->mxikCode)) {
+                if ($fiscal) {
+                    throw FiscalException::missingMxik($name);
+                }
+            } elseif (!preg_match(FiscalSettings::MXIK_PATTERN, $line->mxikCode)) {
                 throw FiscalException::invalid("\"{$name}\": MXIK kodi 17 ta raqamdan iborat bo'lishi kerak.");
             }
             if ($line->packageCode !== null && !preg_match(FiscalSettings::PACKAGE_CODE_PATTERN, $line->packageCode)) {
@@ -136,6 +143,12 @@ class FiscalDocumentValidator
             if ($payment->prepayment && $document->type !== FiscalReceiptType::SALE) {
                 throw FiscalException::invalid("Avans hisobidan to'lov faqat sotuv chekida bo'ladi.");
             }
+            if ($payment->credit && $document->type !== FiscalReceiptType::SALE) {
+                throw FiscalException::invalid("Nasiyaga (kreditga) sotish faqat sotuv chekida bo'ladi.");
+            }
+            if ($payment->prepayment && $payment->credit) {
+                throw FiscalException::invalid("Bitta to'lov ham avans hisobidan, ham nasiyaga bo'lishi mumkin emas.");
+            }
             if (($payment->cardType !== null && mb_strlen($payment->cardType) > 32)
                 || ($payment->transactionId !== null && mb_strlen($payment->transactionId) > 128)) {
                 throw FiscalException::invalid("Karta turi yoki tranzaksiya raqami juda uzun.");
@@ -158,7 +171,10 @@ class FiscalDocumentValidator
 
         if (in_array($type, [FiscalReceiptType::ADVANCE, FiscalReceiptType::CREDIT], true)) {
             $charge = FiscalSettings::of($store)->charge($type === FiscalReceiptType::ADVANCE ? 'deposit' : 'credit');
-            if (count($document->lines) !== 1 || $document->lines[0]->mxikCode !== $charge['mxik']) {
+            // Outside fiscal mode the line may carry no code (MenuFiscalLineBuilder leaves a missing one empty)
+            $codeMatches = $document->lines !== [] && ($document->lines[0]->mxikCode === $charge['mxik']
+                || (!FiscalSettings::of($store)->enabled() && trim($document->lines[0]->mxikCode) === ''));
+            if (count($document->lines) !== 1 || !$codeMatches) {
                 throw FiscalException::invalid($type === FiscalReceiptType::ADVANCE
                     ? "Bo'nak (avans) chekida bitta qator bo'ladi: avans xizmati (MXIK {$charge['mxik']})."
                     : "Kredit chekida bitta qator bo'ladi: qarz to'lovi (MXIK {$charge['mxik']}).");

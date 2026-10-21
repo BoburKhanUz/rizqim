@@ -2,16 +2,22 @@
 
 namespace App\Http\Controllers\Api\V1\PosHall;
 
+use App\Domain\Pos\Billing\BillStatus;
 use App\Domain\Pos\Orders\PosCharge;
 use App\Domain\Pos\Orders\PosLineBuilder;
 use App\Domain\Pos\Orders\PosOrderService;
 use App\Enums\FireMode;
+use App\Enums\KitchenItemStatus;
 use App\Enums\OrderChannel;
+use App\Enums\OrderStatus;
 use App\Enums\Permission;
 use App\Models\DiningTable;
+use App\Models\Order;
+use App\Models\OrderBill;
 use App\Support\RowId;
 use Dedoc\Scramble\Attributes\Group;
 use Dedoc\Scramble\Attributes\HeaderParameter;
+use Dedoc\Scramble\Attributes\QueryParameter;
 use Dedoc\Scramble\Attributes\Response as ApiDocResponse;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
@@ -21,7 +27,12 @@ use Illuminate\Validation\ValidationException;
 
 /**
  * P3-12: POS hall orders (docs/API.md §13, docs/POS_SPEC.md §2.4–2.10): open, rounds, send to the kitchen, void,
- * guests, move, merge, waive or restore a charge. Business rules: PosOrderService; money: PosChargesCalculator.
+ * guests, move, merge, waive or restore a charge; P3 integration fixes: the open orders list (all channels), a line
+ * served, cancelling a whole order. Business rules: PosOrderService; money: PosChargesCalculator.
+ *
+ * The waiter rule (POS_SPEC 11, WaiterAccess) applies to every change: a waiter changes their own orders (an order
+ * without a waiter becomes theirs); another waiter's order needs a manager's `approval_token` for orders.manage
+ * (403 `approval_required` with `permission: orders.manage` otherwise).
  */
 #[Group('POS: orders', "Kassa va ofitsiant: zal buyurtmasi, bosqichlar, oshxonaga yuborish, o'chirish, ko'chirish, birlashtirish, xona puli va xizmat haqi (P3-12).")]
 class PosOrderController extends PosHallController
@@ -29,6 +40,8 @@ class PosOrderController extends PosHallController
     public const ITEM = 'array{id: int, round_no: int|null, product_variant_id: int|null, product_name: string, variant_name: string|null, quantity: int|float, unit: string, quantity_label: string, unit_price: string, modifiers: list<array{id: int, name: string, group_name: string|null, quantity: int, price_delta: string}>, modifiers_total: string, total_price: string, note: string|null, seat_no: int|null, fire_mode: string|null, due_at: string|null, kitchen_status: string, station_id: int|null, sent_at: string|null, ready_at: string|null, added_by: array{id: int, name: string|null}|null, added_at: string|null, voided_at: string|null, voided_by: array{id: int, name: string|null}|null, void_reason: string|null}';
 
     public const CHARGES = 'array{items_subtotal: string, discount: string, service_charge_percent: string, service_charge_amount: string, place_fee_amount: string, room_fee_amount: string, room_tariff_id: int|null, business_date: string|null, day_type: string|null, min_spend: string, min_spend_topup_amount: string, waived: list<string>, total: string, waivers: list<array{charge: string, reason: string, waived_by: int|null, approved_by: int|null, waived_at: string|null}>}';
+
+    public const LIST_ITEM = 'array{uuid: string, short_code: string|null, status: string, channel: string, type: string, branch_id: int, version: int, hall: array{id: int, name: string|null}|null, table: array{id: int, name: string, kind: string}|null, hall_ref: string|null, table_ref: string|null, guests_count: int|null, waiter: array{id: int, name: string|null}|null, items_count: int, subtotal: string, total_price: string, payment_status: string, bill_locked: bool, fiscal_pending: bool, booking_id: int|null, opened_at: string|null, updated_at: string|null}';
 
     public const ORDER = 'array{uuid: string, short_code: string|null, status: string, channel: string, type: string, store_id: int, branch_id: int|null, version: int, hall: array{id: int, name: string|null}|null, table: array{id: int, name: string, kind: string}|null, hall_ref: string|null, table_ref: string|null, guests_count: int|null, waiter: array{id: int, name: string|null}|null, opened_by: int, device_id: int|null, booking_id: int|null, bill_locked: bool, notes: string|null, opened_at: string|null, updated_at: string|null, subtotal: string, discount: string, service_charge_amount: string, place_fee_amount: string, room_fee_amount: string, min_spend_topup_amount: string, total_price: string, charges: ' . self::CHARGES . ', rounds: int, items: list<' . self::ITEM . '>}';
 
@@ -134,12 +147,13 @@ class PosOrderController extends PosHallController
             'items.*.seat_no' => 'nullable|integer|min:1|max:500',
             'items.*.fire_mode' => 'nullable|string|in:now,hold',
             'items.*.due_at' => 'nullable|date',
+            'approval_token' => 'nullable|string|max:255',
         ]);
 
         $order = $this->order($user, $uuid, Permission::ORDERS_MANAGE);
         $parsed = $lines->parse($data['items'], FireMode::from($data['fire_mode'] ?? FireMode::NOW->value));
 
-        return $this->change($request, fn () => $orders->addRound($order, (int) $data['version'], $user, $parsed, (bool) ($data['send'] ?? false))['order'], "Taomlar qo'shildi.");
+        return $this->change($request, fn () => $orders->addRound($order, (int) $data['version'], $user, $parsed, (bool) ($data['send'] ?? false), $data['approval_token'] ?? null)['order'], "Taomlar qo'shildi.");
     }
 
     /**
@@ -159,12 +173,13 @@ class PosOrderController extends PosHallController
             'version' => 'required|integer|min:0',
             'item_ids' => 'nullable|array|max:200',
             'item_ids.*' => 'integer|min:1',
+            'approval_token' => 'nullable|string|max:255',
         ]);
 
         $order = $this->order($user, $uuid, Permission::ORDERS_MANAGE);
         $ids = isset($data['item_ids']) ? array_values(array_map('intval', $data['item_ids'])) : null;
 
-        return $this->change($request, fn () => $orders->send($order, (int) $data['version'], $user, $ids), 'Oshxonaga yuborildi.');
+        return $this->change($request, fn () => $orders->send($order, (int) $data['version'], $user, $ids, $data['approval_token'] ?? null), 'Oshxonaga yuborildi.');
     }
 
     /**
@@ -220,11 +235,12 @@ class PosOrderController extends PosHallController
         $data = $request->validate([
             'version' => 'required|integer|min:0',
             'guests_count' => 'required|integer|min:1|max:500',
+            'approval_token' => 'nullable|string|max:255',
         ]);
 
         $order = $this->order($user, $uuid, Permission::ORDERS_MANAGE);
 
-        return $this->change($request, fn () => $orders->setGuests($order, (int) $data['version'], $user, (int) $data['guests_count']), 'Mehmonlar soni yangilandi.');
+        return $this->change($request, fn () => $orders->setGuests($order, (int) $data['version'], $user, (int) $data['guests_count'], $data['approval_token'] ?? null), 'Mehmonlar soni yangilandi.');
     }
 
     /**
@@ -242,6 +258,7 @@ class PosOrderController extends PosHallController
         $data = $request->validate([
             'version' => 'required|integer|min:0',
             'table_id' => 'required|integer|min:1',
+            'approval_token' => 'nullable|string|max:255',
         ]);
 
         $order = $this->order($user, $uuid, Permission::TABLES_MANAGE);
@@ -250,7 +267,7 @@ class PosOrderController extends PosHallController
             throw ValidationException::withMessages(['table_id' => 'Stol yoki xona topilmadi.']);
         }
 
-        return $this->change($request, fn () => $orders->move($order, (int) $data['version'], $user, $table), "Buyurtma ko'chirildi.");
+        return $this->change($request, fn () => $orders->move($order, (int) $data['version'], $user, $table, $data['approval_token'] ?? null), "Buyurtma ko'chirildi.");
     }
 
     /**
@@ -269,12 +286,13 @@ class PosOrderController extends PosHallController
             'version' => 'required|integer|min:0',
             'source_uuid' => 'required|uuid',
             'source_version' => 'required|integer|min:0',
+            'approval_token' => 'nullable|string|max:255',
         ]);
 
         $order = $this->order($user, $uuid, Permission::TABLES_MANAGE);
         $source = $this->order($user, (string) $data['source_uuid'], Permission::TABLES_MANAGE);
 
-        return $this->change($request, fn () => $orders->merge($order, (int) $data['version'], $source, (int) $data['source_version'], $user), 'Buyurtmalar birlashtirildi.');
+        return $this->change($request, fn () => $orders->merge($order, (int) $data['version'], $source, (int) $data['source_version'], $user, $data['approval_token'] ?? null), 'Buyurtmalar birlashtirildi.');
     }
 
     /**
@@ -311,11 +329,132 @@ class PosOrderController extends PosHallController
     {
         $user = $this->staff($request);
         $this->requireIdempotencyKey($request);
-        $data = $request->validate(['version' => 'required|integer|min:0']);
+        $data = $request->validate(['version' => 'required|integer|min:0', 'approval_token' => 'nullable|string|max:255']);
 
         $order = $this->order($user, $uuid, Permission::ORDERS_MANAGE);
 
-        return $this->change($request, fn () => $orders->restoreCharge($order, (int) $data['version'], $user, $this->charge($charge)), 'Qator qaytarildi.');
+        return $this->change($request, fn () => $orders->restoreCharge($order, (int) $data['version'], $user, $this->charge($charge), $data['approval_token'] ?? null), 'Qator qaytarildi.');
+    }
+
+    /**
+     * Open orders of the branch
+     *
+     * One queue for the till (POS_SPEC 2.5): every POS order still open (accepted, preparing, ready, not closed —
+     * paid ones still waiting for their receipt included, `fiscal_pending`) and every accepted online order (Telegram,
+     * mobile, aggregator: accepted, preparing, ready), oldest first, at most 300. `scope`: `open` (the default, the
+     * only one so far). `branch_id`: the caller's branch by default (a terminal PIN session: its terminal's). Needs
+     * orders.view in the branch.
+     */
+    #[QueryParameter('scope', description: 'open (default)', type: 'string', required: false)]
+    #[QueryParameter('branch_id', description: "The branch; default: the caller's (or their terminal's).", type: 'integer', required: false)]
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: list<' . self::LIST_ITEM . '>}')]
+    public function index(Request $request): JsonResponse
+    {
+        $user = $this->staff($request);
+        $request->validate([
+            'scope' => ['nullable', 'string', Rule::in(['open'])],
+            'branch_id' => 'nullable|integer|min:1',
+        ]);
+        $branch = $this->branchFor($request, $user, Permission::ORDERS_VIEW);
+
+        $open = [OrderStatus::ACCEPTED->value, OrderStatus::PREPARING->value, OrderStatus::READY->value];
+        $pos = [OrderChannel::POS_HALL->value, OrderChannel::POS_TAKEAWAY->value];
+        $orders = Order::query()
+            ->with(['waiter:id,name', 'diningTable', 'hall'])
+            ->withCount(['items as items_count' => fn ($query) => $query->where('kitchen_status', '!=', KitchenItemStatus::VOID->value)])
+            ->where('store_id', $user->store_id)
+            ->where('branch_id', $branch->id)
+            ->whereIn('status', $open)
+            ->where(fn ($query) => $query
+                ->where(fn ($query) => $query->whereIn('channel', $pos)->whereNull('closed_at'))
+                ->orWhereNotIn('channel', $pos))
+            ->addSelect(['fiscal_pending' => OrderBill::selectRaw('count(*)')
+                ->whereColumn('order_bills.order_id', 'orders.id')
+                ->whereNotIn('order_bills.status', [BillStatus::PAID->value, BillStatus::VOID->value])
+                ->whereIn('order_bills.fiscal_status', ['pending', 'failed'])])
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->limit(300)
+            ->get();
+
+        return $this->success($orders->map(fn (Order $order) => [
+            'uuid' => (string) $order->uuid,
+            'short_code' => $order->short_code,
+            'status' => $order->status->value,
+            'channel' => $order->channel->value,
+            'type' => $order->order_type->value,
+            'branch_id' => (int) $order->branch_id,
+            'version' => (int) $order->version,
+            'hall' => $order->hall_id !== null ? ['id' => (int) $order->hall_id, 'name' => $order->hall->name ?? $order->hall_ref] : null,
+            'table' => $order->diningTable !== null ? ['id' => (int) $order->diningTable->id, 'name' => $order->diningTable->name, 'kind' => $order->diningTable->kind->value] : null,
+            'hall_ref' => $order->hall_ref,
+            'table_ref' => $order->table_ref,
+            'guests_count' => $order->guests_count,
+            'waiter' => $order->waiter ? ['id' => (int) $order->waiter->id, 'name' => $order->waiter->name] : null,
+            'items_count' => (int) $order->getAttribute('items_count'),
+            'subtotal' => (string) $order->subtotal,
+            'total_price' => (string) $order->total_price,
+            'payment_status' => $order->payment_status->value,
+            'bill_locked' => $order->getAttribute('bill_locked_at') !== null,
+            'fiscal_pending' => (int) $order->getAttribute('fiscal_pending') > 0,
+            'booking_id' => $order->getAttribute('booking_id') !== null ? (int) $order->getAttribute('booking_id') : null,
+            'opened_at' => $order->created_at?->toJSON(),
+            'updated_at' => $order->updated_at?->toJSON(),
+        ])->values()->all());
+    }
+
+    /**
+     * Mark a line served
+     *
+     * The line reached the guests: `ready` (the kitchen display bumped it) or `sent` (a station without a display,
+     * e.g. tea) becomes `served`. 422 `already_served`, `item_not_ready` (not sent yet or voided). Needs orders.manage;
+     * the waiter rule applies (`approval_token`).
+     */
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . self::ORDER . '}')]
+    #[HeaderParameter('Idempotency-Key', description: 'Required: a new UUID per action, the same one when retrying it (428 without).', type: 'string')]
+    public function served(Request $request, string $uuid, string $item, PosOrderService $orders): JsonResponse
+    {
+        $user = $this->staff($request);
+        $this->requireIdempotencyKey($request);
+        $data = $request->validate([
+            'version' => 'required|integer|min:0',
+            'approval_token' => 'nullable|string|max:255',
+        ]);
+
+        $order = $this->order($user, $uuid, Permission::ORDERS_MANAGE);
+        $itemId = RowId::parse($item);
+        if ($itemId === null) {
+            return $this->error('Taom topilmadi.', ['reason' => 'item_not_found'], 404);
+        }
+
+        return $this->change($request, fn () => $orders->serve($order, (int) $data['version'], $user, $itemId, $data['approval_token'] ?? null), 'Taom berildi.');
+    }
+
+    /**
+     * Cancel the whole order
+     *
+     * `reason` is required. orders.cancel, or a manager's one-time `approval_token` for orders.cancel (POST
+     * /pos/approvals; 403 `approval_required`). An order with a payment is refused: 409 `has_payments` (refund the
+     * payments first, POST /pos/refunds). Every line still on the order is voided — lines already sent get a kitchen
+     * void ("O'CHIRILDI"), unsent lines give their stock and kazan portion back — open or printed bills are voided, the
+     * order becomes `canceled` and its table free; a booking's order completes the booking (its deposits stay
+     * `taken`, to refund or retain). Audited; the owner is alerted. 422 `order_closed`, 409 `version_conflict`.
+     */
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . self::ORDER . '}')]
+    #[HeaderParameter('Idempotency-Key', description: 'Required: a new UUID per action, the same one when retrying it (428 without).', type: 'string')]
+    public function cancel(Request $request, string $uuid, PosOrderService $orders): JsonResponse
+    {
+        $user = $this->staff($request);
+        $this->requireIdempotencyKey($request);
+        $data = $request->validate([
+            'version' => 'required|integer|min:0',
+            'reason' => 'required|string|min:2|max:255',
+            'approval_token' => 'nullable|string|max:255',
+        ]);
+
+        $order = $this->order($user, $uuid, Permission::ORDERS_VIEW);
+
+        return $this->change($request, fn () => $orders->cancel($order, (int) $data['version'], $user, (string) $data['reason'], $data['approval_token'] ?? null), 'Buyurtma bekor qilindi.');
     }
 
     private function charge(string $value): PosCharge

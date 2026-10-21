@@ -45,6 +45,8 @@ BookingPayment _$BookingPaymentFromJson(Map<String, dynamic> json) =>
       updatedAt: json['updated_at'] == null
           ? null
           : DateTime.parse(json['updated_at'] as String),
+      refundedDeviceId: (json['refunded_device_id'] as num?)?.toInt(),
+      refundedShiftId: (json['refunded_shift_id'] as num?)?.toInt(),
       booking: json['booking'] == null
           ? null
           : Booking.fromJson(json['booking'] as Map<String, dynamic>),
@@ -81,5 +83,7 @@ Map<String, dynamic> _$BookingPaymentToJson(BookingPayment instance) =>
       'idempotency_key': instance.idempotencyKey,
       'created_at': instance.createdAt?.toIso8601String(),
       'updated_at': instance.updatedAt?.toIso8601String(),
+      'refunded_device_id': instance.refundedDeviceId,
+      'refunded_shift_id': instance.refundedShiftId,
       'booking': instance.booking,
     };

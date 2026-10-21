@@ -11,6 +11,7 @@ V1PosOrdersUuidMoveRequestBody _$V1PosOrdersUuidMoveRequestBodyFromJson(
 ) => V1PosOrdersUuidMoveRequestBody(
   version: (json['version'] as num).toInt(),
   tableId: (json['table_id'] as num).toInt(),
+  approvalToken: json['approval_token'] as String?,
 );
 
 Map<String, dynamic> _$V1PosOrdersUuidMoveRequestBodyToJson(
@@ -18,4 +19,5 @@ Map<String, dynamic> _$V1PosOrdersUuidMoveRequestBodyToJson(
 ) => <String, dynamic>{
   'version': instance.version,
   'table_id': instance.tableId,
+  'approval_token': instance.approvalToken,
 };

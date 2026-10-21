@@ -9,7 +9,9 @@ use App\Support\Quantity;
 
 /**
  * Turns POS lines into receipt lines with MXIK, unit and VAT taken from the menu and the store's tax regime (P3-11).
- * Charges that are not menu items (room fee, service charge) use the MXIK codes configured on the store.
+ * Charges that are not menu items (room fee, service charge) use the MXIK codes configured on the store. In fiscal
+ * mode a line without an MXIK code is refused (FiscalException::MXIK_MISSING); a store whose fiscal mode is off gets
+ * the line with an empty code (its receipts are non_fiscal).
  */
 interface FiscalLineBuilder
 {
@@ -19,7 +21,10 @@ interface FiscalLineBuilder
     public function forOrderItem(OrderItem $item, Quantity $quantity, Money $amount): FiscalLine;
 
     /**
-     * The receipt line for a charge: `room_fee`, `place_fee`, `min_spend_topup`, `service_charge` or `deposit`.
+     * The receipt line for a charge (FiscalSettings::CHARGES): `room_fee` (xona puli), `place_fee` (joy puli),
+     * `min_spend_topup` (minimal summaga qo'shimcha), `service_charge` (xizmat haqi), `deposit` (booking advance, the
+     * ADVANCE receipt's line), `booking_fee` (a retained deposit sold as the booking service), `credit` (a nasiya
+     * repayment, the CREDIT receipt's line) or `delivery` (an online order's delivery). Any other: UNKNOWN_CHARGE.
      */
     public function forCharge(Store $store, string $charge, Money $amount): FiscalLine;
 }

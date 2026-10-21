@@ -47,4 +47,13 @@ Artisan::command('menu:expire-stop-list', function (\App\Services\Catalog\StopLi
     $this->info($stopList->expire() . ' expired stop-list entries removed');
 })->purpose('Remove stop-list entries whose until time passed and broadcast the change');
 Schedule::command('menu:expire-stop-list')->everyMinute()->withoutOverlapping(5);
-Schedule::command('model:prune', ['--model' => [\App\Models\IdempotencyKey::class]])->daily();
+// P3 integration fix: every prunable model of app/Models (MassPrunable / Prunable: Idempotency-Key responses, expired
+// manager approvals of the POS, pos_approvals) is pruned daily; a new prunable model is picked up without a change here
+Schedule::command('model:prune')->daily()->withoutOverlapping(60);
+
+// P3 integration fix (R20): the owner hears once about each POS hall order open longer than its branch's
+// pos_settings.alerts.open_room_hours (App\Domain\Pos\Orders\PosOrderAlerts)
+Artisan::command('pos:alert-long-open', function (\App\Domain\Pos\Orders\PosOrderAlerts $alerts) {
+    $this->info($alerts->checkLongOpen() . ' long-open order alert(s) sent');
+})->purpose('Alert the owner about POS hall orders open longer than the branch threshold (once per order)');
+Schedule::command('pos:alert-long-open')->everyTenMinutes()->withoutOverlapping(10);

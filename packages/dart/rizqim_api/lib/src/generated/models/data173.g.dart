@@ -32,17 +32,17 @@ Data173 _$Data173FromJson(Map<String, dynamic> json) => Data173(
   cancelNote: json['cancel_note'] as String?,
   customer: json['customer'] == null
       ? null
-      : Customer3.fromJson(json['customer'] as Map<String, dynamic>),
+      : Customer2.fromJson(json['customer'] as Map<String, dynamic>),
   statusHistory: (json['status_history'] as List<dynamic>)
-      .map((e) => StatusHistory2.fromJson(e as Map<String, dynamic>))
+      .map((e) => StatusHistory.fromJson(e as Map<String, dynamic>))
       .toList(),
   courier: json['courier'] == null
       ? null
-      : Courier3.fromJson(json['courier'] as Map<String, dynamic>),
+      : Courier2.fromJson(json['courier'] as Map<String, dynamic>),
   itemsTotal: (json['items_total'] as num).toInt(),
   itemsReady: (json['items_ready'] as num).toInt(),
   items: (json['items'] as List<dynamic>)
-      .map((e) => Items40.fromJson(e as Map<String, dynamic>))
+      .map((e) => Items39.fromJson(e as Map<String, dynamic>))
       .toList(),
   createdAt: json['created_at'] as String?,
   updatedAt: json['updated_at'] as String?,
@@ -53,7 +53,7 @@ Data173 _$Data173FromJson(Map<String, dynamic> json) => Data173(
   waitingSeconds: (json['waiting_seconds'] as num).toInt(),
   delivery: json['delivery'] == null
       ? null
-      : Delivery6.fromJson(json['delivery'] as Map<String, dynamic>),
+      : Delivery5.fromJson(json['delivery'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data173ToJson(Data173 instance) => <String, dynamic>{

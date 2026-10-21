@@ -253,7 +253,7 @@ superadmin uchun.
 | `orders.refund` | Pulni qaytarish |  |  |  |  |  |  |
 | `kitchen.manage` | Oshxona ekrani: taom qatorini "tayyor" deb belgilash va qaytarish, buyurtmani `accepted → preparing → ready` (P2-11); P2-30: tayyor bo'lgan buyurtmadan taomni qaytarish (`ready → preparing`, faqat `.../recall` orqali, kuryer biriktirilmaguncha) | ✓ | ✓ |  |  | ✓ |  |
 | `deliveries.manage` | Yetkazib berish (kuryer) | ✓ |  |  |  |  | ✓ |
-| `tables.manage` | Stollarni boshqarish | ✓ | ✓ | ✓ | ✓ |  |  |
+| `tables.manage` | Stollarni boshqarish: POS'da stol tanlash, ko'chirish, birlashtirish; zal xaritasini (zal va stollarni yaratish, o'zgartirish, o'chirish) faqat ega va menejer o'zgartiradi — `tables.manage` + rol (P3 integratsiya tuzatishi) | ✓ | ✓ | ✓ | ✓ |  |  |
 | `menu.view` | Menyuni ko'rish (P2-30: `GET /owner/products`, `GET /owner/categories` ham) | ✓ | ✓ | ✓ | ✓ | ✓ |  |
 | `menu.manage` | Menyu va narxlarni tahrirlash (P2-30: `/owner/products*` ham) | ✓ |  |  |  |  |  |
 | `stoplist.manage` | Stop-list (tugadi belgisi); P2-30: ro'yxatda kim qo'shgani (`created_by_name`) | ✓ | ✓ |  |  |  |  |

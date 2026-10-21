@@ -11,6 +11,7 @@ class V1PosOrdersUuidMoveRequestBody {
   const V1PosOrdersUuidMoveRequestBody({
     required this.version,
     required this.tableId,
+    this.approvalToken,
   });
 
   factory V1PosOrdersUuidMoveRequestBody.fromJson(Map<String, Object?> json) =>
@@ -19,6 +20,8 @@ class V1PosOrdersUuidMoveRequestBody {
   final int version;
   @JsonKey(name: 'table_id')
   final int tableId;
+  @JsonKey(name: 'approval_token')
+  final String? approvalToken;
 
   Map<String, Object?> toJson() => _$V1PosOrdersUuidMoveRequestBodyToJson(this);
 }

@@ -12,6 +12,7 @@ V1PosOrdersUuidMergeRequestBody _$V1PosOrdersUuidMergeRequestBodyFromJson(
   version: (json['version'] as num).toInt(),
   sourceUuid: json['source_uuid'] as String,
   sourceVersion: (json['source_version'] as num).toInt(),
+  approvalToken: json['approval_token'] as String?,
 );
 
 Map<String, dynamic> _$V1PosOrdersUuidMergeRequestBodyToJson(
@@ -20,4 +21,5 @@ Map<String, dynamic> _$V1PosOrdersUuidMergeRequestBodyToJson(
   'version': instance.version,
   'source_uuid': instance.sourceUuid,
   'source_version': instance.sourceVersion,
+  'approval_token': instance.approvalToken,
 };

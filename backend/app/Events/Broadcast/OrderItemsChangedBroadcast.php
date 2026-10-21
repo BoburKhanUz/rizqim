@@ -7,7 +7,8 @@ use Illuminate\Broadcasting\PrivateChannel;
 
 /**
  * order.items_changed (P3-12, docs/POS_SPEC.md §12.2): a POS order's lines, guests, table or charges changed (a round
- * added, lines sent to the kitchen, a line voided, guests, a move or merge, a charge waived or restored). Goes to the
+ * added, lines sent to the kitchen, a line voided or served, guests, a move or merge, a charge waived or restored, the
+ * whole order cancelled — P3 integration fixes). Goes to the
  * order's staff channels (store, branch, pos-branch). Like every OrderBroadcast: queued, after commit, tried once,
  * rescued; ids, the order's version and what happened only: the till, waiter phones and KDS refetch the order.
  */
@@ -18,7 +19,7 @@ class OrderItemsChangedBroadcast extends OrderBroadcast
     public ?int $tableId;
 
     /**
-     * @param  'round_added'|'sent'|'voided'|'guests_changed'|'moved'|'merged'|'charges_changed'  $change
+     * @param  'round_added'|'sent'|'voided'|'guests_changed'|'moved'|'merged'|'charges_changed'|'served'|'cancelled'  $change
      * @param  list<int>  $itemIds  the lines concerned (none for guests, a move or a charge)
      */
     public function __construct(Order $order, public string $change, public array $itemIds = [])

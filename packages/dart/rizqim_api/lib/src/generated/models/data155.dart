@@ -7,8 +7,8 @@ import 'package:json_annotation/json_annotation.dart';
 import 'hall7.dart';
 import 'table7.dart';
 import 'waiter9.dart';
-import 'charges12.dart';
-import 'items30.dart';
+import 'charges11.dart';
+import 'items29.dart';
 
 part 'data155.g.dart';
 
@@ -96,9 +96,9 @@ class Data155 {
   final String minSpendTopupAmount;
   @JsonKey(name: 'total_price')
   final String totalPrice;
-  final Charges12 charges;
+  final Charges11 charges;
   final int rounds;
-  final List<Items30> items;
+  final List<Items29> items;
 
   Map<String, Object?> toJson() => _$Data155ToJson(this);
 }

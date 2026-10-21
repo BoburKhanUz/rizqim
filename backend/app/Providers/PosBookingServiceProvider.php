@@ -7,6 +7,7 @@ use App\Domain\Pos\Booking\BookingAdvanceLedger;
 use App\Domain\Pos\Booking\BookingService;
 use App\Domain\Pos\Contracts\AdvanceLedger;
 use App\Domain\Pos\Contracts\CustomerAccountLedger;
+use App\Events\OrderCancelled;
 use App\Events\OrderStatusUpdated;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
@@ -27,13 +28,16 @@ class PosBookingServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        // The booking's order was closed or canceled: the booking is completed (after commit, like the event)
-        Event::listen(OrderStatusUpdated::class, function (OrderStatusUpdated $event) {
+        // The booking's order was closed or canceled: the booking is completed (after commit, like the event). A
+        // cancellation dispatches OrderCancelled instead of OrderStatusUpdated (P3 integration fix: POS order cancel)
+        $complete = function (OrderStatusUpdated|OrderCancelled $event) {
             try {
                 app(BookingService::class)->completeForOrder($event->order);
             } catch (Throwable $e) {
                 Log::error("Failed to complete the booking of order {$event->order->id}: {$e->getMessage()}");
             }
-        });
+        };
+        Event::listen(OrderStatusUpdated::class, $complete);
+        Event::listen(OrderCancelled::class, $complete);
     }
 }

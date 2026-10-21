@@ -4,9 +4,9 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'device14.dart';
-import 'opened_by4.dart';
-import 'closed_by4.dart';
+import 'device11.dart';
+import 'opened_by.dart';
+import 'closed_by.dart';
 
 part 'data163.g.dart';
 
@@ -39,19 +39,19 @@ class Data163 {
   final String status;
   @JsonKey(name: 'branch_id')
   final int branchId;
-  final Device14? device;
+  final Device11? device;
   @JsonKey(name: 'business_date')
   final String businessDate;
   @JsonKey(name: 'opened_at')
   final String openedAt;
   @JsonKey(name: 'opened_by')
-  final OpenedBy4? openedBy;
+  final OpenedBy? openedBy;
   @JsonKey(name: 'opening_cash')
   final String openingCash;
   @JsonKey(name: 'closed_at')
   final String? closedAt;
   @JsonKey(name: 'closed_by')
-  final ClosedBy4? closedBy;
+  final ClosedBy? closedBy;
   @JsonKey(name: 'expected_cash')
   final String? expectedCash;
   @JsonKey(name: 'counted_cash')

@@ -116,7 +116,7 @@ class BookingDepositService
                 (int) $booking->branch_id,
                 $deviceId,
                 [$line],
-                [new FiscalPayment(self::formOf($payment->tender), Money::of($payment->amount), false, $payment->card_type, $payment->transaction_id)],
+                [new FiscalPayment(self::formOf($payment->tender), Money::of($payment->amount), cardType: $payment->card_type, transactionId: $payment->transaction_id)],
                 Money::of($payment->amount),
                 "booking_deposit:{$payment->uuid}:advance",
                 null,
@@ -142,7 +142,7 @@ class BookingDepositService
                 (int) $booking->branch_id,
                 $deviceId,
                 [app(FiscalLineBuilder::class)->forCharge($store, 'deposit', $amount)],
-                [new FiscalPayment(self::formOf($payment->tender), $amount, false, $payment->card_type, $payment->transaction_id)],
+                [new FiscalPayment(self::formOf($payment->tender), $amount, cardType: $payment->card_type, transactionId: $payment->transaction_id)],
                 $amount,
                 "booking_deposit:{$payment->uuid}:refund",
                 $payment->fiscal_receipt_uuid,
@@ -170,7 +170,7 @@ class BookingDepositService
                 (int) $booking->branch_id,
                 $deviceId,
                 [app(FiscalLineBuilder::class)->forCharge($store, 'booking_fee', $amount)],
-                [new FiscalPayment(self::formOf($payment->tender), $amount, true, $payment->card_type, $payment->transaction_id)],
+                [new FiscalPayment(self::formOf($payment->tender), $amount, prepayment: true, cardType: $payment->card_type, transactionId: $payment->transaction_id)],
                 $amount,
                 "booking_deposit:{$payment->uuid}:retain",
                 null,
@@ -235,17 +235,18 @@ class BookingDepositService
                 'settled_at' => now(),
                 'settled_by' => $actor->id,
                 'approved_by' => $approver,
-            ])->save();
+            ] + ($to === BookingPaymentStatus::REFUNDED ? $this->refundDrawer($booking, $deviceId) : []))->save();
 
             $booking->version = $booking->version + 1;
             $booking->save();
 
-            $this->audit->record($to === BookingPaymentStatus::REFUNDED ? 'booking.deposit_refunded' : 'booking.deposit_retained', $booking, [], [], [
+            $this->audit->record($to === BookingPaymentStatus::REFUNDED ? 'booking.deposit_refunded' : 'booking.deposit_retained', $booking, [], [], array_filter([
                 'payment_uuid' => $payment->uuid,
                 'amount' => $amount->toString(),
                 'reason' => $reason,
                 'approved_by' => $approver,
-            ], ['actor' => $actor]);
+                'shift_id' => $payment->refunded_shift_id,
+            ], fn ($value) => $value !== null), ['actor' => $actor]);
 
             return [$payment, $amount, $booking];
         });
@@ -253,6 +254,28 @@ class BookingDepositService
         $this->bookings->changed($result[2]);
 
         return [$result[0], $result[1]];
+    }
+
+    /**
+     * Where a refund is made: the terminal, and the shift open on it in the booking's branch (its X/Z lists the
+     * refund; a cash one is paid from its drawer, so ShiftReport takes it off the expected cash). The shift row is
+     * locked so a closing Z cannot miss a refund made at the same moment. A refund from the web panel or a terminal
+     * without an open shift belongs to no shift (no drawer paid it).
+     *
+     * @return array{refunded_device_id: int|null, refunded_shift_id: int|null}
+     */
+    private function refundDrawer(Booking $booking, ?int $deviceId): array
+    {
+        $shiftId = null;
+        if ($deviceId !== null) {
+            $shiftId = \App\Models\PosShift::where('device_id', $deviceId)
+                ->where('branch_id', $booking->branch_id)
+                ->where('status', \App\Domain\Pos\Shifts\ShiftStatus::OPEN->value)
+                ->lockForUpdate()
+                ->value('id');
+        }
+
+        return ['refunded_device_id' => $deviceId, 'refunded_shift_id' => $shiftId !== null ? (int) $shiftId : null];
     }
 
     /**

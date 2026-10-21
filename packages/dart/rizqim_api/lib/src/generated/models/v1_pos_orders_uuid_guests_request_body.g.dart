@@ -11,6 +11,7 @@ V1PosOrdersUuidGuestsRequestBody _$V1PosOrdersUuidGuestsRequestBodyFromJson(
 ) => V1PosOrdersUuidGuestsRequestBody(
   version: (json['version'] as num).toInt(),
   guestsCount: (json['guests_count'] as num).toInt(),
+  approvalToken: json['approval_token'] as String?,
 );
 
 Map<String, dynamic> _$V1PosOrdersUuidGuestsRequestBodyToJson(
@@ -18,4 +19,5 @@ Map<String, dynamic> _$V1PosOrdersUuidGuestsRequestBodyToJson(
 ) => <String, dynamic>{
   'version': instance.version,
   'guests_count': instance.guestsCount,
+  'approval_token': instance.approvalToken,
 };

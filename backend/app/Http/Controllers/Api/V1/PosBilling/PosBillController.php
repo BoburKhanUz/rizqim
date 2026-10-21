@@ -61,7 +61,9 @@ class PosBillController extends PosBillingController
      * 1.5 kg; every line left must be given out in full; optional `guests` for the per-guest amount). The discount and
      * the charges (room fee, minimum spend top-up, service charge, place fee) are shared in proportion; all shares are
      * exact to the tiyin. `version`: the order's (409 `version_conflict` when stale). One bill: orders.manage or
-     * pos.take_payment; splitting: pos.take_payment (403 `permission_denied`). 409 `nothing_to_bill`, `order_closed`,
+     * pos.take_payment; splitting: pos.take_payment (403 `permission_denied`). A waiter bills only their own orders
+     * (another waiter's: a manager's `approval_token` for orders.manage, else 403 `approval_required`). 409
+     * `nothing_to_bill`, `order_closed`,
      * `not_pos_order`; 422 `items_not_covered`, `bill_empty`, `item_not_billable`, `parts_invalid`.
      */
     #[ApiDocResponse(201, type: 'array{success: true, message: string, data: ' . self::STATE . '}')]
@@ -78,6 +80,7 @@ class PosBillController extends PosBillingController
             'bills.*.items.*.order_item_id' => 'required|integer|min:1|max:999999999999',
             'bills.*.items.*.quantity' => ['required', 'numeric', 'gt:0', 'max:99999', 'regex:/^\d+(\.\d{1,3})?$/'],
             'bills.*.guests' => 'nullable|integer|min:1|max:500',
+            'approval_token' => 'nullable|string|max:100',
         ]);
         $order = $this->order($user, $uuid);
 
@@ -93,6 +96,7 @@ class PosBillController extends PosBillingController
             (int) $data['version'],
             $this->terminal($user),
             $this->applied($request),
+            $data['approval_token'] ?? null,
         );
 
         return $this->success($this->state($order->refresh(), $presenter, false), 'Schyot tayyor.', 201);

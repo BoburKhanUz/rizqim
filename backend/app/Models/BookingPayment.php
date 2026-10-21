@@ -17,6 +17,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property numeric-string $refunded_amount
  * @property numeric-string $retained_amount
  * @property \Illuminate\Support\Carbon|null $settled_at
+ * @property int|null $refunded_device_id the terminal the refund was made on (P3 integration fix)
+ * @property int|null $refunded_shift_id the shift open on that terminal: a cash refund came out of its drawer (ShiftReport)
  */
 class BookingPayment extends Model
 {
@@ -32,6 +34,8 @@ class BookingPayment extends Model
         'refunded_amount' => 'decimal:2',
         'retained_amount' => 'decimal:2',
         'settled_at' => 'datetime',
+        'refunded_device_id' => 'integer',
+        'refunded_shift_id' => 'integer',
     ];
 
     protected $attributes = [

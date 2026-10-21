@@ -33,8 +33,8 @@ use Throwable;
  *  - the payments map one to one: cash, card (card type and the bank terminal's transaction id), QR as they are;
  *    the part paid from a booking deposit (PosTender::PREPAYMENT) as `prepayment: true` in the deposit's own form
  *    (the advance receipt was issued when it was taken: bo'nak → sotuv, research §5); the part closed on credit
- *    (PosTender::ACCOUNT, nasiya) also as `prepayment: true` (not money received now; research §5: the sale
- *    receipt is for the full amount when the food is served, a CREDIT receipt follows each repayment, P3-17);
+ *    (PosTender::ACCOUNT, nasiya) as `credit: true` (not money received now; research §5: the sale receipt is for
+ *    the full amount when the food is served, a CREDIT receipt follows each repayment, P3-17);
  *  - the bill becomes `paid` only once its receipt is `issued`; a pending or failed receipt leaves the order
  *    "fiskal kutmoqda" (retry: POST /pos/bills/{uuid}/fiscal-retry; a receipt the provider confirms later finishes
  *    the bill through the fiscal.receipt_updated event);
@@ -282,11 +282,12 @@ final class BillFiscalizer
             $tender = PosTender::tryFrom((string) $payment->provider);
             $amount = Money::of($payment->amount);
             $fiscal[] = match ($tender) {
-                PosTender::CARD => new FiscalPayment(FiscalPaymentForm::CARD, $amount, false, $payment->getAttribute('card_type'), $payment->getAttribute('transaction_id')),
+                PosTender::CARD => new FiscalPayment(FiscalPaymentForm::CARD, $amount, cardType: $payment->getAttribute('card_type'), transactionId: $payment->getAttribute('transaction_id')),
                 PosTender::QR => new FiscalPayment(FiscalPaymentForm::QR, $amount),
-                PosTender::PREPAYMENT => new FiscalPayment($this->depositForm($bill), $amount, true),
-                // Nasiya: the full sale is receipted now, the money comes later with CREDIT receipts (P3-17)
-                PosTender::ACCOUNT => new FiscalPayment(FiscalPaymentForm::CASH, $amount, true),
+                PosTender::PREPAYMENT => new FiscalPayment($this->depositForm($bill), $amount, prepayment: true),
+                // Nasiya: the full sale is receipted now, the money comes later with CREDIT receipts (P3-17); the
+                // form is a placeholder until the provider says how an unpaid part is shown (T4)
+                PosTender::ACCOUNT => new FiscalPayment(FiscalPaymentForm::CASH, $amount, credit: true),
                 default => new FiscalPayment(FiscalPaymentForm::CASH, $amount),
             };
         }

@@ -44,6 +44,7 @@ final class FiscalSnapshot
             'form' => $payment->form->value,
             'amount' => $payment->amount->toString(),
             'prepayment' => $payment->prepayment,
+            'credit' => $payment->credit,
             'card_type' => $payment->cardType,
             'transaction_id' => $payment->transactionId,
         ], $payments);
@@ -78,6 +79,8 @@ final class FiscalSnapshot
             form: FiscalPaymentForm::from((string) ($row['form'] ?? 'cash')),
             amount: Money::of((string) ($row['amount'] ?? '0')),
             prepayment: (bool) ($row['prepayment'] ?? false),
+            // Receipts stored before the flag existed have no credit part
+            credit: (bool) ($row['credit'] ?? false),
             cardType: isset($row['card_type']) ? (string) $row['card_type'] : null,
             transactionId: isset($row['transaction_id']) ? (string) $row['transaction_id'] : null,
         );
@@ -85,13 +88,13 @@ final class FiscalSnapshot
 
     /**
      * The receipt's payment form: the one form money was received in now, `mixed` for more than one. A sale paid
-     * entirely by an earlier advance takes the advance's form.
+     * entirely by an earlier advance (or on credit) takes the form of those parts.
      *
      * @param  list<FiscalPayment>  $payments
      */
     public static function paymentForm(array $payments): FiscalPaymentForm
     {
-        $received = array_filter($payments, fn (FiscalPayment $payment) => !$payment->prepayment);
+        $received = array_filter($payments, fn (FiscalPayment $payment) => !$payment->prepayment && !$payment->credit);
         $forms = array_values(array_unique(array_map(fn (FiscalPayment $payment) => $payment->form->value, $received ?: $payments)));
 
         if ($forms === []) {

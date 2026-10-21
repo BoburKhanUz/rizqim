@@ -41,10 +41,10 @@ Data147 _$Data147FromJson(Map<String, dynamic> json) => Data147(
   roomFeeAmount: json['room_fee_amount'] as String,
   minSpendTopupAmount: json['min_spend_topup_amount'] as String,
   totalPrice: json['total_price'] as String,
-  charges: Charges7.fromJson(json['charges'] as Map<String, dynamic>),
+  charges: Charges6.fromJson(json['charges'] as Map<String, dynamic>),
   rounds: (json['rounds'] as num).toInt(),
   items: (json['items'] as List<dynamic>)
-      .map((e) => Items21.fromJson(e as Map<String, dynamic>))
+      .map((e) => Items19.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 
