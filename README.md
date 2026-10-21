@@ -10,6 +10,8 @@ O'zbekiston uchun ko'p do'konli (multi-store) ovqat buyurtma va yetkazib berish 
 
 Umumiy hujjatlar: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (butun platforma: ilovalar, ma'lumotlar modeli, real-time, navbatlar, CI, deploy), [docs/API.md](docs/API.md) (API'dan foydalanish: kirish turlari, ruxsatlar, xatolar, idempotency, sahifalash, cheklovlar, real-time, klientlar), [docs/POS_SPEC.md](docs/POS_SPEC.md) (POS spetsifikatsiyasi, egasi tasdig'i uchun qoralama).
 
+Foydalanuvchi qo'llanmalari (restoran xodimlari uchun, o'zbekcha): [docs/guides/README.md](docs/guides/README.md) (hamkor paneli, oshxona ekrani, Telegram Mini App).
+
 ## Papkalar tuzilmasi
 
 Hozir ishlayotgan qismlar: `backend/` va `customer/miniapp/`. Qolgan papkalar kelajakdagi ilovalar uchun ajratilgan (hozircha faqat README); qaysi bosqichda nima qurilishi [docs/ROADMAP.md](docs/ROADMAP.md) da.
