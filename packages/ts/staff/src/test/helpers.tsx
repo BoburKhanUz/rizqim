@@ -98,6 +98,22 @@ export function makeOrder(over: Partial<Order> = {}): Order {
     delivery_min_order_amount: null,
     type: 'delivery',
     address: null,
+    // POS columns (phase 3): empty on online orders
+    hall_id: null,
+    table_id: null,
+    waiter_id: null,
+    device_id: null,
+    version: 0,
+    room_fee_amount: '0.00',
+    min_spend_topup_amount: '0.00',
+    booking_id: null,
+    due_at: null,
+    shift_id: null,
+    business_date: null,
+    queue_number: null,
+    bill_locked_at: null,
+    closed_at: null,
+    long_open_alerted_at: null,
     ...over,
   };
 }

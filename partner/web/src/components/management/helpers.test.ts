@@ -1,4 +1,4 @@
-import { StaffApiError } from '@rizqim/staff';
+import { StaffApiError, type StoreSettings } from '@rizqim/staff';
 import { describe, expect, it } from 'vitest';
 import { createTranslator } from '@/i18n';
 import { errorText, firstFieldError, reasonOf } from './errors';
@@ -74,6 +74,8 @@ describe('payment settings', () => {
     is_open: true, min_order_amount: 0,
     payment_settings: { uzum: { enabled: true, available: false }, working_hours: {} },
     payment_account_type: 'platform_account' as const, status: 'active' as const, is_order_locked: false, allowed_methods: [],
+    // Fiscal fields (P3-11): the payment form never reads them
+    tin: null, tax_regime: null, fiscal_settings: {} as StoreSettings['fiscal_settings'],
   };
 
   it('starts a form from the stored values with the defaults of a store that saved nothing', () => {
