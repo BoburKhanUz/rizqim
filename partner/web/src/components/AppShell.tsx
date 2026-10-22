@@ -101,12 +101,12 @@ function ShellFrame({ nav, userName, role, menuOpen, onToggleMenu, onLogout, chi
   return (
     <div className="min-h-screen md:flex">
       {/* Phones and narrow windows: a top bar with the menu in a drawer */}
-      <header className="sticky top-0 z-30 flex items-center gap-2 border-b border-line bg-surface px-2 py-1 md:hidden">
+      <header className="sticky top-0 z-30 flex items-center gap-2 border-b border-line bg-surface px-2 py-1 md:hidden print:hidden">
         <IconButton icon={menuOpen ? X : Menu} label={menuOpen ? t('closeMenu') : t('openMenu')} aria-expanded={menuOpen} onClick={onToggleMenu} />
         <span className="text-headline font-bold text-fg">{t('appName')}</span>
       </header>
       <Sidebar items={nav} userName={userName} role={role} open={menuOpen} onLogout={onLogout} badges={{ orders: newCount }} />
-      <main className="min-w-0 flex-1 p-4 md:p-6 lg:p-8">
+      <main className="min-w-0 flex-1 p-4 md:p-6 lg:p-8 print:p-0">
         <TopBar />
         {children}
       </main>

@@ -1,12 +1,18 @@
 import {
+  Armchair,
+  CalendarDays,
   ChartColumn,
   CookingPot,
   ClipboardList,
+  HandCoins,
   LayoutDashboard,
   Map,
   PackageX,
+  Printer,
+  ReceiptText,
   Settings,
   Store,
+  Timer,
   UtensilsCrossed,
   Users,
   Wallet,
@@ -22,7 +28,32 @@ import type { MessageKey } from '@/i18n';
 //   batches    the batches (kazan) of a branch, /stoplist/batches (batches.manage: cooks have it without the stop-list)
 //   branches   edit a branch (branches.manage, a branch-bound manager their own) or create/delete (settings.manage)
 //   zones      draw delivery zones (zones.manage, owner only)
-export type NavKey = 'dashboard' | 'orders' | 'menu' | 'stoplist' | 'batches' | 'staff' | 'branches' | 'zones' | 'settings' | 'reports' | 'finance';
+//   floor      halls, places, the floor map, room tariffs, per-guest items (tables.manage; tariffs and guest items inside need
+//              settings.manage, changing halls the owner or manager role)
+//   bookings   the booking calendar (bookings.manage)
+//   accounts   customer accounts, nasiya (customer_accounts.manage)
+//   shifts     shifts with X and Z reports (pos.close_shift or reports.view)
+//   possetup   kitchen stations, routes, printers, branch POS settings (settings.manage)
+//   fiscal     MXIK readiness (menu.view / settings.manage), fiscal settings (settings.manage), receipts (finance.view / reports.view);
+//              the section opens for menu.manage (not every menu.view: cooks and waiters have it), settings.manage, finance.view, reports.view
+export type NavKey =
+  | 'dashboard'
+  | 'orders'
+  | 'bookings'
+  | 'floor'
+  | 'menu'
+  | 'stoplist'
+  | 'batches'
+  | 'shifts'
+  | 'accounts'
+  | 'staff'
+  | 'branches'
+  | 'zones'
+  | 'settings'
+  | 'possetup'
+  | 'fiscal'
+  | 'reports'
+  | 'finance';
 
 export interface NavItem {
   key: NavKey;
@@ -35,13 +66,19 @@ export interface NavItem {
 export const NAV_ITEMS: readonly NavItem[] = [
   { key: 'dashboard', href: '/dashboard', label: 'nav_dashboard', anyOf: ['orders.view', 'reports.view'], icon: LayoutDashboard },
   { key: 'orders', href: '/orders', label: 'nav_orders', anyOf: ['orders.view'], icon: ClipboardList },
+  { key: 'bookings', href: '/bookings', label: 'nav_bookings', anyOf: ['bookings.manage'], icon: CalendarDays },
+  { key: 'floor', href: '/floor', label: 'nav_floor', anyOf: ['tables.manage'], icon: Armchair },
   { key: 'menu', href: '/menu', label: 'nav_menu', anyOf: ['menu.view', 'menu.manage'], icon: UtensilsCrossed },
   { key: 'stoplist', href: '/stoplist', label: 'nav_stoplist', anyOf: ['stoplist.manage'], icon: PackageX },
   { key: 'batches', href: '/stoplist/batches', label: 'nav_batches', anyOf: ['batches.manage'], icon: CookingPot },
+  { key: 'shifts', href: '/shifts', label: 'nav_shifts', anyOf: ['pos.close_shift', 'reports.view'], icon: Timer },
+  { key: 'accounts', href: '/accounts', label: 'nav_accounts', anyOf: ['customer_accounts.manage'], icon: HandCoins },
   { key: 'staff', href: '/staff', label: 'nav_staff', anyOf: ['staff.view'], icon: Users },
   { key: 'branches', href: '/branches', label: 'nav_branches', anyOf: ['branches.manage', 'settings.manage'], icon: Store },
   { key: 'zones', href: '/zones', label: 'nav_zones', anyOf: ['zones.manage'], icon: Map },
   { key: 'settings', href: '/settings', label: 'nav_settings', anyOf: ['settings.manage'], icon: Settings },
+  { key: 'possetup', href: '/pos-setup', label: 'nav_possetup', anyOf: ['settings.manage'], icon: Printer },
+  { key: 'fiscal', href: '/fiscal', label: 'nav_fiscal', anyOf: ['settings.manage', 'menu.manage', 'finance.view', 'reports.view'], icon: ReceiptText },
   { key: 'reports', href: '/reports', label: 'nav_reports', anyOf: ['reports.view'], icon: ChartColumn },
   { key: 'finance', href: '/finance', label: 'nav_finance', anyOf: ['finance.view'], icon: Wallet },
 ];

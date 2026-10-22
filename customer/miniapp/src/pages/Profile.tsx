@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bike, ChevronRight, Clock, CreditCard, FileSpreadsheet, PackageX, ShieldCheck, Store, TriangleAlert, Settings } from 'lucide-react';
+import { Bike, BookUser, ChevronRight, Clock, CreditCard, FileSpreadsheet, PackageX, ShieldCheck, Store, TriangleAlert, Settings, Timer } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { isLanguage, useLanguageStore } from '../store/languageStore';
@@ -338,6 +338,8 @@ export default function Profile() {
           <Card padded={false} className="divide-y divide-line overflow-hidden">
             <LinkRow icon={PackageX} label={uz ? 'Stop-list va qozon' : 'Стоп-лист и котлы'} onClick={() => { hapticFeedback('light'); navigate('/admin/stoplist'); }} />
             <LinkRow icon={Clock} label={uz ? 'Filial ish vaqti' : 'Часы работы филиала'} onClick={() => { hapticFeedback('light'); navigate('/admin/branches'); }} />
+            <LinkRow icon={Timer} label={uz ? 'Smena xulosasi' : 'Итог смены'} onClick={() => { hapticFeedback('light'); navigate('/admin/shift'); }} />
+            <LinkRow icon={BookUser} label={uz ? 'Qarzdorlar' : 'Должники'} onClick={() => { hapticFeedback('light'); navigate('/admin/debtors'); }} />
           </Card>
         </Section>
       )}
@@ -347,6 +349,8 @@ export default function Profile() {
           <Card padded={false} className="divide-y divide-line overflow-hidden">
             <LinkRow icon={PackageX} label={uz ? 'Stop-list va qozon' : 'Стоп-лист и котлы'} onClick={() => { hapticFeedback('light'); navigate('/admin/stoplist'); }} />
             <LinkRow icon={Clock} label={uz ? 'Filiallar va ish vaqti' : 'Филиалы и часы работы'} onClick={() => { hapticFeedback('light'); navigate('/admin/branches'); }} />
+            <LinkRow icon={Timer} label={uz ? 'Smena xulosasi' : 'Итог смены'} onClick={() => { hapticFeedback('light'); navigate('/admin/shift'); }} />
+            <LinkRow icon={BookUser} label={uz ? 'Qarzdorlar' : 'Должники'} onClick={() => { hapticFeedback('light'); navigate('/admin/debtors'); }} />
             <LinkRow icon={CreditCard} label={uz ? "Balans va to'lovlar" : 'Баланс и платежи'} onClick={() => { hapticFeedback('light'); navigate('/admin/payments'); }} />
             <LinkRow icon={FileSpreadsheet} label={t('ownerReports_link')} onClick={() => { hapticFeedback('light'); navigate('/admin/reports'); }} />
             <LinkRow icon={Settings} label={uz ? 'Tizim va ish vaqti sozlamalari' : 'Настройки системы и часов'} onClick={() => { hapticFeedback('light'); navigate('/admin/settings'); }} />

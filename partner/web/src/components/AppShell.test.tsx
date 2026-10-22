@@ -54,7 +54,11 @@ const branch = (id: number, name: string) => ({
 });
 const noOrders = () => ok([], { meta: { next_cursor: null, per_page: 100 } });
 
-const OWNER = ['orders.view', 'orders.manage', 'orders.cancel', 'menu.view', 'menu.manage', 'stoplist.manage', 'batches.manage', 'staff.view', 'branches.manage', 'zones.manage', 'settings.manage', 'reports.view', 'finance.view'];
+const OWNER = [
+  'orders.view', 'orders.manage', 'orders.cancel', 'menu.view', 'menu.manage', 'stoplist.manage', 'batches.manage', 'staff.view', 'branches.manage', 'zones.manage', 'settings.manage', 'reports.view', 'finance.view',
+  // P3-23: the POS sections
+  'tables.manage', 'bookings.manage', 'customer_accounts.manage', 'pos.close_shift',
+];
 
 function ShowBranch() {
   const { branchId } = useBranchScope();
@@ -93,7 +97,8 @@ describe('AppShell', () => {
     });
     renderShell();
 
-    expect(await navLabels()).toEqual(['Boshqaruv paneli', 'Buyurtmalar', 'Menyu', 'Stop-list', 'Xodimlar', 'Filiallar', 'Hisobotlar']);
+    // reports.view also opens the shifts (X and Z reports) and the fiscal receipts
+    expect(await navLabels()).toEqual(['Boshqaruv paneli', 'Buyurtmalar', 'Menyu', 'Stop-list', 'Smenalar', 'Xodimlar', 'Filiallar', 'Fiskal', 'Hisobotlar']);
     expect(screen.getByText('page content')).toBeInTheDocument();
     expect(screen.getByText('Menejer')).toBeInTheDocument();
   });
@@ -107,7 +112,8 @@ describe('AppShell', () => {
     });
     renderShell();
     expect(await navLabels()).toEqual([
-      'Boshqaruv paneli', 'Buyurtmalar', 'Menyu', 'Stop-list', 'Qozon', 'Xodimlar', 'Filiallar', 'Yetkazish zonalari', 'Sozlamalar', 'Hisobotlar', 'Moliya',
+      'Boshqaruv paneli', 'Buyurtmalar', 'Bronlar', 'Zal va xonalar', 'Menyu', 'Stop-list', 'Qozon', 'Smenalar', 'Nasiya', 'Xodimlar', 'Filiallar', 'Yetkazish zonalari', 'Sozlamalar',
+      'Kassa sozlamalari', 'Fiskal', 'Hisobotlar', 'Moliya',
     ]);
   });
 

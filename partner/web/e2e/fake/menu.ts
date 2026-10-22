@@ -17,6 +17,7 @@ export interface FakeVariant {
   quantity_step: string | null
   min_quantity: string | null
   batch_consumption: string
+  unit_label: string | null
 }
 
 export interface FakeProduct {
@@ -37,6 +38,11 @@ export interface FakeProduct {
   image_thumb_urls: { sm: null; md: null }
   batch_tracked: boolean
   is_active: boolean
+  // P3-11: what the item is on a receipt and its codes
+  kind: 'dish' | 'service'
+  mxik_code: string | null
+  package_code: string | null
+  vat_rate: string | null
   category: { id: number; name: string } | null
   variants: FakeVariant[]
 }
@@ -122,6 +128,10 @@ export class FakeMenu {
       image_thumb_urls: { sm: null, md: null },
       batch_tracked: false,
       is_active: true,
+      kind: 'dish',
+      mxik_code: null,
+      package_code: null,
+      vat_rate: null,
       category: category && { id: category.id, name: category.name },
       variants: input.variants.map((variant) => this.variant(id, variant)),
     }
@@ -146,6 +156,7 @@ export class FakeMenu {
       quantity_step: decimal(input.quantity_step ?? input.step),
       min_quantity: decimal(input.min_quantity ?? input.min),
       batch_consumption: '1.000',
+      unit_label: null,
     }
   }
 
@@ -166,6 +177,11 @@ export class FakeMenu {
         errors[`variants.${index}.min_quantity`] = ["Eng kam miqdor qadamga karrali bo'lishi kerak."]
       }
     })
+    // P3-11: a field left out is kept, an empty one is cleared; an MXIK is 17 digits
+    const mxik = form.get('mxik_code')
+    if (typeof mxik === 'string' && mxik !== '' && !/^\d{17}$/.test(mxik)) errors.mxik_code = ["MXIK kodi 17 ta raqamdan iborat bo'lishi kerak."]
+    // (the real server checks a code against the classifier only in its tests; the fake knows one code that is not there)
+    else if (mxik === '00000000000000000') errors.mxik_code = ["Bu MXIK tasnifda yo'q."]
     if (Object.keys(errors).length > 0) return fail(422, 'The given data was invalid.', errors)
 
     const id = existing?.id ?? ++this.counter
@@ -183,6 +199,10 @@ export class FakeMenu {
       batch_tracked: form.get('batch_tracked') === '1',
       sort_order: form.has('sort_order') ? Number(form.get('sort_order')) : (existing?.sort_order ?? 0),
       has_variants: variants.length > 1,
+      kind: form.has('kind') ? (form.get('kind') === 'service' ? 'service' : 'dish') : (existing?.kind ?? 'dish'),
+      mxik_code: form.has('mxik_code') ? String(form.get('mxik_code')) || null : (existing?.mxik_code ?? null),
+      package_code: form.has('package_code') ? String(form.get('package_code')) || null : (existing?.package_code ?? null),
+      vat_rate: form.has('vat_rate') ? (String(form.get('vat_rate')) === '' ? null : Number(form.get('vat_rate')).toFixed(2)) : (existing?.vat_rate ?? null),
       variants: variants.map((variant) => {
         const previous = typeof variant.id === 'number' ? kept.get(variant.id) : undefined
         return previous ? { ...previous, ...this.variant(id, { name: String(variant.name), price: Number(variant.price), unit: String(variant.unit), quantity_step: variant.quantity_step, min_quantity: variant.min_quantity }), id: previous.id, uuid: previous.uuid } : this.variant(id, { name: String(variant.name), price: Number(variant.price), unit: String(variant.unit), quantity_step: variant.quantity_step, min_quantity: variant.min_quantity })
@@ -212,6 +232,10 @@ export class FakeMenu {
       image_thumb_urls: { sm: null, md: null },
       batch_tracked: false,
       is_active: true,
+      kind: 'dish',
+      mxik_code: null,
+      package_code: null,
+      vat_rate: null,
       category: null,
       variants: [],
     }

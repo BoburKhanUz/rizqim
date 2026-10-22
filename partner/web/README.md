@@ -108,6 +108,12 @@ Menyu `GET /api/v1/me/permissions` ro'yxatiga qarab chiziladi (`src/lib/permissi
 | Sozlamalar | `settings.manage` |
 | Hisobotlar | `reports.view` |
 | Moliya | `finance.view` |
+| Bronlar (taqvim) | `bookings.manage` |
+| Zal va xonalar (xarita, tariflar, avto choy-non) | `tables.manage` |
+| Smenalar (X/Z hisobot) | `pos.close_shift`, `reports.view` |
+| Nasiya (mijoz hisoblari) | `customer_accounts.manage` |
+| Kassa sozlamalari (stansiyalar, printerlar, filial POS) | `settings.manage` |
+| Fiskal tayyorlik, cheklar, do'kon fiskal sozlamalari | `settings.manage`, `menu.manage`, `finance.view`, `reports.view` |
 
 **Filial tanlash** (yuqori panel): ega va filialsiz xodim "Barcha filiallar" yoki bitta filialni tanlaydi (har kishi uchun
 brauzerda eslab qolinadi, `rz_branch:<store>:<user>`), filialga biriktirilgan xodim faqat o'z filialida ishlaydi. Sahifalar
@@ -143,8 +149,9 @@ npm run test:e2e                           # build + start + testlar (E2E_SKIP_B
 Qamrab olinadi: SMS kod bilan kirish (xato kod, raqam topilmadi, ikki do'kon — hisob tanlash, chiqish, sessiyani tiklash), doska (yangi
 buyurtma real-time bilan va so'rov bilan, qabul → tayyorlash → tayyor → topshirish, kuryer tayinlash → yo'lda → yetkazildi, sabab bilan
 rad etish, serverning o'zbekcha rad javobi), menyu (kg variantli taom va modifikator guruhi), stop-list, xodim qo'shish va PIN, hudud
-chizish, hisobot davri va CSV, yorug'/qorong'i mavzu. Testlar ko'rinadigan matn va yuborilgan so'rovlarni tekshiradi, ichki holatni emas.
-Bitta worker (soxta backend umumiy), 28 test ~35 soniya. Haqiqiy backend bilan umumiy sinov: `scripts/e2e-stack.sh` (`e2e/stack/`).
+chizish, hisobot davri va CSV, yorug'/qorong'i mavzu; POS bo'limlari (P3-23): MXIK ommaviy tahrir (fiskal tayyorlik), zal xaritasini
+sudrab-o'lchab saqlash (`PUT layout`), xona tarifi yaratish, bron yaratish/to'qnashuv/bekor qilish, yopilgan smenaning Z hisoboti va chop etish. Testlar ko'rinadigan matn va yuborilgan so'rovlarni tekshiradi, ichki holatni emas.
+Bitta worker (soxta backend umumiy), 39 test ~1 daqiqa. Haqiqiy backend bilan umumiy sinov: `scripts/e2e-stack.sh` (`e2e/stack/`).
 
 ## Docker
 
@@ -167,9 +174,11 @@ backend'ning IP limitlari har kishiga alohida bo'ladi), panel origin'i backend'd
 ## Tuzilma
 
 ```
-src/app/                  App Router: /login, (app)/{dashboard,orders,menu,stoplist,branches,zones,staff,reports,finance,settings}, api/session/* (send-code, login, select-account, refresh, logout)
+src/app/                  App Router: /login, (app)/{dashboard,orders,menu,stoplist,branches,zones,staff,reports,finance,settings,fiscal,floor,pos-setup,bookings,accounts,shifts}, api/session/* (send-code, login, select-account, refresh, logout)
 src/components/           AppShell + Sidebar, shell/ (filial tanlash, jonli buyurtmalar, yuqori panel), orders/ (doska), LoginForm, Dashboard ...
 src/lib/session/          server.ts (cookie va backend), client.ts (access token xotirada, single-flight refresh, authFetch, API klienti)
+src/components/{fiscal,floor,possetup,bookings,accounts,shifts,pos}/   POS bo'limlari (P3-23); pos/ — ularning umumiy maydonlari va server xatolarini saralash
 src/lib/permissions.ts    bo'lim <-> ruxsat
+src/lib/storeTime.ts      do'kon vaqt mintaqasida sana/vaqt hisobi (taqvim va smenalar uchun)
 src/i18n/                 uz (asosiy), ru, en; til `rz_lang` cookie'sida (server uni o'qib, sahifani shu tilda chizadi)
 ```

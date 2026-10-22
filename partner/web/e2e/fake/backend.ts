@@ -1,9 +1,13 @@
 // An in-memory stand-in for the backend API, shaped like the real answers (docs/API.md, the OpenAPI spec). It serves both
 // the Next server's session route handlers (sign-in, refresh, sign-out) and the browser's own calls (with the access
 // token). The feature areas live in their own modules; this one has the accounts, tokens and the routing.
+import { FakeBookings } from './bookings'
+import { FakeFiscal } from './fiscal'
+import { FakeFloor } from './floor'
 import { FakeMenu } from './menu'
 import { FakeOrders } from './orders'
 import { FakeReports } from './reports'
+import { FakeShifts } from './shifts'
 import { FakeTeam } from './team'
 import { FakeZones } from './zones'
 import { fail, ok, unauthenticated, type FakeRequest, type RecordedCall, type Reply } from './types'
@@ -16,6 +20,8 @@ export const OWNER_PERMISSIONS = [
   'menu.view', 'menu.manage', 'stoplist.manage', 'batches.manage',
   'staff.view', 'staff.manage', 'staff.pin', 'branches.manage', 'settings.manage', 'zones.manage', 'devices.view', 'devices.manage',
   'reports.view', 'finance.view',
+  // P3-23: the POS sections (halls and tables, bookings, nasiya, shifts)
+  'tables.manage', 'bookings.manage', 'customer_accounts.manage', 'pos.close_shift',
 ]
 
 export interface Account {
@@ -80,6 +86,10 @@ export class FakeBackend {
   team: FakeTeam
   zones: FakeZones
   reports: FakeReports
+  fiscal: FakeFiscal
+  floor: FakeFloor
+  shifts: FakeShifts
+  bookings: FakeBookings
 
   constructor() {
     this.orders = new FakeOrders(this)
@@ -87,6 +97,10 @@ export class FakeBackend {
     this.team = new FakeTeam(this)
     this.zones = new FakeZones(this)
     this.reports = new FakeReports(this)
+    this.fiscal = new FakeFiscal(this)
+    this.floor = new FakeFloor(this)
+    this.shifts = new FakeShifts(this)
+    this.bookings = new FakeBookings(this)
     this.accounts.set(OWNER.phone, [OWNER])
   }
 
@@ -248,7 +262,7 @@ export class FakeBackend {
       return { status: 200, body: { auth: 'e2e-key:fake-signature' } }
     }
 
-    for (const area of [this.orders, this.menu, this.team, this.zones, this.reports]) {
+    for (const area of [this.orders, this.menu, this.team, this.zones, this.reports, this.fiscal, this.floor, this.shifts, this.bookings]) {
       const reply = area.handle(req, json)
       if (reply) return reply
     }

@@ -14,7 +14,7 @@ export function TopBar() {
   const { realtime, muted, toggleMuted, needsGesture } = useLiveOrders();
 
   return (
-    <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line pb-3 md:mb-6">
+    <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line pb-3 md:mb-6 print:hidden">
       <BranchSwitcher />
       {seesOrders && (
         <div className="ml-auto flex flex-wrap items-center justify-end gap-2">

@@ -55,6 +55,8 @@ const OwnerProductForm = lazyWithRetry(() => import('./pages/OwnerProductForm'))
 const OwnerEmployees = lazyWithRetry(() => import('./pages/OwnerEmployees'));
 const OwnerPayments = lazyWithRetry(() => import('./pages/OwnerPayments'));
 const OwnerSettings = lazyWithRetry(() => import('./pages/OwnerSettings'));
+const ShiftSummary = lazyWithRetry(() => import('./pages/ShiftSummary'));
+const Debtors = lazyWithRetry(() => import('./pages/Debtors'));
 const SuperadminDashboard = lazyWithRetry(() => import('./pages/SuperadminDashboard'));
 const SuperadminStores = lazyWithRetry(() => import('./pages/SuperadminStores'));
 const SuperadminCreateStore = lazyWithRetry(() => import('./pages/SuperadminCreateStore'));
@@ -259,6 +261,8 @@ function AppContent() {
             <Route path="/admin/catalog/edit/:id" element={<OwnerProductForm />} />
             <Route path="/admin/employees" element={<OwnerEmployees />} />
             <Route path="/admin/payments" element={<OwnerPayments />} />
+            <Route path="/admin/shift" element={<ShiftSummary />} />
+            <Route path="/admin/debtors" element={<Debtors />} />
             <Route path="/cart" element={<Cart />} />
             <Route path="/orders" element={<Orders />} />
             <Route path="/profile" element={isCustomer ? <CustomerProfile /> : <Profile />} />

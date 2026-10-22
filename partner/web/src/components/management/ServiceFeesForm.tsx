@@ -27,8 +27,8 @@ export function ServiceFeesForm() {
   if (fees.isError) return <InlineError title={t('loadErrorTitle')} message={errorText(fees.error, t)} retryLabel={t('retry')} retrying={fees.isFetching} onRetry={() => void fees.refetch()} />;
 
   const branchId = scope === '' ? null : Number(scope);
-  const own = fees.data.settings.find((row) => row.branch_id === branchId) ?? null;
-  const base = own ?? fees.data.settings.find((row) => row.branch_id === null) ?? null;
+  const own = fees.data.settings.find((row) => row.branch_id === branchId && !row.hall_id) ?? null;
+  const base = own ?? fees.data.settings.find((row) => row.branch_id === null && !row.hall_id) ?? null;
   const channels = fees.data.channels.filter((channel) => !EXCLUDED_CHANNELS.includes(channel));
 
   return (

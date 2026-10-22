@@ -3,12 +3,13 @@
 import { useState } from 'react';
 import { Inbox } from 'lucide-react';
 import { Card, EmptyState, InlineError, Skeleton, formatDateTime, formatMoney, formatOrderCode } from '@rizqim/ui';
-import { getApiErrorMessage, getApiErrorStatus, useLedger, usePayments, usePayouts, useWalletHistory } from '@rizqim/staff';
+import { getApiErrorMessage, getApiErrorStatus, ONLINE_FISCAL_STATUSES, useLedger, usePayments, usePayouts, useWalletHistory } from '@rizqim/staff';
 import type { Translate } from '@/i18n';
 import { paymentLabel } from '@/lib/labels';
 import { useI18n } from '../I18nProvider';
 import { useBranchScope } from '../shell/BranchScope';
 import { labelFor } from './format';
+import { FiscalPaymentCell } from './FiscalPaymentCell';
 import { HistoryFilters, SelectFilter, usableDates, type DateFilter } from './HistoryFilters';
 import { DataTable, Pager, Pill, Td, Th, type Tone } from './ui';
 
@@ -145,12 +146,13 @@ export function PaymentsPanel() {
   const { t, language } = useI18n();
   const [status, setStatus] = useState('');
   const [provider, setProvider] = useState('');
+  const [fiscalStatus, setFiscalStatus] = useState('');
   const [dates, setDates] = useState<DateFilter>(emptyDates);
   const [page, setPage] = useState(1);
   const { branchId } = useBranchScope();
   const usable = usableDates(dates);
   const query = usePayments(
-    { ...(branchId ? { branch_id: branchId } : {}), ...(status ? { status } : {}), ...(provider ? { provider } : {}), ...(usable.from ? { from: usable.from } : {}), ...(usable.to ? { to: usable.to } : {}), page, per_page: PER_PAGE },
+    { ...(branchId ? { branch_id: branchId } : {}), ...(status ? { status } : {}), ...(provider ? { provider } : {}), ...(fiscalStatus ? { fiscal_status: fiscalStatus } : {}), ...(usable.from ? { from: usable.from } : {}), ...(usable.to ? { to: usable.to } : {}), page, per_page: PER_PAGE },
     { enabled: !usable.reversed },
   );
   const reset = <T,>(set: (value: T) => void) => (value: T) => {
@@ -163,6 +165,7 @@ export function PaymentsPanel() {
       <HistoryFilters value={dates} reversed={usable.reversed} onChange={reset(setDates)}>
         <SelectFilter label={t('fin_status')} allLabel={t('fin_allStatuses')} value={status} onChange={reset(setStatus)} options={PAYMENT_STATUSES.map((value) => ({ value, label: labelFor(t, 'fin_ps_', value) }))} />
         <SelectFilter label={t('fin_colProvider')} allLabel={t('fin_allTypes')} value={provider} onChange={reset(setProvider)} options={PAYMENT_PROVIDERS.map((value) => ({ value, label: paymentLabel(language, value) }))} />
+        <SelectFilter label={t('fiscal_pay_filter')} allLabel={t('fin_allStatuses')} value={fiscalStatus} onChange={reset(setFiscalStatus)} options={ONLINE_FISCAL_STATUSES.map((value) => ({ value, label: labelFor(t, 'fiscal_pay_st_', value) }))} />
       </HistoryFilters>
       <HistoryList
         query={query}
@@ -178,6 +181,7 @@ export function PaymentsPanel() {
             <Th numeric>{t('fin_colAmount')}</Th>
             <Th>{t('fin_colStatus')}</Th>
             <Th>{t('fin_colPaidAt')}</Th>
+            <Th>{t('fiscal_pay_col')}</Th>
           </tr>
         }
         row={(payment) => (
@@ -196,6 +200,9 @@ export function PaymentsPanel() {
             </Td>
             <Td muted className="whitespace-nowrap">
               {payment.paid_at ? formatDateTime(payment.paid_at, language) : '—'}
+            </Td>
+            <Td className="min-w-56 max-w-80">
+              <FiscalPaymentCell fiscal={payment.fiscal} />
             </Td>
           </tr>
         )}

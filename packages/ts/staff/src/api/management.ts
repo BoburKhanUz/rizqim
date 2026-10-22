@@ -137,6 +137,8 @@ export type PlaceFeeMode = 'per_person' | 'per_table';
 // a null channel list means the default (`["pos_hall"]`); `branch_id` null is the store's default row.
 export interface ServiceFeeRow {
   branch_id: number | null;
+  // P3-12: a hall's own row (null or missing: the branch's or the store's row)
+  hall_id?: number | null;
   service_charge_percent: string;
   service_charge_channels: string[] | null;
   place_fee_amount: string;
@@ -152,6 +154,8 @@ export interface ServiceFees {
 
 export interface ServiceFeeInput {
   branch_id?: number | null;
+  // A hall's own settings (its branch is the hall's)
+  hall_id?: number | null;
   service_charge_percent: number;
   service_charge_channels?: string[] | null;
   place_fee_amount: number;
