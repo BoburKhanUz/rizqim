@@ -21,6 +21,7 @@ export 'src/auth/token_storage.dart';
 export 'src/generated/rizqim_api.dart';
 export 'src/kitchen/kitchen_models.dart';
 export 'src/kitchen/kitchen_service.dart';
+export 'src/kitchen/kitchen_setup.dart';
 export 'src/realtime/backoff.dart';
 export 'src/realtime/channel_auth.dart';
 export 'src/realtime/io_socket.dart';

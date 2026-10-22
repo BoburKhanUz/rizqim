@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:rizqim_api/rizqim_api.dart' show StationKind;
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Oshxona ekrani sozlamalari (qurilmada saqlanadi, maxfiy emas).
@@ -13,6 +14,9 @@ class KdsSettings {
     this.muted = false,
     this.dark = true,
     this.fontScale = 1.0,
+    this.leadOsh = const Duration(minutes: 120),
+    this.leadMangal = const Duration(minutes: 30),
+    this.leadOther = const Duration(minutes: 30),
   });
 
   /// Shuncha vaqt ekranga tegilmasa oshpaz chiqariladi (PIN qayta so'raladi). `null` — o'chirilgan.
@@ -33,6 +37,23 @@ class KdsSettings {
   /// Shrift kattaligi: 1.0, 1.2, 1.4 (televizor uchun).
   final double fontScale;
 
+  /// Oldindan buyurtma (`due_at`) muddatidan shuncha oldin faol doskaga chiqadi: osh (qozon) uzoq pishadi, mangal
+  /// qisqa. Sex turiga qarab ([leadFor]).
+  final Duration leadOsh;
+  final Duration leadMangal;
+  final Duration leadOther;
+
+  /// Sex turi ([StationKind]) uchun oldindan chiqish vaqti; sexsiz yoki boshqa tur — [leadOther].
+  Duration leadFor(String? stationKind) => switch (stationKind) {
+    StationKind.osh => leadOsh,
+    StationKind.mangal => leadMangal,
+    _ => leadOther,
+  };
+
+  static const List<int> leadOshChoices = <int>[60, 90, 120, 150, 180, 240];
+  static const List<int> leadMangalChoices = <int>[10, 15, 20, 30, 45, 60];
+  static const List<int> leadOtherChoices = <int>[10, 15, 30, 45, 60, 90];
+
   static const List<Duration?> idleChoices = <Duration?>[
     null,
     Duration(minutes: 5),
@@ -52,6 +73,9 @@ class KdsSettings {
     bool? muted,
     bool? dark,
     double? fontScale,
+    Duration? leadOsh,
+    Duration? leadMangal,
+    Duration? leadOther,
   }) {
     final Duration warn = warnAfter ?? this.warnAfter;
     Duration late = lateAfter ?? this.lateAfter;
@@ -64,6 +88,9 @@ class KdsSettings {
       muted: muted ?? this.muted,
       dark: dark ?? this.dark,
       fontScale: fontScale ?? this.fontScale,
+      leadOsh: leadOsh ?? this.leadOsh,
+      leadMangal: leadMangal ?? this.leadMangal,
+      leadOther: leadOther ?? this.leadOther,
     );
   }
 
@@ -74,6 +101,9 @@ class KdsSettings {
     'muted': muted,
     'dark': dark,
     'font_scale': fontScale,
+    'lead_osh_minutes': leadOsh.inMinutes,
+    'lead_mangal_minutes': leadMangal.inMinutes,
+    'lead_other_minutes': leadOther.inMinutes,
   };
 
   /// Saqlangan qiymatlardan; yo'q yoki buzilgan qiymat o'rniga standart.
@@ -97,8 +127,14 @@ class KdsSettings {
       muted: map['muted'] is bool ? map['muted']! as bool : null,
       dark: map['dark'] is bool ? map['dark']! as bool : null,
       fontScale: scale is double && scale >= 0.8 && scale <= 2 ? scale : null,
+      leadOsh: _lead(minutes('lead_osh_minutes')),
+      leadMangal: _lead(minutes('lead_mangal_minutes')),
+      leadOther: _lead(minutes('lead_other_minutes')),
     );
   }
+
+  static Duration? _lead(int? m) =>
+      m == null || m <= 0 ? null : Duration(minutes: m);
 
   @override
   bool operator ==(Object other) =>
@@ -108,11 +144,23 @@ class KdsSettings {
       other.lateAfter == lateAfter &&
       other.muted == muted &&
       other.dark == dark &&
-      other.fontScale == fontScale;
+      other.fontScale == fontScale &&
+      other.leadOsh == leadOsh &&
+      other.leadMangal == leadMangal &&
+      other.leadOther == leadOther;
 
   @override
-  int get hashCode =>
-      Object.hash(idleTimeout, warnAfter, lateAfter, muted, dark, fontScale);
+  int get hashCode => Object.hash(
+    idleTimeout,
+    warnAfter,
+    lateAfter,
+    muted,
+    dark,
+    fontScale,
+    leadOsh,
+    leadMangal,
+    leadOther,
+  );
 }
 
 /// Sozlamalar ombori.

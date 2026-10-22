@@ -6,6 +6,9 @@ import 'package:audioplayers/audioplayers.dart';
 abstract interface class TicketSound {
   Future<void> play();
 
+  /// Qator o'chirildi ("O'CHIRILDI"): yangi chiptadan farqli, pastga tushuvchi signal.
+  Future<void> playVoid();
+
   Future<void> dispose();
 }
 
@@ -15,13 +18,19 @@ class AssetTicketSound implements TicketSound {
   AssetTicketSound({this.minGap = const Duration(seconds: 2)});
 
   static const String asset = 'sounds/new_ticket.wav';
+  static const String voidAsset = 'sounds/void.wav';
 
   final Duration minGap;
   AudioPlayer? _player;
   DateTime? _last;
 
   @override
-  Future<void> play() async {
+  Future<void> play() => _play(asset);
+
+  @override
+  Future<void> playVoid() => _play(voidAsset);
+
+  Future<void> _play(String asset) async {
     final DateTime now = DateTime.now();
     final DateTime? last = _last;
     if (last != null && now.difference(last) < minGap) return;
@@ -50,9 +59,13 @@ class AssetTicketSound implements TicketSound {
 /// Ovozsiz (testlar, audio yo'q muhit).
 class SilentTicketSound implements TicketSound {
   int plays = 0;
+  int voidPlays = 0;
 
   @override
   Future<void> play() async => plays++;
+
+  @override
+  Future<void> playVoid() async => voidPlays++;
 
   @override
   Future<void> dispose() async {}

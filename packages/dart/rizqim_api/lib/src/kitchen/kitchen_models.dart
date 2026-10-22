@@ -8,6 +8,15 @@ library;
 abstract final class KitchenLineStatus {
   static const String pending = 'pending';
   static const String ready = 'ready';
+
+  /// POS qatori oshxonaga yuborildi (docs/API.md, P3-12).
+  static const String sent = 'sent';
+
+  /// POS qatori mehmonga berildi (ofitsiant belgilaydi; oshxona faqat ko'rsatadi).
+  static const String served = 'served';
+
+  /// POS qatori o'chirildi ("O'CHIRILDI").
+  static const String voided = 'void';
 }
 
 /// Taomga qo'shilgan modifikator ("Qo'shimcha: pishloq").
@@ -45,6 +54,15 @@ class KitchenLine {
     this.unit = 'pcs',
     this.modifiers = const <KitchenModifier>[],
     this.readyAt,
+    this.roundNo,
+    this.fireMode,
+    this.stationId,
+    this.sentAt,
+    this.dueAt,
+    this.seatNo,
+    this.note,
+    this.voidedAt,
+    this.voidReason,
   });
 
   factory KitchenLine.fromJson(Map<String, Object?> json) => KitchenLine(
@@ -57,6 +75,15 @@ class KitchenLine {
     modifiers: _list(json['modifiers'], KitchenModifier.fromJson),
     status: (json['kitchen_status'] as String?) ?? KitchenLineStatus.pending,
     readyAt: _date(json['ready_at']),
+    roundNo: (json['round_no'] as num?)?.toInt(),
+    fireMode: json['fire_mode'] as String?,
+    stationId: (json['station_id'] as num?)?.toInt(),
+    sentAt: _date(json['sent_at']),
+    dueAt: _date(json['due_at']),
+    seatNo: (json['seat_no'] as num?)?.toInt(),
+    note: json['note'] as String?,
+    voidedAt: _date(json['voided_at']),
+    voidReason: json['void_reason'] as String?,
   );
 
   final int id;
@@ -77,7 +104,41 @@ class KitchenLine {
   final String status;
   final DateTime? readyAt;
 
+  /// POS qatorining qo'shimcha maydonlari (P3-12); onlayn qatorda hammasi `null`.
+  final int? roundNo;
+
+  /// `now` yoki `hold`; onlayn qatorda `null`.
+  final String? fireMode;
+  final int? stationId;
+  final DateTime? sentAt;
+
+  /// Oldindan buyurtma: taom shu vaqtga pishib bo'lishi kerak.
+  final DateTime? dueAt;
+  final int? seatNo;
+
+  /// Ofitsiant izohi ("achchiq", "piyozsiz").
+  final String? note;
+  final DateTime? voidedAt;
+  final String? voidReason;
+
   bool get isReady => status == KitchenLineStatus.ready;
+
+  bool get isServed => status == KitchenLineStatus.served;
+
+  /// O'chirilgan qator ("O'CHIRILDI").
+  bool get isVoid => status == KitchenLineStatus.voided;
+
+  /// Oshxona ishini tugatgan: tayyor yoki mehmonga berilgan.
+  bool get isDone => isReady || isServed;
+
+  /// POS qatori (onlayn qatorda `fire_mode` yo'q).
+  bool get isPos => fireMode != null;
+
+  /// Hali oshxonaga yuborilmagan, ushlab turilgan qator (oldindan buyurtma navbati). Uni "tayyor" deb bo'lmaydi.
+  bool get isHeld => fireMode == 'hold' && sentAt == null && !isVoid;
+
+  /// Donali taom (`piece`; eski/soxta qiymat `pcs`).
+  bool get isPiece => unit == 'pcs' || unit == 'piece';
 
   /// "Osh (katta)" yoki "Osh".
   String get title {
@@ -87,7 +148,12 @@ class KitchenLine {
         : '$productName ($variant)';
   }
 
-  KitchenLine copyWith({String? status, DateTime? readyAt}) => KitchenLine(
+  KitchenLine copyWith({
+    String? status,
+    DateTime? readyAt,
+    DateTime? voidedAt,
+    String? voidReason,
+  }) => KitchenLine(
     id: id,
     productName: productName,
     variantName: variantName,
@@ -97,6 +163,15 @@ class KitchenLine {
     modifiers: modifiers,
     status: status ?? this.status,
     readyAt: readyAt ?? this.readyAt,
+    roundNo: roundNo,
+    fireMode: fireMode,
+    stationId: stationId,
+    sentAt: sentAt,
+    dueAt: dueAt,
+    seatNo: seatNo,
+    note: note,
+    voidedAt: voidedAt ?? this.voidedAt,
+    voidReason: voidReason ?? this.voidReason,
   );
 }
 
@@ -183,9 +258,13 @@ class KitchenTicket {
     return '#${uuid.substring(0, uuid.length < 8 ? uuid.length : 8).toUpperCase()}';
   }
 
-  int get readyCount => lines.where((KitchenLine l) => l.isReady).length;
+  /// Tayyor (yoki berilgan) qatorlar soni; o'chirilganlar sanalmaydi.
+  int get readyCount => lines.where((KitchenLine l) => l.isDone).length;
 
-  bool get allLinesReady => lines.isNotEmpty && readyCount == lines.length;
+  /// O'chirilmagan qatorlar.
+  int get activeCount => lines.where((KitchenLine l) => !l.isVoid).length;
+
+  bool get allLinesReady => activeCount > 0 && readyCount == activeCount;
 
   /// Oshxonada hali pishirilayotgan (server `accepted` yoki `preparing` deb yuborgan) chipta.
   bool get isCooking => status == 'accepted' || status == 'preparing';

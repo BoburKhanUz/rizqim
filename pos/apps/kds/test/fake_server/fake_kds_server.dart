@@ -23,7 +23,11 @@ class FakeKdsServer {
   FakeKdsServer._(this._server, this.state, this._sockets);
 
   /// [port] 0 — bo'sh port. [demo] — namunaviy buyurtmalar bilan boshlanadi.
-  static Future<FakeKdsServer> start({int port = 0, bool demo = false}) async {
+  static Future<FakeKdsServer> start({
+    int port = 0,
+    bool demo = false,
+    bool pos = false,
+  }) async {
     final List<_Ws> sockets = <_Ws>[];
     final FakeKitchenState state = FakeKitchenState(
       onEvent: (String event, Map<String, Object?> data) {
@@ -35,6 +39,7 @@ class FakeKdsServer {
       },
     );
     if (demo) state.seedDemo();
+    if (pos) state.seedPosDemo();
     final HttpServer server = await HttpServer.bind(
       InternetAddress.loopbackIPv4,
       port,
@@ -89,8 +94,11 @@ class FakeKdsServer {
 
 Future<void> main(List<String> args) async {
   final int port = int.tryParse(_arg(args, '--port') ?? '') ?? 8787;
-  final FakeKdsServer server = await FakeKdsServer.start(port: port, demo: true)
-    ..verbose = true;
+  // `--pos`: choyxona namunasi (sexlar, mangal, oldindan buyurtmalar, qozon), oddiy namunasiz
+  final bool pos = args.contains('--pos');
+  final FakeKdsServer server =
+      await FakeKdsServer.start(port: port, demo: !pos, pos: pos)
+        ..verbose = true;
   stdout.writeln(
     'Soxta KDS backend: ${server.apiBaseUrl} (Reverb: ws://127.0.0.1:${server.port}/app/kds-key)',
   );
@@ -117,6 +125,30 @@ Future<void> _handle(
             ],
           );
           _json(request, 200, <String, Object?>{'uuid': uuid});
+        case '/__control/void':
+          // Birinchi POS buyurtmaning birinchi pishayotgan qatori o'chiriladi (ovozli signal va "O'CHIRILDI")
+          final Map<String, Object?> order = state.orders.firstWhere(
+            (Map<String, Object?> o) => o['channel'] == 'pos_hall',
+          );
+          final Map<String, Object?> item = (order['items']! as List<Object?>)
+              .cast<Map<String, Object?>>()
+              .firstWhere(
+                (Map<String, Object?> i) => i['kitchen_status'] == 'sent',
+              );
+          state.voidLine(
+            order['uuid']! as String,
+            item['id']! as int,
+            reason:
+                request.uri.queryParameters['reason'] ??
+                'Mehmon fikrini o\'zgartirdi',
+          );
+          _json(request, 200, <String, Object?>{'voided': item['id']});
+        case '/__control/cancel':
+          final Map<String, Object?> last = state.orders.lastWhere(
+            (Map<String, Object?> o) => o['channel'] == 'pos_hall',
+          );
+          state.cancelOrder(last['uuid']! as String);
+          _json(request, 200, <String, Object?>{'canceled': last['uuid']});
         case '/__control/offline':
           server.offline = request.uri.queryParameters['on'] == '1';
           _json(request, 200, <String, Object?>{'offline': server.offline});

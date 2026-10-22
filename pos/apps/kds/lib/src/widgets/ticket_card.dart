@@ -4,15 +4,17 @@ import 'package:rizqim_api/rizqim_api.dart';
 import 'package:rizqim_core/rizqim_core.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
+import '../board/board_view.dart';
 import '../board/wait_level.dart';
 import '../settings/kds_settings.dart';
 import 'kds_type.dart';
+import 'line_marks.dart';
 
 /// Bitta oshxona chiptasi: raqam, turi, kutish vaqti (rang, ikonka va yorliq bilan), izoh, taomlar va tugmalar.
 class TicketCard extends StatelessWidget {
   const TicketCard({
     super.key,
-    required this.ticket,
+    required this.entry,
     required this.clock,
     required this.settings,
     required this.canManage,
@@ -24,7 +26,7 @@ class TicketCard extends StatelessWidget {
     required this.onMarkReady,
   });
 
-  final KitchenTicket ticket;
+  final BoardTicket entry;
 
   /// Har soniyada yangilanadigan soat (faqat taymer qayta chiziladi).
   final ValueListenable<DateTime> clock;
@@ -37,16 +39,30 @@ class TicketCard extends StatelessWidget {
   final VoidCallback onBumpAll;
   final VoidCallback onMarkReady;
 
+  KitchenTicket get ticket => entry.ticket;
+
+  /// Qatorni "tayyor" deb belgilash mumkin (ushlab turilgan qator hali oshxonada emas).
+  static bool canBump(KitchenLine l) => !l.isDone && !l.isVoid && !l.isHeld;
+
   @override
   Widget build(BuildContext context) {
     final RzColors c = context.rz;
     final String? notes = ticket.notes?.trim();
-    final int pending = ticket.lines.length - ticket.readyCount;
+    final bool anyBumpable = ticket.lines.any(canBump);
+    final bool nothingLeft = ticket.lines.every(
+      (KitchenLine l) => l.isDone || l.isVoid,
+    );
+    final Set<int> rounds = <int>{
+      for (final KitchenLine l in ticket.lines)
+        if (l.roundNo != null) l.roundNo!,
+    };
     return ValueListenableBuilder<DateTime>(
       valueListenable: clock,
       builder: (BuildContext context, DateTime now, Widget? body) {
-        final Duration waiting = ticket.waitingAt(now);
-        final WaitLevel level = WaitLevel.of(waiting, settings);
+        final Duration waiting = entry.waiting(now);
+        final WaitLevel level = entry.voided
+            ? WaitLevel.normal
+            : WaitLevel.of(waiting, settings);
         final Color border = switch (level) {
           WaitLevel.normal => c.line,
           WaitLevel.warn => c.warning,
@@ -57,8 +73,8 @@ class TicketCard extends StatelessWidget {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(RzRadius.card),
             side: BorderSide(
-              color: border,
-              width: level == WaitLevel.normal ? 1 : 3,
+              color: entry.voided ? c.danger : border,
+              width: level == WaitLevel.normal && !entry.voided ? 1 : 3,
             ),
           ),
           clipBehavior: Clip.antiAlias,
@@ -70,6 +86,8 @@ class TicketCard extends StatelessWidget {
                 waiting: waiting,
                 level: level,
                 isNew: isNew,
+                voided: entry.voided,
+                rounds: rounds,
               ),
               body!,
             ],
@@ -102,21 +120,27 @@ class TicketCard extends StatelessWidget {
               ),
             ),
           const SizedBox(height: 4),
-          for (final KitchenLine line in ticket.lines) ...<Widget>[
+          for (var i = 0; i < ticket.lines.length; i++) ...<Widget>[
+            if (rounds.length > 1 &&
+                (i == 0 ||
+                    ticket.lines[i].roundNo != ticket.lines[i - 1].roundNo))
+              _RoundHeading(round: ticket.lines[i].roundNo),
             _LineRow(
-              line: line,
-              busy: isLineBusy(line.id),
-              enabled: canManage && !orderBusy,
-              onTap: () => onLineTap(line),
+              line: ticket.lines[i],
+              busy: isLineBusy(ticket.lines[i].id),
+              enabled: canManage && !orderBusy && !entry.voided,
+              onTap: () => onLineTap(ticket.lines[i]),
             ),
-            if (line != ticket.lines.last)
+            if (i != ticket.lines.length - 1)
               Divider(height: 1, indent: 12, endIndent: 12, color: c.line),
           ],
-          if (canManage) ...<Widget>[
+          if (entry.voided)
+            const SizedBox(height: 8)
+          else if (canManage) ...<Widget>[
             const SizedBox(height: 8),
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-              child: pending > 0
+              child: anyBumpable
                   ? RzButton(
                       label: 'Hammasi tayyor',
                       icon: Icons.done_all_rounded,
@@ -126,7 +150,7 @@ class TicketCard extends StatelessWidget {
                       loading: orderBusy,
                       onPressed: onBumpAll,
                     )
-                  : ticket.isCooking
+                  : ticket.isCooking && nothingLeft && entry.canMarkOrderReady
                   ? RzButton(
                       label: 'Buyurtma tayyor',
                       icon: Icons.check_circle_outline,
@@ -144,42 +168,77 @@ class TicketCard extends StatelessWidget {
   }
 }
 
+/// Bosqich sarlavhasi (chiptada bir nechta bosqich bo'lsa).
+class _RoundHeading extends StatelessWidget {
+  const _RoundHeading({required this.round});
+
+  final int? round;
+
+  @override
+  Widget build(BuildContext context) {
+    final RzColors c = context.rz;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+      child: Row(
+        children: <Widget>[
+          Text(
+            round == null ? 'Bosqichsiz' : '$round-bosqich',
+            style: RzType.footnote.copyWith(
+              color: c.brandSoftFg,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.4,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(child: Divider(height: 1, color: c.line)),
+        ],
+      ),
+    );
+  }
+}
+
 class _Header extends StatelessWidget {
   const _Header({
     required this.ticket,
     required this.waiting,
     required this.level,
     required this.isNew,
+    required this.voided,
+    required this.rounds,
   });
 
   final KitchenTicket ticket;
   final Duration waiting;
   final WaitLevel level;
   final bool isNew;
+  final bool voided;
+  final Set<int> rounds;
 
   @override
   Widget build(BuildContext context) {
     final RzColors c = context.rz;
-    final (Color bg, Color fg, IconData icon, String? label) = switch (level) {
-      WaitLevel.normal => (
-        Color.alphaBlend(c.surface2, c.surface),
-        c.fg,
-        Icons.timer_outlined,
-        null,
-      ),
-      WaitLevel.warn => (
-        c.warning,
-        c.onWarning,
-        Icons.hourglass_bottom_rounded,
-        'Shoshiling',
-      ),
-      WaitLevel.late => (
-        c.danger,
-        c.onDanger,
-        Icons.warning_amber_rounded,
-        'Kechikdi',
-      ),
-    };
+    final (Color bg, Color fg, IconData icon, String? label) = voided
+        ? (c.danger, c.onDanger, Icons.block_rounded, VoidBadge.label)
+        : switch (level) {
+            WaitLevel.normal => (
+              Color.alphaBlend(c.surface2, c.surface),
+              c.fg,
+              Icons.timer_outlined,
+              null,
+            ),
+            WaitLevel.warn => (
+              c.warning,
+              c.onWarning,
+              Icons.hourglass_bottom_rounded,
+              'Shoshiling',
+            ),
+            WaitLevel.late => (
+              c.danger,
+              c.onDanger,
+              Icons.warning_amber_rounded,
+              'Kechikdi',
+            ),
+          };
     final OrderType? type = OrderType.fromWire(ticket.type);
     final IconData typeIcon = switch (type) {
       OrderType.dineIn => Icons.restaurant_rounded,
@@ -191,7 +250,8 @@ class _Header extends StatelessWidget {
       type?.shortLabel ?? ticket.type,
       if (ticket.hallRef case final String hall when hall.isNotEmpty) hall,
       if (ticket.tableRef case final String table when table.isNotEmpty)
-        'Stol $table',
+        // Xona, tapchan va nomli joy o'z nomi bilan ("Xona 3"), raqam bo'lsa "Stol 7"
+        RegExp(r'^\d+$').hasMatch(table) ? 'Stol $table' : table,
     ];
     final String channel =
         OrderChannel.fromWire(ticket.channel)?.label ?? ticket.channel;
@@ -278,7 +338,7 @@ class _Header extends StatelessWidget {
             ),
             const SizedBox(height: 2),
             Text(
-              '$status · $accepted · ${ticket.readyCount}/${ticket.lines.length} tayyor',
+              '$status · $accepted · ${ticket.readyCount}/${ticket.activeCount} tayyor${rounds.length == 1 ? ' · ${rounds.single}-bosqich' : ''}',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: meta,
@@ -306,77 +366,162 @@ class _LineRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final RzColors c = context.rz;
-    final bool ready = line.isReady;
-    final Color textColor = ready ? c.fgMuted : c.fg;
-    final TextDecoration? strike = ready ? TextDecoration.lineThrough : null;
-    final String quantity = line.unit == 'pcs'
+    final bool voided = line.isVoid;
+    final bool done = line.isDone;
+    final bool held = line.isHeld;
+    // Tayyor qatorni qaytarish mumkin; berilgan (ofitsiant belgilagan) va o'chirilganni oshxona o'zgartirmaydi,
+    // ushlab turilgan qator hali oshxonada emas
+    final bool actionable = enabled && !voided && !held && !line.isServed;
+    final bool tappable = actionable && !busy;
+    final Color textColor = voided || done ? c.fgMuted : c.fg;
+    final TextDecoration? strike = voided || done
+        ? TextDecoration.lineThrough
+        : null;
+    final String quantity = line.isPiece
         ? '${line.quantityLabel}×'
         : line.quantityLabel;
+    final String stateLabel = voided
+        ? "o'chirilgan"
+        : line.isServed
+        ? 'berilgan'
+        : done
+        ? 'tayyor'
+        : held
+        ? 'oldindan buyurtma, hali yuborilmagan'
+        : 'tayyor emas';
+    final String? note = line.note?.trim();
+    final String? reason = line.voidReason?.trim();
+    final DateTime? due = line.dueAt;
     return Semantics(
-      button: enabled,
+      button: actionable,
       label:
-          '${line.title}, $quantity, ${ready ? 'tayyor' : 'tayyor emas'}${enabled ? (ready ? '. Bosib qaytaring' : '. Bosib tayyor deb belgilang') : ''}',
+          '${line.title}, $quantity, $stateLabel${actionable ? (line.isReady ? '. Bosib qaytaring' : '. Bosib tayyor deb belgilang') : ''}',
       excludeSemantics: true,
       child: InkWell(
-        onTap: enabled && !busy ? onTap : null,
-        child: ConstrainedBox(
+        onTap: tappable ? onTap : null,
+        child: Container(
+          color: voided ? c.dangerSoft.withValues(alpha: 0.5) : null,
           constraints: const BoxConstraints(minHeight: 56),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                ConstrainedBox(
-                  constraints: const BoxConstraints(minWidth: 52),
-                  child: Text(
-                    quantity,
-                    style: KdsType.quantity.copyWith(
-                      color: ready ? c.fgMuted : c.brandSoftFg,
-                      decoration: strike,
-                    ),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              ConstrainedBox(
+                constraints: const BoxConstraints(minWidth: 52),
+                child: Text(
+                  quantity,
+                  style: KdsType.quantity.copyWith(
+                    color: voided || done ? c.fgMuted : c.brandSoftFg,
+                    decoration: strike,
                   ),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      line.title,
+                      style: KdsType.line.copyWith(
+                        color: textColor,
+                        decoration: strike,
+                      ),
+                    ),
+                    for (final KitchenModifier m in line.modifiers)
                       Text(
-                        line.title,
-                        style: KdsType.line.copyWith(
-                          color: textColor,
+                        '+ ${m.label}',
+                        style: KdsType.modifier.copyWith(
+                          color: c.fgMuted,
                           decoration: strike,
                         ),
                       ),
-                      for (final KitchenModifier m in line.modifiers)
-                        Text(
-                          '+ ${m.label}',
-                          style: KdsType.modifier.copyWith(
-                            color: c.fgMuted,
-                            decoration: strike,
+                    if (note != null && note.isNotEmpty && !voided)
+                      Text(
+                        note,
+                        style: KdsType.modifier.copyWith(
+                          color: c.warningSoftFg,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    if (voided) ...<Widget>[
+                      const SizedBox(height: 4),
+                      const Align(
+                        alignment: Alignment.centerLeft,
+                        child: VoidBadge(),
+                      ),
+                      if (reason != null && reason.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text(
+                            'Sabab: $reason',
+                            style: KdsType.modifier.copyWith(
+                              color: c.dangerSoftFg,
+                            ),
                           ),
                         ),
                     ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                SizedBox.square(
-                  dimension: 32,
-                  child: busy
-                      ? const Padding(
-                          padding: EdgeInsets.all(5),
-                          child: CircularProgressIndicator(strokeWidth: 3),
-                        )
-                      : Icon(
-                          ready
-                              ? Icons.check_circle_rounded
-                              : Icons.radio_button_unchecked_rounded,
-                          size: 32,
-                          color: ready ? c.success : c.fgMuted,
+                    if (held && due != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            Icon(
+                              Icons.schedule_rounded,
+                              size: 18,
+                              color: c.warningSoftFg,
+                            ),
+                            const SizedBox(width: 4),
+                            Flexible(
+                              child: Text(
+                                'Muddat ${formatTime(due)} · hali yuborilmagan',
+                                style: KdsType.modifier.copyWith(
+                                  color: c.warningSoftFg,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
+                      ),
+                    if (line.isServed)
+                      Text(
+                        'Berildi',
+                        style: KdsType.modifier.copyWith(color: c.fgMuted),
+                      ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 8),
+              SizedBox.square(
+                dimension: 32,
+                child: busy
+                    ? const Padding(
+                        padding: EdgeInsets.all(5),
+                        child: CircularProgressIndicator(strokeWidth: 3),
+                      )
+                    : Icon(
+                        voided
+                            ? Icons.block_rounded
+                            : line.isServed
+                            ? Icons.done_all_rounded
+                            : done
+                            ? Icons.check_circle_rounded
+                            : held
+                            ? Icons.schedule_rounded
+                            : Icons.radio_button_unchecked_rounded,
+                        size: 32,
+                        color: voided
+                            ? c.danger
+                            : done
+                            ? c.success
+                            : held
+                            ? c.warning
+                            : c.fgMuted,
+                      ),
+              ),
+            ],
           ),
         ),
       ),

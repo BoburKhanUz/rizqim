@@ -17,6 +17,45 @@ class FakeResponse {
 
 typedef FakeEventSink = void Function(String event, Map<String, Object?> data);
 
+/// POS buyurtmasining bitta qatori (P3-12): bosqich, sex, `fire_mode`, muddat va holat bilan.
+class PosLine {
+  const PosLine(
+    this.name,
+    this.qty, {
+    this.unit = 'piece',
+    this.station,
+    this.round = 1,
+    this.status = 'sent',
+    this.fire = 'now',
+    this.dueIn,
+    this.sentAgo = const Duration(minutes: 1),
+    this.note,
+    this.mods = const <String>[],
+    this.voidReason,
+  });
+
+  final String name;
+  final String qty;
+  final String unit;
+  final int? station;
+  final int round;
+
+  /// `sent`, `ready`, `served`, `void` yoki `pending` (ushlab turilgan).
+  final String status;
+
+  /// `now` yoki `hold`.
+  final String fire;
+
+  /// Oldindan buyurtma muddati (hozirdan): faqat `hold` va yuborilgan oldindan buyurtmada.
+  final Duration? dueIn;
+
+  /// Yuborilganiga qancha bo'ldi; ushlab turilgan qatorda e'tiborga olinmaydi.
+  final Duration sentAgo;
+  final String? note;
+  final List<String> mods;
+  final String? voidReason;
+}
+
 class FakeKitchenState {
   FakeKitchenState({DateTime Function()? clock, this.onEvent})
     : now = clock ?? DateTime.now;
@@ -61,6 +100,14 @@ class FakeKitchenState {
 
   /// Kirgan xodimning ruxsatlari.
   List<String> permissions = <String>['orders.view', 'kitchen.manage'];
+
+  /// `GET /pos/bootstrap` dagi sexlar. `null` — endpoint yo'q (fazа 2 serveri): 404.
+  List<Map<String, Object?>>? stations;
+
+  /// Qozonlar (`/owner/batches`) va qozon bo'yicha sotiladigan taomlar (`GET /catalog`).
+  final List<Map<String, Object?>> batches = <Map<String, Object?>>[];
+  List<Map<String, Object?>> catalogProducts = <Map<String, Object?>>[];
+  int _batchSeq = 0;
 
   /// Rolga qo'shimcha ruxsatlar (backend `RolePermissions` dagidek: menejer qurilmalarni boshqaradi).
   Map<String, List<String>> rolePermissions = <String, List<String>>{
@@ -137,6 +184,297 @@ class FakeKitchenState {
     });
     _event('order.created', uuid);
     return uuid;
+  }
+
+  /// Yangi sex (`kind`: osh, mangal, ...); `stations` ro'yxatiga qo'shiladi.
+  void addStation(int id, String name, String kind, {bool showOnKds = true}) {
+    (stations ??= <Map<String, Object?>>[]).add(<String, Object?>{
+      'id': id,
+      'branch_id': branchId,
+      'name': name,
+      'kind': kind,
+      'kind_label': name,
+      'sort_order': id,
+      'is_active': true,
+      'show_on_kds': showOnKds,
+    });
+  }
+
+  /// POS buyurtmasi (zal, `accepted`): qatorlar sex, bosqich va holat bilan. Qaytaradi: buyurtma uuid.
+  String addPosOrder({
+    String table = 'Xona 3',
+    Duration age = const Duration(minutes: 2),
+    String status = 'accepted',
+    List<PosLine> lines = const <PosLine>[],
+    String? notes,
+  }) {
+    final int n = ++_seq;
+    final String uuid =
+        '${n.toRadixString(16).padLeft(8, '0')}-0000-4000-8000-${n.toString().padLeft(12, '0')}';
+    final DateTime accepted = now().subtract(age);
+    orders.add(<String, Object?>{
+      'uuid': uuid,
+      'short_code': 'P$n',
+      'status': status,
+      'type': 'dine_in',
+      'channel': 'pos_hall',
+      'branch_id': branchId,
+      'hall_ref': 'Xonalar',
+      'table_ref': table,
+      'guests_count': 6,
+      'notes': notes,
+      'created_at': accepted.subtract(const Duration(minutes: 1)),
+      'accepted_at': accepted,
+      'preparing_at': null,
+      'ready_at': null,
+      'items': <Map<String, Object?>>[
+        for (final PosLine l in lines) _posItem(l),
+      ],
+    });
+    _event('order.created', uuid);
+    return uuid;
+  }
+
+  Map<String, Object?> _posItem(PosLine l) {
+    final bool held = l.status == 'pending' && l.fire == 'hold';
+    return <String, Object?>{
+      'id': ++_itemSeq,
+      'product_name': l.name,
+      'variant_name': null,
+      'quantity': num.tryParse(l.qty.split(' ').first) ?? 1,
+      'unit': l.unit,
+      'quantity_label': l.qty,
+      'modifiers': <Map<String, Object?>>[
+        for (final String m in l.mods)
+          <String, Object?>{'name': m, 'group_name': null, 'quantity': 1},
+      ],
+      'kitchen_status': l.status,
+      'ready_at': l.status == 'ready' ? now() : null,
+      'round_no': l.round,
+      'fire_mode': l.fire,
+      'station_id': l.station,
+      'sent_at': held ? null : now().subtract(l.sentAgo),
+      'due_at': l.dueIn == null ? null : now().add(l.dueIn!),
+      'seat_no': null,
+      'note': l.note,
+      'voided_at': l.status == 'void' ? now() : null,
+      'void_reason': l.voidReason,
+    };
+  }
+
+  /// Ofitsiant qatorni o'chirdi ("O'CHIRILDI"): hodisa yuboriladi.
+  void voidLine(String uuid, int itemId, {String reason = 'Mehmon xohlamadi'}) {
+    final Map<String, Object?> item = _items(_order(uuid)!)
+        .firstWhere((Map<String, Object?> i) => i['id'] == itemId);
+    item['kitchen_status'] = 'void';
+    item['voided_at'] = now();
+    item['void_reason'] = reason;
+    _event('kitchen.item_status_changed', uuid);
+  }
+
+  /// Ofitsiant qatorni mehmonga berdi (`ready` → `served`).
+  void serveLine(String uuid, int itemId) {
+    final Map<String, Object?> item = _items(_order(uuid)!)
+        .firstWhere((Map<String, Object?> i) => i['id'] == itemId);
+    item['kitchen_status'] = 'served';
+    _event('kitchen.item_status_changed', uuid);
+  }
+
+  /// Ushlab turilgan qator oshxonaga yuborildi (`pending` → `sent`).
+  void sendLine(String uuid, int itemId) {
+    final Map<String, Object?> item = _items(_order(uuid)!)
+        .firstWhere((Map<String, Object?> i) => i['id'] == itemId);
+    item['kitchen_status'] = 'sent';
+    item['sent_at'] = now();
+    _event('kitchen.item_status_changed', uuid);
+  }
+
+  /// Butun buyurtma bekor qilindi: pishmagan qatorlari `void`, buyurtma chiptalardan ketadi.
+  void cancelOrder(String uuid, {String reason = 'Mehmonlar ketdi'}) {
+    final Map<String, Object?> order = _order(uuid)!;
+    for (final Map<String, Object?> i in _items(order)) {
+      if (i['kitchen_status'] == 'ready' || i['kitchen_status'] == 'served') {
+        continue;
+      }
+      i['kitchen_status'] = 'void';
+      i['voided_at'] = now();
+      i['void_reason'] = reason;
+    }
+    order['status'] = 'canceled';
+    _event('order.status_changed', uuid);
+  }
+
+  /// Ochiq qozon.
+  int addBatch(
+    String product,
+    num produced, {
+    num? left,
+    int productId = 1,
+    String? label,
+    bool open = true,
+  }) {
+    final int id = ++_batchSeq;
+    batches.add(<String, Object?>{
+      'id': id,
+      'uuid': 'b0000000-0000-4000-8000-${id.toString().padLeft(12, '0')}',
+      'branch_id': branchId,
+      'product_id': productId,
+      'product_name': product,
+      'product_variant_id': null,
+      'variant_name': null,
+      'unit': 'piece',
+      'label': label,
+      'quantity_produced': produced,
+      'quantity_left': left ?? produced,
+      'is_open': open,
+      'started_at': now().toUtc().toIso8601String(),
+      'sold_out_at': null,
+      'closed_at': open ? null : now().toUtc().toIso8601String(),
+    });
+    return id;
+  }
+
+  /// Choyxona namunasi (P3-24): sexlar, mangal va oldindan buyurtmalar, o'chirilgan va berilgan qator, qozonlar.
+  /// Oshpazga `batches.manage` beriladi.
+  void seedPosDemo() {
+    if (!permissions.contains('batches.manage')) {
+      permissions.add('batches.manage');
+    }
+    addStation(1, 'Mangal', 'mangal');
+    addStation(2, 'Osh', 'osh');
+    addStation(3, 'Salat', 'salad_bar');
+    addStation(4, 'Choy', 'tea');
+    addPosOrder(
+      table: 'Xona 3',
+      age: const Duration(minutes: 14),
+      lines: const <PosLine>[
+        PosLine(
+          "Qo'y shashlik",
+          '6',
+          station: 1,
+          sentAgo: Duration(minutes: 12),
+          note: 'Yaxshi pishgan',
+        ),
+        PosLine(
+          'Tovuq shashlik',
+          '4',
+          station: 1,
+          sentAgo: Duration(minutes: 12),
+        ),
+        PosLine(
+          "Lula kabob",
+          '4',
+          station: 1,
+          round: 2,
+          sentAgo: Duration(minutes: 2),
+        ),
+        PosLine(
+          "Qo'y shashlik",
+          '4',
+          station: 1,
+          round: 2,
+          sentAgo: Duration(minutes: 2),
+        ),
+        PosLine('Osh', '1.5 kg', unit: 'kg', station: 2, status: 'ready'),
+        PosLine('Achichuk', '2', station: 3, status: 'served'),
+      ],
+    );
+    final String tapchan = addPosOrder(
+      table: 'Tapchan 2',
+      age: const Duration(minutes: 5),
+      lines: const <PosLine>[
+        PosLine(
+          "Qo'y shashlik",
+          '10',
+          station: 1,
+          sentAgo: Duration(minutes: 4),
+        ),
+        PosLine(
+          'Jigar shashlik',
+          '6',
+          station: 1,
+          sentAgo: Duration(minutes: 4),
+        ),
+        PosLine('Choy', '2', station: 4, mods: <String>['Ko\'k']),
+      ],
+    );
+    // Ofitsiant "Jigar"ni o'chirdi
+    final List<Map<String, Object?>> tapchanItems = _items(_order(tapchan)!);
+    voidLine(
+      tapchan,
+      tapchanItems[1]['id']! as int,
+      reason: 'Mehmon xohlamadi',
+    );
+    addPosOrder(
+      table: 'Xona 5',
+      age: const Duration(minutes: 1),
+      lines: const <PosLine>[
+        PosLine(
+          'Toy oshi',
+          '8 kg',
+          unit: 'kg',
+          station: 2,
+          status: 'pending',
+          fire: 'hold',
+          dueIn: Duration(hours: 2, minutes: 35),
+          note: 'Kechki 19:00 ga',
+        ),
+        PosLine(
+          'Shashlik assorti',
+          '20',
+          station: 1,
+          status: 'pending',
+          fire: 'hold',
+          dueIn: Duration(minutes: 55),
+        ),
+        PosLine(
+          'Qozon kabob',
+          '3 kg',
+          unit: 'kg',
+          station: 2,
+          status: 'pending',
+          fire: 'hold',
+          dueIn: Duration(minutes: 70),
+        ),
+        PosLine(
+          'Osh',
+          '2 kg',
+          unit: 'kg',
+          station: 2,
+          status: 'pending',
+          fire: 'hold',
+          dueIn: Duration(minutes: 20),
+        ),
+      ],
+    );
+    addPosOrder(
+      table: 'Xona 6',
+      age: const Duration(minutes: 40),
+      lines: const <PosLine>[
+        PosLine("Sho'rva", '3', station: 2, sentAgo: Duration(minutes: 22)),
+      ],
+    );
+    catalogProducts = <Map<String, Object?>>[
+      <String, Object?>{
+        'id': 21,
+        'name': 'Qozon kabob',
+        'batch_tracked': true,
+        'variants': <Map<String, Object?>>[],
+      },
+      <String, Object?>{
+        'id': 22,
+        'name': 'Palov (devzira)',
+        'batch_tracked': true,
+        'variants': <Map<String, Object?>>[
+          <String, Object?>{'id': 221, 'name': 'Oddiy'},
+          <String, Object?>{'id': 222, 'name': 'Sergo\'sht'},
+        ],
+      },
+    ];
+    addBatch('Osh', 40, left: 14, label: '1-qozon', productId: 11);
+    addBatch("Sho'rva", 30, left: 4, label: 'Tushlik', productId: 12);
+    addBatch('Mastava', 25, left: 0, productId: 13);
+    addBatch('Dimlama', 20, left: 3, productId: 14, open: false);
   }
 
   /// Namunaviy oshxona: har xil tur, vazn, modifikator, izoh va kutish vaqti.
@@ -254,8 +592,21 @@ class FakeKitchenState {
       return _signIn(data);
     }
 
+    if (p == '/v1/pos/bootstrap' ||
+        p == '/v1/catalog' ||
+        p.startsWith('/v1/owner/batches')) {
+      if (bearer == null || bearer != _staffToken) return _unauthenticated();
+      return _setup(method, p, data, query);
+    }
+
     if (p.startsWith('/v1/staff/')) {
       if (bearer == null || bearer != _staffToken) return _unauthenticated();
+      final RegExpMatch? detail = RegExp(r'^/v1/staff/orders/([^/]+)$')
+          .firstMatch(p);
+      if (method == 'GET' && detail != null) {
+        final Map<String, Object?>? o = _order(detail[1]!);
+        return o == null ? _notFound() : _ok(_ticket(o));
+      }
       if (method == 'GET' && p == '/v1/staff/kitchen/tickets') {
         return FakeResponse(200, <String, Object?>{
           'success': true,
@@ -288,6 +639,85 @@ class FakeKitchenState {
       'success': false,
       'message': 'Topilmadi: $method $path',
     });
+  }
+
+  /// `/pos/bootstrap`, `/catalog` va `/owner/batches*`.
+  FakeResponse _setup(
+    String method,
+    String p,
+    Map<String, Object?> data,
+    Map<String, String> query,
+  ) {
+    if (p == '/v1/pos/bootstrap') {
+      final List<Map<String, Object?>>? list = stations;
+      if (list == null) return _notFound('Topilmadi.');
+      return _ok(<String, Object?>{
+        'server_time': now().toUtc().toIso8601String(),
+        'stations': list,
+      });
+    }
+    if (p == '/v1/catalog') {
+      return _ok(<String, Object?>{'products': catalogProducts});
+    }
+    if (method == 'GET' && p == '/v1/owner/batches') {
+      final bool closed = query['include_closed'] == 'true';
+      return _ok(<String, Object?>{
+        'branch_id': branchId,
+        'batches': <Map<String, Object?>>[
+          for (final Map<String, Object?> b in batches)
+            if (b['is_open'] == true || closed) b,
+        ],
+      });
+    }
+    if (method == 'POST' && p == '/v1/owner/batches') {
+      final int productId = (data['product_id']! as num).toInt();
+      final int? variantId = (data['product_variant_id'] as num?)?.toInt();
+      final bool dup = batches.any(
+        (Map<String, Object?> b) =>
+            b['is_open'] == true &&
+            b['product_id'] == productId &&
+            b['product_variant_id'] == variantId,
+      );
+      if (dup) {
+        return const FakeResponse(422, <String, Object?>{
+          'success': false,
+          'message': 'Bu taom uchun ochiq qozon bor.',
+        });
+      }
+      final Map<String, Object?> product = catalogProducts.firstWhere(
+        (Map<String, Object?> pr) => pr['id'] == productId,
+        orElse: () => <String, Object?>{'name': 'Taom'},
+      );
+      final int id = addBatch(
+        '${product['name']}',
+        data['quantity']! as num,
+        productId: productId,
+        label: data['label'] as String?,
+      );
+      return _ok(batches.firstWhere((Map<String, Object?> b) => b['id'] == id));
+    }
+    final RegExpMatch? m = RegExp(r'^/v1/owner/batches/(\d+)/(adjust|close)$')
+        .firstMatch(p);
+    if (method == 'POST' && m != null) {
+      final Map<String, Object?>? b = batches
+          .where((Map<String, Object?> b) => b['id'] == int.parse(m[1]!))
+          .firstOrNull;
+      if (b == null) return _notFound('Qozon topilmadi.');
+      if (m[2] == 'close') {
+        b['is_open'] = false;
+        b['closed_at'] = now().toUtc().toIso8601String();
+      } else if (data['add'] != null) {
+        b['quantity_produced'] =
+            (b['quantity_produced']! as num) + (data['add']! as num);
+        b['quantity_left'] =
+            (b['quantity_left']! as num) + (data['add']! as num);
+      } else if (data['quantity_left'] != null) {
+        b['quantity_left'] = data['quantity_left'];
+      }
+      _event('menu.availability_changed', '');
+      return _ok(b);
+    }
+    return _notFound('Topilmadi.');
   }
 
   FakeResponse _signIn(Map<String, Object?> data) {
@@ -373,7 +803,21 @@ class FakeKitchenState {
         'data': <String, Object?>{'reason': 'kitchen_status'},
       });
     }
-    item['kitchen_status'] = ready ? 'ready' : 'pending';
+    final bool pos = item['fire_mode'] != null;
+    if (pos && (item['kitchen_status'] == 'void' || item['sent_at'] == null)) {
+      return FakeResponse(422, <String, Object?>{
+        'success': false,
+        'message': item['kitchen_status'] == 'void'
+            ? "Bu taom o'chirilgan."
+            : 'Bu taom hali oshxonaga yuborilmagan.',
+        'data': <String, Object?>{'reason': 'kitchen_status'},
+      });
+    }
+    if (pos && item['kitchen_status'] == 'served') {
+      return _ok(_ticket(order));
+    }
+    // A recalled POS line goes back to `sent`, an online one to `pending`
+    item['kitchen_status'] = ready ? 'ready' : (pos ? 'sent' : 'pending');
     item['ready_at'] = ready ? now() : null;
     if (ready && order['status'] == 'accepted') {
       order['status'] = 'preparing';
@@ -382,7 +826,10 @@ class FakeKitchenState {
     if (ready &&
         order['type'] != 'dine_in' &&
         items.every(
-          (Map<String, Object?> i) => i['kitchen_status'] == 'ready',
+          (Map<String, Object?> i) =>
+              i['kitchen_status'] == 'ready' ||
+              i['kitchen_status'] == 'served' ||
+              i['kitchen_status'] == 'void',
         )) {
       order['status'] = 'ready';
       order['ready_at'] = now();
@@ -419,13 +866,25 @@ class FakeKitchenState {
         v is DateTime ? v.toUtc().toIso8601String() : null;
     return <String, Object?>{
       ...o,
-      'items_total': items.length,
+      'items_total': items
+          .where((Map<String, Object?> i) => i['kitchen_status'] != 'void')
+          .length,
       'items_ready': items
-          .where((Map<String, Object?> i) => i['kitchen_status'] == 'ready')
+          .where(
+            (Map<String, Object?> i) =>
+                i['kitchen_status'] == 'ready' ||
+                i['kitchen_status'] == 'served',
+          )
           .length,
       'items': <Map<String, Object?>>[
         for (final Map<String, Object?> i in items)
-          <String, Object?>{...i, 'ready_at': iso(i['ready_at'])},
+          <String, Object?>{
+            ...i,
+            'ready_at': iso(i['ready_at']),
+            if (i.containsKey('sent_at')) 'sent_at': iso(i['sent_at']),
+            if (i.containsKey('due_at')) 'due_at': iso(i['due_at']),
+            if (i.containsKey('voided_at')) 'voided_at': iso(i['voided_at']),
+          },
       ],
       'created_at': iso(o['created_at']),
       'accepted_at': iso(o['accepted_at']),

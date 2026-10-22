@@ -7,6 +7,7 @@ import 'package:rizqim_kds/src/app.dart';
 import 'package:rizqim_kds/src/realtime/branch_realtime.dart';
 import 'package:rizqim_kds/src/settings/kds_settings.dart';
 import 'package:rizqim_kds/src/sound/ticket_sound.dart';
+import 'package:rizqim_kds/src/stations/station_selection.dart';
 
 import 'fake_kitchen_state.dart';
 import 'fake_realtime.dart';
@@ -81,6 +82,7 @@ class KdsHarness {
   KdsHarness({
     bool realtime = true,
     Map<String, Object?>? settings,
+    Map<String, Object?>? stationValues,
     Duration pollInterval = const Duration(seconds: 15),
   }) {
     backend = FakeKds(clock: () => now);
@@ -93,9 +95,17 @@ class KdsHarness {
       clock: () => now,
     );
     this.settings = KdsSettingsController(MemorySettingsStore(settings));
+    stationStore = MemorySettingsStore(
+      stationValues == null ? null : Map<String, Object?>.of(stationValues),
+    );
+    stations = StationSelectionController(
+      stationStore,
+      StationSelection.fromMap(stationValues ?? const <String, Object?>{}),
+    );
     services = KdsServices(
       client: client,
       settings: this.settings,
+      stations: stations,
       sound: sound,
       clock: () => now,
       pollInterval: pollInterval,
@@ -118,6 +128,8 @@ class KdsHarness {
   late final FakeRealtimeHub hub;
   late final RizqimClient client;
   late final KdsSettingsController settings;
+  late final MemorySettingsStore stationStore;
+  late final StationSelectionController stations;
   late final KdsServices services;
 
   FakeKitchenState get state => backend.state;
