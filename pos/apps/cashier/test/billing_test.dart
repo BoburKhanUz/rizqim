@@ -181,8 +181,10 @@ void main() {
       expect(receipt, contains('Tranzaksiya: RRN123'));
       expect(receipt, contains('Aralash'));
       expect(receipt, contains('Qaytim:'));
-      // Kassirda chekni o'qish ruxsati yo'q: fiskal belgi o'rniga "kutilmoqda"
-      expect(receipt, contains("Fiskal ma'lumot kutilmoqda"));
+      // P3-26: to'lov javobi ro'yxatdan o'tgan chekni olib keladi — kassir haqiqiy fiskal belgini chop etadi
+      expect(receipt, contains('Fiskal belgi:'));
+      expect(receipt, contains('Kassa: EP000000000123'));
+      expect(receipt, isNot(contains("Fiskal ma'lumot kutilmoqda")));
       expect(p.drawerKicks, 1);
       expect(find.byType(PaymentPage), findsNothing);
       expect(find.byType(BillingPage), findsNothing);
@@ -191,13 +193,12 @@ void main() {
   );
 
   testWidgets(
-    'a manager reads the issued receipt: fiscal sign and QR on paper',
+    'the cashier prints the issued receipt: fiscal sign and QR on paper',
     (WidgetTester tester) async {
       final P22 p = P22();
       p.state.openShift();
       final String uuid = p.state.seedOrder(tableId: 1, guests: 2);
-      p.state.rolePermissions['manager']!.add('reports.view');
-      await pumpHome(tester, p.h, name: 'Malika Rahimova');
+      await pumpHome(tester, p.h);
       await openBilling(tester, uuid);
       await tapButton(tester, 'Schyot tuzish');
       await tapText(tester, "To'lash: ", contains: true);

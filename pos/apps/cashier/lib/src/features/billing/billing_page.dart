@@ -65,9 +65,11 @@ class _BillingPageState extends State<BillingPage> with RefreshingState {
       ]);
       final PosOrder order = r[0] as PosOrder;
       final PosBilling billing = r[1] as PosBilling;
-      if (!_bookingLooked && order.bookingId != null) {
+      final String? bookingUuid = billing.order.bookingUuid;
+      if (!_bookingLooked && bookingUuid != null) {
+        // P3-26: buyurtma bronini va avans qoldig'ini o'zi aytadi; bron faqat ismi va vaqti uchun
         _bookingLooked = true;
-        _booking = await _findBooking(data, order);
+        _booking = await _loadBooking(data, bookingUuid);
       }
       if (!mounted) return;
       setState(() {
@@ -89,22 +91,19 @@ class _BillingPageState extends State<BillingPage> with RefreshingState {
     }
   }
 
-  /// "Keldi" bilan ochilgan buyurtmaning broni (avans qoldig'i uchun).
-  static Future<PosBooking?> _findBooking(PosData data, PosOrder order) async {
+  /// "Keldi" bilan ochilgan buyurtmaning broni (ism va vaqt; avans qoldig'i — [PosBillingOrder.depositAvailable]).
+  static Future<PosBooking?> _loadBooking(PosData data, String uuid) async {
     try {
-      final DateTime now = DateTime.now();
-      final List<PosBooking> list = await data.bookings.list(
-        from: isoDay(now.subtract(const Duration(days: 2))),
-        to: isoDay(now.add(const Duration(days: 1))),
-      );
-      for (final PosBooking b in list) {
-        if (b.orderUuid == order.uuid) return b;
-      }
+      return await data.bookings.get(uuid);
     } on PosException {
-      // Bron topilmadi: avans tugmasi ko'rinmaydi
+      // Bronni o'qib bo'lmadi: avans summasi baribir buyurtmadan
+      return null;
     }
-    return null;
   }
+
+  /// Bron avanslaridan schyotlarga qolgan summa (server hisoblaydi).
+  PosMoney get _depositAvailable =>
+      _billing?.order.depositAvailable ?? PosMoney.zero;
 
   static PosBill? _firstUnpaid(List<PosBill> bills) {
     for (final PosBill b in bills) {
@@ -202,7 +201,7 @@ class _BillingPageState extends State<BillingPage> with RefreshingState {
         header: printer.header,
         now: _scope.services.now(),
         billsCount: _billing!.bills.length,
-        prepaid: _booking?.depositAvailable ?? PosMoney.zero,
+        prepaid: _depositAvailable,
         copy: r.copy || reprint,
       );
       await printer.print(
@@ -222,6 +221,7 @@ class _BillingPageState extends State<BillingPage> with RefreshingState {
         bill: bill,
         order: _order,
         booking: _booking,
+        depositAvailable: _depositAvailable,
         billsCount: _billing!.bills.length,
       ),
     );
@@ -528,10 +528,10 @@ class _BillingPageState extends State<BillingPage> with RefreshingState {
               amount: state.paidAmount,
               muted: true,
             ),
-          if (_booking != null && _booking!.depositAvailable.isPositive)
+          if (_depositAvailable.isPositive)
             AmountRow(
               label: 'Bron avansi (mavjud)',
-              amount: _booking!.depositAvailable,
+              amount: _depositAvailable,
               tone: StatusTone.success,
             ),
         ],
@@ -672,7 +672,7 @@ class _BillingPageState extends State<BillingPage> with RefreshingState {
           bill: bill,
           order: _order,
           billsCount: _billing!.bills.length,
-          prepaid: _booking?.depositAvailable ?? PosMoney.zero,
+          prepaid: _depositAvailable,
         ),
         const SizedBox(height: 12),
         Wrap(
@@ -884,7 +884,8 @@ class BillPreview extends StatelessWidget {
   }
 }
 
-/// Sotuv chekini chop etadi: serverdagi chek (fiskal belgi, QR) o'qilsa — u bilan, bo'lmasa schyotdan.
+/// Sotuv chekini chop etadi: serverdagi chek bilan (fiskal belgi, raqam, QR, kassa — P3-26: to'lov javobidagi
+/// `fiscal.receipt`, bo'lmasa `GET /pos/fiscal-receipts/{uuid}`), u ham bo'lmasa schyotdan.
 Future<void> printSale(
   BuildContext context,
   PosBill bill,
@@ -894,15 +895,10 @@ Future<void> printSale(
 }) async {
   final PosScope scope = PosScope.of(context);
   final ReceiptPrinter printer = ReceiptPrinter(scope);
-  PosFiscalReceiptDetail? detail;
-  final String? receipt = bill.fiscal.receiptUuid;
-  if (receipt != null) {
-    try {
-      detail = await FiscalReceiptRepository(scope.data.http).get(receipt);
-    } on PosException {
-      // Kassirda chekni o'qish ruxsati yo'q (backend kamchiligi): chek schyotdan tuziladi
-    }
-  }
+  final PosFiscalReceiptDetail? detail = await receiptOf(
+    scope.data,
+    bill.fiscal,
+  );
   if (!context.mounted) return;
   final FiscalReceipt doc = saleReceiptOf(
     bill: bill,

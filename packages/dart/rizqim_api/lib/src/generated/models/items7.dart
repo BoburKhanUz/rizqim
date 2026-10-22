@@ -11,6 +11,7 @@ class Items7 {
   const Items7({
     required this.id,
     required this.productVariantId,
+    required this.productVariantUuid,
     required this.productName,
     required this.variantName,
     required this.unit,
@@ -26,6 +27,8 @@ class Items7 {
   final int id;
   @JsonKey(name: 'product_variant_id')
   final int productVariantId;
+  @JsonKey(name: 'product_variant_uuid')
+  final String? productVariantUuid;
   @JsonKey(name: 'product_name')
   final String productName;
   @JsonKey(name: 'variant_name')

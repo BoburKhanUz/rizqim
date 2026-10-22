@@ -60,16 +60,18 @@ class KitchenStationController extends ManagementController
     #[ApiDocResponse(201, type: 'array{success: true, message: string, data: ' . self::STATION . '}')]
     public function store(Request $request, AuditLogger $audit): JsonResponse
     {
-        $request->validate(['branch_id' => 'nullable|integer|min:1|max:999999999999999999']);
-        $branch = $this->branch($request, Permission::SETTINGS_MANAGE);
-
+        // P3-26: the whole body first (so the API document lists it), then the name's uniqueness in the branch
         $data = $request->validate([
             'branch_id' => 'nullable|integer|min:1|max:999999999999999999',
-            'name' => ['required', 'string', 'max:100', Rule::unique('kitchen_stations', 'name')->where('branch_id', $branch->id)],
+            'name' => ['required', 'string', 'max:100'],
             'kind' => ['sometimes', 'string', 'in:osh,mangal,salad_bar,tea,kitchen,other'],
             'sort_order' => ['sometimes', 'integer', 'min:0', 'max:100000'],
             'is_active' => ['sometimes', 'boolean'],
             'show_on_kds' => ['sometimes', 'boolean'],
+        ], UzValidation::messages($this->messages()), $this->attributes());
+        $branch = $this->branch($request, Permission::SETTINGS_MANAGE);
+        $request->validate([
+            'name' => [Rule::unique('kitchen_stations', 'name')->where('branch_id', $branch->id)],
         ], UzValidation::messages($this->messages()), $this->attributes());
 
         $station = KitchenStation::create(['store_id' => $branch->store_id, 'branch_id' => $branch->id] + collect($data)->except('branch_id')->all());

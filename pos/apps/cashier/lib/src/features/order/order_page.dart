@@ -563,6 +563,8 @@ class _OrderPageState extends State<OrderPage> {
     }
     final PosOrder? o = ctl.order;
     final bool open = ctl.isOpen;
+    final List<PosQuickItem> quickItems =
+        _scope.session.bootstrap?.quickItems ?? const <PosQuickItem>[];
     final Widget menu = MenuPanel(
       catalog: cat,
       enabled: open && !ctl.busy,
@@ -580,9 +582,15 @@ class _OrderPageState extends State<OrderPage> {
     );
     final Widget panel = OrderPanel(
       controller: ctl,
-      quickProducts: teaAndBreadProducts(cat),
+      // P3-26: bootstrap'dagi tez tugmalar (menyudagi belgi va choy-non); ro'yxat bo'sh bo'lsa nom bo'yicha
+      quickProducts: quickProducts(
+        cat,
+        quickItems,
+        hallId: o?.hall?.id,
+        limit: 4,
+      ),
       onQuickAdd: (PosProduct p) {
-        final PosVariant? v = p.singleVariant;
+        final PosVariant? v = quickVariantOf(p, quickItems);
         if (v != null && cat.isVariantAvailable(v)) {
           ctl.addLine(p, v, v.minimum);
         }

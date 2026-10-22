@@ -70,6 +70,21 @@ return Application::configure(basePath: dirname(__DIR__))
             return $request->expectsJson();
         });
 
+        // P3-26: a validation error in the API's envelope too ({success: false, message, data: {reason: "validation",
+        // errors}}), with Laravel's top-level `errors` kept for the clients that read it there
+        $exceptions->render(function (\Illuminate\Validation\ValidationException $e, Request $request) {
+            if (!$request->is('api/*')) {
+                return null;
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+                'errors' => $e->errors(),
+                'data' => ['reason' => 'validation', 'errors' => $e->errors()],
+            ], $e->status);
+        });
+
         $exceptions->render(function (ThrottleRequestsException $e, Request $request) {
             if (!$request->is('api/*')) {
                 return null;

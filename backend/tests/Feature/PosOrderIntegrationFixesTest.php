@@ -175,7 +175,8 @@ class PosOrderIntegrationFixesTest extends TestCase
         $this->pos($this->makeCook($this->branch), 'GET', '/pos/orders')->assertOk()->assertJsonCount(3, 'data');
         $this->pos($this->courier, 'GET', '/pos/orders')->assertForbidden();
         $this->pos($this->cashier, 'GET', '/pos/orders?branch_id=' . $this->otherBranch->id)->assertForbidden();
-        $this->pos($this->cashier, 'GET', '/pos/orders?scope=closed')->assertStatus(422);
+        // (P3-26: `closed` and `incoming` are scopes now)
+        $this->pos($this->cashier, 'GET', '/pos/orders?scope=archived')->assertStatus(422);
         $this->pos($this->owner, 'GET', '/pos/orders?branch_id=' . $this->otherBranch->id)->assertOk()->assertJsonCount(1, 'data');
 
         // A PIN session on another branch's terminal sees that branch only

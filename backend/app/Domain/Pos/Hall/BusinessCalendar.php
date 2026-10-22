@@ -4,6 +4,7 @@ namespace App\Domain\Pos\Hall;
 
 use App\Enums\DayType;
 use App\Models\Branch;
+use App\Domain\Pos\Setup\PosSettings;
 use App\Models\RoomTariffCalendar;
 use App\Support\StoreTimezone;
 use Carbon\CarbonImmutable;
@@ -15,8 +16,8 @@ use DateTimeZone;
  *
  * Business date: the store-local date of the moment, minus one day before the branch's day start
  * (branches.business_day_starts_at, P3-13; 05:00 when absent): a room opened at 01:30 on Saturday night is Friday's.
- * Day type: `holiday` when the date is in the branch's holiday list (room_tariff_calendars.holidays and
- * branches.pos_settings.holidays), `weekend` when its ISO weekday is one of the branch's weekend days (Saturday and
+ * Day type: `holiday` when the date is in the branch's holiday list (branches.pos_settings.holidays, P3-26: the one
+ * list), `weekend` when its ISO weekday is one of the branch's weekend days (Saturday and
  * Sunday unless configured), else `weekday`.
  */
 class BusinessCalendar
@@ -61,22 +62,19 @@ class BusinessCalendar
     }
 
     /**
-     * The branch's holidays: its tariff calendar and its POS settings list.
+     * The branch's holidays (P3-26: one list, branches.pos_settings.holidays; the tariff calendar keeps the weekend
+     * days only, its old list was merged in by migration). $calendar is not read for them any more.
      *
      * @return list<string>
      */
-    public function holidays(Branch $branch, ?RoomTariffCalendar $calendar): array
+    public function holidays(Branch $branch, ?RoomTariffCalendar $calendar = null): array
     {
         $settings = $branch->getAttribute('pos_settings');
         if (is_string($settings)) {
             $settings = json_decode($settings, true);
         }
-        $fromSettings = is_array($settings) && is_array($settings['holidays'] ?? null) ? $settings['holidays'] : [];
 
-        return array_values(array_filter(
-            array_unique([...($calendar !== null ? $calendar->holidays ?? [] : []), ...$fromSettings]),
-            fn ($date) => is_string($date),
-        ));
+        return PosSettings::resolve(is_array($settings) ? $settings : null)['holidays'];
     }
 
     /**

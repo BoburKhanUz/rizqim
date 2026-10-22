@@ -37,6 +37,7 @@ export interface FakeProduct {
   image_url: null
   image_thumb_urls: { sm: null; md: null }
   batch_tracked: boolean
+  quick_add: boolean
   is_active: boolean
   // P3-11: what the item is on a receipt and its codes
   kind: 'dish' | 'service'
@@ -127,6 +128,7 @@ export class FakeMenu {
       image_url: null,
       image_thumb_urls: { sm: null, md: null },
       batch_tracked: false,
+      quick_add: false,
       is_active: true,
       kind: 'dish',
       mxik_code: null,
@@ -197,6 +199,7 @@ export class FakeMenu {
       is_active: form.get('is_active') !== '0',
       status: form.get('is_active') === '0' ? 'inactive' : 'active',
       batch_tracked: form.get('batch_tracked') === '1',
+      quick_add: form.has('quick_add') ? form.get('quick_add') === '1' : (existing?.quick_add ?? false),
       sort_order: form.has('sort_order') ? Number(form.get('sort_order')) : (existing?.sort_order ?? 0),
       has_variants: variants.length > 1,
       kind: form.has('kind') ? (form.get('kind') === 'service' ? 'service' : 'dish') : (existing?.kind ?? 'dish'),
@@ -211,6 +214,19 @@ export class FakeMenu {
     if (existing) this.products[this.products.indexOf(existing)] = product
     else this.products.push(product)
     return existing ? ok(product) : created(product)
+  }
+
+  private saveFiscal(product: FakeProduct, input: Record<string, unknown>): Reply {
+    const text = (key: string) => (input[key] === null || input[key] === '' ? null : String(input[key]))
+    const mxik = text('mxik_code')
+    if (mxik !== null && !/^\d{17}$/.test(mxik)) return fail(422, 'The given data was invalid.', { mxik_code: ["MXIK kodi 17 ta raqamdan iborat bo'lishi kerak."] })
+    // (the real server checks a code against the classifier only in its tests; the fake knows one code that is not there)
+    if (mxik === '00000000000000000') return fail(422, 'The given data was invalid.', { mxik_code: ["Bu MXIK tasnifda yo'q."] })
+    if ('kind' in input) product.kind = input.kind === 'service' ? 'service' : 'dish'
+    if ('mxik_code' in input) product.mxik_code = mxik
+    if ('package_code' in input) product.package_code = text('package_code')
+    if ('vat_rate' in input) product.vat_rate = text('vat_rate') === null ? null : Number(input.vat_rate).toFixed(2)
+    return ok(product)
   }
 
   private addBlank(id: number): FakeProduct {
@@ -231,6 +247,7 @@ export class FakeMenu {
       image_url: null,
       image_thumb_urls: { sm: null, md: null },
       batch_tracked: false,
+      quick_add: false,
       is_active: true,
       kind: 'dish',
       mxik_code: null,
@@ -314,6 +331,12 @@ export class FakeMenu {
         this.products = this.products.filter((candidate) => candidate !== product)
         return ok(null)
       }
+    }
+    // P3-26: PATCH /owner/products/{id}/fiscal: only the fiscal fields (JSON); left out kept, null or "" cleared
+    if ((match = /^\/v1\/owner\/products\/(\d+)\/fiscal$/.exec(path)) && req.method === 'PATCH') {
+      const product = this.products.find((candidate) => candidate.id === Number(match![1]))
+      if (!product) return fail(404, 'Taom topilmadi.')
+      return this.saveFiscal(product, input)
     }
 
     if (req.method === 'GET' && path === '/v1/owner/modifier-groups') return ok(this.groups)

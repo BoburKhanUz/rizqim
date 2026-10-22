@@ -1,10 +1,8 @@
-import 'dart:convert';
-import 'dart:io';
-
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pos_data/testing.dart';
+import 'package:rizqim_ui/rizqim_ui.dart';
 import 'package:rizqim_waiter/src/features/order/order_page.dart';
 
 import 'support/harness.dart';
@@ -383,21 +381,6 @@ void main() {
     WidgetTester tester,
   ) async {
     final WaiterHarness h = WaiterHarness();
-    final Map<String, Object?> created = (jsonDecode(
-      File('../../packages/pos_data/test/fixtures/bills_create.json')
-          .readAsStringSync(),
-    ) as Map<Object?, Object?>).cast<String, Object?>();
-    var requested = false;
-    h.adapter.respond = (RequestOptions o) {
-      if (o.method == 'POST' && o.uri.path.endsWith('/bills')) {
-        requested = true;
-        return FakeResponse(201, created);
-      }
-      if (o.method == 'GET' && o.uri.path.endsWith('/bills') && requested) {
-        return FakeResponse(200, created);
-      }
-      return null;
-    };
     final String uuid = await openOwnOrder(tester, h);
     expect(find.text("Schyot so'ralgan"), findsNothing);
     await tester.tap(buttonLabeled("Schyot so'rash"));
@@ -406,15 +389,22 @@ void main() {
     expect(find.textContaining("ilovasida to'lov yo'q"), findsOneWidget);
     await tapButton(tester, "So'rash");
 
+    // P3-26: alohida "schyot so'rash" endpointi — schyotni ofitsiant tuzmaydi
     final Map<String, Object?> body = bodies(
       h,
       'POST',
-      '/v1/pos/orders/$uuid/bills',
+      '/v1/pos/orders/$uuid/request-bill',
     ).single;
-    expect(body['mode'], 'single');
     expect(body['version'], 1);
+    expect(h.adapter.to('POST', '/bills'), isEmpty);
+    expect(h.state.orders[uuid]!['bill_requested_at'], isNotNull);
     expect(find.text("Schyot so'ralgan"), findsWidgets);
-    expect(find.textContaining('Schyot kassaga yuborildi'), findsOneWidget);
+    expect(find.textContaining("Schyot so'raldi: kassir"), findsOneWidget);
+    // ikkinchi marta so'rab bo'lmaydi (tugma o'chiq)
+    expect(
+      tester.widget<RzButton>(buttonLabeled("Schyot so'ralgan")).onPressed,
+      isNull,
+    );
     // ofitsiant ilovasida to'lov va chek chiqarish chaqirilmaydi
     expect(h.adapter.to('POST', '/payments'), isEmpty);
     expect(h.adapter.to('POST', '/print'), isEmpty);

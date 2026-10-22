@@ -76,7 +76,14 @@ Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->group(functi
             Route::post('/orders/{uuid}/charges/{charge}/restore', [PosOrderController::class, 'restoreCharge'])->whereUuid('uuid')->where('charge', '[a-z_]{1,32}')->middleware($idempotent('pos.orders.restore'));
             // P3 integration fix: a line reached the guests (ready → served)
             Route::post('/orders/{uuid}/items/{item}/served', [PosOrderController::class, 'served'])->whereUuid('uuid')->where('item', RowId::ROUTE_PATTERN)->middleware($idempotent('pos.orders.served'));
+            // P3-26: the waiter asks the till for the bill; a new online order accepted at the till
+            Route::post('/orders/{uuid}/request-bill', [PosOrderController::class, 'requestBill'])->whereUuid('uuid')->middleware($idempotent('pos.orders.request_bill'));
+            Route::post('/orders/{uuid}/accept', [PosOrderController::class, 'accept'])->whereUuid('uuid')->middleware($idempotent('pos.orders.accept'));
         });
+
+        // P3-26: reject a new online order — orders.cancel, or orders.manage with a manager's approval token (checked in
+        // PosOnlineOrders::reject)
+        Route::post('/orders/{uuid}/reject', [PosOrderController::class, 'reject'])->whereUuid('uuid')->middleware(['permission:orders.cancel,orders.manage', $idempotent('pos.orders.reject')]);
 
         // P3 integration fix: cancel a whole order — orders.cancel, or orders.manage with a manager's approval token
         // (checked in PosOrderService::cancel)

@@ -29,6 +29,9 @@ use Illuminate\Validation\ValidationException;
 #[Group('Owner: printers', "Filial printerlari: chek, oshxona markasi, yorliq; LAN, USB, ichki, Bluetooth (P3-13).")]
 class PrinterController extends ManagementController
 {
+    /** Paper widths in mm (integers: the API document types them as such). */
+    public const PAPER_WIDTHS = [58, 80];
+
     private const PRINTER = 'array{id: int, branch_id: int, name: string, purpose: string, connection: string, address: string|null, port: int|null, paper_width: int, station_id: int|null, device_id: string|null, is_active: bool, encoding: string|null, print_as_image: bool}';
 
     /**
@@ -65,22 +68,24 @@ class PrinterController extends ManagementController
     #[ApiDocResponse(201, type: 'array{success: true, message: string, data: ' . self::PRINTER . '}')]
     public function store(Request $request, AuditLogger $audit): JsonResponse
     {
-        $request->validate(['branch_id' => 'nullable|integer|min:1|max:999999999999999999']);
-        $branch = $this->branch($request, Permission::SETTINGS_MANAGE);
-
+        // P3-26: the whole body first (so the API document lists it), then the name's uniqueness in the branch
         $data = $request->validate([
             'branch_id' => 'nullable|integer|min:1|max:999999999999999999',
-            'name' => ['required', 'string', 'max:100', Rule::unique('printers', 'name')->where('branch_id', $branch->id)],
+            'name' => ['required', 'string', 'max:100'],
             'purpose' => ['sometimes', 'string', 'in:receipt,kitchen,label'],
             'connection' => ['required', 'string', 'in:lan,usb,builtin,bluetooth'],
             'address' => ['nullable', 'string', 'max:255', 'regex:/^[A-Za-z0-9._:\-]+$/'],
             'port' => ['nullable', 'integer', 'min:1', 'max:65535'],
-            'paper_width' => ['sometimes', 'integer', 'in:58,80'],
+            'paper_width' => ['sometimes', 'integer', Rule::in(self::PAPER_WIDTHS)],
             'station_id' => ['nullable', 'integer', 'min:1', 'max:999999999999999999'],
             'device_id' => ['nullable', 'uuid'],
             'is_active' => ['sometimes', 'boolean'],
             'encoding' => ['nullable', 'string', 'max:32', 'regex:/^[A-Za-z0-9_\-]+$/'],
             'print_as_image' => ['sometimes', 'boolean'],
+        ], UzValidation::messages($this->messages()), $this->attributes());
+        $branch = $this->branch($request, Permission::SETTINGS_MANAGE);
+        $request->validate([
+            'name' => [Rule::unique('printers', 'name')->where('branch_id', $branch->id)],
         ], UzValidation::messages($this->messages()), $this->attributes());
 
         $fields = $this->checked($branch, collect($data)->except('branch_id')->all(), null);
@@ -108,7 +113,7 @@ class PrinterController extends ManagementController
             'connection' => ['sometimes', 'string', 'in:lan,usb,builtin,bluetooth'],
             'address' => ['sometimes', 'nullable', 'string', 'max:255', 'regex:/^[A-Za-z0-9._:\-]+$/'],
             'port' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:65535'],
-            'paper_width' => ['sometimes', 'integer', 'in:58,80'],
+            'paper_width' => ['sometimes', 'integer', Rule::in(self::PAPER_WIDTHS)],
             'station_id' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:999999999999999999'],
             'device_id' => ['sometimes', 'nullable', 'uuid'],
             'is_active' => ['sometimes', 'boolean'],

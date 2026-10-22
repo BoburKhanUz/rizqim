@@ -5,6 +5,7 @@
 import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
+import '../models/get_v1_pos_fiscal_receipts_uuid_response.dart';
 import '../models/get_v1_pos_orders_uuid_bills_response.dart';
 import '../models/get_v1_pos_shifts_current_response.dart';
 import '../models/get_v1_pos_shifts_response.dart';
@@ -44,9 +45,12 @@ abstract class PosBillingApi {
   /// (wrong PIN 422 `pin_invalid`, locked 429 `pin_locked` with Retry-After); a manager without the permission 403.
   /// `approver_not_allowed`. Only from a staff PIN session on a terminal (422 `terminal_required` otherwise). Both.
   /// people are in the audit log (`pos.approval_granted`, and `pos.approval_used` when the action consumes it).
+  ///
+  /// [idempotencyKey] - Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer.
   @POST('/v1/pos/approvals')
   Future<PostV1PosApprovalsResponse> posApprovalStore({
     @Body() required V1PosApprovalsRequestBody body,
+    @Header('Idempotency-Key') String? idempotencyKey,
   });
 
   /// Ask again for a bill's receipt.
@@ -54,9 +58,12 @@ abstract class PosBillingApi {
   /// For a bill whose payments cover it but whose sale receipt is not issued ("fiskal kutmoqda": pending or failed):.
   /// asks the fiscal provider again (same receipt, never a second one); issued: the bill is paid and the order closed.
   /// when every bill is. Needs pos.take_payment.
+  ///
+  /// [idempotencyKey] - Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer.
   @POST('/v1/pos/bills/{uuid}/fiscal-retry')
   Future<PostV1PosBillsUuidFiscalRetryResponse> posBillFiscalRetry({
     @Path('uuid') required String uuid,
+    @Header('Idempotency-Key') String? idempotencyKey,
   });
 
   /// Take payment for a bill.
@@ -72,9 +79,12 @@ abstract class PosBillingApi {
   /// order is closed (delivered, paid, table free) once all its bills are. A receipt not issued yet leaves the bill.
   /// "fiskal kutmoqda" (`fiscal.status` pending or failed): retry with `.../fiscal-retry`. A line without MXIK: 422.
   /// `mxik_missing` before any money is taken. Optional `version`. Needs pos.take_payment.
+  ///
+  /// [idempotencyKey] - Required: a new UUID per action, the same one when retrying it (428 or 400 without).
   @POST('/v1/pos/bills/{uuid}/payments')
   Future<PostV1PosBillsUuidPaymentsResponse> posBillPay({
     @Path('uuid') required String uuid,
+    @Header('Idempotency-Key') required String idempotencyKey,
     @Body() required V1PosBillsUuidPaymentsRequestBody body,
   });
 
@@ -85,10 +95,24 @@ abstract class PosBillingApi {
   /// `copy: true`, print "NUSXA"; it needs pos.reprint_bill or a manager's `approval_token` (403 `approval_required`).
   /// An open bill made before the order changed: 409 `order_changed` (bill again). Optional `version` (409 when.
   /// stale). Needs orders.manage or pos.take_payment.
+  ///
+  /// [idempotencyKey] - Required: a new UUID per action, the same one when retrying it (428 or 400 without).
   @POST('/v1/pos/bills/{uuid}/print')
   Future<PostV1PosBillsUuidPrintResponse> posBillPrint({
     @Path('uuid') required String uuid,
+    @Header('Idempotency-Key') required String idempotencyKey,
     @Body() V1PosBillsUuidPrintRequestBody? body,
+  });
+
+  /// A receipt for the till.
+  ///
+  /// The receipt as registered (fiscal sign, receipt number, QR link, fiscal module id `terminal_id`, `non_fiscal`,.
+  /// `issued_at`, type, payment form, lines and payments as sent), to print it or a copy. The same object comes back.
+  /// in `fiscal.receipt` of a bill payment, a refund, a deposit and a nasiya repayment. Needs pos.take_payment in the.
+  /// receipt's branch (a terminal PIN session: its terminal's branch); another store's or branch's receipt: 404.
+  @GET('/v1/pos/fiscal-receipts/{uuid}')
+  Future<GetV1PosFiscalReceiptsUuidResponse> posFiscalReceiptShow({
+    @Path('uuid') required String uuid,
   });
 
   /// An order's bills.
@@ -118,9 +142,12 @@ abstract class PosBillingApi {
   /// (another waiter's: a manager's `approval_token` for orders.manage, else 403 `approval_required`). 409.
   /// `nothing_to_bill`, `order_closed`,.
   /// `not_pos_order`; 422 `items_not_covered`, `bill_empty`, `item_not_billable`, `parts_invalid`.
+  ///
+  /// [idempotencyKey] - Required: a new UUID per action, the same one when retrying it (428 or 400 without).
   @POST('/v1/pos/orders/{uuid}/bills')
   Future<PostV1PosOrdersUuidBillsResponse> posBillStore({
     @Path('uuid') required String uuid,
+    @Header('Idempotency-Key') required String idempotencyKey,
     @Body() required V1PosOrdersUuidBillsRequestBody body,
   });
 
@@ -130,9 +157,12 @@ abstract class PosBillingApi {
   /// close it by themselves; this is for a close that was interrupted, and asks again for receipts still pending.
   /// first. Calling it on a closed order returns it. Not settled yet: 409 `order_not_settled` (with what is left).
   /// Needs pos.take_payment.
+  ///
+  /// [idempotencyKey] - Required: a new UUID per action, the same one when retrying it (428 or 400 without).
   @POST('/v1/pos/orders/{uuid}/close')
   Future<PostV1PosOrdersUuidCloseResponse> posBillClose({
     @Path('uuid') required String uuid,
+    @Header('Idempotency-Key') required String idempotencyKey,
   });
 
   /// Refund a payment within the shift.
@@ -144,8 +174,11 @@ abstract class PosBillingApi {
   /// `reason` is required. Needs pos.refund, or a manager's `approval_token` for it (403 `approval_required`). Cash.
   /// leaves the drawer; a REFUND receipt naming the sale receipt is asked for (`fiscal`); the owner is told in.
   /// Telegram.
+  ///
+  /// [idempotencyKey] - Required: a new UUID per action, the same one when retrying it (428 or 400 without).
   @POST('/v1/pos/refunds')
   Future<PostV1PosRefundsResponse> posRefundStore({
+    @Header('Idempotency-Key') required String idempotencyKey,
     @Body() required V1PosRefundsRequestBody body,
   });
 
@@ -174,17 +207,27 @@ abstract class PosBillingApi {
   /// On this terminal (a staff PIN session on a terminal paired to a branch; 422 `terminal_required` otherwise),.
   /// with the `opening_cash` in the drawer. One open shift per terminal (409 `shift_already_open`). Its business day.
   /// follows the branch's day start (05:00 by default: 02:00 still belongs to the day before). Needs pos.open_shift.
+  ///
+  /// [idempotencyKey] - Required: a new UUID per action, the same one when retrying it (428 or 400 without).
   @POST('/v1/pos/shifts')
   Future<PostV1PosShiftsResponse> posShiftStore({
+    @Header('Idempotency-Key') required String idempotencyKey,
     @Body() required V1PosShiftsRequestBody body,
   });
 
-  /// This terminal's open shift.
+  /// The open shift.
   ///
-  /// The open shift of the calling terminal with its X report so far, or `shift: null`. A normal sign-in (no.
-  /// terminal) always gets null.
+  /// A terminal (staff PIN session): its open shift with its X report so far, or `shift: null`. P3-26: a normal.
+  /// sign-in (the owner or a manager in the web panel or the Mini App) gets the branch's open shifts: `branch_id`.
+  /// (default: the caller's own branch; an owner without one names it, else every branch they see is listed in.
+  /// `shifts`); `shift`/`report` is then the most recently opened of them. `shifts`: every open shift with its X.
+  /// report (a terminal: just its own). Another store's branch: 404; one the caller does not work in: 403.
+  ///
+  /// [branchId] - A normal sign-in: the branch (default: the caller's own; an owner without one: every branch).
   @GET('/v1/pos/shifts/current')
-  Future<GetV1PosShiftsCurrentResponse> posShiftCurrent();
+  Future<GetV1PosShiftsCurrentResponse> posShiftCurrent({
+    @Query('branch_id') int? branchId,
+  });
 
   /// One shift (with its Z report).
   ///
@@ -202,9 +245,12 @@ abstract class PosBillingApi {
   /// supplies, utilities, other; wage: daily_wage, advance, bonus; purchase: bazaar, meat, bread, supplies, other);.
   /// `other` needs a `note`. Money out never exceeds the expected cash (409 `not_enough_cash`). Needs pos.cash_in_out,.
   /// or a manager's `approval_token` for it (403 `approval_required`). The shift must be open (409 `shift_closed`).
+  ///
+  /// [idempotencyKey] - Required: a new UUID per action, the same one when retrying it (428 or 400 without).
   @POST('/v1/pos/shifts/{uuid}/cash-movements')
   Future<PostV1PosShiftsUuidCashMovementsResponse> posShiftCashMovement({
     @Path('uuid') required String uuid,
+    @Header('Idempotency-Key') required String idempotencyKey,
     @Body() required V1PosShiftsUuidCashMovementsRequestBody body,
   });
 
@@ -217,9 +263,12 @@ abstract class PosBillingApi {
   /// with orders.cancel (or a manager's `approval_token` for it): open orders then wait for the next shift. The Z.
   /// report is kept in `summary`, numbered per branch (`z_number`) and sent to the owner in Telegram. Needs.
   /// pos.close_shift.
+  ///
+  /// [idempotencyKey] - Required: a new UUID per action, the same one when retrying it (428 or 400 without).
   @POST('/v1/pos/shifts/{uuid}/close')
   Future<PostV1PosShiftsUuidCloseResponse> posShiftClose({
     @Path('uuid') required String uuid,
+    @Header('Idempotency-Key') required String idempotencyKey,
     @Body() required V1PosShiftsUuidCloseRequestBody body,
   });
 

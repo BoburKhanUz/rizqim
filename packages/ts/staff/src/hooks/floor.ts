@@ -151,9 +151,17 @@ export function useDeleteRoomTariff(options: MutationExtras<void, number> = {}) 
   return useTariffMutation((id: number) => deleteRoomTariff(api, id), options);
 }
 
+// The holidays are the branch's POS settings list (one list since P3-26), so those are read again too
 export function useSaveTariffCalendar(options: MutationExtras<TariffCalendar, { branchId: number; weekend_days: number[]; holidays: string[] }> = {}) {
   const api = useStaffApi();
-  return useTariffMutation(({ branchId, ...calendar }: { branchId: number; weekend_days: number[]; holidays: string[] }) => saveTariffCalendar(api, branchId, calendar), options);
+  const queryClient = useQueryClient();
+  return useTariffMutation(({ branchId, ...calendar }: { branchId: number; weekend_days: number[]; holidays: string[] }) => saveTariffCalendar(api, branchId, calendar), {
+    ...options,
+    onSuccess: (...args) => {
+      void queryClient.invalidateQueries({ queryKey: ['owner', 'branch-pos-settings'] });
+      return options.onSuccess?.(...args);
+    },
+  });
 }
 
 // --- Per-guest items ("choy-non") ----------------------------------------------------------------------------------------------

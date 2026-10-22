@@ -83,6 +83,7 @@ class FloorTable {
     this.minSpend,
     this.minSpendMode = 'per_table',
     this.reservation,
+    this.billRequested = false,
   });
 
   factory FloorTable.fromJson(PosJson j) => FloorTable(
@@ -95,6 +96,7 @@ class FloorTable {
     minSpend: j.moneyOrNull('min_spend'),
     minSpendMode: j.strOrNull('min_spend_mode') ?? 'per_table',
     statusWire: j.strOrNull('status') ?? 'free',
+    billRequested: j.boolean('bill_requested'),
     reservation: j.has('reservation')
         ? FloorReservation.fromJson(j.obj('reservation'))
         : null,
@@ -116,6 +118,9 @@ class FloorTable {
   /// Bir soat ichida boshlanadigan bron.
   final FloorReservation? reservation;
   final List<FloorOrder> orders;
+
+  /// Ofitsiant schyot so'ragan, schyot hali chiqmagan ("Schyot so'raldi", P3-26).
+  final bool billRequested;
 
   /// `pos_core` holati ([FloorTableStatus]): faol bo'lmagan bo'sh joy — `inactive`.
   FloorTableStatus get status {
@@ -143,17 +148,25 @@ class FloorReservation {
     required this.bookingUuid,
     this.startsAt,
     this.guests,
+    this.contactName,
+    this.contactPhone,
   });
 
   factory FloorReservation.fromJson(PosJson j) => FloorReservation(
     bookingUuid: j.str('booking_uuid'),
     startsAt: j.dateOrNull('starts_at'),
     guests: j.intOrNull('guests'),
+    contactName: j.strOrNull('contact_name'),
+    contactPhone: j.strOrNull('contact_phone'),
   );
 
   final String bookingUuid;
   final DateTime? startsAt;
   final int? guests;
+
+  /// Mehmonning ismi va telefoni (P3-26; buyurtma yoki bron bilan ishlovchi xodimga, oshxona ekraniga `null`).
+  final String? contactName;
+  final String? contactPhone;
 }
 
 /// Zal xaritasidagi ochiq buyurtma (qisqa).
@@ -173,6 +186,9 @@ class FloorOrder {
     this.totalPrice = PosMoney.zero,
     this.itemsCount = 0,
     this.unsentCount = 0,
+    this.readyCount = 0,
+    this.billRequested = false,
+    this.billRequestedAt,
   });
 
   factory FloorOrder.fromJson(PosJson j) => FloorOrder(
@@ -190,6 +206,9 @@ class FloorOrder {
     totalPrice: j.money('total_price'),
     itemsCount: j.intOrNull('items_count') ?? 0,
     unsentCount: j.intOrNull('unsent_count') ?? 0,
+    readyCount: j.intOrNull('ready_count') ?? 0,
+    billRequested: j.boolean('bill_requested'),
+    billRequestedAt: j.dateOrNull('bill_requested_at'),
   );
 
   final String uuid;
@@ -208,4 +227,11 @@ class FloorOrder {
 
   /// Oshxonaga hali yuborilmagan qatorlar.
   final int unsentCount;
+
+  /// Oshxona tayyor deb belgilagan, hali berilmagan qatorlar (P3-26).
+  final int readyCount;
+
+  /// Ofitsiant schyot so'ragan (P3-26).
+  final bool billRequested;
+  final DateTime? billRequestedAt;
 }

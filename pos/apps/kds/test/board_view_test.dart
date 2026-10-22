@@ -524,12 +524,18 @@ void main() {
       expect(g[2].quantityLabel, '1.5 kg');
     });
 
-    test('a held row is flagged and not bumpable', () {
+    test('a held row without a due time is flagged and not bumpable; with one it can be ready early', () {
       final List<SkewerGroup> g = groupSkewers(<KitchenLine>[
-        line(1, "Qo'y", station: 1, status: 'pending', fire: 'hold', dueAt: t0),
+        line(1, "Qo'y", station: 1, status: 'pending', fire: 'hold'),
       ]);
       expect(g.single.held, isTrue);
       expect(g.single.bumpable, isEmpty);
+      // P3-26: a pre-order with its due time may be marked ready before it is sent
+      final List<SkewerGroup> due = groupSkewers(<KitchenLine>[
+        line(1, "Qo'y", station: 1, status: 'pending', fire: 'hold', dueAt: t0),
+      ]);
+      expect(due.single.held, isFalse);
+      expect(due.single.bumpable, hasLength(1));
     });
   });
 

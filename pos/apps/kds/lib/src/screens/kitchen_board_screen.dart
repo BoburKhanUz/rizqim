@@ -249,6 +249,10 @@ class _KitchenBoardScreenState extends State<KitchenBoardScreen> {
                         BoardTab.preorder when board.ready => PreorderQueue(
                           items: view.queue,
                           clock: _now,
+                          onReady: board.canManage
+                              ? (QueuedLine q) =>
+                                    unawaited(board.bumpLine(q.ticket, q.line))
+                              : null,
                         ),
                         _ => _board(context, settings, view),
                       },

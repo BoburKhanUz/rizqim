@@ -73,12 +73,16 @@ beforeEach(() => {
   closed = [shift({ uuid: 's-closed', status: 'closed', z_number: 12, business_date: '2026-10-21', closed_at: '2026-10-21T19:00:00+00:00', closed_by: { id: 5, name: 'Kassir Ali' }, expected_cash: '1750000.00', counted_cash: '1740000.00', difference: '-10000.00' })];
   ({ calls } = stubStaffApi((call) => {
     if (call.path === '/owner/branches') return success([branch(1, 'Chilonzor'), branch(2, 'Yunusobod')]);
-    if (call.path === '/pos/shifts') {
+    if (call.path === '/pos/shifts' || call.path === '/pos/shifts/current') {
       if (permission === 'forbidden') return reply(403, { success: false, message: 'Ruxsat etilmagan' });
       if (permission === 'down') return reply(502, {});
-      return success(call.query.status === 'open' ? open : closed);
+      // P3-26: the open shifts and their X reports come in one call
+      if (call.path === '/pos/shifts/current') {
+        const shifts = open.map((item) => ({ shift: item, report: report() }));
+        return success({ shift: shifts[0]?.shift ?? null, report: shifts[0]?.report ?? null, shifts });
+      }
+      return success(closed);
     }
-    if (call.path.endsWith('/x-report')) return success({ shift: open.find((item) => item.uuid === call.path.split('/')[3]), report: report() });
     if (call.path === '/pos/shifts/s-closed') return success({ ...closed[0], summary: report({ sales: { bills: 14, net: '3150000.00' } }) });
     return reply(404, { success: false, message: "yo'q" });
   }));
@@ -102,7 +106,7 @@ const renderPage = () =>
 
 const owner = () => useAuthStore.getState().setAuth('token', makeUser({ role: 'owner', store_id: 1 }), makeStore(), false);
 const manager = () => useAuthStore.getState().setAuth('token', makeUser({ role: 'manager', store_id: 1, branch_id: 1 }), makeStore(), false);
-const shiftCalls = () => callsTo(calls, '/pos/shifts');
+const shiftCalls = () => [...callsTo(calls, '/pos/shifts'), ...callsTo(calls, '/pos/shifts/current')];
 
 describe('ShiftSummary', () => {
   it('shows the open shift with what should be in the till and its figures, and the last Z with the difference in words', async () => {
@@ -129,7 +133,9 @@ describe('ShiftSummary', () => {
     renderPage();
     await flush();
     expect(shiftCalls().every((call) => call.query.branch_id === '1')).toBe(true);
-    expect(shiftCalls().map((call) => call.query.status).sort()).toEqual(['closed', 'open']);
+    expect(callsTo(calls, '/pos/shifts').map((call) => call.query.status)).toEqual(['closed']);
+    expect(callsTo(calls, '/pos/shifts/current')).toHaveLength(1);
+    expect(calls.some((call) => call.path.endsWith('/x-report'))).toBe(false);
 
     fireEvent.change(screen.getByRole('combobox', { name: 'Filial' }), { target: { value: '2' } });
     await flush();

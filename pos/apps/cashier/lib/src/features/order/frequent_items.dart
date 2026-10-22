@@ -42,24 +42,3 @@ class FrequentItems {
     return out;
   }
 }
-
-/// Choy va non tez tugmalari: nomi yoki kategoriyasi "choy"/"non" bo'lgan, bitta donali variantli taomlar (choyxonada
-/// markasiz beriladigan va ko'pincha hisobsiz qoladigan qatorlar). Backend'da alohida sozlama yo'q.
-List<PosProduct> teaAndBreadProducts(PosCatalog catalog, {int limit = 4}) {
-  final RegExp word = RegExp(r'\b(choy|non)\b', caseSensitive: false);
-  final Set<int> categories = <int>{
-    for (final PosCategory c in catalog.categories)
-      if (word.hasMatch(c.name)) c.id,
-  };
-  final List<PosProduct> out = <PosProduct>[
-    for (final PosProduct p in catalog.products)
-      if ((categories.contains(p.categoryId) || word.hasMatch(p.name)) &&
-          p.singleVariant != null &&
-          !p.singleVariant!.unit.isMeasured &&
-          !p.modifierGroups.any(
-            (PosModifierGroup g) => g.isRequired || g.minSelect > 0,
-          ))
-        p,
-  ];
-  return out.take(limit).toList();
-}

@@ -10,36 +10,14 @@ import {
   isOnlineFiscalProblem,
   isPackageCode,
   ONLINE_FISCAL_PROBLEMS,
-  productFiscalFormData,
+  productFiscalPatch,
   retryFiscalReceipt,
   saveFiscalSettings,
+  saveProductFiscal,
 } from './fiscal';
 import { productFormData } from './menu';
-import type { Product } from '../types';
 
 afterEach(() => vi.unstubAllGlobals());
-
-const product = (over: Partial<Product> = {}): Product =>
-  ({
-    id: 12,
-    name: 'Osh',
-    description: 'Palov',
-    category_id: 3,
-    is_active: true,
-    status: 'active',
-    batch_tracked: true,
-    sort_order: 4,
-    kind: 'dish',
-    mxik_code: null,
-    package_code: null,
-    vat_rate: null,
-    variants: [
-      { id: 100, name: '1 porsiya', price: '35000.00', unit: 'piece', quantity_step: null, min_quantity: null, batch_consumption: '1.000', unit_label: null, stock: 999 },
-      { id: 101, name: 'kg', price: '120000.00', unit: 'kg', quantity_step: '0.500', min_quantity: '0.500', batch_consumption: '2.000', unit_label: 'kg (guruch)', stock: 5 },
-    ],
-    modifier_group_links: [],
-    ...over,
-  }) as unknown as Product;
 
 describe('codes', () => {
   it('knows an MXIK (17 digits) and a package code (digits, up to 20)', () => {
@@ -69,24 +47,14 @@ describe('product fiscal fields', () => {
     for (const field of ['kind', 'mxik_code', 'package_code', 'vat_rate']) expect(bare.has(field)).toBe(false);
   });
 
-  it('resends the whole product with only the fiscal fields changed (a variant left out would be deleted)', () => {
-    const form = productFiscalFormData(product(), { mxik_code: '10202001001000000' });
-    expect(form.get('name')).toBe('Osh');
-    expect(form.get('description')).toBe('Palov');
-    expect(form.get('category_id')).toBe('3');
-    expect(form.get('is_active')).toBe('1');
-    expect(form.get('batch_tracked')).toBe('1');
-    expect(form.get('sort_order')).toBe('4');
-    expect(form.get('mxik_code')).toBe('10202001001000000');
-    expect(form.has('kind')).toBe(false);
-    expect(JSON.parse(String(form.get('variants')))).toEqual([
-      { id: 100, name: '1 porsiya', price: 35000, unit: 'piece', quantity_step: null, min_quantity: null, batch_consumption: 1, unit_label: null },
-      { id: 101, name: 'kg', price: 120000, unit: 'kg', quantity_step: 0.5, min_quantity: 0.5, batch_consumption: 2, unit_label: 'kg (guruch)' },
-    ]);
-  });
+  it('patches only the fiscal fields: "" and null clear, undefined leaves the field out', async () => {
+    expect(productFiscalPatch({ mxik_code: '10202001001000000', package_code: '', vat_rate: '12' })).toEqual({ mxik_code: '10202001001000000', package_code: null, vat_rate: 12 });
+    expect(productFiscalPatch({ kind: 'service', vat_rate: null })).toEqual({ kind: 'service', vat_rate: null });
+    expect(productFiscalPatch({})).toEqual({});
 
-  it('keeps an inactive product inactive', () => {
-    expect(productFiscalFormData(product({ is_active: false }), { kind: 'service' }).get('is_active')).toBe('0');
+    const { calls } = mockFetch({ 'PATCH /api/v1/owner/products/12/fiscal': () => ok({ id: 12, mxik_code: '10202001001000000' }) });
+    await saveProductFiscal(testApi(), 12, { mxik_code: '10202001001000000' }, [{ id: 100, unit_label: 'kg' }]);
+    expect(await calls[0]!.json()).toEqual({ mxik_code: '10202001001000000', variants: [{ id: 100, unit_label: 'kg' }] });
   });
 });
 

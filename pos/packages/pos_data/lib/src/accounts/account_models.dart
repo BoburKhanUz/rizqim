@@ -1,5 +1,6 @@
 import 'package:pos_core/pos_core.dart';
 
+import '../billing/billing_models.dart';
 import '../json.dart';
 
 /// Nasiya hisobi (`/pos/customer-accounts*`). [balance] — qarz (musbat).
@@ -112,6 +113,7 @@ class PosAccountWithEntries {
   const PosAccountWithEntries({
     required this.account,
     this.entries = const <PosAccountEntry>[],
+    this.fiscal,
   });
 
   factory PosAccountWithEntries.fromJson(PosJson j) => PosAccountWithEntries(
@@ -119,10 +121,14 @@ class PosAccountWithEntries {
     entries: j.has('entry')
         ? <PosAccountEntry>[PosAccountEntry.fromJson(j.obj('entry'))]
         : j.objects('entries', PosAccountEntry.fromJson),
+    fiscal: j.has('fiscal') ? PosFiscalState.fromJson(j.obj('fiscal')) : null,
   );
 
   final PosCustomerAccount account;
   final List<PosAccountEntry> entries;
+
+  /// Qarz to'lovining kredit cheki (P3-26, faqat to'lov javobida).
+  final PosFiscalState? fiscal;
 }
 
 /// `GET /pos/customer-accounts` sahifasi.

@@ -84,6 +84,7 @@ class FloorMapItem {
     this.bookingAt,
     this.amount,
     this.waiter,
+    this.billRequested = false,
   });
 
   final String id;
@@ -109,6 +110,9 @@ class FloorMapItem {
 
   /// Ofitsiant ismi (qisqa).
   final String? waiter;
+
+  /// Ofitsiant schyot so'ragan, schyot hali chiqmagan ("Schyot so'raldi").
+  final bool billRequested;
 }
 
 /// Zal xaritasi: xonalar, tapchanlar va stollar o'z joyida, holat rangi va belgilari bilan (ochiq soatlar,
@@ -230,6 +234,8 @@ class FloorTile extends StatelessWidget {
       item.status,
     );
     final List<_Badge> badges = <_Badge>[
+      if (item.billRequested)
+        const _Badge(Icons.receipt_long, "Schyot so'raldi", 'schyot'),
       if (item.openedAt != null)
         _Badge(
           Icons.schedule,

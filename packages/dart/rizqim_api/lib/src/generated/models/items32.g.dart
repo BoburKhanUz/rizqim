@@ -31,12 +31,12 @@ Items32 _$Items32FromJson(Map<String, dynamic> json) => Items32(
   readyAt: json['ready_at'] as String?,
   addedBy: json['added_by'] == null
       ? null
-      : AddedBy9.fromJson(json['added_by'] as Map<String, dynamic>),
+      : AddedBy7.fromJson(json['added_by'] as Map<String, dynamic>),
   addedAt: json['added_at'] as String?,
   voidedAt: json['voided_at'] as String?,
   voidedBy: json['voided_by'] == null
       ? null
-      : VoidedBy9.fromJson(json['voided_by'] as Map<String, dynamic>),
+      : VoidedBy7.fromJson(json['voided_by'] as Map<String, dynamic>),
   voidReason: json['void_reason'] as String?,
 );
 

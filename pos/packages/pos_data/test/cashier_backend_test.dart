@@ -26,55 +26,54 @@ void main() {
       h.pos.approvals.request(permission: permission, userId: 2, pin: '5926');
 
   group('OnlineOrderRepository', () {
-    test(
-      'pending new orders (oldest first), accept, reject needs orders.cancel',
-      () async {
-        final String older = backend.seedOnlineOrder(minutesAgo: 9);
-        final String newer = backend.seedOnlineOrder(
-          channel: 'mobile',
-          minutesAgo: 1,
-        );
-        final List<PosOnlineOrder> pending = await h.pos.onlineOrders().pending(
-          branchId: 1,
-        );
-        expect(h.last.uri.path, '/api/v1/staff/orders');
-        expect(h.last.uri.queryParameters, <String, String>{
-          'scope': 'active',
-          'status': 'new',
-          'branch_id': '1',
-          'per_page': '50',
-        });
-        expect(pending.map((PosOnlineOrder o) => o.uuid), <String>[
-          older,
-          newer,
-        ]);
-        expect(pending.first.items.first.displayName, 'Osh (Choyxona oshi)');
-        expect(pending.first.items.first.quantityLabel, '1 kg (guruch)');
-        expect(pending.first.customerName, 'Aziz');
-        expect(pending.first.totalPrice, const PosMoney.som(128000));
+    test('incoming online orders (oldest first), accept, reject needs orders.cancel or a manager', () async {
+      final String older = backend.seedOnlineOrder(minutesAgo: 9);
+      final String newer = backend.seedOnlineOrder(
+        channel: 'mobile',
+        minutesAgo: 1,
+      );
+      final List<PosOnlineOrder> pending = await h.pos.onlineOrders().pending(
+        branchId: 1,
+      );
+      expect(h.last.uri.path, '/api/v1/pos/orders');
+      expect(h.last.uri.queryParameters, <String, String>{
+        'scope': 'incoming',
+        'branch_id': '1',
+      });
+      expect(pending.map((PosOnlineOrder o) => o.uuid), <String>[older, newer]);
+      expect(pending.first.items.first.displayName, 'Osh (Choyxona oshi)');
+      expect(pending.first.items.first.quantityLabel, '1 kg (guruch)');
+      expect(pending.first.customerName, 'Aziz');
+      expect(pending.first.totalPrice, const PosMoney.som(128000));
 
-        final PosOnlineOrder accepted = await h.pos.onlineOrders().accept(
-          older,
-        );
-        expect(accepted.status, 'accepted');
-        expect(Harness.bodyOf(h.last), <String, Object?>{'status': 'accepted'});
-        expect(h.last.headers['Idempotency-Key'], matches(uuidV4));
-        final List<PosOpenOrder> queue = await h.pos.orders.openOrders();
-        expect(queue.single.channel, 'telegram');
+      final PosOnlineOrder accepted = await h.pos.onlineOrders().accept(older);
+      expect(accepted.status, 'accepted');
+      expect(h.last.uri.path, '/api/v1/pos/orders/$older/accept');
+      expect(h.last.headers['Idempotency-Key'], matches(uuidV4));
+      final List<PosOpenOrder> queue = await h.pos.orders.openOrders();
+      expect(queue.single.channel, 'telegram');
+      expect(queue.single.online?.customerName, 'Aziz');
 
-        await expectLater(
-          h.pos.onlineOrders().reject(
-            newer,
-            reason: PosRejectReason.outOfStock,
-          ),
-          throwsA(isA<PosForbidden>()),
-        );
-        expect(Harness.bodyOf(h.last), <String, Object?>{
-          'status': 'rejected',
-          'reason': 'out_of_stock',
-        });
-      },
-    );
+      await expectLater(
+        h.pos.onlineOrders().reject(newer, reason: PosRejectReason.outOfStock),
+        throwsA(isA<PosApprovalRequired>()),
+      );
+      expect(Harness.bodyOf(h.last), <String, Object?>{
+        'reason': 'Mahsulot qolmagan',
+        'cancel_reason': 'out_of_stock',
+      });
+
+      final ApprovalToken token = await managerToken('orders.cancel');
+      final PosOnlineOrder rejected = await h.pos.onlineOrders().reject(
+        newer,
+        reason: PosRejectReason.outOfStock,
+        note: 'Osh tugadi',
+        approvalToken: token.token,
+      );
+      expect(rejected.status, 'rejected');
+      expect(Harness.bodyOf(h.last)['reason'], 'Osh tugadi');
+      expect(await h.pos.onlineOrders().pending(), isEmpty);
+    });
   });
 
   group('billing', () {
@@ -189,7 +188,7 @@ void main() {
       },
     );
 
-    test('fiscal pending → retry issues the receipt and closes; receipt detail needs reports.view', () async {
+    test('fiscal pending → retry issues the receipt and closes; the receipt comes along', () async {
       h.state.openShift();
       backend
         ..fiscalMode = FakeFiscalMode.pending
@@ -213,26 +212,32 @@ void main() {
       expect(r.bill.fiscal.status, 'issued');
       expect(r.order.isClosed, isTrue);
 
+      // P3-26: the payment's answer carries the registered receipt; the till reads it again with pos.take_payment
+      final PosFiscalReceiptDetail? inline = r.bill.fiscal.receipt;
+      expect(inline, isNotNull);
+      expect(inline!.fiscalSign, isNotNull);
+      expect(inline.receiptNumber, isNotNull);
+      expect(inline.terminalId, 'EP000000000123');
       final FiscalReceiptRepository receipts = FiscalReceiptRepository(
         h.pos.http,
       );
+      final PosFiscalReceiptDetail detail = await receipts.get(
+        r.bill.fiscal.receiptUuid!,
+      );
+      expect(
+        h.last.uri.path,
+        '/api/v1/pos/fiscal-receipts/${r.bill.fiscal.receiptUuid}',
+      );
+      expect(detail.receiptType, FiscalReceiptType.sale);
+      expect(detail.fiscalSign, inline.fiscalSign);
+      expect(detail.qrUrl, startsWith('https://'));
+      expect(detail.lines.first.mxikCode, hasLength(17));
+      expect(detail.nonFiscal, isTrue);
+      h.state.rolePermissions['cashier']!.remove('pos.take_payment');
       await expectLater(
         receipts.get(r.bill.fiscal.receiptUuid!),
         throwsA(isA<PosForbidden>()),
       );
-      expect(
-        h.last.uri.path,
-        '/api/v1/owner/fiscal/receipts/${r.bill.fiscal.receiptUuid}',
-      );
-      h.state.rolePermissions['cashier']!.add('reports.view');
-      final PosFiscalReceiptDetail detail = await receipts.get(
-        r.bill.fiscal.receiptUuid!,
-      );
-      expect(detail.receiptType, FiscalReceiptType.sale);
-      expect(detail.fiscalSign, isNotNull);
-      expect(detail.qrUrl, startsWith('https://'));
-      expect(detail.lines.first.mxikCode, hasLength(17));
-      expect(detail.nonFiscal, isTrue);
     });
 
     test('nasiya needs a manager approval and the limit; prepayment comes from the booking deposit', () async {
@@ -530,45 +535,56 @@ void main() {
       },
     );
 
-    test(
-      'debtors, repayment and a create needing customer_accounts.manage',
-      () async {
-        final String a = backend.seedAccount(
-          name: 'Jamshid aka',
-          phone: '+998901112233',
-          limit: '1000000.00',
-          debt: '161100.00',
-        );
-        backend.seedAccount(name: 'Sardor', debt: '20000.00');
-        final PosDebtors debtors = await h.pos.accounts.debtors();
-        expect(debtors.totalDebt, const PosMoney.som(181100));
-        expect(debtors.accounts.first.uuid, a);
-        expect(
-          (await h.pos.accounts.list(query: '1112')).accounts.single.uuid,
+    test('debtors, repayment with its credit receipt and a create with a manager approval', () async {
+      final String a = backend.seedAccount(
+        name: 'Jamshid aka',
+        phone: '+998901112233',
+        limit: '1000000.00',
+        debt: '161100.00',
+      );
+      backend.seedAccount(name: 'Sardor', debt: '20000.00');
+      final PosDebtors debtors = await h.pos.accounts.debtors();
+      expect(debtors.totalDebt, const PosMoney.som(181100));
+      expect(debtors.accounts.first.uuid, a);
+      expect(
+        (await h.pos.accounts.list(query: '1112')).accounts.single.uuid,
+        a,
+      );
+      await expectLater(
+        h.pos.accounts.repay(
           a,
-        );
-        await expectLater(
-          h.pos.accounts.repay(
-            a,
-            amount: const PosMoney.som(200000),
-            tender: 'cash',
-          ),
-          throwsA(isA<PosRejected>()),
-        );
-        final PosAccountWithEntries paid = await h.pos.accounts.repay(
-          a,
-          amount: const PosMoney.som(50000),
+          amount: const PosMoney.som(200000),
           tender: 'cash',
-        );
-        expect(paid.account.balance, const PosMoney.som(111100));
-        expect(paid.entries.single.fiscalStatus, 'issued');
-        expect(paid.account.availableCredit, const PosMoney.som(888900));
-        await expectLater(
-          h.pos.accounts.create(const PosAccountInput(name: 'Yangi')),
-          throwsA(isA<PosForbidden>()),
-        );
-      },
-    );
+        ),
+        throwsA(isA<PosRejected>()),
+      );
+      final PosAccountWithEntries paid = await h.pos.accounts.repay(
+        a,
+        amount: const PosMoney.som(50000),
+        tender: 'cash',
+      );
+      expect(paid.account.balance, const PosMoney.som(111100));
+      expect(paid.entries.single.fiscalStatus, 'issued');
+      expect(paid.account.availableCredit, const PosMoney.som(888900));
+      // P3-26: the CREDIT receipt to print comes with the repayment
+      expect(paid.fiscal?.receipt?.receiptType, FiscalReceiptType.credit);
+      expect(paid.fiscal?.receipt?.total, const PosMoney.som(50000));
+      expect(paid.fiscal?.receipt?.fiscalSign, isNull);
+      // A cashier opens an account with a manager's approval
+      await expectLater(
+        h.pos.accounts.create(const PosAccountInput(name: 'Yangi')),
+        throwsA(isA<PosApprovalRequired>()),
+      );
+      final ApprovalToken token = await managerToken(
+        'customer_accounts.manage',
+      );
+      final PosCustomerAccount created = await h.pos.accounts.create(
+        const PosAccountInput(name: 'Yangi'),
+        approvalToken: token.token,
+      );
+      expect(created.name, 'Yangi');
+      expect(Harness.bodyOf(h.last)['approval_token'], token.token);
+    });
   });
 }
 

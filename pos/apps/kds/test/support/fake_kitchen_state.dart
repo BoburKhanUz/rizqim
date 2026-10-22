@@ -301,6 +301,7 @@ class FakeKitchenState {
       i['void_reason'] = reason;
     }
     order['status'] = 'canceled';
+    order['canceled_at'] = now();
     _event('order.status_changed', uuid);
   }
 
@@ -608,6 +609,8 @@ class FakeKitchenState {
         return o == null ? _notFound() : _ok(_ticket(o));
       }
       if (method == 'GET' && p == '/v1/staff/kitchen/tickets') {
+        // P3-26: `canceled_within` (daqiqa) — shu vaqt ichida bekor qilinganlar ham, `canceled_at` bilan
+        final int? within = int.tryParse(query['canceled_within'] ?? '');
         return FakeResponse(200, <String, Object?>{
           'success': true,
           'message': '',
@@ -615,6 +618,13 @@ class FakeKitchenState {
             for (final Map<String, Object?> o in orders)
               if (o['status'] == 'accepted' || o['status'] == 'preparing')
                 _ticket(o),
+            if (within != null)
+              for (final Map<String, Object?> o in orders)
+                if (o['status'] == 'canceled' &&
+                    o['canceled_at'] is DateTime &&
+                    now().difference(o['canceled_at']! as DateTime) <
+                        Duration(minutes: within))
+                  _ticket(o),
           ],
           'meta': <String, Object?>{'truncated': false},
         });
@@ -804,6 +814,15 @@ class FakeKitchenState {
       });
     }
     final bool pos = item['fire_mode'] != null;
+    // P3-26: a held pre-order line with a due time may be marked ready before it is sent (ready implies sent)
+    final bool early =
+        ready &&
+        pos &&
+        item['kitchen_status'] != 'void' &&
+        item['sent_at'] == null &&
+        item['fire_mode'] == 'hold' &&
+        item['due_at'] != null;
+    if (early) item['sent_at'] = now();
     if (pos && (item['kitchen_status'] == 'void' || item['sent_at'] == null)) {
       return FakeResponse(422, <String, Object?>{
         'success': false,
@@ -890,6 +909,7 @@ class FakeKitchenState {
       'accepted_at': iso(o['accepted_at']),
       'preparing_at': iso(o['preparing_at']),
       'ready_at': iso(o['ready_at']),
+      'canceled_at': iso(o['canceled_at']),
       'waiting_seconds': end.difference(start).inSeconds.clamp(0, 1 << 31),
     };
   }

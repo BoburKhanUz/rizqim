@@ -37,6 +37,7 @@ export const posSetupKeys = {
   printers: (branchId?: number) => ['owner', 'printers', branchId ?? null] as const,
   allPrinters: ['owner', 'printers'] as const,
   branchSettings: (branchId: number) => ['owner', 'branch-pos-settings', branchId] as const,
+  allBranchSettings: ['owner', 'branch-pos-settings'] as const,
 };
 
 export function useKitchenStations(branchId: number | undefined, options: QueryExtras<KitchenStations> = {}) {
@@ -147,7 +148,8 @@ export function useBranchPosSettings(branchId: number | null, options: QueryExtr
   });
 }
 
-// The answer is the branch's whole settings: it replaces the cached ones
+// The answer is the branch's whole settings: it replaces the cached ones. The holidays are also the room tariff
+// calendar's (one list per branch since P3-26), so the tariffs are read again.
 export function useSaveBranchPosSettings(options: MutationExtras<BranchPosSettings, { branchId: number; patch: BranchPosSettingsPatch }> = {}) {
   const api = useStaffApi();
   const queryClient = useQueryClient();
@@ -156,6 +158,7 @@ export function useSaveBranchPosSettings(options: MutationExtras<BranchPosSettin
     mutationFn: ({ branchId, patch }: { branchId: number; patch: BranchPosSettingsPatch }) => saveBranchPosSettings(api, branchId, patch),
     onSuccess: (...args) => {
       queryClient.setQueryData(posSetupKeys.branchSettings(args[1].branchId), args[0]);
+      void queryClient.invalidateQueries({ queryKey: ['owner', 'room-tariffs'] });
       return options.onSuccess?.(...args);
     },
   });

@@ -105,7 +105,8 @@ class OwnerCatalogController extends Controller
      * Create a new product with variants
      *
      * multipart/form-data, menu.manage. `variants` is a JSON array of {name, price, unit?, quantity_step?,
-     * min_quantity?, batch_consumption?, stock?, unit_label?}; `stock` left out starts the variant at 999.
+     * min_quantity?, batch_consumption?, stock?, unit_label?}; `stock` left out starts the variant at 999. P3-26:
+     * `quick_add` (boolean) makes it a one-tap button at the till and on the waiter phone.
      * P3-11: optional `kind` (dish | service), `mxik_code` (17 digits), `package_code` (digits), `vat_rate` (0–100,
      * empty: the store's tax regime decides); a variant's `unit_label` is its unit on the receipt ("kg (guruch)").
      */
@@ -124,6 +125,8 @@ class OwnerCatalogController extends Controller
             // "quantity_step", "min_quantity" (kg/l) and "batch_consumption"; P2-30: optional "stock" (left out: 999)
             'variants' => 'required|json',
             'batch_tracked' => 'boolean',
+            // P3-26: a one-tap button at the till and on the waiter phone (GET /pos/bootstrap quick_items)
+            'quick_add' => 'boolean',
             // P2-12: position in the menu, as the panel's product form sets it (left out = 0 / kept)
             'sort_order' => 'nullable|integer|between:0,100000',
         ] + $this->fiscalRules(), $this->fiscalMessages());
@@ -148,6 +151,7 @@ class OwnerCatalogController extends Controller
                 'type' => 'physical',
                 'has_variants' => true,
                 'batch_tracked' => (bool) ($validated['batch_tracked'] ?? false),
+                'quick_add' => (bool) ($validated['quick_add'] ?? false), // P3-26
             ] + (isset($validated['sort_order']) ? ['sort_order' => (int) $validated['sort_order']] : [])
                 + $this->fiscalFields($validated)); // P3-11
             app(MenuImageService::class)->queueThumbnails($product);
@@ -185,7 +189,8 @@ class OwnerCatalogController extends Controller
      * multipart/form-data (POST, so the image can be sent). With `toggle_active` (any value) only the product's
      * active status is flipped and the other fields are not needed. menu.manage. A variant's stock is not changed
      * here (orders move it); a new variant takes `stock` like on create. P3-11: `kind`, `mxik_code`,
-     * `package_code`, `vat_rate` and a variant's `unit_label` as on create; left out = kept, empty = cleared.
+     * `package_code`, `vat_rate` and a variant's `unit_label` as on create; left out = kept, empty = cleared. P3-26:
+     * `quick_add` as on create (left out = kept). Only the fiscal fields: PATCH /owner/products/{id}/fiscal.
      */
     #[QueryParameter('toggle_active', description: 'Any value: only switch the product on/off (no other field needed).', type: 'int', required: false)]
     public function updateProduct(Request $request, $id)
@@ -209,6 +214,7 @@ class OwnerCatalogController extends Controller
             // an existing one left out is deleted. P1-21: optional "unit", "quantity_step", "min_quantity", "batch_consumption"
             'variants' => 'required|json',
             'batch_tracked' => 'boolean',
+            'quick_add' => 'boolean', // P3-26
             'sort_order' => 'nullable|integer|between:0,100000', // P2-12
         ] + $this->fiscalRules(), $this->fiscalMessages());
         $this->validateVariantUnits($validated['variants'], $product);
@@ -232,6 +238,9 @@ class OwnerCatalogController extends Controller
             }
             if (isset($validated['sort_order'])) {
                 $updateData['sort_order'] = (int) $validated['sort_order']; // P2-12
+            }
+            if (array_key_exists('quick_add', $validated)) {
+                $updateData['quick_add'] = (bool) $validated['quick_add']; // P3-26: left out = kept
             }
             $updateData += $this->fiscalFields($validated); // P3-11: fields left out are kept
             $product->update($updateData);
@@ -282,6 +291,51 @@ class OwnerCatalogController extends Controller
 
             return $this->error("Mahsulotni saqlab bo'lmadi. Birozdan so'ng qayta urinib ko'ring.", [], 500);
         }
+    }
+
+    /**
+     * Update only a product's fiscal fields
+     *
+     * P3-26: JSON, menu.manage. The receipt fields alone, without resending the whole product (the panel's fiscal bulk
+     * edit): `kind` (dish | service), `mxik_code` (17 digits), `package_code` (digits), `vat_rate` (0–100; empty: the
+     * store's tax regime decides) and `variants`: [{id, unit_label}] (a variant's unit on the receipt, "kg (guruch)";
+     * empty: the unit's own). A field left out is kept, an empty one cleared (`kind` then goes back to dish). Another
+     * product's variant id: 422. Returns the product with its variants.
+     */
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: Product}')]
+    public function updateFiscal(Request $request, $id)
+    {
+        $product = $this->product($request, $id);
+        $validated = $request->validate($this->fiscalRules() + [
+            'variants' => 'sometimes|array|max:100',
+            'variants.*.id' => 'required|integer|min:1|max:999999999999',
+            'variants.*.unit_label' => 'present|nullable|string|max:64',
+        ], $this->fiscalMessages() + [
+            'variants.*.id.required' => "Variant identifikatori kerak.",
+            'variants.*.unit_label.present' => "Chekdagi o'lchov birligini yuboring (bo'sh: o'lchovning o'zi).",
+            'variants.*.unit_label.max' => "Chekdagi o'lchov birligi ko'pi bilan 64 belgi bo'lishi mumkin.",
+        ]);
+
+        $variantIds = array_map(fn (array $row) => (int) $row['id'], $validated['variants'] ?? []);
+        $own = ProductVariant::where('product_id', $product->id)->whereIn('id', $variantIds)->pluck('id')->map(fn ($variantId) => (int) $variantId)->all();
+        foreach ($variantIds as $index => $variantId) {
+            if (!in_array($variantId, $own, true)) {
+                throw \Illuminate\Validation\ValidationException::withMessages(["variants.{$index}.id" => "Bu variant shu mahsulotga tegishli emas."]);
+            }
+        }
+
+        DB::transaction(function () use ($product, $validated) {
+            $fields = $this->fiscalFields($validated);
+            if ($fields !== []) {
+                $product->update($fields);
+            }
+            foreach ($validated['variants'] ?? [] as $row) {
+                $label = is_string($row['unit_label'] ?? null) && trim($row['unit_label']) !== '' ? trim($row['unit_label']) : null;
+                ProductVariant::where('product_id', $product->id)->whereKey((int) $row['id'])->update(['unit_label' => $label]);
+            }
+        });
+
+        return $this->success($product->fresh('variants'), "Fiskal ma'lumotlar saqlandi.");
     }
 
     /**

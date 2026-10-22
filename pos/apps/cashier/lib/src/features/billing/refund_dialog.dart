@@ -87,15 +87,10 @@ class _RefundDialogState extends State<_RefundDialog> {
         ),
       );
       if (!mounted) return;
-      PosFiscalReceiptDetail? detail;
-      if (refund.fiscal.receiptUuid != null) {
-        try {
-          detail = await FiscalReceiptRepository(scope.data.http)
-              .get(refund.fiscal.receiptUuid!);
-        } on PosException {
-          // Chekni o'qish ruxsati yo'q: chek qaytarish ma'lumotidan
-        }
-      }
+      final PosFiscalReceiptDetail? detail = await receiptOf(
+        scope.data,
+        refund.fiscal,
+      );
       if (!mounted) return;
       final ReceiptPrinter printer = ReceiptPrinter(scope);
       final FiscalReceipt doc = refundReceiptOf(

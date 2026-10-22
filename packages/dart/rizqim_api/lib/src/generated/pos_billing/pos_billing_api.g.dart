@@ -23,10 +23,13 @@ class _PosBillingApi implements PosBillingApi {
   @override
   Future<PostV1PosApprovalsResponse> posApprovalStore({
     required V1PosApprovalsRequestBody body,
+    String? idempotencyKey,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{};
-    final _headers = <String, dynamic>{};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{r'Idempotency-Key': idempotencyKey};
+    _headers.removeWhere((k, v) => v == null);
     final _data = <String, dynamic>{};
     _data.addAll(body.toJson());
     final _options = _setStreamType<PostV1PosApprovalsResponse>(
@@ -53,10 +56,13 @@ class _PosBillingApi implements PosBillingApi {
   @override
   Future<PostV1PosBillsUuidFiscalRetryResponse> posBillFiscalRetry({
     required String uuid,
+    String? idempotencyKey,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{};
-    final _headers = <String, dynamic>{};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{r'Idempotency-Key': idempotencyKey};
+    _headers.removeWhere((k, v) => v == null);
     const Map<String, dynamic>? _data = null;
     final _options = _setStreamType<PostV1PosBillsUuidFiscalRetryResponse>(
       Options(method: 'POST', headers: _headers, extra: _extra)
@@ -82,11 +88,13 @@ class _PosBillingApi implements PosBillingApi {
   @override
   Future<PostV1PosBillsUuidPaymentsResponse> posBillPay({
     required String uuid,
+    required String idempotencyKey,
     required V1PosBillsUuidPaymentsRequestBody body,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{};
-    final _headers = <String, dynamic>{};
+    final _headers = <String, dynamic>{r'Idempotency-Key': idempotencyKey};
+    _headers.removeWhere((k, v) => v == null);
     final _data = <String, dynamic>{};
     _data.addAll(body.toJson());
     final _options = _setStreamType<PostV1PosBillsUuidPaymentsResponse>(
@@ -113,12 +121,14 @@ class _PosBillingApi implements PosBillingApi {
   @override
   Future<PostV1PosBillsUuidPrintResponse> posBillPrint({
     required String uuid,
+    required String idempotencyKey,
     V1PosBillsUuidPrintRequestBody? body,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{};
     queryParameters.removeWhere((k, v) => v == null);
-    final _headers = <String, dynamic>{};
+    final _headers = <String, dynamic>{r'Idempotency-Key': idempotencyKey};
+    _headers.removeWhere((k, v) => v == null);
     final _data = <String, dynamic>{};
     _data.addAll(body?.toJson() ?? <String, dynamic>{});
     final _options = _setStreamType<PostV1PosBillsUuidPrintResponse>(
@@ -135,6 +145,35 @@ class _PosBillingApi implements PosBillingApi {
     late PostV1PosBillsUuidPrintResponse _value;
     try {
       _value = PostV1PosBillsUuidPrintResponse.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
+  Future<GetV1PosFiscalReceiptsUuidResponse> posFiscalReceiptShow({
+    required String uuid,
+  }) async {
+    final _extra = <String, dynamic>{};
+    final queryParameters = <String, dynamic>{};
+    final _headers = <String, dynamic>{};
+    const Map<String, dynamic>? _data = null;
+    final _options = _setStreamType<GetV1PosFiscalReceiptsUuidResponse>(
+      Options(method: 'GET', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/v1/pos/fiscal-receipts/${uuid}',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late GetV1PosFiscalReceiptsUuidResponse _value;
+    try {
+      _value = GetV1PosFiscalReceiptsUuidResponse.fromJson(_result.data!);
     } on Object catch (e, s) {
       errorLogger?.logError(e, s, _options, response: _result);
       rethrow;
@@ -176,11 +215,13 @@ class _PosBillingApi implements PosBillingApi {
   @override
   Future<PostV1PosOrdersUuidBillsResponse> posBillStore({
     required String uuid,
+    required String idempotencyKey,
     required V1PosOrdersUuidBillsRequestBody body,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{};
-    final _headers = <String, dynamic>{};
+    final _headers = <String, dynamic>{r'Idempotency-Key': idempotencyKey};
+    _headers.removeWhere((k, v) => v == null);
     final _data = <String, dynamic>{};
     _data.addAll(body.toJson());
     final _options = _setStreamType<PostV1PosOrdersUuidBillsResponse>(
@@ -207,10 +248,12 @@ class _PosBillingApi implements PosBillingApi {
   @override
   Future<PostV1PosOrdersUuidCloseResponse> posBillClose({
     required String uuid,
+    required String idempotencyKey,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{};
-    final _headers = <String, dynamic>{};
+    final _headers = <String, dynamic>{r'Idempotency-Key': idempotencyKey};
+    _headers.removeWhere((k, v) => v == null);
     const Map<String, dynamic>? _data = null;
     final _options = _setStreamType<PostV1PosOrdersUuidCloseResponse>(
       Options(method: 'POST', headers: _headers, extra: _extra)
@@ -235,11 +278,13 @@ class _PosBillingApi implements PosBillingApi {
 
   @override
   Future<PostV1PosRefundsResponse> posRefundStore({
+    required String idempotencyKey,
     required V1PosRefundsRequestBody body,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{};
-    final _headers = <String, dynamic>{};
+    final _headers = <String, dynamic>{r'Idempotency-Key': idempotencyKey};
+    _headers.removeWhere((k, v) => v == null);
     final _data = <String, dynamic>{};
     _data.addAll(body.toJson());
     final _options = _setStreamType<PostV1PosRefundsResponse>(
@@ -305,11 +350,13 @@ class _PosBillingApi implements PosBillingApi {
 
   @override
   Future<PostV1PosShiftsResponse> posShiftStore({
+    required String idempotencyKey,
     required V1PosShiftsRequestBody body,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{};
-    final _headers = <String, dynamic>{};
+    final _headers = <String, dynamic>{r'Idempotency-Key': idempotencyKey};
+    _headers.removeWhere((k, v) => v == null);
     final _data = <String, dynamic>{};
     _data.addAll(body.toJson());
     final _options = _setStreamType<PostV1PosShiftsResponse>(
@@ -334,9 +381,10 @@ class _PosBillingApi implements PosBillingApi {
   }
 
   @override
-  Future<GetV1PosShiftsCurrentResponse> posShiftCurrent() async {
+  Future<GetV1PosShiftsCurrentResponse> posShiftCurrent({int? branchId}) async {
     final _extra = <String, dynamic>{};
-    final queryParameters = <String, dynamic>{};
+    final queryParameters = <String, dynamic>{r'branch_id': branchId};
+    queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
     const Map<String, dynamic>? _data = null;
     final _options = _setStreamType<GetV1PosShiftsCurrentResponse>(
@@ -392,11 +440,13 @@ class _PosBillingApi implements PosBillingApi {
   @override
   Future<PostV1PosShiftsUuidCashMovementsResponse> posShiftCashMovement({
     required String uuid,
+    required String idempotencyKey,
     required V1PosShiftsUuidCashMovementsRequestBody body,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{};
-    final _headers = <String, dynamic>{};
+    final _headers = <String, dynamic>{r'Idempotency-Key': idempotencyKey};
+    _headers.removeWhere((k, v) => v == null);
     final _data = <String, dynamic>{};
     _data.addAll(body.toJson());
     final _options = _setStreamType<PostV1PosShiftsUuidCashMovementsResponse>(
@@ -423,11 +473,13 @@ class _PosBillingApi implements PosBillingApi {
   @override
   Future<PostV1PosShiftsUuidCloseResponse> posShiftClose({
     required String uuid,
+    required String idempotencyKey,
     required V1PosShiftsUuidCloseRequestBody body,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{};
-    final _headers = <String, dynamic>{};
+    final _headers = <String, dynamic>{r'Idempotency-Key': idempotencyKey};
+    _headers.removeWhere((k, v) => v == null);
     final _data = <String, dynamic>{};
     _data.addAll(body.toJson());
     final _options = _setStreamType<PostV1PosShiftsUuidCloseResponse>(

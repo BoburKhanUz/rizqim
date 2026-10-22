@@ -74,43 +74,36 @@ describe('Fiskal tayyorlik: the products without an MXIK', () => {
     await typing.type(field, MXIK_A);
     expect(screen.queryByText('MXIK kodi 17 ta raqamdan iborat bo\'lishi kerak.')).not.toBeInTheDocument();
     expect(save).toBeEnabled();
-    expect(calls.some((call) => call.method === 'POST')).toBe(false);
+    expect(calls.some((call) => call.method !== 'GET')).toBe(false);
   });
 
-  it('saves one row: the whole product goes back with only its MXIK new, so no variant is lost', async () => {
-    const { calls } = base({ 'POST /api/v1/owner/products/7': () => ok({ id: 7 }) });
+  it('saves one row: only its fiscal fields go out (PATCH), so nothing else of the product is touched', async () => {
+    const { calls } = base({ 'PATCH /api/v1/owner/products/7/fiscal': () => ok({ id: 7 }) });
     const typing = userEvent.setup();
     renderPage(<FiscalView />);
     await typing.type(await screen.findByLabelText('Osh: MXIK kodi'), MXIK_A);
     await typing.click(screen.getByRole('button', { name: 'Osh: saqlash' }));
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('1 ta taom saqlandi.'));
-    const form = await calls.find((call) => call.method === 'POST')!.formData();
-    expect(form.get('mxik_code')).toBe(MXIK_A);
-    expect(form.get('name')).toBe('Osh');
-    expect(form.get('category_id')).toBe('2');
-    expect(form.get('is_active')).toBe('1');
-    expect(form.has('kind')).toBe(false);
-    expect(JSON.parse(String(form.get('variants')))).toEqual([expect.objectContaining({ id: 11, name: '1 porsiya', price: 35000, unit: 'piece' })]);
+    expect(await calls.find((call) => call.method === 'PATCH')!.json()).toEqual({ mxik_code: MXIK_A });
+    expect(calls.some((call) => call.method !== 'GET' && call.method !== 'PATCH')).toBe(false);
   });
 
   it('saves a changed kind with the code', async () => {
-    const { calls } = base({ 'POST /api/v1/owner/products/7': () => ok({ id: 7 }) });
+    const { calls } = base({ 'PATCH /api/v1/owner/products/7/fiscal': () => ok({ id: 7 }) });
     const typing = userEvent.setup();
     renderPage(<FiscalView />);
     await typing.selectOptions(await screen.findByLabelText('Osh: turi'), 'service');
     await typing.type(screen.getByLabelText('Osh: MXIK kodi'), MXIK_A);
     await typing.type(screen.getByLabelText('Osh: qadoq kodi'), '1234567');
     await typing.click(screen.getByRole('button', { name: 'Osh: saqlash' }));
-    await waitFor(() => expect(calls.some((call) => call.method === 'POST')).toBe(true));
-    const form = await calls.find((call) => call.method === 'POST')!.formData();
-    expect(form.get('kind')).toBe('service');
-    expect(form.get('package_code')).toBe('1234567');
+    await waitFor(() => expect(calls.some((call) => call.method === 'PATCH')).toBe(true));
+    expect(await calls.find((call) => call.method === 'PATCH')!.json()).toEqual({ mxik_code: MXIK_A, package_code: '1234567', kind: 'service' });
   });
 
   it('saves every filled row in one go and shows the reason of the one the server refuses, keeping its text', async () => {
     const { calls } = base({
-      'POST /api/v1/owner/products/7': () => ok({ id: 7 }),
-      'POST /api/v1/owner/products/8': () => json({ success: false, message: 'Xato', errors: { mxik_code: ["MXIK kodi 17 ta raqamdan iborat bo'lishi kerak (tasnifda topilmadi)."] } }, 422),
+      'PATCH /api/v1/owner/products/7/fiscal': () => ok({ id: 7 }),
+      'PATCH /api/v1/owner/products/8/fiscal': () => json({ success: false, message: 'Xato', errors: { mxik_code: ["MXIK kodi 17 ta raqamdan iborat bo'lishi kerak (tasnifda topilmadi)."] } }, 422),
     });
     const typing = userEvent.setup();
     renderPage(<FiscalView />);
@@ -118,7 +111,7 @@ describe('Fiskal tayyorlik: the products without an MXIK', () => {
     await typing.type(screen.getByLabelText('Qozon ijarasi: MXIK kodi'), MXIK_B);
     const all = screen.getByRole('button', { name: 'Hammasini saqlash (2)' });
     await typing.click(all);
-    await waitFor(() => expect(calls.filter((call) => call.method === 'POST')).toHaveLength(2));
+    await waitFor(() => expect(calls.filter((call) => call.method === 'PATCH')).toHaveLength(2));
     expect(await screen.findByText("1 ta taom saqlandi.")).toBeInTheDocument();
     expect(screen.getByText("1 ta taom saqlanmadi: sababi qatorda ko'rsatilgan.")).toBeInTheDocument();
     expect(screen.getByText("MXIK kodi 17 ta raqamdan iborat bo'lishi kerak (tasnifda topilmadi).")).toBeInTheDocument();

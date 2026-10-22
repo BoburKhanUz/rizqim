@@ -23,19 +23,21 @@ interface Draft {
   categoryId: string;
   isActive: boolean;
   batchTracked: boolean;
+  quickAdd: boolean;
   sortOrder: string;
   variants: VariantDraft[];
   fiscal: FiscalDraft;
 }
 
 function draftFrom(product: Product | null, defaultVariantName: string): Draft {
-  if (!product) return { name: '', description: '', categoryId: '', isActive: true, batchTracked: false, sortOrder: '', variants: [emptyVariant(defaultVariantName)], fiscal: fiscalDraftFrom(null) };
+  if (!product) return { name: '', description: '', categoryId: '', isActive: true, batchTracked: false, quickAdd: false, sortOrder: '', variants: [emptyVariant(defaultVariantName)], fiscal: fiscalDraftFrom(null) };
   return {
     name: product.name,
     description: product.description ?? '',
     categoryId: String(product.category_id),
     isActive: product.is_active,
     batchTracked: product.batch_tracked,
+    quickAdd: product.quick_add,
     sortOrder: String(product.sort_order),
     variants: (product.variants ?? []).length > 0 ? (product.variants ?? []).map(variantFromApi) : [emptyVariant(defaultVariantName)],
     fiscal: fiscalDraftFrom(product),
@@ -140,6 +142,7 @@ export function ProductForm({ product, categories, canManage, onCreated }: Produ
       category_id: draft.categoryId,
       is_active: draft.isActive,
       batch_tracked: draft.batchTracked,
+      quick_add: draft.quickAdd,
       sort_order: parseDecimal(draft.sortOrder),
       image: image?.file ?? null,
       variants,
@@ -243,6 +246,13 @@ export function ProductForm({ product, categories, canManage, onCreated }: Produ
               <span className="text-body text-fg">
                 {t('menu_batch_tracked')}
                 <span className="block text-footnote text-fg-muted">{t('menu_batch_tracked_hint')}</span>
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch checked={draft.quickAdd} onChange={(checked) => patch({ quickAdd: checked })} label={t('menu_quick_add')} />
+              <span className="text-body text-fg">
+                {t('menu_quick_add')}
+                <span className="block text-footnote text-fg-muted">{t('menu_quick_add_hint')}</span>
               </span>
             </div>
           </div>

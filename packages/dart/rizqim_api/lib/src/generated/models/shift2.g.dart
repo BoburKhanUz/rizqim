@@ -12,17 +12,17 @@ Shift2 _$Shift2FromJson(Map<String, dynamic> json) => Shift2(
   branchId: (json['branch_id'] as num).toInt(),
   device: json['device'] == null
       ? null
-      : Device15.fromJson(json['device'] as Map<String, dynamic>),
+      : Device13.fromJson(json['device'] as Map<String, dynamic>),
   businessDate: json['business_date'] as String,
   openedAt: json['opened_at'] as String,
   openedBy: json['opened_by'] == null
       ? null
-      : OpenedBy5.fromJson(json['opened_by'] as Map<String, dynamic>),
+      : OpenedBy3.fromJson(json['opened_by'] as Map<String, dynamic>),
   openingCash: json['opening_cash'] as String,
   closedAt: json['closed_at'] as String?,
   closedBy: json['closed_by'] == null
       ? null
-      : ClosedBy5.fromJson(json['closed_by'] as Map<String, dynamic>),
+      : ClosedBy3.fromJson(json['closed_by'] as Map<String, dynamic>),
   expectedCash: json['expected_cash'] as String?,
   countedCash: json['counted_cash'] as String?,
   countedBreakdown: (json['counted_breakdown'] as Map<String, dynamic>?)?.map(

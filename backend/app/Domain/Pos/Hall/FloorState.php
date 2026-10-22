@@ -37,9 +37,12 @@ class FloorState
     ) {}
 
     /**
+     * $withContact: the reservation's guest name and phone (P3-26) for staff who work with orders or bookings; others
+     * (a cook's kitchen screen) get null in their place.
+     *
      * @return array{branch_id: int, generated_at: string, overdue_after_hours: int, halls: list<array<string, mixed>>, untabled_orders: list<array<string, mixed>>}
      */
-    public function forBranch(Branch $branch, ?CarbonInterface $now = null): array
+    public function forBranch(Branch $branch, ?CarbonInterface $now = null, bool $withContact = false): array
     {
         $now ??= now();
         $overdueHours = $this->overdueHours($branch);
@@ -60,6 +63,9 @@ class FloorState
 
         $tableIds = $tables->flatten()->pluck('id')->map(fn ($id) => (int) $id)->all();
         $reserved = $this->reservations->upcoming((int) $branch->id, $tableIds, $now->copy()->subMinutes(30), $now->copy()->addMinutes(self::RESERVED_SOON_MINUTES));
+        if (!$withContact) {
+            $reserved = array_map(fn (array $reservation) => array_merge($reservation, ['contact_name' => null, 'contact_phone' => null]), $reserved);
+        }
 
         $result = [];
         foreach ($halls as $hall) {
@@ -98,8 +104,8 @@ class FloorState
 
     /**
      * @param  Collection<int, Order>  $orders
-     * @param  array<int, array{items: int, unsent: int}>  $counts
-     * @param  array{booking_uuid: string, starts_at: string, guests: int|null}|null  $reservation
+     * @param  array<int, array{items: int, unsent: int, ready: int}>  $counts
+     * @param  array{booking_uuid: string, starts_at: string, guests: int|null, contact_name: string|null, contact_phone: string|null}|null  $reservation
      * @return array<string, mixed>
      */
     private function table(DiningTable $table, Collection $orders, array $counts, ?array $reservation, CarbonInterface $now, int $overdueHours): array
@@ -123,13 +129,14 @@ class FloorState
             'min_spend' => $table->min_spend,
             'min_spend_mode' => $table->min_spend_mode->value,
             'status' => $status,
+            'bill_requested' => collect($summaries)->contains(fn (array $order) => $order['bill_requested'] && !$order['bill_printed']),
             'reservation' => $reservation,
             'orders' => $summaries,
         ];
     }
 
     /**
-     * @param  array<int, array{items: int, unsent: int}>  $counts
+     * @param  array<int, array{items: int, unsent: int, ready: int}>  $counts
      * @return array<string, mixed>
      */
     private function order(Order $order, array $counts, CarbonInterface $now, int $overdueHours): array
@@ -146,19 +153,24 @@ class FloorState
             'open_minutes' => $opened !== null ? max(0, (int) $opened->diffInMinutes($now, false)) : 0,
             'overdue' => $opened !== null && $opened->copy()->addHours($overdueHours)->lessThanOrEqualTo($now),
             'bill_printed' => $order->getAttribute('bill_locked_at') !== null,
+            // P3-26: a waiter asked for the bill ("Schyot so'raldi"), POST /pos/orders/{uuid}/request-bill
+            'bill_requested' => $order->bill_requested_at !== null,
+            'bill_requested_at' => $order->bill_requested_at?->toJSON(),
             'guests_count' => $order->guests_count,
             'waiter' => $order->waiter ? ['id' => (int) $order->waiter->id, 'name' => $order->waiter->name] : null,
             'total_price' => (string) $order->total_price,
             'items_count' => $counts[(int) $order->id]['items'] ?? 0,
             'unsent_count' => $counts[(int) $order->id]['unsent'] ?? 0,
+            // P3-26: lines the kitchen marked ready and nobody served yet (the waiter's "olib keting")
+            'ready_count' => $counts[(int) $order->id]['ready'] ?? 0,
         ];
     }
 
     /**
-     * Lines per order that are not void, and those not sent to the kitchen yet.
+     * Lines per order that are not void, those not sent to the kitchen yet, and those ready to serve.
      *
      * @param  list<int>  $orderIds
-     * @return array<int, array{items: int, unsent: int}>
+     * @return array<int, array{items: int, unsent: int, ready: int}>
      */
     private function lineCounts(array $orderIds): array
     {
@@ -175,8 +187,9 @@ class FloorState
                 'order_id',
                 DB::raw('count(*) as items'),
                 DB::raw('count(*) filter (where sent_at is null and fire_mode is not null) as unsent'),
+                DB::raw("count(*) filter (where kitchen_status = '" . KitchenItemStatus::READY->value . "') as ready"),
             ])
-            ->mapWithKeys(fn (object $row) => [(int) $row->order_id => ['items' => (int) $row->items, 'unsent' => (int) $row->unsent]])
+            ->mapWithKeys(fn (object $row) => [(int) $row->order_id => ['items' => (int) $row->items, 'unsent' => (int) $row->unsent, 'ready' => (int) $row->ready]])
             ->all();
     }
 

@@ -113,6 +113,7 @@ class _OwnerCatalogApi implements OwnerCatalogApi {
     bool? isActive,
     File? image,
     bool? batchTracked,
+    bool? quickAdd,
     int? sortOrder,
     String? kind,
     String? mxikCode,
@@ -146,6 +147,9 @@ class _OwnerCatalogApi implements OwnerCatalogApi {
     }
     if (batchTracked != null) {
       _data.fields.add(MapEntry('batch_tracked', batchTracked.toString()));
+    }
+    if (quickAdd != null) {
+      _data.fields.add(MapEntry('quick_add', quickAdd.toString()));
     }
     if (sortOrder != null) {
       _data.fields.add(MapEntry('sort_order', sortOrder.toString()));
@@ -199,6 +203,7 @@ class _OwnerCatalogApi implements OwnerCatalogApi {
     bool? isActive,
     File? image,
     bool? batchTracked,
+    bool? quickAdd,
     int? sortOrder,
     String? kind,
     String? mxikCode,
@@ -232,6 +237,9 @@ class _OwnerCatalogApi implements OwnerCatalogApi {
     }
     if (batchTracked != null) {
       _data.fields.add(MapEntry('batch_tracked', batchTracked.toString()));
+    }
+    if (quickAdd != null) {
+      _data.fields.add(MapEntry('quick_add', quickAdd.toString()));
     }
     if (sortOrder != null) {
       _data.fields.add(MapEntry('sort_order', sortOrder.toString()));
@@ -290,6 +298,38 @@ class _OwnerCatalogApi implements OwnerCatalogApi {
     late DeleteV1OwnerProductsIdResponse _value;
     try {
       _value = DeleteV1OwnerProductsIdResponse.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
+  Future<PatchV1OwnerProductsIdFiscalResponse> ownerCatalogUpdateFiscal({
+    required String id,
+    V1OwnerProductsIdFiscalRequestBody? body,
+  }) async {
+    final _extra = <String, dynamic>{};
+    final queryParameters = <String, dynamic>{};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{};
+    final _data = <String, dynamic>{};
+    _data.addAll(body?.toJson() ?? <String, dynamic>{});
+    final _options = _setStreamType<PatchV1OwnerProductsIdFiscalResponse>(
+      Options(method: 'PATCH', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/v1/owner/products/${id}/fiscal',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late PatchV1OwnerProductsIdFiscalResponse _value;
+    try {
+      _value = PatchV1OwnerProductsIdFiscalResponse.fromJson(_result.data!);
     } on Object catch (e, s) {
       errorLogger?.logError(e, s, _options, response: _result);
       rethrow;

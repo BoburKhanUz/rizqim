@@ -31,7 +31,7 @@ Bill _$BillFromJson(Map<String, dynamic> json) => Bill(
       .map((e) => Items3.fromJson(e as Map<String, dynamic>))
       .toList(),
   payments: (json['payments'] as List<dynamic>)
-      .map((e) => Payments4.fromJson(e as Map<String, dynamic>))
+      .map((e) => Payments5.fromJson(e as Map<String, dynamic>))
       .toList(),
   createdAt: json['created_at'] as String?,
 );

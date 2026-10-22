@@ -2,6 +2,8 @@
 
 namespace App\Domain\Pos\Billing;
 
+use App\Domain\Pos\Contracts\AdvanceLedger;
+use App\Models\Booking;
 use App\Models\Order;
 use App\Models\OrderBill;
 use App\Models\OrderBillItem;
@@ -17,13 +19,13 @@ use App\Support\Quantity;
  */
 final class BillPresenter
 {
-    public const BILL = 'array{uuid: string, order_uuid: string, number: int, status: string, split_mode: string, subtotal: string, discount: string, room_fee_amount: string, min_spend_topup_amount: string, service_charge_amount: string, place_fee_amount: string, total: string, paid_amount: string, due_amount: string, guests_share: int|null, per_guest_amount: string|null, printed_count: int, printed_at: string|null, paid_at: string|null, fiscal: array{status: string|null, receipt_uuid: string|null, error: string|null}, items: list<array{order_item_id: int, product_name: string, variant_name: string|null, unit: string, quantity: int|float, amount: string, discount_amount: string}>, payments: list<' . self::PAYMENT . '>, created_at: string|null}';
+    public const BILL = 'array{uuid: string, order_uuid: string, number: int, status: string, split_mode: string, subtotal: string, discount: string, room_fee_amount: string, min_spend_topup_amount: string, service_charge_amount: string, place_fee_amount: string, total: string, paid_amount: string, due_amount: string, guests_share: int|null, per_guest_amount: string|null, printed_count: int, printed_at: string|null, paid_at: string|null, fiscal: ' . PosFiscalReceipt::FISCAL . ', items: list<array{order_item_id: int, product_name: string, variant_name: string|null, unit: string, quantity: int|float, amount: string, discount_amount: string}>, payments: list<' . self::PAYMENT . '>, created_at: string|null}';
 
     public const PAYMENT = 'array{uuid: string, tender: string, amount: string, tendered_amount: string|null, change_amount: string|null, card_type: string|null, transaction_id: string|null, reference: string|null, status: string, paid_at: string|null}';
 
-    public const REFUND = 'array{uuid: string, order_uuid: string|null, bill_uuid: string|null, payment_uuid: string|null, amount: string, method: string, reason: string, approved_by: int|null, fiscal: array{status: string|null, receipt_uuid: string|null, error: string|null}, created_at: string|null}';
+    public const REFUND = 'array{uuid: string, order_uuid: string|null, bill_uuid: string|null, payment_uuid: string|null, amount: string, method: string, reason: string, approved_by: int|null, fiscal: ' . PosFiscalReceipt::FISCAL . ', created_at: string|null}';
 
-    public const ORDER = 'array{uuid: string, status: string, payment_status: string, version: int, queue_number: int|null, business_date: string|null, bill_locked_at: string|null, closed_at: string|null, total_price: string, billed_amount: string, paid_amount: string, unbilled_amount: string|null, fiscal_pending: bool, bills_out_of_date: bool}';
+    public const ORDER = 'array{uuid: string, status: string, payment_status: string, version: int, queue_number: int|null, business_date: string|null, bill_locked_at: string|null, closed_at: string|null, total_price: string, billed_amount: string, paid_amount: string, unbilled_amount: string|null, fiscal_pending: bool, bills_out_of_date: bool, booking_uuid: string|null, deposit_available: string}';
 
     /**
      * @return array<string, mixed>
@@ -59,11 +61,8 @@ final class BillPresenter
             'printed_count' => (int) $bill->printed_count,
             'printed_at' => $bill->printed_at?->toIso8601String(),
             'paid_at' => $bill->paid_at?->toIso8601String(),
-            'fiscal' => [
-                'status' => $bill->getAttribute('fiscal_status'),
-                'receipt_uuid' => $bill->getAttribute('fiscal_receipt_uuid'),
-                'error' => $bill->getAttribute('fiscal_error'),
-            ],
+            // P3-26: with the receipt as registered (fiscal sign, number, QR, lines), for the till to print
+            'fiscal' => PosFiscalReceipt::fiscal($bill->getAttribute('fiscal_status'), $bill->getAttribute('fiscal_receipt_uuid'), $bill->getAttribute('fiscal_error'), (int) $bill->getAttribute('store_id')),
             'items' => $shares->map(function (OrderBillItem $share) use ($items) {
                 $item = $items->get($share->order_item_id);
 
@@ -115,11 +114,7 @@ final class BillPresenter
             'method' => (string) $refund->method,
             'reason' => (string) $refund->reason,
             'approved_by' => $refund->approved_by !== null ? (int) $refund->approved_by : null,
-            'fiscal' => [
-                'status' => $refund->getAttribute('fiscal_status'),
-                'receipt_uuid' => $refund->getAttribute('fiscal_receipt_uuid'),
-                'error' => $refund->getAttribute('fiscal_error'),
-            ],
+            'fiscal' => PosFiscalReceipt::fiscal($refund->getAttribute('fiscal_status'), $refund->getAttribute('fiscal_receipt_uuid'), $refund->getAttribute('fiscal_error'), (int) $refund->getAttribute('store_id')),
             'created_at' => $refund->created_at?->toIso8601String(),
         ];
     }
@@ -161,6 +156,31 @@ final class BillPresenter
             'unbilled_amount' => $unbilled,
             'fiscal_pending' => $bills->contains(fn (OrderBill $bill) => $bill->status !== BillStatus::PAID && in_array($bill->getAttribute('fiscal_status'), ['pending', 'failed'], true)),
             'bills_out_of_date' => $outOfDate,
+            // P3-26: the booking the order was opened from and what its deposits still hold (PosTender::PREPAYMENT)
+            'booking_uuid' => self::bookingUuid($order),
+            'deposit_available' => self::depositAvailable($order)->toString(),
         ];
+    }
+
+    /**
+     * The uuid of the booking an order was opened from (orders.booking_id, P3-17); null for any other order.
+     */
+    public static function bookingUuid(Order $order): ?string
+    {
+        $bookingId = $order->getAttribute('booking_id');
+
+        return $bookingId !== null ? Booking::whereKey((int) $bookingId)->value('uuid') : null;
+    }
+
+    /**
+     * What the order's booking deposits still hold to pay its bills with (AdvanceLedger; zero without a booking).
+     */
+    public static function depositAvailable(Order $order): Money
+    {
+        if ($order->getAttribute('booking_id') === null || !app()->bound(AdvanceLedger::class)) {
+            return Money::zero();
+        }
+
+        return app(AdvanceLedger::class)->available($order);
     }
 }

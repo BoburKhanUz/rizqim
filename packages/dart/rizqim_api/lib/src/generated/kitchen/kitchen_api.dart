@@ -24,13 +24,21 @@ abstract class KitchenApi {
   /// quantities/weights, each line's kitchen state, the notes (phone numbers masked), when it came in and was.
   /// accepted, and `waiting_seconds`. No customer data, no prices. Needs kitchen.manage or orders.view.
   ///
+  /// P3-26: with `canceled_within` (minutes, 1–60) the orders cancelled or rejected within that time that had.
+  /// reached the kitchen (a line sent, or an online order accepted) are listed too, after the live ones, with their.
+  /// `status` (canceled / rejected) and `canceled_at`, their lines as they were (voided ones with `voided_at`), so a.
+  /// display strikes them through instead of losing them; `canceled_at` is null on a live ticket.
+  ///
   /// [branchId] - One branch; omit for every branch the caller works in (a branch terminal: its branch).
   ///
   /// [includeReady] - 1 to also list orders that are ready but not handed over yet.
+  ///
+  /// [canceledWithin] - Minutes (1-60): also list the orders cancelled or rejected that long ago at most, with canceled_at.
   @GET('/v1/staff/kitchen/tickets')
   Future<GetV1StaffKitchenTicketsResponse> staffOrderTickets({
     @Query('branch_id') int? branchId,
     @Query('include_ready') bool? includeReady,
+    @Query('canceled_within') int? canceledWithin,
   });
 
   /// Bump a line ready (kitchen display).
@@ -39,7 +47,9 @@ abstract class KitchenApi {
   /// ready a delivery or pickup order becomes ready by itself; a hall order (dine_in) stays preparing until it is.
   /// closed. P2-33: a courier_assigned order (a courier was assigned while it was cooking) takes bumps too, with no.
   /// status move. 422 when the order is not in the kitchen (new, ready, on its way, finished). Bumping a ready line.
-  /// again answers 200 unchanged. Returns the ticket.
+  /// again answers 200 unchanged. P3-26: a held pre-order line with a due time (fire_mode hold, `due_at`, not sent yet).
+  /// may be bumped before the till sends it — ready implies sent: it gets its station and `sent_at` now and the POS.
+  /// order's version moves. Returns the ticket.
   @POST('/v1/staff/orders/{uuid}/items/{item}/ready')
   Future<PostV1StaffOrdersUuidItemsItemReadyResponse> staffOrderBumpItem({
     @Path('uuid') required String uuid,

@@ -4,8 +4,9 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'account4.dart';
-import 'entries3.dart';
+import 'account3.dart';
+import 'entry2.dart';
+import 'fiscal8.dart';
 
 part 'data144.g.dart';
 
@@ -13,33 +14,16 @@ part 'data144.g.dart';
 class Data144 {
   const Data144({
     required this.account,
-    required this.from,
-    required this.to,
-    required this.openingBalance,
-    required this.closingBalance,
-    required this.chargesTotal,
-    required this.repaymentsTotal,
-    required this.adjustmentsTotal,
-    required this.entries,
+    required this.entry,
+    required this.fiscal,
   });
 
   factory Data144.fromJson(Map<String, Object?> json) =>
       _$Data144FromJson(json);
 
-  final Account4 account;
-  final String from;
-  final String to;
-  @JsonKey(name: 'opening_balance')
-  final String openingBalance;
-  @JsonKey(name: 'closing_balance')
-  final String closingBalance;
-  @JsonKey(name: 'charges_total')
-  final String chargesTotal;
-  @JsonKey(name: 'repayments_total')
-  final String repaymentsTotal;
-  @JsonKey(name: 'adjustments_total')
-  final String adjustmentsTotal;
-  final List<Entries3> entries;
+  final Account3 account;
+  final Entry2 entry;
+  final Fiscal8 fiscal;
 
   Map<String, Object?> toJson() => _$Data144ToJson(this);
 }

@@ -166,6 +166,7 @@ describe('an existing product', () => {
     expect(screen.getByLabelText('Narxi (so\'m)')).toHaveValue('35000');
     expect(screen.getByLabelText('Tartib raqami')).toHaveValue('3');
     expect(screen.getByRole('switch', { name: "Qozon bo'yicha sotiladi" })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('switch', { name: "Tezkor qo'shish" })).toHaveAttribute('aria-checked', 'false');
     // stock is shown, not editable
     expect(screen.getByText('18')).toBeInTheDocument();
     // a batch-sold dish asks how much of a batch one unit takes
@@ -173,6 +174,8 @@ describe('an existing product', () => {
 
     await user.clear(name);
     await user.type(name, 'Osh (katta)');
+    // P3-26: offered on the POS quick-add strip
+    await user.click(screen.getByRole('switch', { name: "Tezkor qo'shish" }));
     await user.click(screen.getByRole('button', { name: 'Saqlash' }));
 
     expect(await screen.findByText('Saqlandi.')).toBeInTheDocument();
@@ -180,6 +183,7 @@ describe('an existing product', () => {
     expect(form.get('name')).toBe('Osh (katta)');
     expect(form.get('sort_order')).toBe('3');
     expect(form.get('batch_tracked')).toBe('1');
+    expect(form.get('quick_add')).toBe('1');
     expect(JSON.parse(String(form.get('variants')))).toEqual([{ id: 11, name: '1 porsiya', price: 35000, unit: 'piece', quantity_step: null, min_quantity: null }]);
   });
 

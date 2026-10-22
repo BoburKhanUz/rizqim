@@ -26,112 +26,48 @@ export async function fetchShifts(api: StaffApi, query: ShiftsQuery = {}): Promi
   return body.data ?? [];
 }
 
-// The report the server builds is typed `array<string, mixed>` in the OpenAPI spec (and `summary` of the shift detail is
-// missing from it), so its shape is written out here from ShiftReport::build(). Amounts are decimal strings ("12000.00").
-export interface TenderRow {
-  tender: string;
-  count: number;
-  amount: string;
-}
-
-export interface ShiftReport {
-  shift_uuid: string;
-  generated_at: string;
-  period: { from: string; to: string | null };
-  sales: {
-    bills: number;
-    received: string;
-    refunded: string;
-    net: string;
-    bills_total: string;
-    subtotal: string;
-    discount: string;
-    room_fee: string;
-    min_spend_topup: string;
-    service_charge: string;
-    place_fee: string;
-    average_bill: string;
-  };
-  by_tender: TenderRow[];
-  cards: Array<{ card_type: string; count: number; amount: string }>;
-  by_channel: Array<{ channel: string; orders: number; amount: string }>;
-  by_waiter: Array<{ waiter_id: number | null; name: string | null; orders: number; bills: number; amount: string; service_charge: string }>;
-  discounts: { count: number; amount: string };
-  voids: { count: number; amount: string };
-  refunds: { count: number; amount: string; by_method: Array<{ method: string; count: number; amount: string }> };
-  deposits: {
-    taken: { count: number; amount: string; cash: string };
-    applied: { count: number; amount: string };
-    refunded: { count: number; amount: string; cash: string };
-  };
-  credit: {
-    sales: { count: number; amount: string };
-    repayments: { count: number; amount: string; cash: string };
-  };
-  cash: {
-    opening: string;
-    sales: string;
-    refunds: string;
-    cash_in: string;
-    cash_out: string;
-    wages: string;
-    purchases: string;
-    deposits: string;
-    deposit_refunds: string;
-    repayments: string;
-    expected: string;
-  };
-  movements: Array<{
-    uuid: string;
-    type: string;
-    category: string | null;
-    amount: string;
-    note: string | null;
-    employee: { id: number; name: string | null } | null;
-    user: { id: number; name: string | null } | null;
-    approved_by: number | null;
-    created_at: string | null;
-  }>;
-}
+// The X report and the Z report as the server builds them (App\Domain\Pos\Shifts\ShiftReport, typed in the OpenAPI
+// spec since P3-26). Amounts are decimal strings ("12000.00").
+export type ShiftReport = OkData<'posShift.xReport'>['report'];
+export type TenderRow = ShiftReport['by_tender'][number];
 
 // GET /pos/shifts/{uuid}: the shift, and once it is closed its Z report (`summary`, frozen at closing; null while open)
-export type ShiftDetail = Shift & { summary: ShiftReport | null };
+export type ShiftDetail = OkData<'posShift.show'>;
 
 export async function fetchShift(api: StaffApi, uuid: string): Promise<ShiftDetail> {
-  const body = unwrap(await api.client.GET('/v1/pos/shifts/{uuid}', { params: { path: { uuid } } }));
-  const data = body.data as Shift & { summary?: ShiftReport | null };
-  return { ...data, summary: data.summary ?? null };
+  return unwrap(await api.client.GET('/v1/pos/shifts/{uuid}', { params: { path: { uuid } } })).data;
 }
 
-export interface XReport {
-  shift: Shift;
-  report: ShiftReport;
-}
+export type XReport = OkData<'posShift.xReport'>;
 
 // GET /pos/shifts/{uuid}/x-report: the shift's report now (a closed shift: as at its close)
 export async function fetchXReport(api: StaffApi, uuid: string): Promise<XReport> {
-  const body = unwrap(await api.client.GET('/v1/pos/shifts/{uuid}/x-report', { params: { path: { uuid } } }));
-  return body.data as unknown as XReport;
+  return unwrap(await api.client.GET('/v1/pos/shifts/{uuid}/x-report', { params: { path: { uuid } } })).data;
+}
+
+// GET /pos/shifts/current (P3-26): a normal sign-in (owner, manager) gets the open shifts of `branch_id` (default: their
+// own branch; an owner without one: every branch they see), each with its X report; a terminal gets its own.
+export type CurrentShifts = OkData<'posShift.current'>;
+
+export async function fetchCurrentShifts(api: StaffApi, branchId?: number): Promise<CurrentShifts> {
+  const query = branchId === undefined ? {} : { branch_id: branchId };
+  return unwrap(await api.client.GET('/v1/pos/shifts/current', { params: { query } })).data;
 }
 
 // The shift summary a phone shows: the branch's open shifts (one per till) with their X report, and the last closed shift with
-// its Z. A normal sign-in has no terminal, so GET /pos/shifts/current always answers null for it; the shifts are found
-// through the list instead.
+// its Z. P3-26: the open shifts and their X reports come in one call (GET /pos/shifts/current with the branch).
 export interface BranchShiftSummary {
   open: XReport[];
   lastClosed: ShiftDetail | null;
 }
 
-// At most this many open shifts get their X report (a branch has a handful of tills)
+// At most this many open shifts are shown (a branch has a handful of tills)
 export const MAX_OPEN_SHIFTS = 5;
 
 export async function fetchBranchShiftSummary(api: StaffApi, branchId?: number): Promise<BranchShiftSummary> {
   const scope = branchId === undefined ? {} : { branch_id: branchId };
-  const [openShifts, closedShifts] = await Promise.all([
-    fetchShifts(api, { ...scope, status: 'open', limit: MAX_OPEN_SHIFTS }),
-    fetchShifts(api, { ...scope, status: 'closed', limit: 1 }),
-  ]);
+  const [current, closedShifts] = await Promise.all([fetchCurrentShifts(api, branchId), fetchShifts(api, { ...scope, status: 'closed', limit: 1 })]);
   const closed = closedShifts[0];
-  const [open, lastClosed] = await Promise.all([Promise.all(openShifts.map((shift) => fetchXReport(api, shift.uuid))), closed ? fetchShift(api, closed.uuid) : null]);
-  return { open, lastClosed };
+  const lastClosed = closed ? await fetchShift(api, closed.uuid) : null;
+  return { open: current.shifts.slice(0, MAX_OPEN_SHIFTS), lastClosed };
 }

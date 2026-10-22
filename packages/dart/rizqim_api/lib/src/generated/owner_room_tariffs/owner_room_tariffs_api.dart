@@ -45,8 +45,9 @@ abstract class OwnerRoomTariffsApi {
 
   /// Set the branch's weekend days and holidays.
   ///
-  /// `weekend_days`: ISO weekdays (1 = Monday … 7 = Sunday); `holidays`: dates (Y-m-d), at most 400. The holidays of.
-  /// the branch POS settings count too.
+  /// `weekend_days`: ISO weekdays (1 = Monday … 7 = Sunday); `holidays`: dates (Y-m-d), at most 400. P3-26: the.
+  /// holidays are the branch's one list, the same as `pos_settings.holidays` (PUT /owner/branches/{id}/pos-settings):.
+  /// saving here replaces that list.
   @PUT('/v1/owner/room-tariffs/calendar')
   Future<PutV1OwnerRoomTariffsCalendarResponse> roomTariffCalendarUpdate({
     @Body() required V1OwnerRoomTariffsCalendarRequestBody body,

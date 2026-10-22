@@ -100,6 +100,8 @@ Route::prefix('v1')->group(function () {
             Route::delete('/owner/products/{id}', [\App\Http\Controllers\Api\V1\Store\OwnerCatalogController::class, 'deleteProduct'])->where('id', \App\Support\RowId::ROUTE_PATTERN);
             // [P2-30] remove the product's image (and its thumbnails)
             Route::delete('/owner/products/{id}/image', [\App\Http\Controllers\Api\V1\Store\OwnerCatalogController::class, 'deleteImage'])->where('id', \App\Support\RowId::ROUTE_PATTERN);
+            // [P3-26] only the fiscal fields (MXIK, package code, VAT, kind, variant receipt units): the fiscal bulk edit
+            Route::patch('/owner/products/{id}/fiscal', [\App\Http\Controllers\Api\V1\Store\OwnerCatalogController::class, 'updateFiscal'])->where('id', \App\Support\RowId::ROUTE_PATTERN);
         });
 
         // Managers toggle availability for their own branch (enforced in the controller)

@@ -4,29 +4,38 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'device18.dart';
-import 'store3.dart';
-import 'branch12.dart';
-import 'branches2.dart';
+import 'polygon5.dart';
 
 part 'data183.g.dart';
 
 @JsonSerializable()
 class Data183 {
   const Data183({
-    required this.device,
-    required this.store,
-    required this.branch,
-    required this.branches,
+    required this.id,
+    required this.name,
+    required this.polygon,
+    required this.deliveryPrice,
+    required this.minOrderAmount,
+    required this.freeDeliveryFrom,
+    required this.etaMinutes,
+    required this.priority,
   });
 
   factory Data183.fromJson(Map<String, Object?> json) =>
       _$Data183FromJson(json);
 
-  final Device18 device;
-  final Store3? store;
-  final Branch12? branch;
-  final List<Branches2> branches;
+  final int id;
+  final String name;
+  final Polygon5 polygon;
+  @JsonKey(name: 'delivery_price')
+  final String deliveryPrice;
+  @JsonKey(name: 'min_order_amount')
+  final String minOrderAmount;
+  @JsonKey(name: 'free_delivery_from')
+  final String? freeDeliveryFrom;
+  @JsonKey(name: 'eta_minutes')
+  final int? etaMinutes;
+  final int priority;
 
   Map<String, Object?> toJson() => _$Data183ToJson(this);
 }

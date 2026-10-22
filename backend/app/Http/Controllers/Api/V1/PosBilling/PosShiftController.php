@@ -25,8 +25,6 @@ use Illuminate\Validation\Rule;
 #[HeaderParameter('Idempotency-Key', description: "Required on every change: a new UUID per action, the same one when retrying it (428 without).", type: 'string')]
 class PosShiftController extends PosBillingController
 {
-    private const REPORT = 'array<string, mixed>';
-
     /**
      * Open a shift
      *
@@ -55,21 +53,53 @@ class PosShiftController extends PosBillingController
     }
 
     /**
-     * This terminal's open shift
+     * The open shift
      *
-     * The open shift of the calling terminal with its X report so far, or `shift: null`. A normal sign-in (no
-     * terminal) always gets null.
+     * A terminal (staff PIN session): its open shift with its X report so far, or `shift: null`. P3-26: a normal
+     * sign-in (the owner or a manager in the web panel or the Mini App) gets the branch's open shifts: `branch_id`
+     * (default: the caller's own branch; an owner without one names it, else every branch they see is listed in
+     * `shifts`); `shift`/`report` is then the most recently opened of them. `shifts`: every open shift with its X
+     * report (a terminal: just its own). Another store's branch: 404; one the caller does not work in: 403.
      */
-    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{shift: ' . ShiftPresenter::SHIFT . '|null, report: ' . self::REPORT . '|null}}')]
+    #[QueryParameter('branch_id', description: "A normal sign-in: the branch (default: the caller's own; an owner without one: every branch).", type: 'int', required: false)]
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{shift: ' . ShiftPresenter::SHIFT . '|null, report: ' . ShiftReport::REPORT . '|null, shifts: list<array{shift: ' . ShiftPresenter::SHIFT . ', report: ' . ShiftReport::REPORT . '}>}}')]
     public function current(Request $request, ShiftService $shifts, ShiftPresenter $presenter, ShiftReport $report): JsonResponse
     {
         $user = $this->staff($request);
+        $data = $request->validate(['branch_id' => 'nullable|integer|min:1|max:999999999999']);
         $device = $this->terminal($user);
-        $shift = $device !== null ? $shifts->current($device) : null;
+
+        if ($device !== null) {
+            $open = ($shift = $shifts->current($device)) !== null ? collect([$shift]) : collect();
+        } else {
+            $branchIds = $this->scope->branchIds($user);
+            $branchId = isset($data['branch_id']) ? (int) $data['branch_id'] : ($user->branch_id !== null ? (int) $user->branch_id : null);
+            if ($branchId !== null) {
+                if (!\App\Models\Branch::where('store_id', $user->store_id)->whereKey($branchId)->exists()) {
+                    return $this->error('Filial topilmadi.', [], 404);
+                }
+                if ($branchIds !== null && !in_array($branchId, $branchIds, true)) {
+                    return $this->error('Ruxsat etilmagan', [], 403);
+                }
+            }
+
+            $open = PosShift::query()
+                ->where('store_id', $user->store_id)
+                ->where('status', ShiftStatus::OPEN->value)
+                ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
+                ->when($branchId === null && $branchIds !== null, fn ($query) => $query->whereIn('branch_id', $branchIds))
+                ->orderByDesc('opened_at')
+                ->orderByDesc('id')
+                ->limit(50)
+                ->get();
+        }
+
+        $all = $open->map(fn (PosShift $shift) => ['shift' => $presenter->shift($shift), 'report' => $report->build($shift)])->values()->all();
 
         return $this->success([
-            'shift' => $shift !== null ? $presenter->shift($shift) : null,
-            'report' => $shift !== null ? $report->build($shift) : null,
+            'shift' => $all[0]['shift'] ?? null,
+            'report' => $all[0]['report'] ?? null,
+            'shifts' => $all,
         ]);
     }
 
@@ -124,7 +154,7 @@ class PosShiftController extends PosBillingController
      * The shift and, once closed, its Z report as it was at closing (`summary`). Needs pos.close_shift or
      * reports.view.
      */
-    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . ShiftPresenter::SHIFT . '}')]
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . ShiftPresenter::DETAIL . '}')]
     public function show(Request $request, ShiftPresenter $presenter, string $uuid): JsonResponse
     {
         $user = $this->staff($request);
@@ -140,7 +170,7 @@ class PosShiftController extends PosBillingController
      * applied, sales on credit and repayments, the drawer's movements and the expected cash. A closed shift: as at its
      * close. Needs pos.close_shift or reports.view.
      */
-    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{shift: ' . ShiftPresenter::SHIFT . ', report: ' . self::REPORT . '}}')]
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{shift: ' . ShiftPresenter::SHIFT . ', report: ' . ShiftReport::REPORT . '}}')]
     public function xReport(Request $request, ShiftPresenter $presenter, ShiftReport $report, string $uuid): JsonResponse
     {
         $user = $this->staff($request);
@@ -158,7 +188,7 @@ class PosShiftController extends PosBillingController
      * `other` needs a `note`. Money out never exceeds the expected cash (409 `not_enough_cash`). Needs pos.cash_in_out,
      * or a manager's `approval_token` for it (403 `approval_required`). The shift must be open (409 `shift_closed`).
      */
-    #[ApiDocResponse(201, type: 'array{success: true, message: string, data: array{movement: array{uuid: string, type: string, category: string|null, amount: string, note: string|null, employee_id: int|null, approved_by: int|null, created_at: string|null}, shift: ' . ShiftPresenter::SHIFT . '}}')]
+    #[ApiDocResponse(201, type: 'array{success: true, message: string, data: array{movement: array{uuid: string, type: string, category: string|null, amount: string, note: string|null, employee_id: int|null, employee: array{id: int, name: string|null}|null, user: array{id: int, name: string|null}|null, approved_by: int|null, approver: array{id: int, name: string|null}|null, created_at: string|null}, shift: ' . ShiftPresenter::SHIFT . '}}')]
     public function cashMovement(Request $request, ShiftService $shifts, ShiftPresenter $presenter, string $uuid): JsonResponse
     {
         $user = $this->staff($request);
@@ -187,16 +217,7 @@ class PosShiftController extends PosBillingController
         );
 
         return $this->success([
-            'movement' => [
-                'uuid' => (string) $movement->uuid,
-                'type' => $movement->type->value,
-                'category' => $movement->category,
-                'amount' => Money::of($movement->amount)->toString(),
-                'note' => $movement->note,
-                'employee_id' => $movement->employee_id !== null ? (int) $movement->employee_id : null,
-                'approved_by' => $movement->approved_by !== null ? (int) $movement->approved_by : null,
-                'created_at' => $movement->created_at?->toIso8601String(),
-            ],
+            'movement' => $this->movement($movement),
             'shift' => $presenter->shift($shift->refresh()),
         ], 'Saqlandi.', 201);
     }
@@ -212,7 +233,7 @@ class PosShiftController extends PosBillingController
      * report is kept in `summary`, numbered per branch (`z_number`) and sent to the owner in Telegram. Needs
      * pos.close_shift.
      */
-    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . ShiftPresenter::SHIFT . '}')]
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . ShiftPresenter::DETAIL . '}')]
     public function close(Request $request, ShiftService $shifts, ShiftPresenter $presenter, string $uuid): JsonResponse
     {
         $user = $this->staff($request);
@@ -238,5 +259,31 @@ class PosShiftController extends PosBillingController
         );
 
         return $this->success($presenter->shift($shift, true), 'Smena yopildi.');
+    }
+
+    /**
+     * A drawer movement in the X report's shape (P3-26: `employee`, `user` and `approver` as {id, name}); the older
+     * `employee_id` and `approved_by` ids stay.
+     *
+     * @return array<string, mixed>
+     */
+    private function movement(\App\Models\CashMovement $movement): array
+    {
+        $names = \App\Models\User::whereIn('id', array_filter([$movement->employee_id, $movement->user_id, $movement->approved_by]))->pluck('name', 'id');
+        $person = fn ($id) => $id !== null ? ['id' => (int) $id, 'name' => $names[$id] ?? null] : null;
+
+        return [
+            'uuid' => (string) $movement->uuid,
+            'type' => $movement->type->value,
+            'category' => $movement->category,
+            'amount' => Money::of($movement->amount)->toString(),
+            'note' => $movement->note,
+            'employee_id' => $movement->employee_id !== null ? (int) $movement->employee_id : null,
+            'employee' => $person($movement->employee_id),
+            'user' => $person($movement->user_id),
+            'approved_by' => $movement->approved_by !== null ? (int) $movement->approved_by : null,
+            'approver' => $person($movement->approved_by),
+            'created_at' => $movement->created_at?->toIso8601String(),
+        ];
     }
 }

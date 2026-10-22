@@ -44,6 +44,8 @@ export interface ProductInput extends ProductFiscalInput {
   image?: File | null;
   variants: ReadonlyArray<object>;
   batch_tracked?: boolean;
+  // P3-26: offered on the POS quick-add strip (bootstrap `quick_items`). Left out: the stored value stays.
+  quick_add?: boolean;
 }
 
 // The multipart body of ProductInput. Booleans go as "1"/"0" (Laravel's boolean rule takes both).
@@ -54,6 +56,7 @@ export function productFormData(input: ProductInput): FormData {
   form.append('category_id', String(input.category_id));
   if (input.is_active !== undefined) form.append('is_active', input.is_active ? '1' : '0');
   if (input.batch_tracked !== undefined) form.append('batch_tracked', input.batch_tracked ? '1' : '0');
+  if (input.quick_add !== undefined) form.append('quick_add', input.quick_add ? '1' : '0');
   if (input.image) form.append('image', input.image);
   form.append('variants', JSON.stringify(input.variants));
   for (const field of ['kind', 'mxik_code', 'package_code', 'vat_rate'] as const) {

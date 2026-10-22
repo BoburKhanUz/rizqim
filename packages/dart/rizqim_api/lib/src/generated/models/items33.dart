@@ -5,8 +5,8 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'modifiers15.dart';
-import 'added_by10.dart';
-import 'voided_by10.dart';
+import 'added_by8.dart';
+import 'voided_by8.dart';
 
 part 'items33.g.dart';
 
@@ -79,13 +79,13 @@ class Items33 {
   @JsonKey(name: 'ready_at')
   final String? readyAt;
   @JsonKey(name: 'added_by')
-  final AddedBy10? addedBy;
+  final AddedBy8? addedBy;
   @JsonKey(name: 'added_at')
   final String? addedAt;
   @JsonKey(name: 'voided_at')
   final String? voidedAt;
   @JsonKey(name: 'voided_by')
-  final VoidedBy10? voidedBy;
+  final VoidedBy8? voidedBy;
   @JsonKey(name: 'void_reason')
   final String? voidReason;
 

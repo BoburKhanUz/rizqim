@@ -36,6 +36,11 @@ void main() {
     expect(find.text('4 mehmon'), findsOneWidget);
     expect(find.text('1 ta taom tayyor: olib borish kerak'), findsOneWidget);
     expect(find.text('Band'), findsOneWidget);
+    // P3-26: tayyor taomlar zal xaritasidan (`ready_count`): har buyurtma alohida so'ralmaydi
+    expect(
+      h.state.log.where((String l) => l.startsWith('GET /api/v1/pos/orders/')),
+      isEmpty,
+    );
 
     await tester.tap(tab('Hammasi', 7));
     await tester.pumpAndSettle();

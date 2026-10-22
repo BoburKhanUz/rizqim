@@ -27,12 +27,21 @@ String _hm(Duration d) {
 }
 
 /// "Oldindan buyurtmalar": ushlab turilgan, muddati bor qatorlar muddat bo'yicha (eng yaqini birinchi). Har birida
-/// qolgan vaqt sanab turadi; muddatdan [QueuedLine.lead] oldin qator o'zi faol doskaga o'tadi.
+/// qolgan vaqt sanab turadi; muddatdan [QueuedLine.lead] oldin qator o'zi faol doskaga o'tadi. P3-26: oshxona qatorni
+/// oldindan "Tayyor" deya oladi ([onReady]; osh soatlar oldin damlanadi) — server uni yuborilgan deb ham belgilaydi.
 class PreorderQueue extends StatelessWidget {
-  const PreorderQueue({super.key, required this.items, required this.clock});
+  const PreorderQueue({
+    super.key,
+    required this.items,
+    required this.clock,
+    this.onReady,
+  });
 
   final List<QueuedLine> items;
   final ValueListenable<DateTime> clock;
+
+  /// "Tayyor" (ruxsat bo'lmasa `null`: tugma yo'q).
+  final ValueChanged<QueuedLine>? onReady;
 
   @override
   Widget build(BuildContext context) {
@@ -48,17 +57,21 @@ class PreorderQueue extends StatelessWidget {
       itemCount: items.length,
       separatorBuilder: (BuildContext context, int index) =>
           const SizedBox(height: 10),
-      itemBuilder: (BuildContext context, int i) =>
-          _QueuedTile(item: items[i], clock: clock),
+      itemBuilder: (BuildContext context, int i) => _QueuedTile(
+        item: items[i],
+        clock: clock,
+        onReady: onReady == null ? null : () => onReady!(items[i]),
+      ),
     );
   }
 }
 
 class _QueuedTile extends StatelessWidget {
-  const _QueuedTile({required this.item, required this.clock});
+  const _QueuedTile({required this.item, required this.clock, this.onReady});
 
   final QueuedLine item;
   final ValueListenable<DateTime> clock;
+  final VoidCallback? onReady;
 
   @override
   Widget build(BuildContext context) {
@@ -206,6 +219,20 @@ class _QueuedTile extends StatelessWidget {
                   ),
                 ),
               ),
+              if (onReady != null && line.canBeReady)
+                Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Center(
+                    child: RzButton(
+                      key: ValueKey<String>('preorder-ready-${line.id}'),
+                      label: 'Tayyor',
+                      icon: Icons.check_rounded,
+                      variant: RzButtonVariant.success,
+                      size: RzButtonSize.lg,
+                      onPressed: onReady,
+                    ),
+                  ),
+                ),
             ],
           ),
         ),

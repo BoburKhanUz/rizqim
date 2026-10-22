@@ -20,6 +20,7 @@ class PosBootstrap {
     required this.halls,
     required this.tables,
     required this.shift,
+    this.quickItems = const <PosQuickItem>[],
     this.raw = const <String, Object?>{},
   });
 
@@ -43,6 +44,7 @@ class PosBootstrap {
         halls: j.objects('halls', PosHall.fromJson),
         tables: j.objects('tables', PosTable.fromJson),
         shift: j.has('shift') ? PosShiftSummary.fromJson(j.obj('shift')) : null,
+        quickItems: j.objects('quick_items', PosQuickItem.fromJson),
         raw: j.map,
       );
 
@@ -72,6 +74,10 @@ class PosBootstrap {
 
   /// Shu terminalda ochiq smena (yo'q — `null`).
   final PosShiftSummary? shift;
+
+  /// Bir bosishda qo'shiladigan taomlar (P3-26): menyuda "tez qo'shish" belgilanganlar, keyin filialning choy-non
+  /// qatorlari. Bo'sh bo'lsa ilova nom bo'yicha taxmin qiladi (eski server).
+  final List<PosQuickItem> quickItems;
   final Map<String, Object?> raw;
 
   /// Server soati qurilmanikidan qancha oldinda (manfiy — orqada). Vaqt hisoblarida (necha daqiqa ochiq) qo'shiladi.
@@ -92,6 +98,7 @@ class PosBootstrap {
     halls: halls,
     tables: tables,
     shift: next,
+    quickItems: quickItems,
     raw: raw,
   );
 
@@ -502,6 +509,50 @@ class PosTable {
 
   /// `per_table` yoki `per_person`.
   final String minSpendMode;
+}
+
+/// Bootstrap'dagi tez qo'shish tugmasi (`quick_items[]`, P3-26). Narx va mavjudlik — POS menyusidan
+/// ([PosCatalog], [productId] va [variantUuid] bo'yicha).
+class PosQuickItem {
+  const PosQuickItem({
+    required this.productId,
+    required this.variantUuid,
+    required this.name,
+    this.variantId,
+    this.variantName,
+    this.source = 'quick_add',
+    this.hallId,
+    this.quantityPerGuest,
+    this.sortOrder = 0,
+  });
+
+  factory PosQuickItem.fromJson(PosJson j) => PosQuickItem(
+    productId: j.integer('product_id'),
+    variantId: j.intOrNull('variant_id'),
+    variantUuid: j.str('variant_uuid'),
+    name: j.str('name'),
+    variantName: j.strOrNull('variant_name'),
+    source: j.strOrNull('source') ?? 'quick_add',
+    hallId: j.intOrNull('hall_id'),
+    quantityPerGuest: j.strOrNull('quantity_per_guest'),
+    sortOrder: j.intOrNull('sort_order') ?? 0,
+  );
+
+  final int productId;
+  final int? variantId;
+  final String variantUuid;
+  final String name;
+  final String? variantName;
+
+  /// `quick_add` (menyudagi belgi) yoki `auto_guest` (choy-non qoidasi).
+  final String source;
+
+  /// Faqat shu zal uchun choy-non qoidasi (`null` — butun filial).
+  final int? hallId;
+
+  /// Choy-non: bir mehmonga miqdor (`"0.5"`).
+  final String? quantityPerGuest;
+  final int sortOrder;
 }
 
 /// Bootstrap'dagi qisqa smena (to'liq smena — [ShiftRepository]).

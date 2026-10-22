@@ -102,11 +102,15 @@ class _AddItemsSheetState extends State<AddItemsSheet> {
     return id == null ? _catalog.products : _catalog.productsIn(id);
   }
 
-  /// Choy va non kabi tez qo'shiladigan oddiy taomlar (bitta dona variant, qo'shimchasiz).
-  List<PosProduct> get _quick => <PosProduct>[
-    for (final PosProduct p in _catalog.products)
-      if (_isQuick(p) && _catalog.isProductAvailable(p)) p,
-  ].take(4).toList();
+  /// Tez qo'shiladigan taomlar (P3-26): bootstrap'dagi ro'yxat (menyuda "tez qo'shish" belgilangan va choy-non
+  /// qatorlari, shu zalniki); ro'yxat bo'sh bo'lsa — nom bo'yicha (choy, non; bitta dona variant, qo'shimchasiz).
+  List<PosProduct> get _quick => quickProducts(
+    _catalog,
+    _ctl.session.bootstrap?.quickItems ?? const <PosQuickItem>[],
+    hallId: _ctl.order?.hall?.id,
+    limit: 4,
+    fallback: _isQuick,
+  );
 
   bool _isQuick(PosProduct p) {
     final String n = p.name.toLowerCase();

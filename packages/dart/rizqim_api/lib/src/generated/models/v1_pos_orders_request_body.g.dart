@@ -18,7 +18,7 @@ V1PosOrdersRequestBody _$V1PosOrdersRequestBodyFromJson(
   note: json['note'] as String?,
   send: json['send'] as bool?,
   items: (json['items'] as List<dynamic>?)
-      ?.map((e) => Items20.fromJson(e as Map<String, dynamic>))
+      ?.map((e) => Items21.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 

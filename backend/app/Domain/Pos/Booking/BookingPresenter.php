@@ -6,6 +6,7 @@ use App\Models\Booking;
 use App\Models\BookingItem;
 use App\Models\BookingPayment;
 use App\Models\Order;
+use App\Models\ProductVariant;
 use App\Support\Money;
 use App\Support\Quantity;
 
@@ -17,7 +18,7 @@ class BookingPresenter
 {
     public const SUMMARY = 'array{uuid: string, branch_id: int, dining_table_id: int|null, table_ids: list<int>, starts_at: string, ends_at: string, guests_planned: int, event_type: string, event_type_label: string, contact_name: string, contact_phone: string|null, source: string, source_label: string, status: string, status_label: string, min_spend: string|null, note: string|null, order_uuid: string|null, deposit_total: string, deposit_available: string, deposit_unsettled: bool, items_count: int, cancel_reason: string|null, version: int, created_by: int|null, confirmed_at: string|null, arrived_at: string|null, completed_at: string|null, canceled_at: string|null, created_at: string|null, updated_at: string|null}';
 
-    public const ITEM = 'array{id: int, product_variant_id: int, product_name: string, variant_name: string|null, unit: string, quantity: int|float, modifiers: list<array<string, mixed>>, unit_price: string, note: string|null, due_at: string|null}';
+    public const ITEM = 'array{id: int, product_variant_id: int, product_variant_uuid: string|null, product_name: string, variant_name: string|null, unit: string, quantity: int|float, modifiers: list<array<string, mixed>>, unit_price: string, note: string|null, due_at: string|null}';
 
     public const PAYMENT = 'array{uuid: string, amount: string, tender: string, card_type: string|null, transaction_id: string|null, status: string, status_label: string, remaining: string, applied_amount: string, refunded_amount: string, retained_amount: string, fiscal_receipt_uuid: string|null, fiscal_status: string|null, settle_reason: string|null, settle_receipt_uuid: string|null, settle_fiscal_status: string|null, approved_by: int|null, user_id: int|null, created_at: string|null, settled_at: string|null}';
 
@@ -96,6 +97,8 @@ class BookingPresenter
         return [
             'id' => (int) $item->id,
             'product_variant_id' => (int) $item->product_variant_id,
+            // P3-26: the variant's uuid, as POS order lines and the POS catalog name it
+            'product_variant_uuid' => ProductVariant::withTrashed()->whereKey($item->product_variant_id)->value('uuid'),
             'product_name' => (string) $item->product_name,
             'variant_name' => $item->variant_name,
             'unit' => $item->unit->value,

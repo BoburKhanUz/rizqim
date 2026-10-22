@@ -83,7 +83,7 @@ function ReadinessBody({
   // Saving a row needs a whole MXIK; a package code is optional but a typed one must be digits
   const isReady = (row: ProductMissingMxik) => {
     const draft = draftOf(row);
-    return isMxik(draft.mxik.trim()) && (draft.packageCode.trim() === '' || isPackageCode(draft.packageCode.trim())) && byId.has(row.id);
+    return isMxik(draft.mxik.trim()) && (draft.packageCode.trim() === '' || isPackageCode(draft.packageCode.trim()));
   };
   const rowProblem = (row: ProductMissingMxik): string | undefined => {
     if (errors[row.id]) return errors[row.id];
@@ -100,16 +100,12 @@ function ReadinessBody({
   };
 
   const saveOne = async (row: ProductMissingMxik): Promise<boolean> => {
-    const product = byId.get(row.id);
-    if (!product) {
-      setErrors((current) => ({ ...current, [row.id]: t('fiscal_ready_notFound') }));
-      return false;
-    }
     const draft = draftOf(row);
     const initial = initialOf(row);
     try {
+      // PATCH /owner/products/{id}/fiscal: only these fields change, the rest of the product is not sent
       await save.mutateAsync({
-        product,
+        product: { id: row.id },
         fiscal: {
           mxik_code: draft.mxik.trim(),
           ...(draft.packageCode.trim() !== initial.packageCode.trim() ? { package_code: draft.packageCode.trim() || null } : {}),
@@ -141,7 +137,7 @@ function ReadinessBody({
     setBusy('all');
     let saved = 0;
     let failed = 0;
-    // One after another: each save rewrites a product, and a failing one must not stop the rest
+    // One after another: a failing one must not stop the rest
     for (const row of dirtyReady) {
       if (await saveOne(row)) saved += 1;
       else failed += 1;
@@ -256,7 +252,7 @@ function ReadinessBody({
                 {rows.map((row) => {
                   const draft = draftOf(row);
                   const problem = rowProblem(row);
-                  const editable = canEditMenu && byId.has(row.id);
+                  const editable = canEditMenu;
                   return (
                     <tr key={row.id}>
                       <Td className="min-w-40 font-bold">

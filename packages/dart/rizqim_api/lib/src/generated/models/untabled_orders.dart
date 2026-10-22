@@ -20,11 +20,14 @@ class UntabledOrders {
     required this.openMinutes,
     required this.overdue,
     required this.billPrinted,
+    required this.billRequested,
+    required this.billRequestedAt,
     required this.guestsCount,
     required this.waiter,
     required this.totalPrice,
     required this.itemsCount,
     required this.unsentCount,
+    required this.readyCount,
   });
 
   factory UntabledOrders.fromJson(Map<String, Object?> json) =>
@@ -43,6 +46,10 @@ class UntabledOrders {
   final bool overdue;
   @JsonKey(name: 'bill_printed')
   final bool billPrinted;
+  @JsonKey(name: 'bill_requested')
+  final bool billRequested;
+  @JsonKey(name: 'bill_requested_at')
+  final String? billRequestedAt;
   @JsonKey(name: 'guests_count')
   final int? guestsCount;
   final Waiter2? waiter;
@@ -52,6 +59,8 @@ class UntabledOrders {
   final int itemsCount;
   @JsonKey(name: 'unsent_count')
   final int unsentCount;
+  @JsonKey(name: 'ready_count')
+  final int readyCount;
 
   Map<String, Object?> toJson() => _$UntabledOrdersToJson(this);
 }

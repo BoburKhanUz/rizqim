@@ -12,6 +12,8 @@ class Reservation {
     required this.bookingUuid,
     required this.startsAt,
     required this.guests,
+    required this.contactName,
+    required this.contactPhone,
   });
 
   factory Reservation.fromJson(Map<String, Object?> json) =>
@@ -22,6 +24,10 @@ class Reservation {
   @JsonKey(name: 'starts_at')
   final String startsAt;
   final int? guests;
+  @JsonKey(name: 'contact_name')
+  final String? contactName;
+  @JsonKey(name: 'contact_phone')
+  final String? contactPhone;
 
   Map<String, Object?> toJson() => _$ReservationToJson(this);
 }

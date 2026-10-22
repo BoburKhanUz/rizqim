@@ -231,7 +231,11 @@ class FakePosState {
   /// Ochiq smena (`null` — yo'q).
   Map<String, Object?>? shift;
 
-  /// Zal xaritasidagi yaqin bronlar: joy id → `{booking_uuid, starts_at, guests}` (bo'sh joy `reserved_soon`).
+  /// Bootstrap'dagi tez qo'shish tugmalari (`quick_items`, P3-26): bo'sh — ilova nom bo'yicha taxmin qiladi.
+  final List<Map<String, Object?>> quickItems = <Map<String, Object?>>[];
+
+  /// Zal xaritasidagi yaqin bronlar: joy id → `{booking_uuid, starts_at, guests, contact_name, contact_phone}` (bo'sh
+  /// joy `reserved_soon`).
   final Map<int, Map<String, Object?>> reservations =
       <int, Map<String, Object?>>{};
 
@@ -946,6 +950,7 @@ class FakePosState {
                 'opening_cash': shift!['opening_cash'],
                 'device_id': deviceUuid,
               },
+        'quick_items': quickItems,
       };
 
   FakeResponse _catalog(String? channel) {
@@ -1006,6 +1011,10 @@ class FakePosState {
       'min_spend': t['min_spend'],
       'min_spend_mode': t['min_spend_mode'],
       'status': status,
+      'bill_requested': open.any(
+        (Map<String, Object?> o) =>
+            o['bill_requested_at'] != null && !billPrinted.contains(o['uuid']),
+      ),
       'reservation': open.isEmpty ? reservation : null,
       'orders': <Object?>[
         for (final Map<String, Object?> o in open) _floorOrder(o),
@@ -1026,6 +1035,8 @@ class FakePosState {
     'open_minutes': _openMinutes(o),
     'overdue': _openMinutes(o) >= 360,
     'bill_printed': billPrinted.contains(o['uuid']),
+    'bill_requested': o['bill_requested_at'] != null,
+    'bill_requested_at': o['bill_requested_at'],
     'guests_count': o['guests_count'],
     'waiter': o['waiter'],
     'total_price': o['total_price'],
@@ -1034,6 +1045,9 @@ class FakePosState {
         .length,
     'unsent_count': _items(o)
         .where((Map<String, Object?> i) => i['kitchen_status'] == 'pending')
+        .length,
+    'ready_count': _items(o)
+        .where((Map<String, Object?> i) => i['kitchen_status'] == 'ready')
         .length,
   };
 
@@ -1058,11 +1072,52 @@ class FakePosState {
     'total_price': o['total_price'],
     'payment_status': 'pending',
     'bill_locked': o['bill_locked'],
+    'bill_requested': o['bill_requested_at'] != null,
     'fiscal_pending': false,
     'booking_id': null,
     'opened_at': o['opened_at'],
     'updated_at': o['updated_at'],
   };
+
+  /// `POST /pos/orders/{uuid}/request-bill` (P3-26): bir marta belgilaydi, `order.bill_requested` yuboradi; qaytadan —
+  /// o'zgarishsiz. `version` ixtiyoriy.
+  FakeResponse _requestBill(
+    Map<String, Object?> order,
+    Map<String, Object?> data,
+    Map<String, Object?> member,
+  ) {
+    final int? version = (data['version'] as num?)?.toInt();
+    if (version != null && version != order['version']) {
+      return FakeResponse(409, <String, Object?>{
+        'success': false,
+        'message': "Buyurtma boshqa qurilmada o'zgartirildi. Uni qayta yuklang va amalni takrorlang.",
+        'data': <String, Object?>{
+          'reason': 'version_conflict',
+          'version': order['version'],
+        },
+      });
+    }
+    if (order['bill_requested_at'] != null) return _ok(order);
+    order
+      ..['bill_requested_at'] = _iso(now())
+      ..['version'] = (order['version']! as int) + 1
+      ..['updated_at'] = _iso(now());
+    emit('order.bill_requested', <String, Object?>{
+      'order': <String, Object?>{
+        'uuid': order['uuid'],
+        'status': order['status'],
+        'store_id': storeId,
+        'branch_id': branchId,
+        'courier_id': null,
+        'updated_at': order['updated_at'],
+      },
+      'version': order['version'],
+      'table_id': (order['table'] as Map<String, Object?>?)?['id'],
+      'bill_requested_at': order['bill_requested_at'],
+      'requested_by': member['id'],
+    });
+    return _ok(order, message: "Schyot so'raldi.");
+  }
 
   Iterable<Map<String, Object?>> _openOrders() => orders.values.where(
     (Map<String, Object?> o) =>
@@ -1124,7 +1179,10 @@ class FakePosState {
       'opened_by': openedBy,
       'device_id': 1,
       'booking_id': null,
+      'booking_uuid': null,
+      'deposit_available': '0.00',
       'bill_locked': false,
+      'bill_requested_at': null,
       'notes': note,
       'opened_at': opened,
       'updated_at': opened,
@@ -1419,6 +1477,7 @@ class FakePosState {
     }
     final FakeResponse? manage = _authorize(member, 'orders.manage', null);
     if (manage != null && action != 'cancel') return manage;
+    if (action == 'request-bill') return _requestBill(order, data, member);
     final int version = (data['version'] as num?)?.toInt() ?? -1;
     if (version != order['version']) {
       return FakeResponse(409, <String, Object?>{

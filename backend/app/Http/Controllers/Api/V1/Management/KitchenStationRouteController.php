@@ -53,9 +53,6 @@ class KitchenStationRouteController extends ManagementController
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: list<' . self::ROUTE . '>}')]
     public function assign(Request $request, AuditLogger $audit): JsonResponse
     {
-        $request->validate(['branch_id' => 'nullable|integer|min:1|max:999999999999999999']);
-        $branch = $this->branch($request, Permission::SETTINGS_MANAGE);
-
         $data = $request->validate([
             'branch_id' => 'nullable|integer|min:1|max:999999999999999999',
             'station_id' => 'present|nullable|integer|min:1|max:999999999999999999',
@@ -67,6 +64,7 @@ class KitchenStationRouteController extends ManagementController
             'required_without' => "Kategoriyalar yoki mahsulotlardan kamida bittasini yuboring.",
             'station_id.present' => "Sexni tanlang yoki bo'sh (null) yuboring.",
         ]), ['station_id' => 'Sex', 'category_ids' => 'Kategoriyalar', 'product_ids' => 'Mahsulotlar']);
+        $branch = $this->branch($request, Permission::SETTINGS_MANAGE);
 
         $station = null;
         if ($data['station_id'] !== null) {

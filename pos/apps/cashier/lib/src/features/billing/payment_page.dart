@@ -41,12 +41,18 @@ class PaymentPage extends StatefulWidget {
     required this.bill,
     this.order,
     this.booking,
+    this.depositAvailable = PosMoney.zero,
     this.billsCount = 1,
   });
 
   final PosBill bill;
   final PosOrder? order;
+
+  /// Buyurtma ochilgan bron (ismi va vaqti ko'rsatiladi; bo'lmasa ham avans ishlaydi).
   final PosBooking? booking;
+
+  /// Bron avanslaridan qolgan summa (`GET /pos/orders/{uuid}/bills` `order.deposit_available`, P3-26).
+  final PosMoney depositAvailable;
   final int billsCount;
 
   @override
@@ -88,8 +94,7 @@ class _PaymentPageState extends State<PaymentPage> {
     return r.isNegative ? PosMoney.zero : r;
   }
 
-  PosMoney get _depositAvailable =>
-      widget.booking?.depositAvailable ?? PosMoney.zero;
+  PosMoney get _depositAvailable => widget.depositAvailable;
 
   bool get _prepaymentUsed =>
       _parts.any((_Part p) => p.input.tender == PosTender.prepayment);
@@ -618,8 +623,7 @@ class _PaymentPageState extends State<PaymentPage> {
               PosTender.cash: 'Naqd',
               PosTender.card: 'Karta',
               PosTender.qr: 'QR',
-              if (_depositAvailable.isPositive || widget.booking != null)
-                PosTender.prepayment: 'Avans',
+              if (_depositAvailable.isPositive) PosTender.prepayment: 'Avans',
               PosTender.account: 'Nasiya',
             },
             selected: _tab,
@@ -657,7 +661,7 @@ class _PaymentPageState extends State<PaymentPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        if (b == null || !_depositAvailable.isPositive)
+        if (!_depositAvailable.isPositive)
           const NoticeBanner(
             message: "Bu buyurtmaning bron avansi yo'q.",
             tone: StatusTone.neutral,
@@ -670,7 +674,7 @@ class _PaymentPageState extends State<PaymentPage> {
             tone: StatusTone.success,
           ),
           Text(
-            '${b.contactName ?? 'Bron'} · ${dm(b.startsAt)} ${hm(b.startsAt)}. '
+            '${b == null ? 'Bron' : '${b.contactName ?? 'Bron'} · ${dm(b.startsAt)} ${hm(b.startsAt)}'}. '
             "Sotuv cheki to'liq summaga chiqadi, avans undagi oldindan to'langan qism bo'ladi.",
             style: RzType.footnote.copyWith(color: c.fgMuted),
           ),

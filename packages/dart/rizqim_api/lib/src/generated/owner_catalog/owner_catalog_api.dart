@@ -12,9 +12,11 @@ import '../models/delete_v1_owner_products_id_image_response.dart';
 import '../models/delete_v1_owner_products_id_response.dart';
 import '../models/get_v1_owner_categories_response.dart';
 import '../models/get_v1_owner_products_response.dart';
+import '../models/patch_v1_owner_products_id_fiscal_response.dart';
 import '../models/post_v1_owner_categories_response.dart';
 import '../models/post_v1_owner_products_response.dart';
 import '../models/v1_owner_categories_request_body.dart';
+import '../models/v1_owner_products_id_fiscal_request_body.dart';
 
 part 'owner_catalog_api.g.dart';
 
@@ -45,7 +47,8 @@ abstract class OwnerCatalogApi {
   /// Create a new product with variants.
   ///
   /// multipart/form-data, menu.manage. `variants` is a JSON array of {name, price, unit?, quantity_step?,.
-  /// min_quantity?, batch_consumption?, stock?, unit_label?}; `stock` left out starts the variant at 999.
+  /// min_quantity?, batch_consumption?, stock?, unit_label?}; `stock` left out starts the variant at 999. P3-26:.
+  /// `quick_add` (boolean) makes it a one-tap button at the till and on the waiter phone.
   /// P3-11: optional `kind` (dish | service), `mxik_code` (17 digits), `package_code` (digits), `vat_rate` (0–100,.
   /// empty: the store's tax regime decides); a variant's `unit_label` is its unit on the receipt ("kg (guruch)").
   ///
@@ -60,6 +63,7 @@ abstract class OwnerCatalogApi {
     @Part(name: 'is_active') bool? isActive,
     @Part(name: 'image') File? image,
     @Part(name: 'batch_tracked') bool? batchTracked,
+    @Part(name: 'quick_add') bool? quickAdd,
     @Part(name: 'sort_order') int? sortOrder,
     @Part(name: 'kind') String? kind,
     @Part(name: 'mxik_code') String? mxikCode,
@@ -72,7 +76,8 @@ abstract class OwnerCatalogApi {
   /// multipart/form-data (POST, so the image can be sent). With `toggle_active` (any value) only the product's.
   /// active status is flipped and the other fields are not needed. menu.manage. A variant's stock is not changed.
   /// here (orders move it); a new variant takes `stock` like on create. P3-11: `kind`, `mxik_code`,.
-  /// `package_code`, `vat_rate` and a variant's `unit_label` as on create; left out = kept, empty = cleared.
+  /// `package_code`, `vat_rate` and a variant's `unit_label` as on create; left out = kept, empty = cleared. P3-26:.
+  /// `quick_add` as on create (left out = kept). Only the fiscal fields: PATCH /owner/products/{id}/fiscal.
   ///
   /// [toggleActive] - Any value: only switch the product on/off (no other field needed).
   ///
@@ -89,6 +94,7 @@ abstract class OwnerCatalogApi {
     @Part(name: 'is_active') bool? isActive,
     @Part(name: 'image') File? image,
     @Part(name: 'batch_tracked') bool? batchTracked,
+    @Part(name: 'quick_add') bool? quickAdd,
     @Part(name: 'sort_order') int? sortOrder,
     @Part(name: 'kind') String? kind,
     @Part(name: 'mxik_code') String? mxikCode,
@@ -100,6 +106,19 @@ abstract class OwnerCatalogApi {
   @DELETE('/v1/owner/products/{id}')
   Future<DeleteV1OwnerProductsIdResponse> ownerCatalogDeleteProduct({
     @Path('id') required String id,
+  });
+
+  /// Update only a product's fiscal fields.
+  ///
+  /// P3-26: JSON, menu.manage. The receipt fields alone, without resending the whole product (the panel's fiscal bulk.
+  /// edit): `kind` (dish | service), `mxik_code` (17 digits), `package_code` (digits), `vat_rate` (0–100; empty: the.
+  /// store's tax regime decides) and `variants`: [{id, unit_label}] (a variant's unit on the receipt, "kg (guruch)";.
+  /// empty: the unit's own). A field left out is kept, an empty one cleared (`kind` then goes back to dish). Another.
+  /// product's variant id: 422. Returns the product with its variants.
+  @PATCH('/v1/owner/products/{id}/fiscal')
+  Future<PatchV1OwnerProductsIdFiscalResponse> ownerCatalogUpdateFiscal({
+    @Path('id') required String id,
+    @Body() V1OwnerProductsIdFiscalRequestBody? body,
   });
 
   /// Remove a product's image.

@@ -5,16 +5,24 @@ namespace App\Http\Controllers\Api\V1\PosHall;
 use App\Domain\Pos\Billing\BillStatus;
 use App\Domain\Pos\Orders\PosCharge;
 use App\Domain\Pos\Orders\PosLineBuilder;
+use App\Domain\Pos\Orders\PosOnlineOrders;
+use App\Domain\Pos\Orders\PosOrderException;
 use App\Domain\Pos\Orders\PosOrderService;
+use App\Domain\Pos\Shifts\BusinessDay;
+use App\Enums\CancelReason;
 use App\Enums\FireMode;
 use App\Enums\KitchenItemStatus;
 use App\Enums\OrderChannel;
 use App\Enums\OrderStatus;
 use App\Enums\Permission;
+use App\Http\Controllers\Api\V1\Order\StaffOrderController;
 use App\Models\DiningTable;
 use App\Models\Order;
 use App\Models\OrderBill;
+use App\Models\User;
+use App\Services\Order\StaffOrderPresenter;
 use App\Support\RowId;
+use Closure;
 use Dedoc\Scramble\Attributes\Group;
 use Dedoc\Scramble\Attributes\HeaderParameter;
 use Dedoc\Scramble\Attributes\QueryParameter;
@@ -22,8 +30,11 @@ use Dedoc\Scramble\Attributes\Response as ApiDocResponse;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 
 /**
  * P3-12: POS hall orders (docs/API.md §13, docs/POS_SPEC.md §2.4–2.10): open, rounds, send to the kitchen, void,
@@ -41,9 +52,9 @@ class PosOrderController extends PosHallController
 
     public const CHARGES = 'array{items_subtotal: string, discount: string, service_charge_percent: string, service_charge_amount: string, place_fee_amount: string, room_fee_amount: string, room_tariff_id: int|null, business_date: string|null, day_type: string|null, min_spend: string, min_spend_topup_amount: string, waived: list<string>, total: string, waivers: list<array{charge: string, reason: string, waived_by: int|null, approved_by: int|null, waived_at: string|null}>}';
 
-    public const LIST_ITEM = 'array{uuid: string, short_code: string|null, status: string, channel: string, type: string, branch_id: int, version: int, hall: array{id: int, name: string|null}|null, table: array{id: int, name: string, kind: string}|null, hall_ref: string|null, table_ref: string|null, guests_count: int|null, waiter: array{id: int, name: string|null}|null, items_count: int, subtotal: string, total_price: string, payment_status: string, bill_locked: bool, fiscal_pending: bool, booking_id: int|null, opened_at: string|null, updated_at: string|null}';
+    public const LIST_ITEM = 'array{uuid: string, short_code: string|null, status: string, channel: string, type: string, branch_id: int, version: int, hall: array{id: int, name: string|null}|null, table: array{id: int, name: string, kind: string}|null, hall_ref: string|null, table_ref: string|null, guests_count: int|null, waiter: array{id: int, name: string|null}|null, items_count: int, subtotal: string, total_price: string, payment_status: string, bill_locked: bool, bill_requested: bool, fiscal_pending: bool, booking_id: int|null, business_date: string|null, opened_at: string|null, closed_at: string|null, updated_at: string|null, online: ' . StaffOrderController::ORDER . '|null}';
 
-    public const ORDER = 'array{uuid: string, short_code: string|null, status: string, channel: string, type: string, store_id: int, branch_id: int|null, version: int, hall: array{id: int, name: string|null}|null, table: array{id: int, name: string, kind: string}|null, hall_ref: string|null, table_ref: string|null, guests_count: int|null, waiter: array{id: int, name: string|null}|null, opened_by: int, device_id: int|null, booking_id: int|null, bill_locked: bool, notes: string|null, opened_at: string|null, updated_at: string|null, subtotal: string, discount: string, service_charge_amount: string, place_fee_amount: string, room_fee_amount: string, min_spend_topup_amount: string, total_price: string, charges: ' . self::CHARGES . ', rounds: int, items: list<' . self::ITEM . '>}';
+    public const ORDER = 'array{uuid: string, short_code: string|null, status: string, channel: string, type: string, store_id: int, branch_id: int|null, version: int, hall: array{id: int, name: string|null}|null, table: array{id: int, name: string, kind: string}|null, hall_ref: string|null, table_ref: string|null, guests_count: int|null, waiter: array{id: int, name: string|null}|null, opened_by: int, device_id: int|null, booking_id: int|null, booking_uuid: string|null, deposit_available: string, bill_locked: bool, bill_requested_at: string|null, notes: string|null, opened_at: string|null, updated_at: string|null, subtotal: string, discount: string, service_charge_amount: string, place_fee_amount: string, room_fee_amount: string, min_spend_topup_amount: string, total_price: string, charges: ' . self::CHARGES . ', rounds: int, items: list<' . self::ITEM . '>}';
 
     /**
      * One POS order
@@ -337,47 +348,165 @@ class PosOrderController extends PosHallController
     }
 
     /**
-     * Open orders of the branch
+     * Orders of the branch for the till
      *
-     * One queue for the till (POS_SPEC 2.5): every POS order still open (accepted, preparing, ready, not closed —
-     * paid ones still waiting for their receipt included, `fiscal_pending`) and every accepted online order (Telegram,
-     * mobile, aggregator: accepted, preparing, ready), oldest first, at most 300. `scope`: `open` (the default, the
-     * only one so far). `branch_id`: the caller's branch by default (a terminal PIN session: its terminal's). Needs
-     * orders.view in the branch.
+     * `scope`:
+     *
+     *  - `open` (the default): one queue for the till (POS_SPEC 2.5): every POS order still open (accepted, preparing,
+     *    ready, not closed — paid ones still waiting for their receipt included, `fiscal_pending`) and every accepted
+     *    online order (Telegram, mobile, aggregator: accepted, preparing, ready), oldest first, at most 300;
+     *  - `incoming` (P3-26): the online orders waiting to be accepted (`new`), oldest first: accept or reject them with
+     *    POST /pos/orders/{uuid}/accept|reject;
+     *  - `closed` (P3-26): the POS orders closed (paid) on one business day (`business_date`, YYYY-MM-DD; default: the
+     *    branch's business day now), newest first, at most 300: the till's list to refund from.
+     *
+     * `bill_requested`: a waiter asked for the bill. `online`: an online order's board card (customer, address, lines,
+     * payment; contact details for orders.manage), null for a POS order. `branch_id`: the caller's branch by default (a terminal PIN
+     * session: its terminal's). Needs orders.view in the branch.
      */
-    #[QueryParameter('scope', description: 'open (default)', type: 'string', required: false)]
+    #[QueryParameter('scope', description: 'open (default) | incoming | closed', type: "'open'|'incoming'|'closed'", required: false)]
+    #[QueryParameter('business_date', description: "scope=closed: the business day (YYYY-MM-DD); default: the branch's business day now.", type: 'string', required: false)]
     #[QueryParameter('branch_id', description: "The branch; default: the caller's (or their terminal's).", type: 'integer', required: false)]
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: list<' . self::LIST_ITEM . '>}')]
     public function index(Request $request): JsonResponse
     {
         $user = $this->staff($request);
-        $request->validate([
-            'scope' => ['nullable', 'string', Rule::in(['open'])],
+        $data = $request->validate([
+            'scope' => ['nullable', 'string', Rule::in(['open', 'incoming', 'closed'])],
+            'business_date' => 'nullable|date_format:Y-m-d',
             'branch_id' => 'nullable|integer|min:1',
+        ], [
+            'scope.in' => "Ro'yxat turi noto'g'ri: open, incoming yoki closed.",
+            'business_date.date_format' => "Ish kuni YYYY-MM-DD ko'rinishida bo'lishi kerak.",
         ]);
         $branch = $this->branchFor($request, $user, Permission::ORDERS_VIEW);
+        $scope = $data['scope'] ?? 'open';
 
-        $open = [OrderStatus::ACCEPTED->value, OrderStatus::PREPARING->value, OrderStatus::READY->value];
         $pos = [OrderChannel::POS_HALL->value, OrderChannel::POS_TAKEAWAY->value];
-        $orders = Order::query()
+        $query = Order::query()
             ->with(['waiter:id,name', 'diningTable', 'hall'])
             ->withCount(['items as items_count' => fn ($query) => $query->where('kitchen_status', '!=', KitchenItemStatus::VOID->value)])
             ->where('store_id', $user->store_id)
             ->where('branch_id', $branch->id)
-            ->whereIn('status', $open)
-            ->where(fn ($query) => $query
-                ->where(fn ($query) => $query->whereIn('channel', $pos)->whereNull('closed_at'))
-                ->orWhereNotIn('channel', $pos))
             ->addSelect(['fiscal_pending' => OrderBill::selectRaw('count(*)')
                 ->whereColumn('order_bills.order_id', 'orders.id')
                 ->whereNotIn('order_bills.status', [BillStatus::PAID->value, BillStatus::VOID->value])
-                ->whereIn('order_bills.fiscal_status', ['pending', 'failed'])])
-            ->orderBy('created_at')
-            ->orderBy('id')
-            ->limit(300)
-            ->get();
+                ->whereIn('order_bills.fiscal_status', ['pending', 'failed'])]);
 
-        return $this->success($orders->map(fn (Order $order) => [
+        match ($scope) {
+            'incoming' => $query->whereNotIn('channel', $pos)
+                ->where('status', OrderStatus::NEW->value)
+                ->orderBy('created_at')->orderBy('id'),
+            'closed' => $query->whereIn('channel', $pos)
+                ->whereNotNull('closed_at')
+                ->whereDate('business_date', $data['business_date'] ?? BusinessDay::of($branch))
+                ->orderByDesc('closed_at')->orderByDesc('id'),
+            default => $query->whereIn('status', [OrderStatus::ACCEPTED->value, OrderStatus::PREPARING->value, OrderStatus::READY->value])
+                ->where(fn ($query) => $query
+                    ->where(fn ($query) => $query->whereIn('channel', $pos)->whereNull('closed_at'))
+                    ->orWhereNotIn('channel', $pos))
+                ->orderBy('created_at')->orderBy('id'),
+        };
+
+        $orders = $query->limit(300)->get();
+        // The online cards' relations (lines, history, branch; the customer and courier for orders.manage) in a few queries
+        $online = $orders->reject(fn (Order $order) => $order->channel->isPos());
+        if ($online->isNotEmpty()) {
+            (new \Illuminate\Database\Eloquent\Collection($online->all()))->load(app(StaffOrderPresenter::class)->relationsFor($user));
+        }
+
+        return $this->success($orders->map(fn (Order $order) => $this->listItem($order, $user))->values()->all());
+    }
+
+    /**
+     * Accept an online order
+     *
+     * A new online order (Telegram, mobile, aggregator) of the branch is accepted at the till: `new` → `accepted`
+     * (the customer is told, the kitchen gets it). Accepted already: 200 unchanged. Not new any more (rejected,
+     * cancelled): 422. A POS order: 422 `not_online_order`. Optional `version` (409 when stale). Needs orders.manage.
+     */
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . self::LIST_ITEM . '}')]
+    #[HeaderParameter('Idempotency-Key', description: 'Required: a new UUID per action, the same one when retrying it (428 without).', type: 'string')]
+    public function accept(Request $request, string $uuid, PosOnlineOrders $online): JsonResponse
+    {
+        $user = $this->staff($request);
+        $this->requireIdempotencyKey($request);
+        $data = $request->validate(['version' => 'nullable|integer|min:0']);
+
+        $order = $this->onlineOrder($user, $uuid);
+
+        return $this->online($request, fn () => $online->accept($order, $user, isset($data['version']) ? (int) $data['version'] : null), 'Buyurtma qabul qilindi.');
+    }
+
+    /**
+     * Reject an online order
+     *
+     * A new online order is rejected at the till: `new` → `rejected` (the customer is told; an online payment is
+     * returned as for any rejection). `reason` (required, what the customer and the owner read) and optional
+     * `cancel_reason` (customer_request, out_of_stock, store_closed, courier_unavailable, other; default other). Needs
+     * orders.cancel, or a manager's one-time `approval_token` for orders.cancel (POST /pos/approvals; 403
+     * `approval_required`). Rejected already: 200 unchanged; not new any more: 422. Optional `version`.
+     */
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . self::LIST_ITEM . '}')]
+    #[HeaderParameter('Idempotency-Key', description: 'Required: a new UUID per action, the same one when retrying it (428 without).', type: 'string')]
+    public function reject(Request $request, string $uuid, PosOnlineOrders $online): JsonResponse
+    {
+        $user = $this->staff($request);
+        $this->requireIdempotencyKey($request);
+        $data = $request->validate([
+            'version' => 'nullable|integer|min:0',
+            'reason' => 'required|string|min:2|max:255',
+            'cancel_reason' => ['nullable', 'string', Rule::in(array_values(array_diff(CancelReason::staffValues(), [CancelReason::NO_SHOW->value])))],
+            'approval_token' => 'nullable|string|max:255',
+        ], [
+            'reason.required' => 'Rad etish sababini yozing.',
+            'reason.min' => 'Rad etish sababini yozing.',
+            'cancel_reason.in' => "Rad etish sababi noto'g'ri.",
+        ]);
+
+        $order = $this->onlineOrder($user, $uuid);
+        $reason = isset($data['cancel_reason']) ? CancelReason::from($data['cancel_reason']) : CancelReason::OTHER;
+
+        return $this->online($request, fn () => $online->reject($order, $user, (string) $data['reason'], $reason, $data['approval_token'] ?? null, isset($data['version']) ? (int) $data['version'] : null), 'Buyurtma rad etildi.');
+    }
+
+    /**
+     * Ask the till for the bill
+     *
+     * The waiter's "Schyot so'rash": the order is marked `bill_requested_at` and the till hears
+     * `order.bill_requested` on `pos-branch.{id}` (the floor map shows "Schyot so'raldi"); no bill is made here, the
+     * cashier makes and prints it. Asked already: 200 with the order unchanged. Optional `version` (409 when stale).
+     * Needs orders.manage; the waiter rule applies (`approval_token`).
+     */
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . self::ORDER . '}')]
+    #[HeaderParameter('Idempotency-Key', description: 'Required: a new UUID per action, the same one when retrying it (428 without).', type: 'string')]
+    public function requestBill(Request $request, string $uuid, PosOrderService $orders): JsonResponse
+    {
+        $user = $this->staff($request);
+        $this->requireIdempotencyKey($request);
+        $data = $request->validate([
+            'version' => 'nullable|integer|min:0',
+            'approval_token' => 'nullable|string|max:255',
+        ]);
+
+        $order = $this->order($user, $uuid, Permission::ORDERS_MANAGE);
+
+        return $this->change($request, fn () => $orders->requestBill($order, isset($data['version']) ? (int) $data['version'] : null, $user, $data['approval_token'] ?? null), "Schyot so'raldi.");
+    }
+
+    /**
+     * One row of the till's order lists.
+     *
+     * @return array<string, mixed>
+     */
+    private function listItem(Order $order, User $viewer): array
+    {
+        $order->loadMissing(['waiter:id,name', 'diningTable', 'hall']);
+        if ($order->getAttribute('items_count') === null) {
+            $order->loadCount(['items as items_count' => fn ($query) => $query->where('kitchen_status', '!=', KitchenItemStatus::VOID->value)]);
+        }
+
+        return [
             'uuid' => (string) $order->uuid,
             'short_code' => $order->short_code,
             'status' => $order->status->value,
@@ -396,11 +525,58 @@ class PosOrderController extends PosHallController
             'total_price' => (string) $order->total_price,
             'payment_status' => $order->payment_status->value,
             'bill_locked' => $order->getAttribute('bill_locked_at') !== null,
+            'bill_requested' => $order->bill_requested_at !== null,
             'fiscal_pending' => (int) $order->getAttribute('fiscal_pending') > 0,
             'booking_id' => $order->getAttribute('booking_id') !== null ? (int) $order->getAttribute('booking_id') : null,
+            'business_date' => $order->business_date?->toDateString(),
             'opened_at' => $order->created_at?->toJSON(),
+            'closed_at' => $order->closed_at?->toJSON(),
             'updated_at' => $order->updated_at?->toJSON(),
-        ])->values()->all());
+            // P3-26: an online order's card as the staff board shows it (customer and address for orders.manage, lines,
+            // payment, waiting time), so the till accepts or rejects it from this list alone; null for a POS order
+            'online' => $order->channel->isPos() ? null : app(StaffOrderPresenter::class)->order($order, $viewer),
+        ];
+    }
+
+    /**
+     * An online order of the caller's branch (orders.view there; another store's or branch's: 404; a POS order: 422).
+     */
+    private function onlineOrder(User $user, string $uuid): Order
+    {
+        $order = Str::isUuid($uuid) ? Order::where('uuid', $uuid)->first() : null;
+        if (!$order instanceof Order || !$this->scope->allows($user, Permission::ORDERS_VIEW, $order)) {
+            throw new HttpResponseException($this->error('Buyurtma topilmadi yoki sizning filialingizga tegishli emas.', [], 404));
+        }
+        if ($order->channel->isPos()) {
+            throw new HttpResponseException($this->error("Bu kassa (POS) buyurtmasi: onlayn buyurtma emas.", ['reason' => 'not_online_order'], 422));
+        }
+
+        return $order;
+    }
+
+    /**
+     * Runs an online order's change with the Idempotency-Key and answers with its list row.
+     *
+     * @param  Closure(): Order  $change
+     */
+    private function online(Request $request, Closure $change, string $message): JsonResponse
+    {
+        try {
+            $order = DB::transaction(function () use ($request, $change) {
+                $order = $change();
+                $this->idempotency->markApplied($request);
+
+                return $order;
+            });
+        } catch (PosOrderException $e) {
+            return $this->error($e->getMessage(), ['reason' => $e->reason] + $e->data, $e->status);
+        } catch (ConflictHttpException $e) {
+            return $this->error($e->getMessage(), ['reason' => 'idempotency_conflict'], 409);
+        }
+
+        $user = $request->user();
+
+        return $this->success($this->listItem($order->fresh() ?? $order, $user instanceof User ? $user : $this->staff($request)), $message);
     }
 
     /**

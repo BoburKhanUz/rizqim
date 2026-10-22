@@ -2,8 +2,9 @@ import 'package:pos_core/pos_core.dart';
 
 import '../json.dart';
 
-/// Ro'yxatdan o'tgan chek (`GET /owner/fiscal/receipts/{uuid}`): qatorlar (MXIK, QQS), to'lovlar, fiskal belgi va QR.
-/// Kassa sotuv yoki qaytarish chekini shu ma'lumot bilan qog'ozga chiqaradi.
+/// Ro'yxatdan o'tgan chek (`GET /pos/fiscal-receipts/{uuid}` yoki `fiscal.receipt`): qatorlar (MXIK, QQS), to'lovlar,
+/// fiskal belgi, chek raqami, QR va fiskal modul (`terminal_id`). Kassa sotuv, qaytarish, avans va kredit chekini shu
+/// ma'lumot bilan qog'ozga chiqaradi.
 class PosFiscalReceiptDetail {
   const PosFiscalReceiptDetail({
     required this.uuid,
@@ -20,6 +21,7 @@ class PosFiscalReceiptDetail {
     this.error,
     this.issuedAt,
     this.createdAt,
+    this.originalReceiptUuid,
     this.lines = const <PosFiscalLine>[],
     this.payments = const <PosFiscalPaymentPart>[],
     this.raw = const <String, Object?>{},
@@ -40,6 +42,7 @@ class PosFiscalReceiptDetail {
     error: j.strOrNull('error'),
     issuedAt: j.dateOrNull('issued_at'),
     createdAt: j.dateOrNull('created_at'),
+    originalReceiptUuid: j.strOrNull('original_receipt_uuid'),
     lines: j.objects('lines', PosFiscalLine.fromJson),
     payments: j.objects('payments', PosFiscalPaymentPart.fromJson),
     raw: j.map,
@@ -67,6 +70,9 @@ class PosFiscalReceiptDetail {
   final String? error;
   final DateTime? issuedAt;
   final DateTime? createdAt;
+
+  /// Qaytarish chekining sotuv cheki.
+  final String? originalReceiptUuid;
   final List<PosFiscalLine> lines;
   final List<PosFiscalPaymentPart> payments;
   final Map<String, Object?> raw;

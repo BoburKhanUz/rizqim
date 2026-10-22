@@ -23,6 +23,7 @@ export 'src/bootstrap/bootstrap_models.dart';
 export 'src/bootstrap/bootstrap_repository.dart';
 export 'src/catalog/catalog_models.dart';
 export 'src/catalog/catalog_repository.dart';
+export 'src/catalog/quick_items.dart';
 export 'src/fiscal/fiscal_receipt_models.dart';
 export 'src/fiscal/fiscal_receipt_repository.dart';
 export 'src/floor/floor_models.dart';

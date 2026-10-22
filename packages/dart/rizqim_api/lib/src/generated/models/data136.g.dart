@@ -28,12 +28,17 @@ Data136 _$Data136FromJson(Map<String, dynamic> json) => Data136(
       .map((e) => Staff2.fromJson(e as Map<String, dynamic>))
       .toList(),
   halls: (json['halls'] as List<dynamic>)
-      .map((e) => e as Map<String, dynamic>)
+      .map((e) => Halls.fromJson(e as Map<String, dynamic>))
       .toList(),
   tables: (json['tables'] as List<dynamic>)
-      .map((e) => e as Map<String, dynamic>)
+      .map((e) => Tables5.fromJson(e as Map<String, dynamic>))
       .toList(),
-  shift: json['shift'] as Map<String, dynamic>?,
+  shift: json['shift'] == null
+      ? null
+      : Shift.fromJson(json['shift'] as Map<String, dynamic>),
+  quickItems: (json['quick_items'] as List<dynamic>)
+      .map((e) => QuickItems.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data136ToJson(Data136 instance) => <String, dynamic>{
@@ -50,4 +55,5 @@ Map<String, dynamic> _$Data136ToJson(Data136 instance) => <String, dynamic>{
   'halls': instance.halls,
   'tables': instance.tables,
   'shift': instance.shift,
+  'quick_items': instance.quickItems,
 };

@@ -386,10 +386,10 @@ void main() {
     });
 
     testWidgets(
-      'a held line cannot be bumped before it is sent; once sent it is a normal line',
+      'a held pre-order is marked ready before it is sent (P3-26: ready implies sent)',
       (WidgetTester tester) async {
         final KdsHarness h = posKitchen(stationValues: allStations);
-        final String uuid = h.state.addPosOrder(
+        h.state.addPosOrder(
           lines: const <PosLine>[
             PosLine(
               'Toy oshi',
@@ -403,27 +403,37 @@ void main() {
           ],
         );
         await pumpBoard(tester, h);
-        // within the lead: on the board, but "not sent"
+        // within the lead: on the board, "not sent" yet, but the cook may finish it now
         expect(find.text('Toy oshi'), findsOneWidget);
         expect(find.textContaining('hali yuborilmagan'), findsOneWidget);
-        expect(buttonLabeled('Hammasi tayyor'), findsNothing);
-        await tester.tap(find.text('Toy oshi'));
-        await tester.pumpAndSettle();
-        expect(h.backend.to('POST', '/ready'), isEmpty);
-
-        // the waiter sends it
-        final int id =
-            ((h.state.orders.single['items']! as List<Object?>).single!
-                    as Map<String, Object?>)['id']!
-                as int;
-        h.state.sendLine(uuid, id);
-        await event(tester);
-        expect(find.textContaining('hali yuborilmagan'), findsNothing);
         await tester.tap(find.text('Toy oshi'));
         await tester.pumpAndSettle();
         expect(h.backend.to('POST', '/ready').length, 1);
+        final Map<String, Object?> item =
+            (h.state.orders.single['items']! as List<Object?>).single!
+                as Map<String, Object?>;
+        expect(item['kitchen_status'], 'ready');
+        expect(item['sent_at'], isNotNull);
       },
     );
+
+    testWidgets('a pre-order in the queue tab has its own "Tayyor"', (
+      WidgetTester tester,
+    ) async {
+      final KdsHarness h = await queued(tester);
+      await tester.tap(find.textContaining('Oldindan buyurtmalar'));
+      await tester.pumpAndSettle();
+      final Map<String, Object?> osh =
+          (h.state.orders.single['items']! as List<Object?>).first!
+              as Map<String, Object?>;
+      await tester.tap(
+        find.byKey(ValueKey<String>('preorder-ready-${osh['id']}')),
+      );
+      await tester.pumpAndSettle();
+      expect(h.backend.to('POST', '/items/${osh['id']}/ready').length, 1);
+      expect(osh['kitchen_status'], 'ready');
+      expect(find.textContaining('Oldindan buyurtmalar (2)'), findsOneWidget);
+    });
 
     testWidgets(
       'a line sent early leaves the queue at once and shows on the board',
@@ -510,7 +520,16 @@ void main() {
         h.state.cancelOrder(uuid, reason: 'Mehmonlar ketdi');
         await event(tester);
 
-        expect(h.backend.to('GET', '/v1/staff/orders/$uuid'), isNotEmpty);
+        // P3-26: the tickets feed brings it (canceled_within); no lookup per ticket
+        expect(h.backend.to('GET', '/v1/staff/orders/$uuid'), isEmpty);
+        expect(
+          h.backend
+              .to('GET', '/v1/staff/kitchen/tickets')
+              .last
+              .uri
+              .queryParameters['canceled_within'],
+          '2',
+        );
         expect(find.text(VoidBadge.label), findsWidgets);
         expect(find.text('Sabab: Mehmonlar ketdi'), findsNWidgets(2));
         expect(h.sound.voidPlays, 1);

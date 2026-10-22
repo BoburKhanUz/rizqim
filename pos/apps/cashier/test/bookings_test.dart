@@ -125,6 +125,9 @@ void main() {
     expect(receipt, contains('Avans (bron)'));
     expect(receipt, contains('Mijoz: Jamshid aka'));
     expect(receipt, isNot(contains('Fiskal belgi')));
+    // P3-26: avans javobidagi chek — server raqami va kassa (fiskal modul)
+    expect(receipt, contains('Kassa: EP000000000123'));
+    expect(receipt, matches(RegExp(r'Chek: 20\d\d')));
     expect(p.drawerKicks, 1);
     expect(find.text(uzs(200000)), findsWidgets);
 

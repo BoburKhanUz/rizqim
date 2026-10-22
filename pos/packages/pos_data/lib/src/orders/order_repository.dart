@@ -35,6 +35,36 @@ class PosOrderRepository {
     query: <String, Object?>{'scope': 'open', 'branch_id': branchId},
   );
 
+  /// `GET /pos/orders?scope=closed`: shu ish kunida yopilgan (to'langan) POS buyurtmalari, yangisi birinchi —
+  /// chek nusxasi va qaytarish uchun (P3-26). [businessDate] (`YYYY-MM-DD`) berilmasa — filialning hozirgi ish kuni.
+  Future<List<PosOpenOrder>> closedOrders({
+    String? businessDate,
+    int? branchId,
+  }) => _http.get(
+    '/v1/pos/orders',
+    (Object? data) => <PosOpenOrder>[
+      for (final Object? e in (data as List<Object?>?) ?? const <Object?>[])
+        PosOpenOrder.fromJson(PosJson.of(e)),
+    ],
+    query: <String, Object?>{
+      'scope': 'closed',
+      'business_date': businessDate,
+      'branch_id': branchId,
+    },
+  );
+
+  /// `POST /pos/orders/{uuid}/request-bill`: ofitsiant kassadan schyot so'raydi (P3-26). Kassaga
+  /// `order.bill_requested` boradi, zal xaritasida "Schyot so'raldi". Takroriy so'rov o'zgarishsiz qaytadi.
+  Future<PosOrder> requestBill(
+    String uuid, {
+    int? version,
+    String? approvalToken,
+    String? idempotencyKey,
+  }) => _post(uuid, 'request-bill', idempotencyKey, <String, Object?>{
+    'version': ?version,
+    'approval_token': ?approvalToken,
+  });
+
   /// `POST /pos/orders`: buyurtma ochish. Zal — [tableId] (xona, stol, tapchan) yoki stolsiz; olib ketish —
   /// [PosChannel.takeaway]. [items] — birinchi bosqich, [send] — darhol oshxonaga. [externalId] — qurilmaning o'z
   /// raqami (shu raqam bilan qayta yuborilsa o'sha buyurtma qaytadi).

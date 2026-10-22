@@ -432,14 +432,14 @@ class _OrderPageState extends State<OrderPage> {
                   ],
                   Expanded(
                     child: RzButton(
-                      label: _ctl.billRequested && !_ctl.billStale
+                      label: _ctl.billRequested
                           ? "Schyot so'ralgan"
                           : "Schyot so'rash",
                       icon: Icons.receipt_long_outlined,
                       variant: RzButtonVariant.secondary,
                       size: RzButtonSize.lg,
                       fullWidth: true,
-                      onPressed: act && hasItems
+                      onPressed: act && hasItems && !_ctl.billRequested
                           ? () => unawaited(_requestBill())
                           : null,
                     ),
@@ -566,17 +566,17 @@ class _HeaderCard extends StatelessWidget {
                       c.brandSoft,
                       c.brandSoftFg,
                     ),
-                  if (billRequested && !billStale)
+                  if (billRequested && !order.billLocked)
                     chip(
                       Icons.notifications_active_outlined,
                       "Schyot so'ralgan",
                       c.infoSoft,
                       c.infoSoftFg,
                     ),
-                  if (billRequested && billStale)
+                  if (order.billLocked && billStale)
                     chip(
                       Icons.update,
-                      "Schyot eskirdi: qayta so'rang",
+                      'Schyot eskirdi: kassir qayta chiqaradi',
                       c.warningSoft,
                       c.warningSoftFg,
                     ),

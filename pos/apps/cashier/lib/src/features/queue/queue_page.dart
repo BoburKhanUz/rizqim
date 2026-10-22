@@ -7,6 +7,7 @@ import 'package:pos_data/pos_data.dart';
 import 'package:rizqim_core/rizqim_core.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
+import '../../shell/approval_dialog.dart';
 import '../../shell/pos_scope.dart';
 import '../../shell/routes.dart';
 import '../billing/billing_page.dart';
@@ -27,7 +28,7 @@ enum _Filter { all, hall, takeaway, online }
 
 class _QueuePageState extends State<QueuePage> with RefreshingState {
   List<PosOnlineOrder> _pending = const <PosOnlineOrder>[];
-  List<PosOnlineOrder> _finished = const <PosOnlineOrder>[];
+  List<PosOpenOrder> _finished = const <PosOpenOrder>[];
   List<PosOpenOrder>? _open;
   PosException? _error;
   bool _started = false;
@@ -53,6 +54,7 @@ class _QueuePageState extends State<QueuePage> with RefreshingState {
         filter: (PosEvent e) =>
             e is PosOrderEvent ||
             e is PosOrderBillChanged ||
+            e is PosOrderBillRequested ||
             e is PosFiscalReceiptUpdated ||
             e is PosOrderItemsChanged,
       );
@@ -92,21 +94,12 @@ class _QueuePageState extends State<QueuePage> with RefreshingState {
           if (e.isNetworkError) rethrow;
         }
       }
-      List<PosOnlineOrder> finished = _finished;
-      if (_onlineAllowed) {
-        try {
-          finished = <PosOnlineOrder>[
-            for (final PosOnlineOrder o in await _online.finished(
-              date: isoDay(_scope.services.now()),
-              branchId: branch,
-            ))
-              if (PosChannel.fromWire(o.channel) != null &&
-                  o.status == 'delivered')
-                o,
-          ];
-        } on PosException catch (e) {
-          if (e.isNetworkError) rethrow;
-        }
+      List<PosOpenOrder> finished = _finished;
+      try {
+        // P3-26: shu ish kunida yopilgan POS buyurtmalari (chek nusxasi va qaytarish)
+        finished = await _scope.data.orders.closedOrders(branchId: branch);
+      } on PosException catch (e) {
+        if (e.isNetworkError) rethrow;
       }
       if (!mounted) return;
       final bool fresh = pending.any(
@@ -175,9 +168,14 @@ class _QueuePageState extends State<QueuePage> with RefreshingState {
     );
     if (reason == null || !mounted) return;
     setState(() => _busy.add(o.uuid));
+    // P3-26: orders.cancel bo'lmagan kassir menejer tasdig'i (PIN) bilan rad etadi
     final bool ok = await runGuarded(
       context,
-      () => _online.reject(o.uuid, reason: reason),
+      () => withApproval<PosOnlineOrder>(
+        context,
+        (String? token) =>
+            _online.reject(o.uuid, reason: reason, approvalToken: token),
+      ),
     );
     if (!mounted) return;
     setState(() => _busy.remove(o.uuid));
@@ -323,7 +321,10 @@ class _QueuePageState extends State<QueuePage> with RefreshingState {
     final int age = _ageMinutes(o.createdAt);
     final bool late = age >= _alertMinutes;
     final bool busy = _busy.contains(o.uuid);
-    final bool canReject = _scope.session.can(PosPermissions.ordersCancel);
+    // Rad etish: orders.cancel, bo'lmasa menejer tasdig'i bilan (P3-26)
+    final bool approvalNeeded = !_scope.session.can(
+      PosPermissions.ordersCancel,
+    );
     return DecoratedBox(
       decoration: BoxDecoration(
         color: late ? Color.alphaBlend(c.warningSoft, c.surface) : c.surface,
@@ -430,15 +431,16 @@ class _QueuePageState extends State<QueuePage> with RefreshingState {
                 ),
                 const SizedBox(width: 8),
                 Tooltip(
-                  message: canReject
-                      ? 'Rad etish'
-                      : 'Rad etish — menejer yoki ega',
+                  message: approvalNeeded
+                      ? "Rad etish — menejer tasdig'i bilan"
+                      : 'Rad etish',
                   child: RzButton(
                     key: ValueKey<String>('reject-${o.uuid}'),
                     label: 'Rad etish',
+                    icon: approvalNeeded ? Icons.lock_outline_rounded : null,
                     variant: RzButtonVariant.danger,
                     size: RzButtonSize.lg,
-                    onPressed: busy || !canReject ? null : () => _reject(o),
+                    onPressed: busy ? null : () => _reject(o),
                   ),
                 ),
               ],
@@ -551,7 +553,7 @@ class _QueuePageState extends State<QueuePage> with RefreshingState {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
-                for (final PosOnlineOrder o in _finished.take(30))
+                for (final PosOpenOrder o in _finished.take(30))
                   ListTile(
                     key: ValueKey<String>('finished-${o.uuid}'),
                     contentPadding: const EdgeInsets.symmetric(horizontal: 4),
@@ -560,14 +562,13 @@ class _QueuePageState extends State<QueuePage> with RefreshingState {
                       color: c.successSoftFg,
                     ),
                     title: Text(
-                      o.raw['table_ref'] as String? ?? channelLabel(o.channel),
+                      _place(o),
                       style: RzType.body.copyWith(color: c.fg),
                     ),
                     subtitle: Text(
                       <String>[
                         if (o.shortCode != null) '#${o.shortCode}',
-                        if (o.raw['closed_at'] is String)
-                          'yopildi ${hm(DateTime.parse(o.raw['closed_at']! as String))}',
+                        if (o.closedAt != null) 'yopildi ${hm(o.closedAt!)}',
                       ].join(' · '),
                       style: RzType.footnote.copyWith(color: c.fgMuted),
                     ),
@@ -620,6 +621,12 @@ class _QueuePageState extends State<QueuePage> with RefreshingState {
         children: <Widget>[
           if (o.fiscalPending)
             const TonePill(label: 'Fiskal kutmoqda', tone: StatusTone.warning)
+          else if (o.billRequested && !o.billLocked)
+            const TonePill(
+              label: "Schyot so'raldi",
+              tone: StatusTone.warning,
+              icon: Icons.receipt_long_outlined,
+            )
           else if (o.billLocked)
             const TonePill(
               label: 'Schyot chiqdi',

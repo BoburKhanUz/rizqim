@@ -126,10 +126,12 @@ class BookingRepository {
     },
   );
 
-  /// Oldindan buyurtma qatori ([productVariantId] — variantning raqamli id'si, [PosVariant.id]).
+  /// Oldindan buyurtma qatori: [productVariantUuid] (P3-26, POS menyusidagi variant uuid'i) yoki
+  /// [productVariantId] (raqamli id). Kamida bittasi kerak.
   Future<PosBooking> addItem(
     String uuid, {
-    required int productVariantId,
+    int? productVariantId,
+    String? productVariantUuid,
     required PosQuantity quantity,
     List<Map<String, Object?>>? modifiers,
     String? note,
@@ -142,7 +144,8 @@ class BookingRepository {
     _booking,
     idempotencyKey: idempotencyKey,
     body: <String, Object?>{
-      'product_variant_id': productVariantId,
+      'product_variant_uuid': ?productVariantUuid,
+      if (productVariantUuid == null) 'product_variant_id': productVariantId,
       'quantity': quantity.toApiString(),
       'modifiers': ?modifiers,
       'note': ?note,

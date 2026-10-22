@@ -2,6 +2,7 @@ import 'package:pos_core/pos_core.dart';
 
 import '../catalog/catalog_models.dart';
 import '../json.dart';
+import '../queue/online_order_models.dart';
 
 /// POS qatorining oshxona holati: `pending` (faqat buyurtmada) → `sent` → `ready` → `served`; `void` — o'chirilgan.
 enum PosKitchenStatus {
@@ -110,7 +111,10 @@ class PosOrder {
     this.openedBy,
     this.deviceId,
     this.bookingId,
+    this.bookingUuid,
+    this.depositAvailable = PosMoney.zero,
     this.billLocked = false,
+    this.billRequestedAt,
     this.notes,
     this.openedAt,
     this.updatedAt,
@@ -143,7 +147,10 @@ class PosOrder {
     openedBy: j.intOrNull('opened_by'),
     deviceId: j.intOrNull('device_id'),
     bookingId: j.intOrNull('booking_id'),
+    bookingUuid: j.strOrNull('booking_uuid'),
+    depositAvailable: j.money('deposit_available'),
     billLocked: j.boolean('bill_locked'),
+    billRequestedAt: j.dateOrNull('bill_requested_at'),
     notes: j.strOrNull('notes'),
     openedAt: j.dateOrNull('opened_at'),
     updatedAt: j.dateOrNull('updated_at'),
@@ -190,8 +197,17 @@ class PosOrder {
   final int? deviceId;
   final int? bookingId;
 
+  /// Buyurtma ochilgan bron (P3-26).
+  final String? bookingUuid;
+
+  /// Bron avanslaridan qolgan summa (schyotni `prepayment` bilan to'lash uchun).
+  final PosMoney depositAvailable;
+
   /// Schyot chiqarilgan: o'chirish va chegirma menejer tasdig'i bilan.
   final bool billLocked;
+
+  /// Ofitsiant schyot so'ragan payt ("Schyot so'raldi", P3-26).
+  final DateTime? billRequestedAt;
   final String? notes;
   final DateTime? openedAt;
   final DateTime? updatedAt;
@@ -465,10 +481,14 @@ class PosOpenOrder {
     this.totalPrice = PosMoney.zero,
     this.paymentStatus,
     this.billLocked = false,
+    this.billRequested = false,
     this.fiscalPending = false,
     this.bookingId,
+    this.businessDate,
     this.openedAt,
+    this.closedAt,
     this.updatedAt,
+    this.online,
     this.raw = const <String, Object?>{},
   });
 
@@ -491,10 +511,16 @@ class PosOpenOrder {
     totalPrice: j.money('total_price'),
     paymentStatus: j.strOrNull('payment_status'),
     billLocked: j.boolean('bill_locked'),
+    billRequested: j.boolean('bill_requested'),
     fiscalPending: j.boolean('fiscal_pending'),
     bookingId: j.intOrNull('booking_id'),
+    businessDate: j.strOrNull('business_date'),
     openedAt: j.dateOrNull('opened_at'),
+    closedAt: j.dateOrNull('closed_at'),
     updatedAt: j.dateOrNull('updated_at'),
+    online: j.objOrNull('online') == null
+        ? null
+        : PosOnlineOrder.fromJson(j.obj('online')),
     raw: j.map,
   );
 
@@ -519,11 +545,23 @@ class PosOpenOrder {
   final String? paymentStatus;
   final bool billLocked;
 
+  /// Ofitsiant schyot so'ragan (P3-26).
+  final bool billRequested;
+
   /// To'langan, sotuv cheki kutilmoqda ("fiskal kutmoqda").
   final bool fiscalPending;
   final int? bookingId;
+
+  /// Ish kuni (`YYYY-MM-DD`).
+  final String? businessDate;
   final DateTime? openedAt;
+
+  /// Yopilgan payt (`scope=closed`).
+  final DateTime? closedAt;
   final DateTime? updatedAt;
+
+  /// Onlayn buyurtma kartasi (mijoz, manzil, qatorlar, to'lov); POS buyurtmasida `null` (P3-26).
+  final PosOnlineOrder? online;
   final Map<String, Object?> raw;
 
   bool get isPos => PosChannel.fromWire(channel) != null;

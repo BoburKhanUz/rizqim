@@ -42,7 +42,7 @@ class TicketCard extends StatelessWidget {
   KitchenTicket get ticket => entry.ticket;
 
   /// Qatorni "tayyor" deb belgilash mumkin (ushlab turilgan qator hali oshxonada emas).
-  static bool canBump(KitchenLine l) => !l.isDone && !l.isVoid && !l.isHeld;
+  static bool canBump(KitchenLine l) => l.canBeReady;
 
   @override
   Widget build(BuildContext context) {
@@ -369,9 +369,10 @@ class _LineRow extends StatelessWidget {
     final bool voided = line.isVoid;
     final bool done = line.isDone;
     final bool held = line.isHeld;
-    // Tayyor qatorni qaytarish mumkin; berilgan (ofitsiant belgilagan) va o'chirilganni oshxona o'zgartirmaydi,
-    // ushlab turilgan qator hali oshxonada emas
-    final bool actionable = enabled && !voided && !held && !line.isServed;
+    // Tayyor qatorni qaytarish mumkin; berilgan (ofitsiant belgilagan) va o'chirilganni oshxona o'zgartirmaydi;
+    // ushlab turilgan qator — faqat vaqti bo'lsa (oldindan pishiriladigan osh, P3-26)
+    final bool actionable =
+        enabled && !voided && (!held || line.dueAt != null) && !line.isServed;
     final bool tappable = actionable && !busy;
     final Color textColor = voided || done ? c.fgMuted : c.fg;
     final TextDecoration? strike = voided || done

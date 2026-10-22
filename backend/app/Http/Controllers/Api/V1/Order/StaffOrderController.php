@@ -46,13 +46,16 @@ class StaffOrderController extends Controller
 {
     use ApiResponse;
 
-    private const ITEM = 'array{id: int, product_name: string, variant_name: string|null, quantity: int|float, unit: string, quantity_label: string, modifiers: list<array{name: string, group_name?: string, quantity: int, price_delta?: string}>, kitchen_status: string, ready_at: string|null, round_no?: int|null, fire_mode?: string, station_id?: int|null, sent_at?: string|null, due_at?: string|null, seat_no?: int|null, note?: string|null, voided_at?: string|null, void_reason?: string|null, unit_price?: string, modifiers_total?: string, total_price?: string}';
+    public const ITEM = 'array{id: int, product_name: string, variant_name: string|null, quantity: int|float, unit: string, quantity_label: string, modifiers: list<array{name: string, group_name?: string, quantity: int, price_delta?: string}>, kitchen_status: string, ready_at: string|null, round_no?: int|null, fire_mode?: string, station_id?: int|null, sent_at?: string|null, due_at?: string|null, seat_no?: int|null, note?: string|null, voided_at?: string|null, void_reason?: string|null, unit_price?: string, modifiers_total?: string, total_price?: string}';
 
-    private const ORDER = 'array{uuid: string, short_code: string|null, status: string, status_label: string, type: string, channel: string, store_id: int, branch_id: int|null, branch_name: string|null, payment_method: string, payment_status: string, subtotal: string, discount: string, delivery_price: string, service_charge_amount: string, place_fee_amount: string, total_price: string, notes: string|null, guests_count: int|null, hall_ref: string|null, table_ref: string|null, cancel_reason: string|null, cancel_note: string|null, customer: array{name: string|null, phone: string|null}|null, delivery: array{address: string|null, latitude: float|null, longitude: float|null, zone_name: string|null}|null, courier: array{id: int, name: string|null, phone: string|null}|null, items_total: int, items_ready: int, items: list<' . self::ITEM . '>, created_at: string|null, updated_at: string|null, accepted_at: string|null, preparing_at: string|null, ready_at: string|null, closed_at: string|null, waiting_seconds: int}';
+    public const ORDER = 'array{uuid: string, short_code: string|null, status: string, status_label: string, type: string, channel: string, store_id: int, branch_id: int|null, branch_name: string|null, payment_method: string, payment_status: string, subtotal: string, discount: string, delivery_price: string, service_charge_amount: string, place_fee_amount: string, total_price: string, notes: string|null, guests_count: int|null, hall_ref: string|null, table_ref: string|null, cancel_reason: string|null, cancel_note: string|null, customer: array{name: string|null, phone: string|null}|null, delivery: array{address: string|null, latitude: float|null, longitude: float|null, zone_name: string|null}|null, courier: array{id: int, name: string|null, phone: string|null}|null, items_total: int, items_ready: int, items: list<' . self::ITEM . '>, created_at: string|null, updated_at: string|null, accepted_at: string|null, preparing_at: string|null, ready_at: string|null, closed_at: string|null, waiting_seconds: int}';
 
     private const DETAIL = 'array{uuid: string, short_code: string|null, status: string, status_label: string, type: string, channel: string, store_id: int, branch_id: int|null, branch_name: string|null, payment_method: string, payment_status: string, subtotal: string, discount: string, delivery_price: string, service_charge_amount: string, place_fee_amount: string, total_price: string, notes: string|null, guests_count: int|null, hall_ref: string|null, table_ref: string|null, cancel_reason: string|null, cancel_note: string|null, customer: array{name: string|null, phone: string|null}|null, delivery: array{address: string|null, latitude: float|null, longitude: float|null, zone_name: string|null}|null, courier: array{id: int, name: string|null, phone: string|null}|null, items_total: int, items_ready: int, items: list<' . self::ITEM . '>, created_at: string|null, updated_at: string|null, accepted_at: string|null, preparing_at: string|null, ready_at: string|null, closed_at: string|null, waiting_seconds: int, status_history: list<array{from_status: string|null, status: string, created_at: string|null}>}';
 
-    private const TICKET = 'array{uuid: string, short_code: string|null, status: string, type: string, channel: string, branch_id: int|null, hall_ref: string|null, table_ref: string|null, guests_count: int|null, notes: string|null, items_total: int, items_ready: int, items: list<' . self::ITEM . '>, created_at: string|null, accepted_at: string|null, preparing_at: string|null, ready_at: string|null, waiting_seconds: int}';
+    private const TICKET = 'array{uuid: string, short_code: string|null, status: string, type: string, channel: string, branch_id: int|null, hall_ref: string|null, table_ref: string|null, guests_count: int|null, notes: string|null, items_total: int, items_ready: int, items: list<' . self::ITEM . '>, created_at: string|null, accepted_at: string|null, preparing_at: string|null, ready_at: string|null, canceled_at: string|null, waiting_seconds: int}';
+
+    /** Longest look-back of `canceled_within` (minutes). */
+    public const CANCELED_WITHIN_MAX = 60;
 
     public const DEFAULT_PER_PAGE = 30;
 
@@ -280,10 +283,16 @@ class StaffOrderController extends Controller
      * courier_assigned order (the courier has not picked it up yet). Each ticket: lines with modifiers and
      * quantities/weights, each line's kitchen state, the notes (phone numbers masked), when it came in and was
      * accepted, and `waiting_seconds`. No customer data, no prices. Needs kitchen.manage or orders.view.
+     *
+     * P3-26: with `canceled_within` (minutes, 1–60) the orders cancelled or rejected within that time that had
+     * reached the kitchen (a line sent, or an online order accepted) are listed too, after the live ones, with their
+     * `status` (canceled / rejected) and `canceled_at`, their lines as they were (voided ones with `voided_at`), so a
+     * display strikes them through instead of losing them; `canceled_at` is null on a live ticket.
      */
     #[Group('Kitchen')]
     #[QueryParameter('branch_id', description: 'One branch; omit for every branch the caller works in (a branch terminal: its branch).', type: 'int')]
     #[QueryParameter('include_ready', description: '1 to also list orders that are ready but not handed over yet.', type: 'bool')]
+    #[QueryParameter('canceled_within', description: 'Minutes (1-60): also list the orders cancelled or rejected that long ago at most, with canceled_at.', type: 'int', required: false)]
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: list<' . self::TICKET . '>, meta: array{truncated: bool}}')]
     public function tickets(Request $request): JsonResponse
     {
@@ -291,6 +300,9 @@ class StaffOrderController extends Controller
         $request->validate([
             'branch_id' => 'nullable|string|max:20',
             'include_ready' => 'nullable|boolean',
+            'canceled_within' => 'nullable|integer|min:1|max:' . self::CANCELED_WITHIN_MAX,
+        ], [
+            'canceled_within.*' => "Bekor qilingan buyurtmalar davri 1 dan " . self::CANCELED_WITHIN_MAX . " daqiqagacha bo'lishi kerak.",
         ]);
 
         $includeReady = $request->boolean('include_ready');
@@ -333,6 +345,11 @@ class StaffOrderController extends Controller
             ->get();
         $now = now();
 
+        // P3-26: what the kitchen lost lately (a cancelled or rejected order), so the display strikes it through
+        if ($request->filled('canceled_within') && $rows->count() <= self::TICKETS_CAP) {
+            $rows = $rows->concat($this->recentlyCanceled($user, $request, $request->integer('canceled_within'), self::TICKETS_CAP + 1 - $rows->count()));
+        }
+
         return response()->json([
             'success' => true,
             'message' => '',
@@ -348,7 +365,9 @@ class StaffOrderController extends Controller
      * ready a delivery or pickup order becomes ready by itself; a hall order (dine_in) stays preparing until it is
      * closed. P2-33: a courier_assigned order (a courier was assigned while it was cooking) takes bumps too, with no
      * status move. 422 when the order is not in the kitchen (new, ready, on its way, finished). Bumping a ready line
-     * again answers 200 unchanged. Returns the ticket.
+     * again answers 200 unchanged. P3-26: a held pre-order line with a due time (fire_mode hold, `due_at`, not sent yet)
+     * may be bumped before the till sends it — ready implies sent: it gets its station and `sent_at` now and the POS
+     * order's version moves. Returns the ticket.
      */
     #[Group('Kitchen')]
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . self::TICKET . '}')]
@@ -400,6 +419,44 @@ class StaffOrderController extends Controller
             $this->presenter->ticket($fresh),
             $result['changed'] ? ($ready ? 'Taom tayyor.' : 'Taom qaytarildi.') : "O'zgarish yo'q."
         );
+    }
+
+    /**
+     * P3-26: orders of the caller's branches cancelled or rejected in the last $minutes that had reached the kitchen: a
+     * POS order with a sent line, an online order that was accepted. Newest last.
+     *
+     * @return \Illuminate\Support\Collection<int, Order>
+     */
+    protected function recentlyCanceled(User $user, Request $request, int $minutes, int $limit): \Illuminate\Support\Collection
+    {
+        $since = now()->subMinutes($minutes);
+        $cancelled = [OrderStatus::CANCELED->value, OrderStatus::REJECTED->value];
+        $pos = [OrderChannel::POS_HALL->value, OrderChannel::POS_TAKEAWAY->value];
+
+        $query = $this->scope->query($user)
+            ->whereIn('orders.status', $cancelled)
+            ->whereExists(fn ($history) => $history->selectRaw('1')->from('order_status_histories')
+                ->whereColumn('order_status_histories.order_id', 'orders.id')
+                ->whereIn('order_status_histories.status', $cancelled)
+                ->where('order_status_histories.created_at', '>=', $since))
+            ->where(fn ($query) => $query
+                ->where(fn ($query) => $query->whereIn('orders.channel', $pos)
+                    ->whereExists(fn ($lines) => $lines->selectRaw('1')->from('order_items')
+                        ->whereColumn('order_items.order_id', 'orders.id')
+                        ->whereNotNull('order_items.sent_at')))
+                ->orWhere(fn ($query) => $query->whereNotIn('orders.channel', $pos)
+                    ->whereExists(fn ($history) => $history->selectRaw('1')->from('order_status_histories')
+                        ->whereColumn('order_status_histories.order_id', 'orders.id')
+                        ->where('order_status_histories.status', OrderStatus::ACCEPTED->value))));
+        if (($branchId = $request->query('branch_id')) !== null) {
+            $query->where('orders.branch_id', $this->branch($user, $branchId)->id);
+        }
+
+        return $query->with(StaffOrderPresenter::RELATIONS)
+            ->orderBy('orders.updated_at')
+            ->orderBy('orders.id')
+            ->limit(max(0, $limit))
+            ->get();
     }
 
     protected function user(Request $request): User

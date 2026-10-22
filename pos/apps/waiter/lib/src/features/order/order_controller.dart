@@ -47,10 +47,10 @@ class OrderController extends ChangeNotifier {
   /// Boshqa ofitsiantning buyurtmasi: tahrirlash yoqildi.
   bool editingForeign = false;
 
-  /// Buyurtmada ochiq (chiqarilmagan yoki chiqarilgan, to'lanmagan) schyot bor: kassir uni ko'radi.
-  bool billRequested = false;
+  /// Ofitsiant kassadan schyot so'ragan (P3-26: serverdagi `bill_requested_at`; kassada "Schyot so'raldi").
+  bool get billRequested => order?.billRequestedAt != null;
 
-  /// Schyotdan keyin buyurtma o'zgargan: schyotni qayta so'rash kerak.
+  /// Schyot chiqarilgandan keyin buyurtma o'zgargan: kassir schyotni qayta chiqaradi.
   bool billStale = false;
 
   /// Oxirgi amalning xatosi (oyna ichida ko'rsatish uchun; keyingi amal boshida tozalanadi).
@@ -148,13 +148,13 @@ class OrderController extends ChangeNotifier {
   }
 
   Future<void> _loadBill() async {
+    if (order?.billLocked != true) {
+      billStale = false;
+      return;
+    }
     try {
       final PosBilling b = await data.billing.bills(uuid);
-      final bool open = b.bills.any(
-        (PosBill x) => x.status == 'open' || x.status == 'printed',
-      );
-      billRequested = open;
-      billStale = open && b.order.billsOutOfDate;
+      billStale = b.order.billsOutOfDate;
       _notify();
     } on Object {
       // Schyot holati ixtiyoriy ma'lumot: ko'rinmasa ham ish davom etadi
@@ -328,9 +328,9 @@ class OrderController extends ChangeNotifier {
     success: "Buyurtma ko'chirildi.",
   );
 
-  /// "Schyot so'rash". Ofitsiant ilovasida to'lov va chek chiqarish yo'q; ofitsiant ham (o'z buyurtmasiga)
-  /// schyotni tuzishi mumkin (`POST /pos/orders/{uuid}/bills`, `mode: single`) — kassir uni ko'radi
-  /// (`order.bill_changed`), chiqaradi va to'lovni oladi. Alohida "schyot so'raldi" signali backend'da yo'q.
+  /// "Schyot so'rash" (P3-26: `POST /pos/orders/{uuid}/request-bill`): kassaga `order.bill_requested` boradi, zal
+  /// xaritasida "Schyot so'raldi"; schyotni kassir tuzadi, chiqaradi va to'lovni oladi (ofitsiant ilovasida to'lov va
+  /// chek yo'q). Takroriy so'rov o'zgarishsiz qaytadi.
   Future<bool> requestBill(Approving approving) async {
     final PosOrder? current = order;
     if (current == null || busy || !online) return false;
@@ -339,11 +339,11 @@ class OrderController extends ChangeNotifier {
     _notify();
     final String sig = 'bill:${current.version}';
     try {
-      await approving<PosBilling>(
+      final PosOrder next = await approving<PosOrder>(
         (String? token) => _remembering(
           sig,
           token,
-          () => data.billing.createBills(
+          () => data.orders.requestBill(
             uuid,
             version: current.version,
             approvalToken: token,
@@ -352,10 +352,8 @@ class OrderController extends ChangeNotifier {
         ),
       );
       _retryKeys.remove(sig);
-      billRequested = true;
-      billStale = false;
-      onNotice?.call('Schyot kassaga yuborildi. Kassir uni chiqaradi.');
-      order = await data.orders.get(uuid);
+      order = next;
+      onNotice?.call("Schyot so'raldi: kassir uni chiqaradi.");
       return true;
     } on Object catch (e) {
       await _handleFailure(e);
@@ -393,7 +391,7 @@ class OrderController extends ChangeNotifier {
       );
       _retryKeys.remove(signature);
       order = next;
-      if (billRequested) billStale = true;
+      if (next.billLocked) billStale = true;
       if (success != null) onNotice?.call(success);
       return true;
     } on Object catch (e) {

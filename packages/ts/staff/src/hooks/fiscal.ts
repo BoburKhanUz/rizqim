@@ -4,9 +4,9 @@ import {
   fetchFiscalReceipt,
   fetchFiscalReceipts,
   fetchFiscalSettings,
-  productFiscalFormData,
   retryFiscalReceipt,
   saveFiscalSettings,
+  saveProductFiscal,
   type FiscalReadiness,
   type FiscalReceipt,
   type FiscalReceiptsPage,
@@ -14,7 +14,7 @@ import {
   type FiscalSettingsInput,
   type FiscalSettingsView,
 } from '../api/fiscal';
-import { saveProduct, type ProductFiscalInput } from '../api/menu';
+import type { ProductFiscalInput } from '../api/menu';
 import type { Product } from '../types';
 import { useStaffApi } from './context';
 import { staffKeys } from './keys';
@@ -86,14 +86,14 @@ export function useRetryFiscalReceipt(options: MutationExtras<FiscalReceipt, str
   });
 }
 
-// Writes the fiscal fields of one product (kind, MXIK, package code, VAT) and nothing else: the product is sent back as it
-// is (api/fiscal.ts productFiscalFormData). The menu and the readiness list are read again.
-export function useSaveProductFiscal(options: MutationExtras<unknown, { product: Product; fiscal: ProductFiscalInput }> = {}) {
+// Writes the fiscal fields of one product (kind, MXIK, package code, VAT) and nothing else (PATCH /owner/products/{id}/fiscal,
+// P3-26). The menu and the readiness list are read again.
+export function useSaveProductFiscal(options: MutationExtras<Product, { product: Pick<Product, 'id'>; fiscal: ProductFiscalInput }> = {}) {
   const api = useStaffApi();
   const queryClient = useQueryClient();
   return useMutation({
     ...options,
-    mutationFn: ({ product, fiscal }: { product: Product; fiscal: ProductFiscalInput }) => saveProduct(api, product.id, productFiscalFormData(product, fiscal)),
+    mutationFn: ({ product, fiscal }: { product: Pick<Product, 'id'>; fiscal: ProductFiscalInput }) => saveProductFiscal(api, product.id, fiscal),
     onSuccess: (...args) => {
       void queryClient.invalidateQueries({ queryKey: staffKeys.products });
       void queryClient.invalidateQueries({ queryKey: fiscalKeys.readiness });

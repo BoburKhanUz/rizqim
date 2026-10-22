@@ -25,6 +25,12 @@ sealed class PosEvent {
           j,
         ),
         'order.bill_changed' => PosOrderBillChanged._(name, data, _order(j), j),
+        'order.bill_requested' => PosOrderBillRequested._(
+          name,
+          data,
+          _order(j),
+          j,
+        ),
         'kitchen.item_status_changed' => PosKitchenItemChanged._(
           name,
           data,
@@ -80,6 +86,24 @@ class PosEventOrder {
   final String? status;
   final int? branchId;
   final DateTime? updatedAt;
+}
+
+/// `order.bill_requested` (P3-26): ofitsiant kassadan schyot so'radi ("Schyot so'raldi").
+class PosOrderBillRequested extends PosEvent {
+  PosOrderBillRequested._(super.name, super.data, this.order, PosJson j)
+    : version = j.intOrNull('version'),
+      tableId = j.intOrNull('table_id'),
+      requestedBy = j.intOrNull('requested_by');
+
+  final PosEventOrder order;
+  final int? version;
+  final int? tableId;
+
+  /// So'ragan xodim id'si.
+  final int? requestedBy;
+
+  @override
+  String? get orderUuid => order.uuid;
 }
 
 /// `order.created`, `order.status_changed`, `order.assigned`.

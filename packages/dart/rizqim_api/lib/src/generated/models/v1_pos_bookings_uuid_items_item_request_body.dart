@@ -12,6 +12,7 @@ part 'v1_pos_bookings_uuid_items_item_request_body.g.dart';
 class V1PosBookingsUuidItemsItemRequestBody {
   const V1PosBookingsUuidItemsItemRequestBody({
     this.productVariantId,
+    this.productVariantUuid,
     this.quantity,
     this.modifiers,
     this.note,
@@ -25,6 +26,10 @@ class V1PosBookingsUuidItemsItemRequestBody {
 
   @JsonKey(name: 'product_variant_id')
   final int? productVariantId;
+  @JsonKey(name: 'product_variant_uuid')
+  final String? productVariantUuid;
+
+  /// P3-26
   final num? quantity;
   final List<Modifiers5>? modifiers;
   final String? note;

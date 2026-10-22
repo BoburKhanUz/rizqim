@@ -4,10 +4,6 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'device13.dart';
-import 'opened_by3.dart';
-import 'closed_by3.dart';
-
 part 'shift.g.dart';
 
 @JsonSerializable()
@@ -15,55 +11,27 @@ class Shift {
   const Shift({
     required this.uuid,
     required this.status,
-    required this.branchId,
-    required this.device,
     required this.businessDate,
     required this.openedAt,
     required this.openedBy,
     required this.openingCash,
-    required this.closedAt,
-    required this.closedBy,
-    required this.expectedCash,
-    required this.countedCash,
-    required this.countedBreakdown,
-    required this.difference,
-    required this.zNumber,
-    required this.forceClosed,
-    required this.closeNote,
+    required this.deviceId,
   });
 
   factory Shift.fromJson(Map<String, Object?> json) => _$ShiftFromJson(json);
 
   final String uuid;
   final String status;
-  @JsonKey(name: 'branch_id')
-  final int branchId;
-  final Device13? device;
   @JsonKey(name: 'business_date')
   final String businessDate;
   @JsonKey(name: 'opened_at')
   final String openedAt;
   @JsonKey(name: 'opened_by')
-  final OpenedBy3? openedBy;
+  final int? openedBy;
   @JsonKey(name: 'opening_cash')
   final String openingCash;
-  @JsonKey(name: 'closed_at')
-  final String? closedAt;
-  @JsonKey(name: 'closed_by')
-  final ClosedBy3? closedBy;
-  @JsonKey(name: 'expected_cash')
-  final String? expectedCash;
-  @JsonKey(name: 'counted_cash')
-  final String? countedCash;
-  @JsonKey(name: 'counted_breakdown')
-  final Map<String, int>? countedBreakdown;
-  final String? difference;
-  @JsonKey(name: 'z_number')
-  final int? zNumber;
-  @JsonKey(name: 'force_closed')
-  final bool forceClosed;
-  @JsonKey(name: 'close_note')
-  final String? closeNote;
+  @JsonKey(name: 'device_id')
+  final String deviceId;
 
   Map<String, Object?> toJson() => _$ShiftToJson(this);
 }

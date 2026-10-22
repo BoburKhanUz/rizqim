@@ -1,5 +1,6 @@
 import 'package:pos_core/pos_core.dart';
 
+import '../fiscal/fiscal_receipt_models.dart';
 import '../json.dart';
 
 /// Schyot endpointlaridagi buyurtma hisob holati.
@@ -19,6 +20,8 @@ class PosBillingOrder {
     this.unbilledAmount = PosMoney.zero,
     this.fiscalPending = false,
     this.billsOutOfDate = false,
+    this.bookingUuid,
+    this.depositAvailable = PosMoney.zero,
   });
 
   factory PosBillingOrder.fromJson(PosJson j) => PosBillingOrder(
@@ -36,6 +39,8 @@ class PosBillingOrder {
     unbilledAmount: j.money('unbilled_amount'),
     fiscalPending: j.boolean('fiscal_pending'),
     billsOutOfDate: j.boolean('bills_out_of_date'),
+    bookingUuid: j.strOrNull('booking_uuid'),
+    depositAvailable: j.money('deposit_available'),
   );
 
   final String uuid;
@@ -56,6 +61,12 @@ class PosBillingOrder {
 
   /// Ochiq schyotdan keyin buyurtma o'zgargan: schyotni qayta tuzing.
   final bool billsOutOfDate;
+
+  /// Buyurtma ochilgan bron (P3-26), bo'lmasa `null`.
+  final String? bookingUuid;
+
+  /// Bron avanslaridan schyotlarga qolgan summa (`prepayment` to'lovi uchun).
+  final PosMoney depositAvailable;
 
   bool get isClosed => closedAt != null;
 }
@@ -152,19 +163,35 @@ class PosBill {
   bool get isPaid => status == 'paid';
 }
 
-/// Schyot yoki qaytarishning fiskal cheki holati: `pending`, `issued`, `failed` (`null` — hali so'ralmagan).
+/// Schyot, qaytarish, avans yoki qarz to'lovining fiskal cheki holati: `pending`, `issued`, `failed` (`null` —
+/// hali so'ralmagan) va (P3-26) ro'yxatdan o'tgan chekning o'zi ([receipt]: fiskal belgi, raqam, QR, qatorlar) —
+/// kassa chekni shu bilan chop etadi.
 class PosFiscalState {
-  const PosFiscalState({this.status, this.receiptUuid, this.error});
+  const PosFiscalState({
+    this.status,
+    this.receiptUuid,
+    this.error,
+    this.receipt,
+  });
 
-  factory PosFiscalState.fromJson(PosJson j) => PosFiscalState(
-    status: j.strOrNull('status'),
-    receiptUuid: j.strOrNull('receipt_uuid'),
-    error: j.strOrNull('error'),
-  );
+  factory PosFiscalState.fromJson(PosJson j) {
+    final PosJson? receipt = j.objOrNull('receipt');
+    return PosFiscalState(
+      status: j.strOrNull('status'),
+      receiptUuid: j.strOrNull('receipt_uuid'),
+      error: j.strOrNull('error'),
+      receipt: receipt == null
+          ? null
+          : PosFiscalReceiptDetail.fromJson(receipt),
+    );
+  }
 
   final String? status;
   final String? receiptUuid;
   final String? error;
+
+  /// Chek (hali yo'q bo'lsa `null`).
+  final PosFiscalReceiptDetail? receipt;
 
   bool get isPending => status == 'pending' || status == 'failed';
 }

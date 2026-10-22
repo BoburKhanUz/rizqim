@@ -75,28 +75,37 @@ class CustomerAccountRepository {
     },
   );
 
-  /// Hisob ochish (`customer_accounts.manage`: ega, menejer).
+  /// Hisob ochish (`customer_accounts.manage`: ega, menejer; P3-26: kassir menejer tasdig'i [approvalToken] bilan).
   Future<PosCustomerAccount> create(
     PosAccountInput input, {
+    String? approvalToken,
     String? idempotencyKey,
   }) => _http.mutate(
     'POST',
     '/v1/pos/customer-accounts',
     _account,
     idempotencyKey: idempotencyKey,
-    body: input.toJson(),
+    body: <String, Object?>{
+      ...input.toJson(),
+      'approval_token': ?approvalToken,
+    },
   );
 
+  /// Hisobni o'zgartirish (ruxsat — [create] dagidek).
   Future<PosCustomerAccount> update(
     String uuid,
     PosAccountInput changes, {
+    String? approvalToken,
     String? idempotencyKey,
   }) => _http.mutate(
     'PATCH',
     '/v1/pos/customer-accounts/$uuid',
     _account,
     idempotencyKey: idempotencyKey,
-    body: changes.toJson(),
+    body: <String, Object?>{
+      ...changes.toJson(),
+      'approval_token': ?approvalToken,
+    },
   );
 
   /// Tuzatish: [amount] musbat — qarzga qo'shadi, manfiy — kechadi; [note] majburiy.

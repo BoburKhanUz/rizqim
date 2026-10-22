@@ -64,7 +64,7 @@ describe('fiscal hooks', () => {
   });
 
   it('writes the MXIK of a product and reads the menu and the readiness again', async () => {
-    const { calls } = mockFetch({ 'POST /api/v1/owner/products/1': () => ok({ id: 1 }) });
+    const { calls } = mockFetch({ 'PATCH /api/v1/owner/products/1/fiscal': () => ok({ id: 1 }) });
     const queryClient = makeQueryClient();
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
     const product = { id: 1, name: 'Osh', description: null, category_id: 2, is_active: true, batch_tracked: false, sort_order: 0, variants: [{ id: 5, name: null, price: '35000.00', unit: 'piece', quantity_step: null, min_quantity: null, batch_consumption: '1.000', unit_label: null }] } as unknown as Product;
@@ -72,15 +72,14 @@ describe('fiscal hooks', () => {
     await act(async () => {
       await result.current.mutateAsync({ product, fiscal: { mxik_code: '10202001001000000' } });
     });
-    const form = await calls[0]!.formData();
-    expect(form.get('mxik_code')).toBe('10202001001000000');
-    expect(form.get('category_id')).toBe('2');
+    // Only the fiscal fields go out, nothing else of the product
+    expect(await calls[0]!.json()).toEqual({ mxik_code: '10202001001000000' });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: staffKeys.products });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: fiscalKeys.readiness });
   });
 
   it('hands the server refusal of a bad MXIK to the caller', async () => {
-    mockFetch({ 'POST /api/v1/owner/products/1': () => json({ success: false, message: 'Xato', errors: { mxik_code: ["MXIK kodi 17 ta raqamdan iborat bo'lishi kerak."] } }, 422) });
+    mockFetch({ 'PATCH /api/v1/owner/products/1/fiscal': () => json({ success: false, message: 'Xato', errors: { mxik_code: ["MXIK kodi 17 ta raqamdan iborat bo'lishi kerak."] } }, 422) });
     const onError = vi.fn();
     const product = { id: 1, name: 'Osh', category_id: 2, is_active: true, batch_tracked: false, sort_order: 0, variants: [] } as unknown as Product;
     const { result } = renderHook(() => useSaveProductFiscal({ onError }), { wrapper: wrapperFor(makeQueryClient()) });

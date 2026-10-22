@@ -165,7 +165,7 @@ export const floor = defineSection({
     floor_cal_add: "Qo'shish",
     floor_cal_noHolidays: "Bayram kuni yo'q.",
     floor_cal_removeAria: "{{date}} bayramini olib tashlash",
-    floor_cal_posNote: "Kassa sozlamalarida yozilgan bayramlar ham hisobga olinadi.",
+    floor_cal_posNote: "Bu bayramlar ro'yxati kassa sozlamalaridagi bilan bitta: bu yerda o'zgartirilsa, u yerda ham o'zgaradi.",
     floor_cal_save: 'Kalendarni saqlash',
     floor_cal_saved: 'Kalendar saqlandi.',
 
@@ -347,7 +347,7 @@ export const floor = defineSection({
     floor_cal_add: 'Добавить',
     floor_cal_noHolidays: 'Праздничных дней нет.',
     floor_cal_removeAria: 'Убрать праздник {{date}}',
-    floor_cal_posNote: 'Праздники, указанные в настройках кассы, тоже учитываются.',
+    floor_cal_posNote: 'Это тот же список праздников, что и в настройках кассы: изменение здесь видно и там.',
     floor_cal_save: 'Сохранить календарь',
     floor_cal_saved: 'Календарь сохранён.',
 
@@ -528,7 +528,7 @@ export const floor = defineSection({
     floor_cal_add: 'Add',
     floor_cal_noHolidays: 'No holidays.',
     floor_cal_removeAria: 'Remove the holiday {{date}}',
-    floor_cal_posNote: 'Holidays set in the POS settings count too.',
+    floor_cal_posNote: 'This is the same holiday list as in the POS settings: a change here shows there too.',
     floor_cal_save: 'Save the calendar',
     floor_cal_saved: 'Calendar saved.',
 

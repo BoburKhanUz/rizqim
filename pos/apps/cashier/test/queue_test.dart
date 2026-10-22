@@ -9,7 +9,7 @@ import 'support/p22.dart';
 
 void main() {
   testWidgets(
-    'online orders: late warning, a sound for a new one, accept moves it to the open list; a cashier cannot reject',
+    "online orders: late warning, a sound for a new one, accept moves it to the open list; a cashier rejects with the manager's PIN",
     (WidgetTester tester) async {
       final P22 p = P22();
       final List<MethodCall> sounds = recordSystemSounds(tester);
@@ -43,15 +43,26 @@ void main() {
       expect(find.text('Hozir keldi'), findsOneWidget);
       expect(sounds, hasLength(1));
 
-      // Kassirda orders.cancel yo'q: rad etish o'chirilgan
-      await tapKey(tester, 'reject-$late');
-      expect(p.backend.onlineOrders.first['status'], 'new');
-
       await tapKey(tester, 'accept-$late');
       expect(p.backend.onlineOrders.first['status'], 'accepted');
       expect(find.text('Yangi onlayn buyurtmalar (1)'), findsOneWidget);
       expect(find.text('Ochiq buyurtmalar (2)'), findsOneWidget);
       expect(find.text('Telegram'), findsWidgets);
+
+      // Kassirda orders.cancel yo'q: rad etish menejer PIN'i bilan (P3-26)
+      final String mobile = p.backend.onlineOrders.last['uuid']! as String;
+      await tapKey(tester, 'reject-$mobile');
+      await tester.tap(find.text(PosRejectReason.storeClosed.label));
+      // Menejer PIN terayotganda kartadagi spinner aylanadi: pumpAndSettle emas
+      for (var i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+      expect(p.backend.onlineOrders.last['status'], 'new');
+      expect(find.text("Menejer tasdig'i"), findsOneWidget);
+      await typePin(tester, '5926');
+      await tester.pumpAndSettle();
+      expect(p.backend.onlineOrders.last['status'], 'rejected');
+      expect(p.backend.onlineOrders.last['cancel_reason'], 'store_closed');
 
       // Zal buyurtmasini bosish — buyurtma muharriri
       await tapKey(tester, 'open-$hallOrder');

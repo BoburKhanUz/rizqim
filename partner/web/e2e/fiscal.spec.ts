@@ -31,17 +31,16 @@ test('the MXIK codes of the menu are filled in one table and saved together', as
   await expect(page.getByLabel('Osh: MXIK kodi')).toHaveCount(0)
   await expect(page.getByLabel('Somsa: MXIK kodi')).toBeVisible()
 
-  // Each product went back whole (name, category, variants), with only its codes new
-  const saves = api.calls.filter((call) => call.method === 'POST' && /^\/v1\/owner\/products\/\d+$/.test(call.path))
+  // P3-26: only the fiscal fields went out (PATCH /owner/products/{id}/fiscal); the rest of each product is untouched
+  expect(api.calls.filter((call) => call.method === 'POST' && /^\/v1\/owner\/products\/\d+$/.test(call.path))).toHaveLength(0)
+  const saves = api.calls.filter((call) => call.method === 'PATCH' && /^\/v1\/owner\/products\/\d+\/fiscal$/.test(call.path))
   expect(saves).toHaveLength(2)
-  const osh = saves.find((call) => (call.body as { name?: string }).name === 'Osh')!
-  expect(osh.body).toMatchObject({ name: 'Osh', category_id: '2', is_active: '1', mxik_code: MXIK_OSH, variants: [expect.objectContaining({ name: '1 porsiya', price: 35000, unit: 'piece' })] })
-  expect(osh.body).not.toHaveProperty('kind')
-  const lagmon = saves.find((call) => (call.body as { name?: string }).name === 'Lagmon')!
-  expect(lagmon.body).toMatchObject({ mxik_code: MXIK_LAGMON, package_code: '1234567' })
-  expect((lagmon.body as { variants: unknown[] }).variants).toHaveLength(2)
+  const bodies = saves.map((call) => call.body)
+  expect(bodies).toContainEqual({ mxik_code: MXIK_OSH })
+  expect(bodies).toContainEqual({ mxik_code: MXIK_LAGMON, package_code: '1234567' })
   expect(api.menu.products.find((product) => product.name === 'Osh')).toMatchObject({ mxik_code: MXIK_OSH })
   expect(api.menu.products.find((product) => product.name === 'Lagmon')?.variants).toHaveLength(2)
+  expect(api.menu.products.find((product) => product.name === 'Osh')).toMatchObject({ name: 'Osh', category_id: 2, is_active: true })
 })
 
 test("the server's reason for a refused row stays in the row, and the other rows are saved", async ({ page, api, signIn, reverb }) => {

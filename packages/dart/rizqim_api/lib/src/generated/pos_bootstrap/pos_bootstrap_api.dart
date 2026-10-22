@@ -5,7 +5,9 @@
 import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
+import '../models/channel4.dart';
 import '../models/get_v1_pos_bootstrap_response.dart';
+import '../models/get_v1_pos_catalog_response.dart';
 
 part 'pos_bootstrap_api.g.dart';
 
@@ -28,12 +30,36 @@ abstract class PosBootstrapApi {
   /// permissions); `stations` (active kitchen stations); `station_routes` (dish to station: by product and by.
   /// category; a product route beats its category's); `printers` (active ones this terminal can use: LAN and.
   /// Bluetooth printers, and the USB or built-in printers attached to this very terminal); `staff` (id, name, role,.
-  /// photo_url: to pick a waiter). `halls`, `tables` and `shift` are filled by the hall and shift modules (empty.
-  /// list, empty list and null until then).
+  /// photo_url: to pick a waiter); `halls` (open halls and zones), `tables` (their active places; `layout` in grid.
+  /// cells of the floor plan, 40 x 24), `shift` (the shift open on this terminal; null outside a terminal session or.
+  /// with none open); P3-26: `quick_items`, the one-tap buttons (products marked `quick_add` in the menu, then the.
+  /// branch's per-guest "choy-non" items: `source` quick_add | auto_guest, `variant_uuid` to add as a line; prices and.
+  /// availability from the POS catalog).
   ///
   /// [branchId] - The branch, for a caller who is not tied to one (the owner, a store-wide terminal).
   @GET('/v1/pos/bootstrap')
   Future<GetV1PosBootstrapResponse> posBootstrapShow({
+    @Query('branch_id') int? branchId,
+  });
+
+  /// POS menu of a branch.
+  ///
+  /// P3-26: the typed form of GET /catalog?channel=pos_hall|pos_takeaway (same answer). The branch's store menu on.
+  /// the POS `channel` (default pos_hall) with its prices and hidden dishes applied, each variant's unit, step and.
+  /// minimum, the modifiers, and what is unavailable on the branch now (`is_available`, `unavailable_reason`:.
+  /// stopped | sold_out; `availability`: stop-list and kazan batches); each product's `station_id` (kitchen routing),.
+  /// `batch_tracked` (sold from kazan batches) and `quick_add` (a one-tap button). Refetch when the bootstrap's.
+  /// `menu_version` changes or on menu.availability_changed. Needs menu.view; `branch_id` for an owner.
+  ///
+  /// [storeId] - Optional: the caller's own store (id or uuid); another one is 404.
+  ///
+  /// [channel] - pos_hall (default) or pos_takeaway.
+  ///
+  /// [branchId] - The branch, for a caller who is not tied to one (the owner, a store-wide terminal).
+  @GET('/v1/pos/catalog')
+  Future<GetV1PosCatalogResponse> posCatalogIndex({
+    @Query('store_id') String? storeId,
+    @Query('channel') Channel4? channel,
     @Query('branch_id') int? branchId,
   });
 }

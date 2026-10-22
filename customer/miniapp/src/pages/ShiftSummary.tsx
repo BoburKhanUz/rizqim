@@ -126,7 +126,8 @@ function LastZCard({ shift, report, tx }: { shift: Shift; report: ShiftReport | 
 }
 
 // "Smena xulosasi" for an owner or manager on the phone: the branch's open shifts with their X figures, and the last closed one
-// (Z). Every figure is the server's (GET /pos/shifts, the X report, the shift's frozen Z summary); an owner picks the branch.
+// (Z). Every figure is the server's (GET /pos/shifts/current?branch_id: the open shifts with their X reports in one call;
+// GET /pos/shifts for the last closed one and its frozen Z summary); an owner picks the branch.
 export default function ShiftSummary() {
   const tx = useStaffText(TEXT);
   const branch = useWorkBranch();

@@ -2,8 +2,8 @@ import 'package:pos_core/pos_core.dart';
 
 import '../json.dart';
 
-/// Onlayn kanaldan (Telegram Mini App, mobil ilova) kelgan va kassir qabul qilishini kutayotgan buyurtma
-/// (`GET /staff/orders?status=new`, docs/API.md 9.1).
+/// Onlayn kanaldan (Telegram Mini App, mobil ilova) kelgan va kassir qabul qilishini kutayotgan buyurtma: navbat
+/// qatorining `online` kartasi (`GET /pos/orders?scope=incoming`, P3-26; xodimlar doskasidagi shakl, docs/API.md 9.1).
 class PosOnlineOrder {
   const PosOnlineOrder({
     required this.uuid,
@@ -120,7 +120,7 @@ class PosOnlineOrderItem {
       : '$name ($variantName)';
 }
 
-/// Rad etish sababi (`POST /staff/orders/{uuid}/status` `reason`, backend `CancelReason`).
+/// Rad etish sababi (`POST /pos/orders/{uuid}/reject` `cancel_reason`, backend `CancelReason`).
 enum PosRejectReason {
   outOfStock('out_of_stock', 'Mahsulot qolmagan'),
   storeClosed('store_closed', "Do'kon yopiq"),

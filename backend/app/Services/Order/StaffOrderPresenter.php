@@ -151,6 +151,8 @@ class StaffOrderPresenter
             'accepted_at' => $times['accepted_at']?->toJSON(),
             'preparing_at' => $times['preparing_at']?->toJSON(),
             'ready_at' => $times['ready_at']?->toJSON(),
+            // P3-26: when a cancelled or rejected order left the kitchen (GET /staff/kitchen/tickets?canceled_within=)
+            'canceled_at' => $order->status->isCancellation() ? $times['closed_at']?->toJSON() : null,
             'waiting_seconds' => $this->waitingSeconds($order, $times, $now),
         ];
     }

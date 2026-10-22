@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pos_data/pos_data.dart';
+import 'package:pos_data/testing.dart';
 import 'package:pos_ui/pos_ui.dart';
 import 'package:rizqim_waiter/src/common/errors.dart';
 
@@ -8,6 +9,32 @@ import 'order_test.dart' show openAddSheet, openOwnOrder;
 import 'support/harness.dart';
 
 void main() {
+  testWidgets('quick buttons come from the bootstrap (P3-26)', (
+    WidgetTester tester,
+  ) async {
+    final WaiterHarness h = WaiterHarness();
+    h.state.quickItems.add(<String, Object?>{
+      'product_id': 2,
+      'variant_id': 2,
+      'variant_uuid': FakePosState.variantUuid(2),
+      'name': 'Non',
+      'variant_name': 'Dona',
+      'source': 'auto_guest',
+      'hall_id': null,
+      'quantity_per_guest': '1.000',
+      'sort_order': 0,
+    });
+    await openOwnOrder(tester, h);
+    await openAddSheet(tester);
+
+    // Serverdagi ro'yxat: faqat non; choy (nom bo'yicha taxmin) yo'q
+    expect(find.text('+ Non'), findsOneWidget);
+    expect(find.text('+ Choy'), findsNothing);
+    await tester.tap(find.text('+ Non'));
+    await tester.pump();
+    expect(find.text('+ Non  x1'), findsOneWidget);
+  });
+
   testWidgets('search, stop-list and the cart', (WidgetTester tester) async {
     final WaiterHarness h = WaiterHarness();
     // Non stop-listda

@@ -624,11 +624,16 @@ class _DepositDialogState extends State<_DepositDialog> {
             : null,
         idempotencyKey: _key,
       );
+      final PosFiscalReceiptDetail? detail = await receiptOf(
+        scope.data,
+        r.fiscal,
+      );
       if (!mounted) return;
       final ReceiptPrinter printer = ReceiptPrinter(scope);
       final FiscalReceipt doc = advanceReceiptOf(
         booking: r.booking,
         payment: r.payment,
+        detail: detail,
         header: printer.header,
         now: scope.services.now(),
         room: widget.room,

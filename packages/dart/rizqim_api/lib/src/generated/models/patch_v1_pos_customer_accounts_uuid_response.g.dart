@@ -11,7 +11,7 @@ _$PatchV1PosCustomerAccountsUuidResponseFromJson(Map<String, dynamic> json) =>
     PatchV1PosCustomerAccountsUuidResponse(
       success: json['success'] as bool,
       message: json['message'] as String,
-      data: Data141.fromJson(json['data'] as Map<String, dynamic>),
+      data: Data142.fromJson(json['data'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$PatchV1PosCustomerAccountsUuidResponseToJson(

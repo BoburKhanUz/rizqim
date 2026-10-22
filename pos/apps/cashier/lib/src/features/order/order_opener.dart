@@ -81,7 +81,9 @@ Future<OpenOrderRequest?> showOpenOrderDialog(
                             child: Text(
                               'Bron kutilmoqda'
                               '${r.startsAt == null ? '' : ': ${formatReceiptTime(r.startsAt!.toLocal())}'}'
-                              '${r.guests == null ? '' : ', ${r.guests} kishi'}. '
+                              '${r.guests == null ? '' : ', ${r.guests} kishi'}'
+                              '${r.contactName == null ? '' : ', ${r.contactName}'}'
+                              '${r.contactPhone == null ? '' : ' (${r.contactPhone})'}. '
                               "Bron bo'yicha kelgan bo'lsa, Bronlar bo'limida «Keldi»ni bosing.",
                               style: RzType.body.copyWith(color: c.fg),
                             ),

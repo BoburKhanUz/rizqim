@@ -56,11 +56,16 @@ class _RepaymentDialogState extends State<_RepaymentDialog> {
             : null,
         idempotencyKey: _key,
       );
+      final PosFiscalState? fiscal = r.fiscal;
+      final PosFiscalReceiptDetail? detail = fiscal == null
+          ? null
+          : await receiptOf(scope.data, fiscal);
       if (!mounted) return;
       final ReceiptPrinter printer = ReceiptPrinter(scope);
       final FiscalReceipt doc = creditReceiptOf(
         account: r.account,
         entry: r.entries.first,
+        detail: detail,
         header: printer.header,
         now: scope.services.now(),
         cashier: printer.cashier,

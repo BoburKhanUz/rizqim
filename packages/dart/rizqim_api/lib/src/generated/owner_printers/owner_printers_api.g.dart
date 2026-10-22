@@ -50,14 +50,13 @@ class _OwnerPrintersApi implements OwnerPrintersApi {
 
   @override
   Future<PostV1OwnerPrintersResponse> printerStore({
-    V1OwnerPrintersRequestBody? body,
+    required V1OwnerPrintersRequestBody body,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{};
-    queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
     final _data = <String, dynamic>{};
-    _data.addAll(body?.toJson() ?? <String, dynamic>{});
+    _data.addAll(body.toJson());
     final _options = _setStreamType<PostV1OwnerPrintersResponse>(
       Options(method: 'POST', headers: _headers, extra: _extra)
           .compose(

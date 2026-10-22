@@ -5,36 +5,38 @@
 import 'package:json_annotation/json_annotation.dart';
 
 @JsonEnum()
-enum PaperWidth {
-  @JsonValue(58)
-  value58(58),
-  @JsonValue(80)
-  value80(80),
+enum Scope2 {
+  @JsonValue('open')
+  open('open'),
+  @JsonValue('incoming')
+  incoming('incoming'),
+  @JsonValue('closed')
+  closed('closed'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);
 
-  const PaperWidth(this.json);
+  const Scope2(this.json);
 
-  factory PaperWidth.fromJson(int json) =>
+  factory Scope2.fromJson(String json) =>
       values.firstWhere((e) => e.json == json, orElse: () => $unknown);
 
-  final int? json;
-  int toJson() {
+  final String? json;
+  String toJson() {
     final value = json;
     if (value == null) {
       throw StateError(
-        'Cannot convert enum value with null JSON representation to int. '
+        'Cannot convert enum value with null JSON representation to String. '
         'This usually happens for \$unknown or @JsonValue(null) entries.',
       );
     }
-    return value as int;
+    return value as String;
   }
 
   @override
   String toString() => json?.toString() ?? super.toString();
 
   /// Returns all defined enum values excluding the $unknown value.
-  static List<PaperWidth> get $valuesDefined =>
+  static List<Scope2> get $valuesDefined =>
       values.where((value) => value != $unknown).toList();
 }

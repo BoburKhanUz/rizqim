@@ -45,8 +45,8 @@ class PlaceEntry {
   }
 }
 
-/// Ofitsiantning bosh ekrani ma'lumoti: zal xaritasi (`GET /pos/floor`) va **o'z** ochiq buyurtmalarining to'liq
-/// ko'rinishi (zal xaritasida qatorlar holati yo'q, shuning uchun "tayyor" taomlarni shundan sanaymiz).
+/// Ofitsiantning bosh ekrani ma'lumoti: zal xaritasi (`GET /pos/floor`). Har buyurtmaning tayyor (`ready_count`) va
+/// yuborilmagan (`unsent_count`) qatorlari xaritaning o'zida (P3-26): buyurtmalar alohida so'ralmaydi.
 ///
 /// Yangilanish: real-time hodisa ([PosRefreshScheduler], jonli bo'lmasa polling), aloqa yo'q paytda har
 /// [retryInterval] da qayta urinish. Xato bo'lsa oxirgi ma'lumot ko'rinib turadi (faqat ko'rish rejimi).
@@ -77,9 +77,6 @@ class RoomsController extends ChangeNotifier {
   bool loading = false;
   RoomsFilter filter = RoomsFilter.mine;
 
-  /// O'z buyurtmalarining to'liq ko'rinishi (uuid → buyurtma).
-  final Map<String, PosOrder> details = <String, PosOrder>{};
-
   PosRefreshScheduler? _scheduler;
   Timer? _retry;
   bool _disposed = false;
@@ -95,6 +92,7 @@ class RoomsController extends ChangeNotifier {
           e is PosOrderEvent ||
           e is PosOrderItemsChanged ||
           e is PosOrderBillChanged ||
+          e is PosOrderBillRequested ||
           e is PosKitchenItemChanged ||
           e is PosBookingChanged,
       onRefresh: (PosRefreshReason _) => load(),
@@ -117,7 +115,6 @@ class RoomsController extends ChangeNotifier {
       error = null;
       _retry?.cancel();
       _retry = null;
-      await _loadDetails(next);
     } on Object catch (e) {
       error = e;
       if (e is PosNetworkException) {
@@ -132,30 +129,13 @@ class RoomsController extends ChangeNotifier {
     }
   }
 
-  Future<void> _loadDetails(PosFloor f) async {
-    final List<String> mine = <String>[
-      for (final FloorOrder o in f.orders)
-        if (o.waiter?.id == staffId) o.uuid,
-    ];
-    details.removeWhere((String uuid, PosOrder _) => !mine.contains(uuid));
-    final List<PosOrder?> loaded = await Future.wait(
-      mine.map(
-        (String uuid) => data.orders
-            .get(uuid)
-            .then<PosOrder?>((PosOrder o) => o, onError: (Object _) => null),
-      ),
-    );
-    for (final PosOrder? o in loaded) {
-      if (o != null) details[o.uuid] = o;
+  /// Shu buyurtmada berilishi kutilayotgan (tayyor) taomlar soni (zal xaritasidagi `ready_count`).
+  int readyCount(String orderUuid) {
+    for (final FloorOrder o in floor?.orders ?? const <FloorOrder>[]) {
+      if (o.uuid == orderUuid) return o.readyCount;
     }
+    return 0;
   }
-
-  /// O'zining bu buyurtmasida berilishi kutilayotgan (tayyor) taomlar soni.
-  int readyCount(String orderUuid) =>
-      details[orderUuid]?.items
-          .where((PosOrderItem i) => i.kitchenStatus == PosKitchenStatus.ready)
-          .length ??
-      0;
 
   /// Buyurtma qancha vaqtdan beri ochiq: serverdagi daqiqalar + yuklangandan beri o'tgan vaqt.
   Duration openFor(FloorOrder o) {

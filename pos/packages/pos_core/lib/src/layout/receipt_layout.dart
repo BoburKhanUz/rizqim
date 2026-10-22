@@ -111,9 +111,12 @@ PrintLayout layoutFiscalReceipt(FiscalReceipt r, PaperWidth paper) {
       }
     }
   } else if (r.type == FiscalReceiptType.advance) {
+    // Bo'nak va kredit chekida ham kassa (fiskal modul) ko'rsatiladi, agar server aytgan bo'lsa
+    if (r.fiscal?.terminalId != null) w.text('Kassa: ${r.fiscal!.terminalId}');
     w.center('Avans yakuniy hisobda ayiriladi.');
     w.center("Bo'nak chekida fiskal belgi va QR kod bo'lmaydi.");
   } else {
+    if (r.fiscal?.terminalId != null) w.text('Kassa: ${r.fiscal!.terminalId}');
     w.center("Kredit chekida fiskal belgi va QR kod bo'lmaydi.");
   }
   w.feed();

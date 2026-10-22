@@ -1,5 +1,6 @@
 import 'package:pos_core/pos_core.dart';
 
+import '../billing/billing_models.dart';
 import '../json.dart';
 
 /// Bron (`/pos/bookings*`). Holatlar: `requested` → `confirmed` → `arrived` → `completed`; `canceled`, `no_show`.
@@ -342,13 +343,24 @@ class PosArrival {
 
 /// Avans amali natijasi (olish, qaytarish, ushlab qolish).
 class PosDepositResult {
-  const PosDepositResult({required this.booking, required this.payment});
+  const PosDepositResult({
+    required this.booking,
+    required this.payment,
+    this.fiscal = const PosFiscalState(),
+  });
 
   factory PosDepositResult.fromJson(PosJson j) => PosDepositResult(
     booking: PosBooking.fromJson(j.obj('booking')),
     payment: PosBookingPayment.fromJson(j.obj('payment')),
+    fiscal: j.has('fiscal')
+        ? PosFiscalState.fromJson(j.obj('fiscal'))
+        : const PosFiscalState(),
   );
 
   final PosBooking booking;
   final PosBookingPayment payment;
+
+  /// Shu amalning cheki (P3-26): avans — bo'nak cheki, qaytarish — qaytarish cheki, ushlab qolish — sotuv cheki
+  /// (do'kon sozlamasi chek chiqarmasa `receipt` bo'sh).
+  final PosFiscalState fiscal;
 }

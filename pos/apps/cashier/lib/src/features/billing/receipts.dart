@@ -180,8 +180,13 @@ ReceiptLine _lineOf(PosFiscalLine l) => ReceiptLine(
   packageCode: l.packageCode,
 );
 
+/// Ro'yxatdan o'tgan chekdagi fiskal ma'lumot (P3-26: to'lov javobi chekni olib keladi). Sotuv va qaytarishda fiskal
+/// belgi bo'lmasa — chekda "kutilmoqda"; bo'nak va kreditda belgi yo'q, lekin kassa (fiskal modul) va raqam bor.
 FiscalInfo? _fiscalOf(PosFiscalReceiptDetail? d) =>
-    d == null || d.fiscalSign == null
+    d == null ||
+        (d.fiscalSign == null &&
+            d.terminalId == null &&
+            d.receiptNumber == null)
     ? null
     : FiscalInfo(
         fiscalSign: d.fiscalSign,
@@ -190,11 +195,48 @@ FiscalInfo? _fiscalOf(PosFiscalReceiptDetail? d) =>
         terminalId: d.terminalId,
       );
 
+/// Chek qatorlari serverdagi chekdan (bo'sh bo'lsa `null`).
+List<ReceiptLine>? _linesOf(PosFiscalReceiptDetail? d) =>
+    d == null || d.lines.isEmpty
+    ? null
+    : <ReceiptLine>[for (final PosFiscalLine l in d.lines) _lineOf(l)];
+
+/// Chekdagi to'lovlar serverdagi chekdan (avans va nasiya qismi o'z belgisi bilan); bo'sh bo'lsa `null`.
+List<ReceiptPayment>? _paymentsOf(PosFiscalReceiptDetail? d) =>
+    d == null || d.payments.isEmpty
+    ? null
+    : <ReceiptPayment>[
+        for (final PosFiscalPaymentPart p in d.payments)
+          _payment(
+            p.prepayment ? 'prepayment' : (p.credit ? 'account' : p.form),
+            p.amount,
+            cardType: p.cardType,
+            reference: p.transactionId,
+          ),
+      ];
+
+/// To'lov, qaytarish, avans yoki qarz to'lovi javobidagi chek; bo'lmasa (eski server) — chekni o'qib ko'radi.
+Future<PosFiscalReceiptDetail?> receiptOf(
+  PosData data,
+  PosFiscalState fiscal,
+) async {
+  if (fiscal.receipt != null) return fiscal.receipt;
+  final String? uuid = fiscal.receiptUuid;
+  if (uuid == null) return null;
+  try {
+    return await FiscalReceiptRepository(data.http).get(uuid);
+  } on PosException {
+    // O'qib bo'lmadi: chek kassa ma'lumotidan tuziladi, fiskal belgi o'rniga "kutilmoqda"
+    return null;
+  }
+}
+
 String? _nonFiscalNote(PosFiscalReceiptDetail? d) =>
     d != null && d.nonFiscal ? 'Bu fiskal chek emas (sinov rejimi).' : null;
 
-/// Sotuv cheki: schyot qatorlari, xizmatlar va to'lovlar. [detail] — serverdagi chek (MXIK, QQS, fiskal belgi, QR);
-/// o'qib bo'lmasa chek schyotdan tuziladi va fiskal belgi o'rniga "kutilmoqda" yoziladi.
+/// Sotuv cheki: schyot qatorlari, xizmatlar va to'lovlar. [detail] — serverdagi chek (MXIK, QQS, fiskal belgi, QR,
+/// raqam, kassa; P3-26: to'lov javobidagi `fiscal.receipt`); bo'lmasa chek schyotdan tuziladi va fiskal belgi o'rniga
+/// "kutilmoqda" yoziladi.
 FiscalReceipt saleReceiptOf({
   required PosBill bill,
   required ReceiptHeader header,
@@ -237,15 +279,17 @@ FiscalReceipt saleReceiptOf({
     number: detail?.receiptNumber ?? '${order?.shortCode ?? ''}-${bill.number}',
     issuedAt: (detail?.issuedAt ?? bill.paidAt ?? now).toLocal(),
     lines: lines,
-    payments: <ReceiptPayment>[
-      for (final PosPayment p in bill.payments)
-        _payment(
-          p.tender,
-          p.amount,
-          cardType: p.cardType,
-          reference: p.transactionId,
-        ),
-    ],
+    payments:
+        _paymentsOf(detail) ??
+        <ReceiptPayment>[
+          for (final PosPayment p in bill.payments)
+            _payment(
+              p.tender,
+              p.amount,
+              cardType: p.cardType,
+              reference: p.transactionId,
+            ),
+        ],
     cashier: cashier,
     tableLabel: placeLabel(order),
     orderCode: order?.shortCode == null ? null : '#${order!.shortCode}',
@@ -271,7 +315,7 @@ FiscalReceipt refundReceiptOf({
   type: FiscalReceiptType.refund,
   header: header,
   number: detail?.receiptNumber ?? refund.uuid.substring(0, 8),
-  issuedAt: (refund.createdAt ?? now).toLocal(),
+  issuedAt: (detail?.issuedAt ?? refund.createdAt ?? now).toLocal(),
   lines: detail != null && detail.lines.isNotEmpty
       ? <ReceiptLine>[for (final PosFiscalLine l in detail.lines) _lineOf(l)]
       : <ReceiptLine>[
@@ -293,27 +337,30 @@ FiscalReceipt refundReceiptOf({
   ].join('\n').ifEmpty,
 );
 
-/// Bo'nak (avans) cheki.
+/// Bo'nak (avans) cheki. [detail] — serverdagi chek (raqam, kassa, qatorlar; P3-26 avans javobi olib keladi).
 FiscalReceipt advanceReceiptOf({
   required PosBooking booking,
   required PosBookingPayment payment,
   required ReceiptHeader header,
   required DateTime now,
+  PosFiscalReceiptDetail? detail,
   String? room,
   String? cashier,
 }) => FiscalReceipt(
   type: FiscalReceiptType.advance,
   header: header,
-  number: payment.uuid.substring(0, 8),
-  issuedAt: (payment.createdAt ?? now).toLocal(),
-  lines: <ReceiptLine>[
-    ReceiptLine(
-      name: 'Avans (bron)',
-      quantity: const ItemQuantity(PosQuantity.one),
-      unitPrice: payment.amount,
-      amount: payment.amount,
-    ),
-  ],
+  number: detail?.receiptNumber ?? payment.uuid.substring(0, 8),
+  issuedAt: (detail?.issuedAt ?? payment.createdAt ?? now).toLocal(),
+  lines:
+      _linesOf(detail) ??
+      <ReceiptLine>[
+        ReceiptLine(
+          name: 'Avans (bron)',
+          quantity: const ItemQuantity(PosQuantity.one),
+          unitPrice: payment.amount,
+          amount: payment.amount,
+        ),
+      ],
   payments: <ReceiptPayment>[
     _payment(
       payment.tender,
@@ -324,37 +371,45 @@ FiscalReceipt advanceReceiptOf({
   ],
   cashier: cashier,
   customerName: booking.contactName,
-  note:
-      'Bron: ${dm(booking.startsAt, year: true)} ${hm(booking.startsAt)}-${hm(booking.endsAt)}'
-      '${room == null ? '' : ', $room'}',
+  fiscal: _fiscalOf(detail),
+  note: <String>[
+    'Bron: ${dm(booking.startsAt, year: true)} ${hm(booking.startsAt)}-${hm(booking.endsAt)}'
+        '${room == null ? '' : ', $room'}',
+    ?_nonFiscalNote(detail),
+  ].join('\n'),
 );
 
-/// Kredit cheki (nasiya qarzi to'lovi).
+/// Kredit cheki (nasiya qarzi to'lovi). [detail] — serverdagi chek (P3-26: qarz to'lovi javobi olib keladi).
 FiscalReceipt creditReceiptOf({
   required PosCustomerAccount account,
   required PosAccountEntry entry,
   required ReceiptHeader header,
   required DateTime now,
+  PosFiscalReceiptDetail? detail,
   String? cashier,
 }) {
   final PosMoney amount = entry.amount.abs();
   return FiscalReceipt(
     type: FiscalReceiptType.credit,
     header: header,
-    number: entry.uuid.substring(0, 8),
-    issuedAt: (entry.createdAt ?? now).toLocal(),
-    lines: <ReceiptLine>[
-      ReceiptLine(
-        name: "Qarz to'lovi",
-        quantity: const ItemQuantity(PosQuantity.one),
-        unitPrice: amount,
-        amount: amount,
-      ),
-    ],
+    number: detail?.receiptNumber ?? entry.uuid.substring(0, 8),
+    issuedAt: (detail?.issuedAt ?? entry.createdAt ?? now).toLocal(),
+    lines:
+        _linesOf(detail) ??
+        <ReceiptLine>[
+          ReceiptLine(
+            name: "Qarz to'lovi",
+            quantity: const ItemQuantity(PosQuantity.one),
+            unitPrice: amount,
+            amount: amount,
+          ),
+        ],
     payments: <ReceiptPayment>[_payment(entry.tender ?? 'cash', amount)],
     cashier: cashier,
     customerName: account.name,
     remainingDebt: account.balance,
+    fiscal: _fiscalOf(detail),
+    note: _nonFiscalNote(detail),
   );
 }
 

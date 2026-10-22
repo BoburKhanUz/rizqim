@@ -30,16 +30,15 @@ class SkewerGroup {
   final bool done;
   final bool voided;
 
-  /// Hamma qator ushlab turilgan (oldindan buyurtma, hali yuborilmagan).
+  /// Hamma qator ushlab turilgan va vaqtsiz (oldindan buyurtma, hali yuborilmagan: "tayyor" deb bo'lmaydi).
   final bool held;
 
   /// Donasiz taomda server yorlig'i ("1.5 kg").
   final String quantityLabel;
 
   /// Bosib "tayyor" qilinadigan qatorlar.
-  List<KitchenLine> get bumpable => lines
-      .where((KitchenLine l) => !l.isDone && !l.isVoid && !l.isHeld)
-      .toList();
+  List<KitchenLine> get bumpable =>
+      lines.where((KitchenLine l) => l.canBeReady).toList();
 }
 
 /// [lines] ni (bosqich, taom, variant, holat guruhi) bo'yicha guruhlaydi; tartib birinchi uchragan qator bo'yicha.
@@ -80,7 +79,9 @@ SkewerGroup _group(List<KitchenLine> g) {
     piece: first.isPiece,
     done: !voided && pending.isEmpty,
     voided: voided,
-    held: pending.isNotEmpty && pending.every((KitchenLine l) => l.isHeld),
+    held:
+        pending.isNotEmpty &&
+        pending.every((KitchenLine l) => l.isHeld && l.dueAt == null),
     quantityLabel: first.quantityLabel,
   );
 }

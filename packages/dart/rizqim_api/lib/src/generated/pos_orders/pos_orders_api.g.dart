@@ -50,12 +50,14 @@ class _PosOrdersApi implements PosOrdersApi {
 
   @override
   Future<GetV1PosOrdersResponse> posOrderIndex({
-    String? scope,
+    Scope2? scope,
+    String? businessDate,
     int? branchId,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{
-      r'scope': scope,
+      r'scope': scope?.toJson(),
+      r'business_date': businessDate,
       r'branch_id': branchId,
     };
     queryParameters.removeWhere((k, v) => v == null);
@@ -84,12 +86,11 @@ class _PosOrdersApi implements PosOrdersApi {
 
   @override
   Future<PostV1PosOrdersResponse> posOrderStore({
+    required String idempotencyKey,
     required V1PosOrdersRequestBody body,
-    String? idempotencyKey,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{};
-    queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{r'Idempotency-Key': idempotencyKey};
     _headers.removeWhere((k, v) => v == null);
     final _data = <String, dynamic>{};
@@ -145,14 +146,47 @@ class _PosOrdersApi implements PosOrdersApi {
   }
 
   @override
-  Future<PostV1PosOrdersUuidCancelResponse> posOrderCancel({
+  Future<PostV1PosOrdersUuidAcceptResponse> posOrderAccept({
     required String uuid,
-    required V1PosOrdersUuidCancelRequestBody body,
-    String? idempotencyKey,
+    required String idempotencyKey,
+    V1PosOrdersUuidAcceptRequestBody? body,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{};
     queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{r'Idempotency-Key': idempotencyKey};
+    _headers.removeWhere((k, v) => v == null);
+    final _data = <String, dynamic>{};
+    _data.addAll(body?.toJson() ?? <String, dynamic>{});
+    final _options = _setStreamType<PostV1PosOrdersUuidAcceptResponse>(
+      Options(method: 'POST', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/v1/pos/orders/${uuid}/accept',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late PostV1PosOrdersUuidAcceptResponse _value;
+    try {
+      _value = PostV1PosOrdersUuidAcceptResponse.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
+  Future<PostV1PosOrdersUuidCancelResponse> posOrderCancel({
+    required String uuid,
+    required String idempotencyKey,
+    required V1PosOrdersUuidCancelRequestBody body,
+  }) async {
+    final _extra = <String, dynamic>{};
+    final queryParameters = <String, dynamic>{};
     final _headers = <String, dynamic>{r'Idempotency-Key': idempotencyKey};
     _headers.removeWhere((k, v) => v == null);
     final _data = <String, dynamic>{};
@@ -183,12 +217,11 @@ class _PosOrdersApi implements PosOrdersApi {
   posOrderRestoreCharge({
     required String uuid,
     required String charge,
+    required String idempotencyKey,
     required V1PosOrdersUuidChargesChargeRestoreRequestBody body,
-    String? idempotencyKey,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{};
-    queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{r'Idempotency-Key': idempotencyKey};
     _headers.removeWhere((k, v) => v == null);
     final _data = <String, dynamic>{};
@@ -223,12 +256,11 @@ class _PosOrdersApi implements PosOrdersApi {
   Future<PostV1PosOrdersUuidChargesChargeWaiveResponse> posOrderWaive({
     required String uuid,
     required String charge,
+    required String idempotencyKey,
     required V1PosOrdersUuidChargesChargeWaiveRequestBody body,
-    String? idempotencyKey,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{};
-    queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{r'Idempotency-Key': idempotencyKey};
     _headers.removeWhere((k, v) => v == null);
     final _data = <String, dynamic>{};
@@ -262,12 +294,11 @@ class _PosOrdersApi implements PosOrdersApi {
   @override
   Future<PostV1PosOrdersUuidGuestsResponse> posOrderGuests({
     required String uuid,
+    required String idempotencyKey,
     required V1PosOrdersUuidGuestsRequestBody body,
-    String? idempotencyKey,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{};
-    queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{r'Idempotency-Key': idempotencyKey};
     _headers.removeWhere((k, v) => v == null);
     final _data = <String, dynamic>{};
@@ -297,12 +328,11 @@ class _PosOrdersApi implements PosOrdersApi {
   Future<PostV1PosOrdersUuidItemsItemServedResponse> posOrderServed({
     required String uuid,
     required String item,
+    required String idempotencyKey,
     required V1PosOrdersUuidItemsItemServedRequestBody body,
-    String? idempotencyKey,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{};
-    queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{r'Idempotency-Key': idempotencyKey};
     _headers.removeWhere((k, v) => v == null);
     final _data = <String, dynamic>{};
@@ -334,12 +364,11 @@ class _PosOrdersApi implements PosOrdersApi {
   Future<PostV1PosOrdersUuidItemsItemVoidResponse> posOrderVoid({
     required String uuid,
     required String item,
+    required String idempotencyKey,
     required V1PosOrdersUuidItemsItemVoidRequestBody body,
-    String? idempotencyKey,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{};
-    queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{r'Idempotency-Key': idempotencyKey};
     _headers.removeWhere((k, v) => v == null);
     final _data = <String, dynamic>{};
@@ -368,12 +397,11 @@ class _PosOrdersApi implements PosOrdersApi {
   @override
   Future<PostV1PosOrdersUuidMergeResponse> posOrderMerge({
     required String uuid,
+    required String idempotencyKey,
     required V1PosOrdersUuidMergeRequestBody body,
-    String? idempotencyKey,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{};
-    queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{r'Idempotency-Key': idempotencyKey};
     _headers.removeWhere((k, v) => v == null);
     final _data = <String, dynamic>{};
@@ -402,12 +430,11 @@ class _PosOrdersApi implements PosOrdersApi {
   @override
   Future<PostV1PosOrdersUuidMoveResponse> posOrderMove({
     required String uuid,
+    required String idempotencyKey,
     required V1PosOrdersUuidMoveRequestBody body,
-    String? idempotencyKey,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{};
-    queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{r'Idempotency-Key': idempotencyKey};
     _headers.removeWhere((k, v) => v == null);
     final _data = <String, dynamic>{};
@@ -434,14 +461,80 @@ class _PosOrdersApi implements PosOrdersApi {
   }
 
   @override
-  Future<PostV1PosOrdersUuidRoundsResponse> posOrderAddRound({
+  Future<PostV1PosOrdersUuidRejectResponse> posOrderReject({
     required String uuid,
-    required V1PosOrdersUuidRoundsRequestBody body,
-    String? idempotencyKey,
+    required String idempotencyKey,
+    required V1PosOrdersUuidRejectRequestBody body,
+  }) async {
+    final _extra = <String, dynamic>{};
+    final queryParameters = <String, dynamic>{};
+    final _headers = <String, dynamic>{r'Idempotency-Key': idempotencyKey};
+    _headers.removeWhere((k, v) => v == null);
+    final _data = <String, dynamic>{};
+    _data.addAll(body.toJson());
+    final _options = _setStreamType<PostV1PosOrdersUuidRejectResponse>(
+      Options(method: 'POST', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/v1/pos/orders/${uuid}/reject',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late PostV1PosOrdersUuidRejectResponse _value;
+    try {
+      _value = PostV1PosOrdersUuidRejectResponse.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
+  Future<PostV1PosOrdersUuidRequestBillResponse> posOrderRequestBill({
+    required String uuid,
+    required String idempotencyKey,
+    V1PosOrdersUuidRequestBillRequestBody? body,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{};
     queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{r'Idempotency-Key': idempotencyKey};
+    _headers.removeWhere((k, v) => v == null);
+    final _data = <String, dynamic>{};
+    _data.addAll(body?.toJson() ?? <String, dynamic>{});
+    final _options = _setStreamType<PostV1PosOrdersUuidRequestBillResponse>(
+      Options(method: 'POST', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/v1/pos/orders/${uuid}/request-bill',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late PostV1PosOrdersUuidRequestBillResponse _value;
+    try {
+      _value = PostV1PosOrdersUuidRequestBillResponse.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
+  Future<PostV1PosOrdersUuidRoundsResponse> posOrderAddRound({
+    required String uuid,
+    required String idempotencyKey,
+    required V1PosOrdersUuidRoundsRequestBody body,
+  }) async {
+    final _extra = <String, dynamic>{};
+    final queryParameters = <String, dynamic>{};
     final _headers = <String, dynamic>{r'Idempotency-Key': idempotencyKey};
     _headers.removeWhere((k, v) => v == null);
     final _data = <String, dynamic>{};
@@ -470,12 +563,11 @@ class _PosOrdersApi implements PosOrdersApi {
   @override
   Future<PostV1PosOrdersUuidSendResponse> posOrderSend({
     required String uuid,
+    required String idempotencyKey,
     required V1PosOrdersUuidSendRequestBody body,
-    String? idempotencyKey,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{};
-    queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{r'Idempotency-Key': idempotencyKey};
     _headers.removeWhere((k, v) => v == null);
     final _data = <String, dynamic>{};

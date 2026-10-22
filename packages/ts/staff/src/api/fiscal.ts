@@ -2,7 +2,6 @@ import type { StaffApi } from './client';
 import { unwrap } from './errors';
 import type { Product } from '../types';
 import type { ProductFiscalInput } from './menu';
-import { productEditorFormData } from './menuAdmin';
 import type { JsonRequest, OkData } from './types';
 
 // Fiscal receipts and the fiscal setup (P3-11, P3-14; docs/API.md "Fiskal cheklar", "Onlayn to'lov fiskal cheki"). The
@@ -64,30 +63,23 @@ export async function fetchFiscalReadiness(api: StaffApi): Promise<FiscalReadine
   return unwrap(await api.client.GET('/v1/owner/fiscal/readiness')).data;
 }
 
-// A product update must carry the whole product (POST /owner/products/{id} sets the name, category, status and variants
-// from the request; a variant left out is deleted), so a change of fiscal fields only goes out as the product as it is
-// plus the new fiscal values. The picture, the variants' stock and everything not sent stay.
-export function productFiscalFormData(product: Product, fiscal: ProductFiscalInput): FormData {
-  const number = (value: string | null | undefined) => (value === null || value === undefined ? null : Number(value));
-  return productEditorFormData({
-    name: product.name,
-    description: product.description,
-    category_id: product.category_id,
-    is_active: product.is_active,
-    batch_tracked: product.batch_tracked,
-    sort_order: product.sort_order,
-    variants: (product.variants ?? []).map((variant) => ({
-      id: variant.id,
-      name: variant.name,
-      price: Number(variant.price),
-      unit: variant.unit,
-      quantity_step: number(variant.quantity_step),
-      min_quantity: number(variant.min_quantity),
-      batch_consumption: Number(variant.batch_consumption),
-      unit_label: variant.unit_label,
-    })),
-    ...fiscal,
-  });
+// PATCH /owner/products/{id}/fiscal (P3-26, menu.manage): only the fiscal fields of a product (kind, MXIK, package code,
+// VAT and the variants' `unit_label`); nothing else of the product is touched. A field left out is kept; null or "" clears
+// it. 422 `errors.mxik_code` etc. (`data.reason` = "validation").
+export type ProductFiscalPatch = JsonRequest<'ownerCatalog.updateFiscal'>;
+
+export function productFiscalPatch(fiscal: ProductFiscalInput): ProductFiscalPatch {
+  const patch: ProductFiscalPatch = {};
+  if (fiscal.kind !== undefined) patch.kind = fiscal.kind;
+  if (fiscal.mxik_code !== undefined) patch.mxik_code = fiscal.mxik_code === '' ? null : fiscal.mxik_code;
+  if (fiscal.package_code !== undefined) patch.package_code = fiscal.package_code === '' ? null : fiscal.package_code;
+  if (fiscal.vat_rate !== undefined) patch.vat_rate = fiscal.vat_rate === null || fiscal.vat_rate === '' ? null : Number(fiscal.vat_rate);
+  return patch;
+}
+
+export async function saveProductFiscal(api: StaffApi, productId: number, fiscal: ProductFiscalInput, variants?: ProductFiscalPatch['variants']): Promise<Product> {
+  const body = variants === undefined ? productFiscalPatch(fiscal) : { ...productFiscalPatch(fiscal), variants };
+  return unwrap(await api.client.PATCH('/v1/owner/products/{id}/fiscal', { params: { path: { id: String(productId) } }, body })).data as unknown as Product;
 }
 
 // --- Settings ----------------------------------------------------------------------------------------------------------------

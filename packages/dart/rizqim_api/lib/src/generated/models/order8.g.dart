@@ -21,6 +21,8 @@ Order8 _$Order8FromJson(Map<String, dynamic> json) => Order8(
   unbilledAmount: json['unbilled_amount'] as String?,
   fiscalPending: json['fiscal_pending'] as bool,
   billsOutOfDate: json['bills_out_of_date'] as bool,
+  bookingUuid: json['booking_uuid'] as String?,
+  depositAvailable: json['deposit_available'] as String,
 );
 
 Map<String, dynamic> _$Order8ToJson(Order8 instance) => <String, dynamic>{
@@ -38,4 +40,6 @@ Map<String, dynamic> _$Order8ToJson(Order8 instance) => <String, dynamic>{
   'unbilled_amount': instance.unbilledAmount,
   'fiscal_pending': instance.fiscalPending,
   'bills_out_of_date': instance.billsOutOfDate,
+  'booking_uuid': instance.bookingUuid,
+  'deposit_available': instance.depositAvailable,
 };

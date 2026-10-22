@@ -98,6 +98,7 @@ FloorMapItem floorMapItem(FloorTable t, Rect rect) {
         ? null
         : PosMoney.sum(orders.map((FloorOrder o) => o.totalPrice)),
     waiter: waiter,
+    billRequested: t.billRequested,
   );
 }
 

@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api\V1\Pos;
 
 use App\Domain\Pos\Accounts\CustomerAccountEntryType;
 use App\Domain\Pos\Accounts\CustomerAccountService;
+use App\Domain\Pos\Billing\PosFiscalReceipt;
+use App\Domain\Pos\Booking\ApprovalGate;
 use App\Domain\Pos\Booking\UzPhone;
 use App\Domain\Pos\Contracts\PosTender;
 use App\Enums\Permission;
@@ -25,6 +27,7 @@ use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -118,10 +121,12 @@ class CustomerAccountController extends MenuStaffController
      * Open a customer account
      *
      * `name` required; `phone` (+998…, unique in the store), `group_name`, `credit_limit` (null: no limit; 0: no credit),
-     * `note`, `branch_id` (only that branch; default: store-wide, a branch-bound manager's own branch).
+     * `note`, `branch_id` (only that branch; default: store-wide, a branch-bound manager's own branch). Needs
+     * customer_accounts.manage; P3-26: a cashier at the till (pos.take_payment) sends a manager's one-time
+     * `approval_token` for customer_accounts.manage (POST /pos/approvals; 403 `approval_required` without).
      */
     #[ApiDocResponse(201, type: 'array{success: true, message: string, data: ' . self::ACCOUNT . '}')]
-    public function store(Request $request): JsonResponse
+    public function store(Request $request, ApprovalGate $approvals): JsonResponse
     {
         $data = $this->normalized($request, $request->validate([
             'name' => 'required|string|max:120',
@@ -131,19 +136,27 @@ class CustomerAccountController extends MenuStaffController
             'is_blocked' => 'sometimes|boolean',
             'note' => 'nullable|string|max:500',
             'branch_id' => UzValidation::rowId(),
+            'approval_token' => 'nullable|string|max:255',
         ], UzValidation::messages()), null);
         $user = $request->user();
+        $manages = $this->permissions->allows($user, Permission::CUSTOMER_ACCOUNTS_MANAGE);
 
         $branchId = null;
         if ($request->filled('branch_id')) {
-            $branchId = (int) $this->branch($request, Permission::CUSTOMER_ACCOUNTS_MANAGE)->id;
-        } elseif ($this->permissions->isBranchScoped($user)) {
-            $branchId = (int) $user->branch_id;
+            $branchId = (int) $this->branch($request, $manages ? Permission::CUSTOMER_ACCOUNTS_MANAGE : Permission::POS_TAKE_PAYMENT)->id;
+        } elseif ($this->permissions->isBranchScoped($user) || !$manages) {
+            // A cashier's account belongs to the branch they work in (a terminal session: the terminal's)
+            $branchId = $this->actingBranch($user) ?? ($user->branch_id !== null ? (int) $user->branch_id : null);
         }
 
-        $account = new CustomerAccount($data + ['store_id' => $this->storeId($request), 'branch_id' => $branchId, 'created_by' => $user->id]);
-        $account->save();
-        $this->audit->record('customer_account.created', $account, [], $this->auditFields($account), [], ['actor' => $user]);
+        $account = DB::transaction(function () use ($request, $approvals, $user, $data, $branchId) {
+            $account = new CustomerAccount($data + ['store_id' => $this->storeId($request), 'branch_id' => $branchId, 'created_by' => $user->id]);
+            $approvedBy = $approvals->approver($user, Permission::CUSTOMER_ACCOUNTS_MANAGE->value, $request->input('approval_token'), $this->permissions->terminalOf($user)?->id, $account);
+            $account->save();
+            $this->audit->record('customer_account.created', $account, [], $this->auditFields($account), array_filter(['approved_by' => $approvedBy !== (int) $user->id ? $approvedBy : null]), ['actor' => $user]);
+
+            return $account;
+        });
 
         return $this->success($this->present($account->refresh()), 'Nasiya hisobi ochildi.', 201);
     }
@@ -166,12 +179,13 @@ class CustomerAccountController extends MenuStaffController
     /**
      * Change a customer account
      *
-     * Only the fields sent change; `is_blocked: true` stops new credit (repayments still work).
+     * Only the fields sent change; `is_blocked: true` stops new credit (repayments still work). Needs
+     * customer_accounts.manage; P3-26: a cashier (pos.take_payment) sends a manager's one-time `approval_token` for it.
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . self::ACCOUNT . '}')]
-    public function update(Request $request, string $uuid): JsonResponse
+    public function update(Request $request, string $uuid, ApprovalGate $approvals): JsonResponse
     {
-        $account = $this->account($request, $uuid, Permission::CUSTOMER_ACCOUNTS_MANAGE);
+        $account = $this->account($request, $uuid);
         $data = $this->normalized($request, $request->validate([
             'name' => 'sometimes|string|max:120',
             'phone' => 'nullable|string|max:32',
@@ -180,11 +194,17 @@ class CustomerAccountController extends MenuStaffController
             'is_blocked' => 'sometimes|boolean',
             'note' => 'nullable|string|max:500',
             'branch_id' => UzValidation::rowId(),
+            'approval_token' => 'nullable|string|max:255',
         ], UzValidation::messages()), $account);
+        unset($data['approval_token']);
+        $user = $request->user();
 
-        $before = $this->auditFields($account);
-        $account->fill($data)->save();
-        $this->audit->record('customer_account.updated', $account, $before, $this->auditFields($account), [], ['actor' => $request->user()]);
+        DB::transaction(function () use ($request, $approvals, $user, $account, $data) {
+            $approvedBy = $approvals->approver($user, Permission::CUSTOMER_ACCOUNTS_MANAGE->value, $request->input('approval_token'), $this->permissions->terminalOf($user)?->id, $account);
+            $before = $this->auditFields($account);
+            $account->fill($data)->save();
+            $this->audit->record('customer_account.updated', $account, $before, $this->auditFields($account), array_filter(['approved_by' => $approvedBy !== (int) $user->id ? $approvedBy : null]), ['actor' => $user]);
+        });
 
         return $this->success($this->present($account->refresh()), "Nasiya hisobi o'zgartirildi.");
     }
@@ -253,7 +273,7 @@ class CustomerAccountController extends MenuStaffController
      * `amount` (at most the debt), `tender` cash|card|qr (`card_type`, `transaction_id`), `note`. Issues a CREDIT
      * receipt (`fiscal_receipt_uuid`); the owner is told on Telegram. The `Idempotency-Key` header is required.
      */
-    #[ApiDocResponse(201, type: 'array{success: true, message: string, data: array{account: ' . self::ACCOUNT . ', entry: ' . self::ENTRY . '}}')]
+    #[ApiDocResponse(201, type: 'array{success: true, message: string, data: array{account: ' . self::ACCOUNT . ', entry: ' . self::ENTRY . ', fiscal: ' . PosFiscalReceipt::FISCAL . '}}')]
     public function repay(Request $request, string $uuid): JsonResponse
     {
         $key = $request->headers->get('Idempotency-Key');
@@ -288,6 +308,8 @@ class CustomerAccountController extends MenuStaffController
         return $this->success([
             'account' => $this->present($account->refresh()),
             'entry' => $this->entry($entry),
+            // P3-26: the CREDIT receipt as registered, for the till to print
+            'fiscal' => PosFiscalReceipt::fiscal($entry->fiscal_status, $entry->fiscal_receipt_uuid, null, (int) $account->store_id),
         ], "Qarz to'lovi qabul qilindi.", 201);
     }
 
@@ -357,7 +379,7 @@ class CustomerAccountController extends MenuStaffController
      */
     private function normalized(Request $request, array $data, ?CustomerAccount $account): array
     {
-        unset($data['branch_id']);
+        unset($data['branch_id'], $data['approval_token']);
 
         if (array_key_exists('phone', $data)) {
             $phone = $data['phone'] !== null && trim((string) $data['phone']) !== '' ? UzPhone::normalize((string) $data['phone']) : null;

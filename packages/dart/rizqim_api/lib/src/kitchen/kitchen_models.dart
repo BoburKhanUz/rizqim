@@ -134,8 +134,12 @@ class KitchenLine {
   /// POS qatori (onlayn qatorda `fire_mode` yo'q).
   bool get isPos => fireMode != null;
 
-  /// Hali oshxonaga yuborilmagan, ushlab turilgan qator (oldindan buyurtma navbati). Uni "tayyor" deb bo'lmaydi.
+  /// Hali oshxonaga yuborilmagan, ushlab turilgan qator (oldindan buyurtma navbati). Vaqti ([dueAt]) bo'lsa uni
+  /// oshxona oldindan "tayyor" deya oladi (P3-26: tayyor — yuborilgan ham hisoblanadi), vaqtsizini — yo'q.
   bool get isHeld => fireMode == 'hold' && sentAt == null && !isVoid;
+
+  /// "Tayyor" deb belgilash mumkin: pishayotgan qator yoki vaqti belgilangan oldindan buyurtma (P3-26).
+  bool get canBeReady => !isDone && !isVoid && (!isHeld || dueAt != null);
 
   /// Donali taom (`piece`; eski/soxta qiymat `pcs`).
   bool get isPiece => unit == 'pcs' || unit == 'piece';
@@ -195,6 +199,7 @@ class KitchenTicket {
     this.acceptedAt,
     this.preparingAt,
     this.readyAt,
+    this.canceledAt,
   });
 
   /// [receivedAt] — javob qurilmaga kelgan payt (qurilma soati bilan): kutish vaqti `waiting_seconds` dan shu paytdan
@@ -218,6 +223,7 @@ class KitchenTicket {
     acceptedAt: _date(json['accepted_at']),
     preparingAt: _date(json['preparing_at']),
     readyAt: _date(json['ready_at']),
+    canceledAt: _date(json['canceled_at']),
     waitingSeconds: (json['waiting_seconds'] as num?)?.toInt() ?? 0,
     receivedAt: receivedAt,
   );
@@ -246,6 +252,13 @@ class KitchenTicket {
   final DateTime? acceptedAt;
   final DateTime? preparingAt;
   final DateTime? readyAt;
+
+  /// Bekor qilingan yoki rad etilgan payt (P3-26: `canceled_within` bilan so'ralgan ro'yxatda; tirik chiptada `null`).
+  final DateTime? canceledAt;
+
+  /// Buyurtma bekor qilingan yoki rad etilgan (oshxona uni chizib ko'rsatadi).
+  bool get isCanceled =>
+      status == 'canceled' || status == 'cancelled' || status == 'rejected';
 
   /// Server hisoblagan kutish vaqti (qabul qilingandan, bo'lmasa yaratilgandan) javob paytida.
   final int waitingSeconds;
@@ -294,6 +307,7 @@ class KitchenTicket {
         acceptedAt: acceptedAt,
         preparingAt: preparingAt,
         readyAt: readyAt,
+        canceledAt: canceledAt,
         waitingSeconds: waitingSeconds,
         receivedAt: receivedAt,
       );

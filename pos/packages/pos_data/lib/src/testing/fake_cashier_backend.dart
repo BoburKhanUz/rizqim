@@ -34,7 +34,7 @@ class FakeCashierBackend {
       <String, List<Map<String, Object?>>>{};
   final List<Map<String, Object?>> refunds = <Map<String, Object?>>[];
 
-  /// Chek uuid → `GET /owner/fiscal/receipts/{uuid}` javobi.
+  /// Chek uuid → `GET /pos/fiscal-receipts/{uuid}` javobi (P3-26; `fiscal.receipt` ham shu).
   final Map<String, Map<String, Object?>> receipts =
       <String, Map<String, Object?>>{};
 
@@ -70,8 +70,13 @@ class FakeCashierBackend {
     final String m = r.method;
     RegExpMatch? x;
 
-    // Navbat: ochiq buyurtmalar (fiskal kutmoqda va qabul qilingan onlayn buyurtmalar bilan)
-    if (m == 'GET' && p == '/v1/pos/orders') return _queue();
+    // Navbat: ochiq buyurtmalar (fiskal kutmoqda va qabul qilingan onlayn buyurtmalar bilan); P3-26: `incoming`
+    // (qabul kutayotgan onlayn) va `closed` (shu ish kunida yopilgan POS buyurtmalari)
+    if (m == 'GET' && p == '/v1/pos/orders') return _queue(r);
+    if (m == 'POST' &&
+        (x = _match(r'^/v1/pos/orders/([^/]+)/(accept|reject)$', p)) != null) {
+      return _onlineDecision(x!.group(1)!, x.group(2)!, r);
+    }
     if (m == 'GET' && p == '/v1/pos/shifts/current') return _current();
 
     if ((x = _match(r'^/v1/pos/orders/([^/]+)/bills$', p)) != null) {
@@ -104,9 +109,9 @@ class FakeCashierBackend {
     }
     if (m == 'POST' && p == '/v1/pos/refunds') return _refund(r);
     if (m == 'GET' &&
-        (x = _match(r'^/v1/owner/fiscal/receipts/([^/]+)$', p)) != null) {
+        (x = _match(r'^/v1/pos/fiscal-receipts/([^/]+)$', p)) != null) {
       final List<String> perms = state.permissionsOf(r.member);
-      if (!perms.contains('reports.view') && !perms.contains('finance.view')) {
+      if (!perms.contains('pos.take_payment')) {
         return _fail(403, null, "Bu amal uchun ruxsat yo'q.");
       }
       final Map<String, Object?>? receipt = receipts[x!.group(1)];
@@ -141,69 +146,163 @@ class FakeCashierBackend {
 
   // --- navbat ----------------------------------------------------------------------------------------------------------
 
-  FakeResponse _queue() {
-    final List<Object?> rows = <Object?>[];
-    for (final Map<String, Object?> o in state.orders.values) {
-      if (o['status'] == 'delivered' || o['status'] == 'canceled') continue;
-      rows.add(<String, Object?>{
-        'uuid': o['uuid'],
-        'short_code': o['short_code'],
-        'status': o['status'],
-        'channel': o['channel'],
-        'type': o['type'],
-        'branch_id': FakePosState.branchId,
-        'version': o['version'],
-        'hall': o['hall'],
-        'table': o['table'],
-        'hall_ref': o['hall_ref'],
-        'table_ref': o['table_ref'],
-        'guests_count': o['guests_count'],
-        'waiter': o['waiter'],
-        'items_count': _items(o)
-            .where((Map<String, Object?> i) => i['kitchen_status'] != 'void')
-            .length,
-        'subtotal': o['subtotal'],
-        'total_price': o['total_price'],
-        'payment_status': _paidOf(o) > 0 ? 'partial' : 'pending',
-        'bill_locked': o['bill_locked'],
-        'fiscal_pending': _fiscalPending(o),
-        'booking_id': o['booking_id'],
-        'opened_at': o['opened_at'],
-        'updated_at': o['updated_at'],
-      });
-    }
-    for (final Map<String, Object?> o in onlineOrders) {
-      if (o['status'] != 'accepted' && o['status'] != 'preparing') continue;
-      rows.add(<String, Object?>{
-        'uuid': o['uuid'],
-        'short_code': o['short_code'],
-        'status': o['status'],
-        'channel': o['channel'],
-        'type': o['type'],
-        'branch_id': FakePosState.branchId,
-        'version': 1,
-        'hall': null,
-        'table': null,
-        'hall_ref': null,
-        'table_ref': null,
-        'guests_count': null,
-        'waiter': null,
-        'items_count': (o['items']! as List<Object?>).length,
-        'subtotal': o['subtotal'],
-        'total_price': o['total_price'],
-        'payment_status': o['payment_status'],
-        'bill_locked': false,
-        'fiscal_pending': false,
-        'booking_id': null,
-        'opened_at': o['created_at'],
-        'updated_at': o['updated_at'],
-      });
+  Map<String, Object?> _posRow(Map<String, Object?> o) => <String, Object?>{
+    'uuid': o['uuid'],
+    'short_code': o['short_code'],
+    'status': o['status'],
+    'channel': o['channel'],
+    'type': o['type'],
+    'branch_id': FakePosState.branchId,
+    'version': o['version'],
+    'hall': o['hall'],
+    'table': o['table'],
+    'hall_ref': o['hall_ref'],
+    'table_ref': o['table_ref'],
+    'guests_count': o['guests_count'],
+    'waiter': o['waiter'],
+    'items_count': _items(o)
+        .where((Map<String, Object?> i) => i['kitchen_status'] != 'void')
+        .length,
+    'subtotal': o['subtotal'],
+    'total_price': o['total_price'],
+    'payment_status': o['status'] == 'delivered'
+        ? 'paid'
+        : (_paidOf(o) > 0 ? 'partial' : 'pending'),
+    'bill_locked': o['bill_locked'],
+    'bill_requested': o['bill_requested_at'] != null,
+    'fiscal_pending': _fiscalPending(o),
+    'booking_id': o['booking_id'],
+    'business_date': _date(state.now()),
+    'opened_at': o['opened_at'],
+    'closed_at': o['closed_at'],
+    'updated_at': o['updated_at'],
+    'online': null,
+  };
+
+  Map<String, Object?> _onlineRow(Map<String, Object?> o) => <String, Object?>{
+    'uuid': o['uuid'],
+    'short_code': o['short_code'],
+    'status': o['status'],
+    'channel': o['channel'],
+    'type': o['type'],
+    'branch_id': FakePosState.branchId,
+    'version': 1,
+    'hall': null,
+    'table': null,
+    'hall_ref': null,
+    'table_ref': null,
+    'guests_count': null,
+    'waiter': null,
+    'items_count': (o['items']! as List<Object?>).length,
+    'subtotal': o['subtotal'],
+    'total_price': o['total_price'],
+    'payment_status': o['payment_status'],
+    'bill_locked': false,
+    'bill_requested': false,
+    'fiscal_pending': false,
+    'booking_id': null,
+    'business_date': _date(state.now()),
+    'opened_at': o['created_at'],
+    'closed_at': null,
+    'updated_at': o['updated_at'],
+    'online': o,
+  };
+
+  FakeResponse _queue(FakeRequest r) {
+    final String scope = r.query['scope'] ?? 'open';
+    final List<Map<String, Object?>> rows = <Map<String, Object?>>[];
+    if (scope == 'incoming') {
+      for (final Map<String, Object?> o in onlineOrders) {
+        if (o['status'] == 'new') rows.add(_onlineRow(o));
+      }
+    } else if (scope == 'closed') {
+      for (final Map<String, Object?> o in state.orders.values) {
+        if (o['closed_at'] != null) rows.add(_posRow(o));
+      }
+      rows.sort(
+        (Map<String, Object?> a, Map<String, Object?> b) =>
+            '${b['closed_at']}'.compareTo('${a['closed_at']}'),
+      );
+      return _ok(rows);
+    } else {
+      for (final Map<String, Object?> o in state.orders.values) {
+        if (o['status'] == 'delivered' || o['status'] == 'canceled') continue;
+        rows.add(_posRow(o));
+      }
+      for (final Map<String, Object?> o in onlineOrders) {
+        if (o['status'] != 'accepted' && o['status'] != 'preparing') continue;
+        rows.add(_onlineRow(o));
+      }
     }
     rows.sort(
-      (Object? a, Object? b) => '${(a! as Map<String, Object?>)['opened_at']}'
-          .compareTo('${(b! as Map<String, Object?>)['opened_at']}'),
+      (Map<String, Object?> a, Map<String, Object?> b) =>
+          '${a['opened_at']}'.compareTo('${b['opened_at']}'),
     );
     return _ok(rows);
+  }
+
+  /// `POST /pos/orders/{uuid}/accept|reject` (P3-26): yangi onlayn buyurtma. Rad etish — `orders.cancel` yoki
+  /// menejer tasdig'i, `reason` majburiy.
+  FakeResponse _onlineDecision(String uuid, String action, FakeRequest r) {
+    Map<String, Object?>? order;
+    for (final Map<String, Object?> o in onlineOrders) {
+      if (o['uuid'] == uuid) order = o;
+    }
+    if (order == null) {
+      return state.orders.containsKey(uuid)
+          ? _fail(
+              422,
+              'not_online_order',
+              'Bu kassa (POS) buyurtmasi: onlayn buyurtma emas.',
+            )
+          : _fail(404, null, 'Buyurtma topilmadi.');
+    }
+    final String status = action == 'accept' ? 'accepted' : 'rejected';
+    if (action == 'reject') {
+      if ('${r.data['reason'] ?? ''}'.trim().length < 2) {
+        return _validation('reason', 'Rad etish sababini yozing.');
+      }
+      final FakeResponse? denied = state.authorize(
+        r.member,
+        'orders.cancel',
+        r.data['approval_token'],
+      );
+      if (denied != null) return denied;
+    } else if (!state.permissionsOf(r.member).contains('orders.manage')) {
+      return _fail(403, null, "Bu amal uchun ruxsat yo'q.");
+    }
+    if (order['status'] == status) return _ok(_onlineRow(order));
+    if (order['status'] != 'new') {
+      return _fail(
+        422,
+        'order_not_new',
+        "Bu buyurtma endi yangi emas: uni qabul qilib yoki rad etib bo'lmaydi.",
+      );
+    }
+    order
+      ..['status'] = status
+      ..['status_label'] = status == 'accepted' ? 'Qabul qilindi' : 'Rad etildi'
+      ..['cancel_reason'] = action == 'reject'
+          ? (r.data['cancel_reason'] ?? 'other')
+          : null
+      ..['cancel_note'] = action == 'reject' ? r.data['reason'] : null
+      ..['updated_at'] = _iso(state.now());
+    state.emit('order.status_changed', <String, Object?>{
+      'order': <String, Object?>{
+        'uuid': uuid,
+        'status': status,
+        'store_id': FakePosState.storeId,
+        'branch_id': FakePosState.branchId,
+        'courier_id': null,
+        'updated_at': order['updated_at'],
+      },
+    });
+    return _ok(
+      _onlineRow(order),
+      message: status == 'accepted'
+          ? 'Buyurtma qabul qilindi.'
+          : 'Buyurtma rad etildi.',
+    );
   }
 
   // --- schyot ----------------------------------------------------------------------------------------------------------
@@ -254,12 +353,22 @@ class FakeCashierBackend {
       'paid_amount': _m(paid),
       'unbilled_amount': _m(math.max(0, total - billed)),
       'fiscal_pending': _fiscalPending(order),
+      'booking_uuid': _bookingOf(order)?['uuid'],
+      'deposit_available': _bookingOf(order)?['deposit_available'] ?? '0.00',
       'bills_out_of_date':
           _live(order).isNotEmpty &&
           order['bills_version'] != null &&
           order['bills_version'] != order['version'] &&
           _live(order).any((Map<String, Object?> b) => !_settled(b)),
     };
+  }
+
+  /// Buyurtma ochilgan bron (`order_uuid` bo'yicha).
+  Map<String, Object?>? _bookingOf(Map<String, Object?> order) {
+    for (final Map<String, Object?> b in bookings.values) {
+      if (b['order_uuid'] == order['uuid']) return b;
+    }
+    return null;
   }
 
   Map<String, Object?> _billing(
@@ -699,6 +808,8 @@ class FakeCashierBackend {
       'error': issued ? null : "Provayder javob bermadi.",
     };
     receipts[uuid] = _receipt(uuid, 'sale', bill, issued);
+    // P3-26: the bill's `fiscal.receipt` is the receipt itself (updated when it is issued)
+    (bill['fiscal']! as Map<String, Object?>)['receipt'] = receipts[uuid];
     if (issued) _finishBill(bill, order);
   }
 
@@ -824,6 +935,68 @@ class FakeCashierBackend {
             'transaction_id': p['transaction_id'],
           },
       ],
+    };
+  }
+
+  /// Bitta qatorli chek (avans, kredit).
+  Map<String, Object?> _simpleReceipt(
+    String uuid,
+    String type,
+    int amount,
+    String name,
+    String tender, {
+    required bool prepayment,
+  }) => <String, Object?>{
+    'uuid': uuid,
+    'type': type,
+    'status': 'issued',
+    'payment_form': tender == 'card' || tender == 'qr' ? tender : 'cash',
+    'non_fiscal': nonFiscal,
+    'total': _m(amount),
+    'vat_total': _m((amount * 12 / 112).round()),
+    // Avans va kredit chekida fiskal belgi va QR yo'q (VM 943)
+    'fiscal_sign': null,
+    'receipt_number': '${2000 + _seq}',
+    'qr_url': null,
+    'terminal_id': 'EP000000000123',
+    'error': null,
+    'issued_at': _iso(state.now()),
+    'created_at': _iso(state.now()),
+    'original_receipt_uuid': null,
+    'lines': <Object?>[
+      <String, Object?>{
+        'name': name,
+        'mxik_code': '10202002001000003',
+        'package_code': null,
+        'unit': 'xizmat',
+        'quantity': '1',
+        'unit_price': _m(amount),
+        'amount': _m(amount),
+        'vat_rate': '12',
+        'vat_amount': _m((amount * 12 / 112).round()),
+        'no_vat': false,
+      },
+    ],
+    'payments': <Object?>[
+      <String, Object?>{
+        'form': tender == 'card' || tender == 'qr' ? tender : 'cash',
+        'amount': _m(amount),
+        'prepayment': prepayment,
+        'credit': false,
+        'card_type': null,
+        'transaction_id': null,
+      },
+    ],
+  };
+
+  /// `fiscal` obyekti (P3-26): holat va chekning o'zi.
+  Map<String, Object?> _fiscalOf(String? receiptUuid) {
+    final Map<String, Object?>? receipt = receipts[receiptUuid];
+    return <String, Object?>{
+      'status': receipt?['status'],
+      'receipt_uuid': receiptUuid,
+      'error': null,
+      'receipt': receipt,
     };
   }
 
@@ -977,6 +1150,8 @@ class FakeCashierBackend {
           receipts[receipt] = <String, Object?>{
             ..._receipt(receipt, 'refund', b, true),
             'total': _m(amount),
+            'original_receipt_uuid':
+                (b['fiscal']! as Map<String, Object?>)['receipt_uuid'],
             'lines': <Object?>[
               <String, Object?>{
                 'name': 'Qaytarish',
@@ -1003,6 +1178,7 @@ class FakeCashierBackend {
               'status': 'issued',
               'receipt_uuid': receipt,
               'error': null,
+              'receipt': receipts[receipt],
             },
             'created_at': _iso(state.now()),
             'shift_uuid': state.shift?['uuid'],
@@ -1888,6 +2064,9 @@ class FakeCashierBackend {
       return _ok(<String, Object?>{
         'booking': b,
         'payment': _depositByKey[key],
+        'fiscal': _fiscalOf(
+          _depositByKey[key]!['fiscal_receipt_uuid'] as String?,
+        ),
       });
     }
     if (b['status'] != 'requested' && b['status'] != 'confirmed') {
@@ -1923,23 +2102,25 @@ class FakeCashierBackend {
       'created_at': _iso(state.now()),
       'shift_uuid': state.shift?['uuid'],
     };
-    receipts[receipt] = <String, Object?>{
-      'uuid': receipt,
-      'type': 'advance',
-      'status': 'issued',
-      'non_fiscal': nonFiscal,
-      'total': _m(amount),
-      'receipt_number': '${2000 + _seq}',
-      'lines': <Object?>[],
-      'payments': <Object?>[],
-    };
+    receipts[receipt] = _simpleReceipt(
+      receipt,
+      'advance',
+      amount,
+      'Avans (bron)',
+      tender,
+      prepayment: false,
+    );
     (b['payments']! as List<Object?>).add(payment);
     if (key != null) _depositByKey[key] = payment;
     if (b['status'] == 'requested') b['status'] = 'confirmed';
     _recountDeposits(b);
     _touchBooking(b);
     return _ok(
-      <String, Object?>{'booking': b, 'payment': payment},
+      <String, Object?>{
+        'booking': b,
+        'payment': payment,
+        'fiscal': _fiscalOf(receipt),
+      },
       status: 201,
       message: 'Avans qabul qilindi.',
     );
@@ -2019,7 +2200,11 @@ class FakeCashierBackend {
       if (op == 'refund') p['refunded_shift_uuid'] = state.shift?['uuid'];
       _recountDeposits(b);
       _touchBooking(b);
-      return _ok(<String, Object?>{'booking': b, 'payment': p});
+      return _ok(<String, Object?>{
+        'booking': b,
+        'payment': p,
+        'fiscal': _fiscalOf(null),
+      });
     }
     return _fail(404, null, 'Avans topilmadi.');
   }
@@ -2074,7 +2259,13 @@ class FakeCashierBackend {
       });
     }
     if (m == 'POST' && p == '/v1/pos/customer-accounts') {
-      if (!manage) return _fail(403, null, "Bu amal uchun ruxsat yo'q.");
+      // P3-26: a cashier with a manager's approval for customer_accounts.manage
+      final FakeResponse? denied = state.authorize(
+        r.member,
+        'customer_accounts.manage',
+        r.data['approval_token'],
+      );
+      if (denied != null) return denied;
       return _saveAccount(null, r.data);
     }
     final RegExpMatch? x = RegExp(
@@ -2094,7 +2285,12 @@ class FakeCashierBackend {
           'entries': list.reversed.take(20).toList(),
         });
       case ('PATCH', null):
-        if (!manage) return _fail(403, null, "Bu amal uchun ruxsat yo'q.");
+        final FakeResponse? denied = state.authorize(
+          r.member,
+          'customer_accounts.manage',
+          r.data['approval_token'],
+        );
+        if (denied != null) return denied;
         return _saveAccount(a, r.data);
       case ('GET', 'statement'):
         int sum(String type) => list
@@ -2117,6 +2313,9 @@ class FakeCashierBackend {
           return _ok(<String, Object?>{
             'account': a,
             'entry': _repayByKey[key],
+            'fiscal': _fiscalOf(
+              _repayByKey[key]!['fiscal_receipt_uuid'] as String?,
+            ),
           });
         }
         final int amount = _t(r.data['amount']);
@@ -2148,7 +2347,11 @@ class FakeCashierBackend {
         );
         if (key != null) _repayByKey[key] = e;
         return _ok(
-          <String, Object?>{'account': a, 'entry': e},
+          <String, Object?>{
+            'account': a,
+            'entry': e,
+            'fiscal': _fiscalOf(e['fiscal_receipt_uuid'] as String?),
+          },
           status: 201,
           message: "Qarz to'lovi qabul qilindi.",
         );
@@ -2219,6 +2422,16 @@ class FakeCashierBackend {
     a['balance'] = _m(_t(a['balance']) + amount);
     _available(a);
     final String? receipt = type == 'repayment' ? _uuid('r') : null;
+    if (receipt != null) {
+      receipts[receipt] = _simpleReceipt(
+        receipt,
+        'credit',
+        -amount,
+        "Qarz to'lovi",
+        tender ?? 'cash',
+        prepayment: false,
+      );
+    }
     final Map<String, Object?> e = <String, Object?>{
       'uuid': _uuid('e'),
       'type': type,

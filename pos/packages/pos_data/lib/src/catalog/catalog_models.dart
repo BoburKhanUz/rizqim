@@ -184,6 +184,7 @@ class PosProduct {
     this.unavailableReason,
     this.stationId,
     this.batchTracked = false,
+    this.quickAdd = false,
     this.imageUrl,
     this.modifierGroups = const <PosModifierGroup>[],
   });
@@ -202,6 +203,7 @@ class PosProduct {
     ),
     stationId: j.intOrNull('station_id'),
     batchTracked: j.boolean('batch_tracked'),
+    quickAdd: j.boolean('quick_add'),
     imageUrl: j.strOrNull('image_url'),
     variants: j.objects('variants', PosVariant.fromJson),
     modifierGroups: j.objects('modifier_groups', PosModifierGroup.fromJson),
@@ -226,6 +228,9 @@ class PosProduct {
 
   /// Qozon/partiya bilan sotiladi (qoldiq ko'rsatiladi).
   final bool batchTracked;
+
+  /// Menyuda "tez qo'shish" belgilangan (P3-26): kassa va ofitsiant bir bosishda qo'shadi.
+  final bool quickAdd;
   final String? imageUrl;
   final List<PosVariant> variants;
   final List<PosModifierGroup> modifierGroups;

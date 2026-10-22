@@ -43,6 +43,7 @@ export const product = (over: Record<string, unknown> = {}) => ({
   image_url: null,
   image_thumb_urls: { sm: null, md: null },
   batch_tracked: true,
+  quick_add: false,
   is_active: true,
   category: { id: 2, name: 'Issiq taomlar' },
   variants: [variant()],

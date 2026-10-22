@@ -4,20 +4,43 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'movement.dart';
-import 'shift2.dart';
+import 'fiscal15.dart';
 
 part 'data167.g.dart';
 
 @JsonSerializable()
 class Data167 {
-  const Data167({required this.movement, required this.shift});
+  const Data167({
+    required this.uuid,
+    required this.orderUuid,
+    required this.billUuid,
+    required this.paymentUuid,
+    required this.amount,
+    required this.method,
+    required this.reason,
+    required this.approvedBy,
+    required this.fiscal,
+    required this.createdAt,
+  });
 
   factory Data167.fromJson(Map<String, Object?> json) =>
       _$Data167FromJson(json);
 
-  final Movement movement;
-  final Shift2 shift;
+  final String uuid;
+  @JsonKey(name: 'order_uuid')
+  final String? orderUuid;
+  @JsonKey(name: 'bill_uuid')
+  final String? billUuid;
+  @JsonKey(name: 'payment_uuid')
+  final String? paymentUuid;
+  final String amount;
+  final String method;
+  final String reason;
+  @JsonKey(name: 'approved_by')
+  final int? approvedBy;
+  final Fiscal15 fiscal;
+  @JsonKey(name: 'created_at')
+  final String? createdAt;
 
   Map<String, Object?> toJson() => _$Data167ToJson(this);
 }

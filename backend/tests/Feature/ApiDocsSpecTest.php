@@ -184,4 +184,78 @@ class ApiDocsSpecTest extends TestCase
         $this->assertArrayHasKey('card', $payout['properties']);
         $this->assertStringNotContainsString('#/components/schemas/PayoutRequest', (string) json_encode($paths), 'a payout model (with its card number) is never a response');
     }
+
+    /**
+     * P3-26: the POS shapes the wave 2 clients read by hand are typed now, and every POS change documents the
+     * Idempotency-Key header (required where the controller refuses a change without one).
+     */
+    public function test_the_pos_shapes_and_the_idempotency_header_are_documented(): void
+    {
+        $paths = $this->doc['paths'];
+        $data = fn (string $path, string $method = 'get', string $code = '200') => $paths[$path][$method]['responses'][$code]['content']['application/json']['schema']['properties']['data'];
+        $body = fn (string $path, string $method = 'post') => $paths[$path][$method]['requestBody']['content']['application/json']['schema']['properties'] ?? [];
+
+        // The POS menu, with batch_tracked and quick_add
+        $product = $data('/v1/pos/catalog')['properties']['products']['items']['allOf'];
+        $this->assertSame('#/components/schemas/Product', $product[0]['$ref']);
+        $this->assertSame('boolean', $product[1]['properties']['batch_tracked']['type']);
+        $this->assertSame('boolean', $product[1]['properties']['quick_add']['type']);
+
+        // The bootstrap's halls, tables, shift and quick items
+        $bootstrap = $data('/v1/pos/bootstrap')['properties'];
+        $this->assertSame('integer', $bootstrap['tables']['items']['properties']['hall_id']['type']);
+        $this->assertSame(['object', 'null'], $bootstrap['shift']['type']);
+        $this->assertSame(['quick_add', 'auto_guest'], $bootstrap['quick_items']['items']['properties']['source']['enum']);
+
+        // Bodies the generator could not see before
+        $this->assertSame(['reason', 'approval_token'], array_keys($body('/v1/pos/bookings/{uuid}/deposits/{payment}/refund')));
+        $this->assertSame(['reason', 'approval_token'], array_keys($body('/v1/pos/bookings/{uuid}/deposits/{payment}/retain')));
+        $this->assertArrayHasKey('version', $body('/v1/pos/bookings/{uuid}/confirm'));
+        $this->assertArrayHasKey('product_variant_uuid', $body('/v1/pos/bookings/{uuid}/items'));
+        $this->assertArrayHasKey('approval_token', $body('/v1/pos/customer-accounts'));
+        $this->assertArrayHasKey('approval_token', $body('/v1/pos/customer-accounts/{uuid}', 'patch'));
+        $this->assertContains('show_on_kds', array_keys($body('/v1/owner/kitchen-stations')));
+        $this->assertContains('connection', array_keys($body('/v1/owner/printers')));
+        $this->assertContains('category_ids', array_keys($body('/v1/owner/kitchen-station-routes', 'put')));
+        $this->assertSame('integer', $body('/v1/owner/printers/{id}', 'patch')['paper_width']['type']);
+        $this->assertSame([58, 80], $body('/v1/owner/printers/{id}', 'patch')['paper_width']['enum'] ?? [58, 80]);
+        $this->assertContains('variants', array_keys($body('/v1/owner/products/{id}/fiscal', 'patch')));
+
+        // Shifts: the Z summary and the X report typed, the current shift by branch
+        $this->assertArrayHasKey('summary', $data('/v1/pos/shifts/{uuid}')['properties']);
+        $this->assertArrayHasKey('cash', $data('/v1/pos/shifts/{uuid}/x-report')['properties']['report']['properties']);
+        $this->assertArrayHasKey('shifts', $data('/v1/pos/shifts/current')['properties']);
+        $this->assertArrayHasKey('approver', $data('/v1/pos/shifts/{uuid}/cash-movements', 'post', '201')['properties']['movement']['properties']);
+
+        // The receipt for the till inside `fiscal`
+        $fiscal = $data('/v1/pos/bills/{uuid}/payments', 'post')['properties']['bill']['properties']['fiscal']['properties'];
+        $this->assertSame(['status', 'receipt_uuid', 'error', 'receipt'], array_keys($fiscal));
+        foreach (['fiscal_sign', 'receipt_number', 'qr_url', 'terminal_id', 'non_fiscal', 'issued_at', 'lines', 'payments'] as $key) {
+            $this->assertArrayHasKey($key, $fiscal['receipt']['properties'], $key);
+        }
+        $this->assertArrayHasKey('fiscal', $data('/v1/pos/bookings/{uuid}/deposits', 'post', '201')['properties']);
+        $this->assertArrayHasKey('fiscal', $data('/v1/pos/customer-accounts/{uuid}/repayments', 'post', '201')['properties']);
+        $this->assertArrayHasKey('fiscal_sign', $data('/v1/pos/fiscal-receipts/{uuid}')['properties']);
+
+        // Every POS change takes the Idempotency-Key header
+        foreach ($paths as $path => $operations) {
+            if (!str_starts_with($path, '/v1/pos/')) {
+                continue;
+            }
+            foreach ($operations as $method => $operation) {
+                if (!in_array($method, ['post', 'put', 'patch', 'delete'], true)) {
+                    continue;
+                }
+                $headers = array_values(array_filter($operation['parameters'] ?? [], fn (array $parameter) => $parameter['in'] === 'header' && $parameter['name'] === 'Idempotency-Key'));
+                $this->assertCount(1, $headers, "{$method} {$path}");
+            }
+        }
+        $required = fn (string $path) => collect($paths[$path]['post']['parameters'])->firstWhere('name', 'Idempotency-Key')['required'] ?? false;
+        $this->assertTrue($required('/v1/pos/bills/{uuid}/payments'));
+        $this->assertTrue($required('/v1/pos/bookings/{uuid}/deposits'));
+        $this->assertTrue($required('/v1/pos/customer-accounts/{uuid}/repayments'));
+        $this->assertTrue($required('/v1/pos/orders/{uuid}/request-bill'));
+        $this->assertFalse($required('/v1/pos/bookings'));
+        $this->assertFalse($required('/v1/pos/bills/{uuid}/fiscal-retry'));
+    }
 }

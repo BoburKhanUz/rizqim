@@ -63,7 +63,9 @@ describe('floor hooks', () => {
       await calendar.result.current.mutateAsync({ branchId: 2, weekend_days: [5], holidays: [] });
     });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: floorKeys.allTariffs });
-    expect(invalidate).toHaveBeenCalledTimes(2);
+    // The holidays live in the branch POS settings (P3-26), so saving the calendar refreshes them too
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['owner', 'branch-pos-settings'] });
+    expect(invalidate).toHaveBeenCalledTimes(3);
   });
 });
 
@@ -193,6 +195,7 @@ describe('shift hooks', () => {
   it('lists the shifts of a branch and loads the summary of a branch', async () => {
     mockFetch({
       'GET /api/v1/pos/shifts': () => ok([]),
+      'GET /api/v1/pos/shifts/current': () => ok({ shift: null, report: null, shifts: [] }),
     });
     const queryClient = makeQueryClient();
     const list = renderHook(() => useShifts({ branch_id: 2 }), { wrapper: wrapperFor(queryClient) });

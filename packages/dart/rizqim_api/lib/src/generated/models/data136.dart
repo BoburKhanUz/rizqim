@@ -12,6 +12,10 @@ import 'stations2.dart';
 import 'station_routes.dart';
 import 'printers.dart';
 import 'staff2.dart';
+import 'halls.dart';
+import 'tables5.dart';
+import 'shift.dart';
+import 'quick_items.dart';
 
 part 'data136.g.dart';
 
@@ -31,6 +35,7 @@ class Data136 {
     required this.halls,
     required this.tables,
     required this.shift,
+    required this.quickItems,
   });
 
   factory Data136.fromJson(Map<String, Object?> json) =>
@@ -49,9 +54,11 @@ class Data136 {
   final StationRoutes stationRoutes;
   final List<Printers> printers;
   final List<Staff2> staff;
-  final List<Map<String, dynamic>> halls;
-  final List<Map<String, dynamic>> tables;
-  final Map<String, dynamic>? shift;
+  final List<Halls> halls;
+  final List<Tables5> tables;
+  final Shift? shift;
+  @JsonKey(name: 'quick_items')
+  final List<QuickItems> quickItems;
 
   Map<String, Object?> toJson() => _$Data136ToJson(this);
 }

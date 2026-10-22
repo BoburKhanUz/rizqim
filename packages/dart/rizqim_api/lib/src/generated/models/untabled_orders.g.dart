@@ -17,6 +17,8 @@ UntabledOrders _$UntabledOrdersFromJson(Map<String, dynamic> json) =>
       openMinutes: (json['open_minutes'] as num).toInt(),
       overdue: json['overdue'] as bool,
       billPrinted: json['bill_printed'] as bool,
+      billRequested: json['bill_requested'] as bool,
+      billRequestedAt: json['bill_requested_at'] as String?,
       guestsCount: (json['guests_count'] as num?)?.toInt(),
       waiter: json['waiter'] == null
           ? null
@@ -24,6 +26,7 @@ UntabledOrders _$UntabledOrdersFromJson(Map<String, dynamic> json) =>
       totalPrice: json['total_price'] as String,
       itemsCount: (json['items_count'] as num).toInt(),
       unsentCount: (json['unsent_count'] as num).toInt(),
+      readyCount: (json['ready_count'] as num).toInt(),
     );
 
 Map<String, dynamic> _$UntabledOrdersToJson(UntabledOrders instance) =>
@@ -37,9 +40,12 @@ Map<String, dynamic> _$UntabledOrdersToJson(UntabledOrders instance) =>
       'open_minutes': instance.openMinutes,
       'overdue': instance.overdue,
       'bill_printed': instance.billPrinted,
+      'bill_requested': instance.billRequested,
+      'bill_requested_at': instance.billRequestedAt,
       'guests_count': instance.guestsCount,
       'waiter': instance.waiter,
       'total_price': instance.totalPrice,
       'items_count': instance.itemsCount,
       'unsent_count': instance.unsentCount,
+      'ready_count': instance.readyCount,
     };
