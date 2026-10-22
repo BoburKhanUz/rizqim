@@ -1,7 +1,7 @@
 # pos/apps/cashier
 
-Kassa ilovasi (Android planshet, Sunmi, Windows; sinov uchun Linux). Hozir — qobiq: ulash, PIN, ekran qulfi, menejer
-tasdig'i, yuqori panel va bo'limlar. Bo'limlar (zal, navbat, bronlar, nasiya, smena, sozlamalar) P3-21 va P3-22 da.
+Kassa ilovasi (Android planshet, Sunmi, Windows; sinov uchun Linux): ulash, PIN, ekran qulfi, menejer tasdig'i, zal
+xaritasi va buyurtma muharriri (P3-21), schyot, to'lov, smena, bronlar, nasiya, navbat va sozlamalar (P3-22).
 
 ## Ishga tushirish
 
@@ -43,3 +43,69 @@ Feature faqat o'z papkasini o'zgartiradi; marshrutlar (`shell/destinations.dart`
 P3-21 da. Bog'liqliklar `PosScope.of(context)` dan: `data` (`PosData`), `session`, `realtime`, `printing`
 (`receiptPrinter`, `kitchenPrinterFor(stationId)`), `go(CashierDestination...)`. Ustidan sahifa —
 `CashierRoutes.openOrder / openBilling / push`. Testlar: `pos_data/testing.dart` va `test/support/harness.dart`.
+
+## Zal xaritasi (`features/floor`)
+
+- Zallar — yuqorida yorliqlar (`Asosiy zal · 3/4` — band/hammasi). Xona, tapchan va stol holati rang, ikonka va yozuv
+  bilan: bo'sh, band, bron (bir soat ichida), schyot chiqdi, uzoq ochiq. Belgilar: necha soat ochiq, mehmonlar/o'rinlar,
+  ofitsiant, summa, bron vaqti. Panelda xarita chizilmagan bo'lsa joylar to'rga teriladi.
+- O'ngda — stolsiz va olib ketish buyurtmalari; «Tez kassa» — stolsiz buyurtma (olib ketish yoki zalda): birinchi
+  «Yuborish» yoki «Saqlash» uni ochadi (bo'sh buyurtma qolmaydi).
+- Bo'sh joy → mehmonlar soni va ofitsiant (ixtiyoriy) → buyurtma ochiladi → muharrir. Bron kutilayotgan joyda —
+  ogohlantirish va «Bronlar» (bron bo'yicha kelganlar «Keldi» bilan ochiladi). Band joy → buyurtmasi; tapchan yoki
+  stolda bir nechta bo'lsa — tanlash yoki yangi buyurtma (uzoq bosish ham).
+- `order.*` va `booking.changed` hodisalarida va polling bilan yangilanadi (`PosRefreshScheduler`).
+
+## Buyurtma muharriri (`features/order`)
+
+- Chapda menyu: qidiruv, «Tez-tez» (shu kassada ko'p qo'shilganlar), kategoriyalar, katta tugmalar (narx, qozon
+  qoldig'i, «Tugadi»/«Stop-listda»). O'ngda: bosqichlar (raqami, vaqti, kim qo'shgani; qator holati — yuborilmagan,
+  ushlab turilgan, oshxonada, tayyor, berildi, o'chirildi), yangi bosqich, choy-non tez tugmalari, jami (xona puli,
+  minimal summaga qo'shimcha, xizmat haqi, joy narxi; olib tashlanganlari sababi bilan).
+- Taom bosilsa — yangi bosqichga (bir xili bo'lsa soni oshadi); kg taom — klaviatura (0.5, 0.7, 0.75, 1, 2, qadam va eng
+  kam miqdor); majburiy qo'shimchali taom — qo'shimchalar oynasi; uzoq bosish — izoh, mehmon (o'rin), qo'shimchalar,
+  «hozir / ushlab turish». «Yuborish» — bosqich va oshxonaga bitta so'rovda; «Saqlash» — yuborilmaydi.
+  Tezlik: ochiq buyurtmaga 3 ta taom qo'shib yuborish — 4 bosish (kg taom bilan — 6).
+- Qator bosilsa: «Hozir oshxonaga yuborish», «Berildi», «O'chirish» (yuborilgan bo'lsa sabab va menejer tasdig'i).
+  Yuqorida: mehmonlar, ko'chirish, birlashtirish, bekor qilish. «Schyot» — `CashierRoutes.openBilling`.
+- Boshqa qurilma buyurtmani o'zgartirgan bo'lsa (409): buyurtma qayta yuklanadi; bosqich, yuborish, «berildi» va
+  mehmonlar o'zi takrorlanadi, qolganlari uchun kassirga aytiladi. Tarmoq xatosidan keyin bosqich o'sha
+  `Idempotency-Key` bilan qayta yuboriladi.
+- Sex markalari: yuborilgan qatorlar sex va bosqich bo'yicha `kitchenPrinterFor(stationId)` ga, o'chirilgan qator —
+  «O'CHIRILDI». Chop etilmasa — «Marka chop etilmadi» banneri («Qayta urinish», «Yopish»); sotuv to'xtamaydi.
+
+## Schyot va to'lov (`features/billing`)
+
+- Schyot (pre-check): qatorlar, xona puli, minimal summaga qo'shimcha, xizmat haqi, joy puli, chegirma, jami, avans,
+  kishi boshiga, «Bu fiskal chek emas». Bo'lish: bitta, teng N (qoldiq tiyin 1-schyotga), taom bo'yicha (kg ulushi —
+  «Ulush»). Chop etish — `layoutPreCheck`; qayta — «NUSXA» (`pos.reprint_bill` yoki menejer tasdig'i).
+- To'lov (`PaymentPage`): naqd (berilgan pul, qaytim, tez summalar), karta (turi va tranzaksiya raqami majburiy), QR,
+  bron avansidan (birinchi taklif qilinadi), nasiyaga (hisob qidirish yoki ochish, limit, menejer tasdig'i); aralash
+  («Qo'shish»). To'langach sotuv cheki (`FiscalReceipt` sale) chop etiladi, naqdda kassa qutisi ochiladi; chek kutilsa
+  — «Fiskal kutmoqda» va «Qayta urinish». Hamma schyot to'langach buyurtma yopiladi va kassa zalga qaytadi.
+- Qaytarish: yopilgan buyurtma — «Navbat → Bugun yopilgan» → schyot → «Pulni qaytarish» (sabab, `pos.refund` yoki
+  tasdiq), qaytarish cheki.
+- Chek fiskal belgisi va QR `GET /owner/fiscal/receipts/{uuid}` dan o'qiladi; kassirda bu ruxsat yo'q bo'lsa chek
+  schyotdan tuziladi va «Fiskal ma'lumot kutilmoqda» yoziladi (backend kamchiligi, PHASE3 hisobotida).
+
+## Smena, bronlar, nasiya, navbat, sozlamalar
+
+- **Smena:** ochish (boshlang'ich naqd), xulosa (tushum, to'lov turlari — avans va nasiya alohida, kassadagi naqd),
+  kirim va chiqim (bozorlik, ish haqi — kimga, boshqa; `pos.cash_in_out` yoki tasdiq; kassa qutisi), X hisobot
+  (ko'rish, chop etish), Z — kupyuralar (200 000 … 100), farq, rad etish sababi (ochiq buyurtma, fiskal kutayotgan chek)
+  va majburan yopish (sabab + tasdiq), Z-hisobot chop etiladi.
+- **Bronlar:** kun bo'yicha xona × soat taqvimi (bugun va keyingi 6 kun), bo'sh katak — yangi bron (o'sha xona va
+  soat; davomiylik — filial sloti), telefon bo'yicha qidiruv, to'qnashuv xabari; bron sahifasi: tasdiqlash, «Keldi»
+  (buyurtma ochiladi — `CashierRoutes.openOrder`), kelmadi, bekor qilish, oldindan buyurtma (menyu, kg, tayyor bo'lish
+  vaqti), avans (bo'nak cheki), avansni qaytarish yoki ushlab qolish (tasdiq bilan).
+- **Nasiya:** qarzdorlar va jami qarz, telefon yoki ism bo'yicha qidiruv, ko'chirma (30/90 kun), qarz to'lovi (kredit
+  cheki), hisob ochish va tahrirlash (limit, to'xtatish — `customer_accounts.manage`).
+- **Navbat:** qabul kutayotgan Telegram/ilova buyurtmalari (ovoz, N daqiqadan oshsa ogohlantirish, qabul qilish, rad
+  etish — `orders.cancel`), «Fiskal kutmoqda» ro'yxati (qayta urinish), ochiq buyurtmalar (kanal bo'yicha), bugun
+  yopilganlar.
+- **Sozlamalar:** printerlar (holati, sinov chop etish, xato ishlarni qayta yuborish; shu qurilmada qog'oz eni va
+  «matnni rasm sifatida»), ovoz, qurilma ma'lumoti va terminalni uzish.
+
+Soxta backend'ning kassa qismi — `FakeCashierBackend` (`pos_data/testing.dart`); `tool/fake_pos_server.dart` uni demo
+ma'lumotlar bilan ulaydi. Testlar: `test/{billing,shift,bookings,accounts,queue,settings}_test.dart`
+(`test/support/p22.dart`).

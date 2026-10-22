@@ -6,6 +6,7 @@ import 'package:rizqim_api/rizqim_api.dart';
 import 'package:rizqim_core/rizqim_core.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
+import '../common/errors.dart';
 import 'waiter_scope.dart';
 
 /// Menejer tasdig'i oynasi: menejer (yoki ega) ismini tanlab o'z PIN'ini teradi → `POST /pos/approvals` → bir martalik
@@ -56,10 +57,21 @@ Future<T> withApproval<T>(
         context,
         permission: permission,
         approvals: service,
-        reason: cause is PosApprovalRejected ? cause.message : null,
+        reason: _reasonFor(cause),
       );
     },
   );
+}
+
+/// Oynadagi izoh: birinchi marta — ofitsiant qoidasi (boshqa ofitsiantning buyurtmasi), keyingi safar — oldingi
+/// tasdiq nega o'tmagani.
+String? _reasonFor(PosException cause) {
+  if (cause is PosApprovalRejected) return describeError(cause);
+  if (cause is PosApprovalRequired &&
+      cause.permission == PosPermissions.ordersManage) {
+    return "Bu buyurtma boshqa ofitsiantniki. Menejer yoki ega o'z PIN'ini terib tasdiqlaydi.";
+  }
+  return null;
 }
 
 class ManagerApprovalDialog extends StatefulWidget {
@@ -141,7 +153,11 @@ class _ManagerApprovalDialogState extends State<ManagerApprovalDialog> {
       if (mounted) Navigator.of(context).pop(token);
       return true;
     } on ApiException catch (e) {
-      final PinFailure failure = approvalFailure(e);
+      final PinFailure failure = e.reason == PosReasons.approverNotAllowed
+          ? const PinFailure(
+              "Bu xodim tasdiqlay olmaydi. Menejer yoki ega PIN'ini kiriting.",
+            )
+          : approvalFailure(e);
       if (!mounted) return false;
       setState(() {
         _failure = failure;

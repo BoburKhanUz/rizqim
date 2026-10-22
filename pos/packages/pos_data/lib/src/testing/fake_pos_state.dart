@@ -15,6 +15,27 @@ class FakeResponse {
 
 typedef FakeEventSink = void Function(String event, Map<String, Object?> data);
 
+/// Kirgan xodimning so'rovi ([FakePosState.extraRoutes] uchun): yo'l `/api` siz (`/v1/pos/...`).
+class FakeRequest {
+  const FakeRequest({
+    required this.method,
+    required this.path,
+    required this.query,
+    required this.data,
+    required this.member,
+    this.idempotencyKey,
+  });
+
+  final String method;
+  final String path;
+  final Map<String, String> query;
+  final Map<String, Object?> data;
+
+  /// Kirgan xodim (`id`, `name`, `role`).
+  final Map<String, Object?> member;
+  final String? idempotencyKey;
+}
+
 /// Soxta POS backend holati (Flutter'siz): ulash, xodim PIN'i, bootstrap, menyu, zal, buyurtmalar (ochish, bosqich,
 /// yuborish, o'chirish, berildi, mehmonlar, ko'chirish, bekor qilish, xizmat qatori), menejer tasdig'i, smena,
 /// real-time imzosi. Javob shakllari haqiqiy backend'dagidek (docs/API.md P3-12 … P3-18; mahalliy backend'dan olingan
@@ -210,12 +231,23 @@ class FakePosState {
   /// Ochiq smena (`null` — yo'q).
   Map<String, Object?>? shift;
 
+  /// Zal xaritasidagi yaqin bronlar: joy id → `{booking_uuid, starts_at, guests}` (bo'sh joy `reserved_soon`).
+  final Map<int, Map<String, Object?>> reservations =
+      <int, Map<String, Object?>>{};
+
+  /// Schyoti chiqarilgan buyurtmalar (zal xaritasida `bill_printed`).
+  final Set<String> billPrinted = <String>{};
+
   /// Buyurtmalar (uuid → to'liq POS ko'rinishi).
   final Map<String, Map<String, Object?>> orders =
       <String, Map<String, Object?>>{};
 
   /// Server javob bermaydigan yo'llar (sinash uchun): yo'l qismi → status.
   final Map<String, int> failPaths = <String, int>{};
+
+  /// Qo'shimcha yo'llar (P3-22: `FakeCashierBackend` — schyot, to'lov, smena, bron, nasiya, onlayn navbat): xodim
+  /// aniqlangandan keyin birinchi bo'lib so'raladi; `null` — odatdagi javob.
+  FakeResponse? Function(FakeRequest request)? extraRoutes;
 
   final Map<String, int> _staffTokens = <String, int>{};
   final Map<String, ({String permission, bool used, DateTime expires})>
@@ -393,12 +425,14 @@ class FakePosState {
     ],
     bool sent = true,
     Duration age = const Duration(minutes: 95),
+    int? waiterId,
   }) {
     final Map<String, Object?> order = _newOrder(
       channel: tableId == null ? 'pos_takeaway' : 'pos_hall',
       tableId: tableId,
       guests: guests,
       openedBy: 3,
+      waiterId: waiterId,
       openedAt: now().subtract(age),
     );
     for (final (int variantId, String q) in lines) {
@@ -408,6 +442,9 @@ class FakePosState {
         1,
         3,
       );
+    }
+    for (final Map<String, Object?> i in _items(order)) {
+      i['added_at'] = _iso(now().subtract(age));
     }
     if (sent) {
       for (final Map<String, Object?> i in _items(order)) {
@@ -419,6 +456,46 @@ class FakePosState {
     order['rounds'] = 1;
     _recompute(order);
     return order['uuid']! as String;
+  }
+
+  /// Mavjud buyurtmaga bosqich qo'shadi (skrinshot va testlar uchun): [fireMode] `hold` — ushlab turilgan,
+  /// [sent] — oshxonaga yuborilgan, [ready] — oshxona "tayyor" degan.
+  void seedRound(
+    String uuid,
+    List<(int variantId, String quantity)> lines, {
+    bool sent = true,
+    bool ready = false,
+    String fireMode = 'now',
+    Duration age = Duration.zero,
+    int by = 4,
+    String? note,
+  }) {
+    final Map<String, Object?> order = orders[uuid]!;
+    final int round = (order['rounds']! as int) + 1;
+    final int before = _items(order).length;
+    for (final (int variantId, String q) in lines) {
+      _addLine(
+        order,
+        <String, Object?>{
+          'variant_id': variantUuid(variantId),
+          'quantity': q,
+          'fire_mode': fireMode,
+          'note': ?note,
+        },
+        round,
+        by,
+      );
+    }
+    for (final Map<String, Object?> i in _items(order).skip(before)) {
+      i['added_at'] = _iso(now().subtract(age));
+      if (sent) {
+        i['kitchen_status'] = ready ? 'ready' : 'sent';
+        i['sent_at'] = _iso(now().subtract(age));
+      }
+    }
+    order['rounds'] = round;
+    order['version'] = (order['version']! as int) + 1;
+    _recompute(order);
   }
 
   /// Yangi smena ochadi.
@@ -495,6 +572,17 @@ class FakePosState {
 
     final Map<String, Object?>? member = staffOf(token);
     if (member == null) return _unauthorized();
+    final FakeResponse? extra = extraRoutes?.call(
+      FakeRequest(
+        method: method,
+        path: p,
+        query: query,
+        data: data,
+        member: member,
+        idempotencyKey: idempotencyKey,
+      ),
+    );
+    if (extra != null) return extra;
 
     if (method == 'GET' && p == '/v1/pos/bootstrap') {
       return _ok(_bootstrap(member));
@@ -722,6 +810,14 @@ class FakePosState {
     );
   }
 
+  /// Ruxsat yoki menejer tasdig'i ([extraRoutes] uchun): `null` — ruxsat bor yoki tasdiq yaroqli (ishlatildi);
+  /// aks holda 403 javobi (`approval_required` ...).
+  FakeResponse? authorize(
+    Map<String, Object?> member,
+    String permission,
+    Object? approvalToken,
+  ) => _authorize(member, permission, approvalToken);
+
   /// `null` — ruxsat bor yoki tasdiq yaroqli; aks holda rad javobi.
   FakeResponse? _authorize(
     Map<String, Object?> member,
@@ -892,8 +988,11 @@ class FakePosState {
       for (final Map<String, Object?> o in _openOrders())
         if ((o['table'] as Map<String, Object?>?)?['id'] == t['id']) o,
     ];
+    final Map<String, Object?>? reservation = reservations[t['id']];
     final String status = open.isEmpty
-        ? 'free'
+        ? (reservation == null ? 'free' : 'reserved_soon')
+        : open.any((Map<String, Object?> o) => billPrinted.contains(o['uuid']))
+        ? 'bill_printed'
         : (open.any((Map<String, Object?> o) => _openMinutes(o) >= 360)
               ? 'overdue'
               : 'occupied');
@@ -907,7 +1006,7 @@ class FakePosState {
       'min_spend': t['min_spend'],
       'min_spend_mode': t['min_spend_mode'],
       'status': status,
-      'reservation': null,
+      'reservation': open.isEmpty ? reservation : null,
       'orders': <Object?>[
         for (final Map<String, Object?> o in open) _floorOrder(o),
       ],
@@ -926,7 +1025,7 @@ class FakePosState {
     'opened_at': o['opened_at'],
     'open_minutes': _openMinutes(o),
     'overdue': _openMinutes(o) >= 360,
-    'bill_printed': false,
+    'bill_printed': billPrinted.contains(o['uuid']),
     'guests_count': o['guests_count'],
     'waiter': o['waiter'],
     'total_price': o['total_price'],
@@ -1419,6 +1518,49 @@ class FakePosState {
         order['table_ref'] = t['name'];
         _touch(order, 'moved');
         return _ok(order, message: "Buyurtma ko'chirildi.");
+      case <String>['merge']:
+        final Map<String, Object?>? source = orders['${data['source_uuid']}'];
+        if (source == null ||
+            source == order ||
+            source['channel'] != 'pos_hall' ||
+            order['channel'] != 'pos_hall' ||
+            source['status'] == 'delivered' ||
+            source['status'] == 'canceled') {
+          return _fail(
+            422,
+            'merge_not_allowed',
+            "Bu buyurtmalarni birlashtirib bo'lmaydi.",
+          );
+        }
+        if ((data['source_version'] as num?)?.toInt() != source['version']) {
+          return FakeResponse(409, <String, Object?>{
+            'success': false,
+            'message': "Buyurtma boshqa qurilmada o'zgartirildi.",
+            'data': <String, Object?>{
+              'reason': 'version_conflict',
+              'version': source['version'],
+            },
+          });
+        }
+        final int offset = order['rounds']! as int;
+        for (final Map<String, Object?> i in _items(source)) {
+          _items(order).add(<String, Object?>{
+            ...i,
+            'round_no': ((i['round_no'] as int?) ?? 1) + offset,
+          });
+        }
+        source['items'] = <Map<String, Object?>>[];
+        order['rounds'] = offset + (source['rounds']! as int);
+        order['guests_count'] =
+            ((order['guests_count'] as int?) ?? 0) +
+            ((source['guests_count'] as int?) ?? 0);
+        source['status'] = 'canceled';
+        source['version'] = (source['version']! as int) + 1;
+        _touch(order, 'merged');
+        emit('order.status_changed', <String, Object?>{
+          'order': _eventOrder(source),
+        });
+        return _ok(order, message: 'Buyurtmalar birlashtirildi.');
       case <String>['cancel']:
         final FakeResponse? denied = _authorize(
           member,

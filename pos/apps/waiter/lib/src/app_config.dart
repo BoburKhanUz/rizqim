@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart' show ThemeMode;
+
 /// Ilova sozlamalari. Qiymatlar `--dart-define` bilan beriladi:
 /// `flutter run -d linux --dart-define=RIZQIM_API_URL=https://staging.example.uz/api --dart-define=RIZQIM_REVERB_KEY=...`.
 abstract final class AppConfig {
@@ -17,6 +19,16 @@ abstract final class AppConfig {
   static const String reverbOrigin = String.fromEnvironment(
     'RIZQIM_REVERB_ORIGIN',
   );
+
+  /// Mavzu: `light` yoki `dark` (suratga olish uchun); bo'sh — tizimniki.
+  static const String theme = String.fromEnvironment('RIZQIM_THEME');
+
+  /// [theme] ni [ThemeMode] ga aylantiradi.
+  static ThemeMode get themeMode => switch (theme) {
+    'light' => ThemeMode.light,
+    'dark' => ThemeMode.dark,
+    _ => ThemeMode.system,
+  };
 
   /// pubspec.yaml'dagi versiya bilan bir xil; ulashda backend'ga yuboriladi.
   static const String version = '0.1.0';

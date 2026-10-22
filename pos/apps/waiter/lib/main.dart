@@ -16,6 +16,7 @@ Future<void> main() async {
   await client.auth.restore();
   runApp(
     WaiterApp(
+      themeMode: AppConfig.themeMode,
       services: WaiterServices(
         client: client,
         realtimeFactory: defaultRealtime,

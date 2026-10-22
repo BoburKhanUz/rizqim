@@ -123,6 +123,7 @@ class FloorMap extends StatelessWidget {
     this.now,
     this.layoutSize,
     this.padding = const EdgeInsets.all(12),
+    this.showWaiter = false,
   });
 
   final List<FloorMapItem> items;
@@ -136,6 +137,9 @@ class FloorMap extends StatelessWidget {
   /// Xarita o'lchami birliklarda; `null` — joylarning eng chetidan.
   final Size? layoutSize;
   final EdgeInsets padding;
+
+  /// Ofitsiant ismi ham belgi sifatida ko'rinadi ([FloorMapItem.waiter]).
+  final bool showWaiter;
 
   Size get _extent {
     if (layoutSize != null) return layoutSize!;
@@ -179,6 +183,7 @@ class FloorMap extends StatelessWidget {
                           item: item,
                           now: at,
                           selected: item.id == selectedId,
+                          showWaiter: showWaiter,
                           onTap: onTap == null ? null : () => onTap!(item),
                           onLongPress: onLongPress == null
                               ? null
@@ -205,11 +210,15 @@ class FloorTile extends StatelessWidget {
     this.selected = false,
     this.onTap,
     this.onLongPress,
+    this.showWaiter = false,
   });
 
   final FloorMapItem item;
   final DateTime now;
   final bool selected;
+
+  /// Ofitsiant belgisi ([FloorMapItem.waiter]).
+  final bool showWaiter;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
 
@@ -239,6 +248,8 @@ class FloorTile extends StatelessWidget {
         ),
       if (item.bookingAt != null)
         _Badge(Icons.event, formatReceiptTime(item.bookingAt!), 'bron'),
+      if (showWaiter && item.waiter != null)
+        _Badge(Icons.badge_outlined, item.waiter!, 'ofitsiant'),
     ];
     final String semantics = <String>[
       item.label,

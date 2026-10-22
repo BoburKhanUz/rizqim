@@ -5,7 +5,7 @@
 //     --dart-define=RIZQIM_REVERB_KEY=pos-key --dart-define=RIZQIM_REVERB_URL=ws://127.0.0.1:8788
 //
 // Ulash kodi — istalgan 8 belgi (ABCD-EFGH). PIN: kassir Kamola — 2468, ofitsiant Botir — 1357, menejer Malika — 5926.
-// `--empty`: smena yopiq, buyurtmasiz.
+// `--empty`: smena yopiq, buyurtmasiz (bron, nasiya va onlayn buyurtmasiz ham).
 import 'dart:io';
 
 import 'package:pos_data/testing.dart';
@@ -18,6 +18,10 @@ Future<void> main(List<String> args) async {
   final FakePosServer server =
       await FakePosServer.start(port: port, demo: !args.contains('--empty'))
         ..verbose = true;
+  // P3-22: schyot, to'lov, smena, bron, nasiya va onlayn navbat ham ishlaydi (demo — bronlar, qarzdorlar, onlayn
+  // buyurtmalar bilan)
+  final FakeCashierBackend cashier = FakeCashierBackend(server.state);
+  if (!args.contains('--empty')) cashier.seedDemo();
   stdout.writeln(
     'Soxta POS backend: ${server.apiBaseUrl} (Reverb: ${server.reverbUrl}/app/${FakePosState.realtimeKey})',
   );

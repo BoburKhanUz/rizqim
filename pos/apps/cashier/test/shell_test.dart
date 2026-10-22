@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pos_core/pos_core.dart' show PosMoney;
 import 'package:pos_data/pos_data.dart';
+import 'package:rizqim_cashier/src/features/billing/billing_page.dart';
 import 'package:rizqim_cashier/src/features/floor/floor_page.dart';
-import 'package:rizqim_cashier/src/shell/feature_placeholder.dart';
 import 'package:rizqim_cashier/src/shell/routes.dart';
 import 'package:rizqim_cashier/src/shell/staff_sign_in_screen.dart';
 
@@ -55,7 +55,8 @@ void main() {
     }
     expect(find.byType(NavigationRail), findsOneWidget);
     expect(find.byType(FloorPage), findsOneWidget);
-    expect(find.text('Zal xaritasi'), findsOneWidget);
+    // Zal xaritasi: soxta backend'dagi xonalar
+    expect(find.text('1-xona'), findsOneWidget);
     expect(h.state.log, contains('GET /api/v1/pos/bootstrap'));
     // Menyu fonda keshga olinadi
     expect(h.data.catalog.cached(PosChannel.hall), isNotNull);
@@ -134,14 +135,14 @@ void main() {
       final BuildContext context = tester.element(find.byType(FloorPage));
       CashierRoutesTest.openOrder(context);
       await tester.pumpAndSettle();
-      expect(find.text('Buyurtma'), findsWidgets);
+      expect(find.text('1-xona: yangi buyurtma'), findsOneWidget);
 
       await tester.pump(const Duration(seconds: 59));
       expect(find.byType(StaffSignInScreen), findsNothing);
       await tester.pump(const Duration(seconds: 2));
       await tester.pumpAndSettle();
       expect(find.byType(StaffSignInScreen), findsOneWidget);
-      expect(find.text('Buyurtma'), findsNothing);
+      expect(find.text('1-xona: yangi buyurtma'), findsNothing);
       expect(
         find.textContaining('Ekranga uzoq tegilmagani uchun'),
         findsOneWidget,
@@ -232,8 +233,7 @@ void main() {
     final BuildContext context = tester.element(find.byType(FloorPage));
     CashierRoutesTest.openBilling(context);
     await tester.pumpAndSettle();
-    expect(find.text("Schyot va to'lov"), findsWidgets);
-    expect(find.byType(FeaturePlaceholder), findsWidgets);
+    expect(find.byType(BillingPage), findsOneWidget);
     await tester.pageBack();
     await tester.pumpAndSettle();
     expect(find.byType(FloorPage), findsOneWidget);

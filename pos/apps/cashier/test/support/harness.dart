@@ -3,16 +3,24 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pos_data/pos_data.dart';
 import 'package:pos_data/testing.dart';
+import 'package:pos_hardware/pos_hardware.dart';
+import 'package:pos_hardware/testing.dart';
 import 'package:rizqim_api/rizqim_api.dart';
 import 'package:rizqim_cashier/src/app.dart';
+import 'package:rizqim_cashier/src/printing/printing_service.dart';
 import 'package:rizqim_cashier/src/services.dart';
 import 'package:rizqim_cashier/src/storage/shell_settings.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
-/// Testdagi butun kassa: soxta backend ([FakePosAdapter]), soxta Reverb, xotiradagi omborlar, qo'lda suriladigan soat.
+/// Testdagi butun kassa: soxta backend ([FakePosAdapter]), soxta Reverb, xotiradagi omborlar, qo'lda suriladigan soat,
+/// xotiradagi printerlar ([printerFor]: printer id → soxta printer; qayta urinishsiz).
 class CashierHarness {
   CashierHarness({bool realtime = true}) {
     adapter = FakePosAdapter(clock: () => now);
+    // Sex printeri testda matn rejimida (rasm rejimi Flutter dvigatelini kutadi)
+    for (final Map<String, Object?> p in adapter.state.printers) {
+      p['print_as_image'] = false;
+    }
     hub = FakePosRealtimeHub();
     adapter.state.onEvent = hub.broadcast;
     client = RizqimClient(
@@ -26,6 +34,15 @@ class CashierHarness {
       client: client,
       settings: settings,
       clock: () => now,
+      printing: CashierPrinting(
+        printers: PosPrinters(
+          queue: PrintQueue(
+            retryPolicy: RetryPolicy.none,
+            transportFor: (PrinterConfig c) =>
+                printers[c.id] ??= MemoryPrinterTransport(),
+          ),
+        ),
+      ),
       realtimeFactory: realtime
           ? (RizqimClient c, PairedTerminal t) => PosRealtime.create(
               client: c,
@@ -44,6 +61,14 @@ class CashierHarness {
   late final RizqimClient client;
   late final ShellSettingsController settings;
   late final CashierServices services;
+
+  /// Printer id (`server-<id>`) → xotiradagi printer.
+  final Map<String, MemoryPrinterTransport> printers =
+      <String, MemoryPrinterTransport>{};
+
+  /// Printer id (`server-<id>`) → xotiradagi printer (oldindan xato sozlash uchun ham).
+  MemoryPrinterTransport printerFor(String id) =>
+      printers[id] ??= MemoryPrinterTransport();
 
   FakePosState get state => adapter.state;
   PosData get data => services.data;
