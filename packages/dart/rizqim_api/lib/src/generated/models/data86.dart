@@ -4,65 +4,36 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'items7.dart';
+import 'status4.dart';
 
 part 'data86.g.dart';
 
 @JsonSerializable()
 class Data86 {
   const Data86({
-    required this.uuid,
-    required this.shortCode,
+    required this.id,
+    required this.amount,
+    required this.card,
     required this.status,
-    required this.type,
-    required this.channel,
-    required this.branchId,
-    required this.hallRef,
-    required this.tableRef,
-    required this.guestsCount,
     required this.notes,
-    required this.itemsTotal,
-    required this.itemsReady,
-    required this.items,
+    required this.resolutionNotes,
+    required this.processedAt,
     required this.createdAt,
-    required this.acceptedAt,
-    required this.preparingAt,
-    required this.readyAt,
-    required this.waitingSeconds,
   });
 
   factory Data86.fromJson(Map<String, Object?> json) => _$Data86FromJson(json);
 
-  final String uuid;
-  @JsonKey(name: 'short_code')
-  final String? shortCode;
-  final String status;
-  final String type;
-  final String channel;
-  @JsonKey(name: 'branch_id')
-  final int? branchId;
-  @JsonKey(name: 'hall_ref')
-  final String? hallRef;
-  @JsonKey(name: 'table_ref')
-  final String? tableRef;
-  @JsonKey(name: 'guests_count')
-  final int? guestsCount;
+  final int id;
+  final String amount;
+  final String card;
+  final Status4 status;
   final String? notes;
-  @JsonKey(name: 'items_total')
-  final int itemsTotal;
-  @JsonKey(name: 'items_ready')
-  final int itemsReady;
-  final List<Items7> items;
+  @JsonKey(name: 'resolution_notes')
+  final String? resolutionNotes;
+  @JsonKey(name: 'processed_at')
+  final String? processedAt;
   @JsonKey(name: 'created_at')
-  final String? createdAt;
-  @JsonKey(name: 'accepted_at')
-  final String? acceptedAt;
-  @JsonKey(name: 'preparing_at')
-  final String? preparingAt;
-  @JsonKey(name: 'ready_at')
-  final String? readyAt;
-  @JsonKey(name: 'waiting_seconds')
-  final int waitingSeconds;
+  final String createdAt;
 
   Map<String, Object?> toJson() => _$Data86ToJson(this);
 }

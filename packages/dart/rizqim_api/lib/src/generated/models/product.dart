@@ -9,6 +9,7 @@ import 'channel_price.dart';
 import 'image_thumb_urls2.dart';
 import 'menu_batch.dart';
 import 'modifier_group.dart';
+import 'product_kind.dart';
 import 'product_modifier_group.dart';
 import 'product_variant.dart';
 import 'store.dart';
@@ -35,6 +36,10 @@ class Product {
     required this.deletedAt,
     required this.image,
     required this.batchTracked,
+    required this.kind,
+    required this.mxikCode,
+    required this.packageCode,
+    required this.vatRate,
     required this.isActive,
     required this.imageUrl,
     required this.imageThumbUrls,
@@ -75,6 +80,13 @@ class Product {
   final String? image;
   @JsonKey(name: 'batch_tracked')
   final bool batchTracked;
+  final ProductKind kind;
+  @JsonKey(name: 'mxik_code')
+  final String? mxikCode;
+  @JsonKey(name: 'package_code')
+  final String? packageCode;
+  @JsonKey(name: 'vat_rate')
+  final String? vatRate;
   @JsonKey(name: 'is_active')
   final bool isActive;
   @JsonKey(name: 'image_url')

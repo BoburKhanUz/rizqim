@@ -4,65 +4,50 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'items3.dart';
+import 'modifiers2.dart';
+import 'product_rules2.dart';
 
 part 'data82.g.dart';
 
 @JsonSerializable()
 class Data82 {
   const Data82({
+    required this.id,
     required this.uuid,
-    required this.shortCode,
-    required this.status,
-    required this.type,
-    required this.channel,
-    required this.branchId,
-    required this.hallRef,
-    required this.tableRef,
-    required this.guestsCount,
-    required this.notes,
-    required this.itemsTotal,
-    required this.itemsReady,
-    required this.items,
-    required this.createdAt,
-    required this.acceptedAt,
-    required this.preparingAt,
-    required this.readyAt,
-    required this.waitingSeconds,
+    required this.name,
+    required this.nameI18n,
+    required this.minSelect,
+    required this.maxSelect,
+    required this.isRequired,
+    required this.sortOrder,
+    required this.isActive,
+    required this.modifiers,
+    required this.productIds,
+    required this.productRules,
   });
 
   factory Data82.fromJson(Map<String, Object?> json) => _$Data82FromJson(json);
 
+  final int id;
   final String uuid;
-  @JsonKey(name: 'short_code')
-  final String? shortCode;
-  final String status;
-  final String type;
-  final String channel;
-  @JsonKey(name: 'branch_id')
-  final int? branchId;
-  @JsonKey(name: 'hall_ref')
-  final String? hallRef;
-  @JsonKey(name: 'table_ref')
-  final String? tableRef;
-  @JsonKey(name: 'guests_count')
-  final int? guestsCount;
-  final String? notes;
-  @JsonKey(name: 'items_total')
-  final int itemsTotal;
-  @JsonKey(name: 'items_ready')
-  final int itemsReady;
-  final List<Items3> items;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
-  @JsonKey(name: 'accepted_at')
-  final String? acceptedAt;
-  @JsonKey(name: 'preparing_at')
-  final String? preparingAt;
-  @JsonKey(name: 'ready_at')
-  final String? readyAt;
-  @JsonKey(name: 'waiting_seconds')
-  final int waitingSeconds;
+  final String name;
+  @JsonKey(name: 'name_i18n')
+  final Map<String, String>? nameI18n;
+  @JsonKey(name: 'min_select')
+  final int minSelect;
+  @JsonKey(name: 'max_select')
+  final int? maxSelect;
+  @JsonKey(name: 'is_required')
+  final bool isRequired;
+  @JsonKey(name: 'sort_order')
+  final int sortOrder;
+  @JsonKey(name: 'is_active')
+  final bool isActive;
+  final List<Modifiers2> modifiers;
+  @JsonKey(name: 'product_ids')
+  final List<int> productIds;
+  @JsonKey(name: 'product_rules')
+  final ProductRules2 productRules;
 
   Map<String, Object?> toJson() => _$Data82ToJson(this);
 }

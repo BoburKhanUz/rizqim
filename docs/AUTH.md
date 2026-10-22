@@ -253,7 +253,7 @@ superadmin uchun.
 | `orders.refund` | Pulni qaytarish |  |  |  |  |  |  |
 | `kitchen.manage` | Oshxona ekrani: taom qatorini "tayyor" deb belgilash va qaytarish, buyurtmani `accepted → preparing → ready` (P2-11); P2-30: tayyor bo'lgan buyurtmadan taomni qaytarish (`ready → preparing`, faqat `.../recall` orqali, kuryer biriktirilmaguncha) | ✓ | ✓ |  |  | ✓ |  |
 | `deliveries.manage` | Yetkazib berish (kuryer) | ✓ |  |  |  |  | ✓ |
-| `tables.manage` | Stollarni boshqarish | ✓ | ✓ | ✓ | ✓ |  |  |
+| `tables.manage` | Stollarni boshqarish: POS'da stol tanlash, ko'chirish, birlashtirish; zal xaritasini (zal va stollarni yaratish, o'zgartirish, o'chirish) faqat ega va menejer o'zgartiradi — `tables.manage` + rol (P3 integratsiya tuzatishi) | ✓ | ✓ | ✓ | ✓ |  |  |
 | `menu.view` | Menyuni ko'rish (P2-30: `GET /owner/products`, `GET /owner/categories` ham) | ✓ | ✓ | ✓ | ✓ | ✓ |  |
 | `menu.manage` | Menyu va narxlarni tahrirlash (P2-30: `/owner/products*` ham) | ✓ |  |  |  |  |  |
 | `stoplist.manage` | Stop-list (tugadi belgisi); P2-30: ro'yxatda kim qo'shgani (`created_by_name`) | ✓ | ✓ |  |  |  |  |
@@ -276,6 +276,9 @@ superadmin uchun.
 | `pos.cash_in_out` | Kassaga pul kiritish va chiqarish | ✓ | ✓ |  |  |  |  |
 | `pos.take_payment` | To'lov qabul qilish | ✓ | ✓ | ✓ |  |  |  |
 | `pos.reprint_bill` | Schyotni qayta chiqarish | ✓ | ✓ |  |  |  |  |
+| `bookings.manage` | Bron daftari: taqvim, bron, oldindan buyurtma, avans olish, "Keldi" (P3-17: `/pos/bookings*`; avansni qaytarish — `pos.refund`, ushlab qolish — `orders.cancel` yoki menejer PIN tasdig'i) | ✓ | ✓ | ✓ |  |  |  |
+| `customer_accounts.manage` | Nasiya hisoblari: ochish, limit, bloklash, qarzni tuzatish (P3-17); ko'rish va qarz to'lovini qabul qilish `pos.take_payment` bilan ham | ✓ | ✓ |  |  |  |  |
+| `pos.refund` | Smena ichida pulni qaytarish (P3-18: `POST /pos/refunds` — shu smenada olingan naqd, karta yoki QR to'lov, qaytarish cheki bilan); kassir menejer PIN tasdig'i bilan | ✓ | ✓ |  |  |  |  |
 
 **Do'kon bo'yicha o'zgartirish.** Ega `PUT /owner/permissions {role, permission, allowed: true|false|null}` yoki
 panelda "Ruxsatlar" sahifasida menejer, kassir, ofitsiant, oshpaz va kuryer huquqlarini o'zgartira oladi (`null` —
@@ -344,6 +347,8 @@ yoziladi (mijozning manzili saqlanmaydi) va faqat ega hamda superadminga ko'rsat
 | `staff.role_changed`, `staff.branch_changed` | xodim roli yoki filiali o'zgarsa |
 | `staff.pin_set`, `staff.pin_changed`, `staff.pin_reset` | PIN qo'yilsa, almashtirilsa, o'chirilsa |
 | `staff.session_started` | xodim terminalga PIN bilan kirsa |
+| `pos.approval_granted`, `pos.approval_used` | P3-18: menejer terminalda PIN bilan bir martalik tasdiq bersa (kim tasdiqladi, kim so'radi, qaysi ruxsat) va tasdiq ishlatilsa (`POST /pos/approvals`, 60 soniya, bitta ruxsat va bitta terminal; PIN bloklash qoidasi kirish bilan bir xil) |
+| `pos.bills_created`, `pos.bill_printed`, `pos.bill_reprinted`, `pos.payment`, `pos.order_closed`, `pos.refund`, `pos.shift_opened`, `pos.cash_movement`, `pos.shift_closed` | P3-18: schyot tuzish/bo'lish, chiqarish va nusxa, to'lov, buyurtmani yopish, qaytarish, smena ochish, kassaga kirim/chiqim, Z (majburan yopish sababi bilan) |
 | `staff.signed_in` | xodim hamkor paneli yoki xodim ilovasiga SMS kod bilan kirsa (`account = staff`; qurilma bilan) |
 | `staff.login_phone_set`, `staff.login_phone_changed`, `staff.login_phone_cleared` | xodimning kirish raqami qo'yilsa, o'zgartirilsa yoki o'chirilsa (raqam niqoblangan; `via`: `sms`/`vouched`) |
 | `permissions.changed` | do'kon ruxsatlari o'zgarsa |

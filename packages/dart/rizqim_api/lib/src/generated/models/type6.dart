@@ -6,12 +6,14 @@ import 'package:json_annotation/json_annotation.dart';
 
 @JsonEnum()
 enum Type6 {
-  @JsonValue('product')
-  product('product'),
-  @JsonValue('variant')
-  variant('variant'),
-  @JsonValue('modifier')
-  modifier('modifier'),
+  @JsonValue('sale')
+  sale('sale'),
+  @JsonValue('refund')
+  refund('refund'),
+  @JsonValue('advance')
+  advance('advance'),
+  @JsonValue('credit')
+  credit('credit'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

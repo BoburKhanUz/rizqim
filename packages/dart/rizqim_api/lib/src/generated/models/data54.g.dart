@@ -8,38 +8,28 @@ part of 'data54.dart';
 
 Data54 _$Data54FromJson(Map<String, dynamic> json) => Data54(
   id: (json['id'] as num).toInt(),
-  uuid: json['uuid'] as String,
+  branchId: (json['branch_id'] as num).toInt(),
+  hallId: (json['hall_id'] as num).toInt(),
   name: json['name'] as String,
-  nameI18n: (json['name_i18n'] as Map<String, dynamic>?)?.map(
-    (k, e) => MapEntry(k, e as String),
-  ),
-  minSelect: (json['min_select'] as num).toInt(),
-  maxSelect: (json['max_select'] as num?)?.toInt(),
-  isRequired: json['is_required'] as bool,
+  kind: json['kind'] as String,
+  seats: (json['seats'] as num?)?.toInt(),
+  layout: Layout6.fromJson(json['layout'] as Map<String, dynamic>),
   sortOrder: (json['sort_order'] as num).toInt(),
   isActive: json['is_active'] as bool,
-  modifiers: (json['modifiers'] as List<dynamic>)
-      .map((e) => Modifiers.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  productIds: (json['product_ids'] as List<dynamic>)
-      .map((e) => (e as num).toInt())
-      .toList(),
-  productRules: ProductRules.fromJson(
-    json['product_rules'] as Map<String, dynamic>,
-  ),
+  minSpend: json['min_spend'] as String?,
+  minSpendMode: json['min_spend_mode'] as String,
 );
 
 Map<String, dynamic> _$Data54ToJson(Data54 instance) => <String, dynamic>{
   'id': instance.id,
-  'uuid': instance.uuid,
+  'branch_id': instance.branchId,
+  'hall_id': instance.hallId,
   'name': instance.name,
-  'name_i18n': instance.nameI18n,
-  'min_select': instance.minSelect,
-  'max_select': instance.maxSelect,
-  'is_required': instance.isRequired,
+  'kind': instance.kind,
+  'seats': instance.seats,
+  'layout': instance.layout,
   'sort_order': instance.sortOrder,
   'is_active': instance.isActive,
-  'modifiers': instance.modifiers,
-  'product_ids': instance.productIds,
-  'product_rules': instance.productRules,
+  'min_spend': instance.minSpend,
+  'min_spend_mode': instance.minSpendMode,
 };

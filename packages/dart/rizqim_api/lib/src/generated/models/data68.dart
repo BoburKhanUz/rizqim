@@ -4,27 +4,32 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'period3.dart';
-import 'products.dart';
+import 'tax_regime.dart';
+import 'fiscal_settings.dart';
+import 'tax_regimes.dart';
 
 part 'data68.g.dart';
 
 @JsonSerializable()
 class Data68 {
   const Data68({
-    required this.period,
-    required this.branchId,
-    required this.sort,
-    required this.products,
+    required this.tin,
+    required this.taxRegime,
+    required this.fiscalSettings,
+    required this.drivers,
+    required this.taxRegimes,
   });
 
   factory Data68.fromJson(Map<String, Object?> json) => _$Data68FromJson(json);
 
-  final Period3 period;
-  @JsonKey(name: 'branch_id')
-  final int? branchId;
-  final String sort;
-  final List<Products> products;
+  final String? tin;
+  @JsonKey(name: 'tax_regime')
+  final TaxRegime? taxRegime;
+  @JsonKey(name: 'fiscal_settings')
+  final FiscalSettings fiscalSettings;
+  final List<String> drivers;
+  @JsonKey(name: 'tax_regimes')
+  final List<TaxRegimes> taxRegimes;
 
   Map<String, Object?> toJson() => _$Data68ToJson(this);
 }

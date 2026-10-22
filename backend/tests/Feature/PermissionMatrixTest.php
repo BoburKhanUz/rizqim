@@ -39,8 +39,11 @@ class PermissionMatrixTest extends TestCase
                 'kitchen.manage', 'tables.manage', 'menu.view', 'stoplist.manage', 'staff.view', 'staff.pin', 'devices.view',
                 'devices.manage', 'reports.view', 'pos.open_shift', 'pos.close_shift', 'pos.cash_in_out', 'pos.take_payment', 'pos.reprint_bill',
                 'batches.manage', // P1-21
-                'branches.manage'], // P2-12
-            'cashier' => ['orders.view', 'orders.manage', 'tables.manage', 'menu.view', 'pos.open_shift', 'pos.close_shift', 'pos.take_payment'],
+                'branches.manage', // P2-12
+                'bookings.manage', 'customer_accounts.manage', // P3-17
+                'pos.refund'], // P3-18
+            'cashier' => ['orders.view', 'orders.manage', 'tables.manage', 'menu.view', 'pos.open_shift', 'pos.close_shift', 'pos.take_payment',
+                'bookings.manage'], // P3-17
             'waiter' => ['orders.view', 'orders.manage', 'tables.manage', 'menu.view'],
             'cook' => ['orders.view', 'kitchen.manage', 'menu.view', 'batches.manage'], // P1-21: batches
             'courier' => ['deliveries.manage'],

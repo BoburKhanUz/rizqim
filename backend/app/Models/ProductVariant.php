@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property numeric-string|null $min_quantity
  * @property numeric-string $batch_consumption
  * @property int|float $stock a decimal column (sold by weight), read as an int when whole (Quantity::normalize)
+ * @property string|null $unit_label P3-11: the receipt's unit ("kg (guruch)"); null: the unit's own label
  */
 class ProductVariant extends Model
 {

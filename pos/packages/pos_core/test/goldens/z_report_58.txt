@@ -1,0 +1,71 @@
+B2x2 |Choyxona Bog'bon|
+     |      "Bog'bon Savdo" MChJ      |
+     |        STIR: 301234567         |
+     |  Toshkent, Yunusobod tumani,   |
+     |         4-mavze, 12-uy         |
+     |     Tel: +998 90 123 45 67     |
+     |================================|
+B2x2 |   Z-HISOBOT    |
+B    |         SMENA YOPILDI          |
+     |Smena: 45                       |
+     |Biznes kun: 22.10.2026          |
+     |Ochildi:        22.10.2026 09:00|
+     |                         Dilnoza|
+     |Yopildi:        23.10.2026 01:10|
+     |                         Dilnoza|
+     |Chop etildi:    23.10.2026 01:10|
+     |--------------------------------|
+B    |SAVDO                           |
+     |Cheklar soni:                 38|
+     |Sotuv:                24 500 000|
+     |Qaytarish:              -350 000|
+B    |Sof tushum:           24 150 000|
+     |Shu jumladan xona puli:         |
+     |                       2 100 000|
+     |Shu jumladan xizmat haqi:       |
+     |                       1 900 000|
+     |Chegirmalar:            -120 000|
+     |O'rtacha chek:           635 526|
+     |--------------------------------|
+B    |TO'LOV TURLARI                  |
+     |Naqd (21):            12 650 000|
+     |Karta (12):            7 300 000|
+     |QR orqali (3):         1 200 000|
+     |Avans hisobidan (3):   2 500 000|
+     |Nasiyaga (1):            500 000|
+     |--------------------------------|
+B    |AVANS VA NASIYA                 |
+     |Olingan avans (bo'nak):         |
+     |                       3 000 000|
+     |Sotuvda ayirilgan avans:        |
+     |                       2 500 000|
+     |Nasiyaga yopilgan:       500 000|
+     |Nasiya to'lovlari (kredit):     |
+     |                         200 000|
+     |--------------------------------|
+B    |KASSA (NAQD)                    |
+     |Boshlang'ich qoldiq:     500 000|
+     |Naqd tushum:          12 850 000|
+     |Naqd qaytarish:         -350 000|
+     |Chiqim: Bozorlik (go'sht):      |
+     |                      -2 400 000|
+     |Chiqim: Ish haqi: Bekzod:       |
+     |                        -250 000|
+B    |Kassada bo'lishi kerak:         |
+B    |                      10 350 000|
+B    |Sanaldi:              10 345 000|
+B    |Kamomad:                  -5 000|
+     |--------------------------------|
+B    |KUPYURALAR                      |
+     |200 000 x 30           6 000 000|
+     |100 000 x 30           3 000 000|
+     |50 000 x 25            1 250 000|
+     |10 000 x 9                90 000|
+     |5 000 x 1                  5 000|
+     |--------------------------------|
+B    |NAZORAT                         |
+     |O'chirilgan taomlar (3): 120 000|
+     |--------------------------------|
+     |                                |
+     |Kassir imzosi: ____________     |
+     - - - - - - - - - - - - kesish -

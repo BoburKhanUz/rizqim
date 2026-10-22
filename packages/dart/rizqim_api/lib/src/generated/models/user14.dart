@@ -8,13 +8,19 @@ part 'user14.g.dart';
 
 @JsonSerializable()
 class User14 {
-  const User14({required this.id, required this.name, required this.role});
+  const User14({
+    required this.id,
+    required this.name,
+    required this.role,
+    required this.permissions,
+  });
 
   factory User14.fromJson(Map<String, Object?> json) => _$User14FromJson(json);
 
   final int id;
   final String name;
   final String role;
+  final List<String> permissions;
 
   Map<String, Object?> toJson() => _$User14ToJson(this);
 }

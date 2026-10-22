@@ -13,7 +13,9 @@ use App\Models\StoreTopupRequest;
 use App\Enums\OrderStatus;
 use App\Enums\PaymentStatus;
 use App\Events\PaymentPaid;
+use App\Jobs\SubmitClickFiscalData;
 use App\Services\Finance\LedgerService;
+use App\Services\Payment\Fiscal\OnlineFiscalReceiptBuilder;
 use App\Support\Money;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -268,9 +270,26 @@ class ClickWebhookController extends Controller
         if ($outcome === 'paid') {
             // Dispatch decoupled paid event (listener handles order states!) only on the real transition.
             event(new PaymentPaid($payment));
+
+            $this->queueFiscalData($order, $payment);
         }
 
         return $outcome;
+    }
+
+    /**
+     * P3-14: Click registers the fiscal receipt from the items a queued job sends it; the Complete answer never
+     * waits for it, and a failure to queue it never fails the payment.
+     */
+    protected function queueFiscalData(Order $order, Payment $payment): void
+    {
+        try {
+            if (app(OnlineFiscalReceiptBuilder::class)->isEnabled($order->store)) {
+                SubmitClickFiscalData::dispatch($payment->id);
+            }
+        } catch (\Throwable $e) {
+            Log::error('Click fiscal data could not be queued: ' . $e->getMessage(), ['payment_id' => $payment->id]);
+        }
     }
 
     protected function findOrder(string $reference): ?Order

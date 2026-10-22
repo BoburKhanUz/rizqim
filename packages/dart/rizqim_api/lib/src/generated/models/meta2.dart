@@ -8,14 +8,11 @@ part 'meta2.g.dart';
 
 @JsonSerializable()
 class Meta2 {
-  const Meta2({required this.nextCursor, required this.perPage});
+  const Meta2({required this.truncated});
 
   factory Meta2.fromJson(Map<String, Object?> json) => _$Meta2FromJson(json);
 
-  @JsonKey(name: 'next_cursor')
-  final String? nextCursor;
-  @JsonKey(name: 'per_page')
-  final int perPage;
+  final bool truncated;
 
   Map<String, Object?> toJson() => _$Meta2ToJson(this);
 }

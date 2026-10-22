@@ -7,16 +7,12 @@ part of 'modifiers4.dart';
 // **************************************************************************
 
 Modifiers4 _$Modifiers4FromJson(Map<String, dynamic> json) => Modifiers4(
-  name: json['name'] as String,
-  quantity: (json['quantity'] as num).toInt(),
-  groupName: json['group_name'] as String?,
-  priceDelta: json['price_delta'] as String?,
+  modifierId: (json['modifier_id'] as num).toInt(),
+  quantity: (json['quantity'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$Modifiers4ToJson(Modifiers4 instance) =>
     <String, dynamic>{
-      'name': instance.name,
-      'group_name': instance.groupName,
+      'modifier_id': instance.modifierId,
       'quantity': instance.quantity,
-      'price_delta': instance.priceDelta,
     };

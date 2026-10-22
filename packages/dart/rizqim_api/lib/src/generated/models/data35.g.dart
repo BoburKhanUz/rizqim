@@ -7,39 +7,21 @@ part of 'data35.dart';
 // **************************************************************************
 
 Data35 _$Data35FromJson(Map<String, dynamic> json) => Data35(
-  id: (json['id'] as num).toInt(),
+  productId: (json['product_id'] as num).toInt(),
   name: json['name'] as String,
-  phone: json['phone'] as String?,
-  address: json['address'] as String?,
-  regionId: (json['region_id'] as num?)?.toInt(),
-  districtId: (json['district_id'] as num?)?.toInt(),
-  latitude: json['latitude'] as num?,
-  longitude: json['longitude'] as num?,
-  radiusKm: json['radius_km'] as num,
-  status: json['status'] as String,
-  isActive: json['is_active'] as bool,
-  workingHours: WorkingHours4.fromJson(
-    json['working_hours'] as Map<String, dynamic>,
-  ),
-  isOpenNow: json['is_open_now'] as bool,
-  createdAt: json['created_at'] as String?,
-  updatedAt: json['updated_at'] as String?,
+  description: json['description'] as String?,
+  imageUrl: json['image_url'] as String?,
+  batchTracked: json['batch_tracked'] as bool,
+  variants: (json['variants'] as List<dynamic>)
+      .map((e) => Variants.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data35ToJson(Data35 instance) => <String, dynamic>{
-  'id': instance.id,
+  'product_id': instance.productId,
   'name': instance.name,
-  'phone': instance.phone,
-  'address': instance.address,
-  'region_id': instance.regionId,
-  'district_id': instance.districtId,
-  'latitude': instance.latitude,
-  'longitude': instance.longitude,
-  'radius_km': instance.radiusKm,
-  'status': instance.status,
-  'is_active': instance.isActive,
-  'working_hours': instance.workingHours,
-  'is_open_now': instance.isOpenNow,
-  'created_at': instance.createdAt,
-  'updated_at': instance.updatedAt,
+  'description': instance.description,
+  'image_url': instance.imageUrl,
+  'batch_tracked': instance.batchTracked,
+  'variants': instance.variants,
 };

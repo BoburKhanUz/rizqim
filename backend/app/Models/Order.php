@@ -31,6 +31,29 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int|null $delivery_zone_id
  * @property numeric-string|null $delivery_zone_price
  * @property numeric-string|null $delivery_min_order_amount
+ *
+ * P3-12: POS hall orders (hall, table, waiter, terminal, optimistic lock, room fee and minimum spend lines)
+ * @property int|null $hall_id
+ * @property int|null $table_id
+ * @property int|null $waiter_id
+ * @property int|null $device_id
+ * @property int $version
+ * @property numeric-string $room_fee_amount
+ * @property numeric-string $min_spend_topup_amount
+ *
+ * P3-18: shift, business day, queue number, bill lock and close (App\Domain\Pos\Billing, App\Domain\Pos\Shifts)
+ * @property int|null $shift_id
+ * @property \Illuminate\Support\Carbon|null $business_date
+ * @property int|null $queue_number
+ * @property \Illuminate\Support\Carbon|null $bill_locked_at
+ * @property \Illuminate\Support\Carbon|null $closed_at
+ *
+ * P3-17: the booking the order was opened from ("Keldi") and when a pre-order is due
+ * @property int|null $booking_id
+ * @property \Illuminate\Support\Carbon|null $due_at
+ *
+ * P3 integration fix: when the owner was told the hall order is open too long (once per order, R20)
+ * @property \Illuminate\Support\Carbon|null $long_open_alerted_at
  */
 class Order extends Model
 {
@@ -88,6 +111,25 @@ class Order extends Model
             'delivery_zone_id' => 'integer',
             'delivery_zone_price' => 'decimal:2',
             'delivery_min_order_amount' => 'decimal:2',
+            // P3-12: POS hall orders (App\Domain\Pos\Orders)
+            'hall_id' => 'integer',
+            'table_id' => 'integer',
+            'waiter_id' => 'integer',
+            'device_id' => 'integer',
+            'version' => 'integer',
+            'room_fee_amount' => 'decimal:2',
+            'min_spend_topup_amount' => 'decimal:2',
+            // P3-18: shift, business day, queue number, bill lock and close
+            'shift_id' => 'integer',
+            'business_date' => 'date',
+            'queue_number' => 'integer',
+            'bill_locked_at' => 'datetime',
+            'closed_at' => 'datetime',
+            // P3-17: booking (its deposits are the order's prepayment) and the due time of a pre-order
+            'booking_id' => 'integer',
+            'due_at' => 'datetime',
+            // P3 integration fix: the long-open alert (App\Domain\Pos\Orders\PosOrderAlerts)
+            'long_open_alerted_at' => 'datetime',
         ];
     }
 
@@ -197,6 +239,64 @@ class Order extends Model
         return $this->belongsTo(User::class, 'cancelled_by');
     }
 
+    // --- P3-12: POS hall orders -------------------------------------------------------------------------------
+
+    /**
+     * @return BelongsTo<Hall, $this>
+     */
+    public function hall(): BelongsTo
+    {
+        return $this->belongsTo(Hall::class)->withTrashed();
+    }
+
+    /**
+     * The table, room or tapchan the order sits at (null: takeaway, or in the hall without a table).
+     *
+     * @return BelongsTo<DiningTable, $this>
+     */
+    public function diningTable(): BelongsTo
+    {
+        return $this->belongsTo(DiningTable::class, 'table_id')->withTrashed();
+    }
+
+    /**
+     * @return BelongsTo<User, $this>
+     */
+    public function waiter(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'waiter_id');
+    }
+
+    /**
+     * @return HasMany<OrderChargeWaiver, $this>
+     */
+    public function chargeWaivers(): HasMany
+    {
+        return $this->hasMany(OrderChargeWaiver::class);
+    }
+
+    // --- end P3-12 ------------------------------------------------------------------------------------------------
+
+    // --- P3-18: bills, payments and shifts ---------------------------------------------------------------------------
+
+    /**
+     * @return HasMany<OrderBill, $this>
+     */
+    public function bills(): HasMany
+    {
+        return $this->hasMany(OrderBill::class);
+    }
+
+    /**
+     * @return BelongsTo<PosShift, $this>
+     */
+    public function shift(): BelongsTo
+    {
+        return $this->belongsTo(PosShift::class, 'shift_id');
+    }
+
+    // --- end P3-18 ------------------------------------------------------------------------------------------------
+
     /**
      * Whether the customer may still cancel the order themselves (POST /orders/{uuid}/cancel): only while it is new
      * and nothing was paid for it (cash, or an online payment still pending). Keshbek is paid at checkout.
@@ -232,5 +332,17 @@ class Order extends Model
             ->count();
 
         return $failedCount >= $threshold;
+    }
+
+    // --- P3-17: bookings --------------------------------------------------------------------------------------
+
+    /**
+     * The booking the order was opened from ("Keldi"); its deposits are the order's prepayment (AdvanceLedger).
+     *
+     * @return BelongsTo<Booking, $this>
+     */
+    public function booking(): BelongsTo
+    {
+        return $this->belongsTo(Booking::class);
     }
 }

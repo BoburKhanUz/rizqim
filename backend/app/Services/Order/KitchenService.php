@@ -76,12 +76,28 @@ class KitchenService
             // quiet ones, see OrderStatusService)
             $statuses = [];
 
+            // P3-12: a POS line is in the kitchen only once it was sent; a voided one is gone, a served one done. A
+            // recalled POS line goes back to `sent` (still in the kitchen), an online one to `pending` as before
+            if ($item->isVoid() || !$item->reachedKitchen()) {
+                throw new OrderTransitionException(
+                    $item->isVoid() ? "Bu taom o'chirilgan." : "Bu taom hali oshxonaga yuborilmagan.",
+                    422,
+                    'kitchen_status',
+                );
+            }
+            if ($to === KitchenItemStatus::PENDING && $item->sent_at !== null) {
+                $to = KitchenItemStatus::SENT;
+            }
+            if ($item->kitchen_status === KitchenItemStatus::SERVED && $to === KitchenItemStatus::READY) {
+                return ['order' => $order, 'item' => $item, 'changed' => false, 'statuses' => $statuses];
+            }
+
             if ($item->kitchen_status === $to) {
                 return ['order' => $order, 'item' => $item, 'changed' => false, 'statuses' => $statuses];
             }
 
             // P2-30: a recall also while the order is ready (not yet with a courier or handed over)
-            $recallFromReady = $to === KitchenItemStatus::PENDING && $order->status === OrderStatus::READY;
+            $recallFromReady = $to !== KitchenItemStatus::READY && $order->status === OrderStatus::READY;
             if (!$recallFromReady && !in_array($order->status, self::LINE_STATUSES, true)) {
                 throw new OrderTransitionException(
                     $to === KitchenItemStatus::READY
@@ -119,7 +135,8 @@ class KitchenService
             ])->save();
 
             // P2-33: with a courier already assigned the order stays courier_assigned (no status move either way)
-            $pending = $order->items()->where('kitchen_status', KitchenItemStatus::PENDING->value)->exists();
+            // P3-12: a POS line sent and not ready yet (or not sent yet) is still to cook too
+            $pending = $order->items()->whereIn('kitchen_status', KitchenItemStatus::cookingValues())->exists();
             if ($to === KitchenItemStatus::READY && !$pending && $order->order_type !== OrderType::DINE_IN
                 && $order->status !== OrderStatus::COURIER_ASSIGNED) {
                 $result = $this->orderStatus->transition($order, OrderStatus::READY, $actor, [

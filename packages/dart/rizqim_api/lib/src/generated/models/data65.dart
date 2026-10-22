@@ -4,19 +4,34 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'prices2.dart';
+import 'data64.dart';
 
 part 'data65.g.dart';
 
 @JsonSerializable()
 class Data65 {
-  const Data65({required this.productId, required this.prices});
+  const Data65({
+    required this.data,
+    required this.currentPage,
+    required this.lastPage,
+    required this.perPage,
+    required this.total,
+    required this.from,
+    required this.to,
+  });
 
   factory Data65.fromJson(Map<String, Object?> json) => _$Data65FromJson(json);
 
-  @JsonKey(name: 'product_id')
-  final int productId;
-  final List<Prices2> prices;
+  final List<Data64> data;
+  @JsonKey(name: 'current_page')
+  final int currentPage;
+  @JsonKey(name: 'last_page')
+  final int lastPage;
+  @JsonKey(name: 'per_page')
+  final int perPage;
+  final int total;
+  final int? from;
+  final int? to;
 
   Map<String, Object?> toJson() => _$Data65ToJson(this);
 }

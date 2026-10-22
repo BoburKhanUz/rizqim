@@ -105,7 +105,9 @@ class OwnerCatalogController extends Controller
      * Create a new product with variants
      *
      * multipart/form-data, menu.manage. `variants` is a JSON array of {name, price, unit?, quantity_step?,
-     * min_quantity?, batch_consumption?, stock?}; `stock` left out starts the variant at 999.
+     * min_quantity?, batch_consumption?, stock?, unit_label?}; `stock` left out starts the variant at 999.
+     * P3-11: optional `kind` (dish | service), `mxik_code` (17 digits), `package_code` (digits), `vat_rate` (0–100,
+     * empty: the store's tax regime decides); a variant's `unit_label` is its unit on the receipt ("kg (guruch)").
      */
     public function storeProduct(Request $request)
     {
@@ -124,7 +126,7 @@ class OwnerCatalogController extends Controller
             'batch_tracked' => 'boolean',
             // P2-12: position in the menu, as the panel's product form sets it (left out = 0 / kept)
             'sort_order' => 'nullable|integer|between:0,100000',
-        ]);
+        ] + $this->fiscalRules(), $this->fiscalMessages());
         $this->validateVariantUnits($validated['variants']);
 
         try {
@@ -146,7 +148,8 @@ class OwnerCatalogController extends Controller
                 'type' => 'physical',
                 'has_variants' => true,
                 'batch_tracked' => (bool) ($validated['batch_tracked'] ?? false),
-            ] + (isset($validated['sort_order']) ? ['sort_order' => (int) $validated['sort_order']] : []));
+            ] + (isset($validated['sort_order']) ? ['sort_order' => (int) $validated['sort_order']] : [])
+                + $this->fiscalFields($validated)); // P3-11
             app(MenuImageService::class)->queueThumbnails($product);
 
             $variantsData = json_decode($validated['variants'], true);
@@ -181,7 +184,8 @@ class OwnerCatalogController extends Controller
      *
      * multipart/form-data (POST, so the image can be sent). With `toggle_active` (any value) only the product's
      * active status is flipped and the other fields are not needed. menu.manage. A variant's stock is not changed
-     * here (orders move it); a new variant takes `stock` like on create.
+     * here (orders move it); a new variant takes `stock` like on create. P3-11: `kind`, `mxik_code`,
+     * `package_code`, `vat_rate` and a variant's `unit_label` as on create; left out = kept, empty = cleared.
      */
     #[QueryParameter('toggle_active', description: 'Any value: only switch the product on/off (no other field needed).', type: 'int', required: false)]
     public function updateProduct(Request $request, $id)
@@ -206,7 +210,7 @@ class OwnerCatalogController extends Controller
             'variants' => 'required|json',
             'batch_tracked' => 'boolean',
             'sort_order' => 'nullable|integer|between:0,100000', // P2-12
-        ]);
+        ] + $this->fiscalRules(), $this->fiscalMessages());
         $this->validateVariantUnits($validated['variants'], $product);
 
         try {
@@ -229,6 +233,7 @@ class OwnerCatalogController extends Controller
             if (isset($validated['sort_order'])) {
                 $updateData['sort_order'] = (int) $validated['sort_order']; // P2-12
             }
+            $updateData += $this->fiscalFields($validated); // P3-11: fields left out are kept
             $product->update($updateData);
 
             // Sync variants
@@ -371,7 +376,8 @@ class OwnerCatalogController extends Controller
             'variants.*.min_quantity' => 'nullable|numeric|gt:0|max:1000|decimal:0,3',
             'variants.*.batch_consumption' => 'nullable|numeric|gt:0|max:1000|decimal:0,3',
             'variants.*.stock' => 'nullable|numeric|min:0|max:1000000|decimal:0,3', // P2-30
-        ], [], ['variants.*.stock' => 'Qoldiq']);
+            'variants.*.unit_label' => 'nullable|string|max:64', // P3-11
+        ], [], ['variants.*.stock' => 'Qoldiq', 'variants.*.unit_label' => "Chekdagi o'lchov birligi"]);
         $validator->after(function (\Illuminate\Validation\Validator $validator) use ($rows, $product) {
             if ($validator->errors()->isNotEmpty()) {
                 return;
@@ -409,16 +415,74 @@ class OwnerCatalogController extends Controller
     private function variantUnitFields(array $row, bool $onlyGiven = false): array
     {
         $fields = [];
-        foreach (['unit', 'quantity_step', 'min_quantity', 'batch_consumption'] as $field) {
+        foreach (['unit', 'quantity_step', 'min_quantity', 'batch_consumption', 'unit_label'] as $field) {
             if (!$onlyGiven || array_key_exists($field, $row)) {
                 $fields[$field] = $row[$field] ?? null;
             }
         }
+        // P3-11: an empty receipt unit label goes back to the unit's own ("dona", "kg")
+        if (array_key_exists('unit_label', $fields)) {
+            $fields['unit_label'] = is_string($fields['unit_label']) && trim($fields['unit_label']) !== '' ? trim($fields['unit_label']) : null;
+        }
 
-        $fields = array_filter($fields, fn ($value, $field) => $value !== null || in_array($field, ['quantity_step', 'min_quantity'], true), ARRAY_FILTER_USE_BOTH);
+        $fields = array_filter($fields, fn ($value, $field) => $value !== null || in_array($field, ['quantity_step', 'min_quantity', 'unit_label'], true), ARRAY_FILTER_USE_BOTH);
         if (($fields['unit'] ?? null) === \App\Enums\MenuUnit::PIECE->value) {
             $fields['quantity_step'] = null;
             $fields['min_quantity'] = null;
+        }
+
+        return $fields;
+    }
+
+    // --- P3-11: fiscal fields of a product (docs/API.md "Fiskal cheklar") ------------------------------------------
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function fiscalRules(): array
+    {
+        return [
+            'kind' => ['nullable', 'string', \Illuminate\Validation\Rule::in(\App\Enums\ProductKind::values())],
+            'mxik_code' => ['nullable', 'string', 'regex:' . \App\Domain\Fiscal\FiscalSettings::MXIK_PATTERN],
+            'package_code' => ['nullable', 'string', 'regex:' . \App\Domain\Fiscal\FiscalSettings::PACKAGE_CODE_PATTERN],
+            'vat_rate' => 'nullable|numeric|min:0|max:100|decimal:0,2',
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function fiscalMessages(): array
+    {
+        return [
+            'kind.in' => "Mahsulot turi noto'g'ri: dish (taom) yoki service (xizmat).",
+            'mxik_code.regex' => "MXIK kodi 17 ta raqamdan iborat bo'lishi kerak.",
+            'package_code.regex' => "Qadoq kodi faqat raqamlardan iborat bo'lishi kerak (ko'pi bilan 20 ta).",
+            'vat_rate.numeric' => "QQS stavkasi son bo'lishi kerak.",
+            'vat_rate.min' => "QQS stavkasi 0 dan 100 gacha bo'lishi kerak.",
+            'vat_rate.max' => "QQS stavkasi 0 dan 100 gacha bo'lishi kerak.",
+            'vat_rate.decimal' => "QQS stavkasi ko'pi bilan 2 xonali kasr bo'lishi mumkin.",
+        ];
+    }
+
+    /**
+     * The fiscal fields the request carried (a field left out is not touched; an empty one is cleared, `kind` then
+     * goes back to dish).
+     *
+     * @param  array<string, mixed>  $validated
+     * @return array<string, mixed>
+     */
+    private function fiscalFields(array $validated): array
+    {
+        $fields = [];
+        foreach (['kind', 'mxik_code', 'package_code', 'vat_rate'] as $field) {
+            if (array_key_exists($field, $validated)) {
+                $value = $validated[$field];
+                $fields[$field] = $value === null || $value === '' ? null : (string) $value;
+            }
+        }
+        if (array_key_exists('kind', $fields) && $fields['kind'] === null) {
+            $fields['kind'] = \App\Enums\ProductKind::DISH->value;
         }
 
         return $fields;

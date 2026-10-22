@@ -7,13 +7,15 @@ part of 'data78.dart';
 // **************************************************************************
 
 Data78 _$Data78FromJson(Map<String, dynamic> json) => Data78(
-  branchId: (json['branch_id'] as num).toInt(),
-  entries: (json['entries'] as List<dynamic>)
-      .map((e) => Entries.fromJson(e as Map<String, dynamic>))
+  kinds: (json['kinds'] as List<dynamic>)
+      .map((e) => Kinds.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  stations: (json['stations'] as List<dynamic>)
+      .map((e) => Stations.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 
 Map<String, dynamic> _$Data78ToJson(Data78 instance) => <String, dynamic>{
-  'branch_id': instance.branchId,
-  'entries': instance.entries,
+  'kinds': instance.kinds,
+  'stations': instance.stations,
 };

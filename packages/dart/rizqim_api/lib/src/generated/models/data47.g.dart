@@ -7,27 +7,15 @@ part of 'data47.dart';
 // **************************************************************************
 
 Data47 _$Data47FromJson(Map<String, dynamic> json) => Data47(
-  id: (json['id'] as num).toInt(),
+  code: json['code'] as String,
+  expiresAt: json['expires_at'] as String,
   type: json['type'] as String,
-  amount: json['amount'] as String,
-  balanceBefore: json['balance_before'] as String,
-  balanceAfter: json['balance_after'] as String,
-  order: json['order'] == null
-      ? null
-      : Order.fromJson(json['order'] as Map<String, dynamic>),
-  referenceId: json['reference_id'] as String?,
-  notes: json['notes'] as String?,
-  createdAt: json['created_at'] as String,
+  branchId: (json['branch_id'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$Data47ToJson(Data47 instance) => <String, dynamic>{
-  'id': instance.id,
+  'code': instance.code,
+  'expires_at': instance.expiresAt,
   'type': instance.type,
-  'amount': instance.amount,
-  'balance_before': instance.balanceBefore,
-  'balance_after': instance.balanceAfter,
-  'order': instance.order,
-  'reference_id': instance.referenceId,
-  'notes': instance.notes,
-  'created_at': instance.createdAt,
+  'branch_id': instance.branchId,
 };

@@ -4,65 +4,34 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'items6.dart';
+import 'data84.dart';
 
 part 'data85.g.dart';
 
 @JsonSerializable()
 class Data85 {
   const Data85({
-    required this.uuid,
-    required this.shortCode,
-    required this.status,
-    required this.type,
-    required this.channel,
-    required this.branchId,
-    required this.hallRef,
-    required this.tableRef,
-    required this.guestsCount,
-    required this.notes,
-    required this.itemsTotal,
-    required this.itemsReady,
-    required this.items,
-    required this.createdAt,
-    required this.acceptedAt,
-    required this.preparingAt,
-    required this.readyAt,
-    required this.waitingSeconds,
+    required this.data,
+    required this.currentPage,
+    required this.lastPage,
+    required this.perPage,
+    required this.total,
+    required this.from,
+    required this.to,
   });
 
   factory Data85.fromJson(Map<String, Object?> json) => _$Data85FromJson(json);
 
-  final String uuid;
-  @JsonKey(name: 'short_code')
-  final String? shortCode;
-  final String status;
-  final String type;
-  final String channel;
-  @JsonKey(name: 'branch_id')
-  final int? branchId;
-  @JsonKey(name: 'hall_ref')
-  final String? hallRef;
-  @JsonKey(name: 'table_ref')
-  final String? tableRef;
-  @JsonKey(name: 'guests_count')
-  final int? guestsCount;
-  final String? notes;
-  @JsonKey(name: 'items_total')
-  final int itemsTotal;
-  @JsonKey(name: 'items_ready')
-  final int itemsReady;
-  final List<Items6> items;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
-  @JsonKey(name: 'accepted_at')
-  final String? acceptedAt;
-  @JsonKey(name: 'preparing_at')
-  final String? preparingAt;
-  @JsonKey(name: 'ready_at')
-  final String? readyAt;
-  @JsonKey(name: 'waiting_seconds')
-  final int waitingSeconds;
+  final List<Data84> data;
+  @JsonKey(name: 'current_page')
+  final int currentPage;
+  @JsonKey(name: 'last_page')
+  final int lastPage;
+  @JsonKey(name: 'per_page')
+  final int perPage;
+  final int total;
+  final int? from;
+  final int? to;
 
   Map<String, Object?> toJson() => _$Data85ToJson(this);
 }

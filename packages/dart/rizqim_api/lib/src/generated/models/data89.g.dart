@@ -7,23 +7,23 @@ part of 'data89.dart';
 // **************************************************************************
 
 Data89 _$Data89FromJson(Map<String, dynamic> json) => Data89(
-  id: (json['id'] as num).toInt(),
-  name: json['name'] as String,
-  polygon: Polygon5.fromJson(json['polygon'] as Map<String, dynamic>),
-  deliveryPrice: json['delivery_price'] as String,
-  minOrderAmount: json['min_order_amount'] as String,
-  freeDeliveryFrom: json['free_delivery_from'] as String?,
-  etaMinutes: (json['eta_minutes'] as num?)?.toInt(),
-  priority: (json['priority'] as num).toInt(),
+  roles: (json['roles'] as List<dynamic>)
+      .map((e) => Roles.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  permissions: (json['permissions'] as List<dynamic>)
+      .map((e) => Permissions.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  matrix: (json['matrix'] as Map<String, dynamic>).map(
+    (k, e) => MapEntry(k, Map<String, bool>.from(e as Map)),
+  ),
+  defaults: (json['defaults'] as Map<String, dynamic>).map(
+    (k, e) => MapEntry(k, Map<String, bool>.from(e as Map)),
+  ),
 );
 
 Map<String, dynamic> _$Data89ToJson(Data89 instance) => <String, dynamic>{
-  'id': instance.id,
-  'name': instance.name,
-  'polygon': instance.polygon,
-  'delivery_price': instance.deliveryPrice,
-  'min_order_amount': instance.minOrderAmount,
-  'free_delivery_from': instance.freeDeliveryFrom,
-  'eta_minutes': instance.etaMinutes,
-  'priority': instance.priority,
+  'roles': instance.roles,
+  'permissions': instance.permissions,
+  'matrix': instance.matrix,
+  'defaults': instance.defaults,
 };

@@ -31,9 +31,10 @@ class KitchenItemStatusChangedBroadcast extends OrderBroadcast
         $this->kitchenStatus = $item->kitchen_status->value;
         $this->itemReadyAt = $item->ready_at?->toJSON();
 
+        // P3-12: a voided line is not counted; a served one counts as ready
         $counts = $order->items()->toBase()
-            ->selectRaw('count(*) as total')
-            ->selectRaw("count(*) filter (where kitchen_status = 'ready') as ready")
+            ->selectRaw("count(*) filter (where kitchen_status <> 'void') as total")
+            ->selectRaw("count(*) filter (where kitchen_status in ('ready', 'served')) as ready")
             ->first();
         $this->itemsTotal = (int) ($counts->total ?? 0);
         $this->itemsReady = (int) ($counts->ready ?? 0);

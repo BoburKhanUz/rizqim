@@ -4,54 +4,71 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'order.dart';
-import 'payment_status.dart';
-
 part 'payment.g.dart';
 
 @JsonSerializable()
 class Payment {
   const Payment({
-    required this.id,
     required this.uuid,
-    required this.orderId,
-    required this.provider,
-    required this.providerTransactionId,
     required this.amount,
+    required this.tender,
+    required this.cardType,
+    required this.transactionId,
     required this.status,
-    required this.payload,
-    required this.paidAt,
-    required this.cancelledAt,
-    required this.expiredAt,
+    required this.statusLabel,
+    required this.remaining,
+    required this.appliedAmount,
+    required this.refundedAmount,
+    required this.retainedAmount,
+    required this.fiscalReceiptUuid,
+    required this.fiscalStatus,
+    required this.settleReason,
+    required this.settleReceiptUuid,
+    required this.settleFiscalStatus,
+    required this.approvedBy,
+    required this.userId,
     required this.createdAt,
-    required this.updatedAt,
-    this.order,
+    required this.settledAt,
   });
 
   factory Payment.fromJson(Map<String, Object?> json) =>
       _$PaymentFromJson(json);
 
-  final int id;
   final String uuid;
-  @JsonKey(name: 'order_id')
-  final int? orderId;
-  final String provider;
-  @JsonKey(name: 'provider_transaction_id')
-  final String? providerTransactionId;
   final String amount;
-  final PaymentStatus status;
-  final Map<String, dynamic>? payload;
-  @JsonKey(name: 'paid_at')
-  final DateTime? paidAt;
-  @JsonKey(name: 'cancelled_at')
-  final DateTime? cancelledAt;
-  @JsonKey(name: 'expired_at')
-  final DateTime? expiredAt;
+  final String tender;
+  @JsonKey(name: 'card_type')
+  final String? cardType;
+  @JsonKey(name: 'transaction_id')
+  final String? transactionId;
+  final String status;
+  @JsonKey(name: 'status_label')
+  final String statusLabel;
+  final String remaining;
+  @JsonKey(name: 'applied_amount')
+  final String appliedAmount;
+  @JsonKey(name: 'refunded_amount')
+  final String refundedAmount;
+  @JsonKey(name: 'retained_amount')
+  final String retainedAmount;
+  @JsonKey(name: 'fiscal_receipt_uuid')
+  final String? fiscalReceiptUuid;
+  @JsonKey(name: 'fiscal_status')
+  final String? fiscalStatus;
+  @JsonKey(name: 'settle_reason')
+  final String? settleReason;
+  @JsonKey(name: 'settle_receipt_uuid')
+  final String? settleReceiptUuid;
+  @JsonKey(name: 'settle_fiscal_status')
+  final String? settleFiscalStatus;
+  @JsonKey(name: 'approved_by')
+  final int? approvedBy;
+  @JsonKey(name: 'user_id')
+  final int? userId;
   @JsonKey(name: 'created_at')
-  final DateTime? createdAt;
-  @JsonKey(name: 'updated_at')
-  final DateTime? updatedAt;
-  final Order? order;
+  final String? createdAt;
+  @JsonKey(name: 'settled_at')
+  final String? settledAt;
 
   Map<String, Object?> toJson() => _$PaymentToJson(this);
 }

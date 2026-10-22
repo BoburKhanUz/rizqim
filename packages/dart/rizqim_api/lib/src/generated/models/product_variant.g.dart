@@ -30,6 +30,7 @@ ProductVariant _$ProductVariantFromJson(Map<String, dynamic> json) =>
       quantityStep: json['quantity_step'] as String?,
       minQuantity: json['min_quantity'] as String?,
       batchConsumption: json['batch_consumption'] as String,
+      unitLabel: json['unit_label'] as String?,
       product: json['product'] == null
           ? null
           : Product.fromJson(json['product'] as Map<String, dynamic>),
@@ -56,6 +57,7 @@ Map<String, dynamic> _$ProductVariantToJson(ProductVariant instance) =>
       'quantity_step': instance.quantityStep,
       'min_quantity': instance.minQuantity,
       'batch_consumption': instance.batchConsumption,
+      'unit_label': instance.unitLabel,
       'product': instance.product,
       'channel_prices': instance.channelPrices,
     };

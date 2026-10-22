@@ -4,6 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'fire_mode.dart';
 import 'kitchen_item_status.dart';
 import 'menu_batch.dart';
 import 'menu_unit.dart';
@@ -33,6 +34,17 @@ class OrderItem {
     required this.batchQuantity,
     required this.kitchenStatus,
     required this.readyAt,
+    required this.roundNo,
+    required this.fireMode,
+    required this.stationId,
+    required this.sentAt,
+    required this.dueAt,
+    required this.addedBy,
+    required this.voidedAt,
+    required this.voidedBy,
+    required this.voidReason,
+    required this.seatNo,
+    required this.note,
     this.order,
     this.productVariant,
     this.batch,
@@ -73,6 +85,27 @@ class OrderItem {
   final KitchenItemStatus kitchenStatus;
   @JsonKey(name: 'ready_at')
   final DateTime? readyAt;
+  @JsonKey(name: 'round_no')
+  final int? roundNo;
+  @JsonKey(name: 'fire_mode')
+  final FireMode? fireMode;
+  @JsonKey(name: 'station_id')
+  final int? stationId;
+  @JsonKey(name: 'sent_at')
+  final DateTime? sentAt;
+  @JsonKey(name: 'due_at')
+  final DateTime? dueAt;
+  @JsonKey(name: 'added_by')
+  final dynamic addedBy;
+  @JsonKey(name: 'voided_at')
+  final DateTime? voidedAt;
+  @JsonKey(name: 'voided_by')
+  final dynamic voidedBy;
+  @JsonKey(name: 'void_reason')
+  final String? voidReason;
+  @JsonKey(name: 'seat_no')
+  final int? seatNo;
+  final String? note;
   final Order? order;
   @JsonKey(name: 'product_variant')
   final ProductVariant? productVariant;

@@ -8,18 +8,38 @@ part of 'data81.dart';
 
 Data81 _$Data81FromJson(Map<String, dynamic> json) => Data81(
   id: (json['id'] as num).toInt(),
-  code: json['code'] as String,
-  type: Type7.fromJson(json['type'] as String),
-  amount: json['amount'] as num,
-  discountAmount: json['discount_amount'] as num?,
-  description: json['description'] as String,
+  uuid: json['uuid'] as String,
+  name: json['name'] as String,
+  nameI18n: (json['name_i18n'] as Map<String, dynamic>?)?.map(
+    (k, e) => MapEntry(k, e as String),
+  ),
+  minSelect: (json['min_select'] as num).toInt(),
+  maxSelect: (json['max_select'] as num?)?.toInt(),
+  isRequired: json['is_required'] as bool,
+  sortOrder: (json['sort_order'] as num).toInt(),
+  isActive: json['is_active'] as bool,
+  modifiers: (json['modifiers'] as List<dynamic>)
+      .map((e) => Modifiers.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  productIds: (json['product_ids'] as List<dynamic>)
+      .map((e) => (e as num).toInt())
+      .toList(),
+  productRules: ProductRules.fromJson(
+    json['product_rules'] as Map<String, dynamic>,
+  ),
 );
 
 Map<String, dynamic> _$Data81ToJson(Data81 instance) => <String, dynamic>{
   'id': instance.id,
-  'code': instance.code,
-  'type': instance.type,
-  'amount': instance.amount,
-  'discount_amount': instance.discountAmount,
-  'description': instance.description,
+  'uuid': instance.uuid,
+  'name': instance.name,
+  'name_i18n': instance.nameI18n,
+  'min_select': instance.minSelect,
+  'max_select': instance.maxSelect,
+  'is_required': instance.isRequired,
+  'sort_order': instance.sortOrder,
+  'is_active': instance.isActive,
+  'modifiers': instance.modifiers,
+  'product_ids': instance.productIds,
+  'product_rules': instance.productRules,
 };

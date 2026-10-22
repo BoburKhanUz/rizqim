@@ -7,35 +7,63 @@ part of 'data67.dart';
 // **************************************************************************
 
 Data67 _$Data67FromJson(Map<String, dynamic> json) => Data67(
-  period: Period2.fromJson(json['period'] as Map<String, dynamic>),
+  uuid: json['uuid'] as String,
+  type: Type6.fromJson(json['type'] as String),
+  status: Status5.fromJson(json['status'] as String),
+  paymentForm: PaymentForm.fromJson(json['payment_form'] as String),
+  driver: json['driver'] as String,
+  provider: json['provider'] as String?,
+  nonFiscal: json['non_fiscal'] as bool,
+  taxRegime: json['tax_regime'] as String?,
+  total: json['total'] as String,
+  vatTotal: json['vat_total'] as String,
+  fiscalSign: json['fiscal_sign'] as String?,
+  receiptNumber: json['receipt_number'] as String?,
+  qrUrl: json['qr_url'] as String?,
+  terminalId: json['terminal_id'] as String?,
+  error: json['error'] as String?,
+  attempts: (json['attempts'] as num).toInt(),
+  nextAttemptAt: json['next_attempt_at'] as String?,
+  issuedAt: json['issued_at'] as String?,
+  createdAt: json['created_at'] as String,
   branchId: (json['branch_id'] as num?)?.toInt(),
-  summary: Summary2.fromJson(json['summary'] as Map<String, dynamic>),
-  byStatus: Map<String, int>.from(json['by_status'] as Map),
-  series: (json['series'] as List<dynamic>)
-      .map((e) => Series.fromJson(e as Map<String, dynamic>))
+  deviceId: (json['device_id'] as num?)?.toInt(),
+  subjectType: json['subject_type'] as String?,
+  subjectId: (json['subject_id'] as num?)?.toInt(),
+  originalReceiptUuid: json['original_receipt_uuid'] as String?,
+  lines: (json['lines'] as List<dynamic>)
+      .map((e) => Lines3.fromJson(e as Map<String, dynamic>))
       .toList(),
-  byChannel: (json['by_channel'] as List<dynamic>)
-      .map((e) => ByChannel2.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  byBranch: (json['by_branch'] as List<dynamic>)
-      .map((e) => ByBranch.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  byPaymentMethod: (json['by_payment_method'] as List<dynamic>)
-      .map((e) => ByPaymentMethod2.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  byOrderType: (json['by_order_type'] as List<dynamic>)
-      .map((e) => ByOrderType2.fromJson(e as Map<String, dynamic>))
+  payments: (json['payments'] as List<dynamic>)
+      .map((e) => Payments3.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 
 Map<String, dynamic> _$Data67ToJson(Data67 instance) => <String, dynamic>{
-  'period': instance.period,
+  'uuid': instance.uuid,
+  'type': instance.type,
+  'status': instance.status,
+  'payment_form': instance.paymentForm,
+  'driver': instance.driver,
+  'provider': instance.provider,
+  'non_fiscal': instance.nonFiscal,
+  'tax_regime': instance.taxRegime,
+  'total': instance.total,
+  'vat_total': instance.vatTotal,
+  'fiscal_sign': instance.fiscalSign,
+  'receipt_number': instance.receiptNumber,
+  'qr_url': instance.qrUrl,
+  'terminal_id': instance.terminalId,
+  'error': instance.error,
+  'attempts': instance.attempts,
+  'next_attempt_at': instance.nextAttemptAt,
+  'issued_at': instance.issuedAt,
+  'created_at': instance.createdAt,
   'branch_id': instance.branchId,
-  'summary': instance.summary,
-  'by_status': instance.byStatus,
-  'series': instance.series,
-  'by_channel': instance.byChannel,
-  'by_branch': instance.byBranch,
-  'by_payment_method': instance.byPaymentMethod,
-  'by_order_type': instance.byOrderType,
+  'device_id': instance.deviceId,
+  'subject_type': instance.subjectType,
+  'subject_id': instance.subjectId,
+  'original_receipt_uuid': instance.originalReceiptUuid,
+  'lines': instance.lines,
+  'payments': instance.payments,
 };

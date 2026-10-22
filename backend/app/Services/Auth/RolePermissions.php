@@ -27,11 +27,14 @@ final class RolePermissions
                 P::POS_OPEN_SHIFT, P::POS_CLOSE_SHIFT, P::POS_CASH_IN_OUT, P::POS_TAKE_PAYMENT, P::POS_REPRINT_BILL,
                 P::BATCHES_MANAGE, // P1-21
                 P::BRANCHES_MANAGE, // P2-12: their own branch's hours and details, as BranchPolicy lets them in the panel
+                P::BOOKINGS_MANAGE, P::CUSTOMER_ACCOUNTS_MANAGE, // P3-17
+                P::POS_REFUND, // P3-18: refunds within the shift (cashiers ask a manager's PIN)
             ],
             // Closes bills and takes payment; cancelling, discounts and voids need a manager
             UserRole::CASHIER->value => [
                 P::ORDERS_VIEW, P::ORDERS_MANAGE, P::TABLES_MANAGE, P::MENU_VIEW,
                 P::POS_OPEN_SHIFT, P::POS_CLOSE_SHIFT, P::POS_TAKE_PAYMENT,
+                P::BOOKINGS_MANAGE, // P3-17: takes bookings and deposits at the till
             ],
             UserRole::WAITER->value => [
                 P::ORDERS_VIEW, P::ORDERS_MANAGE, P::TABLES_MANAGE, P::MENU_VIEW,

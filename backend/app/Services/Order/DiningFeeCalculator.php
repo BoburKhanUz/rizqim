@@ -23,9 +23,26 @@ class DiningFeeCalculator
     {
         return ServiceFeeSetting::query()
             ->where('store_id', $storeId)
+            ->whereNull('hall_id') // P3-12: a hall's row applies in that hall only (settingsForHall)
             ->where(fn ($query) => $query->whereNull('branch_id')->when($branchId !== null, fn ($query) => $query->orWhere('branch_id', $branchId)))
             ->orderByRaw('branch_id IS NULL') // the branch's own row first
             ->first();
+    }
+
+    /**
+     * P3-12: the settings in force in a hall (R6): the hall's own row (VIP rooms another percent, a self-service zone
+     * 0%), else the branch's, else the store's.
+     */
+    public function settingsForHall(int $storeId, ?int $branchId, ?int $hallId): ?ServiceFeeSetting
+    {
+        if ($hallId !== null) {
+            $own = ServiceFeeSetting::query()->where('store_id', $storeId)->where('hall_id', $hallId)->first();
+            if ($own !== null) {
+                return $own;
+            }
+        }
+
+        return $this->settingsFor($storeId, $branchId);
     }
 
     /**

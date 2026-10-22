@@ -4,9 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'branch6.dart';
-import 'polygon4.dart';
-import 'bbox4.dart';
+import 'working_hours4.dart';
 
 part 'data39.g.dart';
 
@@ -15,17 +13,17 @@ class Data39 {
   const Data39({
     required this.id,
     required this.name,
-    required this.branchId,
-    required this.branch,
-    required this.polygon,
-    required this.bbox,
-    required this.areaKm2,
-    required this.deliveryPrice,
-    required this.minOrderAmount,
-    required this.freeDeliveryFrom,
-    required this.etaMinutes,
-    required this.priority,
-    required this.active,
+    required this.phone,
+    required this.address,
+    required this.regionId,
+    required this.districtId,
+    required this.latitude,
+    required this.longitude,
+    required this.radiusKm,
+    required this.status,
+    required this.isActive,
+    required this.workingHours,
+    required this.isOpenNow,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -34,23 +32,23 @@ class Data39 {
 
   final int id;
   final String name;
-  @JsonKey(name: 'branch_id')
-  final int? branchId;
-  final Branch6? branch;
-  final Polygon4 polygon;
-  final Bbox4 bbox;
-  @JsonKey(name: 'area_km2')
-  final String areaKm2;
-  @JsonKey(name: 'delivery_price')
-  final String deliveryPrice;
-  @JsonKey(name: 'min_order_amount')
-  final String minOrderAmount;
-  @JsonKey(name: 'free_delivery_from')
-  final String? freeDeliveryFrom;
-  @JsonKey(name: 'eta_minutes')
-  final int? etaMinutes;
-  final int priority;
-  final bool active;
+  final String? phone;
+  final String? address;
+  @JsonKey(name: 'region_id')
+  final int? regionId;
+  @JsonKey(name: 'district_id')
+  final int? districtId;
+  final num? latitude;
+  final num? longitude;
+  @JsonKey(name: 'radius_km')
+  final num radiusKm;
+  final String status;
+  @JsonKey(name: 'is_active')
+  final bool isActive;
+  @JsonKey(name: 'working_hours')
+  final WorkingHours4 workingHours;
+  @JsonKey(name: 'is_open_now')
+  final bool isOpenNow;
   @JsonKey(name: 'created_at')
   final String? createdAt;
   @JsonKey(name: 'updated_at')

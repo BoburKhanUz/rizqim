@@ -7,47 +7,47 @@ part of 'payment.dart';
 // **************************************************************************
 
 Payment _$PaymentFromJson(Map<String, dynamic> json) => Payment(
-  id: (json['id'] as num).toInt(),
   uuid: json['uuid'] as String,
-  orderId: (json['order_id'] as num?)?.toInt(),
-  provider: json['provider'] as String,
-  providerTransactionId: json['provider_transaction_id'] as String?,
   amount: json['amount'] as String,
-  status: PaymentStatus.fromJson(json['status'] as String),
-  payload: json['payload'] as Map<String, dynamic>?,
-  paidAt: json['paid_at'] == null
-      ? null
-      : DateTime.parse(json['paid_at'] as String),
-  cancelledAt: json['cancelled_at'] == null
-      ? null
-      : DateTime.parse(json['cancelled_at'] as String),
-  expiredAt: json['expired_at'] == null
-      ? null
-      : DateTime.parse(json['expired_at'] as String),
-  createdAt: json['created_at'] == null
-      ? null
-      : DateTime.parse(json['created_at'] as String),
-  updatedAt: json['updated_at'] == null
-      ? null
-      : DateTime.parse(json['updated_at'] as String),
-  order: json['order'] == null
-      ? null
-      : Order.fromJson(json['order'] as Map<String, dynamic>),
+  tender: json['tender'] as String,
+  cardType: json['card_type'] as String?,
+  transactionId: json['transaction_id'] as String?,
+  status: json['status'] as String,
+  statusLabel: json['status_label'] as String,
+  remaining: json['remaining'] as String,
+  appliedAmount: json['applied_amount'] as String,
+  refundedAmount: json['refunded_amount'] as String,
+  retainedAmount: json['retained_amount'] as String,
+  fiscalReceiptUuid: json['fiscal_receipt_uuid'] as String?,
+  fiscalStatus: json['fiscal_status'] as String?,
+  settleReason: json['settle_reason'] as String?,
+  settleReceiptUuid: json['settle_receipt_uuid'] as String?,
+  settleFiscalStatus: json['settle_fiscal_status'] as String?,
+  approvedBy: (json['approved_by'] as num?)?.toInt(),
+  userId: (json['user_id'] as num?)?.toInt(),
+  createdAt: json['created_at'] as String?,
+  settledAt: json['settled_at'] as String?,
 );
 
 Map<String, dynamic> _$PaymentToJson(Payment instance) => <String, dynamic>{
-  'id': instance.id,
   'uuid': instance.uuid,
-  'order_id': instance.orderId,
-  'provider': instance.provider,
-  'provider_transaction_id': instance.providerTransactionId,
   'amount': instance.amount,
+  'tender': instance.tender,
+  'card_type': instance.cardType,
+  'transaction_id': instance.transactionId,
   'status': instance.status,
-  'payload': instance.payload,
-  'paid_at': instance.paidAt?.toIso8601String(),
-  'cancelled_at': instance.cancelledAt?.toIso8601String(),
-  'expired_at': instance.expiredAt?.toIso8601String(),
-  'created_at': instance.createdAt?.toIso8601String(),
-  'updated_at': instance.updatedAt?.toIso8601String(),
-  'order': instance.order,
+  'status_label': instance.statusLabel,
+  'remaining': instance.remaining,
+  'applied_amount': instance.appliedAmount,
+  'refunded_amount': instance.refundedAmount,
+  'retained_amount': instance.retainedAmount,
+  'fiscal_receipt_uuid': instance.fiscalReceiptUuid,
+  'fiscal_status': instance.fiscalStatus,
+  'settle_reason': instance.settleReason,
+  'settle_receipt_uuid': instance.settleReceiptUuid,
+  'settle_fiscal_status': instance.settleFiscalStatus,
+  'approved_by': instance.approvedBy,
+  'user_id': instance.userId,
+  'created_at': instance.createdAt,
+  'settled_at': instance.settledAt,
 };

@@ -35,6 +35,25 @@ OrderItem _$OrderItemFromJson(Map<String, dynamic> json) => OrderItem(
   readyAt: json['ready_at'] == null
       ? null
       : DateTime.parse(json['ready_at'] as String),
+  roundNo: (json['round_no'] as num?)?.toInt(),
+  fireMode: json['fire_mode'] == null
+      ? null
+      : FireMode.fromJson(json['fire_mode'] as String?),
+  stationId: (json['station_id'] as num?)?.toInt(),
+  sentAt: json['sent_at'] == null
+      ? null
+      : DateTime.parse(json['sent_at'] as String),
+  dueAt: json['due_at'] == null
+      ? null
+      : DateTime.parse(json['due_at'] as String),
+  addedBy: json['added_by'],
+  voidedAt: json['voided_at'] == null
+      ? null
+      : DateTime.parse(json['voided_at'] as String),
+  voidedBy: json['voided_by'],
+  voidReason: json['void_reason'] as String?,
+  seatNo: (json['seat_no'] as num?)?.toInt(),
+  note: json['note'] as String?,
   order: json['order'] == null
       ? null
       : Order.fromJson(json['order'] as Map<String, dynamic>),
@@ -67,6 +86,17 @@ Map<String, dynamic> _$OrderItemToJson(OrderItem instance) => <String, dynamic>{
   'batch_quantity': instance.batchQuantity,
   'kitchen_status': instance.kitchenStatus,
   'ready_at': instance.readyAt?.toIso8601String(),
+  'round_no': instance.roundNo,
+  'fire_mode': instance.fireMode,
+  'station_id': instance.stationId,
+  'sent_at': instance.sentAt?.toIso8601String(),
+  'due_at': instance.dueAt?.toIso8601String(),
+  'added_by': instance.addedBy,
+  'voided_at': instance.voidedAt?.toIso8601String(),
+  'voided_by': instance.voidedBy,
+  'void_reason': instance.voidReason,
+  'seat_no': instance.seatNo,
+  'note': instance.note,
   'order': instance.order,
   'product_variant': instance.productVariant,
   'batch': instance.batch,

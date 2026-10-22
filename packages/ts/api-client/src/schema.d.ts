@@ -790,6 +790,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/owner/auto-guest-items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Automatic per-guest items
+         * @description A hall order (pos_hall) gets `quantity_per_guest` of each item per guest when it opens and when guests join
+         *     (pieces rounded up: 0.5 choynak per guest is 2 for 3 guests). A hall's own rule replaces the branch rule of the
+         *     same item in that hall; an inactive hall rule switches it off there.
+         */
+        get: operations["autoGuestItem.index"];
+        put?: never;
+        /**
+         * Add an automatic per-guest item
+         * @description For the branch, or one hall of it (`hall_id`). `product_variant_id`: a variant of the store's menu.
+         */
+        post: operations["autoGuestItem.store"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/auto-guest-items/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete an automatic per-guest item */
+        delete: operations["autoGuestItem.destroy"];
+        options?: never;
+        head?: never;
+        /** Edit an automatic per-guest item */
+        patch: operations["autoGuestItem.update"];
+        trace?: never;
+    };
     "/v1/owner/batches": {
         parameters: {
             query?: never;
@@ -935,6 +979,39 @@ export interface paths {
         patch: operations["branch.update"];
         trace?: never;
     };
+    "/v1/owner/branches/{id}/pos-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The branch's POS settings
+         * @description `business_day_starts_at`: "HH:MM", the local time (`timezone` of the store) the business day starts, 05:00 unless
+         *     changed. `pos_settings`: every key, stored values over the defaults: `mode` counter|table|hybrid,
+         *     `printing_device_id` (uuid of the "chop etuvchi" kassa), `screen_lock_minutes` (0: never), `queue_numbers`,
+         *     `alerts` (`open_room_hours`, `void_amount`, `discount_percent`, `unaccepted_online_minutes`; null: off),
+         *     `holidays` (YYYY-MM-DD), `booking_slot_minutes` (null: the server default).
+         */
+        get: operations["branchPosSettings.show"];
+        /**
+         * Change the branch's POS settings
+         * @description Send only what changes. `business_day_starts_at`: "HH:MM" from 00:00 to 11:59 (an early opener may set 04:00).
+         *     `pos_settings`: `mode`; `printing_device_id` (uuid of a POS terminal of this branch, or null for none);
+         *     `screen_lock_minutes` 0-240; `queue_numbers`; `alerts` merges key by key (`open_room_hours` 1-72,
+         *     `void_amount` 0-100000000, `discount_percent` 0-100, `unaccepted_online_minutes` 1-120; null switches that alert
+         *     off); `holidays` replaces the whole list (up to 400 dates); `booking_slot_minutes` 30-1440 (how long a booking without an end
+         *     time holds its room; null: the server default). An unknown key is 422.
+         */
+        put: operations["branchPosSettings.update"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/owner/categories": {
         parameters: {
             query?: never;
@@ -1077,6 +1154,77 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/dining-tables": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Tables, rooms and tapchans
+         * @description Of a branch (`branch_id`; without it every branch the caller works in), optionally of one hall, in floor order.
+         */
+        get: operations["diningTable.index"];
+        put?: never;
+        /**
+         * Add a table, room or tapchan
+         * @description In a hall (its branch is the hall's). `kind`: table, room or tapchan. `min_spend` (optional): the least the party
+         *     spends on food, per room (`per_table`) or per guest (`per_person`); the difference is a separate bill line.
+         */
+        post: operations["diningTable.store"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/dining-tables/layout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Save the floor map
+         * @description The places of one branch at once (the map editor's "Save"): each `id` with its `layout` {x, y, w, h}, and
+         *     optionally `hall_id` (a hall of the same branch) and `sort_order`. All or nothing: an id of another branch is a
+         *     422 and nothing is saved.
+         */
+        put: operations["diningTable.layout"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/dining-tables/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a table, room or tapchan
+         * @description 422 `table_in_use` while an order is open at it. Past orders keep its name.
+         */
+        delete: operations["diningTable.destroy"];
+        options?: never;
+        head?: never;
+        /**
+         * Edit a table, room or tapchan
+         * @description Any field; `hall_id` moves it to another hall of the same branch.
+         */
+        patch: operations["diningTable.update"];
         trace?: never;
     };
     "/v1/owner/employees": {
@@ -1231,6 +1379,165 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/owner/fiscal/readiness": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Fiscal readiness
+         * @description What blocks selling in fiscal mode: products without a valid MXIK code (they cannot be put on a POS order
+         *     while fiscal mode is on) and charges without one. menu.view or settings.manage.
+         */
+        get: operations["fiscalSettings.readiness"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/fiscal/receipts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Fiscal receipts
+         * @description Newest first, paginated. Filters: `status`, `type`, `payment_form`, `from`/`to` (days of the store's
+         *     timezone), `branch_id`, `subject_type` with `subject_id` (e.g. the receipts of one order).
+         */
+        get: operations["fiscalReceipt.index"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/fiscal/receipts/{uuid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A fiscal receipt
+         * @description Another store's receipt: 404; another branch's (for branch-bound staff): 403.
+         */
+        get: operations["fiscalReceipt.show"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/fiscal/receipts/{uuid}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retry a receipt now
+         * @description settings.manage. A pending or failed receipt is sent to the provider at once (a failed one becomes pending
+         *     first); the answer is the receipt afterwards. An issued receipt, or one recorded from Payme/Click: 422.
+         */
+        post: operations["fiscalReceipt.retry"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/fiscal/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Fiscal settings
+         * @description The store's TIN and tax regime, and its fiscal settings with every default filled in. `active_driver` is where
+         *     receipts go now (`null` while fiscal mode is off: receipts are recorded as "fiskal emas").
+         */
+        get: operations["fiscalSettings.show"];
+        /**
+         * Update fiscal settings
+         * @description Each field is optional (left out = kept). `tin` 9 digits; `tax_regime` vat (12%) | vat_simplified (6%) |
+         *     turnover (no VAT). `fiscal_settings.charges.<charge>` sets the receipt line of a charge (room_fee, place_fee,
+         *     min_spend_topup, service_charge, deposit, booking_fee, credit, delivery): `mxik` 17 digits, `package_code`
+         *     digits; a null field goes back to the default. `deposit_refund_receipt` / `retained_deposit_receipt`: whether a
+         *     booking deposit given back / kept gets a receipt (null: the default). Turning `enabled` on needs the TIN and
+         *     the tax regime.
+         */
+        put: operations["fiscalSettings.update"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/halls": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Halls with their tables
+         * @description The halls of a branch (`branch_id`; without it every branch the caller works in) in floor order, each with its
+         *     own service charge override (null: the branch's applies) and its tables, rooms and tapchans.
+         */
+        get: operations["hall.index"];
+        put?: never;
+        /** Add a hall */
+        post: operations["hall.store"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/halls/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a hall
+         * @description With its places. 422 `hall_in_use` while an order is open at one of them. Past orders keep the names.
+         */
+        delete: operations["hall.destroy"];
+        options?: never;
+        head?: never;
+        /**
+         * Edit a hall
+         * @description Name, order, and `is_active` (a seasonal zone closed: its places leave the floor map; open orders stay).
+         */
+        patch: operations["hall.update"];
+        trace?: never;
+    };
     "/v1/owner/invoices": {
         parameters: {
             query?: never;
@@ -1246,6 +1553,106 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/kitchen-station-routes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Routes of a branch
+         * @description Every route of the branch: `category_id` or `product_id` is set, with the dish's name for the screen.
+         */
+        get: operations["kitchenStationRoute.index"];
+        /**
+         * Assign dishes to a station (or free them)
+         * @description For `branch_id`: every category in `category_ids` and every product in `product_ids` goes to `station_id`; one
+         *     that was routed to another station moves. `station_id: null` removes the routes of those categories and
+         *     products. Send at least one list. Products must be the store's; the station must be the branch's (active or
+         *     not). `data` is the branch's routes afterwards.
+         */
+        put: operations["kitchenStationRoute.assign"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/kitchen-station-routes/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove one route
+         * @description The dish goes back to the route of its category, or to the default ticket printer without one.
+         */
+        delete: operations["kitchenStationRoute.destroy"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/kitchen-stations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The branch's kitchen stations
+         * @description By `branch_id` (a branch-bound caller: their own); without it, every branch of the store. In the order the
+         *     screens show them (`sort_order`, then oldest first). Inactive stations are listed too.
+         */
+        get: operations["kitchenStation.index"];
+        put?: never;
+        /**
+         * Add a kitchen station
+         * @description `kind`: osh, mangal, salad_bar, tea, kitchen (default) or other. `name` is unique within the branch.
+         *     `show_on_kds`: the station has a KDS screen. The station gets dishes through the routes
+         *     (PUT /owner/kitchen-station-routes).
+         */
+        post: operations["kitchenStation.store"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/kitchen-stations/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a kitchen station
+         * @description Its routes are removed and its printers keep working without a station. A station that order lines were
+         *     already sent to is kept for the history: 422 `station_in_use`, deactivate it instead.
+         */
+        delete: operations["kitchenStation.destroy"];
+        options?: never;
+        head?: never;
+        /**
+         * Edit a kitchen station
+         * @description Any subset of `name`, `kind`, `sort_order`, `is_active`, `show_on_kds`. A deactivated station is not offered
+         *     to terminals and its routes are ignored: its dishes go to the default ticket printer.
+         */
+        patch: operations["kitchenStation.update"];
         trace?: never;
     };
     "/v1/owner/modifier-groups": {
@@ -1310,7 +1717,9 @@ export interface paths {
          * Online payments
          * @description Customers' payments for the store's orders through Click, Payme… (the payments table), with the provider's
          *     transaction id for reconciliation. A branch-bound caller sees their branch's orders only. Raw provider payloads
-         *     are never returned.
+         *     are never returned. `fiscal` (P3-14): the fiscal receipt Payme/Click registers for the payment — `status`
+         *     blocked | pending | failed | recorded and problem codes (`mxik_missing`, `store_tin_missing`...); null when
+         *     fiscal receipts are off. `fiscal_status=blocked` lists the payments that need the owner's attention.
          */
         get: operations["financeHistory.payments"];
         put?: never;
@@ -1363,6 +1772,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/owner/printers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The branch's printers
+         * @description By `branch_id` (a branch-bound caller: their own); without it, every branch of the store. `device_id` is the
+         *     terminal's public uuid (a USB or built-in printer belongs to one terminal).
+         */
+        get: operations["printer.index"];
+        put?: never;
+        /**
+         * Add a printer
+         * @description `purpose`: receipt, kitchen or label. `connection`: lan (needs `address`, `port` defaults to 9100), bluetooth
+         *     (needs `address`), usb or builtin (need `device_id`: the uuid of the POS terminal it is attached to; no
+         *     address). `paper_width`: 58 or 80 mm. `station_id` (a station of the same branch) only for kitchen and label
+         *     printers. `encoding`: the code page when the printer's fonts need one; `print_as_image`: print the text as a
+         *     picture. `name` is unique within the branch.
+         */
+        post: operations["printer.store"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/printers/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a printer */
+        delete: operations["printer.destroy"];
+        options?: never;
+        head?: never;
+        /**
+         * Edit a printer
+         * @description Any subset of the create fields (the branch cannot change). The connection rules apply to the result:
+         *     switching to usb or builtin needs `device_id`, to lan an `address`.
+         */
+        patch: operations["printer.update"];
+        trace?: never;
+    };
     "/v1/owner/products": {
         parameters: {
             query?: never;
@@ -1381,7 +1841,9 @@ export interface paths {
         /**
          * Create a new product with variants
          * @description multipart/form-data, menu.manage. `variants` is a JSON array of {name, price, unit?, quantity_step?,
-         *     min_quantity?, batch_consumption?, stock?}; `stock` left out starts the variant at 999.
+         *     min_quantity?, batch_consumption?, stock?, unit_label?}; `stock` left out starts the variant at 999.
+         *     P3-11: optional `kind` (dish | service), `mxik_code` (17 digits), `package_code` (digits), `vat_rate` (0–100,
+         *     empty: the store's tax regime decides); a variant's `unit_label` is its unit on the receipt ("kg (guruch)").
          */
         post: operations["ownerCatalog.storeProduct"];
         delete?: never;
@@ -1403,7 +1865,8 @@ export interface paths {
          * Update an existing product
          * @description multipart/form-data (POST, so the image can be sent). With `toggle_active` (any value) only the product's
          *     active status is flipped and the other fields are not needed. menu.manage. A variant's stock is not changed
-         *     here (orders move it); a new variant takes `stock` like on create.
+         *     here (orders move it); a new variant takes `stock` like on create. P3-11: `kind`, `mxik_code`,
+         *     `package_code`, `vat_rate` and a variant's `unit_label` as on create; left out = kept, empty = cleared.
          */
         post: operations["ownerCatalog.updateProduct"];
         /** Delete a product */
@@ -1549,6 +2012,76 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/owner/room-tariffs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Room tariffs of a branch
+         * @description The tariffs and the branch's calendar (weekend days, ISO 1 = Monday, default Saturday and Sunday; holidays,
+         *     Y-m-d). The most specific tariff wins: the room's own, then its kind in its hall, then its kind in the branch;
+         *     a holiday without its own price is priced as a weekend, a weekend as a weekday. Without a tariff: no room fee.
+         */
+        get: operations["roomTariff.index"];
+        put?: never;
+        /**
+         * Add a room tariff
+         * @description For one place (`dining_table_id`) or a kind of place (`table_kind`: room, tapchan, table; optionally only in
+         *     `hall_id`), a `day_type` (weekday, weekend, holiday) and a `price` (0 is a free room); `valid_from`/`valid_to`
+         *     (business dates, inclusive) limit it in time.
+         */
+        post: operations["roomTariff.store"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/room-tariffs/calendar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set the branch's weekend days and holidays
+         * @description `weekend_days`: ISO weekdays (1 = Monday … 7 = Sunday); `holidays`: dates (Y-m-d), at most 400. The holidays of
+         *     the branch POS settings count too.
+         */
+        put: operations["roomTariff.calendarUpdate"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/room-tariffs/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a room tariff
+         * @description Open orders get the new price at their next change.
+         */
+        delete: operations["roomTariff.destroy"];
+        options?: never;
+        head?: never;
+        /** Edit a room tariff */
+        patch: operations["roomTariff.update"];
+        trace?: never;
+    };
     "/v1/owner/service-fees": {
         parameters: {
             query?: never;
@@ -1559,17 +2092,40 @@ export interface paths {
         /**
          * Service charge and place fee settings
          * @description The store's default (`branch_id` null) and the branch overrides. A channel list null means `["pos_hall"]`;
-         *     Telegram orders never get either fee.
+         *     Telegram orders never get either fee. P3-12: a row with `hall_id` is that hall's own (it replaces the branch's
+         *     in the hall).
          */
         get: operations["serviceFee.index"];
         /**
          * Set the service charge and place fee
          * @description For the store (`branch_id` null) or one branch. `service_charge_percent` 0-30; `place_fee_mode` per_person
-         *     (× guests) or per_table. Channels default to pos_hall; telegram is not accepted.
+         *     (× guests) or per_table. Channels default to pos_hall; telegram is not accepted. P3-12: with `hall_id`, the
+         *     hall's own settings (R6: e.g. VIP rooms 15%, a self-service zone 0%); `DELETE /owner/service-fees/halls/{id}`
+         *     removes them.
          */
         put: operations["serviceFee.update"];
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/service-fees/halls/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove a hall's own service charge
+         * @description The hall goes back to the branch's (or the store's) service charge and place fee. settings.manage.
+         */
+        delete: operations["hall.destroyServiceFee"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1589,6 +2145,9 @@ export interface paths {
          * Update store settings
          * @description `payment_settings` is an object (not a list): the delivery fee and switches, working hours and one entry per
          *     provider. A provider that cannot be enabled yet (uzum, paynet) is a 422 on `payment_settings`.
+         *
+         *     P3-11: optional `tin` (9 digits), `tax_regime` (vat | vat_simplified | turnover) and `fiscal_settings`, as
+         *     PUT /owner/fiscal/settings takes them; left out = kept.
          */
         post: operations["ownerSettings.update"];
         delete?: never;
@@ -1798,8 +2357,9 @@ export interface paths {
         /**
          * Payme: Merchant API (JSON-RPC 2.0)
          * @description Payme Merchant API methods (CheckPerformTransaction, CreateTransaction, PerformTransaction, CancelTransaction,
-         *     CheckTransaction, GetStatement) with HTTP Basic auth of the merchant key. Always HTTP 200; errors are JSON-RPC
-         *     `error` objects.
+         *     CheckTransaction, GetStatement, SetFiscalData) with HTTP Basic auth of the merchant key. Always HTTP 200; errors
+         *     are JSON-RPC `error` objects. For a store with fiscal receipts on, CheckPerformTransaction answers with `detail`
+         *     (receipt lines with MXIK, package code and VAT) and SetFiscalData records the receipt Payme registered.
          */
         post: operations["paymeWebhook.handle"];
         delete?: never;
@@ -1834,6 +2394,1057 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["phoneVerification.verifyCode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/approvals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Manager approval (PIN on the terminal)
+         * @description The staff member signed in on the terminal (a staff PIN session) lacks a permission for an action (a void after
+         *     the bill, a discount, a reprint, a refund, cash out, nasiya...): a manager types their own staff id (or staff
+         *     code) and PIN on that terminal. The answer is a one-time `token` for that one `permission` on that terminal,
+         *     valid 60 seconds: send it as `approval_token` with the action. The PIN check and lockout are the sign-in's
+         *     (wrong PIN 422 `pin_invalid`, locked 429 `pin_locked` with Retry-After); a manager without the permission 403
+         *     `approver_not_allowed`. Only from a staff PIN session on a terminal (422 `terminal_required` otherwise). Both
+         *     people are in the audit log (`pos.approval_granted`, and `pos.approval_used` when the action consumes it).
+         */
+        post: operations["posApproval.store"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/bills/{uuid}/fiscal-retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask again for a bill's receipt
+         * @description For a bill whose payments cover it but whose sale receipt is not issued ("fiskal kutmoqda": pending or failed):
+         *     asks the fiscal provider again (same receipt, never a second one); issued: the bill is paid and the order closed
+         *     when every bill is. Needs pos.take_payment.
+         */
+        post: operations["posBill.fiscalRetry"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/bills/{uuid}/payments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Take payment for a bill
+         * @description One or more `tenders` (a mixed payment), each with the `amount` it pays of the bill: `cash` (optional
+         *     `tendered_amount`: what the guest gave, the change is worked out), `card` (a separate bank terminal:
+         *     `card_type` — uzcard, humo, visa, mastercard, unionpay, mir, other — and the terminal's `transaction_id` are
+         *     required), `qr` (optional `reference`), `prepayment` (the booking's deposit, at most what is left of it, once
+         *     per bill), `account` (nasiya: `account_uuid`; needs customer_accounts.manage or a manager's `approval_token`;
+         *     once per bill). Payments may come in several requests; together they never exceed the bill (422 `overpayment`).
+         *     The money lands in the open shift of the terminal (or `shift_uuid`; 409 `shift_not_open`). When the bill is
+         *     covered, its sale receipt is asked for: the bill is `paid` once the receipt is issued (`fiscal.status`), and the
+         *     order is closed (delivered, paid, table free) once all its bills are. A receipt not issued yet leaves the bill
+         *     "fiskal kutmoqda" (`fiscal.status` pending or failed): retry with `.../fiscal-retry`. A line without MXIK: 422
+         *     `mxik_missing` before any money is taken. Optional `version`. Needs pos.take_payment.
+         */
+        post: operations["posBill.pay"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/bills/{uuid}/print": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Print the bill
+         * @description Returns the bill to print ("Bu fiskal chek emas" is the template's). The first print hands it to the guest and
+         *     locks the order (`bill_locked_at`: voids and discounts need a manager from then on); printing again is a copy:
+         *     `copy: true`, print "NUSXA"; it needs pos.reprint_bill or a manager's `approval_token` (403 `approval_required`).
+         *     An open bill made before the order changed: 409 `order_changed` (bill again). Optional `version` (409 when
+         *     stale). Needs orders.manage or pos.take_payment.
+         */
+        post: operations["posBill.print"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/bookings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Bookings (list, search by phone)
+         * @description Without `phone`: the bookings of the branch(es) between `from` and `to` (default today), by start time. With
+         *     `phone` (at least 4 digits, any form: "90 123 45 67"): the guest's or group's history across dates, newest
+         *     first. Filter by `status`. At most 200.
+         */
+        get: operations["booking.index"];
+        put?: never;
+        /**
+         * Create a booking
+         * @description A room or table of the branch (`dining_table_id`; a banquet adds the merged rooms in `extra_table_ids`) for
+         *     `starts_at`–`ends_at` (ISO 8601; without an offset: the store's time zone; without `ends_at`: the branch's default
+         *     slot, 5 hours). 409 `booking_conflict` with `data.conflicts` when a room is already booked then. `confirm: true`
+         *     creates it confirmed. The phone is stored as +998XXXXXXXXX.
+         */
+        post: operations["booking.store"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/bookings/calendar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Booking calendar (rooms × bookings)
+         * @description The branch's rooms and tables (floor order), each with the bookings that occupy it between `from` and `to`
+         *     (dates in the store's time zone, `to` inclusive, at most 31 days; default today). A banquet merging rooms is
+         *     listed under each of them; bookings without a room are in `unassigned`. Canceled bookings only with
+         *     `include_canceled=1`.
+         */
+        get: operations["booking.calendar"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/bookings/{uuid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A booking */
+        get: operations["booking.show"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change a booking
+         * @description Only the fields sent change (a requested or confirmed booking). Moving it or changing its rooms is checked for
+         *     conflicts again (409). `version` (optional): the one read; another device changed it meanwhile: 409.
+         */
+        patch: operations["booking.update"];
+        trace?: never;
+    };
+    "/v1/pos/bookings/{uuid}/arrive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * "Keldi": the guests arrived
+         * @description Opens the order of the booked room (channel pos_hall) with `guests` (default: the planned number) and the
+         *     pre-ordered dishes on hold with their due times; the deposits become the order's prepayment. `dining_table_id`
+         *     seats them in another room of the branch. 409 when the order is already open (`data.order_uuid`).
+         */
+        post: operations["booking.arrive"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/bookings/{uuid}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel a booking
+         * @description `reason` is required. Taken deposits stay: refund or retain them afterwards (`data.deposit_unsettled`).
+         */
+        post: operations["booking.cancel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/bookings/{uuid}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm a booking */
+        post: operations["booking.confirm"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/bookings/{uuid}/deposits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Take a deposit
+         * @description `amount`, `tender` cash|card|qr (`card_type`, `transaction_id` for card and QR). Issues an ADVANCE receipt
+         *     (`fiscal_receipt_uuid`, `fiscal_status`). The `Idempotency-Key` header is required: a retry returns the same
+         *     deposit and never a second receipt. A requested booking becomes confirmed.
+         */
+        post: operations["booking.takeDeposit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/bookings/{uuid}/deposits/{payment}/refund": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Refund a deposit
+         * @description What is left of it goes back to the guest. `reason` required. Needs pos.refund: a cashier sends a manager's
+         *     one-time `approval_token` (POST /pos/approvals). By default no receipt is issued (the refund is documented with
+         *     a refund act; a store may switch on a REFUND receipt). Not while the guests are seated (arrived).
+         */
+        post: operations["booking.refundDeposit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/bookings/{uuid}/deposits/{payment}/retain": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retain a deposit
+         * @description After a cancellation or a no-show (or what is left once the bill is closed) the deposit is kept. `reason`
+         *     required. Needs orders.cancel: a cashier sends a manager's `approval_token`. Issues a SALE receipt for the booking
+         *     service paid from the advance (a store may switch it off).
+         */
+        post: operations["booking.retainDeposit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/bookings/{uuid}/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add a pre-ordered dish
+         * @description `product_variant_id`, `quantity` (kg dishes in their steps: 1.5), `modifiers` [{modifier_id, quantity}],
+         *     `note`, `due_at` (when it must be ready; default the booking's start). Only while the booking is requested or
+         *     confirmed.
+         */
+        post: operations["booking.addItem"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/bookings/{uuid}/items/{item}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a pre-ordered dish */
+        delete: operations["booking.removeItem"];
+        options?: never;
+        head?: never;
+        /** Change a pre-ordered dish */
+        patch: operations["booking.updateItem"];
+        trace?: never;
+    };
+    "/v1/pos/bookings/{uuid}/no-show": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark a no-show
+         * @description A confirmed booking whose start time has passed. Deposits: refund or retain afterwards.
+         */
+        post: operations["booking.noShow"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/bootstrap": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * POS bootstrap
+         * @description A terminal's staff PIN session works its terminal's branch; a normal staff sign-in works the staff member's own
+         *     branch. An owner (or a terminal paired to the whole store) names the branch with `branch_id`; another store's
+         *     branch is 404, another branch than the caller's own 403 (orders.view).
+         *
+         *     `data`: `server_time`; `menu_version` (refetch GET /catalog?channel=pos_* when it changes); `store` (id, name,
+         *     timezone); `branch` (id, name, address, phone, timezone, `business_day_starts_at` "HH:MM", `business_date`
+         *     (the business day it is now), `pos_settings`: `mode` counter|table|hybrid, `printing_device_id` (uuid of the
+         *     "chop etuvchi" kassa or null), `screen_lock_minutes` (0: never), `queue_numbers`, `alerts` (`open_room_hours`,
+         *     `void_amount`, `discount_percent`, `unaccepted_online_minutes`; null: off), `holidays` (dates), `booking_slot_minutes` (default length of a booking, null: the server's)); `device` (the
+         *     terminal: uuid, type, name, `is_printing_device`; null outside a terminal session); `user` (id, name, role,
+         *     permissions); `stations` (active kitchen stations); `station_routes` (dish to station: by product and by
+         *     category; a product route beats its category's); `printers` (active ones this terminal can use: LAN and
+         *     Bluetooth printers, and the USB or built-in printers attached to this very terminal); `staff` (id, name, role,
+         *     photo_url: to pick a waiter). `halls`, `tables` and `shift` are filled by the hall and shift modules (empty
+         *     list, empty list and null until then).
+         */
+        get: operations["posBootstrap.show"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/customer-accounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Customer accounts
+         * @description Search by `q` (name, group or phone digits); `debtors=1`: only those who owe, biggest debt first. Paginated
+         *     (`per_page` up to 100).
+         */
+        get: operations["customerAccount.index"];
+        put?: never;
+        /**
+         * Open a customer account
+         * @description `name` required; `phone` (+998…, unique in the store), `group_name`, `credit_limit` (null: no limit; 0: no credit),
+         *     `note`, `branch_id` (only that branch; default: store-wide, a branch-bound manager's own branch).
+         */
+        post: operations["customerAccount.store"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/customer-accounts/debtors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Debtors
+         * @description Everyone who owes, biggest debt first (up to 500), and the total debt.
+         */
+        get: operations["customerAccount.debtors"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/customer-accounts/{uuid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A customer account, with its last 20 entries */
+        get: operations["customerAccount.show"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change a customer account
+         * @description Only the fields sent change; `is_blocked: true` stops new credit (repayments still work).
+         */
+        patch: operations["customerAccount.update"];
+        trace?: never;
+    };
+    "/v1/pos/customer-accounts/{uuid}/adjustments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Correct the debt
+         * @description `amount` > 0 adds to the debt, < 0 takes from it (a write-off); `note` required. The debt never goes below 0.
+         */
+        post: operations["customerAccount.adjust"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/customer-accounts/{uuid}/repayments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Take a repayment
+         * @description `amount` (at most the debt), `tender` cash|card|qr (`card_type`, `transaction_id`), `note`. Issues a CREDIT
+         *     receipt (`fiscal_receipt_uuid`); the owner is told on Telegram. The `Idempotency-Key` header is required.
+         */
+        post: operations["customerAccount.repay"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/customer-accounts/{uuid}/statement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Account statement
+         * @description The entries between `from` and `to` (dates in the store's time zone, inclusive; default: the last 30 days), with
+         *     the debt before and after and the totals by type.
+         */
+        get: operations["customerAccount.statement"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/floor": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Floor map of a branch
+         * @description Halls in order with their tables, rooms and tapchans, each with a `status`: `free`, `reserved_soon` (a booking
+         *     starts within the hour), `occupied`, `overdue` (open longer than the branch's alert, 6 hours by default) or
+         *     `bill_printed`, and the open orders on it (opened_at, guests, waiter, total, unsent lines). Closed seasonal halls
+         *     and inactive places are left out unless an order is still open there. `untabled_orders`: open POS orders without
+         *     a place. Refetch on `order.*` events of `pos-branch.{id}`. Needs orders.view; `branch_id` defaults to the
+         *     caller's (a terminal's) branch.
+         */
+        get: operations["posFloor.show"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Open orders of the branch
+         * @description One queue for the till (POS_SPEC 2.5): every POS order still open (accepted, preparing, ready, not closed —
+         *     paid ones still waiting for their receipt included, `fiscal_pending`) and every accepted online order (Telegram,
+         *     mobile, aggregator: accepted, preparing, ready), oldest first, at most 300. `scope`: `open` (the default, the
+         *     only one so far). `branch_id`: the caller's branch by default (a terminal PIN session: its terminal's). Needs
+         *     orders.view in the branch.
+         */
+        get: operations["posOrder.index"];
+        put?: never;
+        /**
+         * Open a POS order
+         * @description A hall order (`pos_hall`) at a table, room or tapchan (`table_id`) or without one, or a takeaway
+         *     (`pos_takeaway`). `guests_count` (hall: at least 1) drives the per-guest charges and the automatic "choy-non"
+         *     lines. `items` (optional) is the first round; `send: true` sends its `now` lines to the kitchen at once.
+         *     `external_id`: the device's own id for the order; a repeat returns the same order. A room with an open order is
+         *     422 `table_occupied`; a closed zone or inactive place 422 `table_inactive`. Needs orders.manage.
+         */
+        post: operations["posOrder.store"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/orders/{uuid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One POS order
+         * @description The order as the till shows it: place, guests, waiter, `version` (send it back with the next change), the
+         *     charge lines (`charges`: service charge %, room fee by day type, minimum spend and its top-up, waived lines) and
+         *     every line with its round, firing and kitchen state. Needs orders.view in the order's branch.
+         */
+        get: operations["posOrder.show"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/orders/{uuid}/bills": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * An order's bills
+         * @description The order's billing state (`billed_amount`, `paid_amount`, `unbilled_amount`: what no bill carries yet, e.g. a
+         *     round added after the bill was printed; `fiscal_pending`: a bill is paid but its receipt is not issued yet,
+         *     "fiskal kutmoqda"; `bills_out_of_date`: the order changed after its open bills were made: bill again), its bills
+         *     (void ones only with `all=1`) with their lines, charges, per-guest amount and payments, and its refunds. Needs
+         *     orders.view in the order's branch.
+         */
+        get: operations["posBill.index"];
+        put?: never;
+        /**
+         * Make or split the bill
+         * @description Bills what is left to bill of the order (bills already being paid stay; other open or printed bills are voided
+         *     and made again). `mode`: `single` (one bill), `equal` (`parts` bills with the same total; the remainder tiyin on
+         *     the first), `items` (`bills`: each with its `items` — `order_item_id` and `quantity`, fractions too, e.g. 0.5 of
+         *     1.5 kg; every line left must be given out in full; optional `guests` for the per-guest amount). The discount and
+         *     the charges (room fee, minimum spend top-up, service charge, place fee) are shared in proportion; all shares are
+         *     exact to the tiyin. `version`: the order's (409 `version_conflict` when stale). One bill: orders.manage or
+         *     pos.take_payment; splitting: pos.take_payment (403 `permission_denied`). A waiter bills only their own orders
+         *     (another waiter's: a manager's `approval_token` for orders.manage, else 403 `approval_required`). 409
+         *     `nothing_to_bill`, `order_closed`,
+         *     `not_pos_order`; 422 `items_not_covered`, `bill_empty`, `item_not_billable`, `parts_invalid`.
+         */
+        post: operations["posBill.store"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/orders/{uuid}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel the whole order
+         * @description `reason` is required. orders.cancel, or a manager's one-time `approval_token` for orders.cancel (POST
+         *     /pos/approvals; 403 `approval_required`). An order with a payment is refused: 409 `has_payments` (refund the
+         *     payments first, POST /pos/refunds). Every line still on the order is voided — lines already sent get a kitchen
+         *     void ("O'CHIRILDI"), unsent lines give their stock and kazan portion back — open or printed bills are voided, the
+         *     order becomes `canceled` and its table free; a booking's order completes the booking (its deposits stay
+         *     `taken`, to refund or retain). Audited; the owner is alerted. 422 `order_closed`, 409 `version_conflict`.
+         */
+        post: operations["posOrder.cancel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/orders/{uuid}/charges/{charge}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restore a waived charge line
+         * @description Puts the charge back (orders.manage). 422 `not_waived` when it was not waived.
+         */
+        post: operations["posOrder.restoreCharge"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/orders/{uuid}/charges/{charge}/waive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Waive a charge line
+         * @description `service_charge`, `place_fee`, `room_fee` or `min_spend_topup` taken off this order with a `reason` (the guest
+         *     objected; the manager decided): orders.discount or a manager's `approval_token`. Audited. Needs orders.manage.
+         */
+        post: operations["posOrder.waive"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/orders/{uuid}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Close a paid order
+         * @description Closes the order when everything on it is on paid bills (receipts issued): delivered, paid, table free. Payments
+         *     close it by themselves; this is for a close that was interrupted, and asks again for receipts still pending
+         *     first. Calling it on a closed order returns it. Not settled yet: 409 `order_not_settled` (with what is left).
+         *     Needs pos.take_payment.
+         */
+        post: operations["posBill.close"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/orders/{uuid}/guests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Change the guests count
+         * @description The per-guest charges follow; guests who joined get the automatic "choy-non" lines as a new round. Needs
+         *     orders.manage.
+         */
+        post: operations["posOrder.guests"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/orders/{uuid}/items/{item}/served": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark a line served
+         * @description The line reached the guests: `ready` (the kitchen display bumped it) or `sent` (a station without a display,
+         *     e.g. tea) becomes `served`. 422 `already_served`, `item_not_ready` (not sent yet or voided). Needs orders.manage;
+         *     the waiter rule applies (`approval_token`).
+         */
+        post: operations["posOrder.served"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/orders/{uuid}/items/{item}/void": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Void a line
+         * @description Before the line reached the kitchen: orders.manage, its stock and kazan portion go back. Once sent (or after the
+         *     bill was printed): `reason` is required and orders.void_item, or a manager's one-time `approval_token` (POST
+         *     /pos/approvals); the kitchen sees it struck through. `restock` (sent lines) returns the portion when it was not
+         *     cooked. 403 `approval_required` / `approval_invalid`; 422 `already_void`.
+         */
+        post: operations["posOrder.void"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/orders/{uuid}/merge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Merge another order into this one
+         * @description `source_uuid`'s lines move to this order (after its rounds), its guests are added and it is closed as merged.
+         *     Both open hall orders of one branch, no printed bill, no payment; both versions are checked. Needs tables.manage.
+         */
+        post: operations["posOrder.merge"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/orders/{uuid}/move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Move the order to another table
+         * @description Another table, room or tapchan of the same branch: the new hall's service charge and the new place's room tariff
+         *     and minimum spend apply. A room with an open order is 422 `table_occupied` (merge instead). Needs tables.manage.
+         */
+        post: operations["posOrder.move"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/orders/{uuid}/rounds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add a round of lines
+         * @description A new round (`round_no`, who added it, when): lines priced by the order's channel, with the menu's rules (kg and
+         *     fractions in steps, modifiers, stop-list, kazan portions, stock; in fiscal mode the MXIK code). `fire_mode`
+         *     `now` (default) goes with the next send, `hold` only when sent by id; `due_at` for a pre-order; `seat_no` and
+         *     `note` per line. `send: true` sends the round's `now` lines at once. Needs orders.manage.
+         */
+        post: operations["posOrder.addRound"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/orders/{uuid}/send": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send lines to the kitchen
+         * @description Without `item_ids`: every line not sent yet whose `fire_mode` is `now`. With them: exactly those (held lines
+         *     included). Each gets its kitchen station and `sent_at`; the first send starts the order (preparing). 422
+         *     `nothing_to_send` when there is nothing new. Needs orders.manage.
+         */
+        post: operations["posOrder.send"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/refunds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Refund a payment within the shift
+         * @description Gives back `amount` of a cash, card or QR payment (`payment_uuid`) of a paid bill, taken in the open shift of
+         *     this terminal (or `shift_uuid`): 409 `refund_outside_shift` for another shift's payment, 422
+         *     `refund_tender_invalid` for a deposit or nasiya part, 422 `refund_exceeds_payment` beyond what is left of it,
+         *     409 `bill_not_fiscalized` before the sale receipt is issued, 409 `not_enough_cash` beyond the drawer's cash.
+         *     `reason` is required. Needs pos.refund, or a manager's `approval_token` for it (403 `approval_required`). Cash
+         *     leaves the drawer; a REFUND receipt naming the sale receipt is asked for (`fiscal`); the owner is told in
+         *     Telegram.
+         */
+        post: operations["posRefund.store"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/shifts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Shifts of a branch
+         * @description Newest first: the caller's branches (`branch_id` narrows to one), optionally by `status` and business day
+         *     range (`from`, `to`, YYYY-MM-DD), at most `limit` (50, up to 200). For the web panel's shift and Z list too.
+         *     Needs pos.close_shift or reports.view.
+         */
+        get: operations["posShift.index"];
+        put?: never;
+        /**
+         * Open a shift
+         * @description On this terminal (a staff PIN session on a terminal paired to a branch; 422 `terminal_required` otherwise),
+         *     with the `opening_cash` in the drawer. One open shift per terminal (409 `shift_already_open`). Its business day
+         *     follows the branch's day start (05:00 by default: 02:00 still belongs to the day before). Needs pos.open_shift.
+         */
+        post: operations["posShift.store"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/shifts/current": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * This terminal's open shift
+         * @description The open shift of the calling terminal with its X report so far, or `shift: null`. A normal sign-in (no
+         *     terminal) always gets null.
+         */
+        get: operations["posShift.current"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/shifts/{uuid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One shift (with its Z report)
+         * @description The shift and, once closed, its Z report as it was at closing (`summary`). Needs pos.close_shift or
+         *     reports.view.
+         */
+        get: operations["posShift.show"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/shifts/{uuid}/cash-movements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cash in or out of the drawer
+         * @description `type`: `cash_in`, `cash_out`, `wage` (paid to an employee: `employee_id` required) or `purchase` (bazaar
+         *     shopping); `category` from the type's list (cash_in: change_fund, owner, other; cash_out: collection, owner,
+         *     supplies, utilities, other; wage: daily_wage, advance, bonus; purchase: bazaar, meat, bread, supplies, other);
+         *     `other` needs a `note`. Money out never exceeds the expected cash (409 `not_enough_cash`). Needs pos.cash_in_out,
+         *     or a manager's `approval_token` for it (403 `approval_required`). The shift must be open (409 `shift_closed`).
+         */
+        post: operations["posShift.cashMovement"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/shifts/{uuid}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Close the shift (Z)
+         * @description `counted_breakdown`: the cash counted, banknote => count (200000, 100000, 50000, 20000, 10000, 5000, 2000, 1000,
+         *     500, 200, 100); the difference to the expected cash is kept. Refused while POS orders are open (409
+         *     `shift_has_open_orders`: the ones opened in this shift, or any of the branch when it is the last open shift) or
+         *     a sale's receipt is pending (409 `shift_has_pending_receipts`), unless `force: true` with a `reason` by someone
+         *     with orders.cancel (or a manager's `approval_token` for it): open orders then wait for the next shift. The Z
+         *     report is kept in `summary`, numbered per branch (`z_number`) and sent to the owner in Telegram. Needs
+         *     pos.close_shift.
+         */
+        post: operations["posShift.close"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/shifts/{uuid}/x-report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * X report
+         * @description The shift's report now, without closing it: takings by tender (`by_tender`, `cards` by card type), by channel,
+         *     by waiter (with the service charge their bills brought), discounts, voided lines, refunds, deposits taken and
+         *     applied, sales on credit and repayments, the drawer's movements and the expected cash. A closed shift: as at its
+         *     close. Needs pos.close_shift or reports.view.
+         */
+        get: operations["posShift.xReport"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2331,6 +3942,156 @@ export interface components {
             region?: components["schemas"]["Region"] | null;
             district?: components["schemas"]["District"] | null;
         };
+        /**
+         * BillStatus
+         * @description order_bills.status: `open` when made, `printed` once handed to the guest (the order is locked from then on), `paid` when its payments cover it AND its sale receipt is issued, `void` when the order was billed again or cancelled.
+         * @enum {string}
+         */
+        BillStatus: "open" | "printed" | "paid" | "void";
+        /** Booking */
+        Booking: {
+            id: number;
+            uuid: string;
+            store_id: number;
+            branch_id: number;
+            dining_table_id: number | null;
+            /** Format: date-time */
+            starts_at: string;
+            /** Format: date-time */
+            ends_at: string;
+            guests_planned: number;
+            event_type: components["schemas"]["BookingEventType"];
+            contact_name: string;
+            contact_phone: string | null;
+            source: components["schemas"]["BookingSource"];
+            status: components["schemas"]["BookingStatus"];
+            min_spend: string | null;
+            note: string | null;
+            order_id: number | null;
+            created_by: number | null;
+            cancel_reason: string | null;
+            /** Format: date-time */
+            confirmed_at: string | null;
+            /** Format: date-time */
+            arrived_at: string | null;
+            /** Format: date-time */
+            completed_at: string | null;
+            /** Format: date-time */
+            canceled_at: string | null;
+            version: number;
+            /** Format: date-time */
+            created_at: string | null;
+            /** Format: date-time */
+            updated_at: string | null;
+            store?: components["schemas"]["Store"];
+            branch?: components["schemas"]["Branch"];
+            tables?: components["schemas"]["BookingTable"][];
+            items?: components["schemas"]["BookingItem"][];
+            payments?: components["schemas"]["BookingPayment"][];
+            order?: components["schemas"]["Order"] | null;
+            creator?: components["schemas"]["User"] | null;
+        };
+        /**
+         * BookingEventType
+         * @description What the booking is for (research report §3): helps the kitchen and the owner see the load ahead.
+         * @enum {string}
+         */
+        BookingEventType: "gap" | "ziyofat" | "tugilgan_kun" | "nahor_oshi" | "korporativ" | "other";
+        /** BookingItem */
+        BookingItem: {
+            id: number;
+            booking_id: number;
+            product_variant_id: number;
+            product_name: string;
+            variant_name: string | null;
+            unit: components["schemas"]["MenuUnit"];
+            quantity: string;
+            modifiers: {
+                [key: string]: unknown;
+            }[] | null;
+            unit_price: string;
+            note: string | null;
+            /** Format: date-time */
+            due_at: string | null;
+            created_by: number | null;
+            /** Format: date-time */
+            created_at: string | null;
+            /** Format: date-time */
+            updated_at: string | null;
+            booking?: components["schemas"]["Booking"];
+            variant?: components["schemas"]["ProductVariant"];
+        };
+        /** BookingPayment */
+        BookingPayment: {
+            id: number;
+            uuid: string;
+            booking_id: number;
+            store_id: number;
+            branch_id: number;
+            order_id: number | null;
+            amount: string;
+            tender: string;
+            card_type: string | null;
+            transaction_id: string | null;
+            status: components["schemas"]["BookingPaymentStatus"];
+            fiscal_receipt_uuid: string | null;
+            fiscal_status: string | null;
+            applied_amount: string;
+            applied_bill_uuid: string | null;
+            applications: {
+                bill_uuid: string;
+                amount: string;
+                at: string;
+            }[] | null;
+            refunded_amount: string;
+            retained_amount: string;
+            settle_reason: string | null;
+            settle_receipt_uuid: string | null;
+            settle_fiscal_status: string | null;
+            /** Format: date-time */
+            settled_at: string | null;
+            settled_by: number | null;
+            approved_by: number | null;
+            device_id: number | null;
+            user_id: number | null;
+            idempotency_key: string | null;
+            /** Format: date-time */
+            created_at: string | null;
+            /** Format: date-time */
+            updated_at: string | null;
+            refunded_device_id: number | null;
+            refunded_shift_id: number | null;
+            booking?: components["schemas"]["Booking"];
+        };
+        /**
+         * BookingPaymentStatus
+         * @description A deposit: `taken` (an ADVANCE receipt was issued; part of it may already be offset, see applied_amount), `applied` (fully offset against the order's bills), `refunded` (what was left went back to the guest) or `retained` (what was left was kept after a cancellation or no-show, with a manager's approval).
+         * @enum {string}
+         */
+        BookingPaymentStatus: "taken" | "applied" | "refunded" | "retained";
+        /**
+         * BookingSource
+         * @description Where the booking came from (choyxonas book by phone; Telegram and Instagram messages; a guest booking in person).
+         * @enum {string}
+         */
+        BookingSource: "phone" | "telegram" | "instagram" | "walk_in" | "other";
+        /**
+         * BookingStatus
+         * @description A booking's life (research report §4): requested → confirmed → arrived (the order is open) → completed (the order is closed); requested or confirmed → canceled; confirmed → no_show; requested → arrived for a guest who came before the request was confirmed. A taken deposit does not change the status: it is the booking's `deposit_total` (the report's "avans olindi" is confirmed + a deposit).
+         * @enum {string}
+         */
+        BookingStatus: "requested" | "confirmed" | "arrived" | "completed" | "canceled" | "no_show";
+        /** BookingTable */
+        BookingTable: {
+            id: number;
+            booking_id: number;
+            dining_table_id: number;
+            /** Format: date-time */
+            created_at: string | null;
+            /** Format: date-time */
+            updated_at: string | null;
+            booking?: components["schemas"]["Booking"];
+        };
         /** Branch */
         Branch: {
             id: number;
@@ -2351,6 +4112,10 @@ export interface components {
             status: components["schemas"]["BranchStatus"];
             region_id: number | null;
             district_id: number | null;
+            business_day_starts_at: string;
+            pos_settings: {
+                [key: string]: unknown;
+            } | null;
             store?: components["schemas"]["Store"];
             users?: components["schemas"]["User"][];
             orders?: components["schemas"]["Order"][];
@@ -2383,6 +4148,36 @@ export interface components {
          * @enum {string}
          */
         CancelReason: "customer_request" | "no_show" | "out_of_stock" | "store_closed" | "courier_unavailable" | "payment_timeout" | "other";
+        /** CashMovement */
+        CashMovement: {
+            id: number;
+            uuid: string;
+            store_id: number;
+            branch_id: number;
+            shift_id: number;
+            type: components["schemas"]["CashMovementType"];
+            category: string | null;
+            amount: string;
+            note: string | null;
+            payment_id: number | null;
+            user_id: number | null;
+            employee_id: number | null;
+            device_id: number | null;
+            approved_by: number | null;
+            /** Format: date-time */
+            created_at: string | null;
+            /** Format: date-time */
+            updated_at: string | null;
+            shift?: components["schemas"]["PosShift"];
+            user?: components["schemas"]["User"] | null;
+            employee?: components["schemas"]["User"] | null;
+        };
+        /**
+         * CashMovementType
+         * @description cash_movements.type: what moved money into or out of the drawer (POS_SPEC 2.3, research R21, L7, L10). The cashier records `cash_in`, `cash_out`, `wage` (to an employee) and `purchase` (bazaar shopping) by hand; the others are written by the shift, sale and refund flows themselves. Booking deposits and nasiya repayments taken in cash (P3-17), and cash deposit refunds, are read from their own tables by the shift report (ShiftReport), not copied here.
+         * @enum {string}
+         */
+        CashMovementType: "opening" | "sale" | "refund" | "cash_in" | "cash_out" | "wage" | "purchase";
         /** Category */
         Category: {
             id: number;
@@ -2509,6 +4304,40 @@ export interface components {
          * @enum {string}
          */
         DeviceType: "pos" | "kds" | "courier" | "partner_mobile" | "customer_mobile" | "web";
+        /** DiningTable */
+        DiningTable: {
+            id: number;
+            store_id: number;
+            branch_id: number;
+            hall_id: number;
+            name: string;
+            kind: components["schemas"]["DiningTableKind"];
+            seats: number | null;
+            layout_x: string | null;
+            layout_y: string | null;
+            layout_w: string | null;
+            layout_h: string | null;
+            sort_order: number;
+            is_active: boolean;
+            min_spend: string | null;
+            min_spend_mode: components["schemas"]["MinSpendMode"];
+            /** Format: date-time */
+            created_at: string | null;
+            /** Format: date-time */
+            updated_at: string | null;
+            /** Format: date-time */
+            deleted_at: string | null;
+            store?: components["schemas"]["Store"];
+            branch?: components["schemas"]["Branch"];
+            hall?: components["schemas"]["Hall"];
+            open_orders?: components["schemas"]["Order"][];
+        };
+        /**
+         * DiningTableKind
+         * @description What a place on the floor map is (dining_tables.kind, P3-12): a plain table, a room ("xona", "kabinka": a long session with a room fee and often a minimum spend) or a tapchan.
+         * @enum {string}
+         */
+        DiningTableKind: "table" | "room" | "tapchan";
         /** District */
         District: {
             id: number;
@@ -2537,11 +4366,35 @@ export interface components {
             };
         };
         /**
-         * KitchenItemStatus
-         * @description Where an order line is in the kitchen (order_items.kitchen_status, P2-11): `pending` until a cook bumps it on the kitchen display, then `ready`. docs/POS_SPEC.md §10.3 reserves more values for the POS phase (sent, served, void); they are added here when the POS starts sending lines to the kitchen.
+         * FireMode
+         * @description When a POS line goes to the kitchen (order_items.fire_mode, P3-12, docs/POS_SPEC.md §2.6): with the next "send" (`now`), or only when it is sent by name (`hold`: a later course, a pre-order with its due time).
          * @enum {string}
          */
-        KitchenItemStatus: "pending" | "ready";
+        FireMode: "now" | "hold";
+        /** Hall */
+        Hall: {
+            id: number;
+            store_id: number;
+            branch_id: number;
+            name: string;
+            sort_order: number;
+            is_active: boolean;
+            /** Format: date-time */
+            created_at: string | null;
+            /** Format: date-time */
+            updated_at: string | null;
+            /** Format: date-time */
+            deleted_at: string | null;
+            store?: components["schemas"]["Store"];
+            branch?: components["schemas"]["Branch"];
+            tables?: components["schemas"]["DiningTable"][];
+        };
+        /**
+         * KitchenItemStatus
+         * @description Where an order line is in the kitchen (order_items.kitchen_status, P2-11): `pending` until a cook bumps it on the kitchen display, then `ready`. P3-12 (docs/POS_SPEC.md §2.8, §10.3): a POS line is `pending` while it is only on the order (not sent yet, or held), `sent` once the POS sends it to the kitchen, then `ready`, and `served` when it reached the guests; `void` when it was taken off the order ("O'CHIRILDI"). An online (Telegram, mobile) line keeps the P2-11 meaning: `pending` is in the kitchen from the start (it has no sent_at and no fire_mode).
+         * @enum {string}
+         */
+        KitchenItemStatus: "pending" | "ready" | "sent" | "served" | "void";
         /** LengthAwarePaginator */
         LengthAwarePaginator: {
             current_page: number;
@@ -2595,6 +4448,12 @@ export interface components {
          * @enum {string}
          */
         MenuUnit: "piece" | "kg" | "l";
+        /**
+         * MinSpendMode
+         * @description How a room's minimum spend ("obyazalovka", R4) is set (dining_tables.min_spend_mode, P3-12): once for the room, or per guest (× guests_count).
+         * @enum {string}
+         */
+        MinSpendMode: "per_table" | "per_person";
         /** Modifier */
         Modifier: {
             id: number;
@@ -2722,6 +4581,26 @@ export interface components {
             delivery_zone_name: string | null;
             delivery_zone_price: string | null;
             delivery_min_order_amount: string | null;
+            hall_id: number | null;
+            table_id: number | null;
+            waiter_id: number | null;
+            device_id: number | null;
+            version: number;
+            room_fee_amount: string;
+            min_spend_topup_amount: string;
+            booking_id: number | null;
+            /** Format: date-time */
+            due_at: string | null;
+            shift_id: number | null;
+            /** Format: date-time */
+            business_date: string | null;
+            queue_number: number | null;
+            /** Format: date-time */
+            bill_locked_at: string | null;
+            /** Format: date-time */
+            closed_at: string | null;
+            /** Format: date-time */
+            long_open_alerted_at: string | null;
             type: string;
             address: string | null;
             store?: components["schemas"]["Store"];
@@ -2734,6 +4613,67 @@ export interface components {
             status_histories?: components["schemas"]["OrderStatusHistory"][];
             payments?: components["schemas"]["Payment"][];
             promo_code?: components["schemas"]["PromoCode"] | null;
+            hall?: components["schemas"]["Hall"] | null;
+            dining_table?: components["schemas"]["DiningTable"] | null;
+            waiter?: components["schemas"]["User"] | null;
+            charge_waivers?: components["schemas"]["OrderChargeWaiver"][];
+            bills?: components["schemas"]["OrderBill"][];
+            shift?: components["schemas"]["PosShift"] | null;
+            booking?: components["schemas"]["Booking"] | null;
+        };
+        /** OrderBill */
+        OrderBill: {
+            id: number;
+            uuid: string;
+            store_id: number;
+            branch_id: number | null;
+            order_id: number;
+            number: number;
+            status: components["schemas"]["BillStatus"];
+            split_mode: string;
+            subtotal: string;
+            discount: string;
+            room_fee_amount: string;
+            min_spend_topup_amount: string;
+            service_charge_amount: string;
+            place_fee_amount: string;
+            total: string;
+            guests_share: number | null;
+            basis: string;
+            printed_count: number;
+            /** Format: date-time */
+            printed_at: string | null;
+            /** Format: date-time */
+            paid_at: string | null;
+            shift_id: number | null;
+            fiscal_receipt_uuid: string | null;
+            fiscal_status: string | null;
+            fiscal_error: string | null;
+            created_by: number | null;
+            /** Format: date-time */
+            voided_at: string | null;
+            /** Format: date-time */
+            created_at: string | null;
+            /** Format: date-time */
+            updated_at: string | null;
+            order?: components["schemas"]["Order"];
+            items?: components["schemas"]["OrderBillItem"][];
+            payments?: components["schemas"]["Payment"][];
+        };
+        /** OrderBillItem */
+        OrderBillItem: {
+            id: number;
+            bill_id: number;
+            order_item_id: number;
+            quantity: string;
+            amount: string;
+            discount_amount: string;
+            /** Format: date-time */
+            created_at: string | null;
+            /** Format: date-time */
+            updated_at: string | null;
+            bill?: components["schemas"]["OrderBill"];
+            order_item?: components["schemas"]["OrderItem"];
         };
         /**
          * OrderChannel
@@ -2741,6 +4681,20 @@ export interface components {
          * @enum {string}
          */
         OrderChannel: "telegram" | "mobile" | "pos_hall" | "pos_takeaway" | "aggregator";
+        /** OrderChargeWaiver */
+        OrderChargeWaiver: {
+            id: number;
+            order_id: number;
+            charge: string;
+            reason: string;
+            waived_by: (number | null) | (components["schemas"]["User"] | null);
+            approved_by: (number | null) | (components["schemas"]["User"] | null);
+            /** Format: date-time */
+            created_at: string | null;
+            /** Format: date-time */
+            updated_at: string | null;
+            order?: components["schemas"]["Order"];
+        };
         /** OrderItem */
         OrderItem: {
             id: number;
@@ -2767,6 +4721,20 @@ export interface components {
             kitchen_status: components["schemas"]["KitchenItemStatus"];
             /** Format: date-time */
             ready_at: string | null;
+            round_no: number | null;
+            fire_mode: components["schemas"]["FireMode"] | null;
+            station_id: number | null;
+            /** Format: date-time */
+            sent_at: string | null;
+            /** Format: date-time */
+            due_at: string | null;
+            added_by: (number | null) | (components["schemas"]["User"] | null);
+            /** Format: date-time */
+            voided_at: string | null;
+            voided_by: (number | null) | (components["schemas"]["User"] | null);
+            void_reason: string | null;
+            seat_no: number | null;
+            note: string | null;
             order?: components["schemas"]["Order"];
             product_variant?: components["schemas"]["ProductVariant"] | null;
             batch?: components["schemas"]["MenuBatch"] | null;
@@ -2817,7 +4785,18 @@ export interface components {
             created_at: string | null;
             /** Format: date-time */
             updated_at: string | null;
+            bill_id: number | null;
+            shift_id: number | null;
+            device_id: number | null;
+            received_by: number | null;
+            tendered_amount: string | null;
+            change_amount: string | null;
+            card_type: string | null;
+            transaction_id: string | null;
+            reference: string | null;
             order?: components["schemas"]["Order"] | null;
+            bill?: components["schemas"]["OrderBill"] | null;
+            shift?: components["schemas"]["PosShift"] | null;
         };
         /**
          * PaymentStatus
@@ -2847,7 +4826,46 @@ export interface components {
          * @description What a store staff member may do. Each role gets a default set (App\Services\Auth\RolePermissions) that an owner can adjust per store (role_permission_overrides); App\Services\Auth\PermissionService resolves the effective set, and the Gate answers `$user->can('orders.cancel', $order)` with it (branch scoping included).
          * @enum {string}
          */
-        Permission: "orders.view" | "orders.manage" | "orders.cancel" | "orders.discount" | "orders.void_item" | "orders.assign_courier" | "orders.refund" | "kitchen.manage" | "deliveries.manage" | "tables.manage" | "menu.view" | "menu.manage" | "stoplist.manage" | "batches.manage" | "staff.view" | "staff.manage" | "staff.pin" | "devices.view" | "devices.manage" | "reports.view" | "finance.view" | "finance.manage" | "settings.manage" | "zones.manage" | "audit.view" | "permissions.manage" | "pos.open_shift" | "pos.close_shift" | "pos.cash_in_out" | "pos.take_payment" | "pos.reprint_bill" | "branches.manage";
+        Permission: "orders.view" | "orders.manage" | "orders.cancel" | "orders.discount" | "orders.void_item" | "orders.assign_courier" | "orders.refund" | "kitchen.manage" | "deliveries.manage" | "tables.manage" | "menu.view" | "menu.manage" | "stoplist.manage" | "batches.manage" | "staff.view" | "staff.manage" | "staff.pin" | "devices.view" | "devices.manage" | "reports.view" | "finance.view" | "finance.manage" | "settings.manage" | "zones.manage" | "audit.view" | "permissions.manage" | "pos.open_shift" | "pos.close_shift" | "pos.cash_in_out" | "pos.take_payment" | "pos.reprint_bill" | "branches.manage" | "bookings.manage" | "customer_accounts.manage" | "pos.refund";
+        /** PosShift */
+        PosShift: {
+            id: number;
+            uuid: string;
+            store_id: number;
+            branch_id: number;
+            device_id: number | null;
+            /** Format: date-time */
+            business_date: string;
+            status: components["schemas"]["ShiftStatus"];
+            opened_by: (number | null) | (components["schemas"]["User"] | null);
+            /** Format: date-time */
+            opened_at: string;
+            opening_cash: string;
+            closed_by: (number | null) | (components["schemas"]["User"] | null);
+            /** Format: date-time */
+            closed_at: string | null;
+            expected_cash: string | null;
+            counted_cash: string | null;
+            counted_breakdown: {
+                [key: string]: number;
+            } | null;
+            difference: string | null;
+            z_number: number | null;
+            force_closed: boolean;
+            close_note: string | null;
+            forced_by: number | null;
+            summary: {
+                [key: string]: unknown;
+            } | null;
+            /** Format: date-time */
+            created_at: string | null;
+            /** Format: date-time */
+            updated_at: string | null;
+            store?: components["schemas"]["Store"];
+            branch?: components["schemas"]["Branch"];
+            device?: components["schemas"]["Device"] | null;
+            cash_movements?: components["schemas"]["CashMovement"][];
+        };
         /** Product */
         Product: {
             id: number;
@@ -2870,6 +4888,10 @@ export interface components {
             deleted_at: string | null;
             image: string | null;
             batch_tracked: boolean;
+            kind: components["schemas"]["ProductKind"];
+            mxik_code: string | null;
+            package_code: string | null;
+            vat_rate: string | null;
             is_active: boolean;
             image_url: string | null;
             image_thumb_urls: {
@@ -2884,6 +4906,12 @@ export interface components {
             channel_prices?: components["schemas"]["ChannelPrice"][];
             batches?: components["schemas"]["MenuBatch"][];
         };
+        /**
+         * ProductKind
+         * @description What a menu item is on a receipt (products.kind, P3-11): a dish (taom, ichimlik) or a service the store sells like a dish (cooking from the guest's own food, kazan rent, a set menu service). Both need an MXIK code before a fiscal store may sell them; the kind tells the panel and the receipt which MXIK group (10202001 or 10202002) fits.
+         * @enum {string}
+         */
+        ProductKind: "dish" | "service";
         /** ProductModifierGroup */
         ProductModifierGroup: {
             id: number;
@@ -2923,6 +4951,7 @@ export interface components {
             quantity_step: string | null;
             min_quantity: string | null;
             batch_consumption: string;
+            unit_label: string | null;
             product?: components["schemas"]["Product"];
             channel_prices?: components["schemas"]["ChannelPrice"][];
         };
@@ -2979,6 +5008,11 @@ export interface components {
             updated_at: string | null;
             districts?: components["schemas"]["District"][];
         };
+        /**
+         * ShiftStatus
+         * @enum {string}
+         */
+        ShiftStatus: "open" | "closed";
         /** Store */
         Store: {
             id: number;
@@ -3018,6 +5052,8 @@ export interface components {
             accept_payme: boolean;
             rating: string;
             phone: string | null;
+            tin: string | null;
+            tax_regime: string | null;
             is_order_locked: boolean;
             min_order: number;
             delivery_fee: number;
@@ -3866,10 +5902,12 @@ export interface operations {
                 region_id?: number;
                 /** @description Global feed without coordinates: stores with a branch in this district. */
                 district_id?: number;
+                /** @description P3-13, POS channels only: the branch (an owner or a store-wide terminal; a branch-bound staff member always gets their own). */
+                branch_id?: number;
                 /** @description Global feed: only this category and its subcategories. */
                 category_id?: number;
-                /** @description P1-21: whose prices and visibility to show: telegram (default) or mobile. */
-                channel?: "telegram" | "mobile";
+                /** @description P1-21: whose prices and visibility to show: telegram (default) or mobile. P3-13: `pos_hall` or `pos_takeaway` is the POS menu of one branch for the store's own staff (menu.view; `branch_id` for an owner), with the channel prices, `is_available`/`unavailable_reason`, `station_id`, modifiers, units and the branch availability; see docs/API.md (POS bo'limi). */
+                channel?: "telegram" | "mobile" | "pos_hall" | "pos_takeaway";
             };
             header?: never;
             path?: never;
@@ -3882,51 +5920,10 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        success: boolean;
-                        message: string;
-                        data: {
-                            store: components["schemas"]["Store"] | null;
-                            categories: components["schemas"]["Category"][];
-                            products: string;
-                            /** @description P1-21: what is unavailable on each branch now (stop-list, sold-out batches); GET /catalog/availability */
-                            availability: string;
-                        };
-                    } | {
-                        success: boolean;
-                        message: string;
-                        data: {
-                            categories: components["schemas"]["Category"][];
-                            products: string;
-                            promos: {
-                                id: number;
-                                title: string;
-                                image_url: string | null;
-                                store_uuid: string;
-                                product_id: number | null;
-                            }[];
-                            highlight_product: string;
-                        };
-                    };
+                    "application/json": Record<string, never>;
                 };
             };
             401: components["responses"]["AuthenticationException"];
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
         };
     };
     "menuAvailability.index": {
@@ -5541,6 +7538,166 @@ export interface operations {
             422: components["responses"]["ValidationException"];
         };
     };
+    "autoGuestItem.index": {
+        parameters: {
+            query?: {
+                /** @description The branch; defaults to the caller's. */
+                branch_id?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            branch_id: number;
+                            hall_id: number | null;
+                            product_variant_id: number;
+                            product_name: string | null;
+                            variant_name: string | null;
+                            unit: string | null;
+                            quantity_per_guest: number;
+                            is_active: boolean;
+                            sort_order: number;
+                        }[];
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "autoGuestItem.store": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    branch_id: number;
+                    hall_id?: number | null;
+                    product_variant_id: number;
+                    quantity_per_guest: number;
+                    is_active?: boolean | null;
+                    sort_order?: number | null;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            branch_id: number;
+                            hall_id: number | null;
+                            product_variant_id: number;
+                            product_name: string | null;
+                            variant_name: string | null;
+                            unit: string | null;
+                            quantity_per_guest: number;
+                            is_active: boolean;
+                            sort_order: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "autoGuestItem.destroy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "autoGuestItem.update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    quantity_per_guest?: number;
+                    is_active?: boolean;
+                    sort_order?: number;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            branch_id: number;
+                            hall_id: number | null;
+                            product_variant_id: number;
+                            product_name: string | null;
+                            variant_name: string | null;
+                            unit: string | null;
+                            quantity_per_guest: number;
+                            is_active: boolean;
+                            sort_order: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
     "batch.index": {
         parameters: {
             query?: {
@@ -6113,6 +8270,117 @@ export interface operations {
             422: components["responses"]["ValidationException"];
         };
     };
+    "branchPosSettings.show": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            branch_id: number;
+                            timezone: string;
+                            business_day_starts_at: string;
+                            pos_settings: {
+                                mode: string;
+                                printing_device_id: string | null;
+                                screen_lock_minutes: number;
+                                queue_numbers: boolean;
+                                alerts: {
+                                    open_room_hours: number | null;
+                                    void_amount: string | null;
+                                    discount_percent: string | null;
+                                    unaccepted_online_minutes: number | null;
+                                };
+                                holidays: string[];
+                                booking_slot_minutes: number | null;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "branchPosSettings.update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    business_day_starts_at?: string;
+                    pos_settings?: {
+                        /** @enum {string} */
+                        mode?: "counter" | "table" | "hybrid";
+                        /** Format: uuid */
+                        printing_device_id?: string | null;
+                        screen_lock_minutes?: number;
+                        queue_numbers?: boolean;
+                        alerts?: {
+                            open_room_hours?: number | null;
+                            void_amount?: number | null;
+                            discount_percent?: number | null;
+                            unaccepted_online_minutes?: number | null;
+                        };
+                        booking_slot_minutes?: number | null;
+                        holidays?: string[];
+                    };
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            branch_id: number;
+                            timezone: string;
+                            business_day_starts_at: string;
+                            pos_settings: {
+                                mode: string;
+                                printing_device_id: string | null;
+                                screen_lock_minutes: number;
+                                queue_numbers: boolean;
+                                alerts: {
+                                    open_room_hours: number | null;
+                                    void_amount: string | null;
+                                    discount_percent: string | null;
+                                    unaccepted_online_minutes: number | null;
+                                };
+                                holidays: string[];
+                                booking_slot_minutes: number | null;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
     "ownerCatalog.getCategories": {
         parameters: {
             query?: never;
@@ -6669,6 +8937,276 @@ export interface operations {
             };
         };
     };
+    "diningTable.index": {
+        parameters: {
+            query?: {
+                /** @description One branch; omit for every branch the caller works in. */
+                branch_id?: number;
+                /** @description One hall. */
+                hall_id?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            branch_id: number;
+                            hall_id: number;
+                            name: string;
+                            kind: string;
+                            seats: number | null;
+                            layout: {
+                                x: string | null;
+                                y: string | null;
+                                w: string | null;
+                                h: string | null;
+                            };
+                            sort_order: number;
+                            is_active: boolean;
+                            min_spend: string | null;
+                            min_spend_mode: string;
+                        }[];
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "diningTable.store": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    hall_id: number;
+                    name: string;
+                    /** @enum {string|null} */
+                    kind?: "table" | "room" | "tapchan" | null;
+                    seats?: number | null;
+                    sort_order?: number | null;
+                    is_active?: boolean | null;
+                    min_spend?: number | null;
+                    /** @enum {string|null} */
+                    min_spend_mode?: "per_table" | "per_person" | null;
+                    layout?: {
+                        x?: number | null;
+                        y?: number | null;
+                        w?: number | null;
+                        h?: number | null;
+                    };
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            branch_id: number;
+                            hall_id: number;
+                            name: string;
+                            kind: string;
+                            seats: number | null;
+                            layout: {
+                                x: string | null;
+                                y: string | null;
+                                w: string | null;
+                                h: string | null;
+                            };
+                            sort_order: number;
+                            is_active: boolean;
+                            min_spend: string | null;
+                            min_spend_mode: string;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "diningTable.layout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    branch_id: number;
+                    tables: {
+                        id: number;
+                        hall_id?: number | null;
+                        sort_order?: number | null;
+                        layout: {
+                            x?: number | null;
+                            y?: number | null;
+                            w?: number | null;
+                            h?: number | null;
+                        };
+                    }[];
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            branch_id: number;
+                            hall_id: number;
+                            name: string;
+                            kind: string;
+                            seats: number | null;
+                            layout: {
+                                x: string | null;
+                                y: string | null;
+                                w: string | null;
+                                h: string | null;
+                            };
+                            sort_order: number;
+                            is_active: boolean;
+                            min_spend: string | null;
+                            min_spend_mode: string;
+                        }[];
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "diningTable.destroy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "diningTable.update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    hall_id?: number;
+                    name?: string;
+                    /** @enum {string} */
+                    kind?: "table" | "room" | "tapchan";
+                    seats?: number | null;
+                    sort_order?: number | null;
+                    is_active?: boolean | null;
+                    min_spend?: number | null;
+                    /** @enum {string|null} */
+                    min_spend_mode?: "per_table" | "per_person" | null;
+                    layout?: {
+                        x?: number | null;
+                        y?: number | null;
+                        w?: number | null;
+                        h?: number | null;
+                    };
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            branch_id: number;
+                            hall_id: number;
+                            name: string;
+                            kind: string;
+                            seats: number | null;
+                            layout: {
+                                x: string | null;
+                                y: string | null;
+                                w: string | null;
+                                h: string | null;
+                            };
+                            sort_order: number;
+                            is_active: boolean;
+                            min_spend: string | null;
+                            min_spend_mode: string;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
     "ownerEmployee.index": {
         parameters: {
             query?: never;
@@ -7087,6 +9625,800 @@ export interface operations {
             401: components["responses"]["AuthenticationException"];
         };
     };
+    "fiscalSettings.readiness": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            enabled: boolean;
+                            tin_set: boolean;
+                            tax_regime: string | null;
+                            products_missing_mxik: {
+                                id: number;
+                                uuid: string;
+                                name: string;
+                                kind: string;
+                                status: string;
+                                category_id: number;
+                            }[];
+                            charges_missing_mxik: string[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "fiscalReceipt.index": {
+        parameters: {
+            query?: {
+                /** @description pending | issued | failed. */
+                status?: "pending" | "issued" | "failed";
+                /** @description sale | refund | advance | credit. */
+                type?: "sale" | "refund" | "advance" | "credit";
+                /** @description cash | card | qr | mixed. */
+                payment_form?: "cash" | "card" | "qr" | "mixed";
+                /** @description Filial. */
+                branch_id?: number;
+                /** @description Chek nimaga tegishli: order, order_bill, booking_payment ... */
+                subject_type?: string;
+                /** @description subject_type bilan birga. */
+                subject_id?: number;
+                /** @description YYYY-MM-DD (do'kon vaqti). */
+                from?: string;
+                /** @description YYYY-MM-DD (do'kon vaqti). */
+                to?: string;
+                /** @description 1–100, standart 25. */
+                per_page?: number;
+                /** @description Sahifa raqami, 1 dan (Laravel sahifalari). */
+                page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            data: {
+                                uuid: string;
+                                /** @enum {string} */
+                                type: "sale" | "refund" | "advance" | "credit";
+                                /** @enum {string} */
+                                status: "pending" | "issued" | "failed";
+                                /** @enum {string} */
+                                payment_form: "cash" | "card" | "qr" | "mixed";
+                                driver: string;
+                                provider: string | null;
+                                non_fiscal: boolean;
+                                tax_regime: string | null;
+                                total: string;
+                                vat_total: string;
+                                fiscal_sign: string | null;
+                                receipt_number: string | null;
+                                qr_url: string | null;
+                                terminal_id: string | null;
+                                error: string | null;
+                                attempts: number;
+                                next_attempt_at: string | null;
+                                issued_at: string | null;
+                                created_at: string;
+                                branch_id: number | null;
+                                device_id: number | null;
+                                subject_type: string | null;
+                                subject_id: number | null;
+                                original_receipt_uuid: string | null;
+                                lines: {
+                                    name: string;
+                                    mxik_code: string;
+                                    package_code: string | null;
+                                    unit: string;
+                                    quantity: string;
+                                    unit_price: string;
+                                    amount: string;
+                                    vat_rate: string;
+                                    vat_amount: string;
+                                    no_vat: boolean;
+                                    commissioner_tin: string | null;
+                                    marking_code: string | null;
+                                }[];
+                                payments: {
+                                    /** @enum {string} */
+                                    form: "cash" | "card" | "qr";
+                                    amount: string;
+                                    prepayment: boolean;
+                                    credit: boolean;
+                                    card_type: string | null;
+                                    transaction_id: string | null;
+                                }[];
+                            }[];
+                            current_page: number;
+                            last_page: number;
+                            per_page: number;
+                            total: number;
+                            from: number | null;
+                            to: number | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "fiscalReceipt.show": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            /** @enum {string} */
+                            type: "sale" | "refund" | "advance" | "credit";
+                            /** @enum {string} */
+                            status: "pending" | "issued" | "failed";
+                            /** @enum {string} */
+                            payment_form: "cash" | "card" | "qr" | "mixed";
+                            driver: string;
+                            provider: string | null;
+                            non_fiscal: boolean;
+                            tax_regime: string | null;
+                            total: string;
+                            vat_total: string;
+                            fiscal_sign: string | null;
+                            receipt_number: string | null;
+                            qr_url: string | null;
+                            terminal_id: string | null;
+                            error: string | null;
+                            attempts: number;
+                            next_attempt_at: string | null;
+                            issued_at: string | null;
+                            created_at: string;
+                            branch_id: number | null;
+                            device_id: number | null;
+                            subject_type: string | null;
+                            subject_id: number | null;
+                            original_receipt_uuid: string | null;
+                            lines: {
+                                name: string;
+                                mxik_code: string;
+                                package_code: string | null;
+                                unit: string;
+                                quantity: string;
+                                unit_price: string;
+                                amount: string;
+                                vat_rate: string;
+                                vat_amount: string;
+                                no_vat: boolean;
+                                commissioner_tin: string | null;
+                                marking_code: string | null;
+                            }[];
+                            payments: {
+                                /** @enum {string} */
+                                form: "cash" | "card" | "qr";
+                                amount: string;
+                                prepayment: boolean;
+                                credit: boolean;
+                                card_type: string | null;
+                                transaction_id: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "fiscalReceipt.retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            /** @enum {string} */
+                            type: "sale" | "refund" | "advance" | "credit";
+                            /** @enum {string} */
+                            status: "pending" | "issued" | "failed";
+                            /** @enum {string} */
+                            payment_form: "cash" | "card" | "qr" | "mixed";
+                            driver: string;
+                            provider: string | null;
+                            non_fiscal: boolean;
+                            tax_regime: string | null;
+                            total: string;
+                            vat_total: string;
+                            fiscal_sign: string | null;
+                            receipt_number: string | null;
+                            qr_url: string | null;
+                            terminal_id: string | null;
+                            error: string | null;
+                            attempts: number;
+                            next_attempt_at: string | null;
+                            issued_at: string | null;
+                            created_at: string;
+                            branch_id: number | null;
+                            device_id: number | null;
+                            subject_type: string | null;
+                            subject_id: number | null;
+                            original_receipt_uuid: string | null;
+                            lines: {
+                                name: string;
+                                mxik_code: string;
+                                package_code: string | null;
+                                unit: string;
+                                quantity: string;
+                                unit_price: string;
+                                amount: string;
+                                vat_rate: string;
+                                vat_amount: string;
+                                no_vat: boolean;
+                                commissioner_tin: string | null;
+                                marking_code: string | null;
+                            }[];
+                            payments: {
+                                /** @enum {string} */
+                                form: "cash" | "card" | "qr";
+                                amount: string;
+                                prepayment: boolean;
+                                credit: boolean;
+                                card_type: string | null;
+                                transaction_id: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "fiscalSettings.show": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            tin: string | null;
+                            /** @enum {string|null} */
+                            tax_regime: "vat" | "vat_simplified" | "turnover" | null;
+                            fiscal_settings: {
+                                enabled: boolean;
+                                driver: string;
+                                active_driver: string;
+                                charges: {
+                                    room_fee: {
+                                        name: string;
+                                        mxik: string | null;
+                                        package_code: string | null;
+                                        unit: string;
+                                    };
+                                    place_fee: {
+                                        name: string;
+                                        mxik: string | null;
+                                        package_code: string | null;
+                                        unit: string;
+                                    };
+                                    min_spend_topup: {
+                                        name: string;
+                                        mxik: string | null;
+                                        package_code: string | null;
+                                        unit: string;
+                                    };
+                                    service_charge: {
+                                        name: string;
+                                        mxik: string | null;
+                                        package_code: string | null;
+                                        unit: string;
+                                    };
+                                    deposit: {
+                                        name: string;
+                                        mxik: string | null;
+                                        package_code: string | null;
+                                        unit: string;
+                                    };
+                                    booking_fee: {
+                                        name: string;
+                                        mxik: string | null;
+                                        package_code: string | null;
+                                        unit: string;
+                                    };
+                                    credit: {
+                                        name: string;
+                                        mxik: string | null;
+                                        package_code: string | null;
+                                        unit: string;
+                                    };
+                                    delivery: {
+                                        name: string;
+                                        mxik: string | null;
+                                        package_code: string | null;
+                                        unit: string;
+                                    };
+                                };
+                                sandbox: {
+                                    latency_ms: number;
+                                    fail_attempts: number;
+                                    failure_rate: number;
+                                    reject: boolean;
+                                };
+                                deposit_refund_receipt: boolean | null;
+                                retained_deposit_receipt: boolean | null;
+                            };
+                            drivers: string[];
+                            tax_regimes: {
+                                value: string;
+                                label: string;
+                                vat_rate: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "fiscalSettings.update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @description STIR: 9 ta raqam (null — o'chirish). */
+                    tin?: string | null;
+                    /**
+                     * @description vat | vat_simplified | turnover.
+                     * @enum {string|null}
+                     */
+                    tax_regime?: "vat" | "vat_simplified" | "turnover" | null;
+                    /** @description Fiskal sozlamalar (obyekt, qisman). */
+                    fiscal_settings?: {
+                        enabled?: boolean;
+                        driver?: string | null;
+                        charges?: {
+                            room_fee?: {
+                                name?: string | null;
+                                mxik?: string | null;
+                                package_code?: string | null;
+                                unit?: string | null;
+                            };
+                            place_fee?: {
+                                name?: string | null;
+                                mxik?: string | null;
+                                package_code?: string | null;
+                                unit?: string | null;
+                            };
+                            min_spend_topup?: {
+                                name?: string | null;
+                                mxik?: string | null;
+                                package_code?: string | null;
+                                unit?: string | null;
+                            };
+                            service_charge?: {
+                                name?: string | null;
+                                mxik?: string | null;
+                                package_code?: string | null;
+                                unit?: string | null;
+                            };
+                            deposit?: {
+                                name?: string | null;
+                                mxik?: string | null;
+                                package_code?: string | null;
+                                unit?: string | null;
+                            };
+                            booking_fee?: {
+                                name?: string | null;
+                                mxik?: string | null;
+                                package_code?: string | null;
+                                unit?: string | null;
+                            };
+                            credit?: {
+                                name?: string | null;
+                                mxik?: string | null;
+                                package_code?: string | null;
+                                unit?: string | null;
+                            };
+                            delivery?: {
+                                name?: string | null;
+                                mxik?: string | null;
+                                package_code?: string | null;
+                                unit?: string | null;
+                            };
+                        };
+                        sandbox?: {
+                            latency_ms?: number;
+                            fail_attempts?: number;
+                            failure_rate?: number;
+                            reject?: boolean;
+                        };
+                        deposit_refund_receipt?: boolean | null;
+                        retained_deposit_receipt?: boolean | null;
+                    };
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            tin: string | null;
+                            /** @enum {string|null} */
+                            tax_regime: "vat" | "vat_simplified" | "turnover" | null;
+                            fiscal_settings: {
+                                enabled: boolean;
+                                driver: string;
+                                active_driver: string;
+                                charges: {
+                                    room_fee: {
+                                        name: string;
+                                        mxik: string | null;
+                                        package_code: string | null;
+                                        unit: string;
+                                    };
+                                    place_fee: {
+                                        name: string;
+                                        mxik: string | null;
+                                        package_code: string | null;
+                                        unit: string;
+                                    };
+                                    min_spend_topup: {
+                                        name: string;
+                                        mxik: string | null;
+                                        package_code: string | null;
+                                        unit: string;
+                                    };
+                                    service_charge: {
+                                        name: string;
+                                        mxik: string | null;
+                                        package_code: string | null;
+                                        unit: string;
+                                    };
+                                    deposit: {
+                                        name: string;
+                                        mxik: string | null;
+                                        package_code: string | null;
+                                        unit: string;
+                                    };
+                                    booking_fee: {
+                                        name: string;
+                                        mxik: string | null;
+                                        package_code: string | null;
+                                        unit: string;
+                                    };
+                                    credit: {
+                                        name: string;
+                                        mxik: string | null;
+                                        package_code: string | null;
+                                        unit: string;
+                                    };
+                                    delivery: {
+                                        name: string;
+                                        mxik: string | null;
+                                        package_code: string | null;
+                                        unit: string;
+                                    };
+                                };
+                                sandbox: {
+                                    latency_ms: number;
+                                    fail_attempts: number;
+                                    failure_rate: number;
+                                    reject: boolean;
+                                };
+                                deposit_refund_receipt: boolean | null;
+                                retained_deposit_receipt: boolean | null;
+                            };
+                            drivers: string[];
+                            tax_regimes: {
+                                value: string;
+                                label: string;
+                                vat_rate: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "hall.index": {
+        parameters: {
+            query?: {
+                /** @description One branch; omit for every branch the caller works in. */
+                branch_id?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            branch_id: number;
+                            name: string;
+                            sort_order: number;
+                            is_active: boolean;
+                            service_fee: {
+                                service_charge_percent: string;
+                                place_fee_amount: string;
+                                place_fee_mode: string;
+                            } | null;
+                            tables: {
+                                id: number;
+                                branch_id: number;
+                                hall_id: number;
+                                name: string;
+                                kind: string;
+                                seats: number | null;
+                                layout: {
+                                    x: string | null;
+                                    y: string | null;
+                                    w: string | null;
+                                    h: string | null;
+                                };
+                                sort_order: number;
+                                is_active: boolean;
+                                min_spend: string | null;
+                                min_spend_mode: string;
+                            }[];
+                        }[];
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "hall.store": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    branch_id: number;
+                    name: string;
+                    sort_order?: number | null;
+                    is_active?: boolean | null;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            branch_id: number;
+                            name: string;
+                            sort_order: number;
+                            is_active: boolean;
+                            service_fee: {
+                                service_charge_percent: string;
+                                place_fee_amount: string;
+                                place_fee_mode: string;
+                            } | null;
+                            tables: {
+                                id: number;
+                                branch_id: number;
+                                hall_id: number;
+                                name: string;
+                                kind: string;
+                                seats: number | null;
+                                layout: {
+                                    x: string | null;
+                                    y: string | null;
+                                    w: string | null;
+                                    h: string | null;
+                                };
+                                sort_order: number;
+                                is_active: boolean;
+                                min_spend: string | null;
+                                min_spend_mode: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "hall.destroy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "hall.update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    name?: string;
+                    sort_order?: number;
+                    is_active?: boolean;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            branch_id: number;
+                            name: string;
+                            sort_order: number;
+                            is_active: boolean;
+                            service_fee: {
+                                service_charge_percent: string;
+                                place_fee_amount: string;
+                                place_fee_mode: string;
+                            } | null;
+                            tables: {
+                                id: number;
+                                branch_id: number;
+                                hall_id: number;
+                                name: string;
+                                kind: string;
+                                seats: number | null;
+                                layout: {
+                                    x: string | null;
+                                    y: string | null;
+                                    w: string | null;
+                                    h: string | null;
+                                };
+                                sort_order: number;
+                                is_active: boolean;
+                                min_spend: string | null;
+                                min_spend_mode: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
     "ownerBilling.invoices": {
         parameters: {
             query?: {
@@ -7156,6 +10488,271 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "kitchenStationRoute.index": {
+        parameters: {
+            query?: {
+                /** @description The branch (a branch-bound caller: their own). */
+                branch_id?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            branch_id: number;
+                            station_id: number;
+                            category_id: number | null;
+                            category_name: string | null;
+                            product_id: number | null;
+                            product_name: string | null;
+                        }[];
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "kitchenStationRoute.assign": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    branch_id?: number | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            branch_id: number;
+                            station_id: number;
+                            category_id: number | null;
+                            category_name: string | null;
+                            product_id: number | null;
+                            product_name: string | null;
+                        }[];
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "kitchenStationRoute.destroy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: null;
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "kitchenStation.index": {
+        parameters: {
+            query?: {
+                /** @description Only this branch. */
+                branch_id?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            kinds: {
+                                value: string;
+                                label: string;
+                            }[];
+                            stations: {
+                                id: number;
+                                branch_id: number;
+                                name: string;
+                                kind: string;
+                                kind_label: string;
+                                sort_order: number;
+                                is_active: boolean;
+                                show_on_kds: boolean;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "kitchenStation.store": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    branch_id?: number | null;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            branch_id: number;
+                            name: string;
+                            kind: string;
+                            kind_label: string;
+                            sort_order: number;
+                            is_active: boolean;
+                            show_on_kds: boolean;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "kitchenStation.destroy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: null;
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description Sexga yuborilgan qatorlar bor (`station_in_use`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "kitchenStation.update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    name?: string;
+                    /** @enum {string} */
+                    kind?: "osh" | "mangal" | "salad_bar" | "tea" | "kitchen" | "other";
+                    sort_order?: number;
+                    is_active?: boolean;
+                    show_on_kds?: boolean;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            branch_id: number;
+                            name: string;
+                            kind: string;
+                            kind_label: string;
+                            sort_order: number;
+                            is_active: boolean;
+                            show_on_kds: boolean;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
             422: components["responses"]["ValidationException"];
         };
     };
@@ -7388,6 +10985,8 @@ export interface operations {
                 status?: string;
                 /** @description click | payme | ... */
                 provider?: string;
+                /** @description P3-14: blocked | pending | failed | recorded (fiskal chek holati). */
+                fiscal_status?: string;
                 /** @description Filial. */
                 branch_id?: number;
                 /** @description YYYY-MM-DD (do'kon vaqti). */
@@ -7429,6 +11028,10 @@ export interface operations {
                                     branch_id: number | null;
                                     total_price: string;
                                 };
+                                fiscal: {
+                                    status: string;
+                                    problems: string[];
+                                } | null;
                             }[];
                             current_page: number;
                             last_page: number;
@@ -7658,6 +11261,179 @@ export interface operations {
             422: components["responses"]["ValidationException"];
         };
     };
+    "printer.index": {
+        parameters: {
+            query?: {
+                /** @description Only this branch. */
+                branch_id?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            branch_id: number;
+                            name: string;
+                            purpose: string;
+                            connection: string;
+                            address: string | null;
+                            port: number | null;
+                            paper_width: number;
+                            station_id: number | null;
+                            device_id: string | null;
+                            is_active: boolean;
+                            encoding: string | null;
+                            print_as_image: boolean;
+                        }[];
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "printer.store": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    branch_id?: number | null;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            branch_id: number;
+                            name: string;
+                            purpose: string;
+                            connection: string;
+                            address: string | null;
+                            port: number | null;
+                            paper_width: number;
+                            station_id: number | null;
+                            device_id: string | null;
+                            is_active: boolean;
+                            encoding: string | null;
+                            print_as_image: boolean;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "printer.destroy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: null;
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "printer.update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    name?: string;
+                    /** @enum {string} */
+                    purpose?: "receipt" | "kitchen" | "label";
+                    /** @enum {string} */
+                    connection?: "lan" | "usb" | "builtin" | "bluetooth";
+                    address?: string | null;
+                    port?: number | null;
+                    /** @enum {integer} */
+                    paper_width?: "58" | "80";
+                    station_id?: number | null;
+                    /** Format: uuid */
+                    device_id?: string | null;
+                    is_active?: boolean;
+                    encoding?: string | null;
+                    print_as_image?: boolean;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            branch_id: number;
+                            name: string;
+                            purpose: string;
+                            connection: string;
+                            address: string | null;
+                            port: number | null;
+                            paper_width: number;
+                            station_id: number | null;
+                            device_id: string | null;
+                            is_active: boolean;
+                            encoding: string | null;
+                            print_as_image: boolean;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
     "ownerCatalog.getProducts": {
         parameters: {
             query?: never;
@@ -7699,17 +11475,17 @@ export interface operations {
                     is_active?: boolean;
                     /**
                      * Format: binary
-                     * @description Max 5MB
+                     * @description Maximum file size: 5120 kilobytes.
                      */
                     image?: string | null;
-                    /**
-                     * @description JSON array of variants: [{"name": "...", "price": 25000}, ...]; P1-21 adds optional "unit" (piece|kg|l),
-                     *     "quantity_step", "min_quantity" (kg/l) and "batch_consumption"; P2-30: optional "stock" (left out: 999)
-                     */
                     variants: string;
                     batch_tracked?: boolean;
-                    /** @description P2-12: position in the menu, as the panel's product form sets it (left out = 0 / kept) */
                     sort_order?: number | null;
+                    /** @enum {string|null} */
+                    kind?: "dish" | "service" | null;
+                    mxik_code?: string | null;
+                    package_code?: string | null;
+                    vat_rate?: number | null;
                 };
             };
         };
@@ -7762,13 +11538,14 @@ export interface operations {
                      * @description Maximum file size: 5120 kilobytes.
                      */
                     image?: string | null;
-                    /**
-                     * @description JSON array of variants: [{"id": 1, "name": "...", "price": 25000}, ...]; one without an id is created,
-                     *     an existing one left out is deleted. P1-21: optional "unit", "quantity_step", "min_quantity", "batch_consumption"
-                     */
                     variants: string;
                     batch_tracked?: boolean;
                     sort_order?: number | null;
+                    /** @enum {string|null} */
+                    kind?: "dish" | "service" | null;
+                    mxik_code?: string | null;
+                    package_code?: string | null;
+                    vat_rate?: number | null;
                 };
             };
         };
@@ -8155,6 +11932,225 @@ export interface operations {
             401: components["responses"]["AuthenticationException"];
         };
     };
+    "roomTariff.index": {
+        parameters: {
+            query?: {
+                /** @description The branch; defaults to the caller's. */
+                branch_id?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            calendar: {
+                                branch_id: number;
+                                weekend_days: number[];
+                                holidays: string[];
+                            };
+                            tariffs: {
+                                id: number;
+                                branch_id: number;
+                                dining_table_id: number | null;
+                                dining_table_name: string | null;
+                                hall_id: number | null;
+                                table_kind: string | null;
+                                day_type: string;
+                                price: string;
+                                valid_from: string | null;
+                                valid_to: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "roomTariff.store": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    branch_id: number;
+                    dining_table_id?: number | null;
+                    hall_id?: number | null;
+                    /** @enum {string|null} */
+                    table_kind?: "table" | "room" | "tapchan" | null;
+                    /** @enum {string} */
+                    day_type: "weekday" | "weekend" | "holiday";
+                    price: number;
+                    /** Format: date */
+                    valid_from?: string | null;
+                    /** Format: date */
+                    valid_to?: string | null;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            branch_id: number;
+                            dining_table_id: number | null;
+                            dining_table_name: string | null;
+                            hall_id: number | null;
+                            table_kind: string | null;
+                            day_type: string;
+                            price: string;
+                            valid_from: string | null;
+                            valid_to: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "roomTariff.calendarUpdate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    branch_id: number;
+                    weekend_days: number[];
+                    holidays: string[];
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            branch_id: number;
+                            weekend_days: number[];
+                            holidays: string[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "roomTariff.destroy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "roomTariff.update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    branch_id?: string;
+                    dining_table_id?: number | null;
+                    hall_id?: number | null;
+                    /** @enum {string|null} */
+                    table_kind?: "table" | "room" | "tapchan" | null;
+                    /** @enum {string} */
+                    day_type?: "weekday" | "weekend" | "holiday";
+                    price?: number;
+                    /** Format: date */
+                    valid_from?: string | null;
+                    /** Format: date */
+                    valid_to?: string | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            branch_id: number;
+                            dining_table_id: number | null;
+                            dining_table_name: string | null;
+                            hall_id: number | null;
+                            table_kind: string | null;
+                            day_type: string;
+                            price: string;
+                            valid_from: string | null;
+                            valid_to: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
     "serviceFee.index": {
         parameters: {
             query?: never;
@@ -8176,6 +12172,8 @@ export interface operations {
                             channels: unknown[];
                             settings: {
                                 branch_id: number | null;
+                                /** @description P3-12: a hall's own row (null: the branch's or the store's) */
+                                hall_id: number | null;
                                 service_charge_percent: string;
                                 service_charge_channels: string[] | null;
                                 place_fee_amount: string;
@@ -8206,6 +12204,8 @@ export interface operations {
                     /** @enum {string} */
                     place_fee_mode: "per_person" | "per_table";
                     place_fee_channels?: ("mobile" | "pos_hall" | "pos_takeaway" | "aggregator")[] | null;
+                    /** @description P3-12: a hall's own settings (its branch is the hall's) */
+                    hall_id?: number | null;
                 };
             };
         };
@@ -8220,6 +12220,8 @@ export interface operations {
                         message: string;
                         data: {
                             branch_id: number | null;
+                            /** @description P3-12: a hall's own row (null: the branch's or the store's) */
+                            hall_id: number | null;
                             service_charge_percent: string;
                             service_charge_channels: string[] | null;
                             place_fee_amount: string;
@@ -8231,6 +12233,34 @@ export interface operations {
             };
             401: components["responses"]["AuthenticationException"];
             422: components["responses"]["ValidationException"];
+        };
+    };
+    "hall.destroyServiceFee": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            hall_id: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
         };
     };
     "ownerSettings.index": {
@@ -8314,6 +12344,30 @@ export interface operations {
                             status: components["schemas"]["StoreStatus"];
                             is_order_locked: boolean;
                             allowed_methods: string[];
+                            tin: string | null;
+                            /** @enum {string|null} */
+                            tax_regime: "vat" | "vat_simplified" | "turnover" | null;
+                            fiscal_settings: {
+                                enabled: boolean;
+                                driver: string;
+                                active_driver: string;
+                                charges: {
+                                    [key: string]: {
+                                        name: string;
+                                        mxik: string | null;
+                                        package_code: string | null;
+                                        unit: string;
+                                    };
+                                };
+                                sandbox: {
+                                    latency_ms: number;
+                                    fail_attempts: number;
+                                    failure_rate: number;
+                                    reject: boolean;
+                                };
+                                deposit_refund_receipt: boolean | null;
+                                retained_deposit_receipt: boolean | null;
+                            };
                         };
                     };
                 };
@@ -8358,6 +12412,34 @@ export interface operations {
                     location_url?: string | null;
                     is_open: boolean;
                     min_order_amount?: number | null;
+                    /** @description P3-11: STIR, 9 ta raqam. */
+                    tin?: string | null;
+                    /**
+                     * @description P3-11: vat | vat_simplified | turnover.
+                     * @enum {string|null}
+                     */
+                    tax_regime?: "vat" | "vat_simplified" | "turnover" | null;
+                    /** @description P3-11: fiskal sozlamalar (PUT /owner/fiscal/settings kabi). */
+                    fiscal_settings?: {
+                        enabled?: boolean;
+                        driver?: string | null;
+                        charges?: {
+                            [key: string]: {
+                                name?: string | null;
+                                mxik?: string | null;
+                                package_code?: string | null;
+                                unit?: string | null;
+                            };
+                        };
+                        sandbox?: {
+                            latency_ms?: number;
+                            fail_attempts?: number;
+                            failure_rate?: number;
+                            reject?: boolean;
+                        };
+                        deposit_refund_receipt?: boolean | null;
+                        retained_deposit_receipt?: boolean | null;
+                    };
                     /** @description To'lov va yetkazish sozlamalari (obyekt). */
                     payment_settings: {
                         delivery_fee?: number | null;
@@ -9096,6 +13178,72 @@ export interface operations {
                         jsonrpc: "2.0";
                         id: unknown;
                         result: {
+                            success: boolean;
+                        };
+                    } | {
+                        /** @constant */
+                        jsonrpc: "2.0";
+                        id: unknown;
+                        error: {
+                            code: string;
+                            /** @constant */
+                            message: "Receipt not found";
+                            data: null;
+                        };
+                    } | {
+                        /** @constant */
+                        jsonrpc: "2.0";
+                        id: unknown;
+                        error: {
+                            code: string;
+                            message: string;
+                            data: null;
+                        };
+                    } | {
+                        /** @constant */
+                        jsonrpc: "2.0";
+                        id: unknown;
+                        error: {
+                            code: string;
+                            /** @constant */
+                            message: "Invalid parameter: fiscal_data.status_code";
+                            data: null;
+                        };
+                    } | {
+                        /** @constant */
+                        jsonrpc: "2.0";
+                        id: unknown;
+                        error: {
+                            code: string;
+                            /** @constant */
+                            message: "Invalid parameter: fiscal_data";
+                            data: null;
+                        };
+                    } | {
+                        /** @constant */
+                        jsonrpc: "2.0";
+                        id: unknown;
+                        error: {
+                            code: string;
+                            /** @constant */
+                            message: "Invalid parameter: type";
+                            data: null;
+                        };
+                    } | {
+                        /** @constant */
+                        jsonrpc: "2.0";
+                        id: unknown;
+                        error: {
+                            code: string;
+                            /** @constant */
+                            message: "Invalid parameter: id";
+                            data: null;
+                        };
+                    } | {
+                        /** @constant */
+                        jsonrpc: "2.0";
+                        id: unknown;
+                        result: {
                             transactions: {
                                 id: string | null;
                                 time: number;
@@ -9272,6 +13420,16 @@ export interface operations {
                         id: unknown;
                         result: {
                             allow: boolean;
+                            detail: {
+                                /** @constant */
+                                receipt_type: 0;
+                                shipping: {
+                                    /** @constant */
+                                    title: "Yetkazib berish";
+                                    price: number;
+                                };
+                                items: unknown[];
+                            };
                         };
                     } | {
                         /** @constant */
@@ -9360,6 +13518,5380 @@ export interface operations {
                 };
             };
             422: components["responses"]["ValidationException"];
+        };
+    };
+    "posApproval.store": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    permission: "orders.manage" | "orders.cancel" | "orders.discount" | "orders.void_item" | "tables.manage" | "pos.open_shift" | "pos.close_shift" | "pos.cash_in_out" | "pos.take_payment" | "pos.reprint_bill" | "pos.refund" | "bookings.manage" | "customer_accounts.manage";
+                    user_id?: number | null;
+                    staff_code?: string | null;
+                    pin: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string;
+                };
+            };
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            token: string;
+                            permission: string;
+                            expires_at: string;
+                            approved_by: {
+                                id: number;
+                                name: string;
+                                role: string;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "posBill.fiscalRetry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            bill: {
+                                uuid: string;
+                                order_uuid: string;
+                                number: number;
+                                status: string;
+                                split_mode: string;
+                                subtotal: string;
+                                discount: string;
+                                room_fee_amount: string;
+                                min_spend_topup_amount: string;
+                                service_charge_amount: string;
+                                place_fee_amount: string;
+                                total: string;
+                                paid_amount: string;
+                                due_amount: string;
+                                guests_share: number | null;
+                                per_guest_amount: string | null;
+                                printed_count: number;
+                                printed_at: string | null;
+                                paid_at: string | null;
+                                fiscal: {
+                                    status: string | null;
+                                    receipt_uuid: string | null;
+                                    error: string | null;
+                                };
+                                items: {
+                                    order_item_id: number;
+                                    product_name: string;
+                                    variant_name: string | null;
+                                    unit: string;
+                                    quantity: number;
+                                    amount: string;
+                                    discount_amount: string;
+                                }[];
+                                payments: {
+                                    uuid: string;
+                                    tender: string;
+                                    amount: string;
+                                    tendered_amount: string | null;
+                                    change_amount: string | null;
+                                    card_type: string | null;
+                                    transaction_id: string | null;
+                                    reference: string | null;
+                                    status: string;
+                                    paid_at: string | null;
+                                }[];
+                                created_at: string | null;
+                            };
+                            order: {
+                                uuid: string;
+                                status: string;
+                                payment_status: string;
+                                version: number;
+                                queue_number: number | null;
+                                business_date: string | null;
+                                bill_locked_at: string | null;
+                                closed_at: string | null;
+                                total_price: string;
+                                billed_amount: string;
+                                paid_amount: string;
+                                unbilled_amount: string | null;
+                                fiscal_pending: boolean;
+                                bills_out_of_date: boolean;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "posBill.pay": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    tenders: {
+                        /** @enum {string} */
+                        tender: "cash" | "card" | "qr" | "prepayment" | "account";
+                        amount: number;
+                        tendered_amount?: number | null;
+                        card_type?: string | null;
+                        transaction_id?: string | null;
+                        reference?: string | null;
+                        /** Format: uuid */
+                        account_uuid?: string | null;
+                    }[];
+                    approval_token?: string | null;
+                    /** Format: uuid */
+                    shift_uuid?: string | null;
+                    version?: number | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            bill: {
+                                uuid: string;
+                                order_uuid: string;
+                                number: number;
+                                status: string;
+                                split_mode: string;
+                                subtotal: string;
+                                discount: string;
+                                room_fee_amount: string;
+                                min_spend_topup_amount: string;
+                                service_charge_amount: string;
+                                place_fee_amount: string;
+                                total: string;
+                                paid_amount: string;
+                                due_amount: string;
+                                guests_share: number | null;
+                                per_guest_amount: string | null;
+                                printed_count: number;
+                                printed_at: string | null;
+                                paid_at: string | null;
+                                fiscal: {
+                                    status: string | null;
+                                    receipt_uuid: string | null;
+                                    error: string | null;
+                                };
+                                items: {
+                                    order_item_id: number;
+                                    product_name: string;
+                                    variant_name: string | null;
+                                    unit: string;
+                                    quantity: number;
+                                    amount: string;
+                                    discount_amount: string;
+                                }[];
+                                payments: {
+                                    uuid: string;
+                                    tender: string;
+                                    amount: string;
+                                    tendered_amount: string | null;
+                                    change_amount: string | null;
+                                    card_type: string | null;
+                                    transaction_id: string | null;
+                                    reference: string | null;
+                                    status: string;
+                                    paid_at: string | null;
+                                }[];
+                                created_at: string | null;
+                            };
+                            order: {
+                                uuid: string;
+                                status: string;
+                                payment_status: string;
+                                version: number;
+                                queue_number: number | null;
+                                business_date: string | null;
+                                bill_locked_at: string | null;
+                                closed_at: string | null;
+                                total_price: string;
+                                billed_amount: string;
+                                paid_amount: string;
+                                unbilled_amount: string | null;
+                                fiscal_pending: boolean;
+                                bills_out_of_date: boolean;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "posBill.print": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    version?: number | null;
+                    approval_token?: string | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            bill: {
+                                uuid: string;
+                                order_uuid: string;
+                                number: number;
+                                status: string;
+                                split_mode: string;
+                                subtotal: string;
+                                discount: string;
+                                room_fee_amount: string;
+                                min_spend_topup_amount: string;
+                                service_charge_amount: string;
+                                place_fee_amount: string;
+                                total: string;
+                                paid_amount: string;
+                                due_amount: string;
+                                guests_share: number | null;
+                                per_guest_amount: string | null;
+                                printed_count: number;
+                                printed_at: string | null;
+                                paid_at: string | null;
+                                fiscal: {
+                                    status: string | null;
+                                    receipt_uuid: string | null;
+                                    error: string | null;
+                                };
+                                items: {
+                                    order_item_id: number;
+                                    product_name: string;
+                                    variant_name: string | null;
+                                    unit: string;
+                                    quantity: number;
+                                    amount: string;
+                                    discount_amount: string;
+                                }[];
+                                payments: {
+                                    uuid: string;
+                                    tender: string;
+                                    amount: string;
+                                    tendered_amount: string | null;
+                                    change_amount: string | null;
+                                    card_type: string | null;
+                                    transaction_id: string | null;
+                                    reference: string | null;
+                                    status: string;
+                                    paid_at: string | null;
+                                }[];
+                                created_at: string | null;
+                            };
+                            copy: boolean;
+                            order: {
+                                uuid: string;
+                                status: string;
+                                payment_status: string;
+                                version: number;
+                                queue_number: number | null;
+                                business_date: string | null;
+                                bill_locked_at: string | null;
+                                closed_at: string | null;
+                                total_price: string;
+                                billed_amount: string;
+                                paid_amount: string;
+                                unbilled_amount: string | null;
+                                fiscal_pending: boolean;
+                                bills_out_of_date: boolean;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "booking.index": {
+        parameters: {
+            query?: {
+                /** @description One branch (default: the caller's; the whole store for store-wide staff). */
+                branch_id?: number;
+                /** @description Search by the contact phone (digits, at least 4). */
+                phone?: string;
+                /** @description requested, confirmed, arrived, completed, canceled or no_show. */
+                status?: string;
+                /** @description First day, Y-m-d (store time zone). */
+                from?: string;
+                /** @description Last day, Y-m-d, inclusive. */
+                to?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            bookings: {
+                                uuid: string;
+                                branch_id: number;
+                                dining_table_id: number | null;
+                                table_ids: number[];
+                                starts_at: string;
+                                ends_at: string;
+                                guests_planned: number;
+                                event_type: string;
+                                event_type_label: string;
+                                contact_name: string;
+                                contact_phone: string | null;
+                                source: string;
+                                source_label: string;
+                                status: string;
+                                status_label: string;
+                                min_spend: string | null;
+                                note: string | null;
+                                order_uuid: string | null;
+                                deposit_total: string;
+                                deposit_available: string;
+                                deposit_unsettled: boolean;
+                                items_count: number;
+                                cancel_reason: string | null;
+                                version: number;
+                                created_by: number | null;
+                                confirmed_at: string | null;
+                                arrived_at: string | null;
+                                completed_at: string | null;
+                                canceled_at: string | null;
+                                created_at: string | null;
+                                updated_at: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "booking.store": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    branch_id?: number | null;
+                    dining_table_id?: number | null;
+                    extra_table_ids?: number[] | null;
+                    /** Format: date-time */
+                    starts_at: string;
+                    /** Format: date-time */
+                    ends_at?: string | null;
+                    guests_planned?: number | null;
+                    /** @enum {string|null} */
+                    event_type?: "gap" | "ziyofat" | "tugilgan_kun" | "nahor_oshi" | "korporativ" | "other" | null;
+                    contact_name: string;
+                    contact_phone?: string | null;
+                    /** @enum {string|null} */
+                    source?: "phone" | "telegram" | "instagram" | "walk_in" | "other" | null;
+                    min_spend?: number | null;
+                    note?: string | null;
+                    confirm?: boolean | null;
+                    version?: number | null;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            branch_id: number;
+                            dining_table_id: number | null;
+                            table_ids: number[];
+                            starts_at: string;
+                            ends_at: string;
+                            guests_planned: number;
+                            event_type: string;
+                            event_type_label: string;
+                            contact_name: string;
+                            contact_phone: string | null;
+                            source: string;
+                            source_label: string;
+                            status: string;
+                            status_label: string;
+                            min_spend: string | null;
+                            note: string | null;
+                            order_uuid: string | null;
+                            deposit_total: string;
+                            deposit_available: string;
+                            deposit_unsettled: boolean;
+                            items_count: number;
+                            cancel_reason: string | null;
+                            version: number;
+                            created_by: number | null;
+                            confirmed_at: string | null;
+                            arrived_at: string | null;
+                            completed_at: string | null;
+                            canceled_at: string | null;
+                            created_at: string | null;
+                            updated_at: string | null;
+                            items: {
+                                id: number;
+                                product_variant_id: number;
+                                product_name: string;
+                                variant_name: string | null;
+                                unit: string;
+                                quantity: number;
+                                modifiers: {
+                                    [key: string]: unknown;
+                                }[];
+                                unit_price: string;
+                                note: string | null;
+                                due_at: string | null;
+                            }[];
+                            payments: {
+                                uuid: string;
+                                amount: string;
+                                tender: string;
+                                card_type: string | null;
+                                transaction_id: string | null;
+                                status: string;
+                                status_label: string;
+                                remaining: string;
+                                applied_amount: string;
+                                refunded_amount: string;
+                                retained_amount: string;
+                                fiscal_receipt_uuid: string | null;
+                                fiscal_status: string | null;
+                                settle_reason: string | null;
+                                settle_receipt_uuid: string | null;
+                                settle_fiscal_status: string | null;
+                                approved_by: number | null;
+                                user_id: number | null;
+                                created_at: string | null;
+                                settled_at: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description A room is booked at that time */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "booking.calendar": {
+        parameters: {
+            query?: {
+                /** @description The branch (default: the one the caller works in). */
+                branch_id?: number;
+                /** @description First day, Y-m-d (store time zone). */
+                from?: string;
+                /** @description Last day, Y-m-d, inclusive. */
+                to?: string;
+                /** @description Also canceled bookings. */
+                include_canceled?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            branch_id: number;
+                            from: string;
+                            to: string;
+                            timezone: string;
+                            rooms: {
+                                id: number;
+                                name: string;
+                                kind: string;
+                                seats: number | null;
+                                hall_id: number;
+                                hall_name: string | null;
+                                is_active: boolean;
+                                min_spend: string | null;
+                                bookings: {
+                                    uuid: string;
+                                    branch_id: number;
+                                    dining_table_id: number | null;
+                                    table_ids: number[];
+                                    starts_at: string;
+                                    ends_at: string;
+                                    guests_planned: number;
+                                    event_type: string;
+                                    event_type_label: string;
+                                    contact_name: string;
+                                    contact_phone: string | null;
+                                    source: string;
+                                    source_label: string;
+                                    status: string;
+                                    status_label: string;
+                                    min_spend: string | null;
+                                    note: string | null;
+                                    order_uuid: string | null;
+                                    deposit_total: string;
+                                    deposit_available: string;
+                                    deposit_unsettled: boolean;
+                                    items_count: number;
+                                    cancel_reason: string | null;
+                                    version: number;
+                                    created_by: number | null;
+                                    confirmed_at: string | null;
+                                    arrived_at: string | null;
+                                    completed_at: string | null;
+                                    canceled_at: string | null;
+                                    created_at: string | null;
+                                    updated_at: string | null;
+                                }[];
+                            }[];
+                            unassigned: {
+                                uuid: string;
+                                branch_id: number;
+                                dining_table_id: number | null;
+                                table_ids: number[];
+                                starts_at: string;
+                                ends_at: string;
+                                guests_planned: number;
+                                event_type: string;
+                                event_type_label: string;
+                                contact_name: string;
+                                contact_phone: string | null;
+                                source: string;
+                                source_label: string;
+                                status: string;
+                                status_label: string;
+                                min_spend: string | null;
+                                note: string | null;
+                                order_uuid: string | null;
+                                deposit_total: string;
+                                deposit_available: string;
+                                deposit_unsettled: boolean;
+                                items_count: number;
+                                cancel_reason: string | null;
+                                version: number;
+                                created_by: number | null;
+                                confirmed_at: string | null;
+                                arrived_at: string | null;
+                                completed_at: string | null;
+                                canceled_at: string | null;
+                                created_at: string | null;
+                                updated_at: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "booking.show": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            branch_id: number;
+                            dining_table_id: number | null;
+                            table_ids: number[];
+                            starts_at: string;
+                            ends_at: string;
+                            guests_planned: number;
+                            event_type: string;
+                            event_type_label: string;
+                            contact_name: string;
+                            contact_phone: string | null;
+                            source: string;
+                            source_label: string;
+                            status: string;
+                            status_label: string;
+                            min_spend: string | null;
+                            note: string | null;
+                            order_uuid: string | null;
+                            deposit_total: string;
+                            deposit_available: string;
+                            deposit_unsettled: boolean;
+                            items_count: number;
+                            cancel_reason: string | null;
+                            version: number;
+                            created_by: number | null;
+                            confirmed_at: string | null;
+                            arrived_at: string | null;
+                            completed_at: string | null;
+                            canceled_at: string | null;
+                            created_at: string | null;
+                            updated_at: string | null;
+                            items: {
+                                id: number;
+                                product_variant_id: number;
+                                product_name: string;
+                                variant_name: string | null;
+                                unit: string;
+                                quantity: number;
+                                modifiers: {
+                                    [key: string]: unknown;
+                                }[];
+                                unit_price: string;
+                                note: string | null;
+                                due_at: string | null;
+                            }[];
+                            payments: {
+                                uuid: string;
+                                amount: string;
+                                tender: string;
+                                card_type: string | null;
+                                transaction_id: string | null;
+                                status: string;
+                                status_label: string;
+                                remaining: string;
+                                applied_amount: string;
+                                refunded_amount: string;
+                                retained_amount: string;
+                                fiscal_receipt_uuid: string | null;
+                                fiscal_status: string | null;
+                                settle_reason: string | null;
+                                settle_receipt_uuid: string | null;
+                                settle_fiscal_status: string | null;
+                                approved_by: number | null;
+                                user_id: number | null;
+                                created_at: string | null;
+                                settled_at: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "booking.update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    dining_table_id?: number | null;
+                    extra_table_ids?: number[] | null;
+                    /** Format: date-time */
+                    starts_at?: string;
+                    /** Format: date-time */
+                    ends_at?: string | null;
+                    guests_planned?: number | null;
+                    /** @enum {string|null} */
+                    event_type?: "gap" | "ziyofat" | "tugilgan_kun" | "nahor_oshi" | "korporativ" | "other" | null;
+                    contact_name?: string;
+                    contact_phone?: string | null;
+                    /** @enum {string|null} */
+                    source?: "phone" | "telegram" | "instagram" | "walk_in" | "other" | null;
+                    min_spend?: number | null;
+                    note?: string | null;
+                    version?: number | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            branch_id: number;
+                            dining_table_id: number | null;
+                            table_ids: number[];
+                            starts_at: string;
+                            ends_at: string;
+                            guests_planned: number;
+                            event_type: string;
+                            event_type_label: string;
+                            contact_name: string;
+                            contact_phone: string | null;
+                            source: string;
+                            source_label: string;
+                            status: string;
+                            status_label: string;
+                            min_spend: string | null;
+                            note: string | null;
+                            order_uuid: string | null;
+                            deposit_total: string;
+                            deposit_available: string;
+                            deposit_unsettled: boolean;
+                            items_count: number;
+                            cancel_reason: string | null;
+                            version: number;
+                            created_by: number | null;
+                            confirmed_at: string | null;
+                            arrived_at: string | null;
+                            completed_at: string | null;
+                            canceled_at: string | null;
+                            created_at: string | null;
+                            updated_at: string | null;
+                            items: {
+                                id: number;
+                                product_variant_id: number;
+                                product_name: string;
+                                variant_name: string | null;
+                                unit: string;
+                                quantity: number;
+                                modifiers: {
+                                    [key: string]: unknown;
+                                }[];
+                                unit_price: string;
+                                note: string | null;
+                                due_at: string | null;
+                            }[];
+                            payments: {
+                                uuid: string;
+                                amount: string;
+                                tender: string;
+                                card_type: string | null;
+                                transaction_id: string | null;
+                                status: string;
+                                status_label: string;
+                                remaining: string;
+                                applied_amount: string;
+                                refunded_amount: string;
+                                retained_amount: string;
+                                fiscal_receipt_uuid: string | null;
+                                fiscal_status: string | null;
+                                settle_reason: string | null;
+                                settle_receipt_uuid: string | null;
+                                settle_fiscal_status: string | null;
+                                approved_by: number | null;
+                                user_id: number | null;
+                                created_at: string | null;
+                                settled_at: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "booking.arrive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    guests?: number | null;
+                    dining_table_id?: number | null;
+                    version?: number | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            booking: {
+                                uuid: string;
+                                branch_id: number;
+                                dining_table_id: number | null;
+                                table_ids: number[];
+                                starts_at: string;
+                                ends_at: string;
+                                guests_planned: number;
+                                event_type: string;
+                                event_type_label: string;
+                                contact_name: string;
+                                contact_phone: string | null;
+                                source: string;
+                                source_label: string;
+                                status: string;
+                                status_label: string;
+                                min_spend: string | null;
+                                note: string | null;
+                                order_uuid: string | null;
+                                deposit_total: string;
+                                deposit_available: string;
+                                deposit_unsettled: boolean;
+                                items_count: number;
+                                cancel_reason: string | null;
+                                version: number;
+                                created_by: number | null;
+                                confirmed_at: string | null;
+                                arrived_at: string | null;
+                                completed_at: string | null;
+                                canceled_at: string | null;
+                                created_at: string | null;
+                                updated_at: string | null;
+                                items: {
+                                    id: number;
+                                    product_variant_id: number;
+                                    product_name: string;
+                                    variant_name: string | null;
+                                    unit: string;
+                                    quantity: number;
+                                    modifiers: {
+                                        [key: string]: unknown;
+                                    }[];
+                                    unit_price: string;
+                                    note: string | null;
+                                    due_at: string | null;
+                                }[];
+                                payments: {
+                                    uuid: string;
+                                    amount: string;
+                                    tender: string;
+                                    card_type: string | null;
+                                    transaction_id: string | null;
+                                    status: string;
+                                    status_label: string;
+                                    remaining: string;
+                                    applied_amount: string;
+                                    refunded_amount: string;
+                                    retained_amount: string;
+                                    fiscal_receipt_uuid: string | null;
+                                    fiscal_status: string | null;
+                                    settle_reason: string | null;
+                                    settle_receipt_uuid: string | null;
+                                    settle_fiscal_status: string | null;
+                                    approved_by: number | null;
+                                    user_id: number | null;
+                                    created_at: string | null;
+                                    settled_at: string | null;
+                                }[];
+                            };
+                            order: {
+                                uuid: string;
+                                status: string;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "booking.cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    reason: string;
+                    version?: number | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            branch_id: number;
+                            dining_table_id: number | null;
+                            table_ids: number[];
+                            starts_at: string;
+                            ends_at: string;
+                            guests_planned: number;
+                            event_type: string;
+                            event_type_label: string;
+                            contact_name: string;
+                            contact_phone: string | null;
+                            source: string;
+                            source_label: string;
+                            status: string;
+                            status_label: string;
+                            min_spend: string | null;
+                            note: string | null;
+                            order_uuid: string | null;
+                            deposit_total: string;
+                            deposit_available: string;
+                            deposit_unsettled: boolean;
+                            items_count: number;
+                            cancel_reason: string | null;
+                            version: number;
+                            created_by: number | null;
+                            confirmed_at: string | null;
+                            arrived_at: string | null;
+                            completed_at: string | null;
+                            canceled_at: string | null;
+                            created_at: string | null;
+                            updated_at: string | null;
+                            items: {
+                                id: number;
+                                product_variant_id: number;
+                                product_name: string;
+                                variant_name: string | null;
+                                unit: string;
+                                quantity: number;
+                                modifiers: {
+                                    [key: string]: unknown;
+                                }[];
+                                unit_price: string;
+                                note: string | null;
+                                due_at: string | null;
+                            }[];
+                            payments: {
+                                uuid: string;
+                                amount: string;
+                                tender: string;
+                                card_type: string | null;
+                                transaction_id: string | null;
+                                status: string;
+                                status_label: string;
+                                remaining: string;
+                                applied_amount: string;
+                                refunded_amount: string;
+                                retained_amount: string;
+                                fiscal_receipt_uuid: string | null;
+                                fiscal_status: string | null;
+                                settle_reason: string | null;
+                                settle_receipt_uuid: string | null;
+                                settle_fiscal_status: string | null;
+                                approved_by: number | null;
+                                user_id: number | null;
+                                created_at: string | null;
+                                settled_at: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "booking.confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            branch_id: number;
+                            dining_table_id: number | null;
+                            table_ids: number[];
+                            starts_at: string;
+                            ends_at: string;
+                            guests_planned: number;
+                            event_type: string;
+                            event_type_label: string;
+                            contact_name: string;
+                            contact_phone: string | null;
+                            source: string;
+                            source_label: string;
+                            status: string;
+                            status_label: string;
+                            min_spend: string | null;
+                            note: string | null;
+                            order_uuid: string | null;
+                            deposit_total: string;
+                            deposit_available: string;
+                            deposit_unsettled: boolean;
+                            items_count: number;
+                            cancel_reason: string | null;
+                            version: number;
+                            created_by: number | null;
+                            confirmed_at: string | null;
+                            arrived_at: string | null;
+                            completed_at: string | null;
+                            canceled_at: string | null;
+                            created_at: string | null;
+                            updated_at: string | null;
+                            items: {
+                                id: number;
+                                product_variant_id: number;
+                                product_name: string;
+                                variant_name: string | null;
+                                unit: string;
+                                quantity: number;
+                                modifiers: {
+                                    [key: string]: unknown;
+                                }[];
+                                unit_price: string;
+                                note: string | null;
+                                due_at: string | null;
+                            }[];
+                            payments: {
+                                uuid: string;
+                                amount: string;
+                                tender: string;
+                                card_type: string | null;
+                                transaction_id: string | null;
+                                status: string;
+                                status_label: string;
+                                remaining: string;
+                                applied_amount: string;
+                                refunded_amount: string;
+                                retained_amount: string;
+                                fiscal_receipt_uuid: string | null;
+                                fiscal_status: string | null;
+                                settle_reason: string | null;
+                                settle_receipt_uuid: string | null;
+                                settle_fiscal_status: string | null;
+                                approved_by: number | null;
+                                user_id: number | null;
+                                created_at: string | null;
+                                settled_at: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "booking.takeDeposit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    amount: number;
+                    /** @enum {string} */
+                    tender: "cash" | "card" | "qr";
+                    card_type?: string | null;
+                    transaction_id?: string | null;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            booking: {
+                                uuid: string;
+                                branch_id: number;
+                                dining_table_id: number | null;
+                                table_ids: number[];
+                                starts_at: string;
+                                ends_at: string;
+                                guests_planned: number;
+                                event_type: string;
+                                event_type_label: string;
+                                contact_name: string;
+                                contact_phone: string | null;
+                                source: string;
+                                source_label: string;
+                                status: string;
+                                status_label: string;
+                                min_spend: string | null;
+                                note: string | null;
+                                order_uuid: string | null;
+                                deposit_total: string;
+                                deposit_available: string;
+                                deposit_unsettled: boolean;
+                                items_count: number;
+                                cancel_reason: string | null;
+                                version: number;
+                                created_by: number | null;
+                                confirmed_at: string | null;
+                                arrived_at: string | null;
+                                completed_at: string | null;
+                                canceled_at: string | null;
+                                created_at: string | null;
+                                updated_at: string | null;
+                                items: {
+                                    id: number;
+                                    product_variant_id: number;
+                                    product_name: string;
+                                    variant_name: string | null;
+                                    unit: string;
+                                    quantity: number;
+                                    modifiers: {
+                                        [key: string]: unknown;
+                                    }[];
+                                    unit_price: string;
+                                    note: string | null;
+                                    due_at: string | null;
+                                }[];
+                                payments: {
+                                    uuid: string;
+                                    amount: string;
+                                    tender: string;
+                                    card_type: string | null;
+                                    transaction_id: string | null;
+                                    status: string;
+                                    status_label: string;
+                                    remaining: string;
+                                    applied_amount: string;
+                                    refunded_amount: string;
+                                    retained_amount: string;
+                                    fiscal_receipt_uuid: string | null;
+                                    fiscal_status: string | null;
+                                    settle_reason: string | null;
+                                    settle_receipt_uuid: string | null;
+                                    settle_fiscal_status: string | null;
+                                    approved_by: number | null;
+                                    user_id: number | null;
+                                    created_at: string | null;
+                                    settled_at: string | null;
+                                }[];
+                            };
+                            payment: {
+                                uuid: string;
+                                amount: string;
+                                tender: string;
+                                card_type: string | null;
+                                transaction_id: string | null;
+                                status: string;
+                                status_label: string;
+                                remaining: string;
+                                applied_amount: string;
+                                refunded_amount: string;
+                                retained_amount: string;
+                                fiscal_receipt_uuid: string | null;
+                                fiscal_status: string | null;
+                                settle_reason: string | null;
+                                settle_receipt_uuid: string | null;
+                                settle_fiscal_status: string | null;
+                                approved_by: number | null;
+                                user_id: number | null;
+                                created_at: string | null;
+                                settled_at: string | null;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "booking.refundDeposit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+                payment: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            booking: {
+                                uuid: string;
+                                branch_id: number;
+                                dining_table_id: number | null;
+                                table_ids: number[];
+                                starts_at: string;
+                                ends_at: string;
+                                guests_planned: number;
+                                event_type: string;
+                                event_type_label: string;
+                                contact_name: string;
+                                contact_phone: string | null;
+                                source: string;
+                                source_label: string;
+                                status: string;
+                                status_label: string;
+                                min_spend: string | null;
+                                note: string | null;
+                                order_uuid: string | null;
+                                deposit_total: string;
+                                deposit_available: string;
+                                deposit_unsettled: boolean;
+                                items_count: number;
+                                cancel_reason: string | null;
+                                version: number;
+                                created_by: number | null;
+                                confirmed_at: string | null;
+                                arrived_at: string | null;
+                                completed_at: string | null;
+                                canceled_at: string | null;
+                                created_at: string | null;
+                                updated_at: string | null;
+                                items: {
+                                    id: number;
+                                    product_variant_id: number;
+                                    product_name: string;
+                                    variant_name: string | null;
+                                    unit: string;
+                                    quantity: number;
+                                    modifiers: {
+                                        [key: string]: unknown;
+                                    }[];
+                                    unit_price: string;
+                                    note: string | null;
+                                    due_at: string | null;
+                                }[];
+                                payments: {
+                                    uuid: string;
+                                    amount: string;
+                                    tender: string;
+                                    card_type: string | null;
+                                    transaction_id: string | null;
+                                    status: string;
+                                    status_label: string;
+                                    remaining: string;
+                                    applied_amount: string;
+                                    refunded_amount: string;
+                                    retained_amount: string;
+                                    fiscal_receipt_uuid: string | null;
+                                    fiscal_status: string | null;
+                                    settle_reason: string | null;
+                                    settle_receipt_uuid: string | null;
+                                    settle_fiscal_status: string | null;
+                                    approved_by: number | null;
+                                    user_id: number | null;
+                                    created_at: string | null;
+                                    settled_at: string | null;
+                                }[];
+                            };
+                            payment: {
+                                uuid: string;
+                                amount: string;
+                                tender: string;
+                                card_type: string | null;
+                                transaction_id: string | null;
+                                status: string;
+                                status_label: string;
+                                remaining: string;
+                                applied_amount: string;
+                                refunded_amount: string;
+                                retained_amount: string;
+                                fiscal_receipt_uuid: string | null;
+                                fiscal_status: string | null;
+                                settle_reason: string | null;
+                                settle_receipt_uuid: string | null;
+                                settle_fiscal_status: string | null;
+                                approved_by: number | null;
+                                user_id: number | null;
+                                created_at: string | null;
+                                settled_at: string | null;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "booking.retainDeposit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+                payment: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            booking: {
+                                uuid: string;
+                                branch_id: number;
+                                dining_table_id: number | null;
+                                table_ids: number[];
+                                starts_at: string;
+                                ends_at: string;
+                                guests_planned: number;
+                                event_type: string;
+                                event_type_label: string;
+                                contact_name: string;
+                                contact_phone: string | null;
+                                source: string;
+                                source_label: string;
+                                status: string;
+                                status_label: string;
+                                min_spend: string | null;
+                                note: string | null;
+                                order_uuid: string | null;
+                                deposit_total: string;
+                                deposit_available: string;
+                                deposit_unsettled: boolean;
+                                items_count: number;
+                                cancel_reason: string | null;
+                                version: number;
+                                created_by: number | null;
+                                confirmed_at: string | null;
+                                arrived_at: string | null;
+                                completed_at: string | null;
+                                canceled_at: string | null;
+                                created_at: string | null;
+                                updated_at: string | null;
+                                items: {
+                                    id: number;
+                                    product_variant_id: number;
+                                    product_name: string;
+                                    variant_name: string | null;
+                                    unit: string;
+                                    quantity: number;
+                                    modifiers: {
+                                        [key: string]: unknown;
+                                    }[];
+                                    unit_price: string;
+                                    note: string | null;
+                                    due_at: string | null;
+                                }[];
+                                payments: {
+                                    uuid: string;
+                                    amount: string;
+                                    tender: string;
+                                    card_type: string | null;
+                                    transaction_id: string | null;
+                                    status: string;
+                                    status_label: string;
+                                    remaining: string;
+                                    applied_amount: string;
+                                    refunded_amount: string;
+                                    retained_amount: string;
+                                    fiscal_receipt_uuid: string | null;
+                                    fiscal_status: string | null;
+                                    settle_reason: string | null;
+                                    settle_receipt_uuid: string | null;
+                                    settle_fiscal_status: string | null;
+                                    approved_by: number | null;
+                                    user_id: number | null;
+                                    created_at: string | null;
+                                    settled_at: string | null;
+                                }[];
+                            };
+                            payment: {
+                                uuid: string;
+                                amount: string;
+                                tender: string;
+                                card_type: string | null;
+                                transaction_id: string | null;
+                                status: string;
+                                status_label: string;
+                                remaining: string;
+                                applied_amount: string;
+                                refunded_amount: string;
+                                retained_amount: string;
+                                fiscal_receipt_uuid: string | null;
+                                fiscal_status: string | null;
+                                settle_reason: string | null;
+                                settle_receipt_uuid: string | null;
+                                settle_fiscal_status: string | null;
+                                approved_by: number | null;
+                                user_id: number | null;
+                                created_at: string | null;
+                                settled_at: string | null;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "booking.addItem": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    product_variant_id: number;
+                    quantity: number;
+                    modifiers?: {
+                        modifier_id: number;
+                        quantity?: number | null;
+                    }[] | null;
+                    note?: string | null;
+                    /** Format: date-time */
+                    due_at?: string | null;
+                    version?: number | null;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            branch_id: number;
+                            dining_table_id: number | null;
+                            table_ids: number[];
+                            starts_at: string;
+                            ends_at: string;
+                            guests_planned: number;
+                            event_type: string;
+                            event_type_label: string;
+                            contact_name: string;
+                            contact_phone: string | null;
+                            source: string;
+                            source_label: string;
+                            status: string;
+                            status_label: string;
+                            min_spend: string | null;
+                            note: string | null;
+                            order_uuid: string | null;
+                            deposit_total: string;
+                            deposit_available: string;
+                            deposit_unsettled: boolean;
+                            items_count: number;
+                            cancel_reason: string | null;
+                            version: number;
+                            created_by: number | null;
+                            confirmed_at: string | null;
+                            arrived_at: string | null;
+                            completed_at: string | null;
+                            canceled_at: string | null;
+                            created_at: string | null;
+                            updated_at: string | null;
+                            items: {
+                                id: number;
+                                product_variant_id: number;
+                                product_name: string;
+                                variant_name: string | null;
+                                unit: string;
+                                quantity: number;
+                                modifiers: {
+                                    [key: string]: unknown;
+                                }[];
+                                unit_price: string;
+                                note: string | null;
+                                due_at: string | null;
+                            }[];
+                            payments: {
+                                uuid: string;
+                                amount: string;
+                                tender: string;
+                                card_type: string | null;
+                                transaction_id: string | null;
+                                status: string;
+                                status_label: string;
+                                remaining: string;
+                                applied_amount: string;
+                                refunded_amount: string;
+                                retained_amount: string;
+                                fiscal_receipt_uuid: string | null;
+                                fiscal_status: string | null;
+                                settle_reason: string | null;
+                                settle_receipt_uuid: string | null;
+                                settle_fiscal_status: string | null;
+                                approved_by: number | null;
+                                user_id: number | null;
+                                created_at: string | null;
+                                settled_at: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "booking.removeItem": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+                item: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            branch_id: number;
+                            dining_table_id: number | null;
+                            table_ids: number[];
+                            starts_at: string;
+                            ends_at: string;
+                            guests_planned: number;
+                            event_type: string;
+                            event_type_label: string;
+                            contact_name: string;
+                            contact_phone: string | null;
+                            source: string;
+                            source_label: string;
+                            status: string;
+                            status_label: string;
+                            min_spend: string | null;
+                            note: string | null;
+                            order_uuid: string | null;
+                            deposit_total: string;
+                            deposit_available: string;
+                            deposit_unsettled: boolean;
+                            items_count: number;
+                            cancel_reason: string | null;
+                            version: number;
+                            created_by: number | null;
+                            confirmed_at: string | null;
+                            arrived_at: string | null;
+                            completed_at: string | null;
+                            canceled_at: string | null;
+                            created_at: string | null;
+                            updated_at: string | null;
+                            items: {
+                                id: number;
+                                product_variant_id: number;
+                                product_name: string;
+                                variant_name: string | null;
+                                unit: string;
+                                quantity: number;
+                                modifiers: {
+                                    [key: string]: unknown;
+                                }[];
+                                unit_price: string;
+                                note: string | null;
+                                due_at: string | null;
+                            }[];
+                            payments: {
+                                uuid: string;
+                                amount: string;
+                                tender: string;
+                                card_type: string | null;
+                                transaction_id: string | null;
+                                status: string;
+                                status_label: string;
+                                remaining: string;
+                                applied_amount: string;
+                                refunded_amount: string;
+                                retained_amount: string;
+                                fiscal_receipt_uuid: string | null;
+                                fiscal_status: string | null;
+                                settle_reason: string | null;
+                                settle_receipt_uuid: string | null;
+                                settle_fiscal_status: string | null;
+                                approved_by: number | null;
+                                user_id: number | null;
+                                created_at: string | null;
+                                settled_at: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "booking.updateItem": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+                item: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    product_variant_id?: number;
+                    quantity?: number;
+                    modifiers?: {
+                        modifier_id: number;
+                        quantity?: number | null;
+                    }[] | null;
+                    note?: string | null;
+                    /** Format: date-time */
+                    due_at?: string | null;
+                    version?: number | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            branch_id: number;
+                            dining_table_id: number | null;
+                            table_ids: number[];
+                            starts_at: string;
+                            ends_at: string;
+                            guests_planned: number;
+                            event_type: string;
+                            event_type_label: string;
+                            contact_name: string;
+                            contact_phone: string | null;
+                            source: string;
+                            source_label: string;
+                            status: string;
+                            status_label: string;
+                            min_spend: string | null;
+                            note: string | null;
+                            order_uuid: string | null;
+                            deposit_total: string;
+                            deposit_available: string;
+                            deposit_unsettled: boolean;
+                            items_count: number;
+                            cancel_reason: string | null;
+                            version: number;
+                            created_by: number | null;
+                            confirmed_at: string | null;
+                            arrived_at: string | null;
+                            completed_at: string | null;
+                            canceled_at: string | null;
+                            created_at: string | null;
+                            updated_at: string | null;
+                            items: {
+                                id: number;
+                                product_variant_id: number;
+                                product_name: string;
+                                variant_name: string | null;
+                                unit: string;
+                                quantity: number;
+                                modifiers: {
+                                    [key: string]: unknown;
+                                }[];
+                                unit_price: string;
+                                note: string | null;
+                                due_at: string | null;
+                            }[];
+                            payments: {
+                                uuid: string;
+                                amount: string;
+                                tender: string;
+                                card_type: string | null;
+                                transaction_id: string | null;
+                                status: string;
+                                status_label: string;
+                                remaining: string;
+                                applied_amount: string;
+                                refunded_amount: string;
+                                retained_amount: string;
+                                fiscal_receipt_uuid: string | null;
+                                fiscal_status: string | null;
+                                settle_reason: string | null;
+                                settle_receipt_uuid: string | null;
+                                settle_fiscal_status: string | null;
+                                approved_by: number | null;
+                                user_id: number | null;
+                                created_at: string | null;
+                                settled_at: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "booking.noShow": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            branch_id: number;
+                            dining_table_id: number | null;
+                            table_ids: number[];
+                            starts_at: string;
+                            ends_at: string;
+                            guests_planned: number;
+                            event_type: string;
+                            event_type_label: string;
+                            contact_name: string;
+                            contact_phone: string | null;
+                            source: string;
+                            source_label: string;
+                            status: string;
+                            status_label: string;
+                            min_spend: string | null;
+                            note: string | null;
+                            order_uuid: string | null;
+                            deposit_total: string;
+                            deposit_available: string;
+                            deposit_unsettled: boolean;
+                            items_count: number;
+                            cancel_reason: string | null;
+                            version: number;
+                            created_by: number | null;
+                            confirmed_at: string | null;
+                            arrived_at: string | null;
+                            completed_at: string | null;
+                            canceled_at: string | null;
+                            created_at: string | null;
+                            updated_at: string | null;
+                            items: {
+                                id: number;
+                                product_variant_id: number;
+                                product_name: string;
+                                variant_name: string | null;
+                                unit: string;
+                                quantity: number;
+                                modifiers: {
+                                    [key: string]: unknown;
+                                }[];
+                                unit_price: string;
+                                note: string | null;
+                                due_at: string | null;
+                            }[];
+                            payments: {
+                                uuid: string;
+                                amount: string;
+                                tender: string;
+                                card_type: string | null;
+                                transaction_id: string | null;
+                                status: string;
+                                status_label: string;
+                                remaining: string;
+                                applied_amount: string;
+                                refunded_amount: string;
+                                retained_amount: string;
+                                fiscal_receipt_uuid: string | null;
+                                fiscal_status: string | null;
+                                settle_reason: string | null;
+                                settle_receipt_uuid: string | null;
+                                settle_fiscal_status: string | null;
+                                approved_by: number | null;
+                                user_id: number | null;
+                                created_at: string | null;
+                                settled_at: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "posBootstrap.show": {
+        parameters: {
+            query?: {
+                /** @description The branch, for a caller who is not tied to one (the owner, a store-wide terminal). */
+                branch_id?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            server_time: string;
+                            menu_version: string;
+                            store: {
+                                id: number;
+                                name: string;
+                                timezone: string;
+                            };
+                            branch: {
+                                id: number;
+                                name: string;
+                                address: string | null;
+                                phone: string | null;
+                                timezone: string;
+                                business_day_starts_at: string;
+                                business_date: string;
+                                pos_settings: {
+                                    mode: string;
+                                    printing_device_id: string | null;
+                                    screen_lock_minutes: number;
+                                    queue_numbers: boolean;
+                                    alerts: {
+                                        open_room_hours: number | null;
+                                        void_amount: string | null;
+                                        discount_percent: string | null;
+                                        unaccepted_online_minutes: number | null;
+                                    };
+                                    holidays: string[];
+                                    booking_slot_minutes: number | null;
+                                };
+                            };
+                            device: {
+                                uuid: string;
+                                type: string;
+                                name: string | null;
+                                is_printing_device: boolean;
+                            } | null;
+                            user: {
+                                id: number;
+                                name: string;
+                                role: string;
+                                permissions: string[];
+                            };
+                            stations: {
+                                id: number;
+                                branch_id: number;
+                                name: string;
+                                kind: string;
+                                kind_label: string;
+                                sort_order: number;
+                                is_active: boolean;
+                                show_on_kds: boolean;
+                            }[];
+                            station_routes: {
+                                categories: {
+                                    category_id: number;
+                                    station_id: number;
+                                }[];
+                                products: {
+                                    product_id: number;
+                                    station_id: number;
+                                }[];
+                            };
+                            printers: {
+                                id: number;
+                                branch_id: number;
+                                name: string;
+                                purpose: string;
+                                connection: string;
+                                address: string | null;
+                                port: number | null;
+                                paper_width: number;
+                                station_id: number | null;
+                                device_id: string | null;
+                                is_active: boolean;
+                                encoding: string | null;
+                                print_as_image: boolean;
+                            }[];
+                            staff: {
+                                id: number;
+                                name: string;
+                                role: string;
+                                photo_url: string | null;
+                            }[];
+                            halls: {
+                                [key: string]: unknown;
+                            }[];
+                            tables: {
+                                [key: string]: unknown;
+                            }[];
+                            shift: {
+                                [key: string]: unknown;
+                            } | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "customerAccount.index": {
+        parameters: {
+            query?: {
+                /** @description Name, group name or phone digits. */
+                q?: string;
+                /** @description Only accounts with a debt. */
+                debtors?: boolean;
+                /** @description Up to 100 (default 30). */
+                per_page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            accounts: {
+                                uuid: string;
+                                name: string;
+                                phone: string | null;
+                                group_name: string | null;
+                                branch_id: number | null;
+                                credit_limit: string | null;
+                                balance: string;
+                                available_credit: string | null;
+                                is_blocked: boolean;
+                                note: string | null;
+                                created_at: string | null;
+                                updated_at: string | null;
+                            }[];
+                            meta: {
+                                current_page: number;
+                                last_page: number;
+                                per_page: number;
+                                total: number;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "customerAccount.store": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name: string;
+                    phone?: string | null;
+                    group_name?: string | null;
+                    credit_limit?: number | null;
+                    is_blocked?: boolean;
+                    note?: string | null;
+                    branch_id?: number | null;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            name: string;
+                            phone: string | null;
+                            group_name: string | null;
+                            branch_id: number | null;
+                            credit_limit: string | null;
+                            balance: string;
+                            available_credit: string | null;
+                            is_blocked: boolean;
+                            note: string | null;
+                            created_at: string | null;
+                            updated_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "customerAccount.debtors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            total_debt: string;
+                            count: number;
+                            accounts: {
+                                uuid: string;
+                                name: string;
+                                phone: string | null;
+                                group_name: string | null;
+                                branch_id: number | null;
+                                credit_limit: string | null;
+                                balance: string;
+                                available_credit: string | null;
+                                is_blocked: boolean;
+                                note: string | null;
+                                created_at: string | null;
+                                updated_at: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "customerAccount.show": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            account: {
+                                uuid: string;
+                                name: string;
+                                phone: string | null;
+                                group_name: string | null;
+                                branch_id: number | null;
+                                credit_limit: string | null;
+                                balance: string;
+                                available_credit: string | null;
+                                is_blocked: boolean;
+                                note: string | null;
+                                created_at: string | null;
+                                updated_at: string | null;
+                            };
+                            entries: {
+                                uuid: string;
+                                type: string;
+                                type_label: string;
+                                amount: string;
+                                balance_after: string;
+                                bill_uuid: string | null;
+                                tender: string | null;
+                                card_type: string | null;
+                                transaction_id: string | null;
+                                fiscal_receipt_uuid: string | null;
+                                fiscal_status: string | null;
+                                branch_id: number | null;
+                                user: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                approved_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                note: string | null;
+                                created_at: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "customerAccount.update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    name?: string;
+                    phone?: string | null;
+                    group_name?: string | null;
+                    credit_limit?: number | null;
+                    is_blocked?: boolean;
+                    note?: string | null;
+                    branch_id?: number | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            name: string;
+                            phone: string | null;
+                            group_name: string | null;
+                            branch_id: number | null;
+                            credit_limit: string | null;
+                            balance: string;
+                            available_credit: string | null;
+                            is_blocked: boolean;
+                            note: string | null;
+                            created_at: string | null;
+                            updated_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "customerAccount.adjust": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    amount: number;
+                    note: string;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            account: {
+                                uuid: string;
+                                name: string;
+                                phone: string | null;
+                                group_name: string | null;
+                                branch_id: number | null;
+                                credit_limit: string | null;
+                                balance: string;
+                                available_credit: string | null;
+                                is_blocked: boolean;
+                                note: string | null;
+                                created_at: string | null;
+                                updated_at: string | null;
+                            };
+                            entry: {
+                                uuid: string;
+                                type: string;
+                                type_label: string;
+                                amount: string;
+                                balance_after: string;
+                                bill_uuid: string | null;
+                                tender: string | null;
+                                card_type: string | null;
+                                transaction_id: string | null;
+                                fiscal_receipt_uuid: string | null;
+                                fiscal_status: string | null;
+                                branch_id: number | null;
+                                user: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                approved_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                note: string | null;
+                                created_at: string | null;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "customerAccount.repay": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    amount: number;
+                    /** @enum {string} */
+                    tender: "cash" | "card" | "qr";
+                    card_type?: string | null;
+                    transaction_id?: string | null;
+                    note?: string | null;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            account: {
+                                uuid: string;
+                                name: string;
+                                phone: string | null;
+                                group_name: string | null;
+                                branch_id: number | null;
+                                credit_limit: string | null;
+                                balance: string;
+                                available_credit: string | null;
+                                is_blocked: boolean;
+                                note: string | null;
+                                created_at: string | null;
+                                updated_at: string | null;
+                            };
+                            entry: {
+                                uuid: string;
+                                type: string;
+                                type_label: string;
+                                amount: string;
+                                balance_after: string;
+                                bill_uuid: string | null;
+                                tender: string | null;
+                                card_type: string | null;
+                                transaction_id: string | null;
+                                fiscal_receipt_uuid: string | null;
+                                fiscal_status: string | null;
+                                branch_id: number | null;
+                                user: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                approved_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                note: string | null;
+                                created_at: string | null;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "customerAccount.statement": {
+        parameters: {
+            query?: {
+                /** @description First day, Y-m-d. */
+                from?: string;
+                /** @description Last day, Y-m-d, inclusive. */
+                to?: string;
+            };
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            account: {
+                                uuid: string;
+                                name: string;
+                                phone: string | null;
+                                group_name: string | null;
+                                branch_id: number | null;
+                                credit_limit: string | null;
+                                balance: string;
+                                available_credit: string | null;
+                                is_blocked: boolean;
+                                note: string | null;
+                                created_at: string | null;
+                                updated_at: string | null;
+                            };
+                            from: string;
+                            to: string;
+                            opening_balance: string;
+                            closing_balance: string;
+                            charges_total: string;
+                            repayments_total: string;
+                            adjustments_total: string;
+                            entries: {
+                                uuid: string;
+                                type: string;
+                                type_label: string;
+                                amount: string;
+                                balance_after: string;
+                                bill_uuid: string | null;
+                                tender: string | null;
+                                card_type: string | null;
+                                transaction_id: string | null;
+                                fiscal_receipt_uuid: string | null;
+                                fiscal_status: string | null;
+                                branch_id: number | null;
+                                user: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                approved_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                note: string | null;
+                                created_at: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "posFloor.show": {
+        parameters: {
+            query?: {
+                /** @description The branch; defaults to the caller's or the terminal's branch. */
+                branch_id?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            branch_id: number;
+                            generated_at: string;
+                            overdue_after_hours: number;
+                            halls: {
+                                id: number;
+                                name: string;
+                                sort_order: number;
+                                is_active: boolean;
+                                tables: {
+                                    id: number;
+                                    name: string;
+                                    kind: string;
+                                    seats: number | null;
+                                    layout: {
+                                        x: string | null;
+                                        y: string | null;
+                                        w: string | null;
+                                        h: string | null;
+                                    };
+                                    is_active: boolean;
+                                    min_spend: string | null;
+                                    min_spend_mode: string;
+                                    status: string;
+                                    reservation: {
+                                        booking_uuid: string;
+                                        starts_at: string;
+                                        guests: number | null;
+                                    } | null;
+                                    orders: {
+                                        uuid: string;
+                                        short_code: string | null;
+                                        status: string;
+                                        channel: string;
+                                        version: number;
+                                        opened_at: string | null;
+                                        open_minutes: number;
+                                        overdue: boolean;
+                                        bill_printed: boolean;
+                                        guests_count: number | null;
+                                        waiter: {
+                                            id: number;
+                                            name: string | null;
+                                        } | null;
+                                        total_price: string;
+                                        items_count: number;
+                                        unsent_count: number;
+                                    }[];
+                                }[];
+                            }[];
+                            untabled_orders: {
+                                uuid: string;
+                                short_code: string | null;
+                                status: string;
+                                channel: string;
+                                version: number;
+                                opened_at: string | null;
+                                open_minutes: number;
+                                overdue: boolean;
+                                bill_printed: boolean;
+                                guests_count: number | null;
+                                waiter: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                total_price: string;
+                                items_count: number;
+                                unsent_count: number;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "posOrder.index": {
+        parameters: {
+            query?: {
+                /** @description open (default) */
+                scope?: string;
+                /** @description The branch; default: the caller's (or their terminal's). */
+                branch_id?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            short_code: string | null;
+                            status: string;
+                            channel: string;
+                            type: string;
+                            branch_id: number;
+                            version: number;
+                            hall: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            table: {
+                                id: number;
+                                name: string;
+                                kind: string;
+                            } | null;
+                            hall_ref: string | null;
+                            table_ref: string | null;
+                            guests_count: number | null;
+                            waiter: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            items_count: number;
+                            subtotal: string;
+                            total_price: string;
+                            payment_status: string;
+                            bill_locked: boolean;
+                            fiscal_pending: boolean;
+                            booking_id: number | null;
+                            opened_at: string | null;
+                            updated_at: string | null;
+                        }[];
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "posOrder.store": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required: a new UUID per action, the same one when retrying it (428 without). */
+                "Idempotency-Key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    branch_id?: number | null;
+                    /** @enum {string} */
+                    channel: "pos_hall" | "pos_takeaway";
+                    table_id?: number | null;
+                    guests_count?: number | null;
+                    waiter_id?: number | null;
+                    external_id?: string | null;
+                    note?: string | null;
+                    send?: boolean | null;
+                    items?: {
+                        /** Format: uuid */
+                        variant_id: string;
+                        quantity: number;
+                        modifiers?: string[] | null;
+                        note?: string | null;
+                        seat_no?: number | null;
+                        /** @enum {string|null} */
+                        fire_mode?: "now" | "hold" | null;
+                        /** Format: date-time */
+                        due_at?: string | null;
+                    }[] | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string;
+                };
+            };
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            short_code: string | null;
+                            status: string;
+                            channel: string;
+                            type: string;
+                            store_id: number;
+                            branch_id: number | null;
+                            version: number;
+                            hall: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            table: {
+                                id: number;
+                                name: string;
+                                kind: string;
+                            } | null;
+                            hall_ref: string | null;
+                            table_ref: string | null;
+                            guests_count: number | null;
+                            waiter: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            opened_by: number;
+                            device_id: number | null;
+                            booking_id: number | null;
+                            bill_locked: boolean;
+                            notes: string | null;
+                            opened_at: string | null;
+                            updated_at: string | null;
+                            subtotal: string;
+                            discount: string;
+                            service_charge_amount: string;
+                            place_fee_amount: string;
+                            room_fee_amount: string;
+                            min_spend_topup_amount: string;
+                            total_price: string;
+                            charges: {
+                                items_subtotal: string;
+                                discount: string;
+                                service_charge_percent: string;
+                                service_charge_amount: string;
+                                place_fee_amount: string;
+                                room_fee_amount: string;
+                                room_tariff_id: number | null;
+                                business_date: string | null;
+                                day_type: string | null;
+                                min_spend: string;
+                                min_spend_topup_amount: string;
+                                waived: string[];
+                                total: string;
+                                waivers: {
+                                    charge: string;
+                                    reason: string;
+                                    waived_by: number | null;
+                                    approved_by: number | null;
+                                    waived_at: string | null;
+                                }[];
+                            };
+                            rounds: number;
+                            items: {
+                                id: number;
+                                round_no: number | null;
+                                product_variant_id: number | null;
+                                product_name: string;
+                                variant_name: string | null;
+                                quantity: number;
+                                unit: string;
+                                quantity_label: string;
+                                unit_price: string;
+                                modifiers: {
+                                    id: number;
+                                    name: string;
+                                    group_name: string | null;
+                                    quantity: number;
+                                    price_delta: string;
+                                }[];
+                                modifiers_total: string;
+                                total_price: string;
+                                note: string | null;
+                                seat_no: number | null;
+                                fire_mode: string | null;
+                                due_at: string | null;
+                                kitchen_status: string;
+                                station_id: number | null;
+                                sent_at: string | null;
+                                ready_at: string | null;
+                                added_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                added_at: string | null;
+                                voided_at: string | null;
+                                voided_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                void_reason: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "posOrder.show": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            short_code: string | null;
+                            status: string;
+                            channel: string;
+                            type: string;
+                            store_id: number;
+                            branch_id: number | null;
+                            version: number;
+                            hall: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            table: {
+                                id: number;
+                                name: string;
+                                kind: string;
+                            } | null;
+                            hall_ref: string | null;
+                            table_ref: string | null;
+                            guests_count: number | null;
+                            waiter: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            opened_by: number;
+                            device_id: number | null;
+                            booking_id: number | null;
+                            bill_locked: boolean;
+                            notes: string | null;
+                            opened_at: string | null;
+                            updated_at: string | null;
+                            subtotal: string;
+                            discount: string;
+                            service_charge_amount: string;
+                            place_fee_amount: string;
+                            room_fee_amount: string;
+                            min_spend_topup_amount: string;
+                            total_price: string;
+                            charges: {
+                                items_subtotal: string;
+                                discount: string;
+                                service_charge_percent: string;
+                                service_charge_amount: string;
+                                place_fee_amount: string;
+                                room_fee_amount: string;
+                                room_tariff_id: number | null;
+                                business_date: string | null;
+                                day_type: string | null;
+                                min_spend: string;
+                                min_spend_topup_amount: string;
+                                waived: string[];
+                                total: string;
+                                waivers: {
+                                    charge: string;
+                                    reason: string;
+                                    waived_by: number | null;
+                                    approved_by: number | null;
+                                    waived_at: string | null;
+                                }[];
+                            };
+                            rounds: number;
+                            items: {
+                                id: number;
+                                round_no: number | null;
+                                product_variant_id: number | null;
+                                product_name: string;
+                                variant_name: string | null;
+                                quantity: number;
+                                unit: string;
+                                quantity_label: string;
+                                unit_price: string;
+                                modifiers: {
+                                    id: number;
+                                    name: string;
+                                    group_name: string | null;
+                                    quantity: number;
+                                    price_delta: string;
+                                }[];
+                                modifiers_total: string;
+                                total_price: string;
+                                note: string | null;
+                                seat_no: number | null;
+                                fire_mode: string | null;
+                                due_at: string | null;
+                                kitchen_status: string;
+                                station_id: number | null;
+                                sent_at: string | null;
+                                ready_at: string | null;
+                                added_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                added_at: string | null;
+                                voided_at: string | null;
+                                voided_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                void_reason: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "posBill.index": {
+        parameters: {
+            query?: {
+                /** @description Include voided bills. */
+                all?: boolean;
+            };
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            order: {
+                                uuid: string;
+                                status: string;
+                                payment_status: string;
+                                version: number;
+                                queue_number: number | null;
+                                business_date: string | null;
+                                bill_locked_at: string | null;
+                                closed_at: string | null;
+                                total_price: string;
+                                billed_amount: string;
+                                paid_amount: string;
+                                unbilled_amount: string | null;
+                                fiscal_pending: boolean;
+                                bills_out_of_date: boolean;
+                            };
+                            bills: {
+                                uuid: string;
+                                order_uuid: string;
+                                number: number;
+                                status: string;
+                                split_mode: string;
+                                subtotal: string;
+                                discount: string;
+                                room_fee_amount: string;
+                                min_spend_topup_amount: string;
+                                service_charge_amount: string;
+                                place_fee_amount: string;
+                                total: string;
+                                paid_amount: string;
+                                due_amount: string;
+                                guests_share: number | null;
+                                per_guest_amount: string | null;
+                                printed_count: number;
+                                printed_at: string | null;
+                                paid_at: string | null;
+                                fiscal: {
+                                    status: string | null;
+                                    receipt_uuid: string | null;
+                                    error: string | null;
+                                };
+                                items: {
+                                    order_item_id: number;
+                                    product_name: string;
+                                    variant_name: string | null;
+                                    unit: string;
+                                    quantity: number;
+                                    amount: string;
+                                    discount_amount: string;
+                                }[];
+                                payments: {
+                                    uuid: string;
+                                    tender: string;
+                                    amount: string;
+                                    tendered_amount: string | null;
+                                    change_amount: string | null;
+                                    card_type: string | null;
+                                    transaction_id: string | null;
+                                    reference: string | null;
+                                    status: string;
+                                    paid_at: string | null;
+                                }[];
+                                created_at: string | null;
+                            }[];
+                            refunds: {
+                                uuid: string;
+                                order_uuid: string | null;
+                                bill_uuid: string | null;
+                                payment_uuid: string | null;
+                                amount: string;
+                                method: string;
+                                reason: string;
+                                approved_by: number | null;
+                                fiscal: {
+                                    status: string | null;
+                                    receipt_uuid: string | null;
+                                    error: string | null;
+                                };
+                                created_at: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "posBill.store": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    version: number;
+                    /** @enum {string} */
+                    mode: "single" | "equal" | "items";
+                    parts?: number | null;
+                    bills?: {
+                        items: {
+                            order_item_id: number;
+                            quantity: number;
+                        }[];
+                        guests?: number | null;
+                    }[] | null;
+                    approval_token?: string | null;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            order: {
+                                uuid: string;
+                                status: string;
+                                payment_status: string;
+                                version: number;
+                                queue_number: number | null;
+                                business_date: string | null;
+                                bill_locked_at: string | null;
+                                closed_at: string | null;
+                                total_price: string;
+                                billed_amount: string;
+                                paid_amount: string;
+                                unbilled_amount: string | null;
+                                fiscal_pending: boolean;
+                                bills_out_of_date: boolean;
+                            };
+                            bills: {
+                                uuid: string;
+                                order_uuid: string;
+                                number: number;
+                                status: string;
+                                split_mode: string;
+                                subtotal: string;
+                                discount: string;
+                                room_fee_amount: string;
+                                min_spend_topup_amount: string;
+                                service_charge_amount: string;
+                                place_fee_amount: string;
+                                total: string;
+                                paid_amount: string;
+                                due_amount: string;
+                                guests_share: number | null;
+                                per_guest_amount: string | null;
+                                printed_count: number;
+                                printed_at: string | null;
+                                paid_at: string | null;
+                                fiscal: {
+                                    status: string | null;
+                                    receipt_uuid: string | null;
+                                    error: string | null;
+                                };
+                                items: {
+                                    order_item_id: number;
+                                    product_name: string;
+                                    variant_name: string | null;
+                                    unit: string;
+                                    quantity: number;
+                                    amount: string;
+                                    discount_amount: string;
+                                }[];
+                                payments: {
+                                    uuid: string;
+                                    tender: string;
+                                    amount: string;
+                                    tendered_amount: string | null;
+                                    change_amount: string | null;
+                                    card_type: string | null;
+                                    transaction_id: string | null;
+                                    reference: string | null;
+                                    status: string;
+                                    paid_at: string | null;
+                                }[];
+                                created_at: string | null;
+                            }[];
+                            refunds: {
+                                uuid: string;
+                                order_uuid: string | null;
+                                bill_uuid: string | null;
+                                payment_uuid: string | null;
+                                amount: string;
+                                method: string;
+                                reason: string;
+                                approved_by: number | null;
+                                fiscal: {
+                                    status: string | null;
+                                    receipt_uuid: string | null;
+                                    error: string | null;
+                                };
+                                created_at: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "posOrder.cancel": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required: a new UUID per action, the same one when retrying it (428 without). */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    version: number;
+                    reason: string;
+                    approval_token?: string | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            short_code: string | null;
+                            status: string;
+                            channel: string;
+                            type: string;
+                            store_id: number;
+                            branch_id: number | null;
+                            version: number;
+                            hall: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            table: {
+                                id: number;
+                                name: string;
+                                kind: string;
+                            } | null;
+                            hall_ref: string | null;
+                            table_ref: string | null;
+                            guests_count: number | null;
+                            waiter: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            opened_by: number;
+                            device_id: number | null;
+                            booking_id: number | null;
+                            bill_locked: boolean;
+                            notes: string | null;
+                            opened_at: string | null;
+                            updated_at: string | null;
+                            subtotal: string;
+                            discount: string;
+                            service_charge_amount: string;
+                            place_fee_amount: string;
+                            room_fee_amount: string;
+                            min_spend_topup_amount: string;
+                            total_price: string;
+                            charges: {
+                                items_subtotal: string;
+                                discount: string;
+                                service_charge_percent: string;
+                                service_charge_amount: string;
+                                place_fee_amount: string;
+                                room_fee_amount: string;
+                                room_tariff_id: number | null;
+                                business_date: string | null;
+                                day_type: string | null;
+                                min_spend: string;
+                                min_spend_topup_amount: string;
+                                waived: string[];
+                                total: string;
+                                waivers: {
+                                    charge: string;
+                                    reason: string;
+                                    waived_by: number | null;
+                                    approved_by: number | null;
+                                    waived_at: string | null;
+                                }[];
+                            };
+                            rounds: number;
+                            items: {
+                                id: number;
+                                round_no: number | null;
+                                product_variant_id: number | null;
+                                product_name: string;
+                                variant_name: string | null;
+                                quantity: number;
+                                unit: string;
+                                quantity_label: string;
+                                unit_price: string;
+                                modifiers: {
+                                    id: number;
+                                    name: string;
+                                    group_name: string | null;
+                                    quantity: number;
+                                    price_delta: string;
+                                }[];
+                                modifiers_total: string;
+                                total_price: string;
+                                note: string | null;
+                                seat_no: number | null;
+                                fire_mode: string | null;
+                                due_at: string | null;
+                                kitchen_status: string;
+                                station_id: number | null;
+                                sent_at: string | null;
+                                ready_at: string | null;
+                                added_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                added_at: string | null;
+                                voided_at: string | null;
+                                voided_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                void_reason: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "posOrder.restoreCharge": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required: a new UUID per action, the same one when retrying it (428 without). */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                uuid: string;
+                charge: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    version: number;
+                    approval_token?: string | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            short_code: string | null;
+                            status: string;
+                            channel: string;
+                            type: string;
+                            store_id: number;
+                            branch_id: number | null;
+                            version: number;
+                            hall: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            table: {
+                                id: number;
+                                name: string;
+                                kind: string;
+                            } | null;
+                            hall_ref: string | null;
+                            table_ref: string | null;
+                            guests_count: number | null;
+                            waiter: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            opened_by: number;
+                            device_id: number | null;
+                            booking_id: number | null;
+                            bill_locked: boolean;
+                            notes: string | null;
+                            opened_at: string | null;
+                            updated_at: string | null;
+                            subtotal: string;
+                            discount: string;
+                            service_charge_amount: string;
+                            place_fee_amount: string;
+                            room_fee_amount: string;
+                            min_spend_topup_amount: string;
+                            total_price: string;
+                            charges: {
+                                items_subtotal: string;
+                                discount: string;
+                                service_charge_percent: string;
+                                service_charge_amount: string;
+                                place_fee_amount: string;
+                                room_fee_amount: string;
+                                room_tariff_id: number | null;
+                                business_date: string | null;
+                                day_type: string | null;
+                                min_spend: string;
+                                min_spend_topup_amount: string;
+                                waived: string[];
+                                total: string;
+                                waivers: {
+                                    charge: string;
+                                    reason: string;
+                                    waived_by: number | null;
+                                    approved_by: number | null;
+                                    waived_at: string | null;
+                                }[];
+                            };
+                            rounds: number;
+                            items: {
+                                id: number;
+                                round_no: number | null;
+                                product_variant_id: number | null;
+                                product_name: string;
+                                variant_name: string | null;
+                                quantity: number;
+                                unit: string;
+                                quantity_label: string;
+                                unit_price: string;
+                                modifiers: {
+                                    id: number;
+                                    name: string;
+                                    group_name: string | null;
+                                    quantity: number;
+                                    price_delta: string;
+                                }[];
+                                modifiers_total: string;
+                                total_price: string;
+                                note: string | null;
+                                seat_no: number | null;
+                                fire_mode: string | null;
+                                due_at: string | null;
+                                kitchen_status: string;
+                                station_id: number | null;
+                                sent_at: string | null;
+                                ready_at: string | null;
+                                added_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                added_at: string | null;
+                                voided_at: string | null;
+                                voided_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                void_reason: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "posOrder.waive": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required: a new UUID per action, the same one when retrying it (428 without). */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                uuid: string;
+                charge: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    version: number;
+                    reason: string;
+                    approval_token?: string | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            short_code: string | null;
+                            status: string;
+                            channel: string;
+                            type: string;
+                            store_id: number;
+                            branch_id: number | null;
+                            version: number;
+                            hall: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            table: {
+                                id: number;
+                                name: string;
+                                kind: string;
+                            } | null;
+                            hall_ref: string | null;
+                            table_ref: string | null;
+                            guests_count: number | null;
+                            waiter: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            opened_by: number;
+                            device_id: number | null;
+                            booking_id: number | null;
+                            bill_locked: boolean;
+                            notes: string | null;
+                            opened_at: string | null;
+                            updated_at: string | null;
+                            subtotal: string;
+                            discount: string;
+                            service_charge_amount: string;
+                            place_fee_amount: string;
+                            room_fee_amount: string;
+                            min_spend_topup_amount: string;
+                            total_price: string;
+                            charges: {
+                                items_subtotal: string;
+                                discount: string;
+                                service_charge_percent: string;
+                                service_charge_amount: string;
+                                place_fee_amount: string;
+                                room_fee_amount: string;
+                                room_tariff_id: number | null;
+                                business_date: string | null;
+                                day_type: string | null;
+                                min_spend: string;
+                                min_spend_topup_amount: string;
+                                waived: string[];
+                                total: string;
+                                waivers: {
+                                    charge: string;
+                                    reason: string;
+                                    waived_by: number | null;
+                                    approved_by: number | null;
+                                    waived_at: string | null;
+                                }[];
+                            };
+                            rounds: number;
+                            items: {
+                                id: number;
+                                round_no: number | null;
+                                product_variant_id: number | null;
+                                product_name: string;
+                                variant_name: string | null;
+                                quantity: number;
+                                unit: string;
+                                quantity_label: string;
+                                unit_price: string;
+                                modifiers: {
+                                    id: number;
+                                    name: string;
+                                    group_name: string | null;
+                                    quantity: number;
+                                    price_delta: string;
+                                }[];
+                                modifiers_total: string;
+                                total_price: string;
+                                note: string | null;
+                                seat_no: number | null;
+                                fire_mode: string | null;
+                                due_at: string | null;
+                                kitchen_status: string;
+                                station_id: number | null;
+                                sent_at: string | null;
+                                ready_at: string | null;
+                                added_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                added_at: string | null;
+                                voided_at: string | null;
+                                voided_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                void_reason: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "posBill.close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            order: {
+                                uuid: string;
+                                status: string;
+                                payment_status: string;
+                                version: number;
+                                queue_number: number | null;
+                                business_date: string | null;
+                                bill_locked_at: string | null;
+                                closed_at: string | null;
+                                total_price: string;
+                                billed_amount: string;
+                                paid_amount: string;
+                                unbilled_amount: string | null;
+                                fiscal_pending: boolean;
+                                bills_out_of_date: boolean;
+                            };
+                            bills: {
+                                uuid: string;
+                                order_uuid: string;
+                                number: number;
+                                status: string;
+                                split_mode: string;
+                                subtotal: string;
+                                discount: string;
+                                room_fee_amount: string;
+                                min_spend_topup_amount: string;
+                                service_charge_amount: string;
+                                place_fee_amount: string;
+                                total: string;
+                                paid_amount: string;
+                                due_amount: string;
+                                guests_share: number | null;
+                                per_guest_amount: string | null;
+                                printed_count: number;
+                                printed_at: string | null;
+                                paid_at: string | null;
+                                fiscal: {
+                                    status: string | null;
+                                    receipt_uuid: string | null;
+                                    error: string | null;
+                                };
+                                items: {
+                                    order_item_id: number;
+                                    product_name: string;
+                                    variant_name: string | null;
+                                    unit: string;
+                                    quantity: number;
+                                    amount: string;
+                                    discount_amount: string;
+                                }[];
+                                payments: {
+                                    uuid: string;
+                                    tender: string;
+                                    amount: string;
+                                    tendered_amount: string | null;
+                                    change_amount: string | null;
+                                    card_type: string | null;
+                                    transaction_id: string | null;
+                                    reference: string | null;
+                                    status: string;
+                                    paid_at: string | null;
+                                }[];
+                                created_at: string | null;
+                            }[];
+                            refunds: {
+                                uuid: string;
+                                order_uuid: string | null;
+                                bill_uuid: string | null;
+                                payment_uuid: string | null;
+                                amount: string;
+                                method: string;
+                                reason: string;
+                                approved_by: number | null;
+                                fiscal: {
+                                    status: string | null;
+                                    receipt_uuid: string | null;
+                                    error: string | null;
+                                };
+                                created_at: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "posOrder.guests": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required: a new UUID per action, the same one when retrying it (428 without). */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    version: number;
+                    guests_count: number;
+                    approval_token?: string | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            short_code: string | null;
+                            status: string;
+                            channel: string;
+                            type: string;
+                            store_id: number;
+                            branch_id: number | null;
+                            version: number;
+                            hall: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            table: {
+                                id: number;
+                                name: string;
+                                kind: string;
+                            } | null;
+                            hall_ref: string | null;
+                            table_ref: string | null;
+                            guests_count: number | null;
+                            waiter: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            opened_by: number;
+                            device_id: number | null;
+                            booking_id: number | null;
+                            bill_locked: boolean;
+                            notes: string | null;
+                            opened_at: string | null;
+                            updated_at: string | null;
+                            subtotal: string;
+                            discount: string;
+                            service_charge_amount: string;
+                            place_fee_amount: string;
+                            room_fee_amount: string;
+                            min_spend_topup_amount: string;
+                            total_price: string;
+                            charges: {
+                                items_subtotal: string;
+                                discount: string;
+                                service_charge_percent: string;
+                                service_charge_amount: string;
+                                place_fee_amount: string;
+                                room_fee_amount: string;
+                                room_tariff_id: number | null;
+                                business_date: string | null;
+                                day_type: string | null;
+                                min_spend: string;
+                                min_spend_topup_amount: string;
+                                waived: string[];
+                                total: string;
+                                waivers: {
+                                    charge: string;
+                                    reason: string;
+                                    waived_by: number | null;
+                                    approved_by: number | null;
+                                    waived_at: string | null;
+                                }[];
+                            };
+                            rounds: number;
+                            items: {
+                                id: number;
+                                round_no: number | null;
+                                product_variant_id: number | null;
+                                product_name: string;
+                                variant_name: string | null;
+                                quantity: number;
+                                unit: string;
+                                quantity_label: string;
+                                unit_price: string;
+                                modifiers: {
+                                    id: number;
+                                    name: string;
+                                    group_name: string | null;
+                                    quantity: number;
+                                    price_delta: string;
+                                }[];
+                                modifiers_total: string;
+                                total_price: string;
+                                note: string | null;
+                                seat_no: number | null;
+                                fire_mode: string | null;
+                                due_at: string | null;
+                                kitchen_status: string;
+                                station_id: number | null;
+                                sent_at: string | null;
+                                ready_at: string | null;
+                                added_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                added_at: string | null;
+                                voided_at: string | null;
+                                voided_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                void_reason: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "posOrder.served": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required: a new UUID per action, the same one when retrying it (428 without). */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                uuid: string;
+                item: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    version: number;
+                    approval_token?: string | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            short_code: string | null;
+                            status: string;
+                            channel: string;
+                            type: string;
+                            store_id: number;
+                            branch_id: number | null;
+                            version: number;
+                            hall: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            table: {
+                                id: number;
+                                name: string;
+                                kind: string;
+                            } | null;
+                            hall_ref: string | null;
+                            table_ref: string | null;
+                            guests_count: number | null;
+                            waiter: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            opened_by: number;
+                            device_id: number | null;
+                            booking_id: number | null;
+                            bill_locked: boolean;
+                            notes: string | null;
+                            opened_at: string | null;
+                            updated_at: string | null;
+                            subtotal: string;
+                            discount: string;
+                            service_charge_amount: string;
+                            place_fee_amount: string;
+                            room_fee_amount: string;
+                            min_spend_topup_amount: string;
+                            total_price: string;
+                            charges: {
+                                items_subtotal: string;
+                                discount: string;
+                                service_charge_percent: string;
+                                service_charge_amount: string;
+                                place_fee_amount: string;
+                                room_fee_amount: string;
+                                room_tariff_id: number | null;
+                                business_date: string | null;
+                                day_type: string | null;
+                                min_spend: string;
+                                min_spend_topup_amount: string;
+                                waived: string[];
+                                total: string;
+                                waivers: {
+                                    charge: string;
+                                    reason: string;
+                                    waived_by: number | null;
+                                    approved_by: number | null;
+                                    waived_at: string | null;
+                                }[];
+                            };
+                            rounds: number;
+                            items: {
+                                id: number;
+                                round_no: number | null;
+                                product_variant_id: number | null;
+                                product_name: string;
+                                variant_name: string | null;
+                                quantity: number;
+                                unit: string;
+                                quantity_label: string;
+                                unit_price: string;
+                                modifiers: {
+                                    id: number;
+                                    name: string;
+                                    group_name: string | null;
+                                    quantity: number;
+                                    price_delta: string;
+                                }[];
+                                modifiers_total: string;
+                                total_price: string;
+                                note: string | null;
+                                seat_no: number | null;
+                                fire_mode: string | null;
+                                due_at: string | null;
+                                kitchen_status: string;
+                                station_id: number | null;
+                                sent_at: string | null;
+                                ready_at: string | null;
+                                added_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                added_at: string | null;
+                                voided_at: string | null;
+                                voided_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                void_reason: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "posOrder.void": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required: a new UUID per action, the same one when retrying it (428 without). */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                uuid: string;
+                item: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    version: number;
+                    reason?: string | null;
+                    approval_token?: string | null;
+                    restock?: boolean | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            short_code: string | null;
+                            status: string;
+                            channel: string;
+                            type: string;
+                            store_id: number;
+                            branch_id: number | null;
+                            version: number;
+                            hall: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            table: {
+                                id: number;
+                                name: string;
+                                kind: string;
+                            } | null;
+                            hall_ref: string | null;
+                            table_ref: string | null;
+                            guests_count: number | null;
+                            waiter: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            opened_by: number;
+                            device_id: number | null;
+                            booking_id: number | null;
+                            bill_locked: boolean;
+                            notes: string | null;
+                            opened_at: string | null;
+                            updated_at: string | null;
+                            subtotal: string;
+                            discount: string;
+                            service_charge_amount: string;
+                            place_fee_amount: string;
+                            room_fee_amount: string;
+                            min_spend_topup_amount: string;
+                            total_price: string;
+                            charges: {
+                                items_subtotal: string;
+                                discount: string;
+                                service_charge_percent: string;
+                                service_charge_amount: string;
+                                place_fee_amount: string;
+                                room_fee_amount: string;
+                                room_tariff_id: number | null;
+                                business_date: string | null;
+                                day_type: string | null;
+                                min_spend: string;
+                                min_spend_topup_amount: string;
+                                waived: string[];
+                                total: string;
+                                waivers: {
+                                    charge: string;
+                                    reason: string;
+                                    waived_by: number | null;
+                                    approved_by: number | null;
+                                    waived_at: string | null;
+                                }[];
+                            };
+                            rounds: number;
+                            items: {
+                                id: number;
+                                round_no: number | null;
+                                product_variant_id: number | null;
+                                product_name: string;
+                                variant_name: string | null;
+                                quantity: number;
+                                unit: string;
+                                quantity_label: string;
+                                unit_price: string;
+                                modifiers: {
+                                    id: number;
+                                    name: string;
+                                    group_name: string | null;
+                                    quantity: number;
+                                    price_delta: string;
+                                }[];
+                                modifiers_total: string;
+                                total_price: string;
+                                note: string | null;
+                                seat_no: number | null;
+                                fire_mode: string | null;
+                                due_at: string | null;
+                                kitchen_status: string;
+                                station_id: number | null;
+                                sent_at: string | null;
+                                ready_at: string | null;
+                                added_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                added_at: string | null;
+                                voided_at: string | null;
+                                voided_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                void_reason: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "posOrder.merge": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required: a new UUID per action, the same one when retrying it (428 without). */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    version: number;
+                    /** Format: uuid */
+                    source_uuid: string;
+                    source_version: number;
+                    approval_token?: string | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            short_code: string | null;
+                            status: string;
+                            channel: string;
+                            type: string;
+                            store_id: number;
+                            branch_id: number | null;
+                            version: number;
+                            hall: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            table: {
+                                id: number;
+                                name: string;
+                                kind: string;
+                            } | null;
+                            hall_ref: string | null;
+                            table_ref: string | null;
+                            guests_count: number | null;
+                            waiter: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            opened_by: number;
+                            device_id: number | null;
+                            booking_id: number | null;
+                            bill_locked: boolean;
+                            notes: string | null;
+                            opened_at: string | null;
+                            updated_at: string | null;
+                            subtotal: string;
+                            discount: string;
+                            service_charge_amount: string;
+                            place_fee_amount: string;
+                            room_fee_amount: string;
+                            min_spend_topup_amount: string;
+                            total_price: string;
+                            charges: {
+                                items_subtotal: string;
+                                discount: string;
+                                service_charge_percent: string;
+                                service_charge_amount: string;
+                                place_fee_amount: string;
+                                room_fee_amount: string;
+                                room_tariff_id: number | null;
+                                business_date: string | null;
+                                day_type: string | null;
+                                min_spend: string;
+                                min_spend_topup_amount: string;
+                                waived: string[];
+                                total: string;
+                                waivers: {
+                                    charge: string;
+                                    reason: string;
+                                    waived_by: number | null;
+                                    approved_by: number | null;
+                                    waived_at: string | null;
+                                }[];
+                            };
+                            rounds: number;
+                            items: {
+                                id: number;
+                                round_no: number | null;
+                                product_variant_id: number | null;
+                                product_name: string;
+                                variant_name: string | null;
+                                quantity: number;
+                                unit: string;
+                                quantity_label: string;
+                                unit_price: string;
+                                modifiers: {
+                                    id: number;
+                                    name: string;
+                                    group_name: string | null;
+                                    quantity: number;
+                                    price_delta: string;
+                                }[];
+                                modifiers_total: string;
+                                total_price: string;
+                                note: string | null;
+                                seat_no: number | null;
+                                fire_mode: string | null;
+                                due_at: string | null;
+                                kitchen_status: string;
+                                station_id: number | null;
+                                sent_at: string | null;
+                                ready_at: string | null;
+                                added_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                added_at: string | null;
+                                voided_at: string | null;
+                                voided_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                void_reason: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "posOrder.move": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required: a new UUID per action, the same one when retrying it (428 without). */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    version: number;
+                    table_id: number;
+                    approval_token?: string | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            short_code: string | null;
+                            status: string;
+                            channel: string;
+                            type: string;
+                            store_id: number;
+                            branch_id: number | null;
+                            version: number;
+                            hall: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            table: {
+                                id: number;
+                                name: string;
+                                kind: string;
+                            } | null;
+                            hall_ref: string | null;
+                            table_ref: string | null;
+                            guests_count: number | null;
+                            waiter: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            opened_by: number;
+                            device_id: number | null;
+                            booking_id: number | null;
+                            bill_locked: boolean;
+                            notes: string | null;
+                            opened_at: string | null;
+                            updated_at: string | null;
+                            subtotal: string;
+                            discount: string;
+                            service_charge_amount: string;
+                            place_fee_amount: string;
+                            room_fee_amount: string;
+                            min_spend_topup_amount: string;
+                            total_price: string;
+                            charges: {
+                                items_subtotal: string;
+                                discount: string;
+                                service_charge_percent: string;
+                                service_charge_amount: string;
+                                place_fee_amount: string;
+                                room_fee_amount: string;
+                                room_tariff_id: number | null;
+                                business_date: string | null;
+                                day_type: string | null;
+                                min_spend: string;
+                                min_spend_topup_amount: string;
+                                waived: string[];
+                                total: string;
+                                waivers: {
+                                    charge: string;
+                                    reason: string;
+                                    waived_by: number | null;
+                                    approved_by: number | null;
+                                    waived_at: string | null;
+                                }[];
+                            };
+                            rounds: number;
+                            items: {
+                                id: number;
+                                round_no: number | null;
+                                product_variant_id: number | null;
+                                product_name: string;
+                                variant_name: string | null;
+                                quantity: number;
+                                unit: string;
+                                quantity_label: string;
+                                unit_price: string;
+                                modifiers: {
+                                    id: number;
+                                    name: string;
+                                    group_name: string | null;
+                                    quantity: number;
+                                    price_delta: string;
+                                }[];
+                                modifiers_total: string;
+                                total_price: string;
+                                note: string | null;
+                                seat_no: number | null;
+                                fire_mode: string | null;
+                                due_at: string | null;
+                                kitchen_status: string;
+                                station_id: number | null;
+                                sent_at: string | null;
+                                ready_at: string | null;
+                                added_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                added_at: string | null;
+                                voided_at: string | null;
+                                voided_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                void_reason: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "posOrder.addRound": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required: a new UUID per action, the same one when retrying it (428 without). */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    version: number;
+                    items: {
+                        /** Format: uuid */
+                        variant_id: string;
+                        quantity: number;
+                        modifiers?: string[] | null;
+                        note?: string | null;
+                        seat_no?: number | null;
+                        /** @enum {string|null} */
+                        fire_mode?: "now" | "hold" | null;
+                        /** Format: date-time */
+                        due_at?: string | null;
+                    }[];
+                    /** @enum {string|null} */
+                    fire_mode?: "now" | "hold" | null;
+                    send?: boolean | null;
+                    approval_token?: string | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            short_code: string | null;
+                            status: string;
+                            channel: string;
+                            type: string;
+                            store_id: number;
+                            branch_id: number | null;
+                            version: number;
+                            hall: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            table: {
+                                id: number;
+                                name: string;
+                                kind: string;
+                            } | null;
+                            hall_ref: string | null;
+                            table_ref: string | null;
+                            guests_count: number | null;
+                            waiter: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            opened_by: number;
+                            device_id: number | null;
+                            booking_id: number | null;
+                            bill_locked: boolean;
+                            notes: string | null;
+                            opened_at: string | null;
+                            updated_at: string | null;
+                            subtotal: string;
+                            discount: string;
+                            service_charge_amount: string;
+                            place_fee_amount: string;
+                            room_fee_amount: string;
+                            min_spend_topup_amount: string;
+                            total_price: string;
+                            charges: {
+                                items_subtotal: string;
+                                discount: string;
+                                service_charge_percent: string;
+                                service_charge_amount: string;
+                                place_fee_amount: string;
+                                room_fee_amount: string;
+                                room_tariff_id: number | null;
+                                business_date: string | null;
+                                day_type: string | null;
+                                min_spend: string;
+                                min_spend_topup_amount: string;
+                                waived: string[];
+                                total: string;
+                                waivers: {
+                                    charge: string;
+                                    reason: string;
+                                    waived_by: number | null;
+                                    approved_by: number | null;
+                                    waived_at: string | null;
+                                }[];
+                            };
+                            rounds: number;
+                            items: {
+                                id: number;
+                                round_no: number | null;
+                                product_variant_id: number | null;
+                                product_name: string;
+                                variant_name: string | null;
+                                quantity: number;
+                                unit: string;
+                                quantity_label: string;
+                                unit_price: string;
+                                modifiers: {
+                                    id: number;
+                                    name: string;
+                                    group_name: string | null;
+                                    quantity: number;
+                                    price_delta: string;
+                                }[];
+                                modifiers_total: string;
+                                total_price: string;
+                                note: string | null;
+                                seat_no: number | null;
+                                fire_mode: string | null;
+                                due_at: string | null;
+                                kitchen_status: string;
+                                station_id: number | null;
+                                sent_at: string | null;
+                                ready_at: string | null;
+                                added_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                added_at: string | null;
+                                voided_at: string | null;
+                                voided_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                void_reason: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "posOrder.send": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required: a new UUID per action, the same one when retrying it (428 without). */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    version: number;
+                    item_ids?: number[] | null;
+                    approval_token?: string | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            short_code: string | null;
+                            status: string;
+                            channel: string;
+                            type: string;
+                            store_id: number;
+                            branch_id: number | null;
+                            version: number;
+                            hall: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            table: {
+                                id: number;
+                                name: string;
+                                kind: string;
+                            } | null;
+                            hall_ref: string | null;
+                            table_ref: string | null;
+                            guests_count: number | null;
+                            waiter: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            opened_by: number;
+                            device_id: number | null;
+                            booking_id: number | null;
+                            bill_locked: boolean;
+                            notes: string | null;
+                            opened_at: string | null;
+                            updated_at: string | null;
+                            subtotal: string;
+                            discount: string;
+                            service_charge_amount: string;
+                            place_fee_amount: string;
+                            room_fee_amount: string;
+                            min_spend_topup_amount: string;
+                            total_price: string;
+                            charges: {
+                                items_subtotal: string;
+                                discount: string;
+                                service_charge_percent: string;
+                                service_charge_amount: string;
+                                place_fee_amount: string;
+                                room_fee_amount: string;
+                                room_tariff_id: number | null;
+                                business_date: string | null;
+                                day_type: string | null;
+                                min_spend: string;
+                                min_spend_topup_amount: string;
+                                waived: string[];
+                                total: string;
+                                waivers: {
+                                    charge: string;
+                                    reason: string;
+                                    waived_by: number | null;
+                                    approved_by: number | null;
+                                    waived_at: string | null;
+                                }[];
+                            };
+                            rounds: number;
+                            items: {
+                                id: number;
+                                round_no: number | null;
+                                product_variant_id: number | null;
+                                product_name: string;
+                                variant_name: string | null;
+                                quantity: number;
+                                unit: string;
+                                quantity_label: string;
+                                unit_price: string;
+                                modifiers: {
+                                    id: number;
+                                    name: string;
+                                    group_name: string | null;
+                                    quantity: number;
+                                    price_delta: string;
+                                }[];
+                                modifiers_total: string;
+                                total_price: string;
+                                note: string | null;
+                                seat_no: number | null;
+                                fire_mode: string | null;
+                                due_at: string | null;
+                                kitchen_status: string;
+                                station_id: number | null;
+                                sent_at: string | null;
+                                ready_at: string | null;
+                                added_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                added_at: string | null;
+                                voided_at: string | null;
+                                voided_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                void_reason: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "posRefund.store": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    payment_uuid: string;
+                    amount: number;
+                    reason: string;
+                    approval_token?: string | null;
+                    /** Format: uuid */
+                    shift_uuid?: string | null;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            order_uuid: string | null;
+                            bill_uuid: string | null;
+                            payment_uuid: string | null;
+                            amount: string;
+                            method: string;
+                            reason: string;
+                            approved_by: number | null;
+                            fiscal: {
+                                status: string | null;
+                                receipt_uuid: string | null;
+                                error: string | null;
+                            };
+                            created_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "posShift.index": {
+        parameters: {
+            query?: {
+                branch_id?: number;
+                /** @description open or closed */
+                status?: string;
+                /** @description Business day from (YYYY-MM-DD) */
+                from?: string;
+                /** @description Business day to (YYYY-MM-DD) */
+                to?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            status: string;
+                            branch_id: number;
+                            device: {
+                                uuid: string;
+                                name: string;
+                            } | null;
+                            business_date: string;
+                            opened_at: string;
+                            opened_by: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            opening_cash: string;
+                            closed_at: string | null;
+                            closed_by: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            expected_cash: string | null;
+                            counted_cash: string | null;
+                            counted_breakdown: {
+                                [key: string]: number;
+                            } | null;
+                            difference: string | null;
+                            z_number: number | null;
+                            force_closed: boolean;
+                            close_note: string | null;
+                        }[];
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "posShift.store": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    opening_cash: number;
+                    note?: string | null;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            status: string;
+                            branch_id: number;
+                            device: {
+                                uuid: string;
+                                name: string;
+                            } | null;
+                            business_date: string;
+                            opened_at: string;
+                            opened_by: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            opening_cash: string;
+                            closed_at: string | null;
+                            closed_by: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            expected_cash: string | null;
+                            counted_cash: string | null;
+                            counted_breakdown: {
+                                [key: string]: number;
+                            } | null;
+                            difference: string | null;
+                            z_number: number | null;
+                            force_closed: boolean;
+                            close_note: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "posShift.current": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            shift: {
+                                uuid: string;
+                                status: string;
+                                branch_id: number;
+                                device: {
+                                    uuid: string;
+                                    name: string;
+                                } | null;
+                                business_date: string;
+                                opened_at: string;
+                                opened_by: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                opening_cash: string;
+                                closed_at: string | null;
+                                closed_by: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                expected_cash: string | null;
+                                counted_cash: string | null;
+                                counted_breakdown: {
+                                    [key: string]: number;
+                                } | null;
+                                difference: string | null;
+                                z_number: number | null;
+                                force_closed: boolean;
+                                close_note: string | null;
+                            } | null;
+                            report: {
+                                [key: string]: unknown;
+                            } | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "posShift.show": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            status: string;
+                            branch_id: number;
+                            device: {
+                                uuid: string;
+                                name: string;
+                            } | null;
+                            business_date: string;
+                            opened_at: string;
+                            opened_by: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            opening_cash: string;
+                            closed_at: string | null;
+                            closed_by: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            expected_cash: string | null;
+                            counted_cash: string | null;
+                            counted_breakdown: {
+                                [key: string]: number;
+                            } | null;
+                            difference: string | null;
+                            z_number: number | null;
+                            force_closed: boolean;
+                            close_note: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "posShift.cashMovement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    type: "cash_in" | "cash_out" | "wage" | "purchase";
+                    category: string;
+                    amount: number;
+                    note?: string | null;
+                    employee_id?: number | null;
+                    approval_token?: string | null;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            movement: {
+                                uuid: string;
+                                type: string;
+                                category: string | null;
+                                amount: string;
+                                note: string | null;
+                                employee_id: number | null;
+                                approved_by: number | null;
+                                created_at: string | null;
+                            };
+                            shift: {
+                                uuid: string;
+                                status: string;
+                                branch_id: number;
+                                device: {
+                                    uuid: string;
+                                    name: string;
+                                } | null;
+                                business_date: string;
+                                opened_at: string;
+                                opened_by: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                opening_cash: string;
+                                closed_at: string | null;
+                                closed_by: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                expected_cash: string | null;
+                                counted_cash: string | null;
+                                counted_breakdown: {
+                                    [key: string]: number;
+                                } | null;
+                                difference: string | null;
+                                z_number: number | null;
+                                force_closed: boolean;
+                                close_note: string | null;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "posShift.close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    counted_breakdown: number[];
+                    force?: boolean | null;
+                    reason?: string | null;
+                    approval_token?: string | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            status: string;
+                            branch_id: number;
+                            device: {
+                                uuid: string;
+                                name: string;
+                            } | null;
+                            business_date: string;
+                            opened_at: string;
+                            opened_by: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            opening_cash: string;
+                            closed_at: string | null;
+                            closed_by: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            expected_cash: string | null;
+                            counted_cash: string | null;
+                            counted_breakdown: {
+                                [key: string]: number;
+                            } | null;
+                            difference: string | null;
+                            z_number: number | null;
+                            force_closed: boolean;
+                            close_note: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "posShift.xReport": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            shift: {
+                                uuid: string;
+                                status: string;
+                                branch_id: number;
+                                device: {
+                                    uuid: string;
+                                    name: string;
+                                } | null;
+                                business_date: string;
+                                opened_at: string;
+                                opened_by: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                opening_cash: string;
+                                closed_at: string | null;
+                                closed_by: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                expected_cash: string | null;
+                                counted_cash: string | null;
+                                counted_breakdown: {
+                                    [key: string]: number;
+                                } | null;
+                                difference: string | null;
+                                z_number: number | null;
+                                force_closed: boolean;
+                                close_note: string | null;
+                            };
+                            report: {
+                                [key: string]: unknown;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
         };
     };
     "promoCode.validateCode": {
@@ -9513,6 +19045,15 @@ export interface operations {
                                 }[];
                                 kitchen_status: string;
                                 ready_at: string | null;
+                                round_no?: number | null;
+                                fire_mode?: string;
+                                station_id?: number | null;
+                                sent_at?: string | null;
+                                due_at?: string | null;
+                                seat_no?: number | null;
+                                note?: string | null;
+                                voided_at?: string | null;
+                                void_reason?: string | null;
                                 unit_price?: string;
                                 modifiers_total?: string;
                                 total_price?: string;
@@ -9629,6 +19170,15 @@ export interface operations {
                                 }[];
                                 kitchen_status: string;
                                 ready_at: string | null;
+                                round_no?: number | null;
+                                fire_mode?: string;
+                                station_id?: number | null;
+                                sent_at?: string | null;
+                                due_at?: string | null;
+                                seat_no?: number | null;
+                                note?: string | null;
+                                voided_at?: string | null;
+                                void_reason?: string | null;
                                 unit_price?: string;
                                 modifiers_total?: string;
                                 total_price?: string;
@@ -9727,6 +19277,15 @@ export interface operations {
                                 }[];
                                 kitchen_status: string;
                                 ready_at: string | null;
+                                round_no?: number | null;
+                                fire_mode?: string;
+                                station_id?: number | null;
+                                sent_at?: string | null;
+                                due_at?: string | null;
+                                seat_no?: number | null;
+                                note?: string | null;
+                                voided_at?: string | null;
+                                void_reason?: string | null;
                                 unit_price?: string;
                                 modifiers_total?: string;
                                 total_price?: string;
@@ -9798,6 +19357,15 @@ export interface operations {
                                 }[];
                                 kitchen_status: string;
                                 ready_at: string | null;
+                                round_no?: number | null;
+                                fire_mode?: string;
+                                station_id?: number | null;
+                                sent_at?: string | null;
+                                due_at?: string | null;
+                                seat_no?: number | null;
+                                note?: string | null;
+                                voided_at?: string | null;
+                                void_reason?: string | null;
                                 unit_price?: string;
                                 modifiers_total?: string;
                                 total_price?: string;
@@ -9870,6 +19438,15 @@ export interface operations {
                                 }[];
                                 kitchen_status: string;
                                 ready_at: string | null;
+                                round_no?: number | null;
+                                fire_mode?: string;
+                                station_id?: number | null;
+                                sent_at?: string | null;
+                                due_at?: string | null;
+                                seat_no?: number | null;
+                                note?: string | null;
+                                voided_at?: string | null;
+                                void_reason?: string | null;
                                 unit_price?: string;
                                 modifiers_total?: string;
                                 total_price?: string;
@@ -9979,6 +19556,15 @@ export interface operations {
                                 }[];
                                 kitchen_status: string;
                                 ready_at: string | null;
+                                round_no?: number | null;
+                                fire_mode?: string;
+                                station_id?: number | null;
+                                sent_at?: string | null;
+                                due_at?: string | null;
+                                seat_no?: number | null;
+                                note?: string | null;
+                                voided_at?: string | null;
+                                void_reason?: string | null;
                                 unit_price?: string;
                                 modifiers_total?: string;
                                 total_price?: string;

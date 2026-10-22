@@ -7,13 +7,23 @@ part of 'data65.dart';
 // **************************************************************************
 
 Data65 _$Data65FromJson(Map<String, dynamic> json) => Data65(
-  productId: (json['product_id'] as num).toInt(),
-  prices: (json['prices'] as List<dynamic>)
-      .map((e) => Prices2.fromJson(e as Map<String, dynamic>))
+  data: (json['data'] as List<dynamic>)
+      .map((e) => Data64.fromJson(e as Map<String, dynamic>))
       .toList(),
+  currentPage: (json['current_page'] as num).toInt(),
+  lastPage: (json['last_page'] as num).toInt(),
+  perPage: (json['per_page'] as num).toInt(),
+  total: (json['total'] as num).toInt(),
+  from: (json['from'] as num?)?.toInt(),
+  to: (json['to'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$Data65ToJson(Data65 instance) => <String, dynamic>{
-  'product_id': instance.productId,
-  'prices': instance.prices,
+  'data': instance.data,
+  'current_page': instance.currentPage,
+  'last_page': instance.lastPage,
+  'per_page': instance.perPage,
+  'total': instance.total,
+  'from': instance.from,
+  'to': instance.to,
 };

@@ -15,6 +15,11 @@ use App\Enums\PaymentStatus;
 use App\Events\PaymentPaid;
 use App\Services\Finance\LedgerService;
 use App\Services\Order\OrderStatusService;
+use App\Domain\Fiscal\FiscalReceiptType;
+use App\Services\Payment\Fiscal\OnlineFiscalReceipt;
+use App\Services\Payment\Fiscal\OnlineFiscalReceiptBuilder;
+use App\Services\Payment\Fiscal\OnlineFiscalRecorder;
+use App\Services\Payment\Fiscal\PaymeReceiptDetail;
 use App\Support\Money;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -30,8 +35,9 @@ class PaymeWebhookController extends Controller
      * Payme: Merchant API (JSON-RPC 2.0)
      *
      * Payme Merchant API methods (CheckPerformTransaction, CreateTransaction, PerformTransaction, CancelTransaction,
-     * CheckTransaction, GetStatement) with HTTP Basic auth of the merchant key. Always HTTP 200; errors are JSON-RPC
-     * `error` objects.
+     * CheckTransaction, GetStatement, SetFiscalData) with HTTP Basic auth of the merchant key. Always HTTP 200; errors
+     * are JSON-RPC `error` objects. For a store with fiscal receipts on, CheckPerformTransaction answers with `detail`
+     * (receipt lines with MXIK, package code and VAT) and SetFiscalData records the receipt Payme registered.
      */
     public function handle(Request $request): JsonResponse
     {
@@ -68,6 +74,8 @@ class PaymeWebhookController extends Controller
                     return $this->checkTransaction($params, $id);
                 case 'GetStatement':
                     return $this->getStatement($params, $id);
+                case 'SetFiscalData':
+                    return $this->setFiscalData($params, $id);
                 default:
                     return response()->json([
                         'jsonrpc' => '2.0',
@@ -169,9 +177,41 @@ class PaymeWebhookController extends Controller
             return $this->rpcError($id, ...$error);
         }
 
-        return $this->result($id, [
-            'allow' => true
-        ]);
+        $result = ['allow' => true];
+
+        // P3-14: Payme registers the fiscal receipt from `detail`; left out when the store has fiscal receipts off
+        // or a line is incomplete (the payment itself is never refused for it).
+        if ($order && ($receipt = $this->fiscalReceipt($order)) !== null) {
+            if ($receipt->isIssuable()) {
+                $result['detail'] = PaymeReceiptDetail::from($receipt);
+            } else {
+                app(OnlineFiscalRecorder::class)->blocked($order, 'payme', $receipt);
+            }
+        }
+
+        return $this->result($id, $result);
+    }
+
+    /**
+     * The order's receipt for Payme when the store has fiscal receipts on, else null. A store's own Payme cashbox
+     * registers it with the store as komitent; the platform cashbox would register the platform's own sale (the
+     * Merchant API has no per-receipt komitent field), so it is flagged instead of sent.
+     */
+    protected function fiscalReceipt(Order $order): ?OnlineFiscalReceipt
+    {
+        try {
+            $receipt = app(OnlineFiscalReceiptBuilder::class)->build($order, false);
+        } catch (\Throwable $e) {
+            Log::error('Payme fiscal detail could not be built: ' . $e->getMessage(), ['order_id' => $order->id]);
+
+            return null;
+        }
+
+        if (!$receipt->enabled) {
+            return null;
+        }
+
+        return $order->payment_owner === 'PLATFORM' ? $receipt->withProblems(['payme_platform_cashbox']) : $receipt;
     }
 
     /**
@@ -249,6 +289,12 @@ class PaymeWebhookController extends Controller
                 'status' => PaymentStatus::PENDING,
                 'payload' => $params,
             ]);
+
+            // P3-14: a receipt Payme cannot register (no `detail` was given) is flagged on the payment for the owner
+            $receipt = $order ? $this->fiscalReceipt($order) : null;
+            if ($receipt && !$receipt->isIssuable()) {
+                app(OnlineFiscalRecorder::class)->mark($payment, ['provider' => 'payme', 'status' => OnlineFiscalRecorder::STATUS_BLOCKED, 'problems' => $receipt->problems]);
+            }
 
             return $this->result($id, [
                 'create_time' => $this->createTime($payment),
@@ -450,6 +496,101 @@ class PaymeWebhookController extends Controller
         return $this->result($id, [
             'transactions' => $transactions,
         ]);
+    }
+
+    /**
+     * SetFiscalData: Payme reports the fiscal receipt it registered for a payment (`PERFORM`) or its cancellation
+     * (`CANCEL`, a separate refund receipt). Stored on the payment as payload.fiscal.perform_data / cancel_data, as
+     * the docs suggest, and recorded in fiscal_receipts; a repeated call with the same data changes nothing.
+     * https://developer.help.paycom.uz/metody-merchant-api/setfiscaldata
+     */
+    protected function setFiscalData(array $params, $id): JsonResponse
+    {
+        $type = $params['type'] ?? null;
+        $data = $params['fiscal_data'] ?? null;
+
+        if ($this->transactionId($params) === '') {
+            return $this->rpcError($id, -32602, 'Invalid parameter: id');
+        }
+        if (!in_array($type, ['PERFORM', 'CANCEL'], true)) {
+            return $this->rpcError($id, -32602, 'Invalid parameter: type');
+        }
+        if (!is_array($data)) {
+            return $this->rpcError($id, -32602, 'Invalid parameter: fiscal_data');
+        }
+        if (!isset($data['status_code']) || !is_numeric($data['status_code'])) {
+            return $this->rpcError($id, -32602, 'Invalid parameter: fiscal_data.status_code');
+        }
+        $accepted = (int) $data['status_code'] === 0;
+        foreach (['receipt_id', 'terminal_id', 'fiscal_sign', 'qr_code_url', 'date', 'message'] as $field) {
+            $value = $data[$field] ?? null;
+            $required = $accepted && in_array($field, ['receipt_id', 'terminal_id', 'fiscal_sign'], true);
+            if (($required && ($value === null || $value === '')) || ($value !== null && !is_scalar($value))) {
+                return $this->rpcError($id, -32602, "Invalid parameter: fiscal_data.{$field}");
+            }
+        }
+
+        $payment = $this->findPayment($params);
+        if (!$payment) {
+            return $this->rpcError($id, -32001, 'Receipt not found');
+        }
+
+        DB::transaction(function () use ($payment, $type, $data, $accepted) {
+            $payment = Payment::whereKey($payment->id)->lockForUpdate()->first();
+            $fiscal = is_array($payment->payload['fiscal'] ?? null) ? $payment->payload['fiscal'] : [];
+            $key = $type === 'PERFORM' ? 'perform_data' : 'cancel_data';
+            $stored = is_array($fiscal[$key] ?? null) ? $fiscal[$key] : null;
+
+            // Already accepted: a repeated (or late, different) report never replaces the registered receipt
+            if ($stored !== null && (int) ($stored['status_code'] ?? -1) === 0) {
+                if ((string) ($stored['receipt_id'] ?? '') !== (string) ($data['receipt_id'] ?? '')) {
+                    Log::warning('Payme SetFiscalData repeated with another receipt; the first one is kept', [
+                        'payment_id' => $payment->id,
+                        'type' => $type,
+                        'stored_receipt_id' => $stored['receipt_id'] ?? null,
+                        'receipt_id' => $data['receipt_id'] ?? null,
+                    ]);
+                }
+
+                return;
+            }
+
+            $fiscalData = array_intersect_key($data, array_flip(['receipt_id', 'status_code', 'message', 'terminal_id', 'fiscal_sign', 'qr_code_url', 'date']));
+            $marks = ['provider' => 'payme', $key => $fiscalData];
+            $order = $payment->order;
+
+            if (!$accepted) {
+                // The OFD refused the receipt: the owner sees it, Payme may report it again once registered
+                Log::warning('Payme fiscal receipt was not registered by the OFD', [
+                    'payment_id' => $payment->id,
+                    'order_id' => $payment->order_id,
+                    'type' => $type,
+                    'status_code' => $data['status_code'],
+                    'message' => $data['message'] ?? null,
+                ]);
+                $marks += ['status' => OnlineFiscalRecorder::STATUS_FAILED, 'problems' => ['payme_ofd_rejected']];
+            } elseif ($order) {
+                // A top-up is the platform's own sale, not a restaurant receipt: kept on the payment only
+                $result = app(OnlineFiscalRecorder::class)->record(
+                    $order,
+                    $payment,
+                    'payme',
+                    $type === 'PERFORM' ? FiscalReceiptType::SALE : FiscalReceiptType::REFUND,
+                    'payme:' . $payment->provider_transaction_id . ':' . strtolower($type),
+                    ['id' => $payment->provider_transaction_id, 'type' => $type] + $fiscalData,
+                    $type === 'CANCEL' ? ($fiscal['receipt_uuid'] ?? null) : null,
+                );
+                $marks += [
+                    'status' => OnlineFiscalRecorder::STATUS_RECORDED,
+                    'problems' => [],
+                    ($type === 'PERFORM' ? 'receipt_uuid' : 'refund_receipt_uuid') => $result?->receiptUuid,
+                ];
+            }
+
+            app(OnlineFiscalRecorder::class)->mark($payment, $marks);
+        });
+
+        return $this->result($id, ['success' => true]);
     }
 
     protected function state(Payment $payment): int

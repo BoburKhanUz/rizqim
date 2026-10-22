@@ -4,34 +4,48 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data47.dart';
+import 'user12.dart';
 
 part 'data48.g.dart';
 
 @JsonSerializable()
 class Data48 {
   const Data48({
-    required this.data,
-    required this.currentPage,
-    required this.lastPage,
-    required this.perPage,
-    required this.total,
-    required this.from,
-    required this.to,
+    required this.uuid,
+    required this.type,
+    required this.name,
+    required this.platform,
+    required this.appVersion,
+    required this.storeId,
+    required this.branchId,
+    required this.user,
+    required this.hasPushToken,
+    required this.lastSeenAt,
+    required this.revokedAt,
+    required this.createdAt,
   });
 
   factory Data48.fromJson(Map<String, Object?> json) => _$Data48FromJson(json);
 
-  final List<Data47> data;
-  @JsonKey(name: 'current_page')
-  final int currentPage;
-  @JsonKey(name: 'last_page')
-  final int lastPage;
-  @JsonKey(name: 'per_page')
-  final int perPage;
-  final int total;
-  final int? from;
-  final int? to;
+  final String uuid;
+  final String type;
+  final String name;
+  final String? platform;
+  @JsonKey(name: 'app_version')
+  final String? appVersion;
+  @JsonKey(name: 'store_id')
+  final int? storeId;
+  @JsonKey(name: 'branch_id')
+  final int? branchId;
+  final User12? user;
+  @JsonKey(name: 'has_push_token')
+  final bool hasPushToken;
+  @JsonKey(name: 'last_seen_at')
+  final String? lastSeenAt;
+  @JsonKey(name: 'revoked_at')
+  final String? revokedAt;
+  @JsonKey(name: 'created_at')
+  final String? createdAt;
 
   Map<String, Object?> toJson() => _$Data48ToJson(this);
 }

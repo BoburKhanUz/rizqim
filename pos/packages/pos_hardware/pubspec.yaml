@@ -1,0 +1,28 @@
+name: pos_hardware
+description: Rizqim POS uskunasi — ESC/POS printerlar (LAN, USB Windows, Sunmi), kassa qutisi, matnni rasm sifatida chop etish va chop etish navbati.
+version: 0.1.0
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.13.0
+  flutter: '>=3.47.0'
+
+dependencies:
+  ffi: ^2.1.0
+  flutter:
+    sdk: flutter
+  pos_core:
+    path: ../pos_core
+
+dev_dependencies:
+  flutter_lints: ^6.0.0
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: uz.rizqim.pos_hardware
+        pluginClass: PosHardwarePlugin

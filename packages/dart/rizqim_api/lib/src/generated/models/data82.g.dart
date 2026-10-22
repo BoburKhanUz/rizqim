@@ -7,45 +7,39 @@ part of 'data82.dart';
 // **************************************************************************
 
 Data82 _$Data82FromJson(Map<String, dynamic> json) => Data82(
+  id: (json['id'] as num).toInt(),
   uuid: json['uuid'] as String,
-  shortCode: json['short_code'] as String?,
-  status: json['status'] as String,
-  type: json['type'] as String,
-  channel: json['channel'] as String,
-  branchId: (json['branch_id'] as num?)?.toInt(),
-  hallRef: json['hall_ref'] as String?,
-  tableRef: json['table_ref'] as String?,
-  guestsCount: (json['guests_count'] as num?)?.toInt(),
-  notes: json['notes'] as String?,
-  itemsTotal: (json['items_total'] as num).toInt(),
-  itemsReady: (json['items_ready'] as num).toInt(),
-  items: (json['items'] as List<dynamic>)
-      .map((e) => Items3.fromJson(e as Map<String, dynamic>))
+  name: json['name'] as String,
+  nameI18n: (json['name_i18n'] as Map<String, dynamic>?)?.map(
+    (k, e) => MapEntry(k, e as String),
+  ),
+  minSelect: (json['min_select'] as num).toInt(),
+  maxSelect: (json['max_select'] as num?)?.toInt(),
+  isRequired: json['is_required'] as bool,
+  sortOrder: (json['sort_order'] as num).toInt(),
+  isActive: json['is_active'] as bool,
+  modifiers: (json['modifiers'] as List<dynamic>)
+      .map((e) => Modifiers2.fromJson(e as Map<String, dynamic>))
       .toList(),
-  createdAt: json['created_at'] as String?,
-  acceptedAt: json['accepted_at'] as String?,
-  preparingAt: json['preparing_at'] as String?,
-  readyAt: json['ready_at'] as String?,
-  waitingSeconds: (json['waiting_seconds'] as num).toInt(),
+  productIds: (json['product_ids'] as List<dynamic>)
+      .map((e) => (e as num).toInt())
+      .toList(),
+  productRules: ProductRules2.fromJson(
+    json['product_rules'] as Map<String, dynamic>,
+  ),
 );
 
 Map<String, dynamic> _$Data82ToJson(Data82 instance) => <String, dynamic>{
+  'id': instance.id,
   'uuid': instance.uuid,
-  'short_code': instance.shortCode,
-  'status': instance.status,
-  'type': instance.type,
-  'channel': instance.channel,
-  'branch_id': instance.branchId,
-  'hall_ref': instance.hallRef,
-  'table_ref': instance.tableRef,
-  'guests_count': instance.guestsCount,
-  'notes': instance.notes,
-  'items_total': instance.itemsTotal,
-  'items_ready': instance.itemsReady,
-  'items': instance.items,
-  'created_at': instance.createdAt,
-  'accepted_at': instance.acceptedAt,
-  'preparing_at': instance.preparingAt,
-  'ready_at': instance.readyAt,
-  'waiting_seconds': instance.waitingSeconds,
+  'name': instance.name,
+  'name_i18n': instance.nameI18n,
+  'min_select': instance.minSelect,
+  'max_select': instance.maxSelect,
+  'is_required': instance.isRequired,
+  'sort_order': instance.sortOrder,
+  'is_active': instance.isActive,
+  'modifiers': instance.modifiers,
+  'product_ids': instance.productIds,
+  'product_rules': instance.productRules,
 };

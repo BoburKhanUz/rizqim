@@ -8,26 +8,28 @@ part of 'data50.dart';
 
 Data50 _$Data50FromJson(Map<String, dynamic> json) => Data50(
   id: (json['id'] as num).toInt(),
-  type: json['type'] as String,
-  amount: json['amount'] as String,
-  balanceBefore: json['balance_before'] as String,
-  balanceAfter: json['balance_after'] as String,
-  order: json['order'] == null
-      ? null
-      : Order2.fromJson(json['order'] as Map<String, dynamic>),
-  referenceId: json['reference_id'] as String?,
-  notes: json['notes'] as String?,
-  createdAt: json['created_at'] as String,
+  branchId: (json['branch_id'] as num).toInt(),
+  hallId: (json['hall_id'] as num).toInt(),
+  name: json['name'] as String,
+  kind: json['kind'] as String,
+  seats: (json['seats'] as num?)?.toInt(),
+  layout: Layout.fromJson(json['layout'] as Map<String, dynamic>),
+  sortOrder: (json['sort_order'] as num).toInt(),
+  isActive: json['is_active'] as bool,
+  minSpend: json['min_spend'] as String?,
+  minSpendMode: json['min_spend_mode'] as String,
 );
 
 Map<String, dynamic> _$Data50ToJson(Data50 instance) => <String, dynamic>{
   'id': instance.id,
-  'type': instance.type,
-  'amount': instance.amount,
-  'balance_before': instance.balanceBefore,
-  'balance_after': instance.balanceAfter,
-  'order': instance.order,
-  'reference_id': instance.referenceId,
-  'notes': instance.notes,
-  'created_at': instance.createdAt,
+  'branch_id': instance.branchId,
+  'hall_id': instance.hallId,
+  'name': instance.name,
+  'kind': instance.kind,
+  'seats': instance.seats,
+  'layout': instance.layout,
+  'sort_order': instance.sortOrder,
+  'is_active': instance.isActive,
+  'min_spend': instance.minSpend,
+  'min_spend_mode': instance.minSpendMode,
 };

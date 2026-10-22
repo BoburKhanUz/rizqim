@@ -4,6 +4,8 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'tax_regime.dart';
+import 'fiscal_settings5.dart';
 import 'payment_settings2.dart';
 
 part 'v1_owner_settings_request_body.g.dart';
@@ -22,6 +24,9 @@ class V1OwnerSettingsRequestBody {
     this.address,
     this.locationUrl,
     this.minOrderAmount,
+    this.tin,
+    this.taxRegime,
+    this.fiscalSettings,
   });
 
   factory V1OwnerSettingsRequestBody.fromJson(Map<String, Object?> json) =>
@@ -41,6 +46,17 @@ class V1OwnerSettingsRequestBody {
   final bool isOpen;
   @JsonKey(name: 'min_order_amount')
   final num? minOrderAmount;
+
+  /// P3-11: STIR, 9 ta raqam.
+  final String? tin;
+
+  /// P3-11: vat | vat_simplified | turnover.
+  @JsonKey(name: 'tax_regime')
+  final TaxRegime? taxRegime;
+
+  /// P3-11: fiskal sozlamalar (PUT /owner/fiscal/settings kabi).
+  @JsonKey(name: 'fiscal_settings')
+  final FiscalSettings5? fiscalSettings;
 
   /// To'lov va yetkazish sozlamalari (obyekt).
   @JsonKey(name: 'payment_settings')

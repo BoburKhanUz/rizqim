@@ -175,6 +175,33 @@ class StaffPinService
      */
     public function startSession(Device $device, ?int $userId, ?string $staffCode, string $pin): array
     {
+        $candidate = $this->verify($device, $userId, $staffCode, $pin);
+
+        return DB::transaction(function () use ($device, $candidate) {
+            // Switching staff: whoever was signed in on this terminal is signed out
+            PersonalAccessToken::where('device_id', $device->id)->where('name', TokenService::STAFF_SESSION_NAME)->delete();
+
+            $expiresAt = now()->addMinutes(max(1, (int) config('auth.tokens.staff_session_ttl', 720)));
+            $token = $this->tokens->createDeviceToken($candidate, $device, TokenService::STAFF_SESSION_NAME, [TokenService::STAFF_SESSION_ABILITY], $expiresAt);
+
+            $this->audit->record('staff.session_started', $candidate, [], [], [
+                'staff_name' => $candidate->name,
+                'role' => $candidate->role->value,
+            ], ['actor' => $candidate, 'device' => $device, 'store_id' => $device->store_id, 'branch_id' => $device->branch_id]);
+
+            return ['token' => $token->plainTextToken, 'expires_at' => $expiresAt, 'user' => $candidate];
+        });
+    }
+
+    /**
+     * The staff member whose PIN this is, on this terminal (eligibleStaff), with the same lockout, attempt lock and
+     * uniform answers as a sign-in; nothing else happens (no session). P3-18: a manager's PIN approving one action on
+     * a terminal (POST /pos/approvals) goes through here, so approvals and sign-ins share one failure count.
+     *
+     * @throws AuthTokenException
+     */
+    public function verify(Device $device, ?int $userId, ?string $staffCode, string $pin): User
+    {
         $candidate = $device->store_id === null ? null : $this->eligibleStaff($device)
             ->when($userId !== null, fn ($query) => $query->whereKey($userId))
             ->when($userId === null, fn ($query) => $query->where('staff_code', (string) $staffCode))
@@ -199,20 +226,7 @@ class StaffPinService
             throw new AuthTokenException("Xodim yoki PIN noto'g'ri.", 'pin_invalid', 422);
         }
 
-        return DB::transaction(function () use ($device, $candidate) {
-            // Switching staff: whoever was signed in on this terminal is signed out
-            PersonalAccessToken::where('device_id', $device->id)->where('name', TokenService::STAFF_SESSION_NAME)->delete();
-
-            $expiresAt = now()->addMinutes(max(1, (int) config('auth.tokens.staff_session_ttl', 720)));
-            $token = $this->tokens->createDeviceToken($candidate, $device, TokenService::STAFF_SESSION_NAME, [TokenService::STAFF_SESSION_ABILITY], $expiresAt);
-
-            $this->audit->record('staff.session_started', $candidate, [], [], [
-                'staff_name' => $candidate->name,
-                'role' => $candidate->role->value,
-            ], ['actor' => $candidate, 'device' => $device, 'store_id' => $device->store_id, 'branch_id' => $device->branch_id]);
-
-            return ['token' => $token->plainTextToken, 'expires_at' => $expiresAt, 'user' => $candidate];
-        });
+        return $candidate;
     }
 
     public function endSessionsOn(Device $device): int

@@ -11,7 +11,7 @@ PostV1StoresStoreIdRateResponse _$PostV1StoresStoreIdRateResponseFromJson(
 ) => PostV1StoresStoreIdRateResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data88.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data177.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1StoresStoreIdRateResponseToJson(

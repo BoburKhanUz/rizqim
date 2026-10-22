@@ -34,10 +34,16 @@ class CatalogController extends Controller
     #[QueryParameter('lng', description: 'Global feed: longitude of the delivery point (with `lat`).', type: 'float')]
     #[QueryParameter('region_id', description: 'Global feed without coordinates: stores with a branch in this region.', type: 'int')]
     #[QueryParameter('district_id', description: 'Global feed without coordinates: stores with a branch in this district.', type: 'int')]
+    #[QueryParameter('branch_id', description: 'P3-13, POS channels only: the branch (an owner or a store-wide terminal; a branch-bound staff member always gets their own).', type: 'int', required: false)]
     #[QueryParameter('category_id', description: 'Global feed: only this category and its subcategories.', type: 'int')]
-    #[QueryParameter('channel', description: "P1-21: whose prices and visibility to show: telegram (default) or mobile.", type: "'telegram'|'mobile'")]
+    #[QueryParameter('channel', description: "P1-21: whose prices and visibility to show: telegram (default) or mobile. P3-13: `pos_hall` or `pos_takeaway` is the POS menu of one branch for the store's own staff (menu.view; `branch_id` for an owner), with the channel prices, `is_available`/`unavailable_reason`, `station_id`, modifiers, units and the branch availability; see docs/API.md (POS bo'limi).", type: "'telegram'|'mobile'|'pos_hall'|'pos_takeaway'")]
     public function index(Request $request): JsonResponse
     {
+        // P3-13: the POS channels are the store staff's own menu (PosCatalogController), never the customer feed
+        if (\App\Http\Controllers\Api\V1\Pos\PosCatalogController::handles($request->query('channel'))) {
+            return app(\App\Http\Controllers\Api\V1\Pos\PosCatalogController::class)->index($request);
+        }
+
         $storeUuid = $request->query('store_id');
         
         // GLOBAL FEED MODE

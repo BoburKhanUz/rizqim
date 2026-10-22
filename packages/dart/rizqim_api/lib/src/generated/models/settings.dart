@@ -10,6 +10,7 @@ part 'settings.g.dart';
 class Settings {
   const Settings({
     required this.branchId,
+    required this.hallId,
     required this.serviceChargePercent,
     required this.serviceChargeChannels,
     required this.placeFeeAmount,
@@ -22,6 +23,10 @@ class Settings {
 
   @JsonKey(name: 'branch_id')
   final int? branchId;
+
+  /// P3-12: a hall's own row (null: the branch's or the store's)
+  @JsonKey(name: 'hall_id')
+  final int? hallId;
   @JsonKey(name: 'service_charge_percent')
   final String serviceChargePercent;
   @JsonKey(name: 'service_charge_channels')

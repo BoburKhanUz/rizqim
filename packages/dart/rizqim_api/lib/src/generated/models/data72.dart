@@ -8,12 +8,11 @@ part 'data72.g.dart';
 
 @JsonSerializable()
 class Data72 {
-  const Data72({required this.path, required this.url});
+  const Data72({required this.id});
 
   factory Data72.fromJson(Map<String, Object?> json) => _$Data72FromJson(json);
 
-  final String path;
-  final String url;
+  final int id;
 
   Map<String, Object?> toJson() => _$Data72ToJson(this);
 }

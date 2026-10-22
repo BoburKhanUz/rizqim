@@ -1,0 +1,27 @@
+// coverage:ignore-file
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: type=lint, unused_import, invalid_annotation_target, unnecessary_import
+
+import 'package:json_annotation/json_annotation.dart';
+
+import 'data73.dart';
+
+part 'patch_v1_owner_halls_id_response.g.dart';
+
+@JsonSerializable()
+class PatchV1OwnerHallsIdResponse {
+  const PatchV1OwnerHallsIdResponse({
+    required this.success,
+    required this.message,
+    required this.data,
+  });
+
+  factory PatchV1OwnerHallsIdResponse.fromJson(Map<String, Object?> json) =>
+      _$PatchV1OwnerHallsIdResponseFromJson(json);
+
+  final bool success;
+  final String message;
+  final Data73 data;
+
+  Map<String, Object?> toJson() => _$PatchV1OwnerHallsIdResponseToJson(this);
+}

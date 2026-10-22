@@ -10,6 +10,10 @@ enum Channel {
   telegram('telegram'),
   @JsonValue('mobile')
   mobile('mobile'),
+  @JsonValue('pos_hall')
+  posHall('pos_hall'),
+  @JsonValue('pos_takeaway')
+  posTakeaway('pos_takeaway'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

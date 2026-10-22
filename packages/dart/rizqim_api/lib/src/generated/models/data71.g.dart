@@ -8,48 +8,24 @@ part of 'data71.dart';
 
 Data71 _$Data71FromJson(Map<String, dynamic> json) => Data71(
   id: (json['id'] as num).toInt(),
+  branchId: (json['branch_id'] as num).toInt(),
   name: json['name'] as String,
-  timezone: json['timezone'] as String,
-  logo: json['logo'] as String?,
-  logoUrl: json['logo_url'] as String?,
-  banner: json['banner'] as String?,
-  bannerUrl: json['banner_url'] as String?,
-  description: json['description'] as String?,
-  phone: json['phone'] as String?,
-  address: json['address'] as String?,
-  locationUrl: json['location_url'] as String?,
-  isOpen: json['is_open'] as bool,
-  minOrderAmount: json['min_order_amount'] as num,
-  paymentSettings: PaymentSettings.fromJson(
-    json['payment_settings'] as Map<String, dynamic>,
-  ),
-  paymentAccountType: PaymentAccountType.fromJson(
-    json['payment_account_type'] as String,
-  ),
-  status: StoreStatus.fromJson(json['status'] as String),
-  isOrderLocked: json['is_order_locked'] as bool,
-  allowedMethods: (json['allowed_methods'] as List<dynamic>)
-      .map((e) => e as String)
+  sortOrder: (json['sort_order'] as num).toInt(),
+  isActive: json['is_active'] as bool,
+  serviceFee: json['service_fee'] == null
+      ? null
+      : ServiceFee2.fromJson(json['service_fee'] as Map<String, dynamic>),
+  tables: (json['tables'] as List<dynamic>)
+      .map((e) => Tables3.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 
 Map<String, dynamic> _$Data71ToJson(Data71 instance) => <String, dynamic>{
   'id': instance.id,
+  'branch_id': instance.branchId,
   'name': instance.name,
-  'timezone': instance.timezone,
-  'logo': instance.logo,
-  'logo_url': instance.logoUrl,
-  'banner': instance.banner,
-  'banner_url': instance.bannerUrl,
-  'description': instance.description,
-  'phone': instance.phone,
-  'address': instance.address,
-  'location_url': instance.locationUrl,
-  'is_open': instance.isOpen,
-  'min_order_amount': instance.minOrderAmount,
-  'payment_settings': instance.paymentSettings,
-  'payment_account_type': instance.paymentAccountType,
-  'status': instance.status,
-  'is_order_locked': instance.isOrderLocked,
-  'allowed_methods': instance.allowedMethods,
+  'sort_order': instance.sortOrder,
+  'is_active': instance.isActive,
+  'service_fee': instance.serviceFee,
+  'tables': instance.tables,
 };

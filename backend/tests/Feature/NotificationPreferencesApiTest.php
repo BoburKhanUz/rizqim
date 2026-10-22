@@ -57,7 +57,7 @@ class NotificationPreferencesApiTest extends TestCase
         ));
 
         $this->assertSame(['order_updates', 'staff_new_order', 'courier_tasks'], $types($this->manager));
-        $this->assertSame(['order_updates', 'staff_new_order', 'courier_tasks'], $types($this->owner));
+        $this->assertSame(['order_updates', 'staff_new_order', 'courier_tasks', 'pos_alerts'], $types($this->owner));
         $this->assertSame(['order_updates', 'courier_tasks'], $types($this->courier));
         $this->assertSame(['order_updates', 'promotions'], $types($this->customer));
     }

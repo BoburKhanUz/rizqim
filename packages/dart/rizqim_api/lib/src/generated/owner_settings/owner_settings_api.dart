@@ -27,6 +27,9 @@ abstract class OwnerSettingsApi {
   ///
   /// `payment_settings` is an object (not a list): the delivery fee and switches, working hours and one entry per.
   /// provider. A provider that cannot be enabled yet (uzum, paynet) is a 422 on `payment_settings`.
+  ///
+  /// P3-11: optional `tin` (9 digits), `tax_regime` (vat | vat_simplified | turnover) and `fiscal_settings`, as.
+  /// PUT /owner/fiscal/settings takes them; left out = kept.
   @POST('/v1/owner/settings')
   Future<PostV1OwnerSettingsResponse> ownerSettingsUpdate({
     @Body() required V1OwnerSettingsRequestBody body,

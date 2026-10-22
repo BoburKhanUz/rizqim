@@ -7,17 +7,23 @@ part of 'data68.dart';
 // **************************************************************************
 
 Data68 _$Data68FromJson(Map<String, dynamic> json) => Data68(
-  period: Period3.fromJson(json['period'] as Map<String, dynamic>),
-  branchId: (json['branch_id'] as num?)?.toInt(),
-  sort: json['sort'] as String,
-  products: (json['products'] as List<dynamic>)
-      .map((e) => Products.fromJson(e as Map<String, dynamic>))
+  tin: json['tin'] as String?,
+  taxRegime: json['tax_regime'] == null
+      ? null
+      : TaxRegime.fromJson(json['tax_regime'] as String?),
+  fiscalSettings: FiscalSettings.fromJson(
+    json['fiscal_settings'] as Map<String, dynamic>,
+  ),
+  drivers: (json['drivers'] as List<dynamic>).map((e) => e as String).toList(),
+  taxRegimes: (json['tax_regimes'] as List<dynamic>)
+      .map((e) => TaxRegimes.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 
 Map<String, dynamic> _$Data68ToJson(Data68 instance) => <String, dynamic>{
-  'period': instance.period,
-  'branch_id': instance.branchId,
-  'sort': instance.sort,
-  'products': instance.products,
+  'tin': instance.tin,
+  'tax_regime': instance.taxRegime,
+  'fiscal_settings': instance.fiscalSettings,
+  'drivers': instance.drivers,
+  'tax_regimes': instance.taxRegimes,
 };

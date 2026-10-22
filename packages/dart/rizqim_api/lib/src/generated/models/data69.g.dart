@@ -7,13 +7,23 @@ part of 'data69.dart';
 // **************************************************************************
 
 Data69 _$Data69FromJson(Map<String, dynamic> json) => Data69(
-  channels: json['channels'] as List<dynamic>,
-  settings: (json['settings'] as List<dynamic>)
-      .map((e) => Settings.fromJson(e as Map<String, dynamic>))
+  tin: json['tin'] as String?,
+  taxRegime: json['tax_regime'] == null
+      ? null
+      : TaxRegime.fromJson(json['tax_regime'] as String?),
+  fiscalSettings: FiscalSettings2.fromJson(
+    json['fiscal_settings'] as Map<String, dynamic>,
+  ),
+  drivers: (json['drivers'] as List<dynamic>).map((e) => e as String).toList(),
+  taxRegimes: (json['tax_regimes'] as List<dynamic>)
+      .map((e) => TaxRegimes2.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 
 Map<String, dynamic> _$Data69ToJson(Data69 instance) => <String, dynamic>{
-  'channels': instance.channels,
-  'settings': instance.settings,
+  'tin': instance.tin,
+  'tax_regime': instance.taxRegime,
+  'fiscal_settings': instance.fiscalSettings,
+  'drivers': instance.drivers,
+  'tax_regimes': instance.taxRegimes,
 };

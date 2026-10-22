@@ -7,15 +7,15 @@ part of 'delivery2.dart';
 // **************************************************************************
 
 Delivery2 _$Delivery2FromJson(Map<String, dynamic> json) => Delivery2(
-  address: json['address'] as String?,
-  latitude: json['latitude'] as num?,
-  longitude: json['longitude'] as num?,
-  zoneName: json['zone_name'] as String?,
+  name: json['name'] as String,
+  mxik: json['mxik'] as String?,
+  packageCode: json['package_code'] as String?,
+  unit: json['unit'] as String,
 );
 
 Map<String, dynamic> _$Delivery2ToJson(Delivery2 instance) => <String, dynamic>{
-  'address': instance.address,
-  'latitude': instance.latitude,
-  'longitude': instance.longitude,
-  'zone_name': instance.zoneName,
+  'name': instance.name,
+  'mxik': instance.mxik,
+  'package_code': instance.packageCode,
+  'unit': instance.unit,
 };

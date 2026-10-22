@@ -11,7 +11,7 @@ PostV1OwnerBatchesResponse _$PostV1OwnerBatchesResponseFromJson(
 ) => PostV1OwnerBatchesResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data28.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data32.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1OwnerBatchesResponseToJson(
