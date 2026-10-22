@@ -1,0 +1,74 @@
+{
+  "success": true,
+  "message": "",
+  "data": {
+    "account": {
+      "uuid": "01a162a2-801a-7361-988c-b5d746eb7489",
+      "name": "Jamshid aka",
+      "phone": "+998901112233",
+      "group_name": "Gap guruhi",
+      "branch_id": 1,
+      "credit_limit": "1000000.00",
+      "balance": "111100.00",
+      "available_credit": "888900.00",
+      "is_blocked": false,
+      "note": null,
+      "created_at": "2026-10-22T08:02:59.000000Z",
+      "updated_at": "2026-10-22T08:02:59.000000Z"
+    },
+    "from": "2026-09-23",
+    "to": "2026-10-22",
+    "opening_balance": "0.00",
+    "closing_balance": "111100.00",
+    "charges_total": "161100.00",
+    "repayments_total": "50000.00",
+    "adjustments_total": "0.00",
+    "entries": [
+      {
+        "uuid": "01a162a2-80c7-70bd-a412-4dc13781f5ec",
+        "type": "charge",
+        "type_label": "Nasiyaga yopilgan hisob",
+        "amount": "161100.00",
+        "balance_after": "161100.00",
+        "bill_uuid": "01a1629f-acab-700f-b90f-d86e93384d2c",
+        "tender": null,
+        "card_type": null,
+        "transaction_id": null,
+        "fiscal_receipt_uuid": null,
+        "fiscal_status": null,
+        "branch_id": 1,
+        "user": {
+          "id": 2,
+          "name": "Malika Menejer"
+        },
+        "approved_by": {
+          "id": 2,
+          "name": "Malika Menejer"
+        },
+        "note": null,
+        "created_at": "2026-10-22T08:02:59.000000Z"
+      },
+      {
+        "uuid": "01a162a2-820a-7294-ac52-da13c996b832",
+        "type": "repayment",
+        "type_label": "Qarz to'lovi",
+        "amount": "-50000.00",
+        "balance_after": "111100.00",
+        "bill_uuid": null,
+        "tender": "cash",
+        "card_type": null,
+        "transaction_id": null,
+        "fiscal_receipt_uuid": "01a162a2-8222-73e0-ab27-4139b9267c5f",
+        "fiscal_status": "issued",
+        "branch_id": 1,
+        "user": {
+          "id": 2,
+          "name": "Malika Menejer"
+        },
+        "approved_by": null,
+        "note": null,
+        "created_at": "2026-10-22T08:02:59.000000Z"
+      }
+    ]
+  }
+}

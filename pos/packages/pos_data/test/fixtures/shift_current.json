@@ -1,0 +1,181 @@
+{
+  "success": true,
+  "message": "",
+  "data": {
+    "shift": {
+      "uuid": "01a1629f-a3b6-7282-8e9d-240478b72112",
+      "status": "open",
+      "branch_id": 1,
+      "device": {
+        "uuid": "01a1629e-f1a2-72fc-8b0b-a0c143a02b28",
+        "name": "Kassa till"
+      },
+      "business_date": "2026-10-22",
+      "opened_at": "2026-10-22T07:59:51+00:00",
+      "opened_by": {
+        "id": 3,
+        "name": "Kamola Kassir"
+      },
+      "opening_cash": "100000.00",
+      "closed_at": null,
+      "closed_by": null,
+      "expected_cash": null,
+      "counted_cash": null,
+      "counted_breakdown": null,
+      "difference": null,
+      "z_number": null,
+      "force_closed": false,
+      "close_note": null
+    },
+    "report": {
+      "shift_uuid": "01a1629f-a3b6-7282-8e9d-240478b72112",
+      "generated_at": "2026-10-22T07:59:54+00:00",
+      "period": {
+        "from": "2026-10-22T07:59:51+00:00",
+        "to": null
+      },
+      "sales": {
+        "bills": 1,
+        "received": "261100.00",
+        "refunded": "0.00",
+        "net": "261100.00",
+        "bills_total": "261100.00",
+        "subtotal": "101000.00",
+        "discount": "0.00",
+        "room_fee": "150000.00",
+        "min_spend_topup": "0.00",
+        "service_charge": "10100.00",
+        "place_fee": "0.00",
+        "average_bill": "261100.00"
+      },
+      "by_tender": [
+        {
+          "tender": "cash",
+          "count": 1,
+          "amount": "261100.00"
+        },
+        {
+          "tender": "card",
+          "count": 0,
+          "amount": "0.00"
+        },
+        {
+          "tender": "qr",
+          "count": 0,
+          "amount": "0.00"
+        },
+        {
+          "tender": "prepayment",
+          "count": 0,
+          "amount": "0.00"
+        },
+        {
+          "tender": "account",
+          "count": 0,
+          "amount": "0.00"
+        }
+      ],
+      "cards": [],
+      "by_channel": [
+        {
+          "channel": "pos_hall",
+          "orders": 1,
+          "amount": "261100.00"
+        }
+      ],
+      "by_waiter": [
+        {
+          "waiter_id": null,
+          "name": null,
+          "orders": 1,
+          "bills": 1,
+          "amount": "261100.00",
+          "service_charge": "10100.00"
+        }
+      ],
+      "discounts": {
+        "count": 0,
+        "amount": "0.00"
+      },
+      "voids": {
+        "count": 1,
+        "amount": "80000.00"
+      },
+      "refunds": {
+        "count": 0,
+        "amount": "0.00",
+        "by_method": []
+      },
+      "deposits": {
+        "taken": {
+          "count": 0,
+          "amount": "0.00",
+          "cash": "0.00"
+        },
+        "applied": {
+          "count": 0,
+          "amount": "0.00"
+        },
+        "refunded": {
+          "count": 0,
+          "amount": "0.00",
+          "cash": "0.00"
+        }
+      },
+      "credit": {
+        "sales": {
+          "count": 0,
+          "amount": "0.00"
+        },
+        "repayments": {
+          "count": 0,
+          "amount": "0.00",
+          "cash": "0.00"
+        }
+      },
+      "cash": {
+        "opening": "100000.00",
+        "sales": "261100.00",
+        "refunds": "0.00",
+        "cash_in": "0.00",
+        "cash_out": "0.00",
+        "wages": "0.00",
+        "purchases": "0.00",
+        "deposits": "0.00",
+        "deposit_refunds": "0.00",
+        "repayments": "0.00",
+        "expected": "361100.00"
+      },
+      "movements": [
+        {
+          "uuid": "01a1629f-a3bb-7204-9cab-557711db4c80",
+          "type": "opening",
+          "category": null,
+          "amount": "100000.00",
+          "note": null,
+          "employee": null,
+          "user": {
+            "id": 3,
+            "name": "Kamola Kassir"
+          },
+          "approved_by": null,
+          "created_at": "2026-10-22T07:59:51+00:00"
+        },
+        {
+          "uuid": "01a1629f-ae7f-7233-92d5-633ac150a2cb",
+          "type": "sale",
+          "category": null,
+          "amount": "261100.00",
+          "note": null,
+          "employee": null,
+          "user": {
+            "id": 3,
+            "name": "Kamola Kassir"
+          },
+          "approved_by": null,
+          "created_at": "2026-10-22T07:59:54+00:00"
+        }
+      ]
+    }
+  }
+}

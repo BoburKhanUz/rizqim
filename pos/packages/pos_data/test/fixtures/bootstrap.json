@@ -1,0 +1,163 @@
+{
+  "success": true,
+  "message": "",
+  "data": {
+    "server_time": "2026-10-22T07:59:18+00:00",
+    "menu_version": "53df1dd96feb",
+    "store": {
+      "id": 1,
+      "name": "Rohat choyxonasi",
+      "timezone": "Asia/Tashkent"
+    },
+    "branch": {
+      "id": 1,
+      "name": "Chilonzor",
+      "address": null,
+      "phone": null,
+      "timezone": "Asia/Tashkent",
+      "business_day_starts_at": "05:00",
+      "business_date": "2026-10-22",
+      "pos_settings": {
+        "mode": "hybrid",
+        "printing_device_id": null,
+        "screen_lock_minutes": 5,
+        "queue_numbers": false,
+        "alerts": {
+          "open_room_hours": 6,
+          "void_amount": "200000.00",
+          "discount_percent": "10.00",
+          "unaccepted_online_minutes": 3
+        },
+        "holidays": [],
+        "booking_slot_minutes": null
+      }
+    },
+    "device": {
+      "uuid": "01a1629e-f1a2-72fc-8b0b-a0c143a02b28",
+      "type": "pos",
+      "name": "Kassa till",
+      "is_printing_device": false
+    },
+    "user": {
+      "id": 3,
+      "name": "Kamola Kassir",
+      "role": "cashier",
+      "permissions": [
+        "orders.view",
+        "orders.manage",
+        "tables.manage",
+        "menu.view",
+        "pos.open_shift",
+        "pos.close_shift",
+        "pos.take_payment",
+        "bookings.manage"
+      ]
+    },
+    "stations": [
+      {
+        "id": 1,
+        "branch_id": 1,
+        "name": "Osh",
+        "kind": "osh",
+        "kind_label": "Osh va qozon",
+        "sort_order": 0,
+        "is_active": true,
+        "show_on_kds": true
+      }
+    ],
+    "station_routes": {
+      "categories": [],
+      "products": [
+        {
+          "product_id": 3,
+          "station_id": 1
+        }
+      ]
+    },
+    "printers": [],
+    "staff": [
+      {
+        "id": 4,
+        "name": "Botir Ofitsiant",
+        "role": "waiter",
+        "photo_url": null
+      },
+      {
+        "id": 3,
+        "name": "Kamola Kassir",
+        "role": "cashier",
+        "photo_url": null
+      },
+      {
+        "id": 2,
+        "name": "Malika Menejer",
+        "role": "manager",
+        "photo_url": null
+      },
+      {
+        "id": 1,
+        "name": "Olim Egamov",
+        "role": "owner",
+        "photo_url": null
+      }
+    ],
+    "halls": [
+      {
+        "id": 1,
+        "name": "Asosiy zal",
+        "sort_order": 1
+      }
+    ],
+    "tables": [
+      {
+        "id": 1,
+        "hall_id": 1,
+        "name": "1-xona",
+        "kind": "room",
+        "seats": 10,
+        "layout": {
+          "x": null,
+          "y": null,
+          "w": null,
+          "h": null
+        },
+        "sort_order": 0,
+        "min_spend": null,
+        "min_spend_mode": "per_table"
+      },
+      {
+        "id": 2,
+        "hall_id": 1,
+        "name": "Tapchan 1",
+        "kind": "tapchan",
+        "seats": 6,
+        "layout": {
+          "x": null,
+          "y": null,
+          "w": null,
+          "h": null
+        },
+        "sort_order": 0,
+        "min_spend": null,
+        "min_spend_mode": "per_table"
+      },
+      {
+        "id": 3,
+        "hall_id": 1,
+        "name": "Stol 1",
+        "kind": "table",
+        "seats": 4,
+        "layout": {
+          "x": null,
+          "y": null,
+          "w": null,
+          "h": null
+        },
+        "sort_order": 0,
+        "min_spend": null,
+        "min_spend_mode": "per_table"
+      }
+    ],
+    "shift": null
+  }
+}

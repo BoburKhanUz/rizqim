@@ -1,0 +1,20 @@
+{
+  "success": true,
+  "message": "Pul qaytarildi.",
+  "data": {
+    "uuid": "01a162a2-83ce-70af-a74f-59cd8cfb8e56",
+    "order_uuid": "01a1629f-a44c-71d0-bf5c-bae0b999ad72",
+    "bill_uuid": "01a1629f-aca2-7148-a019-8d92f4b38af8",
+    "payment_uuid": "01a1629f-ae7a-7181-8677-ba1c70d97aae",
+    "amount": "1000.00",
+    "method": "cash",
+    "reason": "xato",
+    "approved_by": null,
+    "fiscal": {
+      "status": "issued",
+      "receipt_uuid": "01a162a2-83f9-71f0-8aff-54769b71743a",
+      "error": null
+    },
+    "created_at": "2026-10-22T08:03:00+00:00"
+  }
+}

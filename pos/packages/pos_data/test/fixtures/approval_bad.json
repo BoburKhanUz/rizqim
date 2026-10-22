@@ -1,0 +1,7 @@
+{
+  "success": false,
+  "message": "Xodim yoki PIN noto'g'ri.",
+  "data": {
+    "reason": "pin_invalid"
+  }
+}

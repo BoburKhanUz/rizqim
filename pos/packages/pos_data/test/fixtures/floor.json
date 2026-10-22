@@ -1,0 +1,91 @@
+{
+  "success": true,
+  "message": "",
+  "data": {
+    "branch_id": 1,
+    "generated_at": "2026-10-22T07:59:53.645854Z",
+    "overdue_after_hours": 6,
+    "halls": [
+      {
+        "id": 1,
+        "name": "Asosiy zal",
+        "sort_order": 1,
+        "is_active": true,
+        "tables": [
+          {
+            "id": 1,
+            "name": "1-xona",
+            "kind": "room",
+            "seats": 10,
+            "layout": {
+              "x": null,
+              "y": null,
+              "w": null,
+              "h": null
+            },
+            "is_active": true,
+            "min_spend": null,
+            "min_spend_mode": "per_table",
+            "status": "occupied",
+            "reservation": null,
+            "orders": [
+              {
+                "uuid": "01a1629f-a44c-71d0-bf5c-bae0b999ad72",
+                "short_code": "POSUPU9IM",
+                "status": "preparing",
+                "channel": "pos_hall",
+                "version": 4,
+                "opened_at": "2026-10-22T07:59:51.000000Z",
+                "open_minutes": 0,
+                "overdue": false,
+                "bill_printed": false,
+                "guests_count": 3,
+                "waiter": null,
+                "total_price": "522200.00",
+                "items_count": 3,
+                "unsent_count": 0
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "name": "Tapchan 1",
+            "kind": "tapchan",
+            "seats": 6,
+            "layout": {
+              "x": null,
+              "y": null,
+              "w": null,
+              "h": null
+            },
+            "is_active": true,
+            "min_spend": null,
+            "min_spend_mode": "per_table",
+            "status": "free",
+            "reservation": null,
+            "orders": []
+          },
+          {
+            "id": 3,
+            "name": "Stol 1",
+            "kind": "table",
+            "seats": 4,
+            "layout": {
+              "x": null,
+              "y": null,
+              "w": null,
+              "h": null
+            },
+            "is_active": true,
+            "min_spend": null,
+            "min_spend_mode": "per_table",
+            "status": "free",
+            "reservation": null,
+            "orders": []
+          }
+        ]
+      }
+    ],
+    "untabled_orders": []
+  }
+}

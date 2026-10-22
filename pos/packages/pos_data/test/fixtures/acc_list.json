@@ -1,0 +1,28 @@
+{
+  "success": true,
+  "message": "",
+  "data": {
+    "accounts": [
+      {
+        "uuid": "01a162a2-801a-7361-988c-b5d746eb7489",
+        "name": "Jamshid aka",
+        "phone": "+998901112233",
+        "group_name": "Gap guruhi",
+        "branch_id": 1,
+        "credit_limit": "1000000.00",
+        "balance": "111100.00",
+        "available_credit": "888900.00",
+        "is_blocked": false,
+        "note": null,
+        "created_at": "2026-10-22T08:02:59.000000Z",
+        "updated_at": "2026-10-22T08:02:59.000000Z"
+      }
+    ],
+    "meta": {
+      "current_page": 1,
+      "last_page": 1,
+      "per_page": 30,
+      "total": 1
+    }
+  }
+}

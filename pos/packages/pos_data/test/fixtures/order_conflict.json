@@ -1,0 +1,8 @@
+{
+  "success": false,
+  "message": "Buyurtma boshqa qurilmada o'zgartirildi. Uni qayta yuklang va amalni takrorlang.",
+  "data": {
+    "reason": "version_conflict",
+    "version": 2
+  }
+}

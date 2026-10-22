@@ -1,0 +1,7 @@
+{
+  "success": false,
+  "message": "Buyurtma yopilgan yoki bekor qilingan: uni o'zgartirib bo'lmaydi.",
+  "data": {
+    "reason": "order_closed"
+  }
+}

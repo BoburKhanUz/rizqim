@@ -1,0 +1,160 @@
+{
+  "success": true,
+  "message": "Qator olib tashlandi.",
+  "data": {
+    "uuid": "01a162a2-87ac-73c4-9e55-0d9f450be47e",
+    "short_code": "POSDNZ3P9",
+    "status": "accepted",
+    "channel": "pos_hall",
+    "type": "dine_in",
+    "store_id": 1,
+    "branch_id": 1,
+    "version": 3,
+    "hall": {
+      "id": 1,
+      "name": "Asosiy zal"
+    },
+    "table": {
+      "id": 2,
+      "name": "Tapchan 1",
+      "kind": "tapchan"
+    },
+    "hall_ref": "Asosiy zal",
+    "table_ref": "Tapchan 1",
+    "guests_count": 2,
+    "waiter": null,
+    "opened_by": 2,
+    "device_id": 1,
+    "booking_id": null,
+    "bill_locked": false,
+    "notes": null,
+    "opened_at": "2026-10-22T08:03:01.000000Z",
+    "updated_at": "2026-10-22T08:03:01.000000Z",
+    "subtotal": "73000.00",
+    "discount": "0.00",
+    "service_charge_amount": "0.00",
+    "place_fee_amount": "0.00",
+    "room_fee_amount": "0.00",
+    "min_spend_topup_amount": "0.00",
+    "total_price": "73000.00",
+    "charges": {
+      "items_subtotal": "73000.00",
+      "discount": "0.00",
+      "service_charge_percent": "0.00",
+      "service_charge_amount": "0.00",
+      "place_fee_amount": "0.00",
+      "room_fee_amount": "0.00",
+      "room_tariff_id": null,
+      "business_date": "2026-10-22",
+      "day_type": "weekday",
+      "min_spend": "0.00",
+      "min_spend_topup_amount": "0.00",
+      "waived": [
+        "service_charge"
+      ],
+      "total": "73000.00",
+      "waivers": [
+        {
+          "charge": "service_charge",
+          "reason": "doimiy mijoz",
+          "waived_by": 2,
+          "approved_by": null,
+          "waived_at": "2026-10-22T08:03:01.000000Z"
+        }
+      ]
+    },
+    "rounds": 2,
+    "items": [
+      {
+        "id": 5,
+        "round_no": 1,
+        "product_variant_id": 1,
+        "product_name": "Choy",
+        "variant_name": "Choynak",
+        "quantity": 1,
+        "unit": "piece",
+        "quantity_label": "1",
+        "unit_price": "5000.00",
+        "modifiers": [],
+        "modifiers_total": "0.00",
+        "total_price": "5000.00",
+        "note": null,
+        "seat_no": null,
+        "fire_mode": "now",
+        "due_at": null,
+        "kitchen_status": "pending",
+        "station_id": null,
+        "sent_at": null,
+        "ready_at": null,
+        "added_by": {
+          "id": 2,
+          "name": "Malika Menejer"
+        },
+        "added_at": "2026-10-22T08:03:01.000000Z",
+        "voided_at": null,
+        "voided_by": null,
+        "void_reason": null
+      },
+      {
+        "id": 6,
+        "round_no": 1,
+        "product_variant_id": 2,
+        "product_name": "Non",
+        "variant_name": "Dona",
+        "quantity": 2,
+        "unit": "piece",
+        "quantity_label": "2",
+        "unit_price": "4000.00",
+        "modifiers": [],
+        "modifiers_total": "0.00",
+        "total_price": "8000.00",
+        "note": null,
+        "seat_no": null,
+        "fire_mode": "now",
+        "due_at": null,
+        "kitchen_status": "pending",
+        "station_id": null,
+        "sent_at": null,
+        "ready_at": null,
+        "added_by": {
+          "id": 2,
+          "name": "Malika Menejer"
+        },
+        "added_at": "2026-10-22T08:03:01.000000Z",
+        "voided_at": null,
+        "voided_by": null,
+        "void_reason": null
+      },
+      {
+        "id": 7,
+        "round_no": 2,
+        "product_variant_id": 3,
+        "product_name": "Osh",
+        "variant_name": "Choyxona oshi",
+        "quantity": 0.5,
+        "unit": "kg",
+        "quantity_label": "0.5 kg",
+        "unit_price": "120000.00",
+        "modifiers": [],
+        "modifiers_total": "0.00",
+        "total_price": "60000.00",
+        "note": null,
+        "seat_no": null,
+        "fire_mode": "now",
+        "due_at": null,
+        "kitchen_status": "pending",
+        "station_id": null,
+        "sent_at": null,
+        "ready_at": null,
+        "added_by": {
+          "id": 2,
+          "name": "Malika Menejer"
+        },
+        "added_at": "2026-10-22T08:03:01.000000Z",
+        "voided_at": null,
+        "voided_by": null,
+        "void_reason": null
+      }
+    ]
+  }
+}
