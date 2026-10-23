@@ -10,8 +10,12 @@
 /// * Pul — `pos_core` [PosMoney] (tiyin), miqdor — [PosQuantity].
 /// * [PosRealtime] — `private-pos-branch.{id}` kanali (terminal tokeni bilan), [PosEvent] lar va
 ///   [PosRefreshScheduler] (polling zaxirasi).
+/// * [PosOffline] — internetsiz cheklangan rejim (P3-31, `pos_sync` ustida): navbat, lokal ko'rinish, sinxronlash.
 /// * Testlar uchun soxta backend: `package:pos_data/testing.dart`.
 library;
+
+// P3-31: the offline queue, its status and limits (the cashier works with them through PosOffline)
+export 'package:pos_sync/pos_sync.dart';
 
 export 'src/accounts/account_models.dart';
 export 'src/accounts/account_repository.dart';
@@ -32,6 +36,11 @@ export 'src/http/connectivity.dart';
 export 'src/http/pos_exceptions.dart';
 export 'src/http/pos_http.dart';
 export 'src/json.dart';
+export 'src/offline/offline_book.dart';
+export 'src/offline/offline_pricing.dart';
+export 'src/offline/offline_settings.dart';
+export 'src/offline/pos_offline.dart';
+export 'src/offline/sync_models.dart';
 export 'src/orders/order_models.dart';
 export 'src/orders/order_repository.dart';
 export 'src/pos_data.dart';

@@ -72,6 +72,18 @@ class PosOrderPresenter
                     'waived_at' => $waiver->created_at?->toJSON(),
                 ])->all(),
             ],
+            // P3-31: an order a till sold offline: its local number and what the manager should look at
+            'offline' => $order->local_number !== null || $order->offline_created_at !== null || !empty($order->sync_flags) ? [
+                'local_number' => $order->local_number,
+                'created_at' => $order->offline_created_at?->toJSON(),
+                'synced_at' => $order->synced_at?->toJSON(),
+                'flags' => array_map(fn (array $flag) => [
+                    'flag' => (string) ($flag['flag'] ?? ''),
+                    'op_id' => isset($flag['op_id']) ? (string) $flag['op_id'] : null,
+                    'amount' => isset($flag['amount']) ? (string) $flag['amount'] : null,
+                    'name' => isset($flag['name']) ? (string) $flag['name'] : null,
+                ], (array) ($order->sync_flags ?? [])),
+            ] : null,
             'rounds' => $items->max('round_no') !== null ? (int) $items->max('round_no') : 0,
             'items' => $items->map(fn (OrderItem $item) => $this->item($item))->all(),
         ];

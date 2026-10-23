@@ -238,6 +238,45 @@ class PosOrderService implements PosOrderOpener
     }
 
     /**
+     * P3-31: a round a till sold offline, applied at sync (POS_SPEC 5.3): no version check (the till could not see the
+     * server's version; additions never clash with what changed meanwhile), the device's prices and an oversold kazan
+     * accepted (PosLineBuilder::addOffline), then the charges, the send when the till sent it, the audit and the
+     * announcement as for any round. $roundNo: the round to add to (1 when it is the round the order was opened with).
+     *
+     * @param  list<array<string, mixed>>  $lines  PosLineBuilder::parse() lines with client_line_id, unit_price, modifier_prices
+     * @return array{order: Order, items: Collection<int, OrderItem>, flags: list<array<string, mixed>>, sent: list<int>}
+     */
+    public function offlineRound(Order $order, User $actor, array $lines, bool $send, ?int $roundNo = null): array
+    {
+        return DB::transaction(function () use ($order, $actor, $lines, $send, $roundNo) {
+            $locked = Order::whereKey($order->getKey())->lockForUpdate()->firstOrFail();
+            $this->assertMutable($locked);
+
+            $round = $roundNo ?? (int) $locked->items()->max('round_no') + 1;
+            /** @var Branch $branch */
+            $branch = $locked->branch;
+            $added = $this->lines->addOffline($locked, $branch, $lines, $round, $actor);
+            $items = $added['items'];
+
+            $this->charges->recalculate($locked);
+            $sent = $send ? $this->fire($locked, $actor, $items->filter(fn (OrderItem $item) => $item->fire_mode === FireMode::NOW)->pluck('id')->map(fn ($id) => (int) $id)->all()) : [];
+
+            $this->audit->record('pos.round_added', $locked, [], [], [
+                'round_no' => $round,
+                'lines' => $items->map(fn (OrderItem $item) => $item->displayLine())->all(),
+                'sent' => $send,
+                'offline' => true,
+            ], ['actor' => $actor]);
+
+            $locked->forceFill(['version' => (int) $locked->version + 1])->save();
+            $locked->refresh();
+            event(new OrderItemsChangedBroadcast($locked, 'round_added', $items->pluck('id')->map(fn ($id) => (int) $id)->all()));
+
+            return ['order' => $locked, 'items' => $items, 'flags' => $added['flags'], 'sent' => $sent];
+        });
+    }
+
+    /**
      * Sends lines to the kitchen (docs/POS_SPEC.md §2.8): without ids every unsent `now` line; held lines only when
      * their ids are given. Each gets its station (KitchenStationResolver, P3-13) and sent_at; the order's first send
      * starts it (accepted → preparing). 422 `nothing_to_send` when nothing is left to send.

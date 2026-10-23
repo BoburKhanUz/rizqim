@@ -18,6 +18,11 @@ use Laravel\Sanctum\HasApiTokens;
  * @property DeviceType $type
  * @property \Illuminate\Support\Carbon|null $last_seen_at
  * @property \Illuminate\Support\Carbon|null $revoked_at
+ * @property int $sync_last_seq P3-31: the offline queue as the till last reported it
+ * @property int $sync_pending_ops
+ * @property \Illuminate\Support\Carbon|null $sync_oldest_op_at
+ * @property \Illuminate\Support\Carbon|null $sync_reported_at
+ * @property int|null $sync_clock_skew_seconds
  */
 class Device extends Model implements AuthenticatableContract
 {
@@ -53,6 +58,12 @@ class Device extends Model implements AuthenticatableContract
             'type' => DeviceType::class,
             'last_seen_at' => 'datetime',
             'revoked_at' => 'datetime',
+            // P3-31: the offline queue as the till last reported it (App\Domain\Pos\Sync)
+            'sync_last_seq' => 'integer',
+            'sync_pending_ops' => 'integer',
+            'sync_oldest_op_at' => 'datetime',
+            'sync_reported_at' => 'datetime',
+            'sync_clock_skew_seconds' => 'integer',
         ];
     }
 

@@ -11,6 +11,8 @@ dependencies:
   dio: ^5.9.0
   pos_core:
     path: ../pos_core
+  pos_sync:
+    path: ../pos_sync
   rizqim_api:
     path: ../../../packages/dart/rizqim_api
 

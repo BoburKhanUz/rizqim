@@ -1,6 +1,9 @@
 import '../catalog/catalog_models.dart';
+import '../http/pos_exceptions.dart';
 import '../http/pos_http.dart';
 import '../json.dart';
+import '../offline/pos_offline.dart';
+import '../offline/sync_models.dart';
 import 'order_models.dart';
 
 /// POS buyurtmalari (docs/API.md, "Zal va xona hisobi (P3-12)").
@@ -13,27 +16,94 @@ import 'order_models.dart';
 /// * `approvalToken` — menejer tasdig'i ([PosApprovalRequired] dan keyin `ApprovalService.request`), **yangi** kalit
 ///   bilan (tana o'zgardi).
 /// * To'liq [PosOrder] qaytaradi.
+///
+/// P3-31: [offline] berilgan bo'lsa (kassa) — cheklangan rejimda (aloqa yo'q yoki navbat bo'shamagan) ochish, bosqich,
+/// yuborish, o'chirish (yuborilmaganini) va "berildi" navbatga yoziladi va lokal ko'rinish qaytadi; qolgan amallar
+/// [PosOfflineUnavailable]. Onlayn javoblar nusxa sifatida saqlanadi (uzilishda ochiq xona hisoblari qurilmada).
 class PosOrderRepository {
-  PosOrderRepository(this._http);
+  PosOrderRepository(this._http, {this.offline});
 
   final PosHttp _http;
+  final PosOffline? offline;
 
   static PosOrder _order(Object? data) => PosOrder.fromJson(dataObject(data));
 
+  bool get _limited => offline?.active ?? false;
+
+  /// Oflayn ochilgan buyurtmaning server uuid'i (sinxronlangandan keyin), bo'lmasa o'zi.
+  String _id(String uuid) => offline?.store.resolve(uuid) ?? uuid;
+
   /// `GET /pos/orders/{uuid}`.
-  Future<PosOrder> get(String uuid) =>
-      _http.get('/v1/pos/orders/$uuid', _order);
+  Future<PosOrder> get(String uuid) async {
+    final PosOffline? o = offline;
+    if (o != null && o.active) return o.order(uuid);
+    try {
+      // An order opened offline is asked for by the device's id until the screen reloads
+      final PosOrder order = await _http.get(
+        '/v1/pos/orders/${_id(uuid)}',
+        _order,
+      );
+      if (o != null) await o.captureOrder(order.raw);
+      return order;
+    } on PosNetworkException {
+      if (o != null) return o.order(uuid);
+      rethrow;
+    }
+  }
+
+  /// Onlayn amal; tarmoq xatosida (javob kelmadi) — kassa uni navbat orqali davom ettiradi (o'sha kalit bilan:
+  /// server so'rovni bajargan bo'lsa ikki marta qo'llamaydi).
+  Future<PosOrder> _either(
+    Future<PosOrder> Function() online,
+    Future<PosOrder> Function(String? key) local, {
+    String? idempotencyKey,
+  }) async {
+    final PosOffline? o = offline;
+    if (o != null && o.active) return local(idempotencyKey);
+    try {
+      final PosOrder order = await online();
+      if (o != null) await o.captureOrder(order.raw);
+      return order;
+    } on PosNetworkException catch (e) {
+      if (o != null && o.status.canSell) {
+        return local(e.idempotencyKey ?? idempotencyKey);
+      }
+      rethrow;
+    }
+  }
+
+  /// Internetsiz bajarilmaydigan amal: cheklangan rejimda sababi bilan rad etiladi.
+  void _onlineOnly(String what) {
+    if (_limited) {
+      throw PosOfflineUnavailable(
+        "Internet yo'q: $what faqat internet tiklangach.",
+      );
+    }
+  }
 
   /// `GET /pos/orders?scope=open`: filialning ochiq buyurtmalari navbati (POS va qabul qilingan onlayn), eskisi
   /// birinchi, ko'pi bilan 300.
-  Future<List<PosOpenOrder>> openOrders({int? branchId}) => _http.get(
-    '/v1/pos/orders',
-    (Object? data) => <PosOpenOrder>[
-      for (final Object? e in (data as List<Object?>?) ?? const <Object?>[])
-        PosOpenOrder.fromJson(PosJson.of(e)),
-    ],
-    query: <String, Object?>{'scope': 'open', 'branch_id': branchId},
-  );
+  Future<List<PosOpenOrder>> openOrders({int? branchId}) async {
+    final PosOffline? o = offline;
+    if (o != null && o.active) return o.openOrders();
+    Object? raw;
+    try {
+      final List<PosOpenOrder> list = await _http.get('/v1/pos/orders', (
+        Object? data,
+      ) {
+        raw = data;
+        return <PosOpenOrder>[
+          for (final Object? e in (data as List<Object?>?) ?? const <Object?>[])
+            PosOpenOrder.fromJson(PosJson.of(e)),
+        ];
+      }, query: <String, Object?>{'scope': 'open', 'branch_id': branchId});
+      if (o != null && branchId == null) await o.captureOpenOrders(raw);
+      return list;
+    } on PosNetworkException {
+      if (o != null) return o.openOrders();
+      rethrow;
+    }
+  }
 
   /// `GET /pos/orders?scope=closed`: shu ish kunida yopilgan (to'langan) POS buyurtmalari, yangisi birinchi —
   /// chek nusxasi va qaytarish uchun (P3-26). [businessDate] (`YYYY-MM-DD`) berilmasa — filialning hozirgi ish kuni.
@@ -60,10 +130,13 @@ class PosOrderRepository {
     int? version,
     String? approvalToken,
     String? idempotencyKey,
-  }) => _post(uuid, 'request-bill', idempotencyKey, <String, Object?>{
-    'version': ?version,
-    'approval_token': ?approvalToken,
-  });
+  }) async {
+    _onlineOnly("schyot so'rash");
+    return _post(uuid, 'request-bill', idempotencyKey, <String, Object?>{
+      'version': ?version,
+      'approval_token': ?approvalToken,
+    });
+  }
 
   /// `POST /pos/orders`: buyurtma ochish. Zal — [tableId] (xona, stol, tapchan) yoki stolsiz; olib ketish —
   /// [PosChannel.takeaway]. [items] — birinchi bosqich, [send] — darhol oshxonaga. [externalId] — qurilmaning o'z
@@ -80,26 +153,39 @@ class PosOrderRepository {
     bool send = false,
     String? approvalToken,
     String? idempotencyKey,
-  }) => _http.mutate(
-    'POST',
-    '/v1/pos/orders',
-    _order,
+  }) => _either(
+    () => _http.mutate(
+      'POST',
+      '/v1/pos/orders',
+      _order,
+      idempotencyKey: idempotencyKey,
+      body: <String, Object?>{
+        'channel': channel.wire,
+        'branch_id': ?branchId,
+        'table_id': ?tableId,
+        'guests_count': ?guestsCount,
+        'waiter_id': ?waiterId,
+        'external_id': ?externalId,
+        'note': ?note,
+        if (items.isNotEmpty)
+          'items': <Map<String, Object?>>[
+            for (final PosLineInput i in items) i.toJson(),
+          ],
+        if (send) 'send': true,
+        'approval_token': ?approvalToken,
+      },
+    ),
+    (String? key) => offline!.open(
+      channel: channel,
+      tableId: tableId,
+      guestsCount: guestsCount,
+      externalId: externalId,
+      note: note,
+      items: items,
+      send: send,
+      idempotencyKey: key,
+    ),
     idempotencyKey: idempotencyKey,
-    body: <String, Object?>{
-      'channel': channel.wire,
-      'branch_id': ?branchId,
-      'table_id': ?tableId,
-      'guests_count': ?guestsCount,
-      'waiter_id': ?waiterId,
-      'external_id': ?externalId,
-      'note': ?note,
-      if (items.isNotEmpty)
-        'items': <Map<String, Object?>>[
-          for (final PosLineInput i in items) i.toJson(),
-        ],
-      if (send) 'send': true,
-      'approval_token': ?approvalToken,
-    },
   );
 
   /// `POST /pos/orders/{uuid}/rounds`: yangi bosqich. [fireMode] — qatorlarning standart rejimi, [send] — `now`
@@ -112,15 +198,25 @@ class PosOrderRepository {
     bool send = false,
     String? approvalToken,
     String? idempotencyKey,
-  }) => _post(uuid, 'rounds', idempotencyKey, <String, Object?>{
-    'version': version,
-    'items': <Map<String, Object?>>[
-      for (final PosLineInput i in items) i.toJson(),
-    ],
-    'fire_mode': ?fireMode?.wire,
-    if (send) 'send': true,
-    'approval_token': ?approvalToken,
-  });
+  }) => _either(
+    () => _post(uuid, 'rounds', idempotencyKey, <String, Object?>{
+      'version': version,
+      'items': <Map<String, Object?>>[
+        for (final PosLineInput i in items) i.toJson(),
+      ],
+      'fire_mode': ?fireMode?.wire,
+      if (send) 'send': true,
+      'approval_token': ?approvalToken,
+    }),
+    (String? key) => offline!.addRound(
+      uuid,
+      items: items,
+      fireMode: fireMode,
+      send: send,
+      idempotencyKey: key,
+    ),
+    idempotencyKey: idempotencyKey,
+  );
 
   /// `POST /pos/orders/{uuid}/send`: [itemIds] siz — yuborilmagan hamma `now` qator; bilan — aynan shular (`hold`
   /// ham). Yangi qator yo'q — [PosRejected] `nothing_to_send`.
@@ -130,11 +226,15 @@ class PosOrderRepository {
     List<int>? itemIds,
     String? approvalToken,
     String? idempotencyKey,
-  }) => _post(uuid, 'send', idempotencyKey, <String, Object?>{
-    'version': version,
-    'item_ids': ?itemIds,
-    'approval_token': ?approvalToken,
-  });
+  }) => _either(
+    () => _post(uuid, 'send', idempotencyKey, <String, Object?>{
+      'version': version,
+      'item_ids': ?itemIds,
+      'approval_token': ?approvalToken,
+    }),
+    (String? key) => offline!.send(uuid, itemIds: itemIds, idempotencyKey: key),
+    idempotencyKey: idempotencyKey,
+  );
 
   /// `POST /pos/orders/{uuid}/items/{id}/void`. Yuborilgan qator yoki schyot chiqqan buyurtmada [reason] majburiy va
   /// `orders.void_item` yoki tasdiq kerak. [restock] — yuborilgan qatorning qoldig'ini qaytarish (pishmagan bo'lsa).
@@ -146,12 +246,17 @@ class PosOrderRepository {
     bool? restock,
     String? approvalToken,
     String? idempotencyKey,
-  }) => _post(uuid, 'items/$itemId/void', idempotencyKey, <String, Object?>{
-    'version': version,
-    'reason': ?reason,
-    'restock': ?restock,
-    'approval_token': ?approvalToken,
-  });
+  }) => _either(
+    () => _post(uuid, 'items/$itemId/void', idempotencyKey, <String, Object?>{
+      'version': version,
+      'reason': ?reason,
+      'restock': ?restock,
+      'approval_token': ?approvalToken,
+    }),
+    (String? key) =>
+        offline!.voidItem(uuid, itemId, reason: reason, idempotencyKey: key),
+    idempotencyKey: idempotencyKey,
+  );
 
   /// `POST /pos/orders/{uuid}/items/{id}/served`: taom mehmonga berildi.
   Future<PosOrder> markServed(
@@ -160,10 +265,14 @@ class PosOrderRepository {
     required int version,
     String? approvalToken,
     String? idempotencyKey,
-  }) => _post(uuid, 'items/$itemId/served', idempotencyKey, <String, Object?>{
-    'version': version,
-    'approval_token': ?approvalToken,
-  });
+  }) => _either(
+    () => _post(uuid, 'items/$itemId/served', idempotencyKey, <String, Object?>{
+      'version': version,
+      'approval_token': ?approvalToken,
+    }),
+    (String? key) => offline!.markServed(uuid, itemId, idempotencyKey: key),
+    idempotencyKey: idempotencyKey,
+  );
 
   /// `POST /pos/orders/{uuid}/guests`: mehmonlar soni (choy-non qatorlari server tomonidan qo'shiladi).
   Future<PosOrder> setGuests(
@@ -172,11 +281,14 @@ class PosOrderRepository {
     required int guestsCount,
     String? approvalToken,
     String? idempotencyKey,
-  }) => _post(uuid, 'guests', idempotencyKey, <String, Object?>{
-    'version': version,
-    'guests_count': guestsCount,
-    'approval_token': ?approvalToken,
-  });
+  }) async {
+    _onlineOnly("mehmonlar sonini o'zgartirish");
+    return _post(uuid, 'guests', idempotencyKey, <String, Object?>{
+      'version': version,
+      'guests_count': guestsCount,
+      'approval_token': ?approvalToken,
+    });
+  }
 
   /// `POST /pos/orders/{uuid}/move`: boshqa stol yoki xonaga.
   Future<PosOrder> move(
@@ -185,11 +297,14 @@ class PosOrderRepository {
     required int tableId,
     String? approvalToken,
     String? idempotencyKey,
-  }) => _post(uuid, 'move', idempotencyKey, <String, Object?>{
-    'version': version,
-    'table_id': tableId,
-    'approval_token': ?approvalToken,
-  });
+  }) async {
+    _onlineOnly("ko'chirish");
+    return _post(uuid, 'move', idempotencyKey, <String, Object?>{
+      'version': version,
+      'table_id': tableId,
+      'approval_token': ?approvalToken,
+    });
+  }
 
   /// `POST /pos/orders/{uuid}/merge`: [sourceUuid] buyurtmasini shu buyurtmaga qo'shish (manba bekor bo'ladi).
   Future<PosOrder> merge(
@@ -199,12 +314,15 @@ class PosOrderRepository {
     required int sourceVersion,
     String? approvalToken,
     String? idempotencyKey,
-  }) => _post(uuid, 'merge', idempotencyKey, <String, Object?>{
-    'version': version,
-    'source_uuid': sourceUuid,
-    'source_version': sourceVersion,
-    'approval_token': ?approvalToken,
-  });
+  }) async {
+    _onlineOnly("birlashtirish");
+    return _post(uuid, 'merge', idempotencyKey, <String, Object?>{
+      'version': version,
+      'source_uuid': sourceUuid,
+      'source_version': sourceVersion,
+      'approval_token': ?approvalToken,
+    });
+  }
 
   /// `POST /pos/orders/{uuid}/cancel`: butun buyurtmani bekor qilish ([reason] majburiy). To'lov bo'lsa —
   /// [PosConflict] `has_payments` (`data.paid_amount`).
@@ -214,11 +332,14 @@ class PosOrderRepository {
     required String reason,
     String? approvalToken,
     String? idempotencyKey,
-  }) => _post(uuid, 'cancel', idempotencyKey, <String, Object?>{
-    'version': version,
-    'reason': reason,
-    'approval_token': ?approvalToken,
-  });
+  }) async {
+    _onlineOnly("bekor qilish");
+    return _post(uuid, 'cancel', idempotencyKey, <String, Object?>{
+      'version': version,
+      'reason': reason,
+      'approval_token': ?approvalToken,
+    });
+  }
 
   /// `POST /pos/orders/{uuid}/charges/{charge}/waive`: xizmat qatorini sabab bilan olib tashlash.
   Future<PosOrder> waiveCharge(
@@ -228,16 +349,19 @@ class PosOrderRepository {
     required String reason,
     String? approvalToken,
     String? idempotencyKey,
-  }) => _post(
-    uuid,
-    'charges/${charge.wire}/waive',
-    idempotencyKey,
-    <String, Object?>{
-      'version': version,
-      'reason': reason,
-      'approval_token': ?approvalToken,
-    },
-  );
+  }) async {
+    _onlineOnly("xizmat qatorini olib tashlash");
+    return _post(
+      uuid,
+      'charges/${charge.wire}/waive',
+      idempotencyKey,
+      <String, Object?>{
+        'version': version,
+        'reason': reason,
+        'approval_token': ?approvalToken,
+      },
+    );
+  }
 
   /// `POST /pos/orders/{uuid}/charges/{charge}/restore`: olib tashlangan qatorni qaytarish.
   Future<PosOrder> restoreCharge(
@@ -246,12 +370,15 @@ class PosOrderRepository {
     required int version,
     String? approvalToken,
     String? idempotencyKey,
-  }) => _post(
-    uuid,
-    'charges/${charge.wire}/restore',
-    idempotencyKey,
-    <String, Object?>{'version': version, 'approval_token': ?approvalToken},
-  );
+  }) async {
+    _onlineOnly("xizmat qatorini qaytarish");
+    return _post(
+      uuid,
+      'charges/${charge.wire}/restore',
+      idempotencyKey,
+      <String, Object?>{'version': version, 'approval_token': ?approvalToken},
+    );
+  }
 
   Future<PosOrder> _post(
     String uuid,
@@ -260,7 +387,7 @@ class PosOrderRepository {
     Map<String, Object?> body,
   ) => _http.mutate(
     'POST',
-    '/v1/pos/orders/$uuid/$action',
+    '/v1/pos/orders/${_id(uuid)}/$action',
     _order,
     body: body,
     idempotencyKey: idempotencyKey,

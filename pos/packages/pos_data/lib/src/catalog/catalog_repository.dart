@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
 
+import '../http/pos_exceptions.dart';
 import '../http/pos_http.dart';
 import '../json.dart';
+import '../offline/pos_offline.dart';
 import 'catalog_models.dart';
 
 /// Menyuni qurilmada saqlash (ilova qayta ochilganda, aloqa yo'q paytda ham menyu bo'lsin). Kalit — kanal; qiymat —
@@ -49,6 +51,9 @@ class PosCatalogRepository {
   final PosCatalogCache cache;
   final DateTime Function() _clock;
 
+  /// P3-31: menyu nusxasi va uning yoshi (24 soatdan eski menyu bilan oflayn sotilmaydi); aloqa yo'q paytda — nusxa.
+  PosOffline? offline;
+
   final Map<PosChannel, PosCatalog> _memory = <PosChannel, PosCatalog>{};
   final StreamController<PosCatalog> _changes =
       StreamController<PosCatalog>.broadcast();
@@ -73,17 +78,32 @@ class PosCatalogRepository {
       final PosCatalog? mem = _memory[channel];
       if (mem != null &&
           (menuVersion == null || mem.menuVersion == menuVersion)) {
+        if (menuVersion != null) {
+          await offline?.confirmCatalog(channel, menuVersion);
+        }
         return mem;
       }
       if (menuVersion != null) {
         final PosCatalog? stored = await _readStored(channel);
         if (stored != null && stored.menuVersion == menuVersion) {
           _put(stored);
+          await offline?.confirmCatalog(channel, menuVersion);
           return stored;
         }
       }
     }
-    return _fetch(channel, branchId: branchId);
+    try {
+      return await _fetch(channel, branchId: branchId);
+    } on PosNetworkException {
+      // No server: the last menu kept on the device (the limited mode checks its age)
+      final PosCatalog? stored =
+          _memory[channel] ??
+          await _readStored(channel) ??
+          offline?.storedCatalog(channel);
+      if (stored == null) rethrow;
+      _put(stored);
+      return stored;
+    }
   }
 
   /// Qurilmada saqlangan menyu (aloqa yo'q paytda ishga tushganda). Yo'q yoki o'qib bo'lmasa `null`.
@@ -143,6 +163,7 @@ class PosCatalogRepository {
     } on Object {
       // Saqlab bo'lmadi: menyu xotirada baribir bor
     }
+    if (branchId == null) await offline?.captureCatalog(channel, rawData);
     return catalog;
   }
 

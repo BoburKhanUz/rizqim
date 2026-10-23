@@ -35,6 +35,27 @@ final next = await pos.orders.addRound(order.uuid, version: order.version, items
   `PosEvent`), `states` (`PosLiveState`), `resubscribed`. `PosRefreshScheduler` — polling zaxirasi.
 - **`PosConnectivity`** — server javob beryaptimi va oflayn navbatdagi amallar soni (P3-31).
 
+## Internetsiz rejim (P3-31)
+
+`PosData(client, offlineStore: await SyncStore.open(FileSyncStorage(dir)))` — `pos.offline` (`PosOffline`) yoqiladi;
+`pos_sync` ham shu paketdan eksport qilinadi.
+
+- **Nusxalar:** onlayn paytda bootstrap (`offline` qismi bilan), menyu, zal, ochiq buyurtmalar va schyotlar diskka
+  olinadi (`PosOfflineSettings`: prefiks, keyingi lokal raqam, xizmat haqi, joy narxi, xona puli, minimal summa,
+  choy-non, chegaralar).
+- **Repozitoriylar o'zi tanlaydi:** aloqa yo'q yoki navbat bo'sh emas — `orders` (ochish, bosqich, yuborish,
+  o'chirish, berildi), `billing` (bitta schyot, chop etish, naqd/karta to'lov) va `floor` lokal ishlaydi
+  (`OfflineOrderBook`, narx — `OfflinePricing`, `pos_core` pulida), amal navbatga yoziladi; qolganlari
+  (`PosOfflineUnavailable`, 503 `offline_unavailable`) — mehmonlar, ko'chirish, birlashtirish, bekor qilish,
+  qaytarish, smena ochish/yopish, kassa harakati.
+- **Holat:** `offline.status` (`OfflineStatus`), `changes`, `synced` (yuborilgan amallar natijasi — sotuv chekini chop
+  etish uchun). Oflaynda `GET /pos/sync/status` 15–60 soniyada; aloqa qaytsa navbat `SyncSender` bilan ketadi, keyin
+  zal va buyurtmalar serverdan qayta olinadi.
+- **Xatolar:** `serverErrors()` (`PosSyncErrorsPage`), `resolveError(opId, resolution, note)`, `syncNow()`.
+
+Soxta backend: `FakeSyncBackend` (`pos_data/testing.dart`) — `FakePosState` ga `/pos/sync` yo'llarini qo'shadi
+(`received`, `rejectNext`, `resolved`). Test: `test/offline_test.dart`.
+
 ## Sinov
 
 ```bash

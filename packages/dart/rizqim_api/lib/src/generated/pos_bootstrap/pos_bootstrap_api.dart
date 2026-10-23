@@ -32,7 +32,9 @@ abstract class PosBootstrapApi {
   /// Bluetooth printers, and the USB or built-in printers attached to this very terminal); `staff` (id, name, role,.
   /// photo_url: to pick a waiter); `halls` (open halls and zones), `tables` (their active places; `layout` in grid.
   /// cells of the floor plan, 40 x 24), `shift` (the shift open on this terminal; null outside a terminal session or.
-  /// with none open); P3-26: `quick_items`, the one-tap buttons (products marked `quick_add` in the menu, then the.
+  /// with none open); P3-31: `offline`, what the till keeps for the limited mode (fees per hall and channel, today's room.
+  /// fee and minimum spend per place, the choy-non items, its local number prefix and next number, the limits);.
+  /// P3-26: `quick_items`, the one-tap buttons (products marked `quick_add` in the menu, then the.
   /// branch's per-guest "choy-non" items: `source` quick_add | auto_guest, `variant_uuid` to add as a line; prices and.
   /// availability from the POS catalog).
   ///

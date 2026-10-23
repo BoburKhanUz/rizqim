@@ -1,0 +1,157 @@
+import 'package:pos_core/pos_core.dart';
+import 'package:pos_sync/pos_sync.dart';
+
+import '../json.dart';
+
+/// Bootstrap'ning `offline` qismi (P3-31): kassa internetsiz sotish uchun saqlaydigan oddiy narx qoidalari va
+/// chegaralar.
+class PosOfflineSettings {
+  const PosOfflineSettings({
+    this.devicePrefix,
+    this.nextLocalNumber = 1,
+    this.businessDate,
+    this.dayType,
+    this.fees = const <PosOfflineFee>[],
+    this.places = const <PosOfflinePlace>[],
+    this.guestItems = const <PosOfflineGuestItem>[],
+    this.limits = const OfflineLimits(),
+  });
+
+  factory PosOfflineSettings.fromJson(PosJson j) => PosOfflineSettings(
+    devicePrefix: j.strOrNull('device_prefix'),
+    nextLocalNumber: j.intOrNull('next_local_number') ?? 1,
+    businessDate: j.strOrNull('business_date'),
+    dayType: j.strOrNull('day_type'),
+    fees: j.objects('fees', PosOfflineFee.fromJson),
+    places: j.objects('places', PosOfflinePlace.fromJson),
+    guestItems: j.objects('guest_items', PosOfflineGuestItem.fromJson),
+    limits: OfflineLimits.fromJson(j.objOrNull('limits')?.map),
+  );
+
+  /// Bootstrap javobidan (`offline` bo'lmasa — standart qiymatlar).
+  static PosOfflineSettings of(Map<String, Object?> bootstrapRaw) {
+    final Object? o = bootstrapRaw['offline'];
+    return o is Map
+        ? PosOfflineSettings.fromJson(PosJson.of(o))
+        : const PosOfflineSettings();
+  }
+
+  /// Lokal raqam prefiksi (`K1`); server bermagan bo'lsa `K`.
+  final String? devicePrefix;
+  final int nextLocalNumber;
+  final String? businessDate;
+  final String? dayType;
+  final List<PosOfflineFee> fees;
+  final List<PosOfflinePlace> places;
+  final List<PosOfflineGuestItem> guestItems;
+  final OfflineLimits limits;
+
+  /// Zal va kanal bo'yicha xizmat haqi va joy narxi (zalniki bo'lmasa — filialniki).
+  PosOfflineFee? feeFor(int? hallId, String channel) {
+    PosOfflineFee? branch;
+    for (final PosOfflineFee f in fees) {
+      if (f.channel != channel) continue;
+      if (hallId != null && f.hallId == hallId) return f;
+      if (f.hallId == null) branch = f;
+    }
+    return branch;
+  }
+
+  PosOfflinePlace? place(int tableId) {
+    for (final PosOfflinePlace p in places) {
+      if (p.tableId == tableId) return p;
+    }
+    return null;
+  }
+
+  /// Zal yoki filialning choy-non qoidalari (zalniki filialnikining o'rnini oladi).
+  List<PosOfflineGuestItem> guestItemsFor(int? hallId) {
+    final Map<String, PosOfflineGuestItem> byVariant =
+        <String, PosOfflineGuestItem>{};
+    for (final PosOfflineGuestItem g in guestItems.where(
+      (PosOfflineGuestItem g) => g.hallId == null,
+    )) {
+      byVariant[g.variantUuid] = g;
+    }
+    if (hallId != null) {
+      for (final PosOfflineGuestItem g in guestItems.where(
+        (PosOfflineGuestItem g) => g.hallId == hallId,
+      )) {
+        byVariant[g.variantUuid] = g;
+      }
+    }
+    return byVariant.values.toList()..sort(
+      (PosOfflineGuestItem a, PosOfflineGuestItem b) =>
+          a.sortOrder.compareTo(b.sortOrder),
+    );
+  }
+}
+
+class PosOfflineFee {
+  const PosOfflineFee({
+    required this.channel,
+    this.hallId,
+    this.serviceChargePercent = '0.00',
+    this.placeFeeAmount = PosMoney.zero,
+    this.placeFeeMode = 'per_person',
+  });
+
+  factory PosOfflineFee.fromJson(PosJson j) => PosOfflineFee(
+    hallId: j.intOrNull('hall_id'),
+    channel: j.str('channel'),
+    serviceChargePercent: j.strOrNull('service_charge_percent') ?? '0.00',
+    placeFeeAmount: j.money('place_fee_amount'),
+    placeFeeMode: j.strOrNull('place_fee_mode') ?? 'per_person',
+  );
+
+  final int? hallId;
+  final String channel;
+  final String serviceChargePercent;
+  final PosMoney placeFeeAmount;
+  final String placeFeeMode;
+}
+
+class PosOfflinePlace {
+  const PosOfflinePlace({
+    required this.tableId,
+    this.hallId,
+    this.roomFee = PosMoney.zero,
+    this.minSpend = PosMoney.zero,
+    this.minSpendMode = 'per_table',
+  });
+
+  factory PosOfflinePlace.fromJson(PosJson j) => PosOfflinePlace(
+    tableId: j.integer('table_id'),
+    hallId: j.intOrNull('hall_id'),
+    roomFee: j.money('room_fee'),
+    minSpend: j.money('min_spend'),
+    minSpendMode: j.strOrNull('min_spend_mode') ?? 'per_table',
+  );
+
+  final int tableId;
+  final int? hallId;
+  final PosMoney roomFee;
+  final PosMoney minSpend;
+  final String minSpendMode;
+}
+
+class PosOfflineGuestItem {
+  const PosOfflineGuestItem({
+    required this.variantUuid,
+    required this.quantityPerGuest,
+    this.hallId,
+    this.sortOrder = 0,
+  });
+
+  factory PosOfflineGuestItem.fromJson(PosJson j) => PosOfflineGuestItem(
+    hallId: j.intOrNull('hall_id'),
+    variantUuid: j.str('variant_uuid'),
+    quantityPerGuest: j.quantity('quantity_per_guest'),
+    sortOrder: j.intOrNull('sort_order') ?? 0,
+  );
+
+  final int? hallId;
+  final String variantUuid;
+  final PosQuantity quantityPerGuest;
+  final int sortOrder;
+}

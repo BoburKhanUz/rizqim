@@ -535,20 +535,31 @@ almashinuvi, yangi xodimning kirishi, smenani yopish va Z-hisobot.
 
 ### 5.2. Qanday ishlaydi
 
-- Har bir qurilmada lokal baza (SQLite, `pos_sync` paketi). Har bir yozuv amali (buyurtma ochish, qator qo'shish,
-  yuborish, schyot, to'lov, yopish) **amal** sifatida navbatga yoziladi: `op_id` (UUID), qurilma, ketma-ket raqam
-  (`seq`), vaqt, xodim, mazmuni. Elektr to'satdan o'chsa ham navbat diskda qoladi; ilova qayta ochilganda davom etadi.
+- Har bir qurilmada lokal navbat (`pos_sync` paketi): faqat qo'shib boriladigan jurnal fayli (har qator JSON +
+  CRC32, har yozuvdan keyin diskka `flush`), oxirgi holat nusxalari alohida fayllarda (vaqtinchalik fayl + nomini
+  almashtirish). Har bir yozuv amali (buyurtma ochish, bosqich, yuborish, taomni o'chirish, "berildi", schyot, to'lov,
+  yopish) **amal** sifatida navbatga yoziladi: `op_id` (UUID), qurilma, ketma-ket raqam (`seq`), vaqt, xodim,
+  mazmuni. Elektr to'satdan o'chsa ham navbat diskda qoladi (yarim yozilgan oxirgi qator tashlab yuboriladi); ilova
+  qayta ochilganda davom etadi. SQLite o'rniga jurnal tanlandi: qo'shimcha native kutubxona kerak emas, amallar soni
+  kichik (≤ 500 buyurtma).
 - Offline yaratilgan buyurtma o'z UUID'si bilan (`external_id`) yaratiladi va mijozga **lokal raqam** beriladi:
-  qurilma prefiksi bilan (`K1-017`). Server shu raqamni saqlaydi, takror bo'lmaydi.
+  qurilma prefiksi bilan (`K1-017`). Prefiksni server bootstrap'da bir marta beradi (`offline.device_prefix`), keyingi
+  raqam ham serverdan (`next_local_number`). Server shu raqamni saqlaydi, takror bo'lmaydi.
 - Narx: qurilmadagi oxirgi menyu nusxasi (snapshot) bo'yicha. Ilova offline'da faqat oddiy narx qoidalarini qo'llaydi:
-  qator narxi, modifikatorlar, xizmat haqi, joy narxi va xona puli (sozlamalar nusxasidan), chegirma faqat menejer
-  PIN'i bilan qurilmada keshlangan menejer sessiyasi bo'lsa.
-- Internet qaytgach navbat **tartib bilan** `POST /pos/sync` ga yuboriladi (bir paketda ko'pi bilan N amal). Har bir
-  amal idempotent (`op_id`): ikki marta yuborilsa ham bir marta qo'llanadi.
+  qator narxi, modifikatorlar, xizmat haqi, joy narxi, xona puli, minimal summa va choy-non (bootstrap'ning `offline`
+  qismidan). Offline chegirma, schyotni bo'lish, qaytarish, mehmon sonini o'zgartirish, ko'chirish, birlashtirish va
+  bekor qilish **yo'q** (sababi bilan o'chirilgan tugma). Server sinxronlashda narxni o'zi hisoblaydi.
+- Internet qaytgach navbat **tartib bilan** `POST /pos/sync` ga yuboriladi (bir paketda ko'pi bilan 50 amal, kassa
+  terminal tokeni bilan). Har bir amal idempotent (`op_id`): ikki marta yuborilsa ham bir marta qo'llanadi. Oflaynda
+  kassa serverni 15–60 soniyada bir `GET /pos/sync/status` bilan tekshiradi. Amal turlari va javoblar — docs/API.md,
+  "Internetsiz rejim (P3-31)".
+- **Chop etish.** Oflaynda marka va schyot (pre-chek) LAN printerga chiqadi. Fiskal bo'lmagan "to'lov cheki"
+  chiqarilmaydi (2.11): sotuv cheki sinxronlashda ro'yxatdan o'tadi va kassa uni avtomatik chop etadi.
 - **Fiskal navbat.** Offline yopilgan sotuvlarning cheklari serverga yetgach `FiscalIssuer` orqali chiqadi (idempotentlik
-  kaliti — amalning `op_id`'si). Virtual kassa 48 soat offlayndan keyin bloklanadi va birinchi offlayn chek operatorga
-  48 soat ichida yetishi kerak (4.6). Shuning uchun kassa navbatdagi eng eski chekning yoshini ko'rsatadi va 48 soatdan
-  ancha oldin ogohlantiradi (aniq chegaralar P3-31 da).
+  kaliti — schyot, odatdagi `BillFiscalizer`), sotuv vaqti sifatida oflayn to'lov vaqti (`fiscal_receipts.sold_at`)
+  bilan. Virtual kassa 48 soat offlayndan keyin bloklanadi va birinchi offlayn chek operatorga 48 soat ichida yetishi
+  kerak (4.6). Shuning uchun kassa serverga yetmagan eng eski to'lovning yoshini ko'rsatadi: 24 soatda ogohlantirish,
+  40 soatda qizil, 48 soatda chegara.
 
 ### 5.3. To'qnashuvlarni hal qilish
 
@@ -559,22 +570,32 @@ Asosiy qoida: **server haqiqat manbai, lekin bo'lib o'tgan sotuv va olingan pul 
 | Offline buyurtma ikki marta keldi | `op_id` va `external_id` bo'yicha bitta bo'ladi |
 | Offline narx serverdagi joriy narxdan farq qiladi | Offline narx qabul qilinadi (mijoz shuni to'lagan), buyurtma "offline narx" belgisi bilan. Menyu nusxasi 24 soatdan eski bo'lsa — menejer ko'rib chiqishi uchun belgilanadi |
 | Qozon yoki zaxira yetmadi (boshqa kanal sotib bo'lgan) | Sotuv qabul qilinadi, qoldiq 0 ga tushadi, yetmagan miqdor "ortiqcha sotilgan" sifatida jurnalga yoziladi va menejerga ko'rsatiladi |
-| Buyurtma serverda shu orada o'zgargan (masalan, onlayn buyurtmani mijoz bekor qilgan) | Server holati ustun. Qurilma amali rad etiladi va kassada **"Sinxronlash xatolari"** ro'yxatiga tushadi, menejer qo'lda hal qiladi |
-| Offline to'lov bekor qilingan buyurtmaga tushdi | To'lov baribir yoziladi, buyurtma "qaytarish kerak" belgisini oladi |
+| Buyurtma serverda shu orada o'zgargan (masalan, onlayn buyurtmani mijoz bekor qilgan) | Server holati ustun. Amal **mazmunan** sig'masa (buyurtma yopilgan yoki bekor qilingan, o'chirilayotgan taom shu orada oshxonaga ketgan) rad etiladi va **"Sinxronlash xatolari"** ro'yxatiga tushadi (kassa sozlamalari, `orders.cancel` huquqi), menejer qo'lda hal qiladi. Versiya zanjiri solishtirilmaydi: oshxonaning "tayyor"i ham versiyani oshiradi va zararsiz bosqichni rad ettirardi |
+| Offline ochilgan stol yoki xona serverda band | Mehmonlar xizmat olgan: buyurtma joysiz ochiladi va menejer uchun belgilanadi |
+| Offline to'lov bekor qilingan buyurtmaga tushdi | To'lov baribir yoziladi, buyurtma "qaytarish kerak" belgisini oladi; schyot shu orada to'langan bo'lsa — "taqsimlanmagan to'lov" |
+| Schyot serverda boshqa summa | To'lov yoziladi; kam to'langan yoki ortiqcha olingan — menejer uchun belgi (naqd ortig'i schyotga sig'diriladi) |
 | Bir buyurtmani ikki qurilma o'zgartirdi | Onlayn rejimda buyurtma versiyasi (`version`) tekshiriladi: eskisi 409 oladi, ilova qayta yuklab qayta qo'llaydi. Offline'da faqat buyurtmani ochgan qurilma uni o'zgartiradi |
-| Qurilma soati noto'g'ri | Server o'z vaqtini (`synced_at`) ham yozadi; farq 5 daqiqadan katta bo'lsa ogohlantirish |
+| Qurilma soati noto'g'ri | Server o'z vaqtini (`synced_at`) ham yozadi va paketning `sent_at` idan farqni hisoblaydi; 5 daqiqadan katta bo'lsa ogohlantirish |
+| Javob yo'qoldi (paket serverga yetdi, javob qaytmadi) | Qayta yuborilgan amallar saqlangan natija bilan qaytadi (`duplicate`). Uzilishdan oldingi onlayn so'rov qayta navbatga tushgan bo'lsa — `Idempotency-Key` bo'yicha bir marta |
 
 ### 5.4. Chegaralar
 
 - Offline sotuvni boshlash uchun: terminal so'nggi 24 soat ichida server bilan bog'langan va menyu nusxasi 24 soatdan
   yangi bo'lishi kerak. Aks holda kassa "Internet kerak" deydi.
 - Faqat uzilishdan oldin kirgan xodim(lar) ishlaydi; yangi xodim PIN bilan kira olmaydi (PIN tekshiruvi serverda).
+  Shu sababli cheklangan rejimda ekran avtomatik qulflanmaydi. Ilova oflaynda qayta ochilsa hech kim kira olmaydi,
+  lekin navbat saqlanadi va aloqa qaytgach terminal tokeni bilan yuboriladi. Server har amalda xodimning shu kassada
+  36 soat ichida PIN bilan kirganini va huquqini tekshiradi.
 - Ogohlantirishlar: 15 daqiqa — sariq belgi; 2 soat — qizil, menejerga eslatma. Navbatda 500 tadan ortiq buyurtma
   bo'lsa yangi buyurtma bloklanadi (ma'lumotlar jimgina to'planib qolmasligi uchun).
-- Navbat bo'sh bo'lmaguncha va "fiskal kutmoqda" cheklar qolguncha smena yopilmaydi va Z-hisobot chiqmaydi.
+- Navbat bo'sh bo'lmaguncha va "fiskal kutmoqda" cheklar qolguncha smena yopilmaydi va Z-hisobot chiqmaydi (kassada
+  tugma o'chiq; serverda 409 `shift_has_unsynced_ops`, ko'rib chiqilmagan rad etilgan amallar bo'lsa
+  `shift_has_sync_errors`; ikkalasini menejer `force` bilan o'tkazadi). Oflaynda kassa harakatlari (kirim/chiqim) ham
+  yo'q.
 - Offlayn chek navbati 48 soatlik chegaraga yaqinlashsa — qizil ogohlantirish, menejer va egaga xabar (fiskal
   bloklanishdan oldin).
 - Qurilmalar orasida LAN orqali sinxronlash **yo'q**: har bir qurilma faqat o'z navbatini saqlaydi.
+- Barcha chegaralar bootstrap'ning `offline.limits` qismida keladi (qurilmada standart qiymatlar ham bor).
 
 ### 5.5. Doiradan tashqarida (v1 da qilinmaydi)
 
@@ -819,7 +840,7 @@ o'zgartiradi). "Asosiy ustunlar" — taklif; aniq ko'rinishi migratsiyalarda va 
 | `cash_movements` | P3-18 | `uuid`, `shift_id`, `type` (`opening`, `sale`, `refund`, `cash_in`, `cash_out`), `amount`, `category` (bozorlik, ish haqi, xodimga berilgan pul va h.k.), `note`, `payment_id`, `user_id`, xodim (kimga berilgan), `device_id`, `approved_by` | kassa qutisi harakatlari |
 | `pos_refunds` | P3-18 | `uuid`, `order_id`, `payment_id`, `shift_id`, `amount`, `method`, `reason`, `user_id`, `approved_by`, qaytarish cheki | smena ichidagi qaytarishlar |
 | `pos_approvals` | P3-18 | token, ruxsat, terminal, so'ragan va tasdiqlagan xodim, muddati, ishlatilganmi | menejer PIN'i bilan bir martalik tasdiq (`ManagerApprovals`) |
-| `pos_sync_operations` | P3-31 | `device_id`, `op_id` (yagona), `seq`, `type`, `payload`, `status` (`applied`, `rejected`, `conflict`), `error`, `received_at`, `applied_at` | offline navbatdan kelgan amallar jurnali va "Sinxronlash xatolari" |
+| `pos_sync_operations` | P3-31 | `device_id`, `op_id` (yagona), `seq` (qurilma ichida yagona), `type`, `staff_id`, `occurred_at`, `payload`, `status` (`applied`, `rejected`, `conflict`), `reason`, `error`, `result`, `order_id`, `clock_skew_seconds`, `received_at`, `applied_at`, `resolved_at`, `resolved_by`, `resolution` | offline navbatdan kelgan amallar jurnali va "Sinxronlash xatolari" |
 
 Keyin (v1.1): `regular_groups` (doimiy guruh: jo'ra boshi, odatiy kun, xona va menyu, takrorlanuvchi bron).
 
@@ -837,7 +858,7 @@ Keyin (v1.1): `regular_groups` (doimiy guruh: jo'ra boshi, odatiy kun, xona va m
 | `payments` | `bill_id`, `shift_id`, `device_id`, `received_by`, `tendered_amount`, `change_amount`, `card_type`, `transaction_id`, `reference`. `provider` ga POS qiymatlari — `PosTender`: `cash`, `card` (alohida terminal), `qr`, `prepayment` (avans ofseti), `account` (nasiya). `p2p` qiymati **yo'q** | P3-18 | aralash va bo'lingan to'lov, chek rekvizitlari |
 | `service_fee_settings` | `hall_id` (nullable) | P3-12 | zal yoki zona bo'yicha boshqa foiz |
 | `branches` | `business_day_starts_at` (vaqt, standart 05:00), `pos_settings` (jsonb: rejim, navbat raqami, "chop etuvchi" kassa, ekran qulfi vaqti, ogohlantirish chegaralari) | P3-13 | filial POS sozlamalari |
-| `orders`, `order_items`, `payments`, `menu_batches` | `local_number` (offline `K1-017`), `offline_created_at`, `synced_at`; `price_source` (`online`/`offline_snapshot`); `offline`; `oversold_quantity` | P3-31 (taklif) | internetsiz rejim |
+| `orders`, `order_items`, `payments`, `menu_batches`, `devices`, `fiscal_receipts` | `local_number` (offline `K1-017`), `offline_created_at`, `synced_at`, `sync_flags`; `client_line_id`, `price_source` (`offline_snapshot`); `offline_paid_at`, `synced_at`; `oversold_quantity`; `sync_prefix`, `sync_last_seq`, `sync_pending_ops`, `sync_oldest_op_at`, `sync_reported_at`, `sync_clock_skew_seconds`; `sold_at` | P3-31 | internetsiz rejim |
 
 `DeviceType` ga yangi tur qo'shish shart emas: mijoz ekrani odatda kassaning ikkinchi ekrani. Alohida planshet bo'lsa —
 14-bo'limdagi savol (u obunada terminal hisoblanadimi).

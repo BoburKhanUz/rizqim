@@ -106,6 +106,21 @@ P3-21 da. Bog'liqliklar `PosScope.of(context)` dan: `data` (`PosData`), `session
 - **Sozlamalar:** printerlar (holati, sinov chop etish, xato ishlarni qayta yuborish; shu qurilmada qog'oz eni va
   «matnni rasm sifatida»), ovoz, qurilma ma'lumoti va terminalni uzish.
 
+## Internetsiz rejim (P3-31)
+
+- Navbat qurilmada: `getApplicationSupportDirectory()/pos_sync` (`main.dart`), `PosData(..., offlineStore:)`.
+- Aloqa yo'q yoki navbat hali bo'shamagan bo'lsa ish ekrani tepasida **cheklangan rejim banneri** (`shell/limited_mode.dart`):
+  qachondan beri, navbatdagi amallar, 15 daqiqada sariq, 2 soatda qizil, fiskal navbat yoshi (24 / 40 / 48 soat), soat
+  farqi, «Yuborish».
+- Ishlaydi: zal, yangi buyurtma (lokal raqam `K1-0041`), bosqich, oshxonaga yuborish (marka LAN printerga), o'chirish,
+  «Berildi», bitta schyot (pre-chek chop etiladi), naqd va karta to'lovi. O'chirilgan (sababi yozilgan): mehmonlar,
+  ko'chirish, birlashtirish, bekor qilish, schyotni bo'lish, qaytarish, QR/avans/nasiya, kassa harakati, Z-hisobot.
+- Oflayn to'lovda fiskal bo'lmagan chek chiqmaydi: sotuv cheki sinxronlashda ro'yxatdan o'tadi va kassa uni o'zi chop
+  etadi. Ekran qulfi cheklangan rejimda to'xtaydi (PIN tekshiruvi serverda).
+- «Sinxronlash xatolari» — Sozlamalar (`orders.cancel`): rad etilgan va farq bilan qo'llangan amallar, «Hal qilindi»
+  yoki «Yopish».
+- Test: `test/offline_test.dart` (oflayn sotuv va qayta ulanish, xatoni hal qilish, Z yopiq).
+
 Soxta backend'ning kassa qismi — `FakeCashierBackend` (`pos_data/testing.dart`); `tool/fake_pos_server.dart` uni demo
 ma'lumotlar bilan ulaydi. Testlar: `test/{billing,shift,bookings,accounts,queue,settings}_test.dart`
 (`test/support/p22.dart`).

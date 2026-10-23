@@ -1,0 +1,2 @@
+# One database, one till and one kitchen for every test file: the files run one after another, never side by side
+concurrency: 1

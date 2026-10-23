@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:pos_data/pos_data.dart';
 import 'package:rizqim_api/rizqim_api.dart';
 
+import '../features/billing/billing_page.dart';
 import '../services.dart';
 import 'destinations.dart';
+import 'limited_mode.dart';
 import 'pos_scope.dart';
 import 'top_bar.dart';
 
@@ -14,6 +16,10 @@ import 'top_bar.dart';
 ///
 /// Smena holati: `shift.changed` (shu terminal) yoki real-time qayta ulanganda `GET /pos/shifts/current` qayta
 /// so'raladi va yuqori paneldagi belgi yangilanadi.
+///
+/// P3-31: tepada internetsiz rejim lentasi ([LimitedModeBanner]); offlayn to'langan schyotlarning sotuv cheki
+/// navbat serverga yetgach shu yerda chop etiladi (to'lov paytida faqat pre-check bor edi: fiskal bo'lmagan to'lov
+/// kvitansiyasi chiqmaydi, POS_SPEC 2.11).
 class HomeShell extends StatefulWidget {
   const HomeShell({
     super.key,
@@ -45,6 +51,14 @@ class _HomeShellState extends State<HomeShell> {
     super.initState();
     _visited.add(_current);
     _subs.add(_session.changes.listen((_) => _rebuild()));
+    final PosOffline? offline = widget.services.data.offline;
+    if (offline != null) {
+      _subs.add(
+        offline.synced.listen(
+          (List<SyncOperation> ops) => unawaited(_printSynced(ops)),
+        ),
+      );
+    }
     final PosRealtime? rt = widget.realtime;
     if (rt != null) {
       _subs
@@ -83,6 +97,37 @@ class _HomeShellState extends State<HomeShell> {
     }
   }
 
+  /// Offlayn to'langan schyotlar serverga yetdi: sotuv cheki chiqqanlarini chop etadi (bir marta).
+  final Set<String> _printed = <String>{};
+
+  Future<void> _printSynced(List<SyncOperation> ops) async {
+    final PosData data = widget.services.data;
+    for (final SyncOperation op in ops) {
+      if (op.type != SyncOpType.billPay ||
+          op.status != SyncOpStatus.applied ||
+          !_printed.add(op.opId)) {
+        continue;
+      }
+      final String? orderUuid = op.refs['order_uuid'] as String?;
+      final String? billUuid = op.refs['bill_uuid'] as String?;
+      if (orderUuid == null || billUuid == null) continue;
+      try {
+        final PosBilling billing = await data.billing.bills(orderUuid);
+        final PosOrder order = await data.orders.get(orderUuid);
+        for (final PosBill bill in billing.bills) {
+          if (bill.uuid != billUuid || bill.fiscal.status != 'issued') continue;
+          final BuildContext? ctx = _scopeContext;
+          if (ctx == null || !ctx.mounted) return;
+          await printSale(ctx, bill, order);
+        }
+      } on PosException {
+        // The receipt stays on the server ("Navbat" → closed orders: print it from there)
+      }
+    }
+  }
+
+  BuildContext? _scopeContext;
+
   void _go(CashierDestination d) {
     if (!d.visibleFor(_session)) return;
     setState(() {
@@ -105,8 +150,9 @@ class _HomeShellState extends State<HomeShell> {
       navigate: _go,
       child: LayoutBuilder(
         builder: (BuildContext context, BoxConstraints box) {
+          _scopeContext = context;
           final bool wide = box.maxWidth >= 720;
-          final Widget pages = IndexedStack(
+          final Widget stack = IndexedStack(
             index: index,
             children: <Widget>[
               for (final CashierDestination d in visible)
@@ -116,6 +162,12 @@ class _HomeShellState extends State<HomeShell> {
                         child: d.page(),
                       )
                     : const SizedBox.shrink(),
+            ],
+          );
+          final Widget pages = Column(
+            children: <Widget>[
+              const LimitedModeBanner(),
+              Expanded(child: stack),
             ],
           );
           return Scaffold(

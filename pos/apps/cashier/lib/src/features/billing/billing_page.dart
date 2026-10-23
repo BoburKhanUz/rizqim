@@ -9,6 +9,7 @@ import 'package:rizqim_ui/rizqim_ui.dart';
 import '../../shell/approval_dialog.dart';
 import '../../shell/destinations.dart';
 import '../../shell/feature_placeholder.dart';
+import '../../shell/limited_mode.dart';
 import '../../shell/pos_scope.dart';
 import '../../shell/routes.dart';
 import 'cashier_ui.dart';
@@ -348,7 +349,11 @@ class _BillingPageState extends State<BillingPage> with RefreshingState {
     if (billing.order.isClosed) return _closed(c, billing);
     final bool building = _splitting || _needsBills;
     final PosBill? selected = _selectedBill;
-    final Widget left = building
+    // P3-31: offline one bill only (splitting needs the server)
+    final bool limited = limitedMode(context);
+    final Widget left = building && limited
+        ? _offlineSingleBill(c)
+        : building
         ? SplitBuilder(
             key: ValueKey<int>(_order!.version),
             lines: _remainingLines(),
@@ -396,6 +401,33 @@ class _BillingPageState extends State<BillingPage> with RefreshingState {
       },
     );
   }
+
+  Widget _offlineSingleBill(RzColors c) => PosCard(
+    title: 'Schyot',
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        const NoticeBanner(
+          icon: Icons.cloud_off_rounded,
+          message: "Internetsiz rejim: bitta schyot chiqadi. Hisobni bo'lish internet tiklangach.",
+        ),
+        const SizedBox(height: 12),
+        AmountRow(label: 'Jami', amount: _remainingTotal),
+        const SizedBox(height: 12),
+        RzButton(
+          key: const ValueKey<String>('offline-single-bill'),
+          label: 'Schyot chiqarish',
+          icon: Icons.receipt_long_outlined,
+          size: RzButtonSize.lg,
+          fullWidth: true,
+          loading: _busy,
+          onPressed: _busy
+              ? null
+              : () => unawaited(_createBills(const PosSplit.single())),
+        ),
+      ],
+    ),
+  );
 
   PosBill? get _selectedBill {
     for (final PosBill b in _billing!.bills) {
@@ -449,10 +481,14 @@ class _BillingPageState extends State<BillingPage> with RefreshingState {
                           ),
                           child: const Text('Chek nusxasi'),
                         ),
-                        if (b.payments.any(
-                          (PosPayment p) =>
-                              <String>['cash', 'card', 'qr'].contains(p.tender),
-                        ))
+                        if (!limitedMode(context) &&
+                            b.payments.any(
+                              (PosPayment p) => <String>[
+                                'cash',
+                                'card',
+                                'qr',
+                              ].contains(p.tender),
+                            ))
                           TextButton(
                             key: ValueKey<String>('refund-${b.uuid}'),
                             onPressed: () => _refund(b),
@@ -548,7 +584,8 @@ class _BillingPageState extends State<BillingPage> with RefreshingState {
   }
 
   Widget _billList(RzColors c, PosBilling billing) {
-    final bool canResplit = !billing.bills.any(_settled);
+    final bool canResplit =
+        !billing.bills.any(_settled) && !limitedMode(context);
     return PosCard(
       title: billing.bills.length == 1
           ? 'Schyot'
@@ -711,7 +748,7 @@ class _BillingPageState extends State<BillingPage> with RefreshingState {
                 onPressed: () =>
                     unawaited(printSale(context, bill, _order, copy: true)),
               ),
-            if (refundable && bill.isPaid)
+            if (refundable && bill.isPaid && !limitedMode(context))
               RzButton(
                 label: 'Pulni qaytarish',
                 icon: Icons.undo_rounded,

@@ -41,8 +41,8 @@ class _CashierAppState extends State<CashierApp> {
         builder: (BuildContext context, Widget? child) => StaffIdleScope(
           auth: services.auth,
           navigator: _navigator,
-          idleTimeout: services.session.idleTimeout,
-          changes: services.session.changes,
+          idleTimeout: services.idleTimeout,
+          changes: services.idleChanges,
           child: child ?? const SizedBox.shrink(),
         ),
         home: AuthGate(services: services),
@@ -189,6 +189,14 @@ class _TerminalHomeState extends State<TerminalHome> {
             .load(PosChannel.hall, menuVersion: boot.menuVersion)
             .then<void>((_) {}, onError: (Object _) {}),
       );
+      // P3-31: the takeaway menu too, so the till can sell walk-ins through an outage
+      if (_s.data.offline != null) {
+        unawaited(
+          _s.data.catalog
+              .load(PosChannel.takeaway, menuVersion: boot.menuVersion)
+              .then<void>((_) {}, onError: (Object _) {}),
+        );
+      }
     } on PosException catch (e) {
       _bootstrapError = e;
     } finally {

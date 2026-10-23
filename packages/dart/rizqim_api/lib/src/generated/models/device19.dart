@@ -4,49 +4,40 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'user25.dart';
-
 part 'device19.g.dart';
 
 @JsonSerializable()
 class Device19 {
   const Device19({
     required this.uuid,
-    required this.type,
     required this.name,
-    required this.platform,
-    required this.appVersion,
-    required this.storeId,
-    required this.branchId,
-    required this.user,
-    required this.hasPushToken,
-    required this.lastSeenAt,
-    required this.revokedAt,
-    required this.createdAt,
+    required this.prefix,
+    required this.lastSeq,
+    required this.pendingOps,
+    required this.oldestOpAt,
+    required this.reportedAt,
+    required this.clockSkewSeconds,
+    required this.clockWarning,
   });
 
   factory Device19.fromJson(Map<String, Object?> json) =>
       _$Device19FromJson(json);
 
   final String uuid;
-  final String type;
-  final String name;
-  final String? platform;
-  @JsonKey(name: 'app_version')
-  final String? appVersion;
-  @JsonKey(name: 'store_id')
-  final int? storeId;
-  @JsonKey(name: 'branch_id')
-  final int? branchId;
-  final User25? user;
-  @JsonKey(name: 'has_push_token')
-  final bool hasPushToken;
-  @JsonKey(name: 'last_seen_at')
-  final String? lastSeenAt;
-  @JsonKey(name: 'revoked_at')
-  final String? revokedAt;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
+  final String? name;
+  final String? prefix;
+  @JsonKey(name: 'last_seq')
+  final int lastSeq;
+  @JsonKey(name: 'pending_ops')
+  final int pendingOps;
+  @JsonKey(name: 'oldest_op_at')
+  final String? oldestOpAt;
+  @JsonKey(name: 'reported_at')
+  final String? reportedAt;
+  @JsonKey(name: 'clock_skew_seconds')
+  final int? clockSkewSeconds;
+  @JsonKey(name: 'clock_warning')
+  final bool clockWarning;
 
   Map<String, Object?> toJson() => _$Device19ToJson(this);
 }

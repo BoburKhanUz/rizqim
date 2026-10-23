@@ -21,6 +21,10 @@ use App\Enums\PaymentStatus;
  * @property int|null $shift_id
  * @property numeric-string|null $tendered_amount
  * @property numeric-string|null $change_amount
+ *
+ * P3-31: money a till took offline (App\Domain\Pos\Sync)
+ * @property \Illuminate\Support\Carbon|null $offline_paid_at
+ * @property \Illuminate\Support\Carbon|null $synced_at
  */
 class Payment extends Model
 {
@@ -42,6 +46,9 @@ class Payment extends Model
             'shift_id' => 'integer',
             'tendered_amount' => 'decimal:2',
             'change_amount' => 'decimal:2',
+            // P3-31: money taken offline (the device's clock) and when it reached the server
+            'offline_paid_at' => 'datetime',
+            'synced_at' => 'datetime',
         ];
     }
 

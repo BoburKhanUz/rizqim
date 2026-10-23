@@ -1,0 +1,21 @@
+// GENERATED CODE - DO NOT MODIFY BY HAND
+
+part of 'flags11.dart';
+
+// **************************************************************************
+// JsonSerializableGenerator
+// **************************************************************************
+
+Flags11 _$Flags11FromJson(Map<String, dynamic> json) => Flags11(
+  flag: json['flag'] as String,
+  opId: json['op_id'] as String?,
+  amount: json['amount'] as String?,
+  name: json['name'] as String?,
+);
+
+Map<String, dynamic> _$Flags11ToJson(Flags11 instance) => <String, dynamic>{
+  'flag': instance.flag,
+  'op_id': instance.opId,
+  'amount': instance.amount,
+  'name': instance.name,
+};

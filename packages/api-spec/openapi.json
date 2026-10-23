@@ -217,6 +217,10 @@
             "description": "Kassa: schyot, bo'lish, to'lov, qaytarish, smena, X/Z va menejer tasdig'i (P3-18)."
         },
         {
+            "name": "POS: sync",
+            "description": "Internetsiz cheklangan rejim: kassaning offlayn navbati, sinxronlash holati va xatolari (P3-31)."
+        },
+        {
             "name": "Health"
         }
     ],
@@ -35335,7 +35339,7 @@
         "/v1/pos/bootstrap": {
             "get": {
                 "operationId": "posBootstrap.show",
-                "description": "A terminal's staff PIN session works its terminal's branch; a normal staff sign-in works the staff member's own\nbranch. An owner (or a terminal paired to the whole store) names the branch with `branch_id`; another store's\nbranch is 404, another branch than the caller's own 403 (orders.view).\n\n`data`: `server_time`; `menu_version` (refetch GET /catalog?channel=pos_* when it changes); `store` (id, name,\ntimezone); `branch` (id, name, address, phone, timezone, `business_day_starts_at` \"HH:MM\", `business_date`\n(the business day it is now), `pos_settings`: `mode` counter|table|hybrid, `printing_device_id` (uuid of the\n\"chop etuvchi\" kassa or null), `screen_lock_minutes` (0: never), `queue_numbers`, `alerts` (`open_room_hours`,\n`void_amount`, `discount_percent`, `unaccepted_online_minutes`; null: off), `holidays` (dates), `booking_slot_minutes` (default length of a booking, null: the server's)); `device` (the\nterminal: uuid, type, name, `is_printing_device`; null outside a terminal session); `user` (id, name, role,\npermissions); `stations` (active kitchen stations); `station_routes` (dish to station: by product and by\ncategory; a product route beats its category's); `printers` (active ones this terminal can use: LAN and\nBluetooth printers, and the USB or built-in printers attached to this very terminal); `staff` (id, name, role,\nphoto_url: to pick a waiter); `halls` (open halls and zones), `tables` (their active places; `layout` in grid\ncells of the floor plan, 40 x 24), `shift` (the shift open on this terminal; null outside a terminal session or\nwith none open); P3-26: `quick_items`, the one-tap buttons (products marked `quick_add` in the menu, then the\nbranch's per-guest \"choy-non\" items: `source` quick_add | auto_guest, `variant_uuid` to add as a line; prices and\navailability from the POS catalog).",
+                "description": "A terminal's staff PIN session works its terminal's branch; a normal staff sign-in works the staff member's own\nbranch. An owner (or a terminal paired to the whole store) names the branch with `branch_id`; another store's\nbranch is 404, another branch than the caller's own 403 (orders.view).\n\n`data`: `server_time`; `menu_version` (refetch GET /catalog?channel=pos_* when it changes); `store` (id, name,\ntimezone); `branch` (id, name, address, phone, timezone, `business_day_starts_at` \"HH:MM\", `business_date`\n(the business day it is now), `pos_settings`: `mode` counter|table|hybrid, `printing_device_id` (uuid of the\n\"chop etuvchi\" kassa or null), `screen_lock_minutes` (0: never), `queue_numbers`, `alerts` (`open_room_hours`,\n`void_amount`, `discount_percent`, `unaccepted_online_minutes`; null: off), `holidays` (dates), `booking_slot_minutes` (default length of a booking, null: the server's)); `device` (the\nterminal: uuid, type, name, `is_printing_device`; null outside a terminal session); `user` (id, name, role,\npermissions); `stations` (active kitchen stations); `station_routes` (dish to station: by product and by\ncategory; a product route beats its category's); `printers` (active ones this terminal can use: LAN and\nBluetooth printers, and the USB or built-in printers attached to this very terminal); `staff` (id, name, role,\nphoto_url: to pick a waiter); `halls` (open halls and zones), `tables` (their active places; `layout` in grid\ncells of the floor plan, 40 x 24), `shift` (the shift open on this terminal; null outside a terminal session or\nwith none open); P3-31: `offline`, what the till keeps for the limited mode (fees per hall and channel, today's room\nfee and minimum spend per place, the choy-non items, its local number prefix and next number, the limits);\nP3-26: `quick_items`, the one-tap buttons (products marked `quick_add` in the menu, then the\nbranch's per-guest \"choy-non\" items: `source` quick_add | auto_guest, `variant_uuid` to add as a line; prices and\navailability from the POS catalog).",
                 "summary": "POS bootstrap",
                 "tags": [
                     "POS: bootstrap"
@@ -35963,6 +35967,174 @@
                                                             "sort_order"
                                                         ]
                                                     }
+                                                },
+                                                "offline": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "device_prefix": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "next_local_number": {
+                                                            "type": "integer"
+                                                        },
+                                                        "business_date": {
+                                                            "type": "string"
+                                                        },
+                                                        "day_type": {
+                                                            "type": "string"
+                                                        },
+                                                        "fees": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "hall_id": {
+                                                                        "type": [
+                                                                            "integer",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "channel": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "service_charge_percent": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "place_fee_amount": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "place_fee_mode": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "hall_id",
+                                                                    "channel",
+                                                                    "service_charge_percent",
+                                                                    "place_fee_amount",
+                                                                    "place_fee_mode"
+                                                                ]
+                                                            }
+                                                        },
+                                                        "places": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "table_id": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "hall_id": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "room_fee": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "min_spend": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "min_spend_mode": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "table_id",
+                                                                    "hall_id",
+                                                                    "room_fee",
+                                                                    "min_spend",
+                                                                    "min_spend_mode"
+                                                                ]
+                                                            }
+                                                        },
+                                                        "guest_items": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "hall_id": {
+                                                                        "type": [
+                                                                            "integer",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "variant_uuid": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "quantity_per_guest": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "sort_order": {
+                                                                        "type": "integer"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "hall_id",
+                                                                    "variant_uuid",
+                                                                    "quantity_per_guest",
+                                                                    "sort_order"
+                                                                ]
+                                                            }
+                                                        },
+                                                        "limits": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "batch_size": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "warn_after_minutes": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "alert_after_minutes": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "max_queued_orders": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "menu_max_age_hours": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "contact_max_age_hours": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "fiscal_warn_hours": {
+                                                                    "type": "array",
+                                                                    "items": {
+                                                                        "type": "integer"
+                                                                    }
+                                                                },
+                                                                "fiscal_limit_hours": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "clock_skew_warn_seconds": {
+                                                                    "type": "integer"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "batch_size",
+                                                                "warn_after_minutes",
+                                                                "alert_after_minutes",
+                                                                "max_queued_orders",
+                                                                "menu_max_age_hours",
+                                                                "contact_max_age_hours",
+                                                                "fiscal_warn_hours",
+                                                                "fiscal_limit_hours",
+                                                                "clock_skew_warn_seconds"
+                                                            ]
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "device_prefix",
+                                                        "next_local_number",
+                                                        "business_date",
+                                                        "day_type",
+                                                        "fees",
+                                                        "places",
+                                                        "guest_items",
+                                                        "limits"
+                                                    ]
                                                 }
                                             },
                                             "required": [
@@ -35979,7 +36151,8 @@
                                                 "halls",
                                                 "tables",
                                                 "shift",
-                                                "quick_items"
+                                                "quick_items",
+                                                "offline"
                                             ]
                                         }
                                     },
@@ -40488,6 +40661,73 @@
                                                         "waivers"
                                                     ]
                                                 },
+                                                "offline": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "properties": {
+                                                        "local_number": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "created_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "synced_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "flags": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "flag": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "op_id": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "amount": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "name": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "flag",
+                                                                    "op_id",
+                                                                    "amount",
+                                                                    "name"
+                                                                ]
+                                                            }
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "local_number",
+                                                        "created_at",
+                                                        "synced_at",
+                                                        "flags"
+                                                    ]
+                                                },
                                                 "rounds": {
                                                     "type": "integer"
                                                 },
@@ -40740,6 +40980,7 @@
                                                 "min_spend_topup_amount",
                                                 "total_price",
                                                 "charges",
+                                                "offline",
                                                 "rounds",
                                                 "items"
                                             ]
@@ -41113,6 +41354,73 @@
                                                         "waivers"
                                                     ]
                                                 },
+                                                "offline": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "properties": {
+                                                        "local_number": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "created_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "synced_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "flags": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "flag": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "op_id": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "amount": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "name": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "flag",
+                                                                    "op_id",
+                                                                    "amount",
+                                                                    "name"
+                                                                ]
+                                                            }
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "local_number",
+                                                        "created_at",
+                                                        "synced_at",
+                                                        "flags"
+                                                    ]
+                                                },
                                                 "rounds": {
                                                     "type": "integer"
                                                 },
@@ -41365,6 +41673,7 @@
                                                 "min_spend_topup_amount",
                                                 "total_price",
                                                 "charges",
+                                                "offline",
                                                 "rounds",
                                                 "items"
                                             ]
@@ -44450,6 +44759,73 @@
                                                         "waivers"
                                                     ]
                                                 },
+                                                "offline": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "properties": {
+                                                        "local_number": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "created_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "synced_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "flags": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "flag": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "op_id": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "amount": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "name": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "flag",
+                                                                    "op_id",
+                                                                    "amount",
+                                                                    "name"
+                                                                ]
+                                                            }
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "local_number",
+                                                        "created_at",
+                                                        "synced_at",
+                                                        "flags"
+                                                    ]
+                                                },
                                                 "rounds": {
                                                     "type": "integer"
                                                 },
@@ -44702,6 +45078,7 @@
                                                 "min_spend_topup_amount",
                                                 "total_price",
                                                 "charges",
+                                                "offline",
                                                 "rounds",
                                                 "items"
                                             ]
@@ -45108,6 +45485,73 @@
                                                         "waivers"
                                                     ]
                                                 },
+                                                "offline": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "properties": {
+                                                        "local_number": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "created_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "synced_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "flags": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "flag": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "op_id": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "amount": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "name": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "flag",
+                                                                    "op_id",
+                                                                    "amount",
+                                                                    "name"
+                                                                ]
+                                                            }
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "local_number",
+                                                        "created_at",
+                                                        "synced_at",
+                                                        "flags"
+                                                    ]
+                                                },
                                                 "rounds": {
                                                     "type": "integer"
                                                 },
@@ -45360,6 +45804,7 @@
                                                 "min_spend_topup_amount",
                                                 "total_price",
                                                 "charges",
+                                                "offline",
                                                 "rounds",
                                                 "items"
                                             ]
@@ -45772,6 +46217,73 @@
                                                         "waivers"
                                                     ]
                                                 },
+                                                "offline": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "properties": {
+                                                        "local_number": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "created_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "synced_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "flags": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "flag": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "op_id": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "amount": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "name": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "flag",
+                                                                    "op_id",
+                                                                    "amount",
+                                                                    "name"
+                                                                ]
+                                                            }
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "local_number",
+                                                        "created_at",
+                                                        "synced_at",
+                                                        "flags"
+                                                    ]
+                                                },
                                                 "rounds": {
                                                     "type": "integer"
                                                 },
@@ -46024,6 +46536,7 @@
                                                 "min_spend_topup_amount",
                                                 "total_price",
                                                 "charges",
+                                                "offline",
                                                 "rounds",
                                                 "items"
                                             ]
@@ -47385,6 +47898,73 @@
                                                         "waivers"
                                                     ]
                                                 },
+                                                "offline": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "properties": {
+                                                        "local_number": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "created_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "synced_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "flags": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "flag": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "op_id": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "amount": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "name": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "flag",
+                                                                    "op_id",
+                                                                    "amount",
+                                                                    "name"
+                                                                ]
+                                                            }
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "local_number",
+                                                        "created_at",
+                                                        "synced_at",
+                                                        "flags"
+                                                    ]
+                                                },
                                                 "rounds": {
                                                     "type": "integer"
                                                 },
@@ -47637,6 +48217,7 @@
                                                 "min_spend_topup_amount",
                                                 "total_price",
                                                 "charges",
+                                                "offline",
                                                 "rounds",
                                                 "items"
                                             ]
@@ -48043,6 +48624,73 @@
                                                         "waivers"
                                                     ]
                                                 },
+                                                "offline": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "properties": {
+                                                        "local_number": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "created_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "synced_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "flags": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "flag": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "op_id": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "amount": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "name": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "flag",
+                                                                    "op_id",
+                                                                    "amount",
+                                                                    "name"
+                                                                ]
+                                                            }
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "local_number",
+                                                        "created_at",
+                                                        "synced_at",
+                                                        "flags"
+                                                    ]
+                                                },
                                                 "rounds": {
                                                     "type": "integer"
                                                 },
@@ -48295,6 +48943,7 @@
                                                 "min_spend_topup_amount",
                                                 "total_price",
                                                 "charges",
+                                                "offline",
                                                 "rounds",
                                                 "items"
                                             ]
@@ -48724,6 +49373,73 @@
                                                         "waivers"
                                                     ]
                                                 },
+                                                "offline": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "properties": {
+                                                        "local_number": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "created_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "synced_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "flags": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "flag": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "op_id": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "amount": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "name": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "flag",
+                                                                    "op_id",
+                                                                    "amount",
+                                                                    "name"
+                                                                ]
+                                                            }
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "local_number",
+                                                        "created_at",
+                                                        "synced_at",
+                                                        "flags"
+                                                    ]
+                                                },
                                                 "rounds": {
                                                     "type": "integer"
                                                 },
@@ -48976,6 +49692,7 @@
                                                 "min_spend_topup_amount",
                                                 "total_price",
                                                 "charges",
+                                                "offline",
                                                 "rounds",
                                                 "items"
                                             ]
@@ -49394,6 +50111,73 @@
                                                         "waivers"
                                                     ]
                                                 },
+                                                "offline": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "properties": {
+                                                        "local_number": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "created_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "synced_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "flags": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "flag": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "op_id": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "amount": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "name": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "flag",
+                                                                    "op_id",
+                                                                    "amount",
+                                                                    "name"
+                                                                ]
+                                                            }
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "local_number",
+                                                        "created_at",
+                                                        "synced_at",
+                                                        "flags"
+                                                    ]
+                                                },
                                                 "rounds": {
                                                     "type": "integer"
                                                 },
@@ -49646,6 +50430,7 @@
                                                 "min_spend_topup_amount",
                                                 "total_price",
                                                 "charges",
+                                                "offline",
                                                 "rounds",
                                                 "items"
                                             ]
@@ -50049,6 +50834,73 @@
                                                         "waivers"
                                                     ]
                                                 },
+                                                "offline": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "properties": {
+                                                        "local_number": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "created_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "synced_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "flags": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "flag": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "op_id": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "amount": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "name": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "flag",
+                                                                    "op_id",
+                                                                    "amount",
+                                                                    "name"
+                                                                ]
+                                                            }
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "local_number",
+                                                        "created_at",
+                                                        "synced_at",
+                                                        "flags"
+                                                    ]
+                                                },
                                                 "rounds": {
                                                     "type": "integer"
                                                 },
@@ -50301,6 +51153,7 @@
                                                 "min_spend_topup_amount",
                                                 "total_price",
                                                 "charges",
+                                                "offline",
                                                 "rounds",
                                                 "items"
                                             ]
@@ -51416,6 +52269,73 @@
                                                         "waivers"
                                                     ]
                                                 },
+                                                "offline": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "properties": {
+                                                        "local_number": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "created_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "synced_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "flags": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "flag": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "op_id": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "amount": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "name": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "flag",
+                                                                    "op_id",
+                                                                    "amount",
+                                                                    "name"
+                                                                ]
+                                                            }
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "local_number",
+                                                        "created_at",
+                                                        "synced_at",
+                                                        "flags"
+                                                    ]
+                                                },
                                                 "rounds": {
                                                     "type": "integer"
                                                 },
@@ -51668,6 +52588,7 @@
                                                 "min_spend_topup_amount",
                                                 "total_price",
                                                 "charges",
+                                                "offline",
                                                 "rounds",
                                                 "items"
                                             ]
@@ -52149,6 +53070,73 @@
                                                         "waivers"
                                                     ]
                                                 },
+                                                "offline": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "properties": {
+                                                        "local_number": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "created_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "synced_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "flags": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "flag": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "op_id": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "amount": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "name": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "flag",
+                                                                    "op_id",
+                                                                    "amount",
+                                                                    "name"
+                                                                ]
+                                                            }
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "local_number",
+                                                        "created_at",
+                                                        "synced_at",
+                                                        "flags"
+                                                    ]
+                                                },
                                                 "rounds": {
                                                     "type": "integer"
                                                 },
@@ -52401,6 +53389,7 @@
                                                 "min_spend_topup_amount",
                                                 "total_price",
                                                 "charges",
+                                                "offline",
                                                 "rounds",
                                                 "items"
                                             ]
@@ -52810,6 +53799,73 @@
                                                         "waivers"
                                                     ]
                                                 },
+                                                "offline": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "properties": {
+                                                        "local_number": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "created_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "synced_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "flags": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "flag": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "op_id": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "amount": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "name": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "flag",
+                                                                    "op_id",
+                                                                    "amount",
+                                                                    "name"
+                                                                ]
+                                                            }
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "local_number",
+                                                        "created_at",
+                                                        "synced_at",
+                                                        "flags"
+                                                    ]
+                                                },
                                                 "rounds": {
                                                     "type": "integer"
                                                 },
@@ -53062,6 +54118,7 @@
                                                 "min_spend_topup_amount",
                                                 "total_price",
                                                 "charges",
+                                                "offline",
                                                 "rounds",
                                                 "items"
                                             ]
@@ -58185,6 +59242,1275 @@
                         "$ref": "#/components/responses/AuthenticationException"
                     }
                 }
+            }
+        },
+        "/v1/pos/sync": {
+            "post": {
+                "operationId": "posSync.store",
+                "description": "Up to 50 operations of this till in its `seq` order, each with a new `op_id` (UUID; the same one when sent again:\nit is applied once), `type` (order.open, order.round, order.send, order.void, order.served, bill.create, bill.pay,\norder.close), `occurred_at` (the device's clock), `staff_id` (who did it: signed in on this till before the\noutage, with the permission) and `payload`. Each result: `status` applied | conflict (applied, but a manager\nshould look: oversold, payment on a cancelled order, amount mismatch, stale menu, a taken room) | rejected (not\napplied: \"Sinxronlash xatolari\"), `reason`, `message` and `refs` (the server's order uuid and version, local\nnumber, line ids, bill and payment uuids, flags). `sent_at` (the device's clock now) gives the clock skew: more\nthan 5 minutes is `clock_warning`. `queue` (size, oldest_at) is what is still in the device's queue including\nthis batch: the shift does not close while it is not empty. Only a POS terminal's own token.",
+                "summary": "Send the offline queue",
+                "tags": [
+                    "POS: sync"
+                ],
+                "parameters": [
+                    {
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "description": "Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer.",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "sent_at": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "format": "date-time"
+                                    },
+                                    "queue": {
+                                        "type": "object",
+                                        "properties": {
+                                            "size": {
+                                                "type": [
+                                                    "integer",
+                                                    "null"
+                                                ],
+                                                "minimum": 0,
+                                                "maximum": 100000
+                                            },
+                                            "oldest_at": {
+                                                "type": [
+                                                    "string",
+                                                    "null"
+                                                ],
+                                                "format": "date-time"
+                                            }
+                                        }
+                                    },
+                                    "operations": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object",
+                                            "properties": {
+                                                "op_id": {
+                                                    "type": "string",
+                                                    "format": "uuid"
+                                                },
+                                                "seq": {
+                                                    "type": "integer",
+                                                    "minimum": 1
+                                                },
+                                                "type": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "order.open",
+                                                        "order.round",
+                                                        "order.send",
+                                                        "order.void",
+                                                        "order.served",
+                                                        "bill.create",
+                                                        "bill.pay",
+                                                        "order.close"
+                                                    ]
+                                                },
+                                                "occurred_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "format": "date-time"
+                                                },
+                                                "staff_id": {
+                                                    "type": "integer",
+                                                    "minimum": 1
+                                                },
+                                                "payload": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "string"
+                                                    }
+                                                }
+                                            },
+                                            "required": [
+                                                "op_id",
+                                                "seq",
+                                                "type",
+                                                "staff_id",
+                                                "payload"
+                                            ]
+                                        },
+                                        "maxItems": 50,
+                                        "uniqueItems": true
+                                    }
+                                },
+                                "required": [
+                                    "operations"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "server_time": {
+                                                    "type": "string"
+                                                },
+                                                "clock_skew_seconds": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "clock_warning": {
+                                                    "type": "boolean"
+                                                },
+                                                "stopped_at": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "results": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "op_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "seq": {
+                                                                "type": "integer"
+                                                            },
+                                                            "type": {
+                                                                "type": "string"
+                                                            },
+                                                            "status": {
+                                                                "type": "string"
+                                                            },
+                                                            "reason": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "message": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "duplicate": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "refs": {
+                                                                "type": "object",
+                                                                "additionalProperties": {}
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "op_id",
+                                                            "seq",
+                                                            "type",
+                                                            "status",
+                                                            "reason",
+                                                            "message",
+                                                            "duplicate",
+                                                            "refs"
+                                                        ]
+                                                    }
+                                                },
+                                                "device": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "uuid": {
+                                                            "type": "string"
+                                                        },
+                                                        "name": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "prefix": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "last_seq": {
+                                                            "type": "integer"
+                                                        },
+                                                        "pending_ops": {
+                                                            "type": "integer"
+                                                        },
+                                                        "oldest_op_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "reported_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "clock_skew_seconds": {
+                                                            "type": [
+                                                                "integer",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "clock_warning": {
+                                                            "type": "boolean"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "uuid",
+                                                        "name",
+                                                        "prefix",
+                                                        "last_seq",
+                                                        "pending_ops",
+                                                        "oldest_op_at",
+                                                        "reported_at",
+                                                        "clock_skew_seconds",
+                                                        "clock_warning"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "server_time",
+                                                "clock_skew_seconds",
+                                                "clock_warning",
+                                                "stopped_at",
+                                                "results",
+                                                "device"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                },
+                "security": []
+            }
+        },
+        "/v1/pos/sync/errors": {
+            "get": {
+                "operationId": "posSync.errors",
+                "description": "Offline operations of the caller's branch (or `branch_id`) that a manager should look at: rejected (not applied)\nand conflicting (applied with a difference), not resolved yet; `all=1` resolved ones too; `device` (uuid) one\ntill. Newest first, 50 per page. Needs orders.view.",
+                "summary": "Sync errors (\"Sinxronlash xatolari\")",
+                "tags": [
+                    "POS: sync"
+                ],
+                "parameters": [
+                    {
+                        "name": "branch_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "device",
+                        "in": "query",
+                        "description": "A till uuid.",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "all",
+                        "in": "query",
+                        "description": "Resolved and dismissed ones too.",
+                        "schema": {
+                            "type": "boolean"
+                        }
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "errors": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "op_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "seq": {
+                                                                "type": "integer"
+                                                            },
+                                                            "type": {
+                                                                "type": "string"
+                                                            },
+                                                            "type_label": {
+                                                                "type": "string"
+                                                            },
+                                                            "status": {
+                                                                "type": "string"
+                                                            },
+                                                            "reason": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "message": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "staff": {
+                                                                "type": [
+                                                                    "object",
+                                                                    "null"
+                                                                ],
+                                                                "properties": {
+                                                                    "id": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "name": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "id",
+                                                                    "name"
+                                                                ]
+                                                            },
+                                                            "device": {
+                                                                "type": [
+                                                                    "object",
+                                                                    "null"
+                                                                ],
+                                                                "properties": {
+                                                                    "uuid": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "name": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "uuid",
+                                                                    "name"
+                                                                ]
+                                                            },
+                                                            "occurred_at": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "received_at": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "applied_at": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "clock_skew_seconds": {
+                                                                "type": [
+                                                                    "integer",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "order": {
+                                                                "type": [
+                                                                    "object",
+                                                                    "null"
+                                                                ],
+                                                                "properties": {
+                                                                    "uuid": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "local_number": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "short_code": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "table_ref": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "status": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "uuid",
+                                                                    "local_number",
+                                                                    "short_code",
+                                                                    "table_ref",
+                                                                    "status"
+                                                                ]
+                                                            },
+                                                            "payload": {
+                                                                "type": "object",
+                                                                "additionalProperties": {}
+                                                            },
+                                                            "refs": {
+                                                                "type": "object",
+                                                                "additionalProperties": {}
+                                                            },
+                                                            "resolved_at": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "resolved_by": {
+                                                                "type": [
+                                                                    "object",
+                                                                    "null"
+                                                                ],
+                                                                "properties": {
+                                                                    "id": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "name": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "id",
+                                                                    "name"
+                                                                ]
+                                                            },
+                                                            "resolution": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "resolution_note": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "op_id",
+                                                            "seq",
+                                                            "type",
+                                                            "type_label",
+                                                            "status",
+                                                            "reason",
+                                                            "message",
+                                                            "staff",
+                                                            "device",
+                                                            "occurred_at",
+                                                            "received_at",
+                                                            "applied_at",
+                                                            "clock_skew_seconds",
+                                                            "order",
+                                                            "payload",
+                                                            "refs",
+                                                            "resolved_at",
+                                                            "resolved_by",
+                                                            "resolution",
+                                                            "resolution_note"
+                                                        ]
+                                                    }
+                                                },
+                                                "meta": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "current_page": {
+                                                            "type": "integer"
+                                                        },
+                                                        "last_page": {
+                                                            "type": "integer"
+                                                        },
+                                                        "per_page": {
+                                                            "type": "integer"
+                                                        },
+                                                        "total": {
+                                                            "type": "integer"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "current_page",
+                                                        "last_page",
+                                                        "per_page",
+                                                        "total"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "errors",
+                                                "meta"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/pos/sync/errors/{opId}/resolve": {
+            "post": {
+                "operationId": "posSync.resolve",
+                "description": "The manager settled it by hand (`resolution: resolved`, e.g. entered the round again, refunded the guest) or\nthere is nothing to do (`dismissed`), with an optional `note`. A resolved rejected operation no longer keeps its\ntill's shift from closing. Repeating it changes nothing. Needs orders.cancel (owner, manager).",
+                "summary": "Resolve or dismiss a sync error",
+                "tags": [
+                    "POS: sync"
+                ],
+                "parameters": [
+                    {
+                        "name": "opId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "description": "Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer.",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "resolution": {
+                                        "type": "string",
+                                        "enum": [
+                                            "resolved",
+                                            "dismissed"
+                                        ]
+                                    },
+                                    "note": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "maxLength": 500
+                                    }
+                                },
+                                "required": [
+                                    "resolution"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "op_id": {
+                                                    "type": "string"
+                                                },
+                                                "seq": {
+                                                    "type": "integer"
+                                                },
+                                                "type": {
+                                                    "type": "string"
+                                                },
+                                                "type_label": {
+                                                    "type": "string"
+                                                },
+                                                "status": {
+                                                    "type": "string"
+                                                },
+                                                "reason": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "message": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "staff": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "properties": {
+                                                        "id": {
+                                                            "type": "integer"
+                                                        },
+                                                        "name": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "id",
+                                                        "name"
+                                                    ]
+                                                },
+                                                "device": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "properties": {
+                                                        "uuid": {
+                                                            "type": "string"
+                                                        },
+                                                        "name": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "uuid",
+                                                        "name"
+                                                    ]
+                                                },
+                                                "occurred_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "received_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "applied_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "clock_skew_seconds": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "order": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "properties": {
+                                                        "uuid": {
+                                                            "type": "string"
+                                                        },
+                                                        "local_number": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "short_code": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "table_ref": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "status": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "uuid",
+                                                        "local_number",
+                                                        "short_code",
+                                                        "table_ref",
+                                                        "status"
+                                                    ]
+                                                },
+                                                "payload": {
+                                                    "type": "object",
+                                                    "additionalProperties": {}
+                                                },
+                                                "refs": {
+                                                    "type": "object",
+                                                    "additionalProperties": {}
+                                                },
+                                                "resolved_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "resolved_by": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "properties": {
+                                                        "id": {
+                                                            "type": "integer"
+                                                        },
+                                                        "name": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "id",
+                                                        "name"
+                                                    ]
+                                                },
+                                                "resolution": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "resolution_note": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "op_id",
+                                                "seq",
+                                                "type",
+                                                "type_label",
+                                                "status",
+                                                "reason",
+                                                "message",
+                                                "staff",
+                                                "device",
+                                                "occurred_at",
+                                                "received_at",
+                                                "applied_at",
+                                                "clock_skew_seconds",
+                                                "order",
+                                                "payload",
+                                                "refs",
+                                                "resolved_at",
+                                                "resolved_by",
+                                                "resolution",
+                                                "resolution_note"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/pos/sync/status": {
+            "get": {
+                "operationId": "posSync.status",
+                "description": "What the server holds for this till: the last `seq` it received, what the till last said about its queue, the\nclock skew, and its operations that need a manager (rejected or conflicting, not resolved yet; newest first, at\nmost 100). `queue_size` / `oldest_at` (optional) report the queue now (0 after it drained). Only a POS terminal's\nown token.",
+                "summary": "Sync status of this till",
+                "tags": [
+                    "POS: sync"
+                ],
+                "parameters": [
+                    {
+                        "name": "queue_size",
+                        "in": "query",
+                        "description": "Operations still in the device queue now.",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "oldest_at",
+                        "in": "query",
+                        "description": "When the oldest of them happened (device clock).",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "server_time": {
+                                                    "type": "string"
+                                                },
+                                                "device": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "uuid": {
+                                                            "type": "string"
+                                                        },
+                                                        "name": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "prefix": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "last_seq": {
+                                                            "type": "integer"
+                                                        },
+                                                        "pending_ops": {
+                                                            "type": "integer"
+                                                        },
+                                                        "oldest_op_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "reported_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "clock_skew_seconds": {
+                                                            "type": [
+                                                                "integer",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "clock_warning": {
+                                                            "type": "boolean"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "uuid",
+                                                        "name",
+                                                        "prefix",
+                                                        "last_seq",
+                                                        "pending_ops",
+                                                        "oldest_op_at",
+                                                        "reported_at",
+                                                        "clock_skew_seconds",
+                                                        "clock_warning"
+                                                    ]
+                                                },
+                                                "errors": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "op_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "seq": {
+                                                                "type": "integer"
+                                                            },
+                                                            "type": {
+                                                                "type": "string"
+                                                            },
+                                                            "type_label": {
+                                                                "type": "string"
+                                                            },
+                                                            "status": {
+                                                                "type": "string"
+                                                            },
+                                                            "reason": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "message": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "staff": {
+                                                                "type": [
+                                                                    "object",
+                                                                    "null"
+                                                                ],
+                                                                "properties": {
+                                                                    "id": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "name": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "id",
+                                                                    "name"
+                                                                ]
+                                                            },
+                                                            "device": {
+                                                                "type": [
+                                                                    "object",
+                                                                    "null"
+                                                                ],
+                                                                "properties": {
+                                                                    "uuid": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "name": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "uuid",
+                                                                    "name"
+                                                                ]
+                                                            },
+                                                            "occurred_at": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "received_at": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "applied_at": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "clock_skew_seconds": {
+                                                                "type": [
+                                                                    "integer",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "order": {
+                                                                "type": [
+                                                                    "object",
+                                                                    "null"
+                                                                ],
+                                                                "properties": {
+                                                                    "uuid": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "local_number": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "short_code": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "table_ref": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "status": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "uuid",
+                                                                    "local_number",
+                                                                    "short_code",
+                                                                    "table_ref",
+                                                                    "status"
+                                                                ]
+                                                            },
+                                                            "payload": {
+                                                                "type": "object",
+                                                                "additionalProperties": {}
+                                                            },
+                                                            "refs": {
+                                                                "type": "object",
+                                                                "additionalProperties": {}
+                                                            },
+                                                            "resolved_at": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "resolved_by": {
+                                                                "type": [
+                                                                    "object",
+                                                                    "null"
+                                                                ],
+                                                                "properties": {
+                                                                    "id": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "name": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "id",
+                                                                    "name"
+                                                                ]
+                                                            },
+                                                            "resolution": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "resolution_note": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "op_id",
+                                                            "seq",
+                                                            "type",
+                                                            "type_label",
+                                                            "status",
+                                                            "reason",
+                                                            "message",
+                                                            "staff",
+                                                            "device",
+                                                            "occurred_at",
+                                                            "received_at",
+                                                            "applied_at",
+                                                            "clock_skew_seconds",
+                                                            "order",
+                                                            "payload",
+                                                            "refs",
+                                                            "resolved_at",
+                                                            "resolved_by",
+                                                            "resolution",
+                                                            "resolution_note"
+                                                        ]
+                                                    }
+                                                },
+                                                "errors_count": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "required": [
+                                                "server_time",
+                                                "device",
+                                                "errors",
+                                                "errors_count"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                },
+                "security": []
             }
         },
         "/v1/promo/validate": {
@@ -64115,6 +66441,38 @@
                         ],
                         "format": "date-time"
                     },
+                    "sync_prefix": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "sync_last_seq": {
+                        "type": "integer"
+                    },
+                    "sync_pending_ops": {
+                        "type": "integer"
+                    },
+                    "sync_oldest_op_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date-time"
+                    },
+                    "sync_reported_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date-time"
+                    },
+                    "sync_clock_skew_seconds": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ]
+                    },
                     "user": {
                         "anyOf": [
                             {
@@ -64166,7 +66524,13 @@
                     "revoked_at",
                     "revoked_by",
                     "created_at",
-                    "updated_at"
+                    "updated_at",
+                    "sync_prefix",
+                    "sync_last_seq",
+                    "sync_pending_ops",
+                    "sync_oldest_op_at",
+                    "sync_reported_at",
+                    "sync_clock_skew_seconds"
                 ],
                 "title": "Device"
             },
@@ -64633,6 +66997,9 @@
                         ],
                         "format": "date-time"
                     },
+                    "oversold_quantity": {
+                        "type": "string"
+                    },
                     "is_open": {
                         "type": "boolean"
                     },
@@ -64673,6 +67040,7 @@
                     "closed_by",
                     "created_at",
                     "updated_at",
+                    "oversold_quantity",
                     "is_open"
                 ],
                 "title": "MenuBatch"
@@ -65332,6 +67700,36 @@
                             "null"
                         ]
                     },
+                    "local_number": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "offline_created_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date-time"
+                    },
+                    "synced_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date-time"
+                    },
+                    "sync_flags": {
+                        "type": [
+                            "array",
+                            "null"
+                        ],
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": {}
+                        }
+                    },
                     "type": {
                         "type": "string"
                     },
@@ -65539,6 +67937,10 @@
                     "long_open_alerted_at",
                     "bill_requested_at",
                     "bill_requested_by",
+                    "local_number",
+                    "offline_created_at",
+                    "synced_at",
+                    "sync_flags",
                     "type",
                     "address"
                 ],
@@ -66064,6 +68466,18 @@
                             "null"
                         ]
                     },
+                    "client_line_id": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "price_source": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
                     "order": {
                         "$ref": "#/components/schemas/Order"
                     },
@@ -66117,7 +68531,9 @@
                     "voided_by",
                     "void_reason",
                     "seat_no",
-                    "note"
+                    "note",
+                    "client_line_id",
+                    "price_source"
                 ],
                 "title": "OrderItem"
             },
@@ -66336,6 +68752,20 @@
                             "null"
                         ]
                     },
+                    "offline_paid_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date-time"
+                    },
+                    "synced_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date-time"
+                    },
                     "order": {
                         "anyOf": [
                             {
@@ -66389,7 +68819,9 @@
                     "change_amount",
                     "card_type",
                     "transaction_id",
-                    "reference"
+                    "reference",
+                    "offline_paid_at",
+                    "synced_at"
                 ],
                 "title": "Payment"
             },

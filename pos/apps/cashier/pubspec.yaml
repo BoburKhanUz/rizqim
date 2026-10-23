@@ -12,12 +12,17 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_secure_storage: ^11.2.0
+  # P3-31: the offline queue's folder (getApplicationSupportDirectory); already in the workspace through
+  # shared_preferences
+  path_provider: ^2.1.6
   pos_core:
     path: ../../packages/pos_core
   pos_data:
     path: ../../packages/pos_data
   pos_hardware:
     path: ../../packages/pos_hardware
+  pos_sync:
+    path: ../../packages/pos_sync
   pos_ui:
     path: ../../packages/pos_ui
   rizqim_api:

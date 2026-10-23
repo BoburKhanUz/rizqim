@@ -116,6 +116,11 @@ export function makeOrder(over: Partial<Order> = {}): Order {
     long_open_alerted_at: null,
     bill_requested_at: null,
     bill_requested_by: null,
+    // Offline sync columns (P3-31)
+    local_number: null,
+    offline_created_at: null,
+    synced_at: null,
+    sync_flags: null,
     ...over,
   };
 }

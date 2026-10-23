@@ -16,7 +16,7 @@ part 'order_item.g.dart';
 @JsonSerializable()
 class OrderItem {
   const OrderItem({
-    required this.id,
+    required this.unit,
     required this.orderId,
     required this.productVariantId,
     required this.productName,
@@ -27,7 +27,7 @@ class OrderItem {
     required this.createdAt,
     required this.updatedAt,
     required this.deletedAt,
-    required this.unit,
+    required this.id,
     required this.modifiers,
     required this.modifiersTotal,
     required this.batchId,
@@ -37,7 +37,7 @@ class OrderItem {
     required this.roundNo,
     required this.fireMode,
     required this.stationId,
-    required this.sentAt,
+    required this.priceSource,
     required this.dueAt,
     required this.addedBy,
     required this.voidedAt,
@@ -45,6 +45,8 @@ class OrderItem {
     required this.voidReason,
     required this.seatNo,
     required this.note,
+    required this.clientLineId,
+    required this.sentAt,
     this.order,
     this.productVariant,
     this.batch,
@@ -106,6 +108,10 @@ class OrderItem {
   @JsonKey(name: 'seat_no')
   final int? seatNo;
   final String? note;
+  @JsonKey(name: 'client_line_id')
+  final String? clientLineId;
+  @JsonKey(name: 'price_source')
+  final String? priceSource;
   final Order? order;
   @JsonKey(name: 'product_variant')
   final ProductVariant? productVariant;

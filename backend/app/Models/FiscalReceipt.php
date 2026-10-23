@@ -47,6 +47,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int $attempts
  * @property \Illuminate\Support\Carbon|null $next_attempt_at
  * @property \Illuminate\Support\Carbon|null $issued_at
+ * @property \Illuminate\Support\Carbon|null $sold_at P3-31: when an offline sale happened (the device's clock)
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
  * @property-read FiscalReceipt|null $originalReceipt
@@ -83,6 +84,8 @@ class FiscalReceipt extends Model
             'subject_id' => 'integer',
             'next_attempt_at' => 'datetime',
             'issued_at' => 'datetime',
+            // P3-31: an offline sale receipted at sync: when it happened (the device's clock)
+            'sold_at' => 'datetime',
         ];
     }
 
@@ -167,6 +170,7 @@ class FiscalReceipt extends Model
             originalReceiptUuid: $this->originalReceipt?->uuid,
             subjectType: $this->subject_type,
             subjectId: $this->subject_id,
+            soldAt: $this->sold_at,
         );
     }
 

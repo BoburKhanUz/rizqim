@@ -91,6 +91,8 @@ final class BillFiscalizer
                 idempotencyKey: "pos-bill:{$bill->uuid}:sale",
                 subjectType: OrderBill::FISCAL_SUBJECT,
                 subjectId: (int) $bill->id,
+                // P3-31: a bill paid offline is receipted at sync; the receipt keeps when the money was taken
+                soldAt: $payments->last()?->getAttribute('offline_paid_at'),
             );
             $result = $this->issuer->issue($document);
         } catch (Throwable $e) {

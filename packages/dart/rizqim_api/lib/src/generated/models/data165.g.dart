@@ -7,7 +7,7 @@ part of 'data165.dart';
 // **************************************************************************
 
 Data165 _$Data165FromJson(Map<String, dynamic> json) => Data165(
-  tableRef: json['table_ref'] as String?,
+  guestsCount: (json['guests_count'] as num?)?.toInt(),
   shortCode: json['short_code'] as String?,
   status: json['status'] as String,
   channel: json['channel'] as String,
@@ -22,8 +22,8 @@ Data165 _$Data165FromJson(Map<String, dynamic> json) => Data165(
       ? null
       : Table15.fromJson(json['table'] as Map<String, dynamic>),
   hallRef: json['hall_ref'] as String?,
+  tableRef: json['table_ref'] as String?,
   uuid: json['uuid'] as String,
-  guestsCount: (json['guests_count'] as num?)?.toInt(),
   waiter: json['waiter'] == null
       ? null
       : Waiter17.fromJson(json['waiter'] as Map<String, dynamic>),
@@ -34,10 +34,10 @@ Data165 _$Data165FromJson(Map<String, dynamic> json) => Data165(
   depositAvailable: json['deposit_available'] as String,
   billLocked: json['bill_locked'] as bool,
   billRequestedAt: json['bill_requested_at'] as String?,
+  notes: json['notes'] as String?,
   items: (json['items'] as List<dynamic>)
       .map((e) => Items38.fromJson(e as Map<String, dynamic>))
       .toList(),
-  openedAt: json['opened_at'] as String?,
   updatedAt: json['updated_at'] as String?,
   subtotal: json['subtotal'] as String,
   discount: json['discount'] as String,
@@ -47,8 +47,11 @@ Data165 _$Data165FromJson(Map<String, dynamic> json) => Data165(
   minSpendTopupAmount: json['min_spend_topup_amount'] as String,
   totalPrice: json['total_price'] as String,
   charges: Charges17.fromJson(json['charges'] as Map<String, dynamic>),
+  offline: json['offline'] == null
+      ? null
+      : Offline13.fromJson(json['offline'] as Map<String, dynamic>),
   rounds: (json['rounds'] as num).toInt(),
-  notes: json['notes'] as String?,
+  openedAt: json['opened_at'] as String?,
 );
 
 Map<String, dynamic> _$Data165ToJson(Data165 instance) => <String, dynamic>{
@@ -84,6 +87,7 @@ Map<String, dynamic> _$Data165ToJson(Data165 instance) => <String, dynamic>{
   'min_spend_topup_amount': instance.minSpendTopupAmount,
   'total_price': instance.totalPrice,
   'charges': instance.charges,
+  'offline': instance.offline,
   'rounds': instance.rounds,
   'items': instance.items,
 };

@@ -253,7 +253,44 @@ class FakePosState {
   /// aniqlangandan keyin birinchi bo'lib so'raladi; `null` — odatdagi javob.
   FakeResponse? Function(FakeRequest request)? extraRoutes;
 
+  /// P3-31: terminalning o'z tokeni bilan keladigan yo'llar (`POST /pos/sync`, `GET /pos/sync/status`) va xodim
+  /// sessiyasi bilan keladigan sinxronlash yo'llari ([FakeSyncBackend]).
+  FakeResponse? Function(
+    String method,
+    String path,
+    Map<String, String> query,
+    Map<String, Object?> data,
+  )?
+  terminalRoutes;
+  FakeResponse? Function(FakeRequest request)? syncRoutes;
+
   final Map<String, int> _staffTokens = <String, int>{};
+
+  /// P3-31: so'rovni [staffId] xodim nomidan bajaradi (sinxronlashda har amal o'z xodimi bilan keladi).
+  FakeResponse handleAsStaff(
+    int staffId,
+    String method,
+    String path,
+    Object? body, {
+    Map<String, String> query = const <String, String>{},
+    String? idempotencyKey,
+  }) {
+    final String token = 'sync-staff-$staffId';
+    _staffTokens[token] = staffId;
+    try {
+      return handle(
+        method,
+        path,
+        query,
+        body,
+        token,
+        idempotencyKey: idempotencyKey,
+      );
+    } finally {
+      _staffTokens.remove(token);
+    }
+  }
+
   final Map<String, ({String permission, bool used, DateTime expires})>
   _approvals = <String, ({String permission, bool used, DateTime expires})>{};
   final Map<int, int> _wrongPins = <int, int>{};
@@ -554,6 +591,11 @@ class FakePosState {
     // Ulash va terminal
     if (method == 'POST' && p == '/v1/devices/pair') return _pair(data);
     if (p == '/broadcasting/auth') return _channelAuth(token, data);
+    if (p.startsWith('/v1/pos/sync') && token == terminalToken) {
+      if (!paired) return _unauthorized();
+      final FakeResponse? sync = terminalRoutes?.call(method, p, query, data);
+      if (sync != null) return sync;
+    }
     if (p.startsWith('/v1/terminal') || p.contains('/staff-session')) {
       if (!paired || token != terminalToken) return _unauthorized();
       if (method == 'GET' && p == '/v1/terminal/staff') {
@@ -587,6 +629,17 @@ class FakePosState {
       ),
     );
     if (extra != null) return extra;
+    final FakeResponse? sync = syncRoutes?.call(
+      FakeRequest(
+        method: method,
+        path: p,
+        query: query,
+        data: data,
+        member: member,
+        idempotencyKey: idempotencyKey,
+      ),
+    );
+    if (sync != null) return sync;
 
     if (method == 'GET' && p == '/v1/pos/bootstrap') {
       return _ok(_bootstrap(member));
@@ -951,6 +1004,51 @@ class FakePosState {
                 'device_id': deviceUuid,
               },
         'quick_items': quickItems,
+        // P3-31: what the till keeps for the limited mode (the fake's own rules: 10% in the hall, rooms 300 000)
+        'offline': <String, Object?>{
+          'device_prefix': 'K1',
+          'next_local_number': 1,
+          'business_date': _date(now()),
+          'day_type': 'weekday',
+          'fees': <Object?>[
+            <String, Object?>{
+              'hall_id': null,
+              'channel': 'pos_hall',
+              'service_charge_percent': '10.00',
+              'place_fee_amount': '0.00',
+              'place_fee_mode': 'per_person',
+            },
+            <String, Object?>{
+              'hall_id': null,
+              'channel': 'pos_takeaway',
+              'service_charge_percent': '0.00',
+              'place_fee_amount': '0.00',
+              'place_fee_mode': 'per_person',
+            },
+          ],
+          'places': <Object?>[
+            for (final Map<String, Object?> t in tables)
+              <String, Object?>{
+                'table_id': t['id'],
+                'hall_id': t['hall_id'],
+                'room_fee': t['kind'] == 'room' ? '300000.00' : '0.00',
+                'min_spend': '0.00',
+                'min_spend_mode': 'per_table',
+              },
+          ],
+          'guest_items': <Object?>[],
+          'limits': <String, Object?>{
+            'batch_size': 50,
+            'warn_after_minutes': 15,
+            'alert_after_minutes': 120,
+            'max_queued_orders': 500,
+            'menu_max_age_hours': 24,
+            'contact_max_age_hours': 24,
+            'fiscal_warn_hours': <int>[24, 40],
+            'fiscal_limit_hours': 48,
+            'clock_skew_warn_seconds': 300,
+          },
+        },
       };
 
   FakeResponse _catalog(String? channel) {
@@ -1364,6 +1462,13 @@ class FakePosState {
 
   FakeResponse _open(Map<String, Object?> data, Map<String, Object?> member) {
     final String channel = '${data['channel']}';
+    // The device's own id: a repeat returns the order already opened (as the backend does)
+    final Object? external = data['external_id'];
+    if (external is String) {
+      for (final Map<String, Object?> o in orders.values) {
+        if (o['external_id'] == external) return _ok(o);
+      }
+    }
     final int? tableId = (data['table_id'] as num?)?.toInt();
     if (tableId != null) {
       final Map<String, Object?>? t = tables
@@ -1395,6 +1500,7 @@ class FakePosState {
       waiterId: (data['waiter_id'] as num?)?.toInt(),
       note: data['note'] as String?,
     );
+    if (external is String) order['external_id'] = external;
     final List<Object?> items =
         (data['items'] as List<Object?>?) ?? const <Object?>[];
     for (final Object? i in items) {

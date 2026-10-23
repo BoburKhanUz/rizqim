@@ -8,6 +8,7 @@ import 'package:rizqim_ui/rizqim_ui.dart';
 
 import '../../shell/approval_dialog.dart';
 import '../../shell/destinations.dart';
+import '../../shell/limited_mode.dart';
 import '../../shell/pos_scope.dart';
 import '../accounts/account_form.dart';
 import 'billing_page.dart';
@@ -342,6 +343,19 @@ class _PaymentPageState extends State<PaymentPage> {
       );
       return;
     }
+    if (r.bill.fiscal.status == 'offline') {
+      // P3-31: the money is taken offline; the sale receipt is registered and printed once the till is back online
+      if (openDrawer) printer.openDrawer();
+      showPosMessage(
+        context,
+        "To'lov olindi (internetsiz). Fiskal chek internet tiklangach chiqadi va chop etiladi.",
+      );
+      Navigator.pop(
+        context,
+        PaymentOutcome(bill: r.bill, orderClosed: r.order.isClosed),
+      );
+      return;
+    }
     if (r.bill.dueAmount.isPositive) {
       // Qisman to'landi: qolgani keyingi to'lovda
       if (openDrawer) printer.openDrawer();
@@ -614,6 +628,11 @@ class _PaymentPageState extends State<PaymentPage> {
 
   Widget _entry(RzColors c) {
     final bool mixedReady = _remaining.isPositive;
+    // P3-31: offline only cash and a separate card terminal (POS_SPEC 5.1)
+    final bool limited = limitedMode(context);
+    if (limited && _tab != PosTender.cash && _tab != PosTender.card) {
+      _tab = PosTender.cash;
+    }
     return PosCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -622,13 +641,21 @@ class _PaymentPageState extends State<PaymentPage> {
             options: <PosTender, String>{
               PosTender.cash: 'Naqd',
               PosTender.card: 'Karta',
-              PosTender.qr: 'QR',
-              if (_depositAvailable.isPositive) PosTender.prepayment: 'Avans',
-              PosTender.account: 'Nasiya',
+              if (!limited) PosTender.qr: 'QR',
+              if (!limited && _depositAvailable.isPositive)
+                PosTender.prepayment: 'Avans',
+              if (!limited) PosTender.account: 'Nasiya',
             },
             selected: _tab,
             onSelected: _selectTab,
           ),
+          if (limited) ...<Widget>[
+            const SizedBox(height: 12),
+            const NoticeBanner(
+              icon: Icons.cloud_off_rounded,
+              message: "Internetsiz rejim: faqat naqd va karta. QR, avans va nasiya internet tiklangach. Fiskal chek internet tiklangach chiqadi.",
+            ),
+          ],
           const SizedBox(height: 16),
           switch (_tab) {
             PosTender.cash || PosTender.card || PosTender.qr => TenderForm(

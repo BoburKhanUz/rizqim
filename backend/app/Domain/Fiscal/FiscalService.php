@@ -289,6 +289,7 @@ class FiscalService implements FiscalIssuer
                 'lines' => FiscalSnapshot::lines($document->lines, $regime),
                 'payments' => FiscalSnapshot::payments($document->payments),
                 'original_receipt_id' => $original?->id,
+                'sold_at' => $document->soldAt,
             ]));
         } catch (UniqueConstraintViolationException $e) {
             return $this->existing($document) ?? throw $e;

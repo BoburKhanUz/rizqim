@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'package:pos_sync/pos_sync.dart';
 import 'package:rizqim_api/rizqim_api.dart';
 
 import 'accounts/account_repository.dart';
@@ -10,6 +11,7 @@ import 'catalog/catalog_repository.dart';
 import 'floor/floor_repository.dart';
 import 'http/connectivity.dart';
 import 'http/pos_http.dart';
+import 'offline/pos_offline.dart';
 import 'orders/order_repository.dart';
 import 'session/approvals.dart';
 import 'session/pos_session.dart';
@@ -27,32 +29,61 @@ import 'shift/shift_repository.dart';
 /// final menu = await pos.catalog.load(PosChannel.hall, menuVersion: boot.menuVersion);
 /// final order = await pos.orders.open(channel: PosChannel.hall, tableId: 3, guestsCount: 4);
 /// ```
+///
+/// P3-31: [offlineStore] berilsa (kassa) — internetsiz cheklangan rejim ([offline], docs/POS_SPEC.md 5-bo'lim):
+/// aloqa yo'qolganda buyurtma, bosqich, yuborish, schyot va to'lov diskdagi navbatga yoziladi va aloqa qaytgach
+/// `POST /pos/sync` ga tartib bilan yuboriladi. Berilmasa (ofitsiant) — avvalgidek: aloqa yo'q bo'lsa faqat ko'rish.
 class PosData {
   PosData(
     this.client, {
     PosCatalogCache? catalogCache,
     DateTime Function()? clock,
     Random? random,
+    SyncStore? offlineStore,
+    SyncTransport? syncTransport,
   }) : http = PosHttp(
          client.dio,
          connectivity: PosConnectivity(clock: clock),
          random: random,
        ) {
-    bootstrap = PosBootstrapRepository(http, clock: clock);
+    offline = offlineStore == null
+        ? null
+        : PosOffline(
+            store: offlineStore,
+            http: http,
+            clock: clock,
+            random: random,
+            transport: syncTransport,
+          );
+    bootstrap = PosBootstrapRepository(http, clock: clock)..offline = offline;
     approvals = ApprovalService(http);
     session = PosSession(
       auth: client.auth,
       bootstrapRepository: bootstrap,
       approvals: approvals,
     );
-    catalog = PosCatalogRepository(http, cache: catalogCache, clock: clock);
-    floor = FloorRepository(http);
-    orders = PosOrderRepository(http);
-    billing = BillingRepository(http);
-    shifts = ShiftRepository(http);
+    catalog = PosCatalogRepository(http, cache: catalogCache, clock: clock)
+      ..offline = offline;
+    floor = FloorRepository(http, offline: offline);
+    orders = PosOrderRepository(http, offline: offline);
+    billing = BillingRepository(http, offline: offline);
+    shifts = ShiftRepository(http, offline: offline);
     bookings = BookingRepository(http);
     accounts = CustomerAccountRepository(http);
+    final PosOffline? o = offline;
+    if (o != null) {
+      o
+        ..staffId = (() => session.staffId)
+        ..staffName = (() => session.staffName)
+        ..can = session.can
+        ..shiftUuid = (() => session.shift?.uuid)
+        ..bootstrap = (() => session.bootstrap ?? o.storedBootstrap())
+        ..catalog = catalog.cached;
+    }
   }
+
+  /// Internetsiz cheklangan rejim (kassa); ofitsiantda `null`.
+  late final PosOffline? offline;
 
   final RizqimClient client;
   final PosHttp http;
@@ -73,6 +104,7 @@ class PosData {
   PosConnectivity get connectivity => http.connectivity;
 
   Future<void> dispose() async {
+    await offline?.dispose();
     await session.dispose();
     await catalog.dispose();
     await connectivity.dispose();

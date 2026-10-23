@@ -1370,3 +1370,152 @@ Keyinga qoldirildi: tez-tez sotiladigan taomlar ("Tez-tez") — hozircha qurilma
 Testlar: `tests/Feature/PosBackendGapsOrdersTest.php`, `PosBackendGapsKitchenTest.php`, `PosBackendGapsSetupTest.php`,
 `PosBilling/PosFiscalSnapshotTest.php`, `PosBilling/PosBackendGapsShiftsTest.php`,
 `PosBooking/PosBookingFiscalSnapshotTest.php`, `ApiDocsSpecTest`.
+
+## Internetsiz rejim (P3-31)
+
+Kassa internet yo'qligida cheklangan rejimda ishlaydi (POS_SPEC §5): amallar qurilmadagi navbatga yoziladi va aloqa
+tiklanganda `POST /pos/sync` bilan tartib bo'yicha yuboriladi. Server haqiqat manbai, lekin bo'lib o'tgan sotuv va
+olingan pul hech qachon rad etilmaydi.
+
+| Metod | Yo'l | Kim | Vazifasi |
+|---|---|---|---|
+| POST | `/pos/sync` | kassa terminali (`auth:device`) | navbatdagi amallar to'plami (≤ 50) |
+| GET | `/pos/sync/status` | kassa terminali | aloqa tekshiruvi, navbat hisoboti, shu kassaning xatolari |
+| GET | `/pos/sync/errors` | xodim, `orders.view` | "Sinxronlash xatolari" ro'yxati |
+| POST | `/pos/sync/errors/{opId}/resolve` | xodim, `orders.cancel` | xatoni "hal qilindi" yoki "yopildi" deb belgilash |
+
+Terminal so'rovlari `throttle:pos-sync` (qurilmaga daqiqada 120) bilan. Faqat POS turidagi terminal tokeni sinxronlaydi,
+aks holda 403 `terminal_required`.
+
+### POST /pos/sync
+
+`Idempotency-Key` ixtiyoriy (har amal o'z `op_id` si bilan baribir idempotent).
+
+```json
+{
+  "sent_at": "2026-10-22T18:00:05Z",
+  "queue": {"size": 12, "oldest_at": "2026-10-22T16:41:00Z"},
+  "operations": [
+    {"op_id": "uuid", "seq": 41, "type": "order.open", "occurred_at": "2026-10-22T16:41:00Z",
+     "staff_id": 7, "payload": {"order": "uuid", "local_number": "K1-0041", "channel": "pos_hall", "table_id": 3,
+     "guests_count": 4, "items": [...], "send": true, "menu_taken_at": "2026-10-22T08:00:00Z"}}
+  ]
+}
+```
+
+- `operations` — 1…50 ta; `op_id` (UUID) va `seq` to'plam ichida takrorlanmaydi. Server ularni `seq` bo'yicha
+  tartiblab birma-bir qo'llaydi, har biri o'z tranzaksiyasida.
+- `staff_id` — amalni bajargan xodim: shu do'kon/filialda kassa roli, shu kassada 36 soat ichida PIN bilan kirgani
+  (`staff.session_started` auditi) va amal uchun huquq tekshiriladi. Bo'lmasa amal `rejected`
+  (`staff_invalid`, `staff_not_signed_in`, `permission_denied`).
+- `sent_at` — qurilma soati; server farqni hisoblaydi (`clock_skew_seconds`), 300 soniyadan oshsa `clock_warning`.
+- `queue` — qurilmadagi navbat holati: menejer paneli uchun `devices.sync_pending_ops`, `sync_oldest_op_at`.
+
+Amal turlari va `payload`:
+
+| Tur | Huquq | Payload |
+|---|---|---|
+| `order.open` | `orders.manage` | `order` (qurilma UUID'si → `external_id`), `local_number`, `channel` (`pos_hall`/`pos_takeaway`), `table_id?`, `guests_count?`, `waiter_id?`, `note?`, `items?`, `send?`, `menu_taken_at?` |
+| `order.round` | `orders.manage` | `order`, `items`, `send?`, `menu_taken_at?` |
+| `order.send` | `orders.manage` | `order`, `lines?` (qator id'lari; bo'lmasa hamma yuborilmagan "hozir" qatorlar) |
+| `order.void` | `orders.manage` | `order`, `line`, `reason?` |
+| `order.served` | `orders.manage` | `order`, `line` |
+| `bill.create` | `orders.manage` + `pos.take_payment` | `order`, `bill` (qurilma UUID'si), `expected_total?` |
+| `bill.pay` | `pos.take_payment` | `order`, `bill`, `shift_uuid?`, `tenders`: `[{tender: cash\|card, amount, tendered_amount?, card_type?, transaction_id?}]` |
+| `order.close` | `pos.take_payment` | `order` |
+
+`order` va `bill` — qurilma bergan UUID yoki serverdagi UUID (onlayn ochilgan buyurtma). `items[]` — onlayn
+buyurtmadagi kabi qator, qo'shimcha: `line_id` (qurilma UUID'si → `order_items.client_line_id`), `unit_price`
+(qurilma ko'rgan narx), `modifiers[].price_delta`. Har amalda ixtiyoriy `idempotency_key` — uzilishdan oldin yuborilgan
+onlayn so'rovning kaliti: server o'sha so'rovni bajargan bo'lsa amal qayta qo'llanmaydi, o'sha natija qaytadi.
+
+Javob (200):
+
+```json
+{"server_time": "...", "clock_skew_seconds": 4, "clock_warning": false, "stopped_at": null,
+ "results": [{"op_id": "uuid", "seq": 41, "type": "order.open", "status": "applied", "reason": null,
+   "message": null, "duplicate": false,
+   "refs": {"order_uuid": "...", "order_version": 3, "local_number": "K1-0041", "items": {"<line_id>": 812}}}],
+ "device": {"uuid": "...", "name": "Kassa 1", "prefix": "K1", "last_seq": 41, "pending_ops": 0, "oldest_op_at": null,
+   "reported_at": "...", "clock_skew_seconds": 4, "clock_warning": false}}
+```
+
+- `status`: `applied`, `conflict` (qo'llandi, lekin menejer ko'rishi kerak — `refs.flags`), `rejected` (qo'llanmadi,
+  "Sinxronlash xatolari"ga tushadi; `reason` va o'zbekcha `message`).
+- Bir `op_id` ikkinchi marta kelsa — saqlangan natija `duplicate: true` bilan (javob yo'qolgan holat).
+- `refs`: `order_uuid`, `order_version`, `local_number`, `items` (qator id → server id), `bill_uuid`, `bill_total`,
+  `payments`, `fiscal_status`, `sent`, `closed`, `flags`.
+- `stopped_at` — baza xatosi tufayli to'xtagan `seq`: shu va keyingi amallar javobda yo'q, navbatda qoladi.
+- 409: `sync_in_progress` (shu kassaning boshqa so'rovi ketyapti), `op_id_conflict` (amal raqami boshqa qurilmaniki),
+  `seq_reused` (shu `seq` boshqa amalga berilgan).
+
+Rad etish sabablari (`reason`): `order_not_found`, `order_closed`, `line_not_found`, `line_sent` (o'chirilayotgan qator
+shu orada oshxonaga ketgan), `bill_not_found`, `bill_paid`, `bill_void`, `items_required`, `tenders_required`,
+`tender_not_offline` (oflayn faqat naqd va karta), `amount_invalid`, `channel_invalid`, `type_unknown`,
+`terminal_without_branch`, xodim sabablari.
+
+### Ziddiyat qoidalari
+
+- **Bir amal ikki marta** (`op_id`) yoki **bir buyurtma ikki marta** (`external_id`) — bir marta qo'llanadi.
+- **Buyurtma versiyasi** solishtirilmaydi (oshxona "tayyor"i ham versiyani oshiradi): amal mazmunan sig'masa rad
+  etiladi — buyurtma yopilgan/bekor qilingan, qator shu orada yuborilgan yoki o'chirilgan.
+- **Joy band** (`table_occupied`, `table_inactive`, `table_missing`) — mehmonlar xizmat olgan: buyurtma joysiz
+  ochiladi, `conflict`.
+- **Narx** — qurilma narxi saqlanadi (`order_items.price_source = offline_snapshot`), `offline_price` belgisi (ma'lumot uchun).
+  Menyu nusxasi 24 soatdan eski bo'lsa `stale_menu` — `conflict`. Serverda sotuvdan olingan taom —
+  `sold_while_unavailable`.
+- **Qozon/qoldiq yetmadi** — sotuv saqlanadi, qoldiq 0 dan pastga tushmaydi, kamomad
+  `menu_batches.oversold_quantity` ga yoziladi (`oversold`, `stock_short`) — `conflict`.
+- **Pul** hech qachon rad etilmaydi: schyot shu orada to'langan yoki buyurtma bekor qilingan bo'lsa to'lov baribir
+  yoziladi va buyurtma `refund_needed` (bekor qilingan) yoki `payment_unallocated` deb belgilanadi (audit
+  `pos.offline_payment_unallocated`). Server hisobidan kam to'langan — `underpaid`, ko'p — `overpaid` (naqd ortig'i
+  schyotga sig'diriladi). `bill.create` dagi `expected_total` farqi — `amount_mismatch` (ma'lumot uchun).
+- `local_number` band bo'lsa — `local_number_taken` (ma'lumot uchun), buyurtma raqamsiz ochiladi.
+
+Belgilar buyurtmaning `sync_flags` ida ham saqlanadi va buyurtma JSON'ida `offline` blokida ko'rinadi:
+`{"local_number": "K1-0041", "created_at": "...", "synced_at": "...", "flags": [...]}` (oflayn ochilmagan buyurtmada
+`null`).
+
+**Fiskal chek** sinxronlashda, tranzaksiyadan keyin ro'yxatdan o'tadi; sotuv vaqti sifatida oflayn to'lov vaqti
+(`payments.offline_paid_at` → `fiscal_receipts.sold_at`) yuboriladi. Provayder javob bermasa chek odatdagidek
+"fiskal kutmoqda" navbatida qoladi.
+
+### GET /pos/sync/status
+
+Aloqa tekshiruvi (kassa oflaynda har 15–60 soniyada chaqiradi). `queue_size`, `oldest_at` query parametrlari —
+navbat hisoboti. Javob: `server_time`, `device` (yuqoridagi kabi), `errors` (shu kassaning ko'rib chiqilmagan
+`conflict`/`rejected` amallari, 100 tagacha) va `errors_count`.
+
+### GET /pos/sync/errors va resolve
+
+`GET /pos/sync/errors?branch_id=&device=&all=&page=` — yangisi birinchi, sahifada 50 ta; `all=1` hal qilinganlarini
+ham. Har qator: `op_id`, `seq`, `type`, `type_label`, `status`, `reason`, `message`, `staff`, `device`, `occurred_at`,
+`received_at`, `applied_at`, `clock_skew_seconds`, `order` (`uuid`, `local_number`, `short_code`, `table_ref`,
+`status`), `payload`, `refs`, `resolved_at`, `resolved_by`, `resolution`, `resolution_note`.
+
+`POST /pos/sync/errors/{opId}/resolve` `{"resolution": "resolved"|"dismissed", "note": "..."}` — audit
+`pos.sync_error_resolved` / `pos.sync_error_dismissed`. `Idempotency-Key` ixtiyoriy.
+
+### Bootstrap `offline` qismi
+
+`GET /pos/bootstrap` da `offline`: `device_prefix` (kassaga bir marta beriladi: `K1`, `K2`…), `next_local_number`,
+`business_date`, `day_type`, `fees[]` (`hall_id`, `channel`, `service_charge_percent`, `place_fee_amount`,
+`place_fee_mode`), `places[]` (`table_id`, `hall_id`, `room_fee`, `min_spend`, `min_spend_mode`), `guest_items[]`
+(`hall_id`, `variant_uuid`, `quantity_per_guest`, `sort_order`) va `limits` (`batch_size` 50, `warn_after_minutes` 15,
+`alert_after_minutes` 120, `max_queued_orders` 500, `menu_max_age_hours` 24, `contact_max_age_hours` 24,
+`fiscal_warn_hours` [24, 40], `fiscal_limit_hours` 48, `clock_skew_warn_seconds` 300).
+
+### Smenani yopish
+
+`POST /pos/shifts/{uuid}/close` yangi 409 sabablari (ikkalasi ham `force` bilan o'tkaziladi):
+
+- `shift_has_unsynced_ops` — kassa navbatida serverga yetmagan amallar bor (`devices.sync_pending_ops > 0`); boshqa
+  tekshiruvlardan oldin.
+- `shift_has_sync_errors` — smena ochilgandan beri ko'rib chiqilmagan rad etilgan amallar bor.
+
+Migratsiyalar (qo'shimcha, qaytariladigan): `2026_10_28_100000_create_pos_sync_operations_table`,
+`2026_10_28_100100_add_offline_columns_to_orders_tables` (orders: `local_number`, `offline_created_at`, `synced_at`,
+`sync_flags`; order_items: `client_line_id`, `price_source`; payments: `offline_paid_at`, `synced_at`; menu_batches:
+`oversold_quantity`; devices: `sync_*`; fiscal_receipts: `sold_at`).
+
+Testlar: `tests/Feature/PosSync/PosSyncFlowTest.php`, `PosSyncConflictsTest.php`, `PosSyncAccessTest.php`.

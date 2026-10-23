@@ -9,7 +9,7 @@ part of 'get_v1_user_response.dart';
 GetV1UserResponse _$GetV1UserResponseFromJson(Map<String, dynamic> json) =>
     GetV1UserResponse(
       success: json['success'] as bool,
-      data: Data190.fromJson(json['data'] as Map<String, dynamic>),
+      data: Data194.fromJson(json['data'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$GetV1UserResponseToJson(GetV1UserResponse instance) =>

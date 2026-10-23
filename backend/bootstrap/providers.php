@@ -18,4 +18,6 @@ return [
     App\Providers\PosOrdersServiceProvider::class,
     // P3-18: bills, payments, shifts, refunds, manager approvals (ManagerApprovals)
     App\Domain\Pos\Billing\PosBillingServiceProvider::class,
+    // P3-31: offline limited mode: POST /pos/sync, the bootstrap's offline section
+    App\Domain\Pos\Sync\PosSyncServiceProvider::class,
 ];
