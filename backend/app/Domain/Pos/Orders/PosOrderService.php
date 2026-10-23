@@ -5,6 +5,8 @@ namespace App\Domain\Pos\Orders;
 use App\Domain\Pos\Contracts\KitchenStationResolver;
 use App\Domain\Pos\Contracts\ManagerApprovals;
 use App\Domain\Pos\Billing\BillStatus;
+use App\Domain\Pos\Billing\BillableOrder;
+use App\Domain\Pos\Billing\PosActionException;
 use App\Domain\Pos\Contracts\PosOrderOpener;
 use App\Enums\DiningTableKind;
 use App\Enums\FireMode;
@@ -221,8 +223,9 @@ class PosOrderService implements PosOrderOpener
             $items = $this->lines->add($order, $branch, $lines, $round, $actor);
 
             $this->charges->recalculate($order);
+            $sent = [];
             if ($send) {
-                $this->fire($order, $actor, $items->filter(fn (OrderItem $item) => $item->fire_mode === FireMode::NOW)->pluck('id')->all());
+                $sent = $this->fire($order, $actor, $items->filter(fn (OrderItem $item) => $item->fire_mode === FireMode::NOW)->pluck('id')->map(fn ($id) => (int) $id)->all());
             }
 
             $this->audit->record('pos.round_added', $order, [], [], [
@@ -231,7 +234,8 @@ class PosOrderService implements PosOrderOpener
                 'sent' => $send,
             ], ['actor' => $actor]);
 
-            return ['round_added', $items->pluck('id')->map(fn ($id) => (int) $id)->all()];
+            // Review P3-35 (P3W3 #8): lines sent with the round are announced as sent too
+            return ['round_added', $items->pluck('id')->map(fn ($id) => (int) $id)->all(), $sent !== [] ? [['sent', $sent]] : []];
         }, $approvalToken);
 
         return ['order' => $order, 'items' => $items];
@@ -239,23 +243,23 @@ class PosOrderService implements PosOrderOpener
 
     /**
      * P3-31: a round a till sold offline, applied at sync (POS_SPEC 5.3): no version check (the till could not see the
-     * server's version; additions never clash with what changed meanwhile), the device's prices and an oversold kazan
-     * accepted (PosLineBuilder::addOffline), then the charges, the send when the till sent it, the audit and the
+     * server's version; additions never clash with what changed meanwhile), the device's prices (those the dish had
+     * since $menuTakenAt, review P3-35) and an oversold kazan accepted (PosLineBuilder::addOffline), then the charges, the send when the till sent it, the audit and the
      * announcement as for any round. $roundNo: the round to add to (1 when it is the round the order was opened with).
      *
      * @param  list<array<string, mixed>>  $lines  PosLineBuilder::parse() lines with client_line_id, unit_price, modifier_prices
      * @return array{order: Order, items: Collection<int, OrderItem>, flags: list<array<string, mixed>>, sent: list<int>}
      */
-    public function offlineRound(Order $order, User $actor, array $lines, bool $send, ?int $roundNo = null): array
+    public function offlineRound(Order $order, User $actor, array $lines, bool $send, ?int $roundNo = null, ?Carbon $menuTakenAt = null): array
     {
-        return DB::transaction(function () use ($order, $actor, $lines, $send, $roundNo) {
+        return DB::transaction(function () use ($order, $actor, $lines, $send, $roundNo, $menuTakenAt) {
             $locked = Order::whereKey($order->getKey())->lockForUpdate()->firstOrFail();
             $this->assertMutable($locked);
 
             $round = $roundNo ?? (int) $locked->items()->max('round_no') + 1;
             /** @var Branch $branch */
             $branch = $locked->branch;
-            $added = $this->lines->addOffline($locked, $branch, $lines, $round, $actor);
+            $added = $this->lines->addOffline($locked, $branch, $lines, $round, $actor, $menuTakenAt);
             $items = $added['items'];
 
             $this->charges->recalculate($locked);
@@ -271,6 +275,9 @@ class PosOrderService implements PosOrderOpener
             $locked->forceFill(['version' => (int) $locked->version + 1])->save();
             $locked->refresh();
             event(new OrderItemsChangedBroadcast($locked, 'round_added', $items->pluck('id')->map(fn ($id) => (int) $id)->all()));
+            if ($sent !== []) {
+                event(new OrderItemsChangedBroadcast($locked, 'sent', $sent));
+            }
 
             return ['order' => $locked, 'items' => $items, 'flags' => $added['flags'], 'sent' => $sent];
         });
@@ -441,7 +448,8 @@ class PosOrderService implements PosOrderOpener
             $source = $locked->get($source->id);
 
             $sourceItems = [];
-            $target = $this->mutate($locked->get($target->id), $version, $actor, function (Order $target) use ($source, $sourceVersion, $actor, $approvalToken, &$sourceItems) {
+            $movedBooking = null;
+            $target = $this->mutate($locked->get($target->id), $version, $actor, function (Order $target) use ($source, $sourceVersion, $actor, $approvalToken, &$sourceItems, &$movedBooking) {
                 // The waiter rule for both orders: one manager's approval covers the pair
                 $approvedBy = $this->waiters->guard($target, $actor, $approvalToken);
                 $this->assertMutable($source);
@@ -457,6 +465,16 @@ class PosOrderService implements PosOrderOpener
                 }
                 if (Payment::where('order_id', $source->id)->where('status', PaymentStatus::PAID->value)->exists()) {
                     throw new PosOrderException("To'lovi bor buyurtmani birlashtirib bo'lmaydi.", 422, 'has_payments');
+                }
+
+                // Review P3-35: a booking's order merged into another keeps its booking and deposits with the guests
+                $sourceBooking = $source->getAttribute('booking_id') !== null ? (int) $source->getAttribute('booking_id') : null;
+                $targetBooking = $target->getAttribute('booking_id') !== null ? (int) $target->getAttribute('booking_id') : null;
+                if ($sourceBooking !== null && $targetBooking !== null && $sourceBooking !== $targetBooking) {
+                    throw new PosOrderException("Ikkala buyurtma ham boshqa-boshqa bronga tegishli: ularni birlashtirib bo'lmaydi.", 422, 'merge_bookings_conflict');
+                }
+                if ($sourceBooking !== null && $targetBooking === null) {
+                    $movedBooking = $this->moveBooking($sourceBooking, $source, $target, $actor);
                 }
 
                 $offset = (int) $target->items()->max('round_no');
@@ -490,19 +508,55 @@ class PosOrderService implements PosOrderOpener
                     'notes' => "POS: #{$target->short_code} buyurtmasiga birlashtirildi ({$actor->name})",
                 ]);
 
-                $this->audit->record('pos.orders_merged', $target, [], [], [
+                $this->audit->record('pos.orders_merged', $target, [], [], array_filter([
                     'source' => $source->uuid,
                     'source_table' => $source->table_ref,
                     'items' => count($sourceItems),
-                ], ['actor' => $actor]);
+                    'booking_id' => $movedBooking?->id,
+                ], fn ($value) => $value !== null), ['actor' => $actor]);
 
                 event(new OrderStatusChangedBroadcast($source->refresh()));
 
                 return ['merged', $sourceItems];
             }, null, false);
 
+            if ($movedBooking !== null) {
+                // The booking's screens follow it to the order it lives on now (after commit)
+                app(\App\Domain\Pos\Booking\BookingService::class)->changed($movedBooking);
+            }
+
             return $target;
         });
+    }
+
+    /**
+     * The merged-away order's booking moves to the order its guests sit at now: orders.booking_id, bookings.order_id
+     * and the deposits not settled yet (booking_payments.order_id), so the target's bills can take the deposit and the
+     * booking completes when the target ends. The source loses it: its quiet cancellation completes nothing.
+     */
+    protected function moveBooking(int $bookingId, Order $source, Order $target, User $actor): ?\App\Models\Booking
+    {
+        $booking = \App\Models\Booking::whereKey($bookingId)->lockForUpdate()->first();
+        if ($booking === null) {
+            return null;
+        }
+
+        $target->forceFill(['booking_id' => $booking->id])->save();
+        $source->forceFill(['booking_id' => null])->save();
+        \App\Models\BookingPayment::where('booking_id', $booking->id)
+            ->where(fn ($query) => $query->where('order_id', $source->id)->orWhereNull('order_id'))
+            ->update(['order_id' => $target->id, 'updated_at' => now()]);
+
+        $booking->order_id = $target->id;
+        $booking->version = $booking->version + 1;
+        $booking->save();
+
+        $this->audit->record('booking.order_merged', $booking, ['order_id' => (int) $source->id], ['order_id' => (int) $target->id], [
+            'source' => $source->uuid,
+            'target' => $target->uuid,
+        ], ['actor' => $actor]);
+
+        return $booking;
     }
 
     /**
@@ -757,9 +811,11 @@ class PosOrderService implements PosOrderOpener
     /**
      * Runs a change under the order's row lock: open POS order, the version the client saw, the waiter rule
      * (WaiterAccess, with $approvalToken; an action that checks it itself passes $guardWaiter false), then the
-     * change, then the version bump and the order.items_changed announcement. The closure returns [change, item ids].
+     * change, then the version bump and the order.items_changed announcement. The closure returns [change, item ids]
+     * and, optionally, further changes announced after it at the same version ([[change, item ids], ...]: a round sent
+     * at once is `round_added`, then `sent`).
      *
-     * @param  Closure(Order): array{0: string, 1: list<int>}  $change
+     * @param  Closure(Order): array{0: string, 1: list<int>, 2?: list<array{0: string, 1: list<int>}>}  $change
      */
     protected function mutate(Order $order, int $version, User $actor, Closure $change, ?string $approvalToken = null, bool $guardWaiter = true): Order
     {
@@ -773,15 +829,58 @@ class PosOrderService implements PosOrderOpener
                 $this->waiters->guard($locked, $actor, $approvalToken);
             }
 
-            [$what, $itemIds] = $change($locked);
+            // What the order's bills are made from, when a bill of it is being paid (review P3-35)
+            $basis = $this->hasTakenBills($locked) ? BillableOrder::fingerprint($locked) : null;
+            $result = $change($locked);
+            [$what, $itemIds] = $result;
+            if ($basis !== null && BillableOrder::fingerprint($locked) !== $basis) {
+                $this->assertPaidBillsFit($locked);
+            }
 
             $locked->forceFill(['version' => (int) $locked->version + 1])->save();
             $locked->refresh();
 
             event(new OrderItemsChangedBroadcast($locked, $what, $itemIds));
+            foreach ($result[2] ?? [] as [$also, $alsoIds]) {
+                event(new OrderItemsChangedBroadcast($locked, $also, $alsoIds));
+            }
 
             return $locked;
         });
+    }
+
+    /**
+     * Review P3-35: a change may not take away what a bill already being paid carries (a paid line voided, a charge
+     * waived or lowered by fewer guests or another table): the order would no longer fit its paid bills and could be
+     * neither billed, paid nor cancelled. Checked after the change, inside its transaction, so a refused change rolls
+     * back whole: 409 `paid_bill_affected` (refund the payment first, POST /pos/refunds). Only a change that moved what
+     * the bills are made from is checked: sending or serving a line never is.
+     */
+    protected function assertPaidBillsFit(Order $order): void
+    {
+        try {
+            BillableOrder::of($order);
+        } catch (PosActionException $e) {
+            throw new PosOrderException(
+                "Bu o'zgarish to'lovi olingan schyotdagi taom yoki xizmat haqiga tegadi: avval o'sha to'lovni qaytaring, keyin o'zgartiring.",
+                409,
+                'paid_bill_affected',
+                ['bills_reason' => $e->reason],
+            );
+        }
+    }
+
+    /**
+     * Whether a bill of the order is being paid (a payment taken on it, or paid).
+     */
+    protected function hasTakenBills(Order $order): bool
+    {
+        return OrderBill::query()
+            ->where('order_id', $order->id)
+            ->where('status', '!=', BillStatus::VOID->value)
+            ->where(fn ($query) => $query->where('status', BillStatus::PAID->value)
+                ->orWhereExists(fn ($payments) => $payments->selectRaw('1')->from('payments')->whereColumn('payments.bill_id', 'order_bills.id')))
+            ->exists();
     }
 
     /**
@@ -818,7 +917,8 @@ class PosOrderService implements PosOrderOpener
             $item->forceFill([
                 'kitchen_status' => KitchenItemStatus::SENT->value,
                 'sent_at' => $now,
-                'station_id' => $resolver?->stationIdFor($item),
+                // Resolved again: a held line got its station when it was added, the routes may have changed since
+                'station_id' => $resolver !== null ? $resolver->stationIdFor($item) : $item->station_id,
             ])->save();
         }
 

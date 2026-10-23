@@ -43,7 +43,7 @@ final class ShiftOwnerSummary
         $uzs = number_format(Money::of($refund->amount)->toFloat(), 0, '.', ' ') . " so'm";
         $order = Order::find($refund->order_id);
         $approver = $approvedBy !== null ? User::find($approvedBy) : null;
-        $methods = ['cash' => 'naqd', 'card' => 'karta', 'qr' => 'QR'];
+        $methods = ['cash' => 'naqd', 'card' => 'karta', 'qr' => 'QR', 'prepayment' => 'avansga', 'account' => 'nasiyadan'];
 
         $this->notify((int) $refund->store_id, implode("\n", array_filter([
             "Pul qaytarildi: {$uzs} (" . ($methods[$refund->method] ?? $refund->method) . ')',

@@ -170,6 +170,39 @@ void main() {
     expect(h['kitchen'].drawerOpens, 1);
   });
 
+  test('paper out stops the lane but the cash drawer still opens; a failed kick does not stop it', () async {
+    final Harness h = Harness();
+    h['kitchen'].failNext(1, paperOut);
+    final PrintJob receipt = h.queue.submit(kitchen, doc('Chek'));
+    await h.queue.whenSettledOrFailed(receipt);
+    expect(h.queue.stateOf('kitchen').paused, isTrue);
+
+    final PrintJob drawer = h.queue.openDrawer(
+      kitchen,
+      (EscPosBuilder()..openCashDrawer()).build(),
+    );
+    await h.queue.whenSettledOrFailed(drawer);
+    expect(drawer.status, PrintJobStatus.done);
+    expect(h['kitchen'].drawerOpens, 1);
+    expect(receipt.status, PrintJobStatus.failed, reason: 'still waiting');
+
+    // A kick that fails is dropped, the lane is not stopped by it
+    h.queue.resume('kitchen');
+    await receipt.done;
+    h['kitchen'].failNext(4, offline);
+    final PrintJob lost = h.queue.openDrawer(
+      kitchen,
+      (EscPosBuilder()..openCashDrawer()).build(),
+    );
+    await h.queue.whenSettledOrFailed(lost);
+    expect(lost.status, PrintJobStatus.failed);
+    expect(h.queue.stateOf('kitchen').paused, isFalse);
+    expect(h.queue.failedJobs, isEmpty);
+    final PrintJob next = h.queue.submit(kitchen, doc('Keyingi'));
+    await next.done;
+    expect(next.status, PrintJobStatus.done);
+  });
+
   test('cancel removes a waiting or failed job', () async {
     final Harness h = Harness(retry: RetryPolicy.none);
     h['kitchen'].failNext(1, offline);

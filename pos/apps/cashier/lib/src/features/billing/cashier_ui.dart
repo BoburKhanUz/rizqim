@@ -348,6 +348,17 @@ void showPosError(BuildContext context, Object error) {
     ..showSnackBar(SnackBar(content: Text(text)));
 }
 
+/// P3-35: smena shu orada yopildi (`shift_closed`): terminalning joriy smenasi serverdan qayta o'qiladi (yuqori panel
+/// va keyingi to'lov eskirgan smenani ishlatmasin).
+Future<void> reloadShift(PosScope scope) async {
+  try {
+    final PosShiftWithReport current = await scope.data.shifts.current();
+    scope.session.updateShift(current.shift?.toSummary());
+  } on PosException {
+    // Aloqa yo'q: keyingi `shift.changed` yoki qayta ulanishda
+  }
+}
+
 void showPosMessage(BuildContext context, String text) =>
     ScaffoldMessenger.maybeOf(context)
       ?..hideCurrentSnackBar()
@@ -615,14 +626,20 @@ Future<bool> runGuarded(
 /// Real-time hodisa yoki polling bilan ro'yxatni yangilab turadi (sahifa yopilganda to'xtaydi).
 mixin RefreshingState<T extends StatefulWidget> on State<T> {
   PosRefreshScheduler? _scheduler;
+  StreamSubscription<List<SyncOperation>>? _syncSub;
 
   /// Sahifa ochilganda va yangilanganda.
   Future<void> refresh();
 
+  /// [offline] va [orderRef] berilsa (P3-35): offlayn navbat serverga yetganda shu buyurtmaning amali bo'lsa sahifa
+  /// serverdan qayta yuklanadi (qator server narxida saqlangan bo'lishi mumkin) va [onSynced] chaqiriladi.
   void startRefreshing(
     PosRealtime? realtime, {
     bool Function(PosEvent event)? filter,
     Duration pollInterval = const Duration(seconds: 15),
+    PosOffline? offline,
+    String? orderRef,
+    void Function(List<SyncOperation> ops)? onSynced,
   }) {
     _scheduler = PosRefreshScheduler(
       realtime: realtime,
@@ -630,11 +647,19 @@ mixin RefreshingState<T extends StatefulWidget> on State<T> {
       pollInterval: pollInterval,
       onRefresh: (_) => refresh(),
     )..start();
+    if (offline != null && orderRef != null) {
+      _syncSub = offline.synced.listen((List<SyncOperation> ops) {
+        if (!syncTouchesOrder(ops, orderRef, offline.store.resolve)) return;
+        onSynced?.call(ops);
+        unawaited(_scheduler?.refreshNow());
+      });
+    }
   }
 
   @override
   void dispose() {
     unawaited(_scheduler?.dispose());
+    unawaited(_syncSub?.cancel());
     super.dispose();
   }
 }

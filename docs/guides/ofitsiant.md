@@ -192,6 +192,10 @@ Tepada menyu (⋮):
 
 Birlashtirish va butun buyurtmani bekor qilish — kassada.
 
+Schyotning bir qismi to'langan bo'lsa, mehmonlar sonini kamaytirish, ko'chirish yoki yuborilmagan taomni o'chirish ba'zan mumkin
+emas: bu to'langan summaga tegadi. Ilova "Bu buyurtmaning schyoti to'lana boshlagan … kassirga ayting" deb yozadi, buyurtma
+o'zgarmaydi. Kassir avval to'lovni qaytaradi, keyin o'zgartirish mumkin.
+
 ## 9. Boshqa ofitsiantning buyurtmasi
 
 Siz faqat **o'z** buyurtmangizni o'zgartira olasiz. **Hammasi** yorlig'idan boshqa ofitsiantning buyurtmasini ochsangiz:
@@ -220,13 +224,14 @@ Nima qilish kerak:
 
 1. Wi-Fi yoki mobil internetni tekshiring. **Qayta urinish** ni bosing. Aloqa qaytsa, lenta o'zi yo'qoladi.
 2. Aloqa yo'q paytda mehmon buyurtma bersa, yozib oling (qog'ozda) va oshxonaga **og'zaki** ayting.
-3. Yangi taomni **kassada** kiritishni so'rang: kassa internetsiz ham cheklangan ishlay oladi (qarang: [kassa qo'llanmasi, 20-bo'lim](kassa.md#20-internet-uzilsa-tez-orada), tez orada).
+3. Yangi taomni **kassada** kiritishni so'rang: kassa internetsiz ham ishlaydi — buyurtma, bosqich, oshxonaga yuborish, naqd va karta
+   to'lovi (qarang: [kassa qo'llanmasi, 20-bo'lim](kassa.md#20-internet-uzilsa)).
 4. Aloqa qaytgach, qolgan amallarni telefonda bajaring.
 
 Muhim:
 
 - Amal paytida aloqa uzilsa, ilova "Aloqa yo'q. Hozircha faqat ko'rish mumkin: aloqa qaytgach amalni takrorlang" deydi. Aloqa qaytgach
-  **xuddi shu amalni qayta bosing**: u ikki marta yozilmaydi (bir xil so'rov belgisi bilan yuboriladi).
+  **xuddi shu amalni qayta bosing**: u ikki marta yozilmaydi (aynan o'sha so'rov yuboriladi — oraliqda ekran yangilangan bo'lsa ham).
 - Telefon amallarni keyinga **saqlab qo'ymaydi** (ofitsiant ilovasi internetsiz faqat ko'rish uchun). Yuborilmagan taomni takror kiritishga to'g'ri keladi.
 - "Buyurtmani boshqa qurilma o'zgartirdi. Ro'yxat yangilandi, amalni qayta bajaring" chiqsa, kassir yoki hamkasbingiz shu buyurtmani
   o'zgartirgan. Buyurtmani qayta ko'ring va amalni takrorlang.
@@ -250,4 +255,5 @@ Muhim:
 | "Tasdiq muddati o'tdi" yoki "Bu tasdiq allaqachon ishlatilgan" | Menejer PIN'ini qayta kiriting |
 | **Aloqa yo'q** | [10-bo'lim](#10-aloqa-yoqolganda) |
 | "Buyurtmani boshqa qurilma o'zgartirdi" | Ro'yxat yangilandi; amalni qayta bajaring |
+| "Bu buyurtmaning schyoti to'lana boshlagan" | Schyotning bir qismi to'langan, o'zgarish unga tegadi. Kassirga ayting: u avval to'lovni qaytaradi ([8-bo'lim](#8-mehmonlar-soni-va-kochirish)) |
 | Ekran qulflanib qoldi | PIN bilan oching. Yuborilmagan savat yo'qolgan bo'lishi mumkin: qayta qo'shing |

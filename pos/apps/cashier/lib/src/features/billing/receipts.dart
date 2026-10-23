@@ -6,6 +6,7 @@ import 'package:pos_data/pos_data.dart';
 import 'package:pos_hardware/pos_hardware.dart';
 
 import '../../shell/pos_scope.dart';
+import '../order/kitchen_tickets.dart';
 import '../settings/cashier_prefs.dart';
 import 'cashier_ui.dart';
 
@@ -38,8 +39,17 @@ class ReceiptPrinter {
 
   String? get cashier => scope.session.staffName;
 
-  /// Hujjatni chop etadi. Printer yo'q yoki xato — [context] da xabar, `false`.
+  /// Hujjatni chop etish navbatiga qo'yadi (navbatga tushdi — `true`). Printer yo'q yoki chizib bo'lmadi —
+  /// [context] da xabar, `false`. Chiqmasa (qog'oz tugadi, printer javob bermadi) ish ekranlarida banner
+  /// ([KitchenPrintIssues.receiptsOf]) "Qayta urinish" bilan.
   Future<bool> print(
+    BuildContext context,
+    PrintLayout Function(PaperWidth paper) layout, {
+    bool openDrawer = false,
+  }) async => await submit(context, layout, openDrawer: openDrawer) != null;
+
+  /// [print] kabi, navbatdagi ishni qaytaradi (chiqqanini kutish uchun: `job.done`).
+  Future<PrintJob?> submit(
     BuildContext context,
     PrintLayout Function(PaperWidth paper) layout, {
     bool openDrawer = false,
@@ -53,18 +63,20 @@ class ReceiptPrinter {
           "Chek printeri sozlanmagan: boshqaruv panelida Printerlar bo'limidan qo'shing.",
         );
       }
-      return false;
+      return null;
     }
     try {
-      await scope.printing.printers.print(
+      final PrintJob job = await scope.printing.printers.print(
         printer,
         layout(printer.paper),
         openDrawer: openDrawer,
       );
-      return true;
+      KitchenPrintIssues.receiptsOf(scope.printing)
+          .watch(scope.printing.printers.queue, job);
+      return job;
     } on Object catch (e) {
       if (context.mounted) showPosMessage(context, 'Chop etilmadi: $e');
-      return false;
+      return null;
     }
   }
 

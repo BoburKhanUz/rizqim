@@ -63,6 +63,21 @@ return Application::configure(basePath: dirname(__DIR__))
         // Sentry: SENTRY_LARAVEL_DSN bo'sh bo'lsa hech narsa yubormaydi (config/sentry.php)
         \Sentry\Laravel\Integration::handles($exceptions);
 
+        // Review P3-35: a POS, booking, account or fiscal rule refusing an action (409/422/403: approval_required,
+        // version_conflict, has_payments, mxik_missing...) is the API's answer, not a server error: never reported
+        // (no ERROR log line with a stack trace, nothing sent to Sentry). One that answers 5xx still is.
+        $exceptions->dontReportWhen(fn (\Throwable $e) => match (true) {
+            $e instanceof \App\Domain\Pos\Billing\PosActionException,
+            $e instanceof \App\Domain\Pos\Orders\PosOrderException,
+            $e instanceof \App\Domain\Pos\Booking\BookingException,
+            $e instanceof \App\Domain\Pos\Accounts\CustomerAccountException => $e->status < 500,
+            // Always 422: a document that cannot be made (no MXIK, does not add up, a wrong original receipt)
+            $e instanceof \App\Domain\Fiscal\FiscalException,
+            // An offline batch the till must fix or resend (409 sync_in_progress, op_id_conflict, seq_reused)
+            $e instanceof \App\Domain\Pos\Sync\PosSyncException => true,
+            default => false,
+        });
+
         $exceptions->shouldRenderJsonWhen(function ($request, $e) {
             if ($request->is('api/*')) {
                 return true;

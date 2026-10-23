@@ -13,7 +13,7 @@ import 'repayment_dialog.dart';
 
 /// Nasiya hisoblari (POS_SPEC 2.9, 2.13; 13-ekran 16): qarzdorlar (eng katta qarz birinchi) va jami qarz, telefon yoki
 /// ism bo'yicha qidiruv, hisob ko'chirmasi, qarz to'lovi (kredit cheki), hisob ochish va tahrirlash (limit, to'xtatish —
-/// `customer_accounts.manage`).
+/// `customer_accounts.manage`; kassirda — menejer PIN'i bilan).
 class AccountsPage extends StatefulWidget {
   const AccountsPage({super.key});
 
@@ -138,9 +138,10 @@ class _AccountsPageState extends State<AccountsPage> {
   @override
   Widget build(BuildContext context) {
     final RzColors c = context.rz;
-    final bool manage = _scope.session.can(
-      PosPermissions.customerAccountsManage,
-    );
+    // A cashier opens and changes accounts too, with a manager's PIN when saving
+    final bool manage =
+        _scope.session.can(PosPermissions.customerAccountsManage) ||
+        _scope.session.needsApproval(PosPermissions.customerAccountsManage);
     return Material(
       color: c.page,
       child: LayoutBuilder(

@@ -37,7 +37,7 @@ void main() {
         reason: 'the list and the PIN panel',
       );
 
-      await typePin(tester, '1357');
+      await typePin(tester, '7350');
       expect(find.text("PIN noto'g'ri. Qayta urinib ko'ring."), findsOneWidget);
       expect(find.bySemanticsLabel('PIN: 0 ta raqam terildi'), findsOneWidget);
       final RequestOptions attempt = h.backend
@@ -47,12 +47,12 @@ void main() {
         attempt.headers['Authorization'],
         'Bearer ${FakeKitchenState.terminalToken}',
       );
-      expect(attempt.data, <String, Object?>{'user_id': 5, 'pin': '1357'});
+      expect(attempt.data, <String, Object?>{'user_id': 5, 'pin': '7350'});
 
       // typing again hides the message
-      await typePin(tester, '2', submit: false);
+      await typePin(tester, '7', submit: false);
       expect(find.text("PIN noto'g'ri. Qayta urinib ko'ring."), findsNothing);
-      await typePin(tester, '468');
+      await typePin(tester, '305');
 
       expect(find.text('Kim ishlaydi?'), findsNothing);
       expect(find.text('1 ta chipta'), findsOneWidget);
@@ -78,9 +78,9 @@ void main() {
       final KdsHarness h = harness();
       await pumpPaired(tester, h);
       await choose(tester, 'Aziz Karimov');
-      await typePin(tester, '1111');
-      await typePin(tester, '2222');
-      await typePin(tester, '3333');
+      await typePin(tester, '7350');
+      await typePin(tester, '7035');
+      await typePin(tester, '3705');
 
       expect(find.textContaining('Kirish vaqtincha bloklandi'), findsOneWidget);
       expect(
@@ -113,7 +113,7 @@ void main() {
     await pumpPaired(tester, h);
     await choose(tester, 'Aziz Karimov');
     h.backend.offline = true;
-    await typePin(tester, '2468');
+    await typePin(tester, '7305');
     expect(find.textContaining("Serverga ulanib bo'lmadi"), findsOneWidget);
   });
 

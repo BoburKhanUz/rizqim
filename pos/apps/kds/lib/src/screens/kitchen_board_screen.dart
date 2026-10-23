@@ -372,7 +372,7 @@ class _KitchenBoardScreenState extends State<KitchenBoardScreen> {
                                     clock: _now,
                                     settings: settings,
                                     canManage: board.canManage,
-                                    isNew: board.isNew(e.ticket.uuid, now),
+                                    isNew: board.isNew(e, now),
                                     isLineBusy: board.isLineBusy,
                                     orderBusy: board.isOrderBusy(e.ticket.uuid),
                                     onGroupTap: (SkewerGroup g) =>
@@ -386,7 +386,8 @@ class _KitchenBoardScreenState extends State<KitchenBoardScreen> {
                                     clock: _now,
                                     settings: settings,
                                     canManage: board.canManage,
-                                    isNew: board.isNew(e.ticket.uuid, now),
+                                    isNew: board.isNew(e, now),
+                                    newRounds: board.newRounds(e, now),
                                     isLineBusy: board.isLineBusy,
                                     orderBusy: board.isOrderBusy(e.ticket.uuid),
                                     onLineTap: (KitchenLine line) => unawaited(

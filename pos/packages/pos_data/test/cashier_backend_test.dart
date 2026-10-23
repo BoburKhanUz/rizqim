@@ -357,6 +357,189 @@ void main() {
     });
   });
 
+  group('P3-35 refunds and paid bills', () {
+    Future<PosMoney> expectedCash() async =>
+        (await h.pos.shifts.current()).report!.expectedCash;
+
+    test('deposit and nasiya parts are refunded with no cash: the deposit goes back to the booking, the debt down', () async {
+      h.state.openShift();
+      final String account = backend.seedAccount(
+        name: 'Jamshid',
+        limit: '1000000.00',
+      );
+      final String booking = backend.seedBooking(
+        tableId: 2,
+        start: h.now.add(const Duration(minutes: 10)),
+        deposit: '50000.00',
+      );
+      final PosArrival arrival = await h.pos.bookings.arrive(booking);
+      final PosOrder order = await h.pos.orders.get(arrival.orderUuid);
+      await h.pos.orders.addRound(
+        order.uuid,
+        version: order.version,
+        items: <PosLineInput>[
+          PosLineInput(
+            variantUuid: FakePosState.variantUuid(1),
+            quantity: const PosQuantity.whole(4),
+          ),
+        ],
+      );
+      final PosOrder fresh = await h.pos.orders.get(order.uuid);
+      final PosBill bill = (await h.pos.billing.createBills(
+        fresh.uuid,
+        version: fresh.version,
+      )).bills.single;
+      final PosMoney nasiya = bill.total - const PosMoney.som(50000);
+      final ApprovalToken pay = await managerToken(
+        PosPermissions.customerAccountsManage,
+      );
+      final PosBillResult paid = await h.pos.billing.pay(
+        bill.uuid,
+        approvalToken: pay.token,
+        tenders: <PosTenderInput>[
+          const PosTenderInput.prepayment(PosMoney.som(50000)),
+          PosTenderInput.account(nasiya, accountUuid: account),
+        ],
+      );
+      final PosPayment deposit = paid.bill.payments.firstWhere(
+        (PosPayment p) => p.tender == 'prepayment',
+      );
+      final PosPayment credit = paid.bill.payments.firstWhere(
+        (PosPayment p) => p.tender == 'account',
+      );
+      final PosMoney cashBefore = await expectedCash();
+
+      Future<PosRefund> refund(PosPayment p, PosMoney amount) async =>
+          h.pos.billing.refund(
+            paymentUuid: p.uuid,
+            amount: amount,
+            reason: "Xato to'lov",
+            approvalToken: (await managerToken(PosPermissions.refund)).token,
+          );
+
+      final PosRefund back = await refund(deposit, const PosMoney.som(20000));
+      expect(back.method, 'prepayment');
+      expect(
+        (await h.pos.bookings.get(booking)).depositAvailable,
+        const PosMoney.som(20000),
+      );
+
+      // The guest repays part of the debt: more than is left of it cannot come off
+      await h.pos.accounts.repay(
+        account,
+        amount: nasiya - const PosMoney.som(10000),
+        tender: 'cash',
+      );
+      final PosConflict debt = await _throws<PosConflict>(
+        () => refund(credit, const PosMoney.som(15000)),
+      );
+      expect(debt.reason, PosReasons.moreThanDebt);
+      expect(debt.message, contains('10000.00'));
+
+      final PosRefund off = await refund(credit, const PosMoney.som(10000));
+      expect(off.method, 'account');
+      expect(
+        (await h.pos.accounts.get(account)).account.balance,
+        PosMoney.zero,
+      );
+      // Neither moved cash (the repayment did, before)
+      expect(
+        await expectedCash(),
+        cashBefore + nasiya - const PosMoney.som(10000),
+      );
+    });
+
+    test('a fully refunded payment is refunded; the order then may be cancelled (has_payments before)', () async {
+      h.state.openShift();
+      final PosOrder order = await roomOrder();
+      final PosBilling billing = await h.pos.billing.createBills(
+        order.uuid,
+        version: order.version,
+        split: const PosSplit.equal(2),
+      );
+      final PosBill first = billing.bills.first;
+      final PosBillResult paid = await h.pos.billing.pay(
+        first.uuid,
+        tenders: <PosTenderInput>[PosTenderInput.cash(first.total)],
+      );
+      Future<PosOrder> cancel() async {
+        final PosOrder now = await h.pos.orders.get(order.uuid);
+        return h.pos.orders.cancel(
+          order.uuid,
+          version: now.version,
+          reason: 'Mehmonlar ketdi',
+          approvalToken: (await managerToken('orders.cancel')).token,
+        );
+      }
+
+      expect((await _throws<PosConflict>(cancel)).reason, 'has_payments');
+      await h.pos.billing.refund(
+        paymentUuid: paid.bill.payments.single.uuid,
+        amount: first.total,
+        reason: 'Mijoz voz kechdi',
+        approvalToken: (await managerToken(PosPermissions.refund)).token,
+      );
+      final PosBilling after = await h.pos.billing.bills(order.uuid);
+      expect(after.order.paymentStatus, 'refunded');
+      expect(after.bills.first.payments.single.status, 'refunded');
+      expect((await cancel()).status, 'canceled');
+    });
+
+    test('voiding a line a bill being paid carries: 409 paid_bill_affected, nothing changes', () async {
+      h.state.openShift();
+      final PosOrder order = await roomOrder();
+      final PosBill bill = (await h.pos.billing.createBills(
+        order.uuid,
+        version: order.version,
+      )).bills.single;
+      await h.pos.billing.pay(
+        bill.uuid,
+        tenders: <PosTenderInput>[
+          PosTenderInput.cash(bill.total - const PosMoney.som(1000)),
+        ],
+      );
+      final PosOrder now = await h.pos.orders.get(order.uuid);
+      final PosConflict e = await _throws<PosConflict>(
+        () => h.pos.orders.voidItem(
+          order.uuid,
+          bill.items.first.orderItemId,
+          version: now.version,
+          reason: 'xato',
+          approvalToken: null,
+        ),
+      );
+      expect(e.reason, PosReasons.paidBillAffected);
+      expect(e.needsOrderReload, isTrue);
+      expect((await h.pos.orders.get(order.uuid)).version, now.version);
+    });
+
+    test('two orders of different bookings are not merged', () async {
+      final String a = backend.seedBooking(
+        tableId: 1,
+        start: h.now.add(const Duration(minutes: 5)),
+      );
+      final String b = backend.seedBooking(
+        tableId: 2,
+        start: h.now.add(const Duration(minutes: 5)),
+      );
+      final PosOrder target = await h.pos.orders.get(
+        (await h.pos.bookings.arrive(a)).orderUuid,
+      );
+      final PosOrder source = await h.pos.orders.get(
+        (await h.pos.bookings.arrive(b)).orderUuid,
+      );
+      final PosRejected e = await _throws<PosRejected>(
+        () => h.pos.orders.merge(
+          target.uuid,
+          version: target.version,
+          sourceUuid: source.uuid,
+          sourceVersion: source.version,
+        ),
+      );
+      expect(e.reason, PosReasons.mergeBookingsConflict);
+    });
+  });
+
   group('shift', () {
     test(
       'cash movements, X report, Z refusals and a forced close with approval',
@@ -590,4 +773,13 @@ void main() {
 
 extension on PosData {
   OnlineOrderRepository onlineOrders() => OnlineOrderRepository(http);
+}
+
+Future<T> _throws<T extends Object>(Future<Object?> Function() call) async {
+  try {
+    await call();
+  } on T catch (e) {
+    return e;
+  }
+  fail('Expected $T');
 }

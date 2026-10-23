@@ -12,8 +12,8 @@ use InvalidArgumentException;
 /**
  * The rules a document must meet before it is sent (FiscalException::INVALID_DOCUMENT otherwise, Uzbek message):
  * the lines add up to the total and so do the payments; every line has a 17-digit MXIK, a unit, a positive quantity
- * and the VAT its amount and rate give; a turnover-tax store charges no VAT; only a sale may be paid by prepayment
- * (the advance offset) or on credit (nasiya), and one payment is never both; an advance or credit receipt is one line
+ * and the VAT its amount and rate give; a turnover-tax store charges no VAT; only a sale (and a refund of one) may be paid by
+ * prepayment (the advance offset) or on credit (nasiya), and one payment is never both; an advance or credit receipt is one line
  * of the store's deposit or credit charge; a refund names the issued sale (or advance) it refunds and never refunds
  * more than is left of it.
  *
@@ -140,11 +140,13 @@ class FiscalDocumentValidator
             if (!$payment->amount->isPositive()) {
                 throw FiscalException::invalid("To'lov summasi noldan katta bo'lishi kerak.");
             }
-            if ($payment->prepayment && $document->type !== FiscalReceiptType::SALE) {
-                throw FiscalException::invalid("Avans hisobidan to'lov faqat sotuv chekida bo'ladi.");
+            // Review P3-35: a refund of a sale gives its prepayment part back to the advance and takes its credit part
+            // off the debt, in the same marks as the sale showed them
+            if ($payment->prepayment && !in_array($document->type, [FiscalReceiptType::SALE, FiscalReceiptType::REFUND], true)) {
+                throw FiscalException::invalid("Avans hisobidan to'lov faqat sotuv chekida (va uni qaytarishda) bo'ladi.");
             }
-            if ($payment->credit && $document->type !== FiscalReceiptType::SALE) {
-                throw FiscalException::invalid("Nasiyaga (kreditga) sotish faqat sotuv chekida bo'ladi.");
+            if ($payment->credit && !in_array($document->type, [FiscalReceiptType::SALE, FiscalReceiptType::REFUND], true)) {
+                throw FiscalException::invalid("Nasiyaga (kreditga) sotish faqat sotuv chekida (va uni qaytarishda) bo'ladi.");
             }
             if ($payment->prepayment && $payment->credit) {
                 throw FiscalException::invalid("Bitta to'lov ham avans hisobidan, ham nasiyaga bo'lishi mumkin emas.");

@@ -60,7 +60,12 @@ class PosLineBuilder
             $item = is_array($items[$line['index']] ?? null) ? $items[$line['index']] : [];
             $note = isset($item['note']) && is_string($item['note']) && trim($item['note']) !== '' ? mb_substr(trim($item['note']), 0, 255) : null;
             $fire = isset($item['fire_mode']) ? FireMode::tryFrom((string) $item['fire_mode']) : null;
-            $due = isset($item['due_at']) && is_string($item['due_at']) && $item['due_at'] !== '' ? Carbon::parse($item['due_at']) : null;
+            try {
+                $due = isset($item['due_at']) && is_string($item['due_at']) && $item['due_at'] !== '' ? Carbon::parse($item['due_at']) : null;
+            } catch (\Throwable) {
+                // Review P3-35: a due time that is no date is the request's mistake, never a server error
+                throw ValidationException::withMessages(["items.{$line['index']}.due_at" => "Tayyor bo'lish vaqti noto'g'ri."]);
+            }
 
             $lines[] = $line + [
                 'note' => $note,
@@ -173,7 +178,7 @@ class PosLineBuilder
             $variant = $line['variant'];
             $batch = $line['batch'];
 
-            $created->push(OrderItem::create([
+            $created->push($this->createLine($order, [
                 'order_id' => $order->id,
                 'product_variant_id' => $variant->id,
                 'product_name' => $variant->product->name,
@@ -227,7 +232,7 @@ class PosLineBuilder
      * @param  list<array{index: int, variant_uuid: string, quantity: Quantity, modifiers: array<string, int>, note: ?string, seat_no: ?int, fire_mode: FireMode, due_at: ?Carbon, client_line_id?: ?string, unit_price?: ?\App\Support\Money, modifier_prices?: array<string, \App\Support\Money>}>  $lines
      * @return array{items: Collection<int, OrderItem>, flags: list<array<string, mixed>>}
      */
-    public function addOffline(Order $order, Branch $branch, array $lines, int $roundNo, User $actor): array
+    public function addOffline(Order $order, Branch $branch, array $lines, int $roundNo, User $actor, ?Carbon $menuTakenAt = null): array
     {
         if ($lines === []) {
             return ['items' => collect(), 'flags' => []];
@@ -249,7 +254,14 @@ class PosLineBuilder
             ->where('is_active', false)
             ->pluck('variant_id')
             ->flip();
-        $modifierRows = $this->offlineModifiers($lines);
+        $modifierRows = $this->offlineModifiers($order, $lines);
+
+        // Review P3-35: the prices the till may have had, from its menu snapshot (a day back when it did not say) on
+        $from = $menuTakenAt !== null && $menuTakenAt->lt(now()) ? $menuTakenAt : now()->subHours(\App\Domain\Pos\Sync\PosSyncApplier::STALE_MENU_HOURS);
+        $history = app(\App\Services\Catalog\PriceHistory::class);
+        $variantPrices = $history->variantPrices($variants->pluck('id')->map(fn ($id) => (int) $id)->values()->all(), $order->channel, $from);
+        $modifierPrices = $history->modifierPrices($modifierRows->pluck('id')->map(fn ($id) => (int) $id)->values()->all(), $from);
+        $had = fn (array $prices, \App\Support\Money $price) => array_filter($prices, fn (\App\Support\Money $known) => $known->equals($price)) !== [];
 
         $flags = [];
         $priced = [];
@@ -269,24 +281,40 @@ class PosLineBuilder
             }
 
             $current = $channelMenu->priceOf($variant);
-            $price = $line['unit_price'] ?? $current;
+            $device = $line['unit_price'] ?? null;
+            $price = $device ?? $current;
+            $source = 'offline_snapshot';
             if (!$price->equals($current)) {
-                $flags[] = ['flag' => 'offline_price', 'line_id' => $line['client_line_id'] ?? null, 'name' => $name, 'offline_price' => $price->toString(), 'current_price' => $current->toString()];
+                if ($had($variantPrices[(int) $variant->id] ?? [], $price)) {
+                    $flags[] = ['flag' => 'offline_price', 'line_id' => $line['client_line_id'] ?? null, 'name' => $name, 'offline_price' => $price->toString(), 'current_price' => $current->toString()];
+                } else {
+                    // Review P3-35: a price the dish never had while the till's menu was taken: the server's applies
+                    $flags[] = ['flag' => 'offline_price_mismatch', 'line_id' => $line['client_line_id'] ?? null, 'name' => $name, 'device_price' => $price->toString(), 'server_price' => $current->toString()];
+                    $price = $current;
+                    $source = 'online';
+                }
             }
 
             $snapshot = [];
             $modifiersTotal = \App\Support\Money::zero();
             foreach ($line['modifiers'] as $uuid => $count) {
-                $row = $modifierRows->get($uuid);
-                $delta = ($line['modifier_prices'] ?? [])[$uuid] ?? ($row !== null ? \App\Support\Money::of($row->price_delta) : \App\Support\Money::zero());
+                /** @var \App\Models\Modifier $row */
+                $row = $modifierRows->get(strtolower((string) $uuid));
+                $serverDelta = \App\Support\Money::of($row->price_delta);
+                $delta = ($line['modifier_prices'] ?? [])[strtolower((string) $uuid)] ?? $serverDelta;
+                if (!$delta->equals($serverDelta) && !$had($modifierPrices[(int) $row->id] ?? [], $delta)) {
+                    $flags[] = ['flag' => 'offline_price_mismatch', 'line_id' => $line['client_line_id'] ?? null, 'name' => "{$name}: {$row->name}", 'device_price' => $delta->toString(), 'server_price' => $serverDelta->toString()];
+                    $delta = $serverDelta;
+                    $source = 'online';
+                }
                 $total = $delta->times($count);
                 $modifiersTotal = $modifiersTotal->plus($total);
                 $snapshot[] = [
-                    'id' => $row !== null ? (int) $row->id : 0,
+                    'id' => (int) $row->id,
                     'uuid' => $uuid,
-                    'group_id' => $row !== null ? (int) $row->modifier_group_id : null,
-                    'group_name' => $row?->group?->name,
-                    'name' => $row->name ?? "Qo'shimcha",
+                    'group_id' => (int) $row->modifier_group_id,
+                    'group_name' => $row->group?->name,
+                    'name' => $row->name,
                     'price_delta' => $delta->toString(),
                     'quantity' => $count,
                     'total' => $total->toString(),
@@ -296,6 +324,7 @@ class PosLineBuilder
             $priced[] = $line + [
                 'variant' => $variant,
                 'price' => $price,
+                'price_source' => $source,
                 'modifiers_snapshot' => $snapshot,
                 'modifiers_total' => $modifiersTotal,
                 'total' => $this->lines->lineTotal($price, $line['quantity'], $modifiersTotal, $variant->unit),
@@ -346,7 +375,7 @@ class PosLineBuilder
                 $flags[] = ['flag' => 'stock_short', 'line_id' => $line['client_line_id'] ?? null, 'name' => $name, 'quantity' => $line['quantity']->minus($deduct)->toString()];
             }
 
-            $created->push(OrderItem::create([
+            $created->push($this->createLine($order, [
                 'order_id' => $order->id,
                 'product_variant_id' => $variant->id,
                 'product_name' => $variant->product->name,
@@ -367,7 +396,7 @@ class PosLineBuilder
                 'seat_no' => $line['seat_no'],
                 'added_by' => $actor->id,
                 'client_line_id' => $line['client_line_id'] ?? null,
-                'price_source' => 'offline_snapshot',
+                'price_source' => $line['price_source'],
             ]));
         }
 
@@ -375,24 +404,57 @@ class PosLineBuilder
     }
 
     /**
-     * The modifiers an offline round names, by uuid, with their group (deleted ones too: the device sold them).
+     * The modifiers an offline round names, by uuid, with their group (deleted ones too: the device sold them); only
+     * this store's (review P3-35): one the store never had refuses the operation (PosSyncException
+     * `modifier_not_found`), like an unknown variant.
      *
      * @param  list<array<string, mixed>>  $lines
      * @return Collection<string, \App\Models\Modifier>
      */
-    private function offlineModifiers(array $lines): Collection
+    private function offlineModifiers(Order $order, array $lines): Collection
     {
         $uuids = [];
         foreach ($lines as $line) {
             foreach (array_keys($line['modifiers']) as $uuid) {
-                $uuids[] = (string) $uuid;
+                $uuids[] = strtolower((string) $uuid);
             }
         }
         if ($uuids === []) {
             return collect();
         }
 
-        return \App\Models\Modifier::withTrashed()->with('group')->whereIn('uuid', array_values(array_unique($uuids)))->get()->keyBy(fn ($modifier) => strtolower((string) $modifier->uuid));
+        $rows = \App\Models\Modifier::withTrashed()
+            ->with(['group' => fn ($query) => $query->withTrashed()])
+            ->whereIn('uuid', array_values(array_unique($uuids)))
+            ->whereHas('group', fn ($query) => $query->withTrashed()->where('store_id', $order->store_id))
+            ->get()
+            ->keyBy(fn ($modifier) => strtolower((string) $modifier->uuid));
+        foreach (array_unique($uuids) as $uuid) {
+            if (!$rows->has($uuid)) {
+                throw new \App\Domain\Pos\Sync\PosSyncException('modifier_not_found', "Qo'shimcha topilmadi (menyudan butunlay o'chirilgan yoki boshqa do'konniki).", ['modifier_id' => $uuid]);
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Stores a line with its kitchen station (KitchenStationResolver, P3-13) from the start (review P3-35): a held
+     * pre-order shows on its station's display before it is sent; sending resolves it again (the routes may have
+     * changed meanwhile).
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    private function createLine(Order $order, array $attributes): OrderItem
+    {
+        $item = new OrderItem($attributes);
+        $item->setRelation('order', $order);
+        if (app()->bound(\App\Domain\Pos\Contracts\KitchenStationResolver::class)) {
+            $item->station_id = app(\App\Domain\Pos\Contracts\KitchenStationResolver::class)->stationIdFor($item);
+        }
+        $item->save();
+
+        return $item;
     }
 
     /**

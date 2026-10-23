@@ -132,10 +132,50 @@ void main() {
     expect(find.text(uzs(200000)), findsWidgets);
 
     await tapKey(tester, 'booking-arrive');
+    expect(find.text('Mehmonlar keldi'), findsOneWidget);
+    await tapKey(tester, 'arrival-confirm');
     expect(p.backend.bookings[uuid]!['status'], 'arrived');
     final String order = p.backend.bookings[uuid]!['order_uuid']! as String;
     expect(find.byType(OrderPage), findsOneWidget);
     expect(tester.widget<OrderPage>(find.byType(OrderPage)).orderUuid, order);
+  });
+
+  testWidgets('"Keldi": fewer guests came and they sit in another room', (
+    WidgetTester tester,
+  ) async {
+    final P22 p = P22();
+    final String uuid = p.backend.seedBooking(
+      tableId: 2,
+      start: DateTime.utc(2026, 10, 22, 14),
+      name: 'Jamshid aka',
+      guests: 8,
+    );
+    await pumpHome(tester, p.h);
+    await openSection(tester, 'Bronlar');
+    await tapKey(tester, 'booking-$uuid');
+    await tapKey(tester, 'booking-arrive');
+    expect(find.text('Mehmonlar keldi'), findsOneWidget);
+    await tester.tap(find.widgetWithText(ChoiceChip, '6'));
+    await tester.pumpAndSettle();
+    await tapButton(tester, 'Boshqa joy');
+    expect(find.text("Boshqa joyga ko'chirish"), findsOneWidget);
+    await tester.tap(find.text('3-xona'));
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<Text>(find.byKey(const ValueKey<String>('arrival-place')))
+          .data,
+      startsWith('3-xona'),
+    );
+    await tapKey(tester, 'arrival-confirm');
+
+    final Map<String, Object?> booking = p.backend.bookings[uuid]!;
+    expect(booking['status'], 'arrived');
+    final Map<String, Object?> order =
+        p.state.orders[booking['order_uuid']! as String]!;
+    expect(order['guests_count'], 6);
+    expect((order['table']! as Map<String, Object?>)['id'], 3);
+    expect(find.byType(OrderPage), findsOneWidget);
   });
 
   testWidgets(

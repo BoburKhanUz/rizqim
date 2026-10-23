@@ -94,7 +94,7 @@ export function TariffsPanel({ branchId }: { branchId: number }) {
             )}
           </Card>
 
-          <CalendarCard branchId={branchId} calendar={data.calendar} />
+          <CalendarCard key={branchId} branchId={branchId} calendar={data.calendar} />
 
           {dialog && (
             <TariffDialog

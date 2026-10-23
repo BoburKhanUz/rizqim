@@ -240,7 +240,7 @@ void main() {
       () => h.pos.approvals.request(
         permission: 'orders.cancel',
         userId: 3,
-        pin: '2468',
+        pin: '4827',
       ),
     );
     expect(notAllowed.reason, PosReasons.approverNotAllowed);

@@ -22,16 +22,21 @@ ofitsiantning buyurtmasida menejer tasdig'i. Ofitsiantda to'lov va chek chiqaris
 - **Boshqa ofitsiantning buyurtmasi** faqat ko'rish uchun. "Tahrirlash (menejer tasdig'i)" bosilgach har bir amal server
   403 `approval_required` qaytarsa menejer (ega) PIN oynasini ochadi (`withApproval`), token bilan qayta yuboriladi.
   `approver_not_allowed`, muddati o'tgan yoki ishlatilgan tasdiq aniq o'zbekcha matn bilan aytiladi.
-- **Aloqa yo'q**: qizil lenta, ilova faqat ko'rish rejimida (yozuvlar navbatga qo'yilmaydi: 3-to'lqin, P3-31); aloqa
-  o'zi qaytadi. Amal paytida tarmoq uzilsa, xuddi shu amal qayta bosilganda o'sha `Idempotency-Key` yuboriladi.
+- P3-35: o'zgarish to'lovi olingan schyotga tegsa (409 `paid_bill_affected`) — "kassirga ayting: u avval to'lovni
+  qaytaradi" matni, buyurtma va schyot holati qayta yuklanadi. `order.items_changed` ning ikki xabari (`round_added`,
+  `sent`) bitta qayta yuklashga birlashadi.
+- **Aloqa yo'q**: qizil lenta, ilova faqat ko'rish rejimida (yozuvlar navbatga qo'yilmaydi: internetsiz rejim faqat
+  kassada, P3-31); aloqa o'zi qaytadi. Amal paytida tarmoq uzilsa (javob kelmadi), xuddi shu amal qayta bosilganda
+  **aynan o'sha so'rov** — o'sha `Idempotency-Key` va o'sha `version` bilan — yuboriladi: oraliqda buyurtma yangilangan
+  bo'lsa ham server uni bir marta bajaradi (bosqich ikki marta tushmaydi). Server javob bersa (rad etdi, versiya
+  to'qnashuvi) keyingisi yangi so'rov.
 
 ## Schyot so'rash
 
-Backend'da alohida "schyot so'raldi" endpointi yo'q. Ofitsiant o'z buyurtmasi uchun schyotni tuzishi mumkin
-(`POST /pos/orders/{uuid}/bills`, `mode: single`, `orders.manage`): ilova shuni yuboradi, kassa `order.bill_changed`
-hodisasi va `GET /pos/orders/{uuid}/bills` orqali ochiq schyotni ko'radi, chiqaradi va to'lovni oladi. Ofitsiant
-schyotni *chiqarmaydi* (`/print` chaqirilmaydi): chiqarish buyurtmani qulflaydi va telefonda printer yo'q. Buyurtma
-schyotdan keyin o'zgarsa "Schyot eskirdi: qayta so'rang" ko'rsatiladi.
+"Schyot so'rash" — `POST /pos/orders/{uuid}/request-bill` (P3-26, `OrderController.requestBill`): kassaga
+`order.bill_requested` hodisasi boradi, zal xaritasida "Schyot so'raldi" ko'rinadi. Schyotni kassir tuzadi, chiqaradi
+va to'lovni oladi; ofitsiant schyot tuzmaydi va chiqarmaydi (telefonda printer yo'q). Takroriy so'rov o'zgarishsiz
+qaytadi. Kassir schyotni chiqargandan keyin buyurtma o'zgarsa "Schyot eskirdi" ko'rsatiladi.
 
 ## Ishga tushirish
 
@@ -42,8 +47,8 @@ flutter run -d linux \
   --dart-define=RIZQIM_REVERB_KEY=pos-key --dart-define=RIZQIM_REVERB_URL=ws://127.0.0.1:8789
 ```
 
-Telefon panelda kassa turidagi kod bilan ulanadi (soxta backend'da istalgan 8 belgi). Ofitsiant Botir — PIN 1357,
-Aziz — 1111, menejer Malika — 5926. Aloqa uzilishini sinash: `curl -X POST "http://127.0.0.1:8789/__control/offline?on=1"`.
+Telefon panelda kassa turidagi kod bilan ulanadi (soxta backend'da istalgan 8 belgi). Ofitsiant Botir — PIN 3691,
+Aziz — 7305, menejer Malika — 5926. Aloqa uzilishini sinash: `curl -X POST "http://127.0.0.1:8789/__control/offline?on=1"`.
 
 Umumiy soxta backend (`pos_data`): `cd pos/packages/pos_data && dart run tool/fake_pos_server.dart --port 8788`; unda
 ofitsiant qoidasi yo'q.

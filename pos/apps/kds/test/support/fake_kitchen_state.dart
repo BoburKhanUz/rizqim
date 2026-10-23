@@ -32,6 +32,8 @@ class PosLine {
     this.note,
     this.mods = const <String>[],
     this.voidReason,
+    this.product,
+    this.category,
   });
 
   final String name;
@@ -54,6 +56,10 @@ class PosLine {
   final String? note;
   final List<String> mods;
   final String? voidReason;
+
+  /// Taom va kategoriya id (`product_id`, `category_id`): sexsiz ushlab turilgan qator sexi yo'naltirishdan topiladi.
+  final int? product;
+  final int? category;
 }
 
 class FakeKitchenState {
@@ -89,8 +95,9 @@ class FakeKitchenState {
     },
   ];
 
-  /// Hammaning PIN kodi.
-  String pin = '2468';
+  /// Hammaning PIN kodi. Serverdagi qoidaga mos (backend `StaffPinService::weakness`: 1111, 1234, 2468, 1357 kabi
+  /// oddiy kodlar o'rnatilmaydi; pos_data soxta serveridagi Aziz PIN'i bilan bir xil).
+  String pin = '7305';
 
   /// Shuncha noto'g'ri urinishdan keyin 429 `pin_locked`.
   int maxWrong = 3;
@@ -103,6 +110,13 @@ class FakeKitchenState {
 
   /// `GET /pos/bootstrap` dagi sexlar. `null` — endpoint yo'q (fazа 2 serveri): 404.
   List<Map<String, Object?>>? stations;
+
+  /// Chiptalar javobida HTTP `Date` sarlavhasi (server soati) bor.
+  bool sendDate = true;
+
+  /// `GET /pos/bootstrap` `station_routes`: taom id -> sex id va kategoriya id -> sex id.
+  final Map<int, int> productRoutes = <int, int>{};
+  final Map<int, int> categoryRoutes = <int, int>{};
 
   /// Qozonlar (`/owner/batches`) va qozon bo'yicha sotiladigan taomlar (`GET /catalog`).
   final List<Map<String, Object?>> batches = <Map<String, Object?>>[];
@@ -259,7 +273,21 @@ class FakeKitchenState {
       'note': l.note,
       'voided_at': l.status == 'void' ? now() : null,
       'void_reason': l.voidReason,
+      'product_id': l.product,
+      'category_id': l.category,
     };
+  }
+
+  /// Backend'dagidek: qator sexi taomning yo'naltirishidan, bo'lmasa kategoriyasinikidan.
+  int? _routeOf(Map<String, Object?> item) =>
+      productRoutes[item['product_id']] ?? categoryRoutes[item['category_id']];
+
+  /// Ochiq stolga yangi qatorlar (masalan, keyingi bosqich) qo'shildi: buyurtma o'sha, qatorlar yangi.
+  void addLines(String uuid, List<PosLine> lines) {
+    _items(_order(uuid)!).addAll(<Map<String, Object?>>[
+      for (final PosLine l in lines) _posItem(l),
+    ]);
+    _event('kitchen.item_status_changed', uuid);
   }
 
   /// Ofitsiant qatorni o'chirdi ("O'CHIRILDI"): hodisa yuboriladi.
@@ -286,6 +314,8 @@ class FakeKitchenState {
         .firstWhere((Map<String, Object?> i) => i['id'] == itemId);
     item['kitchen_status'] = 'sent';
     item['sent_at'] = now();
+    // Yuborishda server sexni yozadi (ushlab turilgan qatorda hali yo'q bo'lishi mumkin)
+    item['station_id'] ??= _routeOf(item);
     _event('kitchen.item_status_changed', uuid);
   }
 
@@ -406,6 +436,10 @@ class FakeKitchenState {
       tapchanItems[1]['id']! as int,
       reason: 'Mehmon xohlamadi',
     );
+    // Ushlab turilgan oldindan buyurtmalarda sex hali yozilmagan: oshxona uni yo'naltirishdan topadi (osh kategoriyasi
+    // osh sexiga, shashlik taomi mangalga)
+    categoryRoutes[20] = 2;
+    productRoutes[31] = 1;
     addPosOrder(
       table: 'Xona 5',
       age: const Duration(minutes: 1),
@@ -414,7 +448,7 @@ class FakeKitchenState {
           'Toy oshi',
           '8 kg',
           unit: 'kg',
-          station: 2,
+          category: 20,
           status: 'pending',
           fire: 'hold',
           dueIn: Duration(hours: 2, minutes: 35),
@@ -423,7 +457,8 @@ class FakeKitchenState {
         PosLine(
           'Shashlik assorti',
           '20',
-          station: 1,
+          product: 31,
+          category: 30,
           status: 'pending',
           fire: 'hold',
           dueIn: Duration(minutes: 55),
@@ -432,7 +467,7 @@ class FakeKitchenState {
           'Qozon kabob',
           '3 kg',
           unit: 'kg',
-          station: 2,
+          category: 20,
           status: 'pending',
           fire: 'hold',
           dueIn: Duration(minutes: 70),
@@ -441,7 +476,7 @@ class FakeKitchenState {
           'Osh',
           '2 kg',
           unit: 'kg',
-          station: 2,
+          category: 20,
           status: 'pending',
           fire: 'hold',
           dueIn: Duration(minutes: 20),
@@ -611,23 +646,27 @@ class FakeKitchenState {
       if (method == 'GET' && p == '/v1/staff/kitchen/tickets') {
         // P3-26: `canceled_within` (daqiqa) — shu vaqt ichida bekor qilinganlar ham, `canceled_at` bilan
         final int? within = int.tryParse(query['canceled_within'] ?? '');
-        return FakeResponse(200, <String, Object?>{
-          'success': true,
-          'message': '',
-          'data': <Object?>[
-            for (final Map<String, Object?> o in orders)
-              if (o['status'] == 'accepted' || o['status'] == 'preparing')
-                _ticket(o),
-            if (within != null)
+        return FakeResponse(
+          200,
+          <String, Object?>{
+            'success': true,
+            'message': '',
+            'data': <Object?>[
               for (final Map<String, Object?> o in orders)
-                if (o['status'] == 'canceled' &&
-                    o['canceled_at'] is DateTime &&
-                    now().difference(o['canceled_at']! as DateTime) <
-                        Duration(minutes: within))
+                if (o['status'] == 'accepted' || o['status'] == 'preparing')
                   _ticket(o),
-          ],
-          'meta': <String, Object?>{'truncated': false},
-        });
+              if (within != null)
+                for (final Map<String, Object?> o in orders)
+                  if (o['status'] == 'canceled' &&
+                      o['canceled_at'] is DateTime &&
+                      now().difference(o['canceled_at']! as DateTime) <
+                          Duration(minutes: within))
+                    _ticket(o),
+            ],
+            'meta': <String, Object?>{'truncated': false},
+          },
+          headers: <String, String>{if (sendDate) 'Date': _httpDate(now())},
+        );
       }
       final RegExpMatch? line = RegExp(
         r'^/v1/staff/orders/([^/]+)/items/(\d+)/(ready|recall)$',
@@ -664,6 +703,16 @@ class FakeKitchenState {
       return _ok(<String, Object?>{
         'server_time': now().toUtc().toIso8601String(),
         'stations': list,
+        'station_routes': <String, Object?>{
+          'categories': <Object?>[
+            for (final MapEntry<int, int> r in categoryRoutes.entries)
+              <String, Object?>{'category_id': r.key, 'station_id': r.value},
+          ],
+          'products': <Object?>[
+            for (final MapEntry<int, int> r in productRoutes.entries)
+              <String, Object?>{'product_id': r.key, 'station_id': r.value},
+          ],
+        },
       });
     }
     if (p == '/v1/catalog') {
@@ -947,4 +996,36 @@ class FakeKitchenState {
         'success': false,
         'message': message,
       });
+}
+
+const List<String> _weekdays = <String>[
+  'Mon',
+  'Tue',
+  'Wed',
+  'Thu',
+  'Fri',
+  'Sat',
+  'Sun',
+];
+const List<String> _months = <String>[
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
+
+/// HTTP `Date` sarlavhasi (server soati): `Thu, 22 Oct 2026 07:00:00 GMT`.
+String _httpDate(DateTime at) {
+  final DateTime u = at.toUtc();
+  String two(int n) => n.toString().padLeft(2, '0');
+  return '${_weekdays[u.weekday - 1]}, ${two(u.day)} ${_months[u.month - 1]} ${u.year} '
+      '${two(u.hour)}:${two(u.minute)}:${two(u.second)} GMT';
 }

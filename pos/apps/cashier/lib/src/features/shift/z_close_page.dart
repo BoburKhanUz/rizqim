@@ -95,10 +95,7 @@ class _ZClosePageState extends State<ZClosePage> {
       );
       scope.session.updateShift(null);
       if (!mounted) return;
-      final Object? summary = closed.raw['summary'];
-      final PosShiftReport report = summary is Map
-          ? PosShiftReport.fromJson(PosJson.of(summary))
-          : widget.report;
+      final PosShiftReport report = closed.summary ?? widget.report;
       final ReceiptPrinter printer = ReceiptPrinter(scope);
       final ShiftReport doc = ShiftReportView(report).toDocument(
         kind: ShiftReportKind.z,

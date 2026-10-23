@@ -254,7 +254,7 @@ describe('Kassa sozlamalari (filial)', () => {
     expect(calls.some((call) => call.method === 'PUT')).toBe(false);
   });
 
-  it('saves the whole settings: an alert switched off is null, the slot is a number, the holidays are the list', async () => {
+  it('saves what was changed: an alert switched off is null, the slot is a number, the holidays are the list', async () => {
     const { calls, typing } = await open('Kassa sozlamalari', { 'PUT /api/v1/owner/branches/1/pos-settings': () => ok(posSettings({ business_day_starts_at: '04:00' })) });
     await typing.selectOptions(await screen.findByLabelText('Kassa rejimi'), 'table');
     fireTime(screen.getByLabelText('Biznes kun boshlanishi'), '04:00');
@@ -271,18 +271,49 @@ describe('Kassa sozlamalari (filial)', () => {
       pos_settings: {
         mode: 'table',
         printing_device_id: 'dev-1',
-        screen_lock_minutes: 5,
         queue_numbers: true,
-        alerts: { open_room_hours: 6, void_amount: 200000, discount_percent: null, unaccepted_online_minutes: 3 },
+        alerts: { discount_percent: null },
         booking_slot_minutes: 240,
         holidays: ['2026-11-05', '2026-12-31'],
       },
     });
   });
 
+  it('can only be saved once something changed, and then sends only that', async () => {
+    const { calls, typing } = await open('Kassa sozlamalari', { 'PUT /api/v1/owner/branches/1/pos-settings': () => ok(posSettings()) });
+    const save = await screen.findByRole('button', { name: 'Saqlash' });
+    expect(save).toBeDisabled();
+    await typing.clear(screen.getByLabelText("O'chirilgan taom summasi: qiymat"));
+    await typing.type(screen.getByLabelText("O'chirilgan taom summasi: qiymat"), '150000');
+    await typing.click(save);
+    await waitFor(() => expect(calls.some((call) => call.method === 'PUT')).toBe(true));
+    expect(await last(calls, 'PUT').json()).toEqual({ pos_settings: { alerts: { void_amount: 150000 } } });
+  });
+
+  it('shows the settings as read again, not the cached ones, and does not send the cached holidays back', async () => {
+    let holidays = ['2026-12-31'];
+    const current = () => posSettings({ pos_settings: { ...posSettings().pos_settings, holidays } });
+    const { calls, typing } = await open('Kassa sozlamalari', {
+      'GET /api/v1/owner/branches/1/pos-settings': () => ok(current()),
+      'PUT /api/v1/owner/branches/1/pos-settings': () => ok(current()),
+    });
+    await screen.findByText(/2026-12-31/);
+    await typing.click(screen.getByRole('tab', { name: 'Sexlar' }));
+    // The floor's calendar (or another device) added a holiday; the form opens from the cache while it is read again
+    holidays = ['2026-12-31', '2027-01-01'];
+    await typing.click(screen.getByRole('tab', { name: 'Kassa sozlamalari' }));
+    expect(await screen.findByText(/2027-01-01/)).toBeInTheDocument();
+    await typing.clear(screen.getByLabelText('Ekran qulfi'));
+    await typing.type(screen.getByLabelText('Ekran qulfi'), '10');
+    await typing.click(screen.getByRole('button', { name: 'Saqlash' }));
+    await waitFor(() => expect(calls.some((call) => call.method === 'PUT')).toBe(true));
+    expect(await last(calls, 'PUT').json()).toEqual({ pos_settings: { screen_lock_minutes: 10 } });
+  });
+
   it("shows the server's refusal of a value under its field", async () => {
     const { typing } = await open('Kassa sozlamalari', { 'PUT /api/v1/owner/branches/1/pos-settings': () => json({ success: false, message: 'Xato', errors: { business_day_starts_at: ["Biznes kun 00:00 dan 11:59 gacha boshlanadi."] } }, 422) });
-    await typing.click(await screen.findByRole('button', { name: 'Saqlash' }));
+    fireTime(await screen.findByLabelText('Biznes kun boshlanishi'), '04:00');
+    await typing.click(screen.getByRole('button', { name: 'Saqlash' }));
     expect(await screen.findByText('Biznes kun 00:00 dan 11:59 gacha boshlanadi.')).toBeInTheDocument();
   });
 });

@@ -17,4 +17,10 @@ interface AdvanceLedger
      * Marks `amount` of the order's deposits as applied to the bill; throws when more is asked than is available.
      */
     public function apply(Order $order, Money $amount, string $billUuid): void;
+
+    /**
+     * Review P3-35: gives back `amount` of what was offset against the bill (a refund of the bill's prepayment part):
+     * the deposit holds it again, to be offset, refunded or retained. Throws when more is asked than the bill took.
+     */
+    public function reverse(Order $order, Money $amount, string $billUuid): void;
 }

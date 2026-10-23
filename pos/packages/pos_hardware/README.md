@@ -39,7 +39,8 @@ Kanal shartnomasi: `lib/src/printer/sunmi_transport.dart` boshidagi jadval.
 Har printerga alohida ketma-ket navbat (printerlar parallel). Ulanmasa yoki vaqt tugasa 1, 3, 10 soniyadan keyin qayta
 urinadi; qog'oz tugasa yoki qopqoq ochiq bo'lsa darhol "Chop etilmadi" va shu printer navbati to'xtaydi (keyingi
 markalar tartibi buzilmaydi) — `retry` / `resume` bilan davom etadi (`autoResumeAfter` — o'zi). Kassa qutisi navbat
-boshiga o'tadi. Diqqat: printer baytlarni olib javob bermasa, qayta urinish hujjatni ikki marta chiqarishi mumkin.
+boshiga o'tadi, to'xtagan navbatda ham ochiladi va qog'oz tekshirilmaydi (LAN); ochilmasa keyinga qoldirilmaydi va
+navbatni to'xtatmaydi. Diqqat: printer baytlarni olib javob bermasa, qayta urinish hujjatni ikki marta chiqarishi mumkin.
 
 ## Sinov
 

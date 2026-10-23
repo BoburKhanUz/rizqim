@@ -89,7 +89,7 @@ class PosRefundsTest extends TestCase
         $this->assertSame('T9', $this->fiscal->document('pos-refund:' . PosRefund::orderBy('id')->value('uuid'))->payments[0]->transactionId);
     }
 
-    public function test_only_this_shifts_cash_card_or_qr_payments_are_refunded(): void
+    public function test_only_this_shifts_payments_are_refunded(): void
     {
         $this->advances->deposits = [];
         [$order] = $this->paidOrder();
@@ -102,8 +102,12 @@ class PosRefundsTest extends TestCase
         $bill = $this->bill($second)->json('data.bills.0.uuid');
         $this->pay($bill, [['tender' => 'prepayment', 'amount' => '500000']])->assertOk();
         $prepayment = Payment::where('provider', 'prepayment')->firstOrFail();
+        // Review P3-35: a deposit part goes back to the deposit (no cash leaves the drawer)
+        $cashOut = \App\Models\CashMovement::where('type', 'refund')->count();
         $this->posAs($this->manager, 'POST', '/refunds', ['payment_uuid' => $prepayment->uuid, 'amount' => '1000', 'reason' => 'Xato', 'shift_uuid' => $this->shift->uuid])
-            ->assertStatus(422)->assertJsonPath('data.reason', 'refund_tender_invalid');
+            ->assertCreated()->assertJsonPath('data.method', 'prepayment');
+        $this->assertSame($cashOut, \App\Models\CashMovement::where('type', 'refund')->count());
+        $this->assertSame('-1000.00', end($this->advances->applied)['amount']);
 
         $third = $this->posOrder([['Osh', '1', '300000']]);
         $this->pay($this->bill($third)->json('data.bills.0.uuid'), [['tender' => 'qr', 'amount' => '300000']])->assertOk();

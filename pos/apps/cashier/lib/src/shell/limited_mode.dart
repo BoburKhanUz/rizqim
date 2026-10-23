@@ -119,6 +119,66 @@ class LimitedModeBanner extends StatelessWidget {
   );
 }
 
+/// P3-35: sinxronlashdan keyin — offlayn sotilgan qator menyuda bo'lmagan narxda edi, server o'z narxini qo'ydi
+/// (`offline_price_mismatch`). Kassadagi jami serverdagidan farq qilgan bo'lishi mumkin: buyurtma va schyot serverdan
+/// yangilanadi, kassir buni ko'rib "Tushunarli" bosadi.
+class SyncPriceBanner extends StatelessWidget {
+  const SyncPriceBanner({
+    super.key,
+    required this.notices,
+    required this.onDismiss,
+  });
+
+  final List<PosSyncPriceNotice> notices;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    final (Color bg, Color fg) = toneColors(context.rz, StatusTone.warning);
+    return Semantics(
+      liveRegion: true,
+      container: true,
+      label: 'Narx farqi',
+      child: Material(
+        key: const ValueKey<String>('sync-price-banner'),
+        color: Color.alphaBlend(bg, context.rz.surface),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+          child: Row(
+            children: <Widget>[
+              Icon(Icons.price_change_outlined, color: fg),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Text(
+                      'Narx serverda boshqacha: offlayn sotuv server narxida saqlandi',
+                      style: RzType.headline.copyWith(color: fg),
+                    ),
+                    for (final PosSyncPriceNotice n in notices.take(5))
+                      Text(
+                        n.message,
+                        style: RzType.footnote.copyWith(color: fg),
+                      ),
+                    if (notices.length > 5)
+                      Text(
+                        "Yana ${notices.length - 5} ta — Sozlamalar → Sinxronlash xatolari",
+                        style: RzType.footnote.copyWith(color: fg),
+                      ),
+                  ],
+                ),
+              ),
+              TextButton(onPressed: onDismiss, child: const Text('Tushunarli')),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Lenta sarlavhasi.
 String limitedModeTitle(OfflineStatus s) {
   if (!s.active) {
@@ -224,7 +284,7 @@ class _SyncErrorsCardState extends State<SyncErrorsCard> {
     typeLabel: SyncOpType.label(o.type),
     status: o.status.wire,
     reason: o.reason,
-    message: o.message,
+    message: o.message ?? PosSyncReasons.describe(o.reason),
     occurredAt: o.occurredAt,
     localNumber: o.payload['local_number'] as String?,
   );

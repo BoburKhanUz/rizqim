@@ -9,6 +9,7 @@ import { FormError } from '../management/Notice';
 import { SelectField, TextField } from '../pos/fields';
 import { NO_ERRORS, sortServerErrors, type FormErrors } from '../pos/serverErrors';
 import { labelFor } from '../reports/format';
+import { spotForNewPlace, toLayoutInput } from './layoutModel';
 
 const FIELDS = ['hall_id', 'name', 'kind', 'seats', 'sort_order', 'is_active', 'min_spend', 'min_spend_mode'];
 
@@ -50,7 +51,11 @@ export function TableDialog({ halls, hall, table, onClose, onSaved }: { halls: H
     };
     const options = { onSuccess: onSaved, onError: (error: unknown) => setErrors(sortServerErrors(error, FIELDS, t)) };
     if (table) update.mutate({ id: table.id, patch: fields }, options);
-    else create.mutate(fields, options);
+    else {
+      // A new place stands in the first free spot of its hall's map: the till draws the map only when every place has a layout
+      const spot = spotForNewPlace(kind, halls.find((item) => item.id === fields.hall_id)?.tables ?? []);
+      create.mutate({ ...fields, layout: toLayoutInput(spot) }, options);
+    }
   };
 
   const error = (field: string) => local[field] ?? errors.fields[field];

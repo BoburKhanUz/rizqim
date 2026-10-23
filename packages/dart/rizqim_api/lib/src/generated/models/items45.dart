@@ -23,6 +23,8 @@ class Items45 {
     this.roundNo,
     this.fireMode,
     this.stationId,
+    this.productId,
+    this.categoryId,
     this.sentAt,
     this.dueAt,
     this.seatNo,
@@ -57,6 +59,10 @@ class Items45 {
   final String? fireMode;
   @JsonKey(name: 'station_id')
   final int? stationId;
+  @JsonKey(name: 'product_id')
+  final int? productId;
+  @JsonKey(name: 'category_id')
+  final int? categoryId;
   @JsonKey(name: 'sent_at')
   final String? sentAt;
   @JsonKey(name: 'due_at')

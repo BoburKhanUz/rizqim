@@ -93,5 +93,17 @@ export function firstFreeSpot(size: { w: number; h: number }, taken: readonly Fl
   return { x: 0, y: 0, w, h };
 }
 
+// Where the places of a hall stand on the map: their saved rectangle, or (never positioned) the first free spot after the ones
+// before them. The editor draws them so; a new place goes after them.
+export function hallRects(tables: ReadonlyArray<Pick<DiningTable, 'kind' | 'layout'>>, grid: Grid = GRID): FloorRect[] {
+  const placed = tables.map((table) => layoutOf(table)).filter((rect): rect is FloorRect => rect !== null).map((rect) => clampRect(rect, grid));
+  for (const table of tables) if (!layoutOf(table)) placed.push(firstFreeSpot(sizeOf(table.kind), placed, grid));
+  return placed;
+}
+
+// The rectangle a new place of `kind` is created with: the first free spot of its hall. The till draws the hall's map only
+// when every place has a layout, so a place is never created without one.
+export const spotForNewPlace = (kind: string, tables: ReadonlyArray<Pick<DiningTable, 'kind' | 'layout'>>, grid: Grid = GRID): FloorRect => firstFreeSpot(sizeOf(kind), hallRects(tables, grid), grid);
+
 // What the API takes for a place's layout
 export const toLayoutInput = (rect: FloorRect): FloorRect => ({ x: rect.x, y: rect.y, w: rect.w, h: rect.h });

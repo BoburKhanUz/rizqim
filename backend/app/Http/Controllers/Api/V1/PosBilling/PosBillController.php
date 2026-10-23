@@ -187,8 +187,8 @@ class PosBillController extends PosBillingController
      * Ask again for a bill's receipt
      *
      * For a bill whose payments cover it but whose sale receipt is not issued ("fiskal kutmoqda": pending or failed):
-     * asks the fiscal provider again (same receipt, never a second one); issued: the bill is paid and the order closed
-     * when every bill is. Needs pos.take_payment.
+     * asks the fiscal provider again (same receipt, never a second one; P3-35: a receipt the provider refused is sent
+     * again too); issued: the bill is paid and the order closed when every bill is. Needs pos.take_payment.
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{bill: ' . BillPresenter::BILL . ', order: ' . BillPresenter::ORDER . '}}')]
     public function fiscalRetry(Request $request, BillFiscalizer $fiscalizer, BillPresenter $presenter, string $uuid): JsonResponse

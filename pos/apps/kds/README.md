@@ -193,7 +193,7 @@ dart run test/fake_server/fake_kds_server.dart --port 8787        # alohida term
 flutter run -d linux --dart-define=RIZQIM_API_URL=http://127.0.0.1:8787/api --dart-define=RIZQIM_REVERB_KEY=kds-key
 ```
 
-Ulash kodi — istalgan 8 belgi, PIN — `2468` (3 marta xato — 60 soniya blok). Yangi buyurtma:
+Ulash kodi — istalgan 8 belgi, PIN — `7305` (3 marta xato — 60 soniya blok). Yangi buyurtma:
 `curl -X POST http://127.0.0.1:8787/__control/new-order`; aloqani uzish: `.../__control/offline?on=1` (qaytarish `on=0`),
 WebSocket'larni uzish: `.../__control/drop`.
 

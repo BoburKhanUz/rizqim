@@ -1,3 +1,4 @@
+import '../offline/sync_models.dart';
 import 'fake_pos_state.dart';
 
 /// P3-31: soxta backend'ning `POST /pos/sync` qismi: har amalni soxta backend'ning odatdagi yo'li orqali o'sha xodim
@@ -30,8 +31,23 @@ class FakeSyncBackend {
   final Map<String, String> uuids = <String, String>{};
   final Map<String, int> lines = <String, int>{};
 
-  /// Keyingi shu turdagi amal shu sabab bilan rad etiladi (sinash uchun).
+  /// Keyingi shu turdagi amal shu sabab bilan rad etiladi (sinash uchun; P3-35: `invalid_payload`,
+  /// `modifier_not_found` ham).
   final Map<String, String> rejectNext = <String, String>{};
+
+  /// P3-35: keyingi shu turdagi amal qo'llanadi va javobiga shu belgilar (`refs.flags`) qo'shiladi, masalan
+  /// `{'flag': 'offline_price_mismatch', 'name': 'Osh', 'device_price': '40000.00', 'server_price': '45000.00'}`
+  /// (holat `conflict`) yoki `{'flag': 'device_time_clamped', ...}` (faqat ma'lumot: `applied`).
+  final Map<String, List<Map<String, Object?>>> flagNext =
+      <String, List<Map<String, Object?>>>{};
+
+  /// Serverdagidek: bu belgilar e'tibor talab qilmaydi (holat `applied` qoladi).
+  static const Set<String> informationalFlags = <String>{
+    'offline_price',
+    'amount_mismatch',
+    'local_number_taken',
+    PosSyncReasons.deviceTimeClamped,
+  };
 
   /// Server kassaning navbati haqida bilgani.
   int pendingReported = 0;
@@ -166,7 +182,7 @@ class FakeSyncBackend {
         op,
         'rejected',
         forced,
-        'Serverda rad etildi ($forced).',
+        PosSyncReasons.describe(forced) ?? 'Serverda rad etildi ($forced).',
         const <String, Object?>{},
       );
     }
@@ -284,7 +300,26 @@ class FakeSyncBackend {
       for (final MapEntry<String, int> e in lines.entries) e.key: e.value,
     };
     if (res.status >= 200 && res.status < 300) {
-      return _result(op, 'applied', null, null, refs);
+      final List<Map<String, Object?>> flags =
+          flagNext.remove(type) ?? const <Map<String, Object?>>[];
+      if (flags.isNotEmpty) refs['flags'] = flags;
+      final List<Map<String, Object?>> attention = <Map<String, Object?>>[
+        for (final Map<String, Object?> f in flags)
+          if (!informationalFlags.contains(f['flag'])) f,
+      ];
+      if (attention.isEmpty) return _result(op, 'applied', null, null, refs);
+      final Map<String, Object?> first = attention.first;
+      final String flag = '${first['flag']}';
+      return _result(
+        op,
+        'conflict',
+        flag,
+        flag == PosSyncReasons.offlinePriceMismatch
+            ? "'${first['name']}' kassada ${first['device_price']} so'mdan sotilgan, lekin menyu nusxasi vaqtida "
+                  "bunday narx bo'lmagan: server narxi (${first['server_price']} so'm) qo'yildi. Menejer tekshirsin."
+            : PosSyncReasons.describe(flag),
+        refs,
+      );
     }
     final Map<String, Object?> body =
         (res.body as Map?)?.cast<String, Object?>() ?? <String, Object?>{};

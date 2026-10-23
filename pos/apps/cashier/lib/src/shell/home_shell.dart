@@ -2,9 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:pos_data/pos_data.dart';
+import 'package:pos_hardware/pos_hardware.dart';
 import 'package:rizqim_api/rizqim_api.dart';
 
 import '../features/billing/billing_page.dart';
+import '../features/order/kitchen_tickets.dart';
 import '../services.dart';
 import 'destinations.dart';
 import 'limited_mode.dart';
@@ -19,7 +21,11 @@ import 'top_bar.dart';
 ///
 /// P3-31: tepada internetsiz rejim lentasi ([LimitedModeBanner]); offlayn to'langan schyotlarning sotuv cheki
 /// navbat serverga yetgach shu yerda chop etiladi (to'lov paytida faqat pre-check bor edi: fiskal bo'lmagan to'lov
-/// kvitansiyasi chiqmaydi, POS_SPEC 2.11).
+/// kvitansiyasi chiqmaydi, POS_SPEC 2.11). Ro'yxat qurilmada saqlanadi ([PosOffline.salesToPrint]): chek faqat haqiqatan
+/// chiqqanda belgilanadi, chek hali chiqmagan bo'lsa keyingi sinxronlashda, chek tayyor bo'lganda
+/// (`fiscal.receipt_updated`) yoki kirishda yana uriniladi; qayta kirishda eski cheklar qayta chiqmaydi.
+///
+/// Chek printeriga ketgan hujjat chiqmasa (qog'oz tugadi) — "Chek chop etilmadi" banneri, "Qayta urinish" bilan.
 class HomeShell extends StatefulWidget {
   const HomeShell({
     super.key,
@@ -54,9 +60,18 @@ class _HomeShellState extends State<HomeShell> {
     final PosOffline? offline = widget.services.data.offline;
     if (offline != null) {
       _subs.add(
-        offline.synced.listen(
-          (List<SyncOperation> ops) => unawaited(_printSynced(ops)),
-        ),
+        offline.synced.listen((List<SyncOperation> ops) {
+          unawaited(_printSynced());
+          // P3-35: lines kept at the server's price: the till's totals were not the server's
+          final List<PosSyncPriceNotice> notices = PosSyncPriceNotice.of(ops);
+          if (notices.isNotEmpty && mounted) {
+            setState(() => _priceNotices.addAll(notices));
+          }
+        }),
+      );
+      // Sales synced before this sign-in whose receipt did not print yet
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => unawaited(_printSynced()),
       );
     }
     final PosRealtime? rt = widget.realtime;
@@ -69,6 +84,7 @@ class _HomeShellState extends State<HomeShell> {
                     e.deviceUuid == widget.terminal.device.uuid)) {
               unawaited(_reloadShift());
             }
+            if (e is PosFiscalReceiptUpdated) unawaited(_printSynced());
           }),
         )
         ..add(rt.resubscribed.listen((_) => unawaited(_reloadShift())));
@@ -97,36 +113,54 @@ class _HomeShellState extends State<HomeShell> {
     }
   }
 
-  /// Offlayn to'langan schyotlar serverga yetdi: sotuv cheki chiqqanlarini chop etadi (bir marta).
-  final Set<String> _printed = <String>{};
+  /// Offlayn to'langan va serverga yetgan schyotlarning sotuv cheki: chiqqani ro'yxatdan olinadi (bir marta).
+  final Set<String> _printing = <String>{};
+  bool _printingSales = false;
 
-  Future<void> _printSynced(List<SyncOperation> ops) async {
+  Future<void> _printSynced() async {
     final PosData data = widget.services.data;
-    for (final SyncOperation op in ops) {
-      if (op.type != SyncOpType.billPay ||
-          op.status != SyncOpStatus.applied ||
-          !_printed.add(op.opId)) {
-        continue;
-      }
-      final String? orderUuid = op.refs['order_uuid'] as String?;
-      final String? billUuid = op.refs['bill_uuid'] as String?;
-      if (orderUuid == null || billUuid == null) continue;
-      try {
-        final PosBilling billing = await data.billing.bills(orderUuid);
-        final PosOrder order = await data.orders.get(orderUuid);
-        for (final PosBill bill in billing.bills) {
-          if (bill.uuid != billUuid || bill.fiscal.status != 'issued') continue;
-          final BuildContext? ctx = _scopeContext;
-          if (ctx == null || !ctx.mounted) return;
-          await printSale(ctx, bill, order);
+    final PosOffline? offline = data.offline;
+    if (offline == null || _printingSales || offline.active) return;
+    _printingSales = true;
+    try {
+      for (final PosOfflineSale sale in offline.salesToPrint) {
+        if (_printing.contains(sale.opId)) continue;
+        try {
+          final PosBilling billing = await data.billing.bills(sale.orderUuid);
+          final PosOrder order = await data.orders.get(sale.orderUuid);
+          for (final PosBill bill in billing.bills) {
+            // Not issued yet: tried again on the receipt event, the next sync or sign-in
+            if (bill.uuid != sale.billUuid || bill.fiscal.status != 'issued') {
+              continue;
+            }
+            final BuildContext? ctx = _scopeContext;
+            if (ctx == null || !ctx.mounted) return;
+            final PrintJob? job = await printSale(ctx, bill, order);
+            if (job == null) continue;
+            _printing.add(sale.opId);
+            // Marked only once it is on paper (paper out: the banner's retry finishes it)
+            unawaited(
+              job.done.then((PrintJob j) async {
+                _printing.remove(sale.opId);
+                if (j.status == PrintJobStatus.done) {
+                  await offline.salePrinted(sale.opId);
+                }
+              }),
+            );
+          }
+        } on PosException {
+          // The receipt stays on the server ("Navbat" → closed orders: print it from there); tried again later
         }
-      } on PosException {
-        // The receipt stays on the server ("Navbat" → closed orders: print it from there)
       }
+    } finally {
+      _printingSales = false;
     }
   }
 
   BuildContext? _scopeContext;
+
+  /// Offlayn sotilgan, serverda boshqa narxda saqlangan qatorlar (kassir "Tushunarli" bosguncha ko'rinadi).
+  final List<PosSyncPriceNotice> _priceNotices = <PosSyncPriceNotice>[];
 
   void _go(CashierDestination d) {
     if (!d.visibleFor(_session)) return;
@@ -167,6 +201,15 @@ class _HomeShellState extends State<HomeShell> {
           final Widget pages = Column(
             children: <Widget>[
               const LimitedModeBanner(),
+              if (_priceNotices.isNotEmpty)
+                SyncPriceBanner(
+                  notices: _priceNotices,
+                  onDismiss: () => setState(_priceNotices.clear),
+                ),
+              KitchenPrintBanner(
+                issues: KitchenPrintIssues.receiptsOf(widget.services.printing),
+                title: 'Chek chop etilmadi',
+              ),
               Expanded(child: stack),
             ],
           );

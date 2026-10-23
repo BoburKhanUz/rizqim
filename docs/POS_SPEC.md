@@ -270,7 +270,9 @@ birida kanal belgisi, turi (zal, olib ketish, yetkazish), holati va vaqti.
 | Chegirma (summa yoki %) / xizmat haqini olib tashlash | sabab majburiy | `orders.discount` |
 | Xona puli yoki minimal summa farqini olib tashlash | sabab majburiy | `orders.discount` (yo'q bo'lsa menejer PIN) |
 | Schyotni qayta chiqarish | "NUSXA" belgisi | `pos.reprint_bill` |
-| Yopilgan buyurtma bo'yicha pul qaytarish (smena ichida, naqd yoki karta) | sabab, qaysi to'lovdan; **qaytarish cheki** asl sotuv chekiga bog'lanadi | **yangi** `pos.refund` (P3-18) |
+| Yopilgan buyurtma bo'yicha pul qaytarish (smena ichida, naqd, karta yoki QR) | sabab, qaysi to'lovdan; **qaytarish cheki** asl sotuv chekiga bog'lanadi | **yangi** `pos.refund` (P3-18) |
+| Schyotning avans yoki nasiya qismini qaytarish (P3-35) | sabab; kassadan pul chiqmaydi: avans qismi bron avansiga qaytadi (keyin qaytariladi yoki ushlab qolinadi), nasiya qismi mijoz qarzidan ayiriladi (qarz to'langan bo'lsa — menejer qo'lda); **qaytarish cheki** asl sotuv chekiga bog'lanadi (4.4) | `pos.refund` |
+| To'lovi olingan schyotga tegadigan o'zgarish (qatorni o'chirish, mehmon soni, ko'chirish, xizmat haqini olib tashlash) | rad etiladi (409 `paid_bill_affected`): avval to'lovni qaytarish (P3-35) | — |
 | To'langan buyurtmani bekor qilish | faqat qaytarish cheki bilan | `orders.cancel` + `pos.refund` |
 | Bron avansini qaytarish (bron bekor) | sabab; hujjatlar: ariza, shaxsni tasdiqlovchi hujjat nusxasi, qaytarish dalolatnomasi, naqd bo'lsa chiqim orderi, asl bo'nak cheki. Chek chiqmaydi (4.4) | `bookings.manage` |
 | Bron avansini ushlab qolish (mehmon kelmadi yoki kech bekor qildi) | sabab; menejer tasdig'i; chek turi buxgalter bilan tekshiriladi (T3) | `bookings.manage` + menejer tasdig'i |
@@ -447,6 +449,7 @@ orqali to'laydi. Payshanba hisobi: taomlar 3 800 000, xona puli 300 000, xizmat 
 | Payshanba, yopish | **Sotuv** | **4 480 000** (to'liq) | taomlar 10202001 kodlari bilan; xona puli va xizmat haqi 10202002 qatorlari; QQS 12% bo'lsa ichida 480 000 | 1 000 000 avans hisobidan + 3 480 000 bugun (naqd va karta bo'lsa "aralash") |
 | Bron bekor, avans qaytarildi | chek yo'q (buxgalter.uz tavsiyasi) | −1 000 000 | — | hujjatlar: ariza, shaxsni tasdiqlovchi hujjat nusxasi, qaytarish dalolatnomasi, naqd bo'lsa chiqim orderi, asl bo'nak cheki |
 | Mehmon kelmadi, avans ushlab qolindi | ehtimol **sotuv** (bron xizmati), T3 | 1 000 000 | 10202002003000002 | — |
+| Yopilgan schyot avans qismi bilan qaytarildi (P3-35) | **qaytarish** (asl sotuv chekiga bog'langan) | qaytarilgan summa | sotuv chekining qatorlari ulushi bilan | avans olingan shaklda, `prepayment: true`: pul mehmonga emas, avansga qaytadi; avans yana bron daftarida (`booking_payments`) va keyin yuqoridagi qatorlardek qaytariladi yoki ushlab qolinadi |
 
 **Nasiya: sotuv → kredit.** Xizmat ko'rsatilgan kuni to'liq summaga sotuv cheki chiqadi (to'lovgacha kechiktirilmaydi).
 Qarzning har bir to'lovida kredit cheki chiqadi. Misol: hisob 850 000 so'm, mijoz 350 000 ni naqd to'laydi, 500 000 ni
@@ -457,6 +460,7 @@ keyingi haftaga qoldiradi.
 | Xizmat ko'rsatilgan kun | **Sotuv** | **850 000** (to'liq) | fiskal, QR bilan; 350 000 naqd, 500 000 nasiyaga (to'lov qismida `credit` belgisi; mijoz hisobida qarz) |
 | Bir hafta o'tib | **Kredit** | 500 000 | QR va fiskal belgisiz; qarz yopiladi |
 | Bo'lib to'lansa | **Kredit** (har biri) | 200 000 + 300 000 | har bir to'lovga alohida chek |
+| Schyotning nasiya qismi qaytarildi (P3-35) | **Qaytarish** (asl sotuv chekiga bog'langan) | qaytarilgan summa | to'lov qismida `credit: true` (pul qaytmaydi), qarz `customer_account_entries` da tuzatish bilan kamayadi. Mijoz qarzni to'lab bo'lgan bo'lsa qaytarish rad etiladi: to'langan qismi kredit cheki bilan chiqqan, uni menejer qo'lda hal qiladi |
 
 Bo'nak va kredit cheklari fiskal belgisiz, shuning uchun avans qoldig'i va nasiya qarzi POS ichidagi daftarda yashaydi
 (`booking_payments`, `customer_account_entries`). Bu daftar Rizqim ichida, chek oqimi bilan bitta tizimda yuritiladi.
@@ -468,6 +472,10 @@ bilan aniqlanadi.
 - Har bir chek idempotentlik kaliti bilan so'raladi: qayta so'rov yangi chek yaratmaydi, avvalgisini qaytaradi.
 - Provayder javob bermasa yoki xato bersa, chek `fiscal_receipts` da kutilmoqda holatida qoladi va navbat uni qayta
   yuboradi. Sotuv yo'qolmaydi.
+- Provayder rad etgan (`failed`) chekni kassadagi "Qayta yuborish", buyurtmani yopish va smenani yopish **o'sha chek
+  sifatida qayta yuboradi** (P3-35, `FiscalIssuer::reissue`). Chekni yuborayotgan urinish ijara (`lease_token`) ushlaydi:
+  qo'lda qayta yuborish boshqa urinish ketayotgan chekni ikkinchi marta yubormaydi, kech kelgan "rad etildi" javobi
+  chiqqan chekni buzmaydi.
 - Chek chiqmaguncha buyurtma yopilmaydi: kassada **"fiskal kutmoqda"** ro'yxati ko'rinadi.
 - Kutayotgan chek bor bo'lsa **smena yopilmaydi** (`FiscalIssuer::hasPending`).
 - Xato chek (MXIK, birlik, miqdor, summa yoki QQS) tuzatish cheki bilan to'g'rilanadi — nomuvofiqlik topilgan oy uchun
@@ -568,14 +576,15 @@ Asosiy qoida: **server haqiqat manbai, lekin bo'lib o'tgan sotuv va olingan pul 
 | Holat | Qaror |
 |---|---|
 | Offline buyurtma ikki marta keldi | `op_id` va `external_id` bo'yicha bitta bo'ladi |
-| Offline narx serverdagi joriy narxdan farq qiladi | Offline narx qabul qilinadi (mijoz shuni to'lagan), buyurtma "offline narx" belgisi bilan. Menyu nusxasi 24 soatdan eski bo'lsa — menejer ko'rib chiqishi uchun belgilanadi |
+| Offline narx serverdagi joriy narxdan farq qiladi | Taom (yoki qo'shimcha) menyu nusxasi olingandan beri shu narxda bo'lgan bo'lsa offline narx qabul qilinadi (mijoz shuni to'lagan), buyurtma "offline narx" belgisi bilan. Bunday narx hech qachon bo'lmagan bo'lsa (P3-35: narxlar tarixi `menu_price_history`) — server narxi qo'yiladi, amal `offline_price_mismatch` to'qnashuvi sifatida menejerga tushadi, narx past bo'lsa egaga xabar boradi. Menyu nusxasi 24 soatdan eski bo'lsa — menejer ko'rib chiqishi uchun belgilanadi |
 | Qozon yoki zaxira yetmadi (boshqa kanal sotib bo'lgan) | Sotuv qabul qilinadi, qoldiq 0 ga tushadi, yetmagan miqdor "ortiqcha sotilgan" sifatida jurnalga yoziladi va menejerga ko'rsatiladi |
 | Buyurtma serverda shu orada o'zgargan (masalan, onlayn buyurtmani mijoz bekor qilgan) | Server holati ustun. Amal **mazmunan** sig'masa (buyurtma yopilgan yoki bekor qilingan, o'chirilayotgan taom shu orada oshxonaga ketgan) rad etiladi va **"Sinxronlash xatolari"** ro'yxatiga tushadi (kassa sozlamalari, `orders.cancel` huquqi), menejer qo'lda hal qiladi. Versiya zanjiri solishtirilmaydi: oshxonaning "tayyor"i ham versiyani oshiradi va zararsiz bosqichni rad ettirardi |
 | Offline ochilgan stol yoki xona serverda band | Mehmonlar xizmat olgan: buyurtma joysiz ochiladi va menejer uchun belgilanadi |
 | Offline to'lov bekor qilingan buyurtmaga tushdi | To'lov baribir yoziladi, buyurtma "qaytarish kerak" belgisini oladi; schyot shu orada to'langan bo'lsa — "taqsimlanmagan to'lov" |
 | Schyot serverda boshqa summa | To'lov yoziladi; kam to'langan yoki ortiqcha olingan — menejer uchun belgi (naqd ortig'i schyotga sig'diriladi) |
 | Bir buyurtmani ikki qurilma o'zgartirdi | Onlayn rejimda buyurtma versiyasi (`version`) tekshiriladi: eskisi 409 oladi, ilova qayta yuklab qayta qo'llaydi. Offline'da faqat buyurtmani ochgan qurilma uni o'zgartiradi |
-| Qurilma soati noto'g'ri | Server o'z vaqtini (`synced_at`) ham yozadi va paketning `sent_at` idan farqni hisoblaydi; 5 daqiqadan katta bo'lsa ogohlantirish |
+| Qurilma soati noto'g'ri | Server o'z vaqtini (`synced_at`) ham yozadi va paketning `sent_at` idan farqni hisoblaydi; 5 daqiqadan katta bo'lsa ogohlantirish. P3-35: amal vaqti shu farq bilan tuzatiladi va 48 soatdan eski yoki kelajakdagi vaqt chegaraga suriladi (to'lov — smena ochilgandan oldin emas), `device_time_clamped` belgisi; chekning sotuv vaqti shu |
+| Amalning o'z ma'lumoti saqlanmaydi (ustunga sig'maydigan qiymat, noto'g'ri sana) | P3-35: amal "Sinxronlash xatolari"ga `invalid_payload` bilan tushadi (pul amali — taqsimlanmagan to'lov sifatida yoziladi), navbat to'xtamaydi. Navbat faqat bazaning vaqtinchalik xatosida to'xtaydi |
 | Javob yo'qoldi (paket serverga yetdi, javob qaytmadi) | Qayta yuborilgan amallar saqlangan natija bilan qaytadi (`duplicate`). Uzilishdan oldingi onlayn so'rov qayta navbatga tushgan bo'lsa — `Idempotency-Key` bo'yicha bir marta |
 
 ### 5.4. Chegaralar

@@ -129,6 +129,24 @@ void main() {
     },
   );
 
+  test('an answer that cannot be written down leaves the operation queued and the sender retrying', () async {
+    await queue(1);
+    disk.failNextAppend = true;
+    final SyncDrainResult first = await SyncSender(
+      store: store,
+      transport: server,
+    ).drain();
+    expect(first.error, isA<SyncStorageCrash>());
+    expect(store.pendingCount, 1);
+
+    final SyncDrainResult again = await SyncSender(
+      store: store,
+      transport: server,
+    ).drain();
+    expect(again.drained, isTrue);
+    expect(server.appliedSeqs, <int>[1], reason: 'applied once, by op_id');
+  });
+
   test('the queue survives a restart in the middle of draining', () async {
     await queue(5);
     final SyncSender sender = SyncSender(

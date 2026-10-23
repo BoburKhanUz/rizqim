@@ -244,6 +244,77 @@ void main() {
       expect(conflict.message, PosReasons.describe('shift_not_open'));
     });
 
+    test('P3-35 reasons: own Uzbek text, the server\'s when it carries amounts, and which ones reload the order', () async {
+      FakeResponse answer(int status, String reason, String message) =>
+          FakeResponse(status, <String, Object?>{
+            'success': false,
+            'message': message,
+            'data': <String, Object?>{'reason': reason},
+          });
+
+      // The till's own wording wins: it says what to do at the till
+      h.adapter.respond = (RequestOptions o) => answer(
+        409,
+        PosReasons.paidBillAffected,
+        "Bu o'zgarish to'lovi olingan schyotdagi taomga tegadi.",
+      );
+      final PosConflict paid = await _throws<PosConflict>(
+        () => h.pos.orders.voidItem('u', 1, version: 1),
+      );
+      expect(paid.reason, 'paid_bill_affected');
+      expect(paid.message, startsWith("Schyotning bir qismi to'langan"));
+      expect(paid.message, contains("Avval o'sha to'lovni qaytaring"));
+      expect(paid.needsOrderReload, isTrue);
+
+      h.adapter.respond = (RequestOptions o) =>
+          answer(409, PosReasons.shiftClosed, 'Smena yopilgan.');
+      final PosConflict closed = await _throws<PosConflict>(
+        () => h.pos.floor.load(),
+      );
+      expect(closed.message, startsWith('Smena shu orada yopildi'));
+      expect(closed.needsOrderReload, isFalse);
+
+      h.adapter.respond = (RequestOptions o) => answer(
+        422,
+        PosReasons.mergeBookingsConflict,
+        'Ikkala buyurtma ham boshqa-boshqa bronga tegishli.',
+      );
+      final PosRejected merge = await _throws<PosRejected>(
+        () => h.pos.floor.load(),
+      );
+      expect(merge.message, contains('birlashtirib bo\'lmaydi'));
+
+      h.adapter.respond = (RequestOptions o) =>
+          answer(409, PosReasons.accountUnknown, '');
+      expect(
+        (await _throws<PosConflict>(() => h.pos.floor.load())).message,
+        contains('menejer'),
+      );
+
+      // With an amount in it, the server's text stays; without one, ours
+      h.adapter.respond = (RequestOptions o) => answer(
+        409,
+        PosReasons.moreThanDebt,
+        "Mijoz qarzining bir qismini to'lagan: qolgan qarz 20000.00 so'm.",
+      );
+      expect(
+        (await _throws<PosConflict>(() => h.pos.floor.load())).message,
+        contains('20000.00'),
+      );
+      for (final String reason in <String>[
+        PosReasons.reverseExceedsApplied,
+        PosReasons.reverseExceedsCharge,
+        PosReasons.moreThanDebt,
+      ]) {
+        h.adapter.respond = (RequestOptions o) => answer(409, reason, '');
+        final PosConflict e = await _throws<PosConflict>(
+          () => h.pos.floor.load(),
+        );
+        expect(e.message, PosReasons.describe(reason), reason: reason);
+        expect(e.message, isNot(contains('So\'rov bajarilmadi')));
+      }
+    });
+
     test(
       'an unreadable 2xx body is unexpected_response, not a network error',
       () async {

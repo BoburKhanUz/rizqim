@@ -96,7 +96,7 @@ class StaffOrderPresenter
             // P3-12: a voided POS line is not counted; a served one is done
             'items_total' => $items->reject(fn (OrderItem $item) => $item->isVoid())->count(),
             'items_ready' => $this->doneCount($items),
-            'items' => $items->map(fn (OrderItem $item) => $this->item($item, true))->all(),
+            'items' => $this->prefetchDishes($items)->map(fn (OrderItem $item) => $this->item($item, true))->all(),
             'created_at' => $order->created_at?->toJSON(),
             'updated_at' => $order->updated_at?->toJSON(),
             'accepted_at' => $times['accepted_at']?->toJSON(),
@@ -146,7 +146,7 @@ class StaffOrderPresenter
             'notes' => $this->maskedNotes($order->notes),
             'items_total' => $items->reject(fn (OrderItem $item) => $item->isVoid())->count(),
             'items_ready' => $this->doneCount($items),
-            'items' => $items->map(fn (OrderItem $item) => $this->item($item, false))->all(),
+            'items' => $this->prefetchDishes($items)->map(fn (OrderItem $item) => $this->item($item, false))->all(),
             'created_at' => $order->created_at?->toJSON(),
             'accepted_at' => $times['accepted_at']?->toJSON(),
             'preparing_at' => $times['preparing_at']?->toJSON(),
@@ -199,12 +199,16 @@ class StaffOrderPresenter
         ];
 
         // P3-12: a POS line also says its round, firing, station, seat, note and void ("O'CHIRILDI"); an online line
-        // keeps exactly its P2-11 shape
+        // keeps exactly its P2-11 shape. Review P3-35: and its dish (product, category), so a display routes a line
+        // without a station by the branch's station routes
         if ($item->fire_mode !== null) {
+            [$productId, $categoryId] = $this->dishOf($item);
             $data += [
                 'round_no' => $item->round_no,
                 'fire_mode' => $item->fire_mode->value,
                 'station_id' => $item->station_id,
+                'product_id' => $productId,
+                'category_id' => $categoryId,
                 'sent_at' => $item->sent_at?->toJSON(),
                 'due_at' => $item->due_at?->toJSON(),
                 'seat_no' => $item->seat_no,
@@ -223,6 +227,56 @@ class StaffOrderPresenter
         }
 
         return $data;
+    }
+
+    /** @var array<int, array{0: int|null, 1: int|null}> variant id => [product id, category id] */
+    private array $dishes = [];
+
+    /**
+     * Reads the dishes (product, category) of the POS lines in one query, deleted variants and products included (the
+     * line is a snapshot).
+     *
+     * @param  \Illuminate\Support\Collection<int, OrderItem>  $items
+     * @return \Illuminate\Support\Collection<int, OrderItem>
+     */
+    private function prefetchDishes(\Illuminate\Support\Collection $items): \Illuminate\Support\Collection
+    {
+        $missing = $items->filter(fn (OrderItem $item) => $item->fire_mode !== null && $item->product_variant_id !== null)
+            ->map(fn (OrderItem $item) => (int) $item->product_variant_id)
+            ->unique()
+            ->reject(fn (int $id) => isset($this->dishes[$id]))
+            ->values()
+            ->all();
+        if ($missing !== []) {
+            foreach ($missing as $id) {
+                $this->dishes[$id] = [null, null];
+            }
+            \App\Models\ProductVariant::withTrashed()
+                ->join('products', 'products.id', '=', 'product_variants.product_id')
+                ->whereIn('product_variants.id', $missing)
+                ->get(['product_variants.id', 'products.id as dish_product_id', 'products.category_id as dish_category_id'])
+                ->each(function (\App\Models\ProductVariant $row) {
+                    $categoryId = $row->getAttribute('dish_category_id');
+                    $this->dishes[(int) $row->id] = [(int) $row->getAttribute('dish_product_id'), $categoryId !== null ? (int) $categoryId : null];
+                });
+        }
+
+        return $items;
+    }
+
+    /**
+     * @return array{0: int|null, 1: int|null} the line's product and category ids
+     */
+    private function dishOf(OrderItem $item): array
+    {
+        if ($item->product_variant_id === null) {
+            return [null, null];
+        }
+        if (!isset($this->dishes[(int) $item->product_variant_id])) {
+            $this->prefetchDishes(collect([$item]));
+        }
+
+        return $this->dishes[(int) $item->product_variant_id];
     }
 
     /**

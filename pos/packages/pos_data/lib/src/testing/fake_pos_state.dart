@@ -91,8 +91,9 @@ class FakePosState {
     },
   ];
 
-  /// Xodim id → PIN.
-  Map<int, String> pins = <int, String>{3: '2468', 4: '1357', 2: '5926'};
+  /// Xodim id → PIN. Serverdagi qoidaga mos (backend `StaffPinService::weakness`: 1234, 1111, 2468, 1357 kabi
+  /// oddiy kodlar qabul qilinmaydi).
+  Map<int, String> pins = <int, String>{3: '4827', 4: '3691', 2: '5926'};
 
   /// Rol → ruxsatlar (backend `RolePermissions` dagidek).
   Map<String, List<String>> rolePermissions = <String, List<String>>{
@@ -585,6 +586,79 @@ class FakePosState {
         });
       }
     }
+    if (!replayIdempotent || method == 'GET' || idempotencyKey == null) {
+      return _dispatch(method, path, query, body, token, idempotencyKey);
+    }
+    // As the server's IdempotencyService: the same key (per actor and route) with the same body gets the first
+    // successful answer again, with another body a 409
+    final String scope = '$token $method $path $idempotencyKey';
+    final String hash = _canonical(_decode(body));
+    final (String, FakeResponse)? seen = _replays[scope];
+    if (seen != null) {
+      if (seen.$1 != hash) {
+        return const FakeResponse(409, <String, Object?>{
+          'success': false,
+          'message': "Bu Idempotency-Key boshqa so'rov uchun ishlatilgan. Yangi so'rov uchun yangi kalit yuboring.",
+          'data': <Object?>[],
+        });
+      }
+      replayed++;
+      return seen.$2;
+    }
+    final FakeResponse r = _dispatch(
+      method,
+      path,
+      query,
+      body,
+      token,
+      idempotencyKey,
+    );
+    if (r.status >= 200 && r.status < 300) {
+      _replays[scope] = (
+        hash,
+        FakeResponse(
+          r.status,
+          jsonDecode(jsonEncode(r.body)),
+          headers: <String, String>{
+            ...r.headers,
+            'Idempotent-Replayed': 'true',
+          },
+        ),
+      );
+    }
+    return r;
+  }
+
+  /// Takroriy kalit bilan kelgan so'rovga eski javob qaytariladi (serverdagidek). O'chirilsa — har so'rov yangi.
+  bool replayIdempotent = true;
+
+  /// Shuncha so'rovga eski javob qaytarildi.
+  int replayed = 0;
+
+  final Map<String, (String, FakeResponse)> _replays =
+      <String, (String, FakeResponse)>{};
+
+  static String _canonical(Object? v) {
+    Object? sorted(Object? x) => x is Map
+        ? <String, Object?>{
+            for (final String k
+                in x.keys.map((Object? k) => '$k').toList()..sort())
+              k: sorted(x[k]),
+          }
+        : x is List
+        ? <Object?>[for (final Object? e in x) sorted(e)]
+        : x;
+    return jsonEncode(sorted(v));
+  }
+
+  FakeResponse _dispatch(
+    String method,
+    String path,
+    Map<String, String> query,
+    Object? body,
+    String? token,
+    String? idempotencyKey,
+  ) {
     final Map<String, Object?> data = _decode(body);
     final String p = path.replaceFirst(RegExp(r'^/api'), '');
 
@@ -1442,6 +1516,14 @@ class FakePosState {
     order['version'] = (order['version']! as int) + 1;
     order['updated_at'] = _iso(now());
     _recompute(order);
+    _itemsChanged(order, change, itemIds);
+  }
+
+  void _itemsChanged(
+    Map<String, Object?> order,
+    String change,
+    List<int> itemIds,
+  ) {
     emit('order.items_changed', <String, Object?>{
       'order': _eventOrder(order),
       'version': order['version'],
@@ -1615,8 +1697,16 @@ class FakePosState {
           }
         }
         order['rounds'] = round;
-        if (data['send'] == true) _sendLines(order, null);
-        _touch(order, 'round_added');
+        final List<int> added = <int>[
+          for (final Map<String, Object?> i in _items(order).skip(before))
+            i['id']! as int,
+        ];
+        final List<int> sent = data['send'] == true
+            ? _sendLines(order, null)
+            : const <int>[];
+        _touch(order, 'round_added', itemIds: added);
+        // P3-35: like the server, a round sent at once also says `sent` (the same version)
+        if (sent.isNotEmpty) _itemsChanged(order, 'sent', sent);
         return _ok(order, message: "Taomlar qo'shildi.");
       case <String>['send']:
         final List<int> sent = _sendLines(

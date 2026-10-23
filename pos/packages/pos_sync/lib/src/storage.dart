@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -36,7 +37,10 @@ class FileSyncStorage implements SyncStorage {
   FileSyncStorage(this.directory);
 
   final Directory directory;
-  RandomAccessFile? _journal;
+  Future<RandomAccessFile>? _journal;
+
+  // Journal writes and the compaction's swap run one at a time: one open handle, never two writes on it at once.
+  Future<void>? _tail;
 
   File get _journalFile => File('${directory.path}/journal.log');
 
@@ -45,11 +49,35 @@ class FileSyncStorage implements SyncStorage {
   static String _safe(String key) =>
       key.replaceAll(RegExp(r'[^A-Za-z0-9_.-]'), '_');
 
-  Future<RandomAccessFile> _open() async {
-    final RandomAccessFile? open = _journal;
-    if (open != null) return open;
+  /// The journal handle; callers that come while it is being opened wait for the same one.
+  Future<RandomAccessFile> _open() => _journal ??= () async {
     await directory.create(recursive: true);
-    return _journal = await _journalFile.open(mode: FileMode.append);
+    return _journalFile.open(mode: FileMode.append);
+  }();
+
+  Future<void> _serial(Future<void> Function() body) {
+    final Future<void>? before = _tail;
+    final Completer<void> done = Completer<void>();
+    _tail = done.future;
+    // Idle: start at once (no hop through an already completed future, which may belong to another zone)
+    final Future<void> run = before == null
+        ? Future<void>.sync(body)
+        : before.then((_) => body());
+    return run.whenComplete(() {
+      if (identical(_tail, done.future)) _tail = null;
+      done.complete();
+    });
+  }
+
+  Future<void> _closeJournal() async {
+    final Future<RandomAccessFile>? open = _journal;
+    _journal = null;
+    if (open == null) return;
+    try {
+      await (await open).close();
+    } on FileSystemException {
+      // It never opened: nothing to close
+    }
   }
 
   @override
@@ -65,18 +93,23 @@ class FileSyncStorage implements SyncStorage {
   }
 
   @override
-  Future<void> appendLine(String line) async {
-    final RandomAccessFile f = await _open();
+  Future<void> appendLine(String line) => _serial(() async {
+    final RandomAccessFile f;
+    try {
+      f = await _open();
+    } on FileSystemException {
+      _journal = null; // try to open again next time
+      rethrow;
+    }
     await f.writeString('$line\n');
     // fsync: the line is on the disk before the caller goes on
     await f.flush();
-  }
+  });
 
   @override
-  Future<void> replaceLines(List<String> lines) async {
+  Future<void> replaceLines(List<String> lines) => _serial(() async {
     await directory.create(recursive: true);
-    await _journal?.close();
-    _journal = null;
+    await _closeJournal();
     final File tmp = File('${directory.path}/journal.tmp');
     final RandomAccessFile f = await tmp.open(mode: FileMode.write);
     try {
@@ -86,7 +119,7 @@ class FileSyncStorage implements SyncStorage {
       await f.close();
     }
     await tmp.rename(_journalFile.path);
-  }
+  });
 
   @override
   Future<String?> readDoc(String key) async {
@@ -132,10 +165,7 @@ class FileSyncStorage implements SyncStorage {
   static String _keyOf(String name) =>
       name.substring(4, name.length - '.json'.length);
 
-  Future<void> close() async {
-    await _journal?.close();
-    _journal = null;
-  }
+  Future<void> close() => _serial(_closeJournal);
 }
 
 /// Xotiradagi saqlash (testlar uchun): elektr o'chishini ham ko'rsatadi — [tearNextAppend] keyingi qatorning faqat

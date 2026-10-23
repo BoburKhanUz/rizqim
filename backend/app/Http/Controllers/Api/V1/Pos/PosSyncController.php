@@ -52,10 +52,12 @@ class PosSyncController extends Controller
      * it is applied once), `type` (order.open, order.round, order.send, order.void, order.served, bill.create, bill.pay,
      * order.close), `occurred_at` (the device's clock), `staff_id` (who did it: signed in on this till before the
      * outage, with the permission) and `payload`. Each result: `status` applied | conflict (applied, but a manager
-     * should look: oversold, payment on a cancelled order, amount mismatch, stale menu, a taken room) | rejected (not
-     * applied: "Sinxronlash xatolari"), `reason`, `message` and `refs` (the server's order uuid and version, local
-     * number, line ids, bill and payment uuids, flags). `sent_at` (the device's clock now) gives the clock skew: more
-     * than 5 minutes is `clock_warning`. `queue` (size, oldest_at) is what is still in the device's queue including
+     * should look: oversold, payment on a cancelled order, amount mismatch, stale menu, a taken room, a device price the
+     * dish never had — `offline_price_mismatch`, the server's price applied) | rejected (not applied: "Sinxronlash
+     * xatolari"; `invalid_payload` for content the server cannot store), `reason`, `message` and `refs` (the server's
+     * order uuid and version, local number, line ids, bill and payment uuids, flags). `sent_at` (the device's clock now)
+     * gives the clock skew: more than 5 minutes is `clock_warning` (and corrects the operations' times, kept within the
+     * last 48 hours). `stopped_at`: a temporary database failure only. `queue` (size, oldest_at) is what is still in the device's queue including
      * this batch: the shift does not close while it is not empty. Only a POS terminal's own token.
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{server_time: string, clock_skew_seconds: int|null, clock_warning: bool, stopped_at: int|null, results: list<' . PosSyncPresenter::RESULT . '>, device: ' . PosSyncPresenter::DEVICE . '}}')]

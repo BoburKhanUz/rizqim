@@ -108,6 +108,18 @@ class FakeCashierBackend {
       };
     }
     if (m == 'POST' && p == '/v1/pos/refunds') return _refund(r);
+    if (m == 'POST' &&
+        (x = _match(
+              r'^/v1/pos/orders/([^/]+)/(cancel|merge|items/(\d+)/void|charges/([a-z_]+)/waive)$',
+              p,
+            )) !=
+            null) {
+      final Map<String, Object?>? order = state.orders[x!.group(1)];
+      if (order != null) {
+        final FakeResponse? refused = _guardOrderChange(order, x, r);
+        if (refused != null) return refused;
+      }
+    }
     if (m == 'GET' &&
         (x = _match(r'^/v1/pos/fiscal-receipts/([^/]+)$', p)) != null) {
       final List<String> perms = state.permissionsOf(r.member);
@@ -316,17 +328,25 @@ class FakeCashierBackend {
   Iterable<Map<String, Object?>> _live(Map<String, Object?> order) =>
       _billsOf(order).where((Map<String, Object?> b) => b['status'] != 'void');
 
+  /// Taken, as the server counts it (BillableOrder): paid, or a payment is on it. The server has no `paying` status:
+  /// a bill being paid stays `open`/`printed` until its payments cover it and the sale receipt is issued.
   static bool _settled(Map<String, Object?> b) =>
-      b['status'] == 'paying' || b['status'] == 'paid';
+      b['status'] != 'void' &&
+      (b['status'] == 'paid' || _t(b['paid_amount']) > 0);
+
+  /// Covered by its payments, the sale receipt not issued yet.
+  static bool _awaitingReceipt(Map<String, Object?> b) =>
+      b['status'] != 'paid' &&
+      b['status'] != 'void' &&
+      _t(b['paid_amount']) > 0 &&
+      _t(b['due_amount']) == 0;
 
   int _paidOf(Map<String, Object?> order) =>
       _live(order)
           .fold(0, (int s, Map<String, Object?> b) => s + _t(b['paid_amount']));
 
-  bool _fiscalPending(Map<String, Object?> order) => _live(order).any(
-    (Map<String, Object?> b) =>
-        b['status'] == 'paying' && _t(b['due_amount']) == 0,
-  );
+  bool _fiscalPending(Map<String, Object?> order) =>
+      _live(order).any(_awaitingReceipt);
 
   int _billedOf(Map<String, Object?> order) =>
       _live(order)
@@ -340,7 +360,9 @@ class FakeCashierBackend {
     return <String, Object?>{
       'uuid': order['uuid'],
       'status': order['status'],
-      'payment_status': closed ? 'paid' : (paid > 0 ? 'partial' : 'pending'),
+      'payment_status': _allRefunded(order)
+          ? 'refunded'
+          : (closed ? 'paid' : (paid > 0 ? 'partial' : 'pending')),
       'version': order['version'],
       'queue_number': null,
       'business_date': _date(state.now()),
@@ -772,6 +794,7 @@ class FakeCashierBackend {
         'paid_at': _iso(state.now()),
         'shift_uuid': state.shift!['uuid'],
         'refunded_amount': '0.00',
+        if (t['tender'] == 'account') 'account_uuid': t['account_uuid'],
       });
       if (t['tender'] == 'account' && account != null) {
         _entry(
@@ -788,8 +811,7 @@ class FakeCashierBackend {
     }
     bill
       ..['paid_amount'] = _m(_t(bill['paid_amount']) + sum)
-      ..['due_amount'] = _m(due - sum)
-      ..['status'] = 'paying';
+      ..['due_amount'] = _m(due - sum);
     if (due - sum == 0) _issueSale(bill, order);
     _billEvent(order, bill, 'paid');
     return _ok(<String, Object?>{
@@ -1047,7 +1069,7 @@ class FakeCashierBackend {
         in bills.entries) {
       for (final Map<String, Object?> b in e.value) {
         final Map<String, Object?> f = b['fiscal']! as Map<String, Object?>;
-        if (b['status'] == 'paying' &&
+        if (_awaitingReceipt(b) &&
             f['status'] != null &&
             f['status'] != 'issued') {
           f['status'] = 'issued';
@@ -1122,11 +1144,18 @@ class FakeCashierBackend {
         for (final Map<String, Object?> p
             in (b['payments']! as List<Object?>).cast<Map<String, Object?>>()) {
           if (p['uuid'] != r.data['payment_uuid']) continue;
-          if (!<Object?>['cash', 'card', 'qr'].contains(p['tender'])) {
+          // P3-35: deposit (prepayment) and nasiya (account) parts too, with no cash movement
+          if (!<Object?>[
+            'cash',
+            'card',
+            'qr',
+            'prepayment',
+            'account',
+          ].contains(p['tender'])) {
             return _fail(
               422,
               'refund_tender_invalid',
-              "Avans va nasiya to'lovi bu yerda qaytarilmaydi.",
+              "Bu to'lovni kassada qaytarib bo'lmaydi.",
             );
           }
           if (p['shift_uuid'] != state.shift?['uuid']) {
@@ -1145,7 +1174,38 @@ class FakeCashierBackend {
               "Qaytarish to'lovdan ko'p bo'lmaydi.",
             );
           }
+          if (p['tender'] == 'cash' &&
+              amount >
+                  _t(
+                    (_report(state.shift!)['cash']!
+                        as Map<String, Object?>)['expected'],
+                  )) {
+            return _fail(
+              409,
+              'not_enough_cash',
+              "Kassada buncha naqd pul yo'q.",
+            );
+          }
+          final Map<String, Object?> order = state.orders[e.key]!;
+          if (p['tender'] == 'prepayment') {
+            final FakeResponse? refused = _reverseDeposit(order, amount);
+            if (refused != null) return refused;
+          }
+          final String refundUuid = _uuid('f');
+          if (p['tender'] == 'account') {
+            final FakeResponse? refused = _reverseCharge(
+              p,
+              b,
+              amount,
+              refundUuid,
+              r.member,
+            );
+            if (refused != null) return refused;
+          }
           p['refunded_amount'] = _m(_t(p['refunded_amount']) + amount);
+          if (_t(p['refunded_amount']) >= _t(p['amount'])) {
+            p['status'] = 'refunded';
+          }
           final String receipt = _uuid('r');
           receipts[receipt] = <String, Object?>{
             ..._receipt(receipt, 'refund', b, true),
@@ -1166,7 +1226,7 @@ class FakeCashierBackend {
             ],
           };
           final Map<String, Object?> refund = <String, Object?>{
-            'uuid': _uuid('f'),
+            'uuid': refundUuid,
             'order_uuid': e.key,
             'bill_uuid': b['uuid'],
             'payment_uuid': p['uuid'],
@@ -1189,6 +1249,192 @@ class FakeCashierBackend {
       }
     }
     return _fail(404, null, "To'lov topilmadi.");
+  }
+
+  /// P3-35: the order's every payment is refunded (`payment_status = refunded`; it may be cancelled then).
+  bool _allRefunded(Map<String, Object?> order) {
+    final List<Map<String, Object?>> pays = <Map<String, Object?>>[
+      for (final Map<String, Object?> b in _live(order))
+        ...(b['payments']! as List<Object?>).cast<Map<String, Object?>>(),
+    ];
+    return pays.isNotEmpty &&
+        pays.every((Map<String, Object?> p) => p['status'] == 'refunded');
+  }
+
+  static List<Map<String, Object?>> _paymentsOf(Map<String, Object?> b) =>
+      (b['payments']! as List<Object?>).cast<Map<String, Object?>>();
+
+  /// Like the server (P3-35): an order with a payment still taken is not cancelled (409 `has_payments`); a change that
+  /// takes away what a bill being paid carries (a line on it voided, its charge waived) — 409 `paid_bill_affected`;
+  /// two orders of different bookings are not merged (422 `merge_bookings_conflict`). `null` — the usual answer.
+  FakeResponse? _guardOrderChange(
+    Map<String, Object?> order,
+    RegExpMatch x,
+    FakeRequest r,
+  ) {
+    final List<Map<String, Object?>> taken = <Map<String, Object?>>[
+      for (final Map<String, Object?> b in _live(order))
+        if (_paymentsOf(b).isNotEmpty) b,
+    ];
+    final String action = x.group(2)!;
+    if (action == 'cancel') {
+      final List<Map<String, Object?>> paid = <Map<String, Object?>>[
+        for (final Map<String, Object?> b in taken)
+          for (final Map<String, Object?> p in _paymentsOf(b))
+            if (p['status'] == 'paid') p,
+      ];
+      if (paid.isEmpty) return null;
+      return FakeResponse(409, <String, Object?>{
+        'success': false,
+        'message': "Buyurtmada to'lov bor: avval to'lovni qaytaring (qaytarish cheki bilan), keyin bekor qiling.",
+        'data': <String, Object?>{
+          'reason': 'has_payments',
+          'paid_amount': _m(
+            paid.fold(
+              0,
+              (int s, Map<String, Object?> p) => s + _t(p['amount']),
+            ),
+          ),
+        },
+      });
+    }
+    if (action == 'merge') {
+      final Map<String, Object?>? source =
+          state.orders['${r.data['source_uuid']}'];
+      if (source == null) return null;
+      final Map<String, Object?>? a = _bookingOf(order);
+      final Map<String, Object?>? b = _bookingOf(source);
+      if (a != null && b != null && a['uuid'] != b['uuid']) {
+        return _fail(
+          422,
+          'merge_bookings_conflict',
+          "Ikkala buyurtma ham boshqa-boshqa bronga tegishli: ularni birlashtirib bo'lmaydi.",
+        );
+      }
+      return null;
+    }
+    final String? line = x.group(3);
+    final String? charge = x.group(4);
+    final bool affected = taken.any(
+      (Map<String, Object?> b) => line != null
+          ? (b['items']! as List<Object?>).cast<Map<String, Object?>>().any(
+              (Map<String, Object?> i) => '${i['order_item_id']}' == line,
+            )
+          : _t(b['${charge}_amount']) > 0,
+    );
+    if (!affected) return null;
+    return const FakeResponse(409, <String, Object?>{
+      'success': false,
+      'message': "Bu o'zgarish to'lovi olingan schyotdagi taom yoki xizmat haqiga tegadi: avval o'sha to'lovni qaytaring, keyin o'zgartiring.",
+      'data': <String, Object?>{
+        'reason': 'paid_bill_affected',
+        'bills_reason': 'bills_out_of_date',
+      },
+    });
+  }
+
+  /// P3-35 (`AdvanceLedger::reverse`): the bill's deposit part back to the booking's deposits, newest first; a deposit
+  /// that holds money again is `taken`.
+  FakeResponse? _reverseDeposit(Map<String, Object?> order, int amount) {
+    final Map<String, Object?>? booking = _bookingOfOrder(order);
+    final List<Map<String, Object?>> deposits = booking == null
+        ? const <Map<String, Object?>>[]
+        : _paymentsOf(booking).reversed.toList();
+    final int applied = deposits.fold(
+      0,
+      (int s, Map<String, Object?> d) => s + _t(d['applied_amount']),
+    );
+    if (amount > applied) {
+      return FakeResponse(409, <String, Object?>{
+        'success': false,
+        'message':
+            "Bu schyotga avansdan ${_m(applied)} so'm ayirilgan: undan ko'pini qaytarib bo'lmaydi.",
+        'data': <String, Object?>{
+          'reason': 'reverse_exceeds_applied',
+          'applied': _m(applied),
+        },
+      });
+    }
+    int left = amount;
+    for (final Map<String, Object?> d in deposits) {
+      final int part = math.min(left, _t(d['applied_amount']));
+      if (part <= 0) continue;
+      d
+        ..['applied_amount'] = _m(_t(d['applied_amount']) - part)
+        ..['remaining'] = _m(_t(d['remaining']) + part)
+        ..['status'] = 'taken';
+      left -= part;
+      if (left == 0) break;
+    }
+    _recountDeposits(booking!);
+    booking['version'] = ((booking['version'] as int?) ?? 0) + 1;
+    return null;
+  }
+
+  /// P3-35 (`CustomerAccountLedger::reverse`): the bill's nasiya part off the customer's debt (an adjustment); never
+  /// more than the bill was charged (409 `reverse_exceeds_charge`) nor than the debt left (409 `more_than_debt`).
+  FakeResponse? _reverseCharge(
+    Map<String, Object?> payment,
+    Map<String, Object?> bill,
+    int amount,
+    String refundUuid,
+    Map<String, Object?> member,
+  ) {
+    final Map<String, Object?>? account =
+        accounts['${payment['account_uuid'] ?? ''}'];
+    if (account == null) {
+      return _fail(
+        409,
+        'account_unknown',
+        "Nasiya to'lovining hisobi topilmadi: qarzni menejer qo'lda tuzatsin.",
+      );
+    }
+    final List<Map<String, Object?>> list =
+        entries['${account['uuid']}'] ?? const <Map<String, Object?>>[];
+    final int charged = list
+        .where(
+          (Map<String, Object?> e) =>
+              e['type'] == 'charge' && e['bill_uuid'] == bill['uuid'],
+        )
+        .fold(0, (int s, Map<String, Object?> e) => s + _t(e['amount']));
+    final int reversed = list
+        .where(
+          (Map<String, Object?> e) =>
+              e['type'] == 'adjustment' && e['bill_uuid'] == bill['uuid'],
+        )
+        .fold(0, (int s, Map<String, Object?> e) => s - _t(e['amount']));
+    final int left = charged - reversed;
+    if (amount > left) {
+      return FakeResponse(409, <String, Object?>{
+        'success': false,
+        'message':
+            "Bu schyot nasiyaga ${_m(left)} so'm yozilgan: undan ko'pini qaytarib bo'lmaydi.",
+        'data': <String, Object?>{
+          'reason': 'reverse_exceeds_charge',
+          'left': _m(left),
+        },
+      });
+    }
+    if (amount > _t(account['balance'])) {
+      return FakeResponse(409, <String, Object?>{
+        'success': false,
+        'message':
+            "Mijoz qarzining bir qismini to'lagan: qolgan qarz ${account['balance']} so'm. Farqni menejer qo'lda hal qilsin.",
+        'data': <String, Object?>{
+          'reason': 'more_than_debt',
+          'balance': account['balance'],
+        },
+      });
+    }
+    _entry(
+      account,
+      'adjustment',
+      -amount,
+      billUuid: '${bill['uuid']}',
+      user: member,
+      note: 'Kassada qaytarildi: schyotning nasiya qismi',
+    );
+    return null;
   }
 
   // --- smena -----------------------------------------------------------------------------------------------------------
@@ -1518,8 +1764,7 @@ class FakeCashierBackend {
     final List<String> pending = <String>[
       for (final List<Map<String, Object?>> list in bills.values)
         for (final Map<String, Object?> b in list)
-          if (b['status'] == 'paying' && _t(b['due_amount']) == 0)
-            '${b['uuid']}',
+          if (_awaitingReceipt(b)) '${b['uuid']}',
     ];
     if (!force && (openOrders.isNotEmpty || pending.isNotEmpty)) {
       return FakeResponse(409, <String, Object?>{

@@ -23,6 +23,11 @@ class FakeOnlineFiscalIssuer implements FiscalIssuer
         throw new LogicException('Online payments never issue receipts themselves');
     }
 
+    public function reissue(FiscalDocument $document): FiscalIssueResult
+    {
+        return $this->issue($document);
+    }
+
     public function recordExternal(FiscalDocument $document, string $provider, array $providerData): FiscalIssueResult
     {
         $this->calls++;

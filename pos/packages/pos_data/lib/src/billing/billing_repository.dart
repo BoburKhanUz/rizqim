@@ -71,10 +71,14 @@ class BillingRepository {
       return _localBill(o, orderUuid, split, idempotencyKey);
     }
     try {
-      return await _http.mutate(
+      Object? raw;
+      final PosBilling made = await _http.mutate(
         'POST',
         '/v1/pos/orders/${_id(orderUuid)}/bills',
-        _billing,
+        (Object? data) {
+          raw = data;
+          return _billing(data);
+        },
         idempotencyKey: idempotencyKey,
         body: <String, Object?>{
           'version': version,
@@ -82,6 +86,9 @@ class BillingRepository {
           'approval_token': ?approvalToken,
         },
       );
+      // Kept: the bill can be paid and printed again if the network goes before the screen reloads it
+      if (o != null) await o.captureBilling(_id(orderUuid), raw);
+      return made;
     } on PosNetworkException catch (e) {
       if (o != null && o.status.canSell) {
         return _localBill(

@@ -2,6 +2,8 @@
 
 namespace App\Domain\Pos\Billing;
 
+use App\Domain\Pos\Contracts\AdvanceLedger;
+use App\Domain\Pos\Contracts\CustomerAccountLedger;
 use App\Domain\Pos\Contracts\PosTender;
 use App\Domain\Pos\Shifts\ShiftOwnerSummary;
 use App\Domain\Pos\Shifts\ShiftReport;
@@ -13,6 +15,7 @@ use App\Models\Order;
 use App\Models\OrderBill;
 use App\Models\Payment;
 use App\Models\PosRefund;
+use App\Models\PosShift;
 use App\Models\User;
 use App\Services\Audit\AuditLogger;
 use App\Support\Money;
@@ -21,14 +24,18 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * Money given back from a paid POS bill within the shift it was taken in (pos.refund, POS_SPEC 2.10, L3): a reason,
- * the payment it comes from (cash, card or QR; a deposit or nasiya part is settled in bookings and accounts), never
- * more than is left of that payment. A cashier without pos.refund needs a manager's approval. Cash leaves the drawer
- * (a refund cash movement, never more than the drawer holds); a REFUND receipt naming the bill's sale receipt is
- * asked for. A payment refunded in full is `refunded`; an order whose payments all are, too.
+ * the payment it comes from, never more than is left of that payment. A cashier without pos.refund needs a manager's
+ * approval. Cash leaves the drawer (a refund cash movement, never more than the drawer holds, checked under the
+ * shift's row lock so a Z closing at the same moment never misses it); card and QR go back through their provider.
+ * Review P3-35: a deposit part (PosTender::PREPAYMENT) goes back to the booking's deposit (AdvanceLedger::reverse:
+ * to be offset again, refunded or retained in bookings), a nasiya part (PosTender::ACCOUNT) comes off the customer's
+ * debt (CustomerAccountLedger::reverse); neither moves cash. Every refund asks for a REFUND receipt naming the bill's
+ * sale receipt, its payment in the refunded payment's form (the deposit part as `prepayment`, the nasiya part as
+ * `credit`). A payment refunded in full is `refunded`; an order whose payments all are, too (and may be cancelled).
  */
 final class RefundService
 {
-    public const TENDERS = [PosTender::CASH, PosTender::CARD, PosTender::QR];
+    public const TENDERS = [PosTender::CASH, PosTender::CARD, PosTender::QR, PosTender::PREPAYMENT, PosTender::ACCOUNT];
 
     public function __construct(
         private readonly ShiftService $shifts,
@@ -37,6 +44,8 @@ final class RefundService
         private readonly BillFiscalizer $fiscalizer,
         private readonly AuditLogger $audit,
         private readonly ShiftOwnerSummary $owner,
+        private readonly AdvanceLedger $advances,
+        private readonly CustomerAccountLedger $accounts,
     ) {}
 
     /**
@@ -47,7 +56,7 @@ final class RefundService
         $order = Order::findOrFail($payment->order_id);
         $tender = PosTender::tryFrom((string) $payment->provider);
         if (!in_array($tender, self::TENDERS, true) || $payment->bill_id === null) {
-            throw PosActionException::invalid('refund_tender_invalid', "Faqat naqd, karta yoki QR to'lovini qaytarish mumkin (avans va nasiya o'z bo'limida).");
+            throw PosActionException::invalid('refund_tender_invalid', "Bu to'lovni kassada qaytarib bo'lmaydi (schyotga tegishli naqd, karta, QR, avans yoki nasiya to'lovi emas).");
         }
         if (!$amount->isPositive()) {
             throw PosActionException::invalid('amount_invalid', "Summa musbat bo'lishi kerak.");
@@ -59,6 +68,11 @@ final class RefundService
         }
 
         $refund = DB::transaction(function () use ($user, $payment, $order, $tender, $amount, $reason, $approvalToken, $shift, $device, $applied) {
+            // The shift first (as payments and the Z lock it): closed meanwhile, nothing leaves its drawer
+            $shift = PosShift::whereKey($shift->id)->lockForUpdate()->firstOrFail();
+            if (!$shift->isOpen()) {
+                throw PosActionException::conflict('shift_closed', 'Smena yopilgan.');
+            }
             $payment = Payment::whereKey($payment->id)->lockForUpdate()->firstOrFail();
             $bill = OrderBill::findOrFail($payment->bill_id);
             if ($bill->status !== BillStatus::PAID || $bill->getAttribute('fiscal_receipt_uuid') === null) {
@@ -93,6 +107,16 @@ final class RefundService
             ]);
             if ($tender === PosTender::CASH) {
                 $this->shifts->recordRefund($shift, $refund, $user, $device, $approvedBy);
+            }
+            if ($tender === PosTender::PREPAYMENT) {
+                $this->advances->reverse($order, $amount, $bill->uuid);
+            }
+            if ($tender === PosTender::ACCOUNT) {
+                $account = (string) (($payment->payload ?? [])['account_uuid'] ?? '');
+                if ($account === '') {
+                    throw PosActionException::conflict('account_unknown', "Nasiya to'lovining hisobi topilmadi: qarzni menejer qo'lda tuzatsin.");
+                }
+                $this->accounts->reverse($account, $amount, $bill->uuid, (string) $refund->uuid, $approvedBy ?? (int) $user->id);
             }
 
             if ($left->minus($amount)->isZero()) {

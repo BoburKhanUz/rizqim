@@ -242,11 +242,23 @@ class SyncSender {
         lastError = e;
         return SyncDrainResult(sent: sent, left: store.pendingCount, error: e);
       }
-      await store.markContact();
       clockSkewSeconds = response.clockSkewSeconds;
       clockWarning = response.clockWarning;
       final int before = store.pendingCount;
-      await store.applyResults(response.results);
+      try {
+        await store.markContact();
+        await store.applyResults(response.results);
+      } on Object catch (e) {
+        // The answers could not be written down: the operations stay queued and go again (the server knows them by
+        // op_id), the retry timer keeps running
+        failures++;
+        lastError = e;
+        return SyncDrainResult(
+          sent: sent + before - store.pendingCount,
+          left: store.pendingCount,
+          error: e,
+        );
+      }
       sent += before - store.pendingCount;
       if (response.stoppedAt != null || store.pendingCount == before) {
         // The server could not take the next one now: try again later

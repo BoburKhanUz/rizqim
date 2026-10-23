@@ -52,6 +52,10 @@ class SyncStore {
   DateTime? _lastContactAt;
   DateTime? _contactWrittenAt;
 
+  // Every mutation (journal append, compaction, copy write) runs one at a time, in call order: the sender's acks,
+  // the cashier's payment and a copy refresh can all be in flight at once.
+  Future<void>? _tail;
+
   /// Jurnalda shuncha qatordan oshsa siqiladi.
   static const int compactAfterLines = 800;
 
@@ -128,13 +132,14 @@ class SyncStore {
 
   // --- navbat ---------------------------------------------------------------------------------------------------
 
-  /// Amalni navbatga yozadi (diskka tasdiqlangach qaytadi).
+  /// Amalni navbatga yozadi (diskka tasdiqlangach qaytadi). Bir vaqtda kelgan chaqiriqlar navbat bilan yoziladi:
+  /// `seq` yozuv paytida beriladi, takrorlanmaydi.
   Future<SyncOperation> enqueue(
     String type,
     Map<String, Object?> payload, {
     required int staffId,
     DateTime? occurredAt,
-  }) async {
+  }) => _locked(() async {
     var id = newUuid(_random);
     while (_pending.any((SyncOperation o) => o.opId == id) ||
         _answered.any((SyncOperation o) => o.opId == id)) {
@@ -154,7 +159,7 @@ class SyncStore {
     _pending.add(op);
     _emit();
     return op;
-  }
+  });
 
   /// Keyingi lokal buyurtma raqami (`K1-017`): qurilmaning prefiksi bilan, hech qachon takrorlanmaydi
   /// ([serverNext] — serverdagi shu qurilmaning keyingi raqami, ilova qayta o'rnatilsa ham 1 dan boshlanmasin).
@@ -168,6 +173,10 @@ class SyncStore {
   /// Server javoblari: navbatdan olinadi, javob saqlanadi, server uuid'lari yoziladi.
   Future<void> applyResults(List<SyncResult> results) async {
     if (results.isEmpty) return;
+    await _locked(() => _applyResults(results));
+  }
+
+  Future<void> _applyResults(List<SyncResult> results) async {
     final DateTime now = _clock();
     for (final SyncResult r in results) {
       final int i = _pending.indexWhere((SyncOperation o) => o.opId == r.opId);
@@ -189,11 +198,11 @@ class SyncStore {
 
   /// Navbat bo'shab, server holati qayta yuklandi: hozirgi [lastSeq] gacha bo'lgan amallar endi nusxalarda bor
   /// (siqishda tashlanadi).
-  Future<void> markReloaded() async {
+  Future<void> markReloaded() => _locked(() async {
     _floorSeq = _lastSeq;
     _trim();
     await _maybeCompact(force: true);
-  }
+  });
 
   // --- nusxalar ---------------------------------------------------------------------------------------------------
 
@@ -203,29 +212,30 @@ class SyncStore {
       _docs.keys.where((String k) => k.startsWith(prefix));
 
   /// Serverdan olingan nusxa (u hozirgi [lastSeq] gacha hamma amalni o'z ichiga oladi).
-  Future<void> putDoc(String key, Object? value, {DateTime? takenAt}) async {
-    final SyncDoc d = SyncDoc(
-      value: value,
-      takenAt: takenAt ?? _clock(),
-      seq: _lastSeq,
-    );
-    _docs[key] = d;
-    await storage.writeDoc(
-      key,
-      jsonEncode(<String, Object?>{
-        'taken_at': d.takenAt.toUtc().toIso8601String(),
-        'seq': d.seq,
-        'value': value,
-      }),
-    );
-    _emit();
-  }
+  Future<void> putDoc(String key, Object? value, {DateTime? takenAt}) =>
+      _locked(() async {
+        final SyncDoc d = SyncDoc(
+          value: value,
+          takenAt: takenAt ?? _clock(),
+          seq: _lastSeq,
+        );
+        _docs[key] = d;
+        await storage.writeDoc(
+          key,
+          jsonEncode(<String, Object?>{
+            'taken_at': d.takenAt.toUtc().toIso8601String(),
+            'seq': d.seq,
+            'value': value,
+          }),
+        );
+        _emit();
+      });
 
-  Future<void> removeDoc(String key) async {
+  Future<void> removeDoc(String key) => _locked(() async {
     if (_docs.remove(key) == null) return;
     await storage.deleteDoc(key);
     _emit();
-  }
+  });
 
   /// Server javob berdi (yarim daqiqada bir martadan ko'p diskka yozilmaydi).
   Future<void> markContact([DateTime? at]) async {
@@ -234,14 +244,17 @@ class SyncStore {
     final DateTime? written = _contactWrittenAt;
     if (written != null && now.difference(written).inSeconds < 30) return;
     _contactWrittenAt = now;
-    await storage.writeDoc(
-      _contactKey,
-      jsonEncode(<String, Object?>{'at': now.toUtc().toIso8601String()}),
+    await _locked(
+      () => storage.writeDoc(
+        _contactKey,
+        jsonEncode(<String, Object?>{'at': now.toUtc().toIso8601String()}),
+      ),
     );
   }
 
-  /// Terminal uzildi: navbat va nusxalar o'chiriladi.
-  Future<void> clear() async {
+  /// Terminal uzildi: navbat va nusxalar o'chiriladi. Oxirgi `seq` va lokal raqam esa qoladi: server bir qurilmada
+  /// bir `seq` ni ikki marta qabul qilmaydi (`seq_reused`), qayta ulangan kassa davom ettiradi.
+  Future<void> clear() => _locked(() async {
     _pending.clear();
     _answered.clear();
     _aliases.clear();
@@ -250,17 +263,33 @@ class SyncStore {
     }
     _docs.clear();
     await storage.deleteDoc(_contactKey);
-    await storage.replaceLines(const <String>[]);
-    _journalLines = 0;
+    _floorSeq = _lastSeq;
+    await _maybeCompact(force: true);
     _lastContactAt = null;
+    _contactWrittenAt = null;
     _emit();
-  }
+  });
 
   Future<void> dispose() => _changes.close();
 
   // --- jurnal -----------------------------------------------------------------------------------------------------
 
   static const String _contactKey = '_contact';
+
+  /// Runs [body] after every mutation called before it has finished (whether it failed or not).
+  Future<T> _locked<T>(Future<T> Function() body) {
+    final Future<void>? before = _tail;
+    final Completer<void> done = Completer<void>();
+    _tail = done.future;
+    // Idle: start at once (no hop through an already completed future, which may belong to another zone)
+    final Future<T> run = before == null
+        ? Future<T>.sync(body)
+        : before.then((_) => body());
+    return run.whenComplete(() {
+      if (identical(_tail, done.future)) _tail = null;
+      done.complete();
+    });
+  }
 
   Future<void> _append(Map<String, Object?> record) async {
     await storage.appendLine(_encode(record));

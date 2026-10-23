@@ -38,7 +38,8 @@ Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->prefix('pos'
 
     // Shifts, the cash drawer, X and Z
     Route::post('/shifts', [PosShiftController::class, 'store'])->middleware(['permission:pos.open_shift', $idempotent('pos.shifts.open')]);
-    Route::get('/shifts/current', [PosShiftController::class, 'current'])->middleware('permission:pos.open_shift,pos.close_shift,pos.take_payment');
+    // Review P3-35: reports.view reads it too (an owner's or manager's summary, read-only, branch-scoped)
+    Route::get('/shifts/current', [PosShiftController::class, 'current'])->middleware('permission:pos.open_shift,pos.close_shift,pos.take_payment,reports.view');
     Route::middleware('permission:pos.close_shift,reports.view')->group(function () {
         Route::get('/shifts', [PosShiftController::class, 'index']);
         Route::get('/shifts/{uuid}', [PosShiftController::class, 'show'])->whereUuid('uuid');

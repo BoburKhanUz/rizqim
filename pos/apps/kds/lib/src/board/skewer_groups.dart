@@ -41,22 +41,33 @@ class SkewerGroup {
       lines.where((KitchenLine l) => l.canBeReady).toList();
 }
 
-/// [lines] ni (bosqich, taom, variant, holat guruhi) bo'yicha guruhlaydi; tartib birinchi uchragan qator bo'yicha.
+/// [lines] ni (bosqich, taom, variant, modifikatorlar, izoh, holat guruhi) bo'yicha guruhlaydi; tartib birinchi
+/// uchragan qator bo'yicha.
 ///
 /// O'chirilgan qatorlar alohida guruh bo'ladi (sanoqqa qo'shilmaydi). Donali bo'lmagan taom (kg, l) birlashtirilmaydi:
-/// uning miqdor yorlig'i qatorniki.
+/// uning miqdor yorlig'i qatorniki. "Achchiq" yoki "yaxshi pishgan" qator oddiyidan alohida: guruh izohi hamma qatoriga
+/// tegishli bo'ladi va bitta bosish faqat o'sha qatorlarni tayyor qiladi.
 List<SkewerGroup> groupSkewers(List<KitchenLine> lines) {
   final Map<String, List<KitchenLine>> buckets = <String, List<KitchenLine>>{};
   for (final KitchenLine l in lines) {
     final String kind = l.isVoid ? 'void' : 'live';
     final String key = l.isPiece
-        ? '${l.roundNo}|${l.productName}|${l.variantName}|$kind'
+        ? '${l.roundNo}|${l.productName}|${l.variantName}|${_extras(l)}|$kind'
         : '${l.roundNo}|line${l.id}';
     buckets.putIfAbsent(key, () => <KitchenLine>[]).add(l);
   }
   return <SkewerGroup>[
     for (final List<KitchenLine> group in buckets.values) _group(group),
   ];
+}
+
+/// Qatorning modifikatorlari (tartibsiz) va izohi: bir xil bo'lsagina qatorlar birlashadi.
+String _extras(KitchenLine l) {
+  final List<String> modifiers = <String>[
+    for (final KitchenModifier m in l.modifiers)
+      '${m.groupName ?? ''}:${m.name}:${m.quantity}',
+  ]..sort();
+  return '${modifiers.join(',')}#${l.note?.trim() ?? ''}';
 }
 
 SkewerGroup _group(List<KitchenLine> g) {

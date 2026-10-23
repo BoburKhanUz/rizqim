@@ -55,6 +55,31 @@ describe('shifts', () => {
     expect(new URL(listed.find((call) => new URL(call.url).pathname === '/api/v1/pos/shifts')!.url).searchParams.get('status')).toBe('closed');
   });
 
+  it('builds the summary from the list when the till route is refused (a manager with only reports.view)', async () => {
+    const { calls } = mockFetch({
+      'GET /api/v1/pos/shifts/current': () => json({ success: false, message: "Sizda bu amal uchun ruxsat yo'q." }, 403),
+      'GET /api/v1/pos/shifts': (request) =>
+        new URL(request.url).searchParams.get('status') === 'open' ? ok([shift(), shift({ uuid: 's3' })]) : ok([shift({ uuid: 's0', status: 'closed', z_number: 6 })]),
+      'GET /api/v1/pos/shifts/s1/x-report': () => ok({ shift: shift(), report: { cash: { expected: '750000.00' } } }),
+      'GET /api/v1/pos/shifts/s3/x-report': () => ok({ shift: shift({ uuid: 's3' }), report: { cash: { expected: '120000.00' } } }),
+      'GET /api/v1/pos/shifts/s0': () => ok(shift({ uuid: 's0', status: 'closed', z_number: 6, summary: { cash: { expected: '900000.00' } } })),
+    });
+    const summary = await fetchBranchShiftSummary(testApi(), 2);
+    expect(summary.open.map((x) => x.report.cash.expected)).toEqual(['750000.00', '120000.00']);
+    expect(summary.lastClosed?.z_number).toBe(6);
+    const openList = calls.find((call) => new URL(call.url).pathname === '/api/v1/pos/shifts' && new URL(call.url).searchParams.get('status') === 'open')!;
+    expect(Object.fromEntries(new URL(openList.url).searchParams)).toEqual({ branch_id: '2', status: 'open', limit: '5' });
+  });
+
+  it('still fails on another refusal of the till route', async () => {
+    mockFetch({
+      'GET /api/v1/pos/shifts/current': () => json({ success: false, message: 'Xato' }, 500),
+      'GET /api/v1/pos/shifts': () => ok([]),
+    });
+    const error = (await fetchBranchShiftSummary(testApi(), 2).catch((e: unknown) => e)) as { status: number };
+    expect(error.status).toBe(500);
+  });
+
   it('has nothing when no shift was ever opened', async () => {
     mockFetch({ 'GET /api/v1/pos/shifts': () => ok([]), 'GET /api/v1/pos/shifts/current': () => ok({ shift: null, report: null, shifts: [] }) });
     expect(await fetchBranchShiftSummary(testApi())).toEqual({ open: [], lastClosed: null });

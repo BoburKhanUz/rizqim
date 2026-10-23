@@ -8,6 +8,7 @@ import { useI18n } from '../I18nProvider';
 import { Check } from '../management/fields';
 import { FormError, Notice } from '../management/Notice';
 import { DateField } from '../pos/fields';
+import { useServerDraft } from '../pos/serverDraft';
 import { NO_ERRORS, sortServerErrors, type FormErrors } from '../pos/serverErrors';
 import { localDate } from '../reports/format';
 
@@ -15,17 +16,20 @@ const DAYS = [1, 2, 3, 4, 5, 6, 7] as const;
 const isDay = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value);
 
 // The branch's calendar: which weekdays are the weekend (ISO 1 Monday ... 7 Sunday) and the holidays. A day that is a holiday
-// is priced with the "holiday" tariff, else the weekend one, else the weekday one.
+// is priced with the "holiday" tariff, else the weekend one, else the weekday one. The holidays are also edited in the POS
+// settings: newer data read from the server moves under the edits (what was not touched takes it, see useServerDraft).
+const draftOf = (calendar: TariffCalendar) => ({ weekend: [...calendar.weekend_days].sort(), holidays: [...calendar.holidays].sort() });
+
 export function CalendarCard({ branchId, calendar }: { branchId: number; calendar: TariffCalendar }) {
   const { t, language } = useI18n();
-  const [weekend, setWeekend] = useState<number[]>(calendar.weekend_days);
-  const [holidays, setHolidays] = useState<string[]>(calendar.holidays);
+  const { draft, setDraft, dirty } = useServerDraft(calendar, draftOf);
+  const { weekend, holidays } = draft;
+  const setWeekend = (next: number[]) => setDraft((current) => ({ ...current, weekend: next }));
+  const setHolidays = (next: string[]) => setDraft((current) => ({ ...current, holidays: next }));
   const [adding, setAdding] = useState('');
   const [errors, setErrors] = useState<FormErrors>(NO_ERRORS);
   const [notice, setNotice] = useState<string | null>(null);
   const save = useSaveTariffCalendar();
-
-  const dirty = weekend.join() !== [...calendar.weekend_days].join() || holidays.join() !== calendar.holidays.join();
 
   const addHoliday = () => {
     if (!isDay(adding) || holidays.includes(adding)) return;

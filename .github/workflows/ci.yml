@@ -380,6 +380,10 @@ jobs:
         run: |
           shellcheck scripts/*.sh backend/docker/entrypoint.sh infra/staging/*.sh
 
+      # Guards of the POS stack script (live pid file, --stop); needs no backend or Dart
+      - name: pos-e2e.sh guards
+        run: scripts/pos-e2e.test.sh
+
       # The script edits the Mini App nginx config at container start; fail here if that config changes shape
       - name: Staging noindex script still matches the Mini App nginx config
         run: |

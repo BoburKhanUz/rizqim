@@ -161,26 +161,7 @@ class MangalCard extends StatelessWidget {
                           ),
                           for (final int r in (rounds.toList()..sort()))
                             RoundTag(round: r, onColor: fg),
-                          if (isNew)
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: c.info,
-                                borderRadius: BorderRadius.circular(
-                                  RzRadius.control,
-                                ),
-                              ),
-                              child: Text(
-                                'Yangi',
-                                style: RzType.footnote.copyWith(
-                                  color: c.onInfo,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
+                          if (isNew) const NewBadge(),
                           if (total > 0)
                             Text(
                               'Jami: ${formatCount(total)} six',

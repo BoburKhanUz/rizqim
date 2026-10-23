@@ -29,7 +29,7 @@ void main() {
     await tester.tap(find.text('Botir Aliyev'));
     await tester.pumpAndSettle();
     expect(find.text('Boshqa xodim'), findsOneWidget);
-    await typePin(tester, '1357');
+    await typePin(tester, '3691');
 
     expect(find.byType(RoomsPage), findsOneWidget);
     expect(find.text('Mening xonalarim'), findsOneWidget);

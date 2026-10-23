@@ -28,7 +28,7 @@ qo'llanmasida](oshxona-ekrani.md). Boshlang'ich sozlash (zal xaritasi, tariflar,
 17. [Onlayn buyurtmalarni qabul qilish](#17-onlayn-buyurtmalarni-qabul-qilish)
 18. [Kirim-chiqim, X va Z hisobot](#18-kirim-chiqim-x-va-z-hisobot)
 19. [Printer sozlamalari](#19-printer-sozlamalari)
-20. [Internet uzilsa (tez orada)](#20-internet-uzilsa-tez-orada)
+20. [Internet uzilsa](#20-internet-uzilsa)
 21. [Muammolar va yechimlar](#21-muammolar-va-yechimlar)
 
 ## 1. Kassani ulash (bir marta)
@@ -128,7 +128,7 @@ Aloqa belgisi:
 - **Jonli** — hammasi real vaqtda yangilanadi.
 - **Ulanmoqda** / **Qayta ulanmoqda** — ulanishga harakat qilmoqda.
 - **Har 15 soniyada** — jonli ulanish yo'q, ekran har 15 soniyada o'zi yangilanadi. Ishlash mumkin.
-- **Server javob bermayapti** — internet yoki server yo'q (qarang: [Internet uzilsa](#20-internet-uzilsa-tez-orada)).
+- **Server javob bermayapti** — internet yoki server yo'q (qarang: [Internet uzilsa](#20-internet-uzilsa)).
 
 ## 4. Smenani ochish
 
@@ -321,6 +321,11 @@ yuborish, "berildi" va mehmonlar soni o'zi takrorlanadi; qolganlarini qaytadan b
 "Mehmonlar ketdi", "Xato ochildi", "Takroriy buyurtma". Agar buyurtmada **to'lov bo'lsa**, avval pulni qaytaring
 ([14-bo'lim](#14-pulni-qaytarish)), keyin bekor qiling.
 
+**To'lovi boshlangan schyot.** Schyotning bir qismi to'langan bo'lsa, o'sha schyotdagi taomni o'chirish, mehmonlar sonini
+kamaytirish, boshqa joyga ko'chirish, birlashtirish yoki xizmat haqini olib tashlash mumkin emas (bular to'langan summaga
+tegadi). Ilova "Schyotning bir qismi to'langan: … Avval o'sha to'lovni qaytaring" deb yozadi, buyurtma o'zgarmaydi va
+qayta yuklanadi. Kerak bo'lsa avval to'lovni qaytaring ([14-bo'lim](#14-pulni-qaytarish)), keyin o'zgartiring.
+
 **Xona puli, xizmat haqi, joy puli yoki minimal summa farqini olib tashlash** (mehmon e'tiroz bildirsa): buyurtma pastidagi
 summalar qatorida kerakli qatorni bosing → **Olib tashlash** → sabab ("Mehmon e'tirozi", "Xizmat ko'rsatilmadi", "Doimiy mijoz",
 "Menejer qarori") → menejer PIN'i. Olib tashlangan qator sababi bilan ko'rinadi; xato bo'lsa **Qaytarish** bilan qaytariladi.
@@ -451,15 +456,33 @@ Mehmon pulni qaytarib so'rasa (masalan, taom sifatsiz):
 4. **Sabab**ni yozing ("Taom sifatsiz", "Xato to'lov", "Mijoz voz kechdi").
 5. **Qaytarish** → menejer PIN'i.
 
-Natija: naqd kassadan chiqadi (kassa qutisi ochiladi), asl sotuv chekiga bog'langan **qaytarish cheki** chop etiladi, egaga xabar
-boradi.
+Natija: asl sotuv chekiga bog'langan **qaytarish cheki** chop etiladi, egaga xabar boradi. Pul qayerga borishi to'lov turiga
+bog'liq — dialogda to'lovni tanlaganda shu yozib turiladi:
+
+| Qaytarilgan to'lov | Nima bo'ladi |
+|---|---|
+| **Naqd** | Pul kassadan chiqadi (kassa qutisi ochiladi) |
+| **Karta**, **QR** | Pul karta yoki QR yo'li bilan qaytadi, kassadan naqd chiqmaydi |
+| **Bron avansi** (bo'nak) | Kassadan pul chiqmaydi: summa bron avansiga qaytadi. Keyin uni boshqa schyotga ishlatish, mijozga qaytarish yoki ushlab qolish mumkin ([15-bo'lim](#15-bron-avans-va-keldi)) |
+| **Nasiya** | Kassadan pul chiqmaydi: summa mijozning qarzidan ayiriladi ([16-bo'lim](#16-nasiya-va-qarz-tolovi)) |
+
+Bitta schyotda bir nechta to'lov bo'lsa (masalan, avans + nasiya), har birini alohida qaytaring. Ro'yxatda har to'lovdan hali
+qaytarilmagan summa ko'rinadi.
+
+**Hamma to'lov qaytarilsa.** Buyurtma hali yopilmagan bo'lsa (masalan, schyotlardan biri to'langan, qolgani to'lanmagan), schyot
+ekranida "Buyurtmaning hamma to'lovi qaytarildi: endi uni bekor qilish mumkin" va **Buyurtmani bekor qilish** tugmasi chiqadi:
+sabab → menejer PIN'i. Yuborilgan taomlar uchun **O'CHIRILDI** markasi chiqadi, joy bo'shaydi.
 
 Qoidalar:
 
-- Faqat **shu smenada** olingan **naqd, karta yoki QR** to'lov qaytariladi. Avans va nasiya to'lovi bu yerdan qaytarilmaydi.
+- Faqat **shu smenada** olingan to'lov qaytariladi: naqd, karta, QR, bron avansi yoki nasiya.
 - Chek chiqmagan ("Fiskal kutmoqda") schyotni qaytarib bo'lmaydi: avval chek chiqishini kuting.
 - Naqd qaytarish kassadagi naqddan ko'p bo'lmaydi.
-- Smena yopilgan bo'lsa, qaytarishni menejer hal qiladi.
+- Avansdan schyotga ayirilganidan, nasiyadan schyotga yozilganidan ko'p qaytarib bo'lmaydi.
+- Mijoz nasiyani qisman to'lab bo'lgan bo'lsa, qolgan qarzdan ko'pini qaytarib bo'lmaydi ("Mijoz qarzining bir qismini
+  to'lagan: qolgan qarz … so'm"). Kamroq summani qaytaring yoki farqni menejer qo'lda hal qilsin.
+- Smena shu orada yopilgan bo'lsa ("Smena shu orada yopildi: pul olinmadi va qaytarilmadi"), hech narsa yozilmaydi. Yopilgan
+  smenadagi to'lovni qaytarishni menejer hal qiladi.
 
 ## 15. Bron, avans va "Keldi"
 
@@ -660,52 +683,83 @@ Chop etishni kassaning o'zi bajaradi (LAN yoki USB orqali), server emas: interne
 **Ovoz:** **Yangi onlayn buyurtma ovozi** — yoqish/o'chirish, **Sinab eshitish**.
 **Qurilma:** nomi, filial, terminal raqami, kirgan xodim va shu kassa onlayn buyurtma markasini chiqarishi yoki chiqarmasligi.
 
-## 20. Internet uzilsa (tez orada)
+## 20. Internet uzilsa
 
-> **Eslatma: bu bo'lim hali tayyor emas.** Internetsiz ishlash rejimi hozir qurilmoqda. Quyida u qanday ishlashi kerakligi
-> yozilgan; dastur chiqqach bu bo'lim aniqlashtiriladi. Hozirgi holat — pastdagi "Hozir nima bo'ladi".
+Internet (yoki server) uzilsa, kassa **internetsiz rejimga** o'tadi va savdo to'xtamaydi. Bu qisqa uzilish uchun: bir necha
+daqiqadan bir-ikki soatgacha. To'liq oflayn tizim emas. Shart: kassa va printer elektr bilan ishlayapti, faqat internet yo'q
+(elektr o'chishidan UPS himoya qiladi).
 
-Maqsad: **qisqa uzilishda (bir necha daqiqadan 1–2 soatgacha) savdo to'xtamasin va hech narsa yo'qolmasin**. Bu to'liq offline
-tizim emas. Shart: kassa va printer elektr bilan ishlayapti, faqat internet yo'q. Elektr o'chishidan UPS himoya qiladi.
+**Qanday bilasiz.** Ish ekrani tepasida lenta chiqadi: **Internetsiz rejim: sotuv davom etadi**. Uning ostida — **Navbatda N ta
+amal (M ta yangi buyurtma)**: serverga hali yetib bormagan amallar soni. 15 daqiqadan keyin lenta sariq bo'ladi ("aloqa 15
+daqiqadan ko'p yo'q"), 2 soatdan keyin qizil ("menejerga ayting"). Tepadagi aloqa belgisi — **Server javob bermayapti**.
 
-**Nima ishlaydi (rejalashtirilgan):**
+**Nima ishlaydi:**
 
-- Siz ochgan va uzilishdan oldin yuklangan buyurtmalar bilan ishlash. Ochiq xona hisoblari kassada saqlanadi, ularga yangi bosqich qo'shish mumkin.
-- Yangi buyurtma (olib ketish, zal).
-- LAN printerga marka va schyot chiqarish.
-- **Naqd** va **alohida karta terminali** orqali to'lov.
-- To'langan buyurtmaning fiskal cheki **navbatga** yoziladi va internet qaytgach chiqadi. Shu paytgacha buyurtma "Fiskal kutmoqda".
-- Tepada belgi: **N ta amal serverga hali yuborilmagan**. Internet qaytgach hammasi o'zi yuboriladi, tartib bilan, ikki marta emas.
+- Zal xaritasi: oxirgi holat va kassada qilingan o'zgarishlar.
+- Yangi buyurtma: olib ketish, zal, xona, **Tez kassa**. Raqami kassaning o'zidan beriladi, masalan **#K1-001**.
+- Uzilishdan oldin ochilgan buyurtmalar (kassada saqlangan bo'lsa): yangi bosqich qo'shish.
+- Oshxonaga yuborish (marka LAN printerga chiqadi), yuborilmagan taomni o'chirish, **Berildi**.
+- **Bitta schyot** tuzish va chiqarish (pre-chek). Internet uzilishidan oldin tuzilgan schyotni ham chiqarish va to'lash mumkin.
+- **Naqd** va **alohida karta terminali** orqali to'lov. Hamma schyot to'langach buyurtma yopiladi va stol bo'shaydi.
 
-**Nima ishlamaydi:**
+Narx — kassadagi oxirgi menyu nusxasidan; xizmat haqi, xona puli va choy-non — filial sozlamasi bo'yicha.
 
-- Telegram, ilova va agregator buyurtmalari.
-- QR, Click, Payme to'lovlarining onlayn tasdig'i (**QR** ni o'zingiz tasdiqlaysiz, lekin ilova tekshirmaydi).
-- Yangi xodimning PIN bilan kirishi (faqat uzilishdan oldin kirganlar ishlaydi).
-- Stop-list va qozon qoldig'ini boshqa qurilmalar bilan almashish.
-- **Smenani yopish va Z hisobot.**
-- Ofitsiant telefoni: faqat ko'rish. Yangi taomni kassada kiritasiz.
+**Nima ishlamaydi** (tugma o'chiq yoki "Internet yo'q: bu amal internet tiklangach" yoziladi):
+
+- Hisobni bo'lish (teng yoki taom bo'yicha): faqat bitta schyot.
+- QR, bron avansi va nasiya bilan to'lov; pulni qaytarish.
+- Mehmonlar sonini o'zgartirish, ko'chirish, birlashtirish, buyurtmani bekor qilish.
+- Oshxonaga yuborilgan taomni o'chirish: internetsiz menejer tasdig'i olinmaydi.
+- Kirim-chiqim, smena ochish va **Z (smenani yopish)**.
+- Bronlar, nasiya hisoblari, Telegram va ilova buyurtmalari.
+- PIN bilan yangi kirish. Shuning uchun internetsiz paytda ekran o'zi qulflanmaydi: kassadan chiqmang va ilovani yopmang.
+- Ofitsiant telefoni faqat ko'rish rejimida: yangi taomni kassada kiriting.
+
+**Chek.** Internetsiz to'lovda sotuv (fiskal) cheki darhol chiqmaydi — mehmonga pre-chek beriladi. Internet qaytgach to'lov
+serverga yetadi, fiskal chek ro'yxatdan o'tadi va kassa **sotuv chekini o'zi chop etadi**, har birini bir marta. Chek hali tayyor
+bo'lmasa, tayyor bo'lganda chiqadi. Qayta kirganingizda eski cheklar qayta chiqmaydi. Chek printerida qog'oz tugagan bo'lsa,
+tepada **Chek chop etilmadi** chiqadi: qog'oz qo'ying va **Qayta urinish** ni bosing. Kassa qutisi qog'oz tugagan printerda ham
+ochiladi.
+
+**Internet qaytgach.** Navbat o'zi, tartib bilan yuboriladi, hech narsa ikki marta yozilmaydi. Lentada "Aloqa tiklandi:
+offlayn amallar serverga yuborilmoqda". Kutmaslik uchun **Yuborish** ni bosing. Navbat bo'shagach lenta yo'qoladi, zal va
+buyurtmalar serverdan yangilanadi.
 
 **Chegaralar:**
 
-- Offline savdoni boshlash uchun kassa oxirgi 24 soat ichida serverga ulangan va menyu nusxasi 24 soatdan yangi bo'lishi kerak. Aks
+- Internetsiz sotish uchun kassa oxirgi 24 soat ichida serverga ulangan va menyu nusxasi 24 soatdan yangi bo'lishi kerak. Aks
   holda ilova "Internet kerak" deydi.
-- Narx — kassadagi oxirgi menyu nusxasi bo'yicha. Chegirma faqat menejer PIN'i bilan.
-- Ogohlantirishlar: 15 daqiqadan keyin sariq belgi; 2 soatdan keyin qizil belgi va menejerga eslatma.
-- Navbatda 500 tadan ortiq buyurtma bo'lsa, yangi buyurtma bloklanadi.
-- Fiskal chek navbati 48 soatga yaqinlashsa, qizil ogohlantirish chiqadi (soliq talabi bo'yicha 48 soatdan keyin virtual kassa bloklanadi).
-- **Navbat bo'sh bo'lmaguncha va "Fiskal kutmoqda" cheklar qolguncha smena yopilmaydi.**
-- Internet qaytgach server holati ustun. Serverda o'zgargan buyurtma bo'yicha rad etilgan amallar **Sinxronlash xatolari**
-  ro'yxatiga tushadi — ularni menejer ko'rib chiqadi. Sotuv va olingan pul hech qachon rad etilmaydi.
+- Navbatda 500 ta yangi buyurtma bo'lsa, yangisi internet qaytgach ochiladi.
+- Fiskal cheklar serverga yetmay 24 soat o'tsa — ogohlantirish, 40 soatda — qizil ogohlantirish: virtual kassa 48 soatda
+  bloklanadi. Menejer va egaga darhol ayting.
+- Kassa soati serverdan 5 daqiqadan ko'p farq qilsa, ogohlantirish chiqadi: soatni to'g'rilang.
+- **Navbat bo'shamaguncha smena yopilmaydi (Z)** va **terminalni uzib bo'lmaydi**: uzilsa, yuborilmagan sotuvlar yo'qolardi.
 
-**Hozir nima bo'ladi** (rejim chiqquncha): internet uzilsa, tepada **Server javob bermayapti** yoki "Aloqa yo'q" chiqadi. Zal
-xaritasi oxirgi holatni ko'rsatadi ("Xaritani yangilab bo'lmadi: oxirgi holat ko'rsatilmoqda"), lekin yangi buyurtma ochish,
-yuborish, schyot va to'lov **ishlamaydi**. Nima qilish kerak:
+**Sinxronlash xatolari.** Internet qaytgach server holati ustun. Masalan, siz internetsiz bosqich qo'shgan buyurtmani boshqa
+qurilma yopgan bo'lsa, bu amal rad etiladi. Lentada "Sinxronlash xatolari: N ta — menejer ko'rib chiqsin" va **Xatolar (N)**
+tugmasi chiqadi. Menejer **Sozlamalar** → **Sinxronlash xatolari** da har birini ko'radi: qo'lda to'g'rilagach **Hal qilindi**,
+kerak bo'lmasa **Yopish**. Olingan pul (to'lov) rad etilmaydi.
 
-1. Wi-Fi va routerni tekshiring; internet qaytguncha kuting.
-2. Mehmonlarga hisobni qog'ozda yozib turing (taomlar va summa) — internet qaytgach kassada kiriting.
-3. Oshxonaga buyurtmani og'zaki ayting.
-4. Aloqa qaytgach, saqlanmagan ishlarni qayta bajaring. To'lov oldidan uzilgan bo'lsa, qayta tasdiqlash xavfsiz (ikki marta yozilmaydi).
+Ro'yxatda uchraydigan sabablar:
+
+| Yozuv | Ma'nosi |
+|---|---|
+| "Offlayn sotilgan narx menyuda bo'lmagan: server narxi qo'yildi" | Kassadagi menyu nusxasidagi narx serverda o'sha paytda bo'lmagan. Taom **server narxida** yozildi, buyurtma jami kassada ko'ringanidan boshqacha bo'lishi mumkin |
+| "Amal ma'lumotlari serverda saqlanmadi" | Amalda noto'g'ri yoki juda katta qiymat bor. Menejer qo'lda tekshiradi; navbat to'xtamaydi |
+| "Qo'shimcha menyuda topilmadi" | Taomning qo'shimchasi menyudan o'chirilgan. Amal qo'llanmadi |
+
+**Narx serverda boshqacha bo'lsa.** Internet qaytgach tepada sariq lenta chiqadi: "Narx serverda boshqacha: offlayn sotuv server
+narxida saqlandi" va qaysi taom qancha bo'lgani ("'Choy' offlayn 4000 so'mdan sotilgan, serverda 5000 so'm qo'yildi").
+Ochiq buyurtma va schyot serverdan o'zi yangilanadi. Mehmon hali to'lamagan bo'lsa, yangi jamini ko'rsating. O'qib
+bo'lgach **Tushunarli** ni bosing. Kassa soati noto'g'ri bo'lgani uchun amal vaqti tuzatilgan bo'lsa, bu faqat ma'lumot uchun:
+hech narsa qilish kerak emas.
+
+**Elektr o'chsa yoki ilova yopilsa.** Kassada bajarilgan har bir amal darhol diskka yoziladi: qayta yoqilgach navbat va
+internetsiz ochilgan buyurtmalar joyida qoladi va internet qaytgach o'zi yuboriladi. Lekin internetsiz qayta ochilsa, PIN bilan
+kirib bo'lmaydi: yangi sotuv internet qaytgach.
+
+Amal paytida internet uzilsa (to'lov, qaytarish, kirim-chiqim): ilova "Aloqa yo'q: to'lov holati noma'lum" kabi yozadi. **Xuddi shu amalni
+qayta bosing** — u ikki marta yozilmaydi va menejer PIN'i qayta so'ralmaydi.
 
 ## 21. Muammolar va yechimlar
 
@@ -718,9 +772,15 @@ yuborish, schyot va to'lov **ishlamaydi**. Nima qilish kerak:
 | Bo'limlardan biri ko'rinmayapti (**Bronlar**, **Nasiya**, **Smena**) | Rolingizda ruxsat yo'q. Egaga ayting |
 | "Bu terminalda PIN o'rnatilgan menejer yo'q" | Menejer tasdig'i uchun menejerga PIN o'rnatilishi kerak (**Xodimlar** bo'limi) |
 | To'lov: "Smena ochilmagan" / **Smenani ochish** chiqdi | [Smenani oching](#4-smenani-ochish) |
+| To'lov yoki qaytarish: "Smena shu orada yopildi" | Boshqa kassa yoki menejer Z bilan smenani yopdi, pul olinmadi. Yangi smena oching va qayta bajaring |
+| "Schyotning bir qismi to'langan: … Avval o'sha to'lovni qaytaring" | O'zgarish to'langan taom yoki xizmat haqiga tegadi. Avval to'lovni qaytaring ([14-bo'lim](#14-pulni-qaytarish)) |
+| Birlashtirishda "Ikkala buyurtma ham boshqa-boshqa bronga tegishli" | Ikki bronning buyurtmasini birlashtirib bo'lmaydi. Alohida to'lang |
+| Nasiyani qaytarishda "Mijoz qarzining bir qismini to'lagan" yoki "hisobi topilmadi" | Kamroq summani qaytaring yoki menejerga ayting: u qarzni qo'lda tuzatadi |
 | Schyot tuzilmayapti: "Avval yangi bosqichni yuboring yoki saqlang" | Buyurtmadagi yangi taomlarni **Saqlash** yoki **Yuborish** |
 | Buyurtmani birlashtirib/ko'chirib bo'lmayapti | Schyot chiqarilgan yoki to'lov olingan bo'lishi mumkin; xonaga ko'chirishda xona band bo'lmasin |
 | Taomni tanlab bo'lmayapti (**Tugadi**, **Stop-listda**) | Taom tugagan. Menejer stop-listdan chiqarishi yoki qozon ochishi mumkin |
+| Tepada **Internetsiz rejim** | Internet yo'q, savdo davom etadi: [20-bo'lim](#20-internet-uzilsa) |
+| Sotuv cheki chiqmadi (**Chek chop etilmadi**) | Qog'oz qo'ying, printerni tekshiring, **Qayta urinish** |
 | Marka oshxonaga chiqmadi (**Marka chop etilmadi**) | **Qayta urinish**. Printer yoqilganini, LAN kabelini, qog'ozini tekshiring; **Sozlamalar** → **Sinov chop etish** |
 | Chekdagi harflar noto'g'ri | **Sozlamalar** → printer → **Matnni rasm sifatida** |
 | **Fiskal kutmoqda** | [13-bo'lim](#13-fiskal-chek-va-fiskal-kutmoqda). **Qayta urinish**; chiqmasa menejerga ayting |

@@ -25189,7 +25189,7 @@
         "/v1/pos/bills/{uuid}/fiscal-retry": {
             "post": {
                 "operationId": "posBill.fiscalRetry",
-                "description": "For a bill whose payments cover it but whose sale receipt is not issued (\"fiskal kutmoqda\": pending or failed):\nasks the fiscal provider again (same receipt, never a second one); issued: the bill is paid and the order closed\nwhen every bill is. Needs pos.take_payment.",
+                "description": "For a bill whose payments cover it but whose sale receipt is not issued (\"fiskal kutmoqda\": pending or failed):\nasks the fiscal provider again (same receipt, never a second one; P3-35: a receipt the provider refused is sent\nagain too); issued: the bill is paid and the order closed when every bill is. Needs pos.take_payment.",
                 "summary": "Ask again for a bill's receipt",
                 "tags": [
                     "POS: billing"
@@ -40006,6 +40006,18 @@
                                                                                 "null"
                                                                             ]
                                                                         },
+                                                                        "product_id": {
+                                                                            "type": [
+                                                                                "integer",
+                                                                                "null"
+                                                                            ]
+                                                                        },
+                                                                        "category_id": {
+                                                                            "type": [
+                                                                                "integer",
+                                                                                "null"
+                                                                            ]
+                                                                        },
                                                                         "sent_at": {
                                                                             "type": [
                                                                                 "string",
@@ -42180,6 +42192,18 @@
                                                                         "type": "string"
                                                                     },
                                                                     "station_id": {
+                                                                        "type": [
+                                                                            "integer",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "product_id": {
+                                                                        "type": [
+                                                                            "integer",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "category_id": {
                                                                         "type": [
                                                                             "integer",
                                                                             "null"
@@ -45841,7 +45865,7 @@
         "/v1/pos/orders/{uuid}/charges/{charge}/waive": {
             "post": {
                 "operationId": "posOrder.waive",
-                "description": "`service_charge`, `place_fee`, `room_fee` or `min_spend_topup` taken off this order with a `reason` (the guest\nobjected; the manager decided): orders.discount or a manager's `approval_token`. Audited. Needs orders.manage.",
+                "description": "`service_charge`, `place_fee`, `room_fee` or `min_spend_topup` taken off this order with a `reason` (the guest\nobjected; the manager decided): orders.discount or a manager's `approval_token`. Audited. Needs orders.manage.\n409 `paid_bill_affected` when a paid bill carries it (P3-35).",
                 "summary": "Waive a charge line",
                 "tags": [
                     "POS: orders"
@@ -47530,7 +47554,7 @@
         "/v1/pos/orders/{uuid}/guests": {
             "post": {
                 "operationId": "posOrder.guests",
-                "description": "The per-guest charges follow; guests who joined get the automatic \"choy-non\" lines as a new round. Needs\norders.manage.",
+                "description": "The per-guest charges follow; guests who joined get the automatic \"choy-non\" lines as a new round. Needs\norders.manage. 409 `paid_bill_affected` when a charge a paid bill carries would go down (P3-35).",
                 "summary": "Change the guests count",
                 "tags": [
                     "POS: orders"
@@ -48990,7 +49014,7 @@
         "/v1/pos/orders/{uuid}/items/{item}/void": {
             "post": {
                 "operationId": "posOrder.void",
-                "description": "Before the line reached the kitchen: orders.manage, its stock and kazan portion go back. Once sent (or after the\nbill was printed): `reason` is required and orders.void_item, or a manager's one-time `approval_token` (POST\n/pos/approvals); the kitchen sees it struck through. `restock` (sent lines) returns the portion when it was not\ncooked. 403 `approval_required` / `approval_invalid`; 422 `already_void`.",
+                "description": "Before the line reached the kitchen: orders.manage, its stock and kazan portion go back. Once sent (or after the\nbill was printed): `reason` is required and orders.void_item, or a manager's one-time `approval_token` (POST\n/pos/approvals); the kitchen sees it struck through. `restock` (sent lines) returns the portion when it was not\ncooked. 403 `approval_required` / `approval_invalid`; 422 `already_void`; 409 `paid_bill_affected` for a line on a\nbill being paid (refund that payment first, P3-35).",
                 "summary": "Void a line",
                 "tags": [
                     "POS: orders"
@@ -49739,7 +49763,7 @@
         "/v1/pos/orders/{uuid}/merge": {
             "post": {
                 "operationId": "posOrder.merge",
-                "description": "`source_uuid`'s lines move to this order (after its rounds), its guests are added and it is closed as merged.\nBoth open hall orders of one branch, no printed bill, no payment; both versions are checked. Needs tables.manage.",
+                "description": "`source_uuid`'s lines move to this order (after its rounds), its guests are added and it is closed as merged.\nBoth open hall orders of one branch, no printed bill, no payment; both versions are checked. Needs tables.manage.\nP3-35: a booking's order hands its booking and deposits to this order; orders of two different bookings are 422\n`merge_bookings_conflict`.",
                 "summary": "Merge another order into this one",
                 "tags": [
                     "POS: orders"
@@ -50467,7 +50491,7 @@
         "/v1/pos/orders/{uuid}/move": {
             "post": {
                 "operationId": "posOrder.move",
-                "description": "Another table, room or tapchan of the same branch: the new hall's service charge and the new place's room tariff\nand minimum spend apply. A room with an open order is 422 `table_occupied` (merge instead). Needs tables.manage.",
+                "description": "Another table, room or tapchan of the same branch: the new hall's service charge and the new place's room tariff\nand minimum spend apply. A room with an open order is 422 `table_occupied` (merge instead). Needs tables.manage.\n409 `paid_bill_affected` when a charge a paid bill carries would go down (P3-35).",
                 "summary": "Move the order to another table",
                 "tags": [
                     "POS: orders"
@@ -51703,6 +51727,18 @@
                                                                         "type": "string"
                                                                     },
                                                                     "station_id": {
+                                                                        "type": [
+                                                                            "integer",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "product_id": {
+                                                                        "type": [
+                                                                            "integer",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "category_id": {
                                                                         "type": [
                                                                             "integer",
                                                                             "null"
@@ -54155,7 +54191,7 @@
         "/v1/pos/refunds": {
             "post": {
                 "operationId": "posRefund.store",
-                "description": "Gives back `amount` of a cash, card or QR payment (`payment_uuid`) of a paid bill, taken in the open shift of\nthis terminal (or `shift_uuid`): 409 `refund_outside_shift` for another shift's payment, 422\n`refund_tender_invalid` for a deposit or nasiya part, 422 `refund_exceeds_payment` beyond what is left of it,\n409 `bill_not_fiscalized` before the sale receipt is issued, 409 `not_enough_cash` beyond the drawer's cash.\n`reason` is required. Needs pos.refund, or a manager's `approval_token` for it (403 `approval_required`). Cash\nleaves the drawer; a REFUND receipt naming the sale receipt is asked for (`fiscal`); the owner is told in\nTelegram.",
+                "description": "Gives back `amount` of a payment (`payment_uuid`) of a paid bill, taken in the open shift of this terminal (or\n`shift_uuid`): 409 `refund_outside_shift` for another shift's payment, 422 `refund_tender_invalid` for one that\nis not a bill's, 422 `refund_exceeds_payment` beyond what is left of it, 409 `bill_not_fiscalized` before the sale\nreceipt is issued, 409 `shift_closed` when the shift closed meanwhile, 409 `not_enough_cash` beyond the drawer's\ncash. `reason` is required. Needs pos.refund, or a manager's `approval_token` for it (403 `approval_required`).\nCash leaves the drawer; P3-35: a deposit part (`prepayment`) goes back to the booking's deposit (409\n`reverse_exceeds_applied`), a nasiya part (`account`) comes off the customer's debt (409 `reverse_exceeds_charge`,\n`more_than_debt` when it was repaid); neither moves cash. A REFUND receipt naming the sale receipt is asked for\n(`fiscal`; its payment marked `prepayment` / `credit` for those parts); the owner is told in Telegram.",
                 "summary": "Refund a payment within the shift",
                 "tags": [
                     "POS: billing"
@@ -55032,7 +55068,7 @@
         "/v1/pos/shifts/current": {
             "get": {
                 "operationId": "posShift.current",
-                "description": "A terminal (staff PIN session): its open shift with its X report so far, or `shift: null`. P3-26: a normal\nsign-in (the owner or a manager in the web panel or the Mini App) gets the branch's open shifts: `branch_id`\n(default: the caller's own branch; an owner without one names it, else every branch they see is listed in\n`shifts`); `shift`/`report` is then the most recently opened of them. `shifts`: every open shift with its X\nreport (a terminal: just its own). Another store's branch: 404; one the caller does not work in: 403.",
+                "description": "A terminal (staff PIN session): its open shift with its X report so far, or `shift: null`. P3-26: a normal\nsign-in (the owner or a manager in the web panel or the Mini App) gets the branch's open shifts: `branch_id`\n(default: the caller's own branch; an owner without one names it, else every branch they see is listed in\n`shifts`); `shift`/`report` is then the most recently opened of them. `shifts`: every open shift with its X\nreport (a terminal: just its own). Another store's branch: 404; one the caller does not work in: 403. Needs\npos.open_shift, pos.close_shift, pos.take_payment or (P3-35, read-only) reports.view.",
                 "summary": "The open shift",
                 "tags": [
                     "POS: billing"
@@ -59247,7 +59283,7 @@
         "/v1/pos/sync": {
             "post": {
                 "operationId": "posSync.store",
-                "description": "Up to 50 operations of this till in its `seq` order, each with a new `op_id` (UUID; the same one when sent again:\nit is applied once), `type` (order.open, order.round, order.send, order.void, order.served, bill.create, bill.pay,\norder.close), `occurred_at` (the device's clock), `staff_id` (who did it: signed in on this till before the\noutage, with the permission) and `payload`. Each result: `status` applied | conflict (applied, but a manager\nshould look: oversold, payment on a cancelled order, amount mismatch, stale menu, a taken room) | rejected (not\napplied: \"Sinxronlash xatolari\"), `reason`, `message` and `refs` (the server's order uuid and version, local\nnumber, line ids, bill and payment uuids, flags). `sent_at` (the device's clock now) gives the clock skew: more\nthan 5 minutes is `clock_warning`. `queue` (size, oldest_at) is what is still in the device's queue including\nthis batch: the shift does not close while it is not empty. Only a POS terminal's own token.",
+                "description": "Up to 50 operations of this till in its `seq` order, each with a new `op_id` (UUID; the same one when sent again:\nit is applied once), `type` (order.open, order.round, order.send, order.void, order.served, bill.create, bill.pay,\norder.close), `occurred_at` (the device's clock), `staff_id` (who did it: signed in on this till before the\noutage, with the permission) and `payload`. Each result: `status` applied | conflict (applied, but a manager\nshould look: oversold, payment on a cancelled order, amount mismatch, stale menu, a taken room, a device price the\ndish never had — `offline_price_mismatch`, the server's price applied) | rejected (not applied: \"Sinxronlash\n     * xatolari\"; `invalid_payload` for content the server cannot store), `reason`, `message` and `refs` (the server's\norder uuid and version, local number, line ids, bill and payment uuids, flags). `sent_at` (the device's clock now)\ngives the clock skew: more than 5 minutes is `clock_warning` (and corrects the operations' times, kept within the\nlast 48 hours). `stopped_at`: a temporary database failure only. `queue` (size, oldest_at) is what is still in the device's queue including\nthis batch: the shift does not close while it is not empty. Only a POS terminal's own token.",
                 "summary": "Send the offline queue",
                 "tags": [
                     "POS: sync"
@@ -60754,7 +60790,7 @@
                     {
                         "name": "include_ready",
                         "in": "query",
-                        "description": "1 to also list orders that are ready but not handed over yet.",
+                        "description": "1 (or true) to also list orders that are ready but not handed over yet.",
                         "schema": {
                             "type": "boolean"
                         }
@@ -60910,6 +60946,18 @@
                                                                     "type": "string"
                                                                 },
                                                                 "station_id": {
+                                                                    "type": [
+                                                                        "integer",
+                                                                        "null"
+                                                                    ]
+                                                                },
+                                                                "product_id": {
+                                                                    "type": [
+                                                                        "integer",
+                                                                        "null"
+                                                                    ]
+                                                                },
+                                                                "category_id": {
                                                                     "type": [
                                                                         "integer",
                                                                         "null"
@@ -61455,6 +61503,18 @@
                                                                         "null"
                                                                     ]
                                                                 },
+                                                                "product_id": {
+                                                                    "type": [
+                                                                        "integer",
+                                                                        "null"
+                                                                    ]
+                                                                },
+                                                                "category_id": {
+                                                                    "type": [
+                                                                        "integer",
+                                                                        "null"
+                                                                    ]
+                                                                },
                                                                 "sent_at": {
                                                                     "type": [
                                                                         "string",
@@ -61933,6 +61993,18 @@
                                                                     "null"
                                                                 ]
                                                             },
+                                                            "product_id": {
+                                                                "type": [
+                                                                    "integer",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "category_id": {
+                                                                "type": [
+                                                                    "integer",
+                                                                    "null"
+                                                                ]
+                                                            },
                                                             "sent_at": {
                                                                 "type": [
                                                                     "string",
@@ -62287,6 +62359,18 @@
                                                                     "null"
                                                                 ]
                                                             },
+                                                            "product_id": {
+                                                                "type": [
+                                                                    "integer",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "category_id": {
+                                                                "type": [
+                                                                    "integer",
+                                                                    "null"
+                                                                ]
+                                                            },
                                                             "sent_at": {
                                                                 "type": [
                                                                     "string",
@@ -62594,6 +62678,18 @@
                                                                 "type": "string"
                                                             },
                                                             "station_id": {
+                                                                "type": [
+                                                                    "integer",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "product_id": {
+                                                                "type": [
+                                                                    "integer",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "category_id": {
                                                                 "type": [
                                                                     "integer",
                                                                     "null"
@@ -63085,6 +63181,18 @@
                                                                 "type": "string"
                                                             },
                                                             "station_id": {
+                                                                "type": [
+                                                                    "integer",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "product_id": {
+                                                                "type": [
+                                                                    "integer",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "category_id": {
                                                                 "type": [
                                                                     "integer",
                                                                     "null"

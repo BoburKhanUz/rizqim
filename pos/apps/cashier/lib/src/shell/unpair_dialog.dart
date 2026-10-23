@@ -2,12 +2,38 @@ import 'package:flutter/material.dart';
 import 'package:pos_data/pos_data.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
+import 'pos_scope.dart';
+
 /// "Terminalni uzish" (faqat menejer va ega: [PosSession.canUnpair]): tasdiqlangach terminal serverda o'zini bekor
 /// qiladi (`DELETE /terminal`: tokenlari va xodim sessiyalari to'xtaydi) va qurilmadan unutiladi. Server javob bermasa (tarmoq yo'q), qurilma baribir uziladi va
 /// serverdagi yozuvni panelda o'chirish kerakligi aytiladi.
+///
+/// Internetsiz rejim navbatida serverga yetmagan amal bo'lsa uzilmaydi: uzilganda navbat va nusxalar o'chiriladi
+/// (`PosOffline.forget`), ular bilan sotuvlar ham yo'qolardi.
 Future<void> confirmUnpair(BuildContext context, PosSession session) async {
   // The messenger outlives this screen: after unpairing the app shows the pairing screen
   final ScaffoldMessengerState? messenger = ScaffoldMessenger.maybeOf(context);
+  final int unsent =
+      PosScope.maybeOf(context)?.data.offline?.store.pendingCount ?? 0;
+  if (unsent > 0) {
+    await showDialog<void>(
+      context: context,
+      builder: (BuildContext context) => AlertDialog(
+        title: const Text('Terminalni uzib bo\'lmaydi'),
+        content: Text(
+          "Navbatda $unsent ta amal serverga hali yetmagan (internetsiz qilingan sotuvlar). Uzilsa ular yo'qoladi. "
+          "Internetni tiklang va navbat bo'shashini kuting, keyin uzing.",
+        ),
+        actions: <Widget>[
+          RzButton(
+            label: 'Tushunarli',
+            onPressed: () => Navigator.pop(context),
+          ),
+        ],
+      ),
+    );
+    return;
+  }
   final bool? confirmed = await showDialog<bool>(
     context: context,
     builder: (BuildContext context) => AlertDialog(

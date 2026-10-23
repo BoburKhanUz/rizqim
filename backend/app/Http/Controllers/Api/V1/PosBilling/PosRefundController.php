@@ -25,13 +25,15 @@ class PosRefundController extends PosBillingController
     /**
      * Refund a payment within the shift
      *
-     * Gives back `amount` of a cash, card or QR payment (`payment_uuid`) of a paid bill, taken in the open shift of
-     * this terminal (or `shift_uuid`): 409 `refund_outside_shift` for another shift's payment, 422
-     * `refund_tender_invalid` for a deposit or nasiya part, 422 `refund_exceeds_payment` beyond what is left of it,
-     * 409 `bill_not_fiscalized` before the sale receipt is issued, 409 `not_enough_cash` beyond the drawer's cash.
-     * `reason` is required. Needs pos.refund, or a manager's `approval_token` for it (403 `approval_required`). Cash
-     * leaves the drawer; a REFUND receipt naming the sale receipt is asked for (`fiscal`); the owner is told in
-     * Telegram.
+     * Gives back `amount` of a payment (`payment_uuid`) of a paid bill, taken in the open shift of this terminal (or
+     * `shift_uuid`): 409 `refund_outside_shift` for another shift's payment, 422 `refund_tender_invalid` for one that
+     * is not a bill's, 422 `refund_exceeds_payment` beyond what is left of it, 409 `bill_not_fiscalized` before the sale
+     * receipt is issued, 409 `shift_closed` when the shift closed meanwhile, 409 `not_enough_cash` beyond the drawer's
+     * cash. `reason` is required. Needs pos.refund, or a manager's `approval_token` for it (403 `approval_required`).
+     * Cash leaves the drawer; P3-35: a deposit part (`prepayment`) goes back to the booking's deposit (409
+     * `reverse_exceeds_applied`), a nasiya part (`account`) comes off the customer's debt (409 `reverse_exceeds_charge`,
+     * `more_than_debt` when it was repaid); neither moves cash. A REFUND receipt naming the sale receipt is asked for
+     * (`fiscal`; its payment marked `prepayment` / `credit` for those parts); the owner is told in Telegram.
      */
     #[ApiDocResponse(201, type: 'array{success: true, message: string, data: ' . BillPresenter::REFUND . '}')]
     public function store(Request $request, RefundService $refunds, BillPresenter $presenter): JsonResponse

@@ -1,8 +1,11 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pos_core/pos_core.dart';
+import 'package:pos_data/pos_data.dart';
 import 'package:pos_data/testing.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
+import 'package:rizqim_waiter/src/features/order/order_controller.dart';
 import 'package:rizqim_waiter/src/features/order/order_page.dart';
 
 import 'support/harness.dart';
@@ -353,6 +356,38 @@ void main() {
     );
   });
 
+  testWidgets(
+    'P3-35: a change a paid bill carries is refused: the waiter is told to ask the cashier, the order reloads',
+    (WidgetTester tester) async {
+      final WaiterHarness h = WaiterHarness();
+      final String uuid = await openOwnOrder(tester, h);
+      h.adapter.respond = (RequestOptions o) =>
+          o.method == 'POST' && o.uri.path.endsWith('/guests')
+          ? const FakeResponse(409, <String, Object?>{
+              'success': false,
+              'message': "Bu o'zgarish to'lovi olingan schyotga tegadi.",
+              'data': <String, Object?>{
+                'reason': 'paid_bill_affected',
+                'bills_reason': 'bills_out_of_date',
+              },
+            })
+          : null;
+      final int reads = h.adapter.to('GET', '/v1/pos/orders/$uuid').length;
+      await tester.tap(find.text('4 mehmon'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.bySemanticsLabel("Mehmonni kamaytirish"));
+      await tester.pump();
+      await tapButton(tester, 'Saqlash');
+      expect(find.textContaining("schyoti to'lana boshlagan"), findsWidgets);
+      expect(find.textContaining('kassirga ayting'), findsWidgets);
+      expect(find.text('4 mehmon'), findsOneWidget, reason: 'nothing changed');
+      expect(
+        h.adapter.to('GET', '/v1/pos/orders/$uuid').length,
+        greaterThan(reads),
+      );
+    },
+  );
+
   testWidgets('the order can be moved to a free room', (
     WidgetTester tester,
   ) async {
@@ -409,4 +444,79 @@ void main() {
     expect(h.adapter.to('POST', '/payments'), isEmpty);
     expect(h.adapter.to('POST', '/print'), isEmpty);
   });
+
+  testWidgets(
+    'a round whose answer was lost is not added twice when repeated after a refresh',
+    (WidgetTester tester) async {
+      final WaiterHarness h = WaiterHarness();
+      final String uuid = seedWaiterOrder(h, tableId: 1);
+      await pumpHome(tester, h);
+      final OrderController ctl = OrderController(
+        data: h.services.data,
+        uuid: uuid,
+      );
+      addTearDown(ctl.dispose);
+      await settle(tester, ctl.load());
+      List<Object?> items() => h.state.orders[uuid]!['items']! as List<Object?>;
+      final int before = items().length;
+
+      // The server applies the round, the answer never reaches the phone (Wi-Fi drop)
+      var lose = true;
+      h.adapter.respond = (RequestOptions o) {
+        if (lose && o.method == 'POST' && o.uri.path.endsWith('/rounds')) {
+          lose = false;
+          h.state.handle(
+            o.method,
+            o.uri.path,
+            o.uri.queryParameters,
+            o.data,
+            (o.headers['Authorization'] as String?)?.replaceFirst(
+              'Bearer ',
+              '',
+            ),
+            idempotencyKey: o.headers['Idempotency-Key'] as String?,
+          );
+          throw DioException.connectionError(requestOptions: o, reason: 'lost');
+        }
+        return null;
+      };
+      final List<PosLineInput> lines = <PosLineInput>[
+        PosLineInput(
+          variantUuid: FakePosState.variantUuid(2),
+          quantity: const PosQuantity.whole(1),
+        ),
+      ];
+      Future<T> direct<T>(Future<T> Function(String?) a) => a(null);
+      expect(
+        await settle(tester, ctl.addRound(direct, lines, PosFireMode.now)),
+        isFalse,
+      );
+      expect(items(), hasLength(before + 1));
+
+      // The poll refreshes the order (the version moved on); the waiter repeats the action as told
+      await settle(tester, ctl.load(silent: true));
+      expect(
+        await settle(tester, ctl.addRound(direct, lines, PosFireMode.now)),
+        isTrue,
+      );
+      expect(items(), hasLength(before + 1), reason: 'applied once');
+      final List<RequestOptions> sent = h.adapter
+          .to('POST', '/rounds')
+          .toList();
+      expect(sent, hasLength(2));
+      expect(
+        sent.map((RequestOptions r) => r.headers['Idempotency-Key']).toSet(),
+        hasLength(1),
+      );
+      expect(h.state.replayed, 1);
+      expect(ctl.order!.items, hasLength(before + 1));
+
+      // The same lines again, on purpose: a new round
+      expect(
+        await settle(tester, ctl.addRound(direct, lines, PosFireMode.now)),
+        isTrue,
+      );
+      expect(items(), hasLength(before + 2));
+    },
+  );
 }

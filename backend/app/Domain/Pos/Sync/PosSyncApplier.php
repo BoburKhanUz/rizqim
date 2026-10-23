@@ -3,6 +3,7 @@
 namespace App\Domain\Pos\Sync;
 
 use App\Domain\Fiscal\FiscalException;
+use App\Domain\Pos\Accounts\PosOwnerAlerts;
 use App\Domain\Pos\Billing\BillFiscalizer;
 use App\Domain\Pos\Billing\BillService;
 use App\Domain\Pos\Billing\BillStatus;
@@ -38,6 +39,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 /**
  * Applies one operation from a till's offline queue (docs/POS_SPEC.md §5) through the POS domain services, so every
@@ -66,6 +68,12 @@ final class PosSyncApplier
     /** How long before the sync a staff member's PIN session on the till may have started. */
     public const SESSION_WINDOW_HOURS = 36;
 
+    /** Review P3-35: a device time older than this (the offline receipt's fiscal limit, POS_SPEC 4.6) is clamped. */
+    public const DEVICE_TIME_MAX_AGE_HOURS = 48;
+
+    /** Review P3-35: the most a payment column holds (decimal 12,2). */
+    public const MAX_AMOUNT = '9999999999.99';
+
     public function __construct(
         private readonly PosOrderService $orders,
         private readonly PosLineBuilder $lines,
@@ -76,6 +84,7 @@ final class PosSyncApplier
         private readonly ShiftService $shifts,
         private readonly PermissionService $permissions,
         private readonly AuditLogger $audit,
+        private readonly PosOwnerAlerts $alerts,
     ) {}
 
     /**
@@ -85,7 +94,10 @@ final class PosSyncApplier
     {
         $received = now();
         $type = PosSyncOperationType::tryFrom((string) $op['type']);
-        $occurredAt = !empty($op['occurred_at']) ? Carbon::parse((string) $op['occurred_at']) : null;
+        $occurredAt = self::time($op['occurred_at'] ?? null);
+        // Review P3-35: what the device's clock said, corrected by the batch's skew and kept within reason, is when
+        // it happened for the server (the order's offline_created_at, the payment's offline_paid_at → sold_at)
+        [$happenedAt, $clamped] = $this->deviceTime($occurredAt, $clockSkew);
         $payload = (array) ($op['payload'] ?? []);
         $base = [
             'store_id' => $device->store_id,
@@ -114,25 +126,116 @@ final class PosSyncApplier
 
         $bills = [];
         try {
-            return DB::transaction(function () use ($device, $type, $staff, $payload, $occurredAt, $base, &$bills) {
-                $outcome = $this->run($device, $type, $staff, $payload, $occurredAt);
+            return DB::transaction(function () use ($device, $type, $staff, $payload, $happenedAt, $clamped, $base, &$bills) {
+                $outcome = $this->run($device, $type, $staff, $payload, $happenedAt);
                 $bills = $outcome['bills'] ?? [];
+                if ($clamped !== null) {
+                    $outcome['flags'] = [...($outcome['flags'] ?? []), $clamped];
+                    $outcome['result']['flags'] = [...($outcome['result']['flags'] ?? []), $clamped];
+                }
 
                 return $this->record($base, $outcome);
             });
-        } catch (PosSyncException|PosOrderException|PosActionException|ValidationException|FiscalException $e) {
+        } catch (PosSyncException|PosOrderException|PosActionException|ValidationException|FiscalException|\App\Domain\Pos\Booking\BookingException|\App\Domain\Pos\Accounts\CustomerAccountException $e) {
             [$reason, $message] = $this->describe($e);
 
             // Money taken is never rejected: it is recorded on the order as it is now
             return $type->isMoney()
-                ? $this->unallocated($device, $staff, $payload, $occurredAt, $base, $reason, $message)
+                ? $this->unallocatedOrRejected($device, $staff, $payload, $happenedAt, $base, $reason, $message)
                 : $this->rejected($base, $reason, $message);
+        } catch (Throwable $e) {
+            // Review P3-35: the database failing (a deadlock, a lost connection) stops the batch, the operation comes
+            // again; anything else is this operation's own content (a value no column holds...): it would fail the
+            // same way every time and block the till's queue for good, so it is answered instead
+            if (TransientDatabaseError::is($e)) {
+                throw $e;
+            }
+            report($e);
+            $message = "Amal ma'lumotlari serverda qo'llanmadi (noto'g'ri yoki juda katta qiymat).";
+
+            return $type->isMoney()
+                ? $this->unallocatedOrRejected($device, $staff, $payload, $happenedAt, $base, 'invalid_payload', $message)
+                : $this->rejected($base, 'invalid_payload', $message);
         } finally {
             // After the commit: the sale receipts of bills this operation covered (the sandbox or a provider answers
             // at once; an unreachable one stays "fiskal kutmoqda" and is retried)
             foreach ($bills as $bill) {
                 $this->fiscalizer->issue($bill);
             }
+        }
+    }
+
+    /**
+     * Money that cannot go through its bill: recorded unallocated (unallocated()); when even that fails on the
+     * operation's own content, rejected for the manager with the tenders as sent.
+     *
+     * @param  array<string, mixed>  $payload
+     * @param  array<string, mixed>  $base
+     */
+    private function unallocatedOrRejected(Device $device, User $staff, array $payload, ?Carbon $happenedAt, array $base, string $reason, string $message): PosSyncOperation
+    {
+        try {
+            return $this->unallocated($device, $staff, $payload, $happenedAt, $base, $reason, $message);
+        } catch (Throwable $e) {
+            if (TransientDatabaseError::is($e)) {
+                throw $e;
+            }
+            report($e);
+
+            return PosSyncOperation::create($base + [
+                'status' => PosSyncStatus::REJECTED->value,
+                'reason' => 'invalid_payload',
+                'error' => "To'lov serverga yozilmadi (ma'lumotlari noto'g'ri). Pulni menejer qo'lda tekshirsin.",
+                'result' => ['tenders' => $payload['tenders'] ?? []],
+            ]);
+        }
+    }
+
+    /**
+     * The device's time of an operation for the server: corrected by the batch's clock skew when that is more than the
+     * warning threshold, and kept within [now − 48 h, now] (the fiscal limit for an offline receipt, POS_SPEC 4.6).
+     * Returns the time and, when it was moved by more than the threshold, a `device_time_clamped` flag (informational).
+     *
+     * @return array{0: Carbon|null, 1: array<string, mixed>|null}
+     */
+    private function deviceTime(?Carbon $occurredAt, ?int $skew): array
+    {
+        if ($occurredAt === null) {
+            return [null, null];
+        }
+
+        $time = $occurredAt->copy();
+        if ($skew !== null && abs($skew) > PosSyncService::CLOCK_SKEW_WARN_SECONDS) {
+            $time = $time->addSeconds($skew);
+        }
+        $floor = now()->subHours(self::DEVICE_TIME_MAX_AGE_HOURS);
+        $ceiling = now();
+        $clamped = $time->lt($floor) ? $floor : ($time->gt($ceiling) ? $ceiling : $time);
+
+        return [$clamped, abs($clamped->diffInSeconds($time)) > PosSyncService::CLOCK_SKEW_WARN_SECONDS ? self::clampFlag($occurredAt, $clamped) : null];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function clampFlag(Carbon $deviceTime, Carbon $usedTime): array
+    {
+        return ['flag' => 'device_time_clamped', 'device_time' => $deviceTime->toJSON(), 'used_time' => $usedTime->toJSON()];
+    }
+
+    /**
+     * A date the device sent, null when it is none (never a 500 for the whole batch).
+     */
+    private static function time(mixed $value): ?Carbon
+    {
+        if (!is_string($value) || trim($value) === '') {
+            return null;
+        }
+
+        try {
+            return Carbon::parse($value);
+        } catch (Throwable) {
+            return null;
         }
     }
 
@@ -151,7 +254,7 @@ final class PosSyncApplier
 
     /**
      * @param  array<string, mixed>  $payload
-     * @return array{status?: PosSyncStatus, reason?: ?string, error?: ?string, result: array<string, mixed>, order?: ?Order, bills?: list<OrderBill>}
+     * @return array{status?: PosSyncStatus, reason?: ?string, error?: ?string, result: array<string, mixed>, order?: ?Order, bills?: list<OrderBill>, flags?: list<array<string, mixed>>}
      */
     private function run(Device $device, PosSyncOperationType $type, User $staff, array $payload, ?Carbon $occurredAt): array
     {
@@ -243,7 +346,8 @@ final class PosSyncApplier
         $roundFlags = [];
         $sent = [];
         if ($items !== []) {
-            $round = $this->orders->offlineRound($order, $staff, $items, (bool) ($payload['send'] ?? false), 1);
+            $round = $this->orders->offlineRound($order, $staff, $items, (bool) ($payload['send'] ?? false), 1, self::time($payload['menu_taken_at'] ?? null));
+            $this->priceAlert($order, $round['flags']);
             $order = $round['order'];
             $roundFlags = $round['flags'];
             $sent = $round['sent'];
@@ -266,7 +370,8 @@ final class PosSyncApplier
             throw new PosSyncException('items_required', "Bosqichda taom yo'q.");
         }
 
-        $round = $this->orders->offlineRound($order, $staff, $items, (bool) ($payload['send'] ?? false));
+        $round = $this->orders->offlineRound($order, $staff, $items, (bool) ($payload['send'] ?? false), null, self::time($payload['menu_taken_at'] ?? null));
+        $this->priceAlert($round['order'], $round['flags']);
 
         return $this->finish($round['order'], $round['flags'], $payload, ['sent' => $round['sent']]);
     }
@@ -400,8 +505,14 @@ final class PosSyncApplier
             $flags[] = ['flag' => 'underpaid', 'amount' => $due->minus($taken)->toString(), 'server_total' => Money::of($bill->total)->toString()];
         }
 
-        $shiftUuid = $this->shiftUuid($device, $payload['shift_uuid'] ?? null);
-        $bill = $this->payments->pay($staff, $bill, $applied, null, $shiftUuid, null, $device, null, $occurredAt ?? now());
+        $shift = $this->openShiftOf($device, $payload['shift_uuid'] ?? null);
+        $paidAt = $occurredAt ?? now();
+        if ($shift !== null && $paidAt->lt($shift->opened_at)) {
+            // Review P3-35: never before the shift the money lands in was opened
+            $flags[] = self::clampFlag($paidAt, $shift->opened_at->copy());
+            $paidAt = $shift->opened_at->copy();
+        }
+        $bill = $this->payments->pay($staff, $bill, $applied, null, $shift?->uuid, null, $device, null, $paidAt);
         $paymentUuids = Payment::where('bill_id', $bill->id)->where('offline_paid_at', '!=', null)->orderBy('id')->pluck('uuid')->all();
 
         return $this->finish(Order::findOrFail($order->id), $flags, $payload, [
@@ -456,8 +567,16 @@ final class PosSyncApplier
         }
 
         return DB::transaction(function () use ($device, $staff, $order, $tenders, $occurredAt, $base, $reason, $message) {
-            $order = Order::whereKey($order->id)->lockForUpdate()->firstOrFail();
+            // The shift's row first, as payments and the Z take it (review P3-35): a shift closed meanwhile takes none
             $shift = $this->openShiftOf($device, $base['payload']['shift_uuid'] ?? null);
+            $shift = $shift !== null ? PosShift::whereKey($shift->id)->lockForUpdate()->first() : null;
+            if ($shift !== null && !$shift->isOpen()) {
+                $shift = null;
+            }
+            $order = Order::whereKey($order->id)->lockForUpdate()->firstOrFail();
+            if ($shift !== null && $occurredAt !== null && $occurredAt->lt($shift->opened_at)) {
+                $occurredAt = $shift->opened_at->copy();
+            }
 
             $created = [];
             foreach ($tenders as $tender) {
@@ -564,13 +683,13 @@ final class PosSyncApplier
      */
     private function finish(Order $order, array $flags, array $payload, array $extra = [], bool $informational = false): array
     {
-        $menuTakenAt = !empty($payload['menu_taken_at']) ? Carbon::parse((string) $payload['menu_taken_at']) : null;
+        $menuTakenAt = self::time($payload['menu_taken_at'] ?? null);
         $offlinePrice = array_filter($flags, fn (array $flag) => $flag['flag'] === 'offline_price') !== [];
         if ($offlinePrice && $menuTakenAt !== null && $menuTakenAt->lt(now()->subHours(self::STALE_MENU_HOURS))) {
             $flags[] = ['flag' => 'stale_menu', 'menu_taken_at' => $menuTakenAt->toJSON()];
         }
 
-        $attention = array_values(array_filter($flags, fn (array $flag) => !in_array($flag['flag'], ['offline_price', 'amount_mismatch', 'local_number_taken'], true)));
+        $attention = array_values(array_filter($flags, fn (array $flag) => !in_array($flag['flag'], ['offline_price', 'amount_mismatch', 'local_number_taken', 'device_time_clamped'], true)));
         $status = $attention !== [] && !$informational ? PosSyncStatus::CONFLICT : PosSyncStatus::APPLIED;
 
         return [
@@ -634,8 +753,30 @@ final class PosSyncApplier
             'table_missing' => 'Stol yoki xona serverda topilmadi: buyurtma joysiz ochildi.',
             'underpaid' => "Schyot serverda {$flag['server_total']} so'm: {$flag['amount']} so'm kam to'langan.",
             'overpaid' => "Schyot serverda {$flag['server_total']} so'm: {$flag['amount']} so'm ortiqcha olingan.",
+            'offline_price_mismatch' => "'{$flag['name']}' kassada {$flag['device_price']} so'mdan sotilgan, lekin menyu nusxasi vaqtida bunday narx bo'lmagan: server narxi ({$flag['server_price']} so'm) qo'yildi. Menejer tekshirsin.",
             default => 'Offlayn amal serverda farq bilan qo\'llandi: menejer tekshirsin.',
         };
+    }
+
+    /**
+     * Review P3-35: a till that sold below a price the dish ever had while its menu was taken tells the owner (the
+     * server's price was applied; the manager sees the conflict in "Sinxronlash xatolari").
+     *
+     * @param  list<array<string, mixed>>  $flags
+     */
+    private function priceAlert(Order $order, array $flags): void
+    {
+        $lower = array_values(array_filter($flags, fn (array $flag) => $flag['flag'] === 'offline_price_mismatch'
+            && Money::of((string) $flag['device_price'])->isLessThan((string) $flag['server_price'])));
+        if ($lower === []) {
+            return;
+        }
+
+        $lines = array_map(fn (array $flag) => "• {$flag['name']}: kassada " . PosOwnerAlerts::sum((string) $flag['device_price'])
+            . ', menyuda ' . PosOwnerAlerts::sum((string) $flag['server_price']), $lower);
+        $this->alerts->send((int) $order->store_id, "⚠️ Offlayn sotuvda narx menyudagidan past: buyurtma {$order->short_code}"
+            . ($order->local_number ? " ({$order->local_number})" : '') . "\n" . implode("\n", $lines)
+            . "\nServer narxi qo'yildi, menejer tekshirsin.");
     }
 
     /**
@@ -780,15 +921,6 @@ final class PosSyncApplier
         return $bill;
     }
 
-    /**
-     * The shift a payment lands in: the one the till named while it is open, else the till's open shift (null: the
-     * payment refuses and is recorded unallocated).
-     */
-    private function shiftUuid(Device $device, mixed $uuid): ?string
-    {
-        return $this->openShiftOf($device, $uuid)?->uuid;
-    }
-
     private function openShiftOf(Device $device, mixed $uuid): ?PosShift
     {
         if (is_string($uuid) && Str::isUuid($uuid)) {
@@ -826,8 +958,10 @@ final class PosSyncApplier
                 $row['tendered_amount'] = Money::of((string) $tender['tendered_amount'])->toString();
             }
             if ($kind === PosTender::CARD->value) {
-                $row['card_type'] = strtolower(trim((string) ($tender['card_type'] ?? 'other'))) ?: 'other';
-                $row['transaction_id'] = trim((string) ($tender['transaction_id'] ?? '')) ?: 'offline';
+                // Review P3-35: what the columns hold (a card type the till does not know is `other`)
+                $cardType = strtolower(trim(is_scalar($tender['card_type'] ?? null) ? (string) $tender['card_type'] : ''));
+                $row['card_type'] = in_array($cardType, PaymentService::CARD_TYPES, true) ? $cardType : 'other';
+                $row['transaction_id'] = mb_substr(trim(is_scalar($tender['transaction_id'] ?? null) ? (string) $tender['transaction_id'] : ''), 0, 64) ?: 'offline';
             }
             $tenders[] = $row;
         }
@@ -900,7 +1034,8 @@ final class PosSyncApplier
      */
     private static function money(mixed $value): ?Money
     {
-        return is_scalar($value) && preg_match('/^\d{1,12}(\.\d{1,2})?$/', trim((string) $value)) ? Money::of(trim((string) $value)) : null;
+        // Review P3-35: at most what a money column holds (decimal 12,2: ten digits before the point)
+        return is_scalar($value) && preg_match('/^\d{1,10}(\.\d{1,2})?$/', trim((string) $value)) ? Money::of(trim((string) $value)) : null;
     }
 
     private function uuidOf(mixed $value, string $what): string

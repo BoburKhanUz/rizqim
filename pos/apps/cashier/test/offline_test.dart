@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:pos_core/pos_core.dart';
 import 'package:pos_data/pos_data.dart';
 import 'package:pos_data/testing.dart';
+import 'package:pos_hardware/pos_hardware.dart';
 import 'package:rizqim_cashier/src/features/billing/billing_page.dart';
 import 'package:rizqim_cashier/src/features/floor/floor_page.dart';
 import 'package:rizqim_cashier/src/features/order/order_page.dart';
@@ -69,6 +70,50 @@ void main() {
     expect(p.h.data.offline!.active, isFalse);
     expect(p.h.data.offline!.store.pendingCount, 0);
   }
+
+  testWidgets(
+    'P3-35: a round synced at the server price shows a notice until the cashier dismisses it',
+    (WidgetTester tester) async {
+      final P22 p = await offlineTill(tester);
+      final FakeSyncBackend sync = FakeSyncBackend(p.state);
+      p.state.seedOrder(tableId: 1, guests: 3);
+      await pumpHome(tester, p.h);
+      await goOffline(tester, p);
+      await openPlace(tester, '1-xona');
+      await tester.tap(menuTile(1)); // Choy
+      await tester.pumpAndSettle();
+      await tester.tap(sendButton);
+      await tester.pumpAndSettle();
+      Navigator.of(tester.element(find.byType(OrderPage))).pop();
+      await tester.pumpAndSettle();
+      sync.flagNext[SyncOpType.orderRound] = <Map<String, Object?>>[
+        <String, Object?>{
+          'flag': 'offline_price_mismatch',
+          'line_id': 'l1',
+          'name': 'Choy',
+          'device_price': '4000.00',
+          'server_price': '5000.00',
+        },
+      ];
+
+      await reconnect(tester, p);
+      expect(
+        find.byKey(const ValueKey<String>('sync-price-banner')),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining("'Choy' offlayn 4000 so'mdan"),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Tushunarli'));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey<String>('sync-price-banner')),
+        findsNothing,
+      );
+      noTimersLeft(p);
+    },
+  );
 
   testWidgets(
     'offline: a walk-in and a room round are sold, cash is taken, and on reconnect everything is synced once',
@@ -243,4 +288,110 @@ void main() {
 
     noTimersLeft(p);
   });
+
+  testWidgets(
+    'an offline sale receipt prints once: paper out at sync is retried from the banner, a new sign-in does not reprint',
+    (WidgetTester tester) async {
+      final P22 p = await offlineTill(tester);
+      FakeSyncBackend(p.state);
+      await pumpHome(tester, p.h);
+      await goOffline(tester, p);
+      final PosOrder o = await drive(
+        tester,
+        p.h.data.orders.open(
+          channel: PosChannel.takeaway,
+          items: <PosLineInput>[
+            PosLineInput(
+              variantUuid: FakePosState.variantUuid(1),
+              quantity: PosQuantity.parse('1'),
+            ),
+          ],
+        ),
+      );
+      final PosBill bill = (await drive(
+        tester,
+        p.h.data.billing.createBills(o.uuid, version: o.version),
+      )).bills.single;
+      await drive(
+        tester,
+        p.h.data.billing.pay(
+          bill.uuid,
+          tenders: <PosTenderInput>[PosTenderInput.cash(bill.total)],
+          shiftUuid: p.h.data.session.shift?.uuid,
+        ),
+      );
+      int sales() =>
+          p.receipts.where((String r) => r.contains('SOTUV CHEKI')).length;
+
+      // The receipt printer is out of paper when the queue reaches the server
+      p.h
+          .printerFor('server-1')
+          .failNext(
+            1,
+            const PrinterException(PrinterErrorKind.paperOut, "Qog'oz tugadi"),
+          );
+      await reconnect(tester, p);
+      expect(sales(), 0);
+      expect(find.text('Chek chop etilmadi (1)'), findsOneWidget);
+      expect(p.h.data.offline!.salesToPrint, hasLength(1));
+
+      await tapButton(tester, 'Qayta urinish');
+      expect(sales(), 1);
+      expect(find.text('Chek chop etilmadi (1)'), findsNothing);
+      expect(p.h.data.offline!.salesToPrint, isEmpty);
+
+      // Locked and signed in again: the old receipt does not come out again
+      await drive(tester, p.h.client.auth.signOutStaff());
+      await tester.tap(find.text('Kamola Karimova'));
+      await tester.pumpAndSettle();
+      await typePin(tester, p.state.pins[3]!);
+      await tester.pumpAndSettle();
+      expect(find.byType(FloorPage), findsOneWidget);
+      expect(sales(), 1);
+
+      noTimersLeft(p);
+    },
+  );
+
+  testWidgets(
+    'the till is not unpaired while offline sales are queued; unpairing clears the journal',
+    (WidgetTester tester) async {
+      final P22 p = await offlineTill(tester);
+      FakeSyncBackend(p.state);
+      await pumpHome(tester, p.h, name: 'Malika Rahimova', pin: '5926');
+      await goOffline(tester, p);
+      await drive(
+        tester,
+        p.h.data.orders.open(
+          channel: PosChannel.takeaway,
+          items: <PosLineInput>[
+            PosLineInput(
+              variantUuid: FakePosState.variantUuid(1),
+              quantity: PosQuantity.parse('1'),
+            ),
+          ],
+        ),
+      );
+      Future<void> unpair() async {
+        await tester.tap(find.byTooltip('Xodim menyusi'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Terminalni uzish'));
+        await tester.pumpAndSettle();
+      }
+
+      await unpair();
+      expect(find.text("Terminalni uzib bo'lmaydi"), findsOneWidget);
+      expect(find.textContaining('Navbatda 1 ta amal'), findsWidgets);
+      await tapButton(tester, 'Tushunarli');
+      expect(p.h.client.auth.terminal, isNotNull);
+      expect(p.h.data.offline!.store.pendingCount, 1);
+
+      await reconnect(tester, p);
+      await unpair();
+      await tapButton(tester, 'Uzish');
+      expect(p.h.client.auth.terminal, isNull);
+      expect(p.h.data.offline!.store.pendingCount, 0);
+      expect(p.h.data.offline!.store.docKeys(), isEmpty);
+    },
+  );
 }

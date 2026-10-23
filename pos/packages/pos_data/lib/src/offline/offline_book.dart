@@ -40,6 +40,41 @@ class OfflineOrderBook {
     return states;
   }
 
+  /// Schyot qaysi buyurtmaniki: navbatdagi amallar ko'rinishida yoki serverdan olingan schyot nusxalarida (onlayn
+  /// tuzilib, uzilishdan keyin to'lanadigan schyot). Topilmasa `null`.
+  (String, OfflineOrderState)? stateOfBill(String billUuid) {
+    for (final MapEntry<String, OfflineOrderState> e in build().entries) {
+      if (e.value.bill(billUuid) != null) return (e.key, e.value);
+    }
+    for (final String key in store.docKeys(prefix: 'billing:')) {
+      final Map<String, Object?>? billing = _copy(store.doc(key)?.map);
+      final bool has = _list(billing?['bills'])
+          .any((Map<String, Object?> b) => b['uuid'] == billUuid);
+      if (!has) continue;
+      final String ref = key.substring('billing:'.length);
+      final Map<String, Object?>? order = _copy(store.doc(orderKey(ref))?.map);
+      if (order == null) return null;
+      return (ref, OfflineOrderState.existing(ref, order, billing, settings()));
+    }
+    return null;
+  }
+
+  /// Buyurtmaning lokal holati (navbatdagi amallar bilan yoki serverdan olingan nusxasi); ko'rilmagan bo'lsa `null`.
+  OfflineOrderState? state(String ref) {
+    final OfflineOrderState? built = build()[ref];
+    if (built != null) return built;
+    final Map<String, Object?>? order = _copy(
+      store.doc(orderKey(store.resolve(ref)))?.map,
+    );
+    if (order == null) return null;
+    return OfflineOrderState.existing(
+      ref,
+      order,
+      _copy(store.doc(billingKey(store.resolve(ref)))?.map),
+      settings(),
+    );
+  }
+
   /// Bitta buyurtma (lokal o'zgarishlar bilan); hech qachon ko'rilmagan bo'lsa `null`.
   Map<String, Object?>? order(String ref) {
     final OfflineOrderState? state = build()[ref];
@@ -537,8 +572,26 @@ class OfflineOrderState {
       if (b is Map<String, Object?>) b,
   ];
 
-  static bool _settled(Map<String, Object?> b) =>
-      b['status'] == 'paying' || b['status'] == 'paid';
+  /// Schyotdan pul olingan (server hisobi bilan, BillableOrder): `paid` yoki unda to'lov bor. Serverda `paying` holati
+  /// yo'q: to'lanayotgan schyot chek chiqquncha `open`/`printed` bo'lib qoladi.
+  static bool _taken(Map<String, Object?> b) =>
+      b['status'] != 'void' &&
+      (b['status'] == 'paid' ||
+          _payments(b).isNotEmpty ||
+          PosMoney.parse(b['paid_amount']).isPositive);
+
+  /// To'liq to'langan (qarz qolmagan).
+  static bool _covered(Map<String, Object?> b) =>
+      b['status'] == 'paid' ||
+      (_taken(b) && !PosMoney.parse(b['due_amount']).isPositive);
+
+  /// Hali schyotga tushmagan (pul olingan schyotlardan tashqari) summa.
+  PosMoney get leftToBill =>
+      PosMoney.parse(order['total_price']) -
+      PosMoney.sum(<PosMoney>[
+        for (final Map<String, Object?> b in bills)
+          if (_taken(b)) PosMoney.parse(b['total']),
+      ]);
 
   Map<String, Object?>? bill(String uuid) {
     for (final Map<String, Object?> b in bills) {
@@ -547,55 +600,85 @@ class OfflineOrderState {
     return null;
   }
 
-  /// Bitta schyot: hali to'lanmagan schyotlar bekor bo'ladi, qolgan hamma narsa yangi schyotga.
+  /// Bitta schyot: hali pul olinmagan schyotlar bekor bo'ladi, qolgan hamma narsa (pul olingan schyotlardagidan
+  /// tashqari — qator miqdori, summasi va xizmatlar bo'yicha) yangi schyotga.
   void createBill(SyncOperation op) {
     final List<Map<String, Object?>> existing = bills;
     for (final Map<String, Object?> b in existing) {
-      if (!_settled(b) && b['status'] != 'void' && _payments(b).isEmpty) {
-        b['status'] = 'void';
+      if (b['status'] != 'void' && !_taken(b)) b['status'] = 'void';
+    }
+    final List<Map<String, Object?>> taken = existing.where(_taken).toList();
+    PosMoney takenOf(String key) => PosMoney.sum(<PosMoney>[
+      for (final Map<String, Object?> b in taken) PosMoney.parse(b[key]),
+    ]);
+    String left(PosMoney whole, String key) {
+      final PosMoney rest = whole - takenOf(key);
+      return (rest.isPositive ? rest : PosMoney.zero).toApiString();
+    }
+
+    final Map<String, List<Map<String, Object?>>> shares =
+        <String, List<Map<String, Object?>>>{};
+    for (final Map<String, Object?> b in taken) {
+      for (final Map<String, Object?> i in _maps(b['items'])) {
+        (shares['${i['order_item_id']}'] ??= <Map<String, Object?>>[]).add(i);
       }
     }
-    final PosMoney settledTotal = PosMoney.sum(<PosMoney>[
-      for (final Map<String, Object?> b in existing)
-        if (_settled(b)) PosMoney.parse(b['total']),
-    ]);
-    final Set<Object?> settledItems = <Object?>{
-      for (final Map<String, Object?> b in existing)
-        if (_settled(b))
-          for (final Map<String, Object?> i in _maps(b['items']))
-            i['order_item_id'],
-    };
-    final PosMoney total = PosMoney.parse(order['total_price']) - settledTotal;
+    final PosMoney total =
+        PosMoney.parse(order['total_price']) - takenOf('total');
+    final List<Object?> lines = <Object?>[];
+    var subtotal = PosMoney.zero;
+    for (final Map<String, Object?> i in items) {
+      if (i['kitchen_status'] == 'void') continue;
+      final List<Map<String, Object?>> paid =
+          shares['${i['id']}'] ?? const <Map<String, Object?>>[];
+      final PosQuantity qty = paid.fold(
+        PosQuantity.parse(i['quantity']),
+        (PosQuantity q, Map<String, Object?> x) =>
+            q - PosQuantity.parse(x['quantity']),
+      );
+      final PosMoney amount =
+          PosMoney.parse(i['total_price']) -
+          PosMoney.sum(<PosMoney>[
+            for (final Map<String, Object?> x in paid)
+              PosMoney.parse(x['amount']),
+          ]);
+      if (!amount.isPositive && !qty.isPositive) continue;
+      subtotal = subtotal + amount;
+      lines.add(<String, Object?>{
+        'order_item_id': i['id'],
+        'product_name': i['product_name'],
+        'variant_name': i['variant_name'],
+        'unit': i['unit'],
+        'quantity': qty.toApiString(),
+        'amount': amount.toApiString(),
+        'discount_amount': '0.00',
+      });
+    }
     final int? guests = (order['guests_count'] as num?)?.toInt();
-    final List<Object?> lines = <Object?>[
-      for (final Map<String, Object?> i in items)
-        if (i['kitchen_status'] != 'void' && !settledItems.contains(i['id']))
-          <String, Object?>{
-            'order_item_id': i['id'],
-            'product_name': i['product_name'],
-            'variant_name': i['variant_name'],
-            'unit': i['unit'],
-            'quantity': i['quantity'],
-            'amount': i['total_price'],
-            'discount_amount': '0.00',
-          },
-    ];
-    final bool first = settledTotal.isZero;
     final Map<String, Object?> bill = <String, Object?>{
       'uuid': op.payload['bill'],
       'order_uuid': order['uuid'],
       'number': existing.length + 1,
       'status': 'open',
       'split_mode': 'single',
-      'subtotal': (first ? PosMoney.parse(order['subtotal']) : total)
-          .toApiString(),
-      'discount': first ? order['discount'] : '0.00',
-      'room_fee_amount': first ? order['room_fee_amount'] : '0.00',
-      'min_spend_topup_amount': first
-          ? order['min_spend_topup_amount']
-          : '0.00',
-      'service_charge_amount': first ? order['service_charge_amount'] : '0.00',
-      'place_fee_amount': first ? order['place_fee_amount'] : '0.00',
+      'subtotal': subtotal.toApiString(),
+      'discount': left(PosMoney.parse(order['discount']), 'discount'),
+      'room_fee_amount': left(
+        PosMoney.parse(order['room_fee_amount']),
+        'room_fee_amount',
+      ),
+      'min_spend_topup_amount': left(
+        PosMoney.parse(order['min_spend_topup_amount']),
+        'min_spend_topup_amount',
+      ),
+      'service_charge_amount': left(
+        PosMoney.parse(order['service_charge_amount']),
+        'service_charge_amount',
+      ),
+      'place_fee_amount': left(
+        PosMoney.parse(order['place_fee_amount']),
+        'place_fee_amount',
+      ),
       'total': total.toApiString(),
       'paid_amount': '0.00',
       'due_amount': total.toApiString(),
@@ -664,8 +747,8 @@ class OfflineOrderState {
     b['paid_amount'] = paid.toApiString();
     b['due_amount'] = (due.isPositive ? due : PosMoney.zero).toApiString();
     if (!due.isPositive) {
-      // The money is taken; the sale receipt comes once the till is back online
-      b['status'] = 'paying';
+      // The money is taken; the sale receipt comes once the till is back online (the status stays open/printed, as
+      // the server keeps it until the receipt is issued)
       b['fiscal'] = <String, Object?>{
         'status': 'offline',
         'receipt_uuid': null,
@@ -676,13 +759,13 @@ class OfflineOrderState {
     _syncBillingOrder();
   }
 
-  /// Hamma schyot to'langan va schyotga tushmagan narsa qolmagan bo'lsa — buyurtma lokal yopiladi (stol bo'shaydi);
-  /// sotuv cheki sinxronlashdan keyin chiqadi.
+  /// Har bir schyot to'liq to'langan va schyotga tushmagan narsa qolmagan bo'lsa — buyurtma lokal yopiladi (stol
+  /// bo'shaydi); sotuv cheki sinxronlashdan keyin chiqadi.
   void closeIfSettled(DateTime at) {
     final List<Map<String, Object?>> live = bills
         .where((Map<String, Object?> b) => b['status'] != 'void')
         .toList();
-    if (live.isEmpty || live.any((Map<String, Object?> b) => !_settled(b))) {
+    if (live.isEmpty || live.any((Map<String, Object?> b) => !_covered(b))) {
       return;
     }
     final PosMoney billed = PosMoney.sum(<PosMoney>[
@@ -723,7 +806,7 @@ class OfflineOrderState {
       ..['unbilled_amount'] = (unbilled.isPositive ? unbilled : PosMoney.zero)
           .toApiString()
       ..['bills_out_of_date'] =
-          live.any((Map<String, Object?> b) => !_settled(b)) &&
+          live.any((Map<String, Object?> b) => !_taken(b)) &&
           unbilled.isPositive;
     if (order['bill_locked'] == true) {
       bo['bill_locked_at'] ??= order['updated_at'];

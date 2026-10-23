@@ -62,6 +62,57 @@ Future<T> withApproval<T>(
   );
 }
 
+/// Pul amali (to'lov, qaytarish, kirim-chiqim) javobsiz qolsa (tarmoq), keyingi bosishda uni **aynan o'zi** — o'sha
+/// `Idempotency-Key`, o'sha tana va bo'lgan bo'lsa o'sha menejer tasdig'i bilan — qayta yuboradi: server bir kalitni
+/// bir marta bajaradi, birinchisi yetib borgan bo'lsa ham ikki marta yozilmaydi. Tasdiq bilan ketgan so'rovni tokensiz
+/// takrorlash boshqa tana bo'lardi (server 409: "kalit boshqa so'rov uchun ishlatilgan").
+///
+/// Bitta dialog yoki sahifaga bitta. [signature] — so'rov mazmuni (summa, to'lov turlari...): o'zgarsa — yangi so'rov.
+/// Server javob bersa (muvaffaqiyat yoki rad) eslab qolingani o'chadi.
+class LostRequest {
+  String? _signature;
+  String? _key;
+  String? _token;
+
+  /// Oxirgi urinish javobsiz qolgan (qayta yuborish xavfsiz).
+  bool get pending => _key != null;
+
+  void clear() {
+    _signature = null;
+    _key = null;
+    _token = null;
+  }
+
+  Future<T> run<T>(
+    BuildContext context,
+    String signature,
+    Future<T> Function(String? approvalToken, String? idempotencyKey) action,
+  ) async {
+    if (_signature != signature) clear();
+    _signature = signature;
+    final String? lostKey = _key;
+    final String? lostToken = _token;
+    String? sentToken;
+    try {
+      final T result = lostKey != null && lostToken != null
+          ? await action(lostToken, lostKey)
+          : await withApproval<T>(context, (String? token) {
+              sentToken = token;
+              return action(token, lostKey);
+            });
+      clear();
+      return result;
+    } on PosNetworkException catch (e) {
+      _key = e.idempotencyKey ?? lostKey;
+      _token = lostKey != null && lostToken != null ? lostToken : sentToken;
+      rethrow;
+    } on Object {
+      clear();
+      rethrow;
+    }
+  }
+}
+
 class ManagerApprovalDialog extends StatefulWidget {
   const ManagerApprovalDialog({
     super.key,

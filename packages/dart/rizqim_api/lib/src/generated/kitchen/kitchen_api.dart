@@ -31,7 +31,7 @@ abstract class KitchenApi {
   ///
   /// [branchId] - One branch; omit for every branch the caller works in (a branch terminal: its branch).
   ///
-  /// [includeReady] - 1 to also list orders that are ready but not handed over yet.
+  /// [includeReady] - 1 (or true) to also list orders that are ready but not handed over yet.
   ///
   /// [canceledWithin] - Minutes (1-60): also list the orders cancelled or rejected that long ago at most, with canceled_at.
   @GET('/v1/staff/kitchen/tickets')

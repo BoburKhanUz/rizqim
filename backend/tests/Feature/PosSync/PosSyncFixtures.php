@@ -100,7 +100,10 @@ trait PosSyncFixtures
 
         $this->till = $this->pairTerminal($this->owner, $this->branch);
         $this->cashierToken = $this->pinSession($this->till, $this->cashier);
+        // The shift was opened before the outage: an offline payment lands in it, never before it opened (review P3-35)
+        Carbon::setTestNow(now()->subHours(2));
         $this->shift = app(ShiftService::class)->open($this->cashier, $this->till['device'], Money::of('100000'));
+        Carbon::setTestNow(Carbon::parse('2026-10-22 13:00:00', 'UTC'));
 
         $this->assertInstanceOf(FiscalService::class, app(FiscalIssuer::class));
         $this->assertInstanceOf(MenuFiscalLineBuilder::class, app(FiscalLineBuilder::class));

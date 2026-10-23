@@ -353,7 +353,7 @@ Telegram tugmasi) uning hamma qatorlari ham `ready` bo'ladi. Har o'zgarish holat
 (PIN sessiyasida terminal bilan) yoziladi, mijozga avvalgidek xabar boradi.
 
 **`GET /staff/kitchen/tickets`** (`kitchen.manage` yoki `orders.view`) — oshxona chiptalari: `accepted` va
-`preparing` buyurtmalar (`include_ready=1` bilan `ready` ham), eskisidan yangisiga, eng ko'pi 200. **P2-33: oshxona
+`preparing` buyurtmalar (`include_ready=1` bilan `ready` ham; P3-35 dan `true`/`false` ham qabul qilinadi), eskisidan yangisiga, eng ko'pi 200. **P2-33: oshxona
 qatorlar holatiga qarab ishlaydi.** Dispetcher taom hali pishayotganda kuryer biriktirsa (`preparing →
 courier_assigned`), buyurtma chiptalarda qoladi — toki hech bo'lmasa bitta qatori `pending` ekan; `include_ready=1` bilan
 har qanday `courier_assigned` buyurtma ham (kuryer hali olib ketmagan). `on_the_way` va undan keyingilari chiptada
@@ -1045,11 +1045,15 @@ Bitta so'rovda bir nechta to'lov turi (aralash), yoki bir necha so'rovda qismlab
 | `account` | `amount`, `account_uuid` | nasiya (P3-17 `CustomerAccountLedger`); `customer_accounts.manage` yoki menejer tasdig'i; schyotga bir marta |
 
 - To'lov kassaning ochiq smenasiga yoziladi (terminal smenasi yoki `shift_uuid`; yo'q bo'lsa 409 `shift_not_open`).
+  P3-35: smena qatori qulf ostida qayta o'qiladi — shu orada Z bilan yopilgan bo'lsa 409 `shift_closed` (pul
+  olinmaydi), shuning uchun Z hech qachon bir vaqtdagi to'lovni o'tkazib yubormaydi.
 - Schyot to'liq qoplanganda **sotuv cheki** so'raladi (to'liq summaga). Schyot `paid` bo'ladi faqat chek `issued`
   bo'lganda; hamma schyot to'langach buyurtma **yopiladi**: `delivered`, `payment_status = paid`, `closed_at`, stol
   bo'shaydi (real-time `order.status_changed`). Chek kutilayotgan yoki xato bo'lsa schyot "fiskal kutmoqda"
   (`fiscal.status`: `pending` / `failed`), pul saqlanadi; `POST /pos/bills/{uuid}/fiscal-retry` o'sha chekni qayta
-  so'raydi (yangi chek chiqmaydi). Provayder keyinroq tasdiqlasa (`fiscal.receipt_updated`) schyot o'zi yopiladi.
+  so'raydi (yangi chek chiqmaydi). P3-35: provayder rad etgan (`failed`) chek ham **qayta yuboriladi** (o'sha chek,
+  `FiscalIssuer::reissue`) — tugma, `POST /pos/orders/{uuid}/close` va smenani yopish (kutilayotgan cheklar) shunday
+  qiladi; boshqa urinish hozir yuborayotgan chekka tegilmaydi (ijara, `fiscal_receipts.lease_token`/`leased_until`). Provayder keyinroq tasdiqlasa (`fiscal.receipt_updated`) schyot o'zi yopiladi.
 - MXIK'siz qator — 422 `mxik_missing`, pul olinmasdan oldin.
 - `POST /pos/orders/{uuid}/close` — uzilib qolgan yopishni yakunlash (kutilayotgan cheklarni qayta so'raydi);
   to'lanmagan bo'lsa 409 `order_not_settled`.
@@ -1062,19 +1066,27 @@ Nasiya qismining to'lov shakli provayder aniqlaguncha `cash` (tadqiqotdagi T4).
 ### Qaytarish
 
 `POST /pos/refunds {payment_uuid, amount, reason, approval_token?, shift_uuid?}` — `pos.refund` (yangi ruxsat: ega,
-menejer) yoki menejer tasdig'i. Faqat **shu smenada** olingan naqd, karta yoki QR to'lov (409 `refund_outside_shift`,
-422 `refund_tender_invalid` — avans va nasiya o'z bo'limida), to'lovdan qolganidan ko'p emas (422
-`refund_exceeds_payment`), schyotning sotuv cheki chiqqan bo'lsa (409 `bill_not_fiscalized`), naqd — kassadagidan
-ko'p emas (409 `not_enough_cash`). Naqd kassadan chiqadi, asl sotuv chekiga bog'langan **qaytarish cheki** so'raladi,
-egaga Telegram xabari boradi. To'lov to'liq qaytsa `refunded`, buyurtmaning hamma to'lovi qaytsa buyurtma
-`payment_status = refunded`.
+menejer) yoki menejer tasdig'i. Faqat **shu smenada** olingan, schyotga tegishli to'lov (409 `refund_outside_shift`,
+422 `refund_tender_invalid`), to'lovdan qolganidan ko'p emas (422 `refund_exceeds_payment`), schyotning sotuv cheki
+chiqqan bo'lsa (409 `bill_not_fiscalized`), smena shu orada yopilmagan (409 `shift_closed`, P3-35), naqd —
+kassadagidan ko'p emas (409 `not_enough_cash`; smena qulfi ostida tekshiriladi). Naqd kassadan chiqadi, karta va QR
+o'z yo'li bilan qaytadi, asl sotuv chekiga bog'langan **qaytarish cheki** so'raladi, egaga Telegram xabari boradi.
+To'lov to'liq qaytsa `refunded`, buyurtmaning hamma to'lovi qaytsa buyurtma `payment_status = refunded` (va uni
+`POST /pos/orders/{uuid}/cancel` bilan bekor qilish mumkin).
+
+P3-35: **avans va nasiya qismlari ham qaytariladi** (`method`: `prepayment`, `account`), kassadan pul chiqmaydi:
+
+| To'lov | Nima bo'ladi | Qaytarish chekidagi to'lov |
+|---|---|---|
+| `prepayment` | summa bron avansiga qaytadi (`booking_payments.applied_amount` kamayadi, `applications` ga manfiy yozuv, avans yana `taken`): keyin boshqa schyotga ayiriladi, qaytariladi yoki ushlab qolinadi (bron bo'limi); schyot olgandan ko'pi — 409 `reverse_exceeds_applied` | avans olingan shaklda, `prepayment: true` |
+| `account` | mijoz qarzidan ayiriladi: `adjustment` yozuvi (manfiy, izoh "Kassada qaytarildi", `idempotency_key` = `bill-reversal:{bill}:{refund}`), egaga xabar; schyot nasiyaga yozilgandan ko'pi — 409 `reverse_exceeds_charge`, mijoz qarzni to'lab bo'lgan bo'lsa (qolgan qarzdan ko'p) — 409 `more_than_debt` (menejer qo'lda hal qiladi) | `credit: true` (`cash` shaklida, sotuv chekidagidek) |
 
 ### Smena, kassa, X va Z
 
 | Endpoint | Ruxsat | Nima qiladi |
 |---|---|---|
 | `POST /pos/shifts {opening_cash, note?}` | `pos.open_shift` | shu terminalda smena ochish (faqat PIN sessiyasi; terminalda bitta ochiq smena — 409 `shift_already_open`) |
-| `GET /pos/shifts/current?branch_id` | `pos.open_shift`, `pos.close_shift` yoki `pos.take_payment` | terminal: o'z ochiq smenasi va X hisobot. P3-26: oddiy kirish (ega, menejer — web panel, Mini App) — filialning ochiq smenalari: `branch_id` (standart — o'z filiali; filialsiz ega bermasa — ko'radigan hamma filial). Javob `{shift, report, shifts: [{shift, report}]}`: `shift`/`report` — eng oxirgi ochilgani, `shifts` — hammasi (terminalda — faqat o'ziniki). Boshqa do'kon filiali — 404, o'zi ishlamaydigan filial — 403 |
+| `GET /pos/shifts/current?branch_id` | `pos.open_shift`, `pos.close_shift`, `pos.take_payment` yoki (P3-35, faqat o'qish) `reports.view` | terminal: o'z ochiq smenasi va X hisobot. P3-26: oddiy kirish (ega, menejer — web panel, Mini App) — filialning ochiq smenalari: `branch_id` (standart — o'z filiali; filialsiz ega bermasa — ko'radigan hamma filial). Javob `{shift, report, shifts: [{shift, report}]}`: `shift`/`report` — eng oxirgi ochilgani, `shifts` — hammasi (terminalda — faqat o'ziniki). Boshqa do'kon filiali — 404, o'zi ishlamaydigan filial — 403 |
 | `GET /pos/shifts?branch_id&status&from&to&limit` | `pos.close_shift` yoki `reports.view` | smenalar ro'yxati (web panel uchun ham) |
 | `GET /pos/shifts/{uuid}` | xuddi shu | smena va Z hisobot (`summary`) |
 | `GET /pos/shifts/{uuid}/x-report` | xuddi shu | X hisobot |
@@ -1201,7 +1213,8 @@ keyin yangi bosqich sifatida). Zalning qoidasi filialning shu taom qoidasini alm
 olib tashlanmaydi. Sotib bo'lmaydigan taom (stop-list, tugagan) jim o'tkazib yuboriladi.
 
 **Oshxonaga yuborish.** `item_ids` siz — yuborilmagan hamma `now` qator; `item_ids` bilan — aynan shular (`hold`
-qatorlar ham). Har qatorga sex (`station_id`, P3-13 marshruti) va `sent_at`; birinchi yuborish buyurtmani
+qatorlar ham). P3-35: qator qo'shilganda (ushlab turilgan oldindan buyurtma ham) sexini oladi (`station_id`, P3-13
+marshruti) — sex ekrani oldindan buyurtmani yuborilmasdan ko'radi; yuborishda sex qayta aniqlanadi va `sent_at`; birinchi yuborish buyurtmani
 `preparing` qiladi. Yangi qator yo'q — 422 `nothing_to_send`. Oshxona ekrani (`GET /staff/kitchen/tickets`) POS
 qatorini faqat yuborilgandan keyin (o'chirilgani ham — `void`) yoki `hold` + `due_at` bo'lsa (oldindan buyurtma
 navbati) ko'radi; yuborilmagan qatorni "tayyor" deb bo'lmaydi (422 `kitchen_status`). POS qatorini qaytarish
@@ -1210,7 +1223,8 @@ navbati) ko'radi; yuborilmagan qatorni "tayyor" deb bo'lmaydi (422 `kitchen_stat
 **Qator holati** (`kitchen_status`): POS qatori `pending` (faqat buyurtmada) → `sent` → `ready` → `served`; `void` —
 o'chirilgan. Onlayn buyurtma qatorlari avvalgidek `pending` → `ready`. Xodim buyurtmasi va oshxona chiptasida POS
 qatorida qo'shimcha `round_no`, `fire_mode`, `station_id`, `sent_at`, `due_at`, `seat_no`, `note`, `voided_at`,
-`void_reason` (onlayn qator shakli o'zgarmagan).
+`void_reason` va (P3-35) `product_id`, `category_id` — taomning mahsuloti va kategoriyasi (o'chirilgan bo'lsa ham):
+sexi yo'q qatorni ekran bootstrap'ning `station_routes` bo'yicha yo'naltiradi (onlayn qator shakli o'zgarmagan).
 
 **O'chirish.** Oshxonaga yuborilmagan qator — `orders.manage`, sabab ixtiyoriy, qoldiq va qozon ulushi qaytadi.
 Yuborilgan qator yoki schyot chiqarilgan (`bill_locked_at`, P3-18) buyurtma — `reason` majburiy va `orders.void_item`
@@ -1218,12 +1232,21 @@ yoki menejer tasdig'i (`approval_token`, `POST /pos/approvals`); yo'q bo'lsa 403
 403 `approval_invalid` (yoki P3-18 sababi: `approval_expired`, `approval_used`, ...). Yuborilgan qatorning ulushi
 faqat `restock: true` bo'lsa qaytadi (pishmagan bo'lsa). Allaqachon o'chirilgan — 422 `already_void`.
 
+**To'lovi boshlangan schyot** (P3-35). O'chirish, mehmon soni, ko'chirish, birlashtirish yoki xizmat qatorini olib
+tashlash to'langan (yoki to'lovi olingan) schyotdagi qatorni yoki xizmat haqi ulushini kamaytirsa — 409
+`paid_bill_affected` (`data.bills_reason`: `bills_out_of_date` yoki `discount_exceeds_lines`), hech narsa
+o'zgarmaydi: avval o'sha to'lovni qaytaring (`POST /pos/refunds`). Shu tufayli buyurtma "to'lab ham, bekor qilib ham
+bo'lmaydigan" holatga tushmaydi.
+
 **Ko'chirish va birlashtirish.** Ko'chirishda yangi zalning xizmat haqi, yangi joyning xona puli va minimal summasi
 qo'llanadi (kun turi — buyurtma ochilgan biznes kun bo'yicha); band xonaga — 422 `table_occupied`, o'sha stolga — 422
 `same_table`, olib ketish — 422 `not_hall_order`. Birlashtirishda `source_uuid` qatorlari bosqichlari bilan (targetdan
 keyin) ko'chadi, mehmonlar qo'shiladi, manba buyurtma `canceled` bo'ladi (izoh: "#… buyurtmasiga qo'shildi", stok
 qaytmaydi — qatorlar yashashda davom etadi). Ikkalasi bitta filialning ochiq zal buyurtmasi, schyot chiqmagan
-(422 `bill_locked`), to'lovsiz (422 `has_payments`); boshqa filial — 422 `merge_not_allowed`.
+(422 `bill_locked`), to'lovsiz (422 `has_payments`); boshqa filial — 422 `merge_not_allowed`. P3-35: manba bronning
+buyurtmasi bo'lsa **bron va avans targetga o'tadi** (`orders.booking_id`, `bookings.order_id`,
+`booking_payments.order_id`; audit `booking.order_merged`, `booking.changed`): targetning schyoti avansni oladi, bron
+target yopilganda yakunlanadi. Ikkalasi boshqa-boshqa bronniki — 422 `merge_bookings_conflict`.
 
 Yopilgan yoki bekor qilingan buyurtma — 422 `order_closed`; Telegram yoki mobil buyurtma — 422 `not_pos_order`.
 
@@ -1326,7 +1349,9 @@ so'ragan va schyoti hali chiqarilmagan — holat qiymatlari o'zgarmagan, bu aloh
 `private-pos-branch.{branchId}` (va `branch`, `store`): **`order.items_changed`** — bosqich qo'shildi, yuborildi,
 o'chirildi, mehmonlar, ko'chirish, birlashtirish, xizmat qatori o'zgardi:
 `{order: {...}, version, table_id, change, item_ids}` (`change`: `round_added`, `sent`, `voided`, `guests_changed`,
-`moved`, `merged`, `charges_changed`, `served`, `cancelled`). P3-26: **`order.bill_requested`** — ofitsiant schyot
+`moved`, `merged`, `charges_changed`, `served`, `cancelled`). P3-35: `send: true` bilan qo'shilgan bosqich ikki xabar
+beradi: avval `round_added` (bosqichning hamma qatorlari), keyin `sent` (yuborilganlari), ikkalasi bitta `version` bilan
+(oflayn sinxronlangan bosqich ham). P3-26: **`order.bill_requested`** — ofitsiant schyot
 so'radi (`{order, version, table_id, bill_requested_at, requested_by}`). Ochishda `order.created`, birinchi yuborishda va birlashtirilgan manba
 buyurtmada `order.status_changed`, yuborilgan qator o'chirilganda `kitchen.item_status_changed` (`void`). Faqat id va
 holat: ilova buyurtmani (`GET /pos/orders/{uuid}`) yoki xaritani qayta so'raydi.
@@ -1445,14 +1470,21 @@ Javob (200):
 - Bir `op_id` ikkinchi marta kelsa — saqlangan natija `duplicate: true` bilan (javob yo'qolgan holat).
 - `refs`: `order_uuid`, `order_version`, `local_number`, `items` (qator id → server id), `bill_uuid`, `bill_total`,
   `payments`, `fiscal_status`, `sent`, `closed`, `flags`.
-- `stopped_at` — baza xatosi tufayli to'xtagan `seq`: shu va keyingi amallar javobda yo'q, navbatda qoladi.
+- `stopped_at` — bazaning vaqtinchalik xatosi (deadlock, serializatsiya, ulanish uzilishi, qulf kutish) tufayli
+  to'xtagan `seq`: shu va keyingi amallar javobda yo'q, navbatda qoladi. P3-35: amalning o'z mazmuni sabab bo'lgan xato
+  (ustunga sig'maydigan qiymat va h.k.) navbatni to'xtatmaydi — amal `rejected` `invalid_payload` (pul amali —
+  `payment_unallocated` sifatida yoziladi, u ham bo'lmasa `rejected`); noto'g'ri sana (`menu_taken_at`,
+  `queue.oldest_at`) e'tiborsiz qoldiriladi, qatorning noto'g'ri `due_at` i — `rejected` `invalid`.
+- P3-35: karta to'lovida `transaction_id` 64 belgigacha qisqartiriladi, noma'lum `card_type` — `other`; summa ko'pi
+  bilan 9 999 999 999.99 (aks holda `amount_invalid`).
 - 409: `sync_in_progress` (shu kassaning boshqa so'rovi ketyapti), `op_id_conflict` (amal raqami boshqa qurilmaniki),
   `seq_reused` (shu `seq` boshqa amalga berilgan).
 
 Rad etish sabablari (`reason`): `order_not_found`, `order_closed`, `line_not_found`, `line_sent` (o'chirilayotgan qator
 shu orada oshxonaga ketgan), `bill_not_found`, `bill_paid`, `bill_void`, `items_required`, `tenders_required`,
 `tender_not_offline` (oflayn faqat naqd va karta), `amount_invalid`, `channel_invalid`, `type_unknown`,
-`terminal_without_branch`, xodim sabablari.
+`terminal_without_branch`, `variant_not_found`, `modifier_not_found` (P3-35: qo'shimcha bu do'konniki emas),
+`invalid_payload` (P3-35), xodim sabablari.
 
 ### Ziddiyat qoidalari
 
@@ -1461,9 +1493,19 @@ shu orada oshxonaga ketgan), `bill_not_found`, `bill_paid`, `bill_void`, `items_
   etiladi — buyurtma yopilgan/bekor qilingan, qator shu orada yuborilgan yoki o'chirilgan.
 - **Joy band** (`table_occupied`, `table_inactive`, `table_missing`) — mehmonlar xizmat olgan: buyurtma joysiz
   ochiladi, `conflict`.
-- **Narx** — qurilma narxi saqlanadi (`order_items.price_source = offline_snapshot`), `offline_price` belgisi (ma'lumot uchun).
-  Menyu nusxasi 24 soatdan eski bo'lsa `stale_menu` — `conflict`. Serverda sotuvdan olingan taom —
-  `sold_while_unavailable`.
+- **Narx** (P3-35) — qurilma narxi (taomniki va qo'shimchaniki) faqat taom yoki qo'shimcha **menyu nusxasi olingan
+  paytdan (`menu_taken_at`; bo'lmasa 24 soat oldindan) hozirgacha** shu narxda bo'lgan bo'lsa saqlanadi
+  (`order_items.price_source = offline_snapshot`, joriy narxdan farq qilsa `offline_price` belgisi — ma'lumot uchun).
+  Narxlar tarixi `menu_price_history` da (POS kanallari bo'yicha samarali narx, qo'shimchaning `price_delta` si).
+  Bunday narx bo'lmagan bo'lsa **server narxi qo'yiladi** (`price_source = online`), `offline_price_mismatch` belgisi
+  (`device_price`, `server_price`, `name`, `line_id`) — `conflict` ("Sinxronlash xatolari"da menejer ko'radi);
+  qurilma narxi past bo'lsa egaga xabar boradi. Menyu nusxasi 24 soatdan eski bo'lsa `stale_menu` — `conflict`.
+  Serverda sotuvdan olingan taom — `sold_while_unavailable`.
+- **Qurilma soati** (P3-35) — `occurred_at` paketning soat farqi (`clock_skew_seconds`, 300 soniyadan katta bo'lsa)
+  bilan tuzatiladi va `[hozir − 48 soat, hozir]` oralig'ida ushlanadi; to'lov vaqti smena ochilganidan oldin bo'lmaydi.
+  Vaqt 300 soniyadan ko'p surilsa — `device_time_clamped` belgisi (`device_time`, `used_time`; ma'lumot uchun). Shu
+  vaqt `offline_created_at`, `payments.offline_paid_at` va `fiscal_receipts.sold_at` ga yoziladi;
+  `pos_sync_operations.occurred_at` — qurilma aytgan vaqt.
 - **Qozon/qoldiq yetmadi** — sotuv saqlanadi, qoldiq 0 dan pastga tushmaydi, kamomad
   `menu_batches.oversold_quantity` ga yoziladi (`oversold`, `stock_short`) — `conflict`.
 - **Pul** hech qachon rad etilmaydi: schyot shu orada to'langan yoki buyurtma bekor qilingan bo'lsa to'lov baribir
@@ -1518,4 +1560,9 @@ Migratsiyalar (qo'shimcha, qaytariladigan): `2026_10_28_100000_create_pos_sync_o
 `sync_flags`; order_items: `client_line_id`, `price_source`; payments: `offline_paid_at`, `synced_at`; menu_batches:
 `oversold_quantity`; devices: `sync_*`; fiscal_receipts: `sold_at`).
 
-Testlar: `tests/Feature/PosSync/PosSyncFlowTest.php`, `PosSyncConflictsTest.php`, `PosSyncAccessTest.php`.
+P3-35 migratsiyalari (qo'shimcha, qaytariladigan): `2026_10_29_100000_add_lease_to_fiscal_receipts_table`
+(`lease_token`, `leased_until`), `2026_10_29_100100_create_menu_price_history_table` (bugungi narxlar bilan
+to'ldiriladi).
+
+Testlar: `tests/Feature/PosSync/PosSyncFlowTest.php`, `PosSyncConflictsTest.php`, `PosSyncAccessTest.php`,
+`PosSyncReviewFixesTest.php` (P3-35).

@@ -12,6 +12,7 @@ use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Throwable;
 
 /**
@@ -23,7 +24,8 @@ use Throwable;
  * returned result is therefore `pending` (read the receipt again after the commit). A provider that is unreachable
  * leaves the receipt `pending`: RetryFiscalReceipt tries again with backoff, and the fiscal:retry-pending sweeper
  * picks up whatever a lost job or a dead worker left behind. A provider that refuses the receipt, or retries that
- * run out (config fiscal.retry.max_attempts), make it `failed`; the owner can retry it by hand (retryNow).
+ * run out (config fiscal.retry.max_attempts), make it `failed`; the owner can retry it by hand (retryNow), and the
+ * POS asks again for it with reissue() (review P3-35).
  */
 class FiscalService implements FiscalIssuer
 {
@@ -114,17 +116,23 @@ class FiscalService implements FiscalIssuer
     /**
      * One attempt at registering a pending receipt: claimed atomically (pending, due, or any pending one with
      * $force), so two workers never send it at once; a worker that dies mid-call leaves it claimed until
-     * config('fiscal.retry.lease_seconds') passes. Null when there was nothing to do.
+     * config('fiscal.retry.lease_seconds') passes. Review P3-35: the claim is a lease (`lease_token`, `leased_until`)
+     * that even $force respects, and only the attempt holding it writes the answer. Null when there was nothing to do.
      */
     public function attempt(int $receiptId, bool $force = false): ?FiscalReceipt
     {
         $now = now();
+        $lease = $now->copy()->addSeconds(max(10, (int) config('fiscal.retry.lease_seconds', 120)));
+        $token = (string) Str::uuid();
         $claimed = FiscalReceipt::whereKey($receiptId)
             ->where('status', FiscalReceiptStatus::PENDING->value)
+            ->where(fn ($query) => $query->whereNull('leased_until')->orWhere('leased_until', '<=', $now))
             ->when(!$force, fn ($query) => $query->where(fn ($query) => $query->whereNull('next_attempt_at')->orWhere('next_attempt_at', '<=', $now)))
             ->update([
                 'attempts' => DB::raw('attempts + 1'),
-                'next_attempt_at' => $now->copy()->addSeconds(max(10, (int) config('fiscal.retry.lease_seconds', 120))),
+                'next_attempt_at' => $lease,
+                'leased_until' => $lease,
+                'lease_token' => $token,
                 'updated_at' => $now,
             ]);
         if ($claimed === 0) {
@@ -142,30 +150,57 @@ class FiscalService implements FiscalIssuer
             // A retry asks first: the provider may have taken the receipt just before an earlier attempt timed out
             $response = ($receipt->attempts > 1 ? $gateway->status($receipt, $store) : null)
                 ?? $gateway->register($receipt, $receipt->toDocument(), $store);
-            $this->markIssued($receipt, $response);
+            $this->markIssued($receipt, $response, $token);
         } catch (FiscalGatewayException $e) {
-            $e->retryable ? $this->scheduleRetry($receipt, $e->getMessage()) : $this->markFailed($receipt, $e->getMessage());
+            $e->retryable ? $this->scheduleRetry($receipt, $e->getMessage(), $token) : $this->markFailed($receipt, $e->getMessage(), $token);
         } catch (Throwable $e) {
             report($e);
-            $this->scheduleRetry($receipt, "Fiskal provayder bilan bog'lanib bo'lmadi.");
+            $this->scheduleRetry($receipt, "Fiskal provayder bilan bog'lanib bo'lmadi.", $token);
         }
 
         return $receipt->fresh();
     }
 
     /**
-     * "Qayta yuborish" from the panel: a failed receipt becomes pending again and is tried at once.
+     * "Qayta yuborish" from the panel: a failed receipt becomes pending again and is tried at once (unless an attempt
+     * is running right now: that one answers).
      */
     public function retryNow(FiscalReceipt $receipt): FiscalReceipt
     {
-        if ($receipt->status === FiscalReceiptStatus::FAILED) {
-            FiscalReceipt::whereKey($receipt->id)->where('status', FiscalReceiptStatus::FAILED->value)
-                ->update(['status' => FiscalReceiptStatus::PENDING->value, 'next_attempt_at' => now(), 'updated_at' => now()]);
-        }
-
+        $this->reopen($receipt);
         $this->attempt((int) $receipt->id, force: true);
 
         return $receipt->fresh() ?? $receipt;
+    }
+
+    /**
+     * Review P3-35: issue(), and a receipt the provider refused under the same key is sent again (the same receipt,
+     * never a second one): the till's "retry", the order's close and the shift's close ask through here.
+     */
+    public function reissue(FiscalDocument $document): FiscalIssueResult
+    {
+        $existing = $this->existing($document);
+        if ($existing === null || $existing->status !== FiscalReceiptStatus::FAILED || $existing->driver === 'external') {
+            return $this->issue($document);
+        }
+        if ($existing->type !== $document->type || !$document->total->equals($existing->total)) {
+            throw FiscalException::idempotencyConflict($existing->uuid);
+        }
+
+        $this->reopen($existing);
+        $id = (int) $existing->id;
+        DB::afterCommit(fn () => $this->attempt($id, force: true));
+
+        return ($existing->fresh() ?? $existing)->toResult();
+    }
+
+    /**
+     * A failed receipt back to pending, due now.
+     */
+    private function reopen(FiscalReceipt $receipt): void
+    {
+        FiscalReceipt::whereKey($receipt->id)->where('status', FiscalReceiptStatus::FAILED->value)
+            ->update(['status' => FiscalReceiptStatus::PENDING->value, 'next_attempt_at' => now(), 'leased_until' => null, 'lease_token' => null, 'updated_at' => now()]);
     }
 
     /**
@@ -296,40 +331,46 @@ class FiscalService implements FiscalIssuer
         }
     }
 
-    private function markIssued(FiscalReceipt $receipt, FiscalProviderResponse $response): void
+    /**
+     * The provider registered it. Written by the attempt holding the lease ($token), or with no token (a receipt the
+     * payment provider registered itself) over anything but issued; a provider's "issued" also wins over a `failed`
+     * an earlier attempt wrote.
+     */
+    private function markIssued(FiscalReceipt $receipt, FiscalProviderResponse $response, ?string $token = null): void
     {
-        $receipt->forceFill([
-            'status' => FiscalReceiptStatus::ISSUED,
-            'fiscal_sign' => $response->fiscalSign,
-            'receipt_number' => $response->receiptNumber,
-            'qr_url' => $response->qrUrl,
-            'terminal_id' => $response->terminalId,
-            'non_fiscal' => $response->nonFiscal,
-            'provider_payload' => $response->payload ?: null,
-            'error' => null,
-            'next_attempt_at' => null,
-            'issued_at' => $response->issuedAt ?? now(),
-        ])->save();
-
-        FiscalReceiptUpdatedBroadcast::dispatch($receipt);
+        $this->settle($receipt, fn (FiscalReceipt $row) => $row->status === FiscalReceiptStatus::FAILED
+            || ($row->status === FiscalReceiptStatus::PENDING && ($token === null || $row->lease_token === $token)), [
+                'status' => FiscalReceiptStatus::ISSUED,
+                'fiscal_sign' => $response->fiscalSign,
+                'receipt_number' => $response->receiptNumber,
+                'qr_url' => $response->qrUrl,
+                'terminal_id' => $response->terminalId,
+                'non_fiscal' => $response->nonFiscal,
+                'provider_payload' => $response->payload ?: null,
+                'error' => null,
+                'next_attempt_at' => null,
+                'issued_at' => $response->issuedAt ?? now(),
+            ]);
     }
 
-    private function markFailed(FiscalReceipt $receipt, string $error): void
+    /**
+     * Refused or out of attempts: only a pending receipt, by the attempt holding the lease ($token), or with no token
+     * (the sweeper) one no attempt holds now.
+     */
+    private function markFailed(FiscalReceipt $receipt, string $error, ?string $token = null): void
     {
-        $receipt->forceFill([
+        $this->settle($receipt, fn (FiscalReceipt $row) => $this->mayAnswer($row, $token), [
             'status' => FiscalReceiptStatus::FAILED,
             'error' => mb_substr($error, 0, 2000),
             'next_attempt_at' => null,
-        ])->save();
-
-        FiscalReceiptUpdatedBroadcast::dispatch($receipt);
+        ]);
     }
 
-    private function scheduleRetry(FiscalReceipt $receipt, string $error): void
+    private function scheduleRetry(FiscalReceipt $receipt, string $error, string $token): void
     {
         $attempts = (int) $receipt->attempts;
         if ($attempts >= $this->maxAttempts()) {
-            $this->markFailed($receipt, "{$attempts} marta urinildi: {$error}");
+            $this->markFailed($receipt, "{$attempts} marta urinildi: {$error}", $token);
 
             return;
         }
@@ -338,12 +379,57 @@ class FiscalService implements FiscalIssuer
         $delay = max(1, $backoff[min($attempts, count($backoff)) - 1] ?? 60);
         $next = now()->addSeconds($delay);
 
-        $receipt->forceFill(['error' => mb_substr($error, 0, 2000), 'next_attempt_at' => $next])->save();
+        $written = $this->settle($receipt, fn (FiscalReceipt $row) => $this->mayAnswer($row, $token), [
+            'error' => mb_substr($error, 0, 2000),
+            'next_attempt_at' => $next,
+        ], broadcast: false);
+        if (!$written) {
+            return;
+        }
 
         RetryFiscalReceipt::dispatch((int) $receipt->id)
             ->delay($next)
             ->onQueue((string) config('fiscal.retry.queue', 'default'))
             ->afterCommit();
+    }
+
+    private function mayAnswer(FiscalReceipt $row, ?string $token): bool
+    {
+        if ($row->status !== FiscalReceiptStatus::PENDING) {
+            return false;
+        }
+
+        return $token !== null
+            ? $row->lease_token === $token
+            : $row->leased_until === null || $row->leased_until->lte(now());
+    }
+
+    /**
+     * Writes $attributes (and drops the lease) when the row, locked, still lets this writer answer; the receipt model
+     * then holds the row. Announces the change (fiscal.receipt_updated) after it is written.
+     *
+     * @param  \Closure(FiscalReceipt): bool  $allowed
+     * @param  array<string, mixed>  $attributes
+     */
+    private function settle(FiscalReceipt $receipt, \Closure $allowed, array $attributes, bool $broadcast = true): bool
+    {
+        $written = DB::transaction(function () use ($receipt, $allowed, $attributes) {
+            $row = FiscalReceipt::whereKey($receipt->id)->lockForUpdate()->first();
+            if ($row === null || !$allowed($row)) {
+                return false;
+            }
+
+            $row->forceFill($attributes + ['lease_token' => null, 'leased_until' => null])->save();
+            $receipt->setRawAttributes($row->getAttributes(), true);
+
+            return true;
+        });
+
+        if ($written && $broadcast) {
+            FiscalReceiptUpdatedBroadcast::dispatch($receipt);
+        }
+
+        return $written;
     }
 
     /**

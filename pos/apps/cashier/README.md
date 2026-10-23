@@ -12,7 +12,7 @@ cd pos/apps/cashier && flutter run -d linux \
   --dart-define=RIZQIM_REVERB_KEY=pos-key --dart-define=RIZQIM_REVERB_URL=ws://127.0.0.1:8788
 ```
 
-Soxta backend'da ulash kodi — istalgan 8 belgi, PIN: kassir 2468, menejer 5926, ofitsiant 1357.
+Soxta backend'da ulash kodi — istalgan 8 belgi, PIN: kassir 4827, menejer 5926, ofitsiant 3691.
 
 ## Qanday ishlaydi
 
@@ -84,9 +84,26 @@ P3-21 da. Bog'liqliklar `PosScope.of(context)` dan: `data` (`PosData`), `session
   («Qo'shish»). To'langach sotuv cheki (`FiscalReceipt` sale) chop etiladi, naqdda kassa qutisi ochiladi; chek kutilsa
   — «Fiskal kutmoqda» va «Qayta urinish». Hamma schyot to'langach buyurtma yopiladi va kassa zalga qaytadi.
 - Qaytarish: yopilgan buyurtma — «Navbat → Bugun yopilgan» → schyot → «Pulni qaytarish» (sabab, `pos.refund` yoki
-  tasdiq), qaytarish cheki.
-- Chek fiskal belgisi va QR `GET /owner/fiscal/receipts/{uuid}` dan o'qiladi; kassirda bu ruxsat yo'q bo'lsa chek
-  schyotdan tuziladi va «Fiskal ma'lumot kutilmoqda» yoziladi (backend kamchiligi, PHASE3 hisobotida).
+  tasdiq), qaytarish cheki. P3-35: naqd, karta, QR, **bron avansi va nasiya** qismlari (`refund_dialog.dart`: har to'lovdan
+  qolgani — schyotlardagi `refunds` bo'yicha; tanlangan to'lov uchun pul qayerga borishi yoziladi — avans bronga
+  qaytadi, nasiya qarzdan ayiriladi, kassadan naqd chiqmaydi, kassa qutisi faqat naqdda). Xato (`more_than_debt`,
+  `reverse_exceeds_*`, `account_unknown`) dialogda qoladi. Buyurtmaning hamma to'lovi qaytarilgan va u ochiq
+  (`payment_status = refunded`) — schyot ekranida «Buyurtmani bekor qilish» (sabab, tasdiq, «O'CHIRILDI» markalari).
+- P3-35 javoblari: `paid_bill_affected` (o'chirish, mehmonlar, ko'chirish, birlashtirish, xizmat qatori to'langan
+  schyotga tegadi) — o'zbekcha matn va buyurtma qayta yuklanadi (`PosException.needsOrderReload`); `shift_closed`
+  (to'lov yoki qaytarish paytida smena Z bilan yopildi) — to'lov ekranida «Smenani ochish» bloki, smena serverdan
+  qayta o'qiladi (`reloadShift`).
+- Chek fiskal belgisi, raqami, kassa va QR — to'lov javobidagi `fiscal.receipt` dan, bo'lmasa
+  `GET /pos/fiscal-receipts/{uuid}` dan (P3-26: kassir sessiyasi bilan). Ikkalasi ham o'qilmasa chek schyotdan tuziladi
+  va fiskal belgi o'rniga «kutilmoqda» yoziladi.
+- Chek printeriga ketgan hujjat chiqmasa (qog'oz tugadi, printer javob bermadi) ish ekranlari tepasida «Chek chop
+  etilmadi» banneri («Qayta urinish», «Yopish»). Kassa qutisi qog'oz tugagan printerda ham ochiladi.
+- Pul amallari (to'lov, qaytarish, kirim-chiqim, nasiya hisobi) javobsiz qolsa (tarmoq), qayta bosish **aynan o'sha
+  so'rovni** — o'sha kalit, tana va menejer tasdig'i bilan — yuboradi (`LostRequest`, `shell/approval_dialog.dart`):
+  server bir marta bajaradi, PIN qayta so'ralmaydi.
+- Schyotlar: serverda «to'lanmoqda» holati yo'q — to'lov olingan schyot chek chiqquncha `open`/`printed` bo'lib qoladi
+  (`PosBill.isTaken`, `awaitingReceipt`). Bo'lishda va «Qisman to'langan» / «Fiskal kutmoqda» belgilarida shu
+  hisobga olinadi. Bo'lingan schyotlar pre-chekida avans har schyotga ulush bo'lib tushadi (`depositShare`).
 
 ## Smena, bronlar, nasiya, navbat, sozlamalar
 
@@ -96,10 +113,12 @@ P3-21 da. Bog'liqliklar `PosScope.of(context)` dan: `data` (`PosData`), `session
   va majburan yopish (sabab + tasdiq), Z-hisobot chop etiladi.
 - **Bronlar:** kun bo'yicha xona × soat taqvimi (bugun va keyingi 6 kun), bo'sh katak — yangi bron (o'sha xona va
   soat; davomiylik — filial sloti), telefon bo'yicha qidiruv, to'qnashuv xabari; bron sahifasi: tasdiqlash, «Keldi»
-  (buyurtma ochiladi — `CashierRoutes.openOrder`), kelmadi, bekor qilish, oldindan buyurtma (menyu, kg, tayyor bo'lish
+  (nechta mehmon keldi va joy — bron qilingan xona yoki «Boshqa joy»; `guests`, `dining_table_id`; buyurtma ochiladi —
+  `CashierRoutes.openOrder`), kelmadi, bekor qilish, oldindan buyurtma (menyu, kg, tayyor bo'lish
   vaqti), avans (bo'nak cheki), avansni qaytarish yoki ushlab qolish (tasdiq bilan).
 - **Nasiya:** qarzdorlar va jami qarz, telefon yoki ism bo'yicha qidiruv, ko'chirma (30/90 kun), qarz to'lovi (kredit
-  cheki), hisob ochish va tahrirlash (limit, to'xtatish — `customer_accounts.manage`).
+  cheki), hisob ochish va tahrirlash (limit, to'xtatish — `customer_accounts.manage`; kassir — menejer PIN'i bilan,
+  to'lov sahifasidagi «Yangi hisob ochish» ham).
 - **Navbat:** qabul kutayotgan Telegram/ilova buyurtmalari (ovoz, N daqiqadan oshsa ogohlantirish, qabul qilish, rad
   etish — `orders.cancel`), «Fiskal kutmoqda» ro'yxati (qayta urinish), ochiq buyurtmalar (kanal bo'yicha), bugun
   yopilganlar.
@@ -116,10 +135,26 @@ P3-21 da. Bog'liqliklar `PosScope.of(context)` dan: `data` (`PosData`), `session
   «Berildi», bitta schyot (pre-chek chop etiladi), naqd va karta to'lovi. O'chirilgan (sababi yozilgan): mehmonlar,
   ko'chirish, birlashtirish, bekor qilish, schyotni bo'lish, qaytarish, QR/avans/nasiya, kassa harakati, Z-hisobot.
 - Oflayn to'lovda fiskal bo'lmagan chek chiqmaydi: sotuv cheki sinxronlashda ro'yxatdan o'tadi va kassa uni o'zi chop
-  etadi. Ekran qulfi cheklangan rejimda to'xtaydi (PIN tekshiruvi serverda).
+  etadi (`PosOffline.salesToPrint` — qurilmada saqlanadi): chek haqiqatan chiqqanda belgilanadi; chek hali tayyor
+  bo'lmasa `fiscal.receipt_updated`, keyingi sinxronlash yoki kirishda yana uriniladi; qayta kirganda eski cheklar
+  qayta chiqmaydi. Ekran qulfi cheklangan rejimda to'xtaydi (PIN tekshiruvi serverda).
+- Onlayn tuzilgan va chiqarilgan schyot internet uzilgach ham chiqariladi va to'lanadi (schyot nusxasidan).
+- Navbatda serverga yetmagan amal bo'lsa terminalni uzib bo'lmaydi (oyna sababini aytadi); uzilganda yoki server
+  terminalni bekor qilganda navbat va nusxalar o'chiriladi (`PosOffline.forget`), `seq` esa davom etadi.
 - «Sinxronlash xatolari» — Sozlamalar (`orders.cancel`): rad etilgan va farq bilan qo'llangan amallar, «Hal qilindi»
-  yoki «Yopish».
-- Test: `test/offline_test.dart` (oflayn sotuv va qayta ulanish, xatoni hal qilish, Z yopiq).
+  yoki «Yopish». Server matni bo'lmasa sabab matni `PosSyncReasons` dan (`invalid_payload`, `modifier_not_found`, ...).
+- P3-35: sinxronlashda qator server narxida saqlansa (`offline_price_mismatch`) tepada «Narx serverda boshqacha» lentasi
+  («Tushunarli» bosilguncha; `SyncPriceBanner`), ochiq buyurtma ekrani xabar beradi va buyurtmani, schyot ekrani
+  schyotni serverdan qayta yuklaydi (`OrderController.onSynced`, `RefreshingState` — `offline.synced`).
+  `device_time_clamped` — faqat ma'lumot, ko'rsatilmaydi.
+- `send: true` bosqichidan keyin `order.items_changed` ikki marta keladi (`round_added`, `sent`): ekranlar hodisani
+  faqat qayta yuklash uchun ishlatadi (`PosRefreshScheduler` 300 ms ichida birlashtiradi), sex markasi faqat o'z
+  amalidan keyin (`printSent(before, after)`) chiqadi — ikki marta chop etilmaydi.
+- Test: `test/offline_test.dart` (oflayn sotuv va qayta ulanish, xatoni hal qilish, Z yopiq, sotuv cheki bir marta,
+  uzish), `test/order_retry_test.dart` (javobsiz bosqich, 409 dan keyin marka, oflayn qatorlar markasi),
+  `test/lost_request_test.dart` (javobsiz to'lov, qaytarish, kirim), `test/refund_conflicts_test.dart` (P3-35: avans va
+  nasiya qaytarish, qaytarilgandan keyin bekor qilish, `more_than_debt`, `shift_closed`, `paid_bill_affected`, narx
+  farqi xabari).
 
 Soxta backend'ning kassa qismi — `FakeCashierBackend` (`pos_data/testing.dart`); `tool/fake_pos_server.dart` uni demo
 ma'lumotlar bilan ulaydi. Testlar: `test/{billing,shift,bookings,accounts,queue,settings}_test.dart`

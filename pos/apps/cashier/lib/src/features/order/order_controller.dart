@@ -64,9 +64,14 @@ class OrderController extends ChangeNotifier {
   var _keySeq = 0;
   String? _roundKey;
   String? _roundKeyFor;
+
+  // A round whose answer was lost (network): the version it carried, so the retry is the very same request
+  String? _lostRoundFor;
+  int? _lostRoundVersion;
   String? _externalId;
   int _draftGuests = 1;
   StreamSubscription<PosCatalog>? _catalogSub;
+  StreamSubscription<List<SyncOperation>>? _syncSub;
   final StreamController<OrderNotice> _notices =
       StreamController<OrderNotice>.broadcast();
 
@@ -121,6 +126,7 @@ class OrderController extends ChangeNotifier {
         _notify();
       }
     });
+    _syncSub ??= data.offline?.synced.listen(onSynced);
     try {
       final String? id = _uuid;
       if (id != null) _order = await data.orders.get(id);
@@ -326,18 +332,39 @@ class OrderController extends ChangeNotifier {
     if (_uuid == null) {
       ok = await _openWithDraft(items, mode, send, approve);
     } else {
+      final String what = 'round:$revision:$send';
       ok = await _mutate(
-        (int v, String? t) => data.orders.addRound(
-          _uuid!,
-          version: v,
-          items: items,
-          fireMode: mode,
-          send: send,
-          approvalToken: t,
-          idempotencyKey: t == null
-              ? _keyFor('round:$revision:$v:$send')
-              : null,
-        ),
+        (int v, String? t) async {
+          // After a lost answer the same draft goes again exactly as it went (key, version, body): the server
+          // answers it once, whether the first one reached it or not. A poll may have moved the version since.
+          final int version = t == null && _lostRoundFor == what
+              ? _lostRoundVersion!
+              : v;
+          try {
+            final PosOrder next = await data.orders.addRound(
+              _uuid!,
+              version: version,
+              items: items,
+              fireMode: mode,
+              send: send,
+              approvalToken: t,
+              idempotencyKey: t == null ? _keyFor(what) : null,
+            );
+            _lostRoundFor = null;
+            return next;
+          } on PosNetworkException {
+            if (t == null) {
+              _lostRoundFor = what;
+              _lostRoundVersion = version;
+            }
+            rethrow;
+          } on PosException {
+            // The server answered: the next try is a new request
+            _lostRoundFor = null;
+            _roundKey = null;
+            rethrow;
+          }
+        },
         approve: approve,
         reapply: true,
         success: send && !_holdRound ? 'Oshxonaga yuborildi' : 'Saqlandi',
@@ -545,18 +572,29 @@ class OrderController extends ChangeNotifier {
     bool reapply = false,
     String? success,
   }) async {
-    final PosOrder? before = _order;
+    PosOrder? before = _order;
     final String? id = _uuid;
     if (_busy || before == null || id == null) return false;
     _busy = true;
     _notify();
     try {
+      if (before.items.any((PosOrderItem i) => i.id < 0) &&
+          !(data.offline?.active ?? false)) {
+        // The screen still shows the till's offline view: its lines have server ids now, compare with the server's
+        try {
+          before = _order = await data.orders.get(id);
+        } on PosException {
+          // the call below finds out
+        }
+      }
       PosOrder next;
       try {
         next = await approve<PosOrder>((String? t) => call(_order!.version, t));
       } on PosVersionConflict {
         final PosOrder fresh = await data.orders.get(id);
         _order = fresh;
+        // Lines another device sent meanwhile are its tickets, not this one's
+        before = fresh;
         _notify();
         if (!reapply || !fresh.isOpen) {
           _emit(
@@ -575,8 +613,8 @@ class OrderController extends ChangeNotifier {
       return false;
     } on PosException catch (e) {
       _emit(posErrorText(e), error: true);
-      if (e is PosRejected && e.reason == 'order_closed' ||
-          e is PosVersionConflict) {
+      // The screen is out of date (closed, changed elsewhere, P3-35: a bill on it is being paid): show the server's
+      if (e is PosVersionConflict || e.needsOrderReload) {
         unawaited(_reloadQuietly());
       }
       return false;
@@ -584,6 +622,24 @@ class OrderController extends ChangeNotifier {
       _busy = false;
       _notify();
     }
+  }
+
+  /// P3-35: offlayn navbat serverga yetdi. Shu buyurtmaning amali bo'lsa — buyurtma serverdan qayta (qator id'lari,
+  /// narxlar); qator server narxida saqlangan bo'lsa (`offline_price_mismatch`) kassirga aytiladi: jami o'zgargan.
+  @visibleForTesting
+  Future<void> onSynced(List<SyncOperation> ops) async {
+    final String? id = _uuid;
+    final PosOffline? offline = data.offline;
+    if (id == null || offline == null) return;
+    if (!syncTouchesOrder(ops, id, offline.store.resolve)) return;
+    final String uuid = offline.store.resolve(id);
+    for (final PosSyncPriceNotice n in PosSyncPriceNotice.of(ops)) {
+      if (n.orderUuid == uuid) {
+        _emit(n.message, error: true);
+      }
+    }
+    if (_busy) return;
+    await _reloadQuietly();
   }
 
   Future<void> _reloadQuietly() async {
@@ -627,6 +683,7 @@ class OrderController extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     unawaited(_catalogSub?.cancel());
+    unawaited(_syncSub?.cancel());
     unawaited(_notices.close());
     super.dispose();
   }

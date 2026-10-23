@@ -7,7 +7,7 @@
 //   flutter run -d linux --dart-define=RIZQIM_API_URL=http://127.0.0.1:8787/api \
 //     --dart-define=RIZQIM_REVERB_KEY=kds-key
 //
-// Ulash kodi — istalgan 8 belgi (masalan ABCD-EFGH), PIN — 2468 (3 marta xato — 60 soniya bloklanadi).
+// Ulash kodi — istalgan 8 belgi (masalan ABCD-EFGH), PIN — 7305 (3 marta xato — 60 soniya bloklanadi).
 // Boshqaruv: `curl -X POST http://127.0.0.1:8787/__control/new-order` (yangi buyurtma + real-time hodisa),
 // `.../__control/offline?on=1|0` (server javob bermaydi), `.../__control/drop` (WebSocket'larni uzish).
 import 'dart:async';

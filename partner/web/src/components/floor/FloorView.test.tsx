@@ -5,6 +5,7 @@ import { setSession } from '@/lib/session/client';
 import { json, mockFetch, renderPage } from '@/test/helpers';
 import { makeBranch } from '../management/testSupport';
 import { product, variant } from '../menu/menuFixtures';
+import type { Hall } from '@rizqim/staff';
 import { hall, ok, ownerAnswer, signIn, table } from '../pos/testSupport';
 import { FloorView } from './FloorView';
 
@@ -112,7 +113,29 @@ describe('Zallar va joylar', () => {
     await typing.selectOptions(screen.getByLabelText('Minimal summa qanday hisoblanadi'), 'per_person');
     await typing.click(screen.getByRole('button', { name: 'Saqlash' }));
     await waitFor(() => expect(calls.some((call) => call.method === 'POST')).toBe(true));
-    expect(await lastOf(calls, 'POST').json()).toEqual({ hall_id: 1, name: 'Xona 7', kind: 'room', seats: 10, min_spend: 500000, min_spend_mode: 'per_person', is_active: true });
+    // With its layout: the first free spot of the hall's map (Xona 1 at 2,1 5x4 and Stol 5 at 10,2 2x2 are taken)
+    expect(await lastOf(calls, 'POST').json()).toEqual({ hall_id: 1, name: 'Xona 7', kind: 'room', seats: 10, min_spend: 500000, min_spend_mode: 'per_person', is_active: true, layout: { x: 12, y: 0, w: 5, h: 4 } });
+  });
+
+  it('places a new place in the first free spot of the hall it is put in, after the places never positioned', async () => {
+    const { calls } = base({
+      'GET /api/v1/owner/halls': () =>
+        ok([
+          hall(),
+          hall({ id: 2, name: 'Ayvon', tables: [table({ id: 30, hall_id: 2, name: 'Tapchan 1', kind: 'tapchan', layout: { x: null, y: null, w: null, h: null } })] }),
+        ]),
+      'POST /api/v1/owner/dining-tables': () => ok(table({ id: 31, hall_id: 2, name: 'Stol 9', kind: 'table' })),
+    });
+    const typing = userEvent.setup();
+    renderPage(<FloorView />);
+    const main = await screen.findByRole('group', { name: 'Asosiy zal' });
+    await typing.click(within(main).getByRole('button', { name: "Joy qo'shish" }));
+    await typing.type(screen.getByLabelText('Nomi'), 'Stol 9');
+    await typing.selectOptions(screen.getByLabelText('Zal'), '2');
+    await typing.click(screen.getByRole('button', { name: 'Saqlash' }));
+    await waitFor(() => expect(calls.some((call) => call.method === 'POST')).toBe(true));
+    // The tapchan without a layout is drawn at 0,0 (4x3), so the table goes right of it
+    expect(await lastOf(calls, 'POST').json()).toMatchObject({ hall_id: 2, kind: 'table', layout: { x: 4, y: 0, w: 2, h: 2 } });
   });
 
   it("sets and removes a hall's own service charge", async () => {
@@ -134,6 +157,26 @@ describe('Zallar va joylar', () => {
     await typing.click(screen.getByRole('button', { name: 'Asosiy zal: xizmat haqi' }));
     await typing.click(screen.getByRole('button', { name: "Filialnikini qo'llash" }));
     await waitFor(() => expect(calls.some((call) => call.method === 'DELETE')).toBe(true));
+  });
+
+  it("shows a hall's own service charge on the hall once it is saved (the halls are read again)", async () => {
+    let fee: Hall['service_fee'] = null;
+    const { calls } = base({
+      'GET /api/v1/owner/halls': () => ok([hall({ service_fee: fee })]),
+      'PUT /api/v1/owner/service-fees': () => {
+        fee = { service_charge_percent: '20.00', place_fee_amount: '0.00', place_fee_mode: 'per_person' };
+        return ok({ branch_id: 1, hall_id: 1, ...fee });
+      },
+    });
+    const typing = userEvent.setup();
+    renderPage(<FloorView />);
+    const main = await screen.findByRole('group', { name: 'Asosiy zal' });
+    expect(within(main).getByText('Xizmat haqi: filialniki')).toBeInTheDocument();
+    await typing.click(screen.getByRole('button', { name: 'Asosiy zal: xizmat haqi' }));
+    await typing.type(screen.getByLabelText('Xizmat haqi'), '20');
+    await typing.click(screen.getByRole('button', { name: 'Saqlash' }));
+    expect(await within(main).findByText('Xizmat haqi: 20%')).toBeInTheDocument();
+    expect(calls.filter((call) => call.method === 'GET' && call.url.includes('/owner/halls')).length).toBeGreaterThan(1);
   });
 
   it('is read-only for a cashier: no buttons to add, change or delete', async () => {
@@ -359,6 +402,58 @@ describe('Xona narxi', () => {
     await typing.click(save);
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Kalendar saqlandi.'));
     expect(await lastOf(calls, 'PUT').json()).toEqual({ branch_id: 1, weekend_days: [5, 6, 7], holidays: ['2026-11-05', '2026-12-31'] });
+  });
+
+  it("shows and saves each branch's own calendar when the branch is switched (a cached branch too)", async () => {
+    const calendarOf = (branch: number) => (branch === 1 ? { branch_id: 1, weekend_days: [6, 7], holidays: ['2026-12-31'] } : { branch_id: 2, weekend_days: [5], holidays: ['2027-03-21'] });
+    const { calls, typing } = await open({
+      'GET /api/v1/owner/branches': () => ok([makeBranch(), makeBranch({ id: 2, name: 'Ikkinchi' })]),
+      'GET /api/v1/owner/room-tariffs': (request) => ok(tariffs({ calendar: calendarOf(Number(new URL(request.url).searchParams.get('branch_id'))) })),
+      'PUT /api/v1/owner/room-tariffs/calendar': () => ok({ branch_id: 1, weekend_days: [1, 6, 7], holidays: ['2026-12-31'] }),
+    });
+    await screen.findByText(/2026-12-31/);
+    const branch = screen.getAllByRole('combobox')[0]!;
+    await typing.selectOptions(branch, '2');
+    await screen.findByText(/2027-03-21/);
+    expect(screen.getByRole('checkbox', { name: 'Juma' })).toBeChecked();
+    await typing.selectOptions(branch, '1');
+    expect(await screen.findByText(/2026-12-31/)).toBeInTheDocument();
+    expect(screen.queryByText(/2027-03-21/)).not.toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'Juma' })).not.toBeChecked();
+    expect(screen.getByRole('button', { name: 'Kalendarni saqlash' })).toBeDisabled();
+    await typing.click(screen.getByRole('checkbox', { name: 'Dushanba' }));
+    await typing.click(screen.getByRole('button', { name: 'Kalendarni saqlash' }));
+    await waitFor(() => expect(calls.some((call) => call.method === 'PUT')).toBe(true));
+    expect(await lastOf(calls, 'PUT').json()).toEqual({ branch_id: 1, weekend_days: [1, 6, 7], holidays: ['2026-12-31'] });
+  });
+
+  it('takes a holiday added elsewhere when the calendar is read again, and keeps what was being edited', async () => {
+    let holidays = ['2026-12-31'];
+    const { calls, typing } = await open({
+      'GET /api/v1/owner/room-tariffs': () => ok(tariffs({ calendar: { branch_id: 1, weekend_days: [6, 7], holidays } })),
+      'PUT /api/v1/owner/room-tariffs/calendar': () => ok({ branch_id: 1, weekend_days: [6, 7], holidays: ['2026-11-05', '2027-01-01', '2027-03-21'] }),
+      'DELETE /api/v1/owner/room-tariffs/1': () => ok(null),
+    });
+    // The other tab and back: the tariffs are read again (cached ones are shown meanwhile)
+    holidays = ['2026-12-31', '2027-01-01'];
+    await typing.click(screen.getByRole('tab', { name: 'Zallar va joylar' }));
+    await typing.click(screen.getByRole('tab', { name: 'Xona narxi' }));
+    expect(await screen.findByText(/2027-01-01/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Kalendarni saqlash' })).toBeDisabled();
+    // Removed and added here while the POS settings add another one: all three changes are kept
+    await typing.click(screen.getByRole('button', { name: '2026-12-31 bayramini olib tashlash' }));
+    await typing.type(screen.getByLabelText('Sana'), '2026-11-05');
+    await typing.click(screen.getByRole('button', { name: "Qo'shish" }));
+    // A tariff is deleted meanwhile: the tariffs and the calendar are read again with the card open
+    holidays = ['2026-12-31', '2027-01-01', '2027-03-21'];
+    await typing.click(screen.getByRole('button', { name: "Barcha xonalar · barcha zallar, Ish kuni: narxni o'chirish" }));
+    await typing.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: "O'chirish" }));
+    expect(await screen.findByText(/2027-03-21/)).toBeInTheDocument();
+    expect(screen.getByText(/2026-11-05/)).toBeInTheDocument();
+    expect(screen.queryByText(/2026-12-31/)).not.toBeInTheDocument();
+    await typing.click(screen.getByRole('button', { name: 'Kalendarni saqlash' }));
+    await waitFor(() => expect(calls.some((call) => call.method === 'PUT')).toBe(true));
+    expect(await lastOf(calls, 'PUT').json()).toEqual({ branch_id: 1, weekend_days: [6, 7], holidays: ['2026-11-05', '2027-01-01', '2027-03-21'] });
   });
 
   it('removes a holiday from the list before saving', async () => {

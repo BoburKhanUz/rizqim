@@ -12,6 +12,7 @@ use App\Models\Device;
 use App\Models\Order;
 use App\Models\OrderBill;
 use App\Models\Payment;
+use App\Models\PosShift;
 use App\Models\User;
 use App\Services\Audit\AuditLogger;
 use App\Support\Money;
@@ -64,6 +65,12 @@ final class PaymentService
         }
 
         [$bill, $covered] = DB::transaction(function () use ($user, $bill, $normalized, $approvalToken, $shift, $version, $device, $applied, $offlinePaidAt) {
+            // Review P3-35: the shift's row first (the Z and refunds lock it too, then the orders): a shift closed
+            // meanwhile takes no more money, and a closing Z never misses a payment made at the same moment
+            $shift = PosShift::whereKey($shift->id)->lockForUpdate()->firstOrFail();
+            if (!$shift->isOpen()) {
+                throw PosActionException::conflict('shift_closed', 'Smena yopilgan.');
+            }
             $order = BillService::lockOpenOrder(Order::findOrFail($bill->order_id), $version);
             $bill = OrderBill::whereKey($bill->id)->lockForUpdate()->firstOrFail();
 

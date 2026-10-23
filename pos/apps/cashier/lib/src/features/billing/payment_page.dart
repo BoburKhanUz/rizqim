@@ -69,8 +69,8 @@ class _PaymentPageState extends State<PaymentPage> {
   bool _busy = false;
 
   /// Javob kelmagan to'lov: aynan shu to'lovlar bilan qayta yuborishda o'sha `Idempotency-Key`.
-  String? _retryKey;
-  String? _retrySignature;
+  /// Javobsiz qolgan to'lov: aynan o'zi (kalit, tasdiq) qayta yuboriladi.
+  final LostRequest _lost = LostRequest();
 
   /// To'landi, chek kutilmoqda.
   PosBillResult? _pending;
@@ -282,24 +282,22 @@ class _PaymentPageState extends State<PaymentPage> {
     final String signature = tenders
         .map((PosTenderInput t) => t.toJson().toString())
         .join('|');
-    final String? key = _retrySignature == signature ? _retryKey : null;
     setState(() {
       _busy = true;
       _blocking = null;
     });
     try {
-      final PosBillResult r = await withApproval<PosBillResult>(
+      final PosBillResult r = await _lost.run<PosBillResult>(
         context,
-        (String? token) => _scope.data.billing.pay(
+        signature,
+        (String? token, String? key) => _scope.data.billing.pay(
           _bill.uuid,
           tenders: tenders,
           shiftUuid: _scope.session.shift?.uuid,
           approvalToken: token,
-          idempotencyKey: token == null ? key : null,
+          idempotencyKey: key,
         ),
       );
-      _retryKey = null;
-      _retrySignature = null;
       if (!mounted) return;
       _bill = r.bill;
       _parts.clear();
@@ -307,9 +305,7 @@ class _PaymentPageState extends State<PaymentPage> {
         (PosTenderInput t) => t.tender == PosTender.cash,
       );
       await _afterPayment(r, openDrawer: cash);
-    } on PosNetworkException catch (e) {
-      _retryKey = e.idempotencyKey;
-      _retrySignature = signature;
+    } on PosNetworkException {
       if (mounted) {
         showPosMessage(
           context,
@@ -317,7 +313,9 @@ class _PaymentPageState extends State<PaymentPage> {
         );
       }
     } on PosConflict catch (e) {
-      if (e.reason == 'shift_not_open') {
+      if (e.reason == 'shift_not_open' || e.reason == PosReasons.shiftClosed) {
+        // P3-35: closed by a Z meanwhile, no money taken: the shift is read again, a new one is needed
+        if (e.reason == PosReasons.shiftClosed) unawaited(reloadShift(_scope));
         if (mounted) setState(() => _blocking = e);
       } else if (mounted) {
         showPosError(context, e);
@@ -724,7 +722,10 @@ class _PaymentPageState extends State<PaymentPage> {
   Widget _accountForm(RzColors c) {
     final PosSession session = _scope.session;
     final PosCustomerAccount? selected = _account;
-    final bool canCreate = session.can(PosPermissions.customerAccountsManage);
+    // Without the permission the account is opened with a manager's PIN
+    final bool canCreate =
+        session.can(PosPermissions.customerAccountsManage) ||
+        session.needsApproval(PosPermissions.customerAccountsManage);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[

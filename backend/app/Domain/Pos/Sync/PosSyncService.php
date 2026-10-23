@@ -14,7 +14,8 @@ use Illuminate\Support\Facades\Cache;
  * answered from pos_sync_operations and never applied again, so the same batch sent twice changes nothing.
  *
  * One batch per till at a time (a lock); a database failure (deadlock, lost connection) stops the batch at that
- * operation, which stays in the device's queue to be sent again. The device's clock is compared with the server's at
+ * operation, which stays in the device's queue to be sent again. Review P3-35: an operation that fails on its own
+ * content is answered (rejected `invalid_payload`, money recorded unallocated) and never stops the queue. The device's clock is compared with the server's at
  * send time (`sent_at`): more than 5 minutes apart is a warning. What the device says about its queue (`queue.size`,
  * `queue.oldest_at`) is kept on the device row: the shift does not close while it has operations waiting.
  */
@@ -69,8 +70,9 @@ final class PosSyncService
 
                 try {
                     $results[] = $this->applier->apply($device, $op, $skew);
-                } catch (QueryException $e) {
-                    // The database, not the operation: it stays queued on the till and comes again
+                } catch (QueryException|\PDOException $e) {
+                    // The database, not the operation (the applier answers the operation's own errors, review
+                    // P3-35): it stays queued on the till and comes again
                     report($e);
                     $stoppedAt = (int) $op['seq'];
                     break;
@@ -98,7 +100,7 @@ final class PosSyncService
         if ($queue !== null && isset($queue['size'])) {
             $left = max(0, (int) $queue['size'] - count($results));
             $attributes['sync_pending_ops'] = $left;
-            $attributes['sync_oldest_op_at'] = $left > 0 && !empty($queue['oldest_at']) ? Carbon::parse((string) $queue['oldest_at']) : null;
+            $attributes['sync_oldest_op_at'] = $left > 0 && !empty($queue['oldest_at']) ? rescue(fn () => Carbon::parse((string) $queue['oldest_at']), null, false) : null;
         }
         if ($skew !== null) {
             $attributes['sync_clock_skew_seconds'] = $skew;

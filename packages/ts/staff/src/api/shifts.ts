@@ -1,5 +1,5 @@
 import type { StaffApi } from './client';
-import { unwrap } from './errors';
+import { StaffApiError, unwrap } from './errors';
 import type { OkData } from './types';
 
 // Shifts, the X report (a shift now) and the Z report (a shift as it was closed), P3-18 (docs/API.md "Smena, kassa, X va Z").
@@ -64,10 +64,23 @@ export interface BranchShiftSummary {
 // At most this many open shifts are shown (a branch has a handful of tills)
 export const MAX_OPEN_SHIFTS = 5;
 
+// /pos/shifts/current is a till route (pos.open_shift, pos.close_shift or pos.take_payment): a manager with only reports.view
+// is refused it, so their summary takes the open shifts from the list and reads each one's X report (both need reports.view).
 export async function fetchBranchShiftSummary(api: StaffApi, branchId?: number): Promise<BranchShiftSummary> {
   const scope = branchId === undefined ? {} : { branch_id: branchId };
-  const [current, closedShifts] = await Promise.all([fetchCurrentShifts(api, branchId), fetchShifts(api, { ...scope, status: 'closed', limit: 1 })]);
+  const [current, closedShifts] = await Promise.all([
+    fetchCurrentShifts(api, branchId).catch((error: unknown) => {
+      if (error instanceof StaffApiError && error.status === 403) return null;
+      throw error;
+    }),
+    fetchShifts(api, { ...scope, status: 'closed', limit: 1 }),
+  ]);
   const closed = closedShifts[0];
-  const lastClosed = closed ? await fetchShift(api, closed.uuid) : null;
-  return { open: current.shifts.slice(0, MAX_OPEN_SHIFTS), lastClosed };
+  const [open, lastClosed] = await Promise.all([current ? current.shifts.slice(0, MAX_OPEN_SHIFTS) : openFromList(api, scope), closed ? fetchShift(api, closed.uuid) : null]);
+  return { open, lastClosed };
+}
+
+async function openFromList(api: StaffApi, scope: { branch_id?: number }): Promise<XReport[]> {
+  const open = await fetchShifts(api, { ...scope, status: 'open', limit: MAX_OPEN_SHIFTS });
+  return Promise.all(open.slice(0, MAX_OPEN_SHIFTS).map((shift) => fetchXReport(api, shift.uuid)));
 }

@@ -76,6 +76,15 @@ void main() {
       );
     });
 
+    test('the cash drawer opens even when the paper is out', () async {
+      emu.paperOut = true;
+      final Future<EmulatedPrint> next = emu.printed.firstWhere(
+        (EmulatedPrint p) => p.document.drawerKicks > 0,
+      );
+      await transport.openDrawer((EscPosBuilder()..openCashDrawer()).build());
+      expect((await next).document.drawerKicks, 1);
+    });
+
     test(
       'status: ready, paper near end, unknown without an answer, offline',
       () async {

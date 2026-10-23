@@ -81,6 +81,8 @@ class PosOffline {
       ..add(sender.changes.listen((_) => _emit()));
     final Map<String, Object?>? boot = store.doc(_bootstrapKey)?.map;
     if (boot != null) settings = PosOfflineSettings.of(boot);
+    // Answers from before this start were emitted then (and their receipts are in the store's own list)
+    _emitted.addAll(store.answered.map((SyncOperation o) => o.opId));
     sender.start();
   }
 
@@ -112,7 +114,13 @@ class PosOffline {
   int _probeFailures = 0;
   bool _warming = false;
 
+  final Set<String> _emitted = <String>{};
+
   static const String _bootstrapKey = 'bootstrap';
+  static const String _salesKey = '_sale_receipts';
+
+  /// Shuncha chop etilgan chek `op_id` si eslab qolinadi (qayta chiqmasin).
+  static const int keepPrintedSales = 500;
 
   PosConnectivity get connectivity => _http.connectivity;
 
@@ -140,9 +148,65 @@ class PosOffline {
 
   Stream<OfflineStatus> get changes => _changes.stream;
 
-  /// Navbatdan serverga yetgan amallar (har yuborishdan keyin): kassa oflayn to'langan schyotlarning sotuv chekini
-  /// shu bilan chop etadi.
+  /// Navbatdan serverga yetgan amallar — faqat shu yuborishda javob olganlari (har yuborishdan keyin). Sotuv chekini
+  /// chop etish uchun [salesToPrint] ni o'qing.
   Stream<List<SyncOperation>> get synced => _synced.stream;
+
+  /// Oflayn to'langan, serverga yetgan va sotuv cheki hali chop etilmagan schyotlar (diskda saqlanadi: ilova qayta
+  /// ochilsa yoki xodim almashsa ham yo'qolmaydi va qayta chiqmaydi). Chek chiqqach [salePrinted].
+  List<PosOfflineSale> get salesToPrint => <PosOfflineSale>[
+    for (final Object? s
+        in (store.doc(_salesKey)?.map?['todo'] as List<Object?>?) ??
+            const <Object?>[])
+      if (s is Map) PosOfflineSale.fromJson(s.cast<String, Object?>()),
+  ];
+
+  /// Chek chop etildi: ro'yxatdan olinadi.
+  Future<void> salePrinted(String opId) async {
+    final List<PosOfflineSale> todo = salesToPrint;
+    final int before = todo.length;
+    todo.removeWhere((PosOfflineSale s) => s.opId == opId);
+    if (todo.length == before) return;
+    await _writeSales(todo, _salesSeen());
+  }
+
+  List<String> _salesSeen() => <String>[
+    for (final Object? id
+        in (store.doc(_salesKey)?.map?['seen'] as List<Object?>?) ??
+            const <Object?>[])
+      '$id',
+  ];
+
+  Future<void> _writeSales(List<PosOfflineSale> todo, List<String> seen) =>
+      store.putDoc(_salesKey, <String, Object?>{
+        'todo': <Object?>[for (final PosOfflineSale s in todo) s.toJson()],
+        'seen': seen.length > keepPrintedSales
+            ? seen.sublist(seen.length - keepPrintedSales)
+            : seen,
+      });
+
+  /// Serverga yetgan `bill.pay` amallari chop etish ro'yxatiga (bir marta).
+  Future<void> _recordSales(List<SyncOperation> answered) async {
+    final List<String> seen = _salesSeen();
+    final Set<String> known = seen.toSet();
+    final List<PosOfflineSale> todo = salesToPrint;
+    var added = false;
+    for (final SyncOperation op in answered) {
+      if (op.type != SyncOpType.billPay ||
+          op.status != SyncOpStatus.applied ||
+          known.contains(op.opId)) {
+        continue;
+      }
+      final String? order = op.refs['order_uuid'] as String?;
+      final String? bill = op.refs['bill_uuid'] as String?;
+      if (order == null || bill == null) continue;
+      todo.add(PosOfflineSale(opId: op.opId, orderUuid: order, billUuid: bill));
+      seen.add(op.opId);
+      known.add(op.opId);
+      added = true;
+    }
+    if (added) await _writeSales(todo, seen);
+  }
 
   DateTime? get _menuTakenAt {
     DateTime? newest;
@@ -471,6 +535,12 @@ class PosOffline {
     }
     _guard(null);
     final PosOrder current = order(orderUuid);
+    if (!(book.state(orderUuid)?.leftToBill.isPositive ?? true)) {
+      throw const PosOfflineUnavailable(
+        "Schyotga tushadigan narsa qolmadi: ochiq schyotni to'lang.",
+        reason: 'nothing_to_bill',
+      );
+    }
     await store.enqueue(SyncOpType.billCreate, <String, Object?>{
       'order': orderUuid,
       'base_version': ?_serverVersion(orderUuid),
@@ -589,6 +659,21 @@ class PosOffline {
       PosOpenOrder.fromJson(PosJson(o)),
   ];
 
+  /// Terminal uzildi yoki server uni bekor qildi: navbat, nusxalar va chek ro'yxati o'chiriladi (yangi ulanish eski
+  /// amallarni yangi token bilan yubormasin). Uzishdan oldin navbat bo'sh bo'lishi kerak ([store.hasPending]).
+  Future<void> forget() async {
+    _printed.clear();
+    _emitted.clear();
+    settings = const PosOfflineSettings();
+    sender.limits = settings.limits;
+    try {
+      await store.clear();
+    } on Object {
+      // The disk failed: what is left is cleared on the next forget
+    }
+    _emit();
+  }
+
   // --- server: holat va xatolar -----------------------------------------------------------------------------------
 
   /// "Sinxronlash xatolari" serverdan (`GET /pos/sync/errors`, xodim sessiyasi bilan).
@@ -656,9 +741,8 @@ class PosOffline {
   }
 
   (String, OfflineOrderState) _stateOfBill(String billUuid) {
-    for (final MapEntry<String, OfflineOrderState> e in book.build().entries) {
-      if (e.value.bill(billUuid) != null) return (e.key, e.value);
-    }
+    final (String, OfflineOrderState)? found = book.stateOfBill(billUuid);
+    if (found != null) return found;
     throw const PosOfflineUnavailable(
       "Schyot kassada topilmadi.",
       reason: 'offline_not_cached',
@@ -819,7 +903,15 @@ class PosOffline {
 
   /// Navbat bo'shadi: zal va oflayn tegishli buyurtmalar serverdan qayta olinadi, keyin eski amallar tashlanadi.
   Future<void> _afterDrain() async {
-    final List<SyncOperation> synced = store.answered;
+    final List<SyncOperation> synced = <SyncOperation>[
+      for (final SyncOperation o in store.answered)
+        if (_emitted.add(o.opId)) o,
+    ];
+    try {
+      await _recordSales(store.answered);
+    } on Object {
+      // Not saved: the next drain records them again
+    }
     if (!_synced.isClosed) _synced.add(synced);
     if (store.hasPending) return;
     try {

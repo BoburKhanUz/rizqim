@@ -24,7 +24,8 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-RUN="$ROOT/e2e/pos/.run"
+# POS_E2E_RUN_DIR: where the pids, logs and caches go (scripts/pos-e2e.test.sh points it at a temporary directory)
+RUN="${POS_E2E_RUN_DIR:-$ROOT/e2e/pos/.run}"
 PIDS="$RUN/pids"
 
 DB_HOST="${POS_E2E_DB_HOST:-127.0.0.1}"
@@ -62,10 +63,27 @@ stop_all() {
   rm -f "$PIDS"
 }
 
+# The pids of the pid file whose process (group) is still alive
+live_pids() {
+  [ -f "$PIDS" ] || return 0
+  local pid
+  while read -r pid; do
+    case "$pid" in '' | *[!0-9]*) continue ;; esac
+    if kill -0 -- "-$pid" 2> /dev/null || kill -0 "$pid" 2> /dev/null; then echo "$pid"; fi
+  done < "$PIDS"
+}
+
 if [ "$STOP_ONLY" = 1 ]; then
   stop_all
   log "stopped"
   exit 0
+fi
+
+# Servers of an earlier run (--keep, or one that is still going) are up: a new run would empty the pid file, leaving them
+# running with nothing to stop them, and wipe the database under them
+running="$(live_pids | tr '\n' ' ')"
+if [ -n "$running" ]; then
+  die "servers of an earlier run are still running (pids: ${running% }): stop them first with scripts/pos-e2e.sh --stop"
 fi
 
 # --- Checks ---------------------------------------------------------------------------------------------------------

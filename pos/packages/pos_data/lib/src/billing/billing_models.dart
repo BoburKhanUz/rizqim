@@ -133,7 +133,7 @@ class PosBill {
   final String orderUuid;
   final int number;
 
-  /// `open`, `printed`, `paying`, `paid`, `void`.
+  /// `open`, `printed`, `paid`, `void` (to'lanayotgani — [isTaken], [awaitingReceipt]).
   final String status;
 
   /// `single`, `equal`, `items`.
@@ -161,6 +161,15 @@ class PosBill {
   final Map<String, Object?> raw;
 
   bool get isPaid => status == 'paid';
+
+  /// Pul olingan (server hisobi bilan, BillableOrder): `paid` yoki unda to'lov bor. Serverda `paying` holati yo'q: to'lanayotgan
+  /// schyot sotuv cheki chiqquncha `open`/`printed` bo'lib qoladi.
+  bool get isTaken =>
+      status == 'paid' ||
+      (status != 'void' && (payments.isNotEmpty || paidAmount.isPositive));
+
+  /// To'liq to'langan, sotuv cheki hali chiqmagan ("Fiskal kutmoqda").
+  bool get awaitingReceipt => !isPaid && isTaken && !dueAmount.isPositive;
 }
 
 /// Schyot, qaytarish, avans yoki qarz to'lovining fiskal cheki holati: `pending`, `issued`, `failed` (`null` —
@@ -429,6 +438,16 @@ sealed class PosTenderInput {
   final PosTender tender;
   final PosMoney amount;
 
+  /// Naqdda mijoz bergan pul (bo'lsa); boshqa to'lov turlarida `null`.
+  PosMoney? get tendered => null;
+
+  /// Qaytim: mijoz bergan puldan [amount] ayirilgani (berilmagan bo'lsa — nol).
+  PosMoney get change {
+    final PosMoney? given = tendered;
+    if (given == null || !(given > amount)) return PosMoney.zero;
+    return given - amount;
+  }
+
   /// Naqd; [tendered] — mijoz bergan pul (qaytim server hisoblaydi).
   const factory PosTenderInput.cash(PosMoney amount, {PosMoney? tendered}) =
       _Cash;
@@ -464,6 +483,7 @@ sealed class PosTenderInput {
 class _Cash extends PosTenderInput {
   const _Cash(PosMoney amount, {this.tendered}) : super(PosTender.cash, amount);
 
+  @override
   final PosMoney? tendered;
 
   @override

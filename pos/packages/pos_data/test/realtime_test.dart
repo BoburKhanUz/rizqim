@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:dio/dio.dart' show RequestOptions;
 import 'package:fake_async/fake_async.dart';
-import 'package:pos_core/pos_core.dart' show PosMoney;
+import 'package:pos_core/pos_core.dart' show PosMoney, PosQuantity;
 import 'package:pos_data/pos_data.dart';
 import 'package:pos_data/testing.dart';
 import 'package:test/test.dart';
@@ -360,6 +360,72 @@ void main() {
 
         async.elapse(const Duration(seconds: 59));
         expect(reasons.last, PosRefreshReason.safetyPoll);
+        unawaited(s.dispose());
+        unawaited(rt.dispose());
+        async.flushMicrotasks();
+      });
+    });
+
+    test('P3-35: a round sent at once says round_added then sent (one version): the screen reloads once', () {
+      fakeAsync((FakeAsync async) {
+        final Harness h = Harness();
+        final FakePosRealtimeHub hub = FakePosRealtimeHub();
+        h.state.onEvent = hub.broadcast;
+        unawaited(h.signIn());
+        async.elapse(const Duration(seconds: 1));
+        final PosRealtime rt = PosRealtime.create(
+          client: h.client,
+          terminal: h.client.auth.terminal!,
+          apiBaseUrl: 'https://api.test/api',
+          appKey: FakePosState.realtimeKey,
+          connector: hub.connect,
+        )!;
+        final List<PosOrderItemsChanged> seen = <PosOrderItemsChanged>[];
+        final StreamSubscription<PosEvent> sub = rt.events.listen((PosEvent e) {
+          if (e is PosOrderItemsChanged) seen.add(e);
+        });
+        final List<PosRefreshReason> reasons = <PosRefreshReason>[];
+        final PosRefreshScheduler s = PosRefreshScheduler(
+          realtime: rt,
+          eventFilter: (PosEvent e) => e is PosOrderItemsChanged,
+          onRefresh: (PosRefreshReason r) async => reasons.add(r),
+        )..start();
+        rt.start();
+        async.elapse(const Duration(milliseconds: 50));
+        reasons.clear();
+
+        late PosOrder opened;
+        unawaited(
+          h.pos.orders
+              .open(channel: PosChannel.hall, tableId: 1, guestsCount: 2)
+              .then((PosOrder o) => opened = o),
+        );
+        async.elapse(const Duration(milliseconds: 10));
+        unawaited(
+          h.pos.orders.addRound(
+            opened.uuid,
+            version: opened.version,
+            items: <PosLineInput>[
+              PosLineInput(
+                variantUuid: FakePosState.variantUuid(1),
+                quantity: PosQuantity.parse('1'),
+              ),
+            ],
+            send: true,
+          ),
+        );
+        async.elapse(const Duration(seconds: 1));
+
+        expect(seen.map((PosOrderItemsChanged e) => e.change), <String?>[
+          'round_added',
+          'sent',
+        ]);
+        expect(seen.first.version, seen.last.version);
+        expect(seen.last.itemIds, seen.first.itemIds);
+        expect(reasons, <PosRefreshReason>[
+          PosRefreshReason.event,
+        ], reason: 'both events, one reload');
+        unawaited(sub.cancel());
         unawaited(s.dispose());
         unawaited(rt.dispose());
         async.flushMicrotasks();

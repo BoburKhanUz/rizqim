@@ -9,6 +9,7 @@ import { Check, NumberField, parseDecimal } from '../management/fields';
 import { FormError, Notice } from '../management/Notice';
 import { Gate } from '../pos/Gate';
 import { DateField, SelectField, TimeField } from '../pos/fields';
+import { changedKeys, useServerDraft } from '../pos/serverDraft';
 import { NO_ERRORS, sortServerErrors, type FormErrors } from '../pos/serverErrors';
 import { labelFor, localDate } from '../reports/format';
 
@@ -44,7 +45,7 @@ function draftOf(settings: BranchPosSettings): Draft {
     queue: pos.queue_numbers,
     alerts,
     slot: pos.booking_slot_minutes === null ? '' : String(pos.booking_slot_minutes),
-    holidays: pos.holidays,
+    holidays: [...pos.holidays].sort(),
   };
 }
 
@@ -60,7 +61,9 @@ const SERVER_FIELDS = [
 ];
 
 // The branch's POS settings: the till's mode, when the business day starts, the printing till, the screen lock, queue numbers,
-// the alerts the owner is told about, the holidays and how long an unfinished booking holds a room.
+// the alerts the owner is told about, the holidays and how long an unfinished booking holds a room. The form is shown from
+// the cached settings while they are read again, and the holidays are also edited on the floor's calendar: newer settings move
+// under the edits (useServerDraft) and only what was changed is sent (the server merges the settings key by key).
 export function BranchSettingsPanel({ branchId }: { branchId: number }) {
   const settings = useBranchPosSettings(branchId);
   return <Gate query={settings} count={3}>{(data) => <SettingsForm key={branchId} branchId={branchId} data={data} />}</Gate>;
@@ -70,7 +73,7 @@ function SettingsForm({ branchId, data }: { branchId: number; data: BranchPosSet
   const { t, language } = useI18n();
   const devices = useStoreDevices();
   const save = useSaveBranchPosSettings();
-  const [draft, setDraft] = useState<Draft>(() => draftOf(data));
+  const { draft, setDraft, base, dirty } = useServerDraft(data, draftOf);
   const [adding, setAdding] = useState('');
   const [errors, setErrors] = useState<FormErrors>(NO_ERRORS);
   const [local, setLocal] = useState<Record<string, string>>({});
@@ -107,17 +110,20 @@ function SettingsForm({ branchId, data }: { branchId: number; data: BranchPosSet
     setLocal(problems);
     setErrors(NO_ERRORS);
     if (Object.keys(problems).length > 0) return;
+    // Only what changed: a key left out keeps what the server has (another device may have changed it meanwhile)
+    const changed = new Set(changedKeys(draft, base));
+    const settings: NonNullable<BranchPosSettingsPatch['pos_settings']> = {};
+    if (changed.has('mode')) settings.mode = draft.mode;
+    if (changed.has('printingDevice')) settings.printing_device_id = draft.printingDevice === '' ? null : draft.printingDevice;
+    if (changed.has('lock')) settings.screen_lock_minutes = lock;
+    if (changed.has('queue')) settings.queue_numbers = draft.queue;
+    if (changed.has('slot')) settings.booking_slot_minutes = slot;
+    if (changed.has('holidays')) settings.holidays = draft.holidays;
+    const alertChanges = Object.fromEntries(changedKeys(draft.alerts, base.alerts).map((key) => [key, alerts[key] ?? null]));
+    if (Object.keys(alertChanges).length > 0) settings.alerts = alertChanges;
     const body: BranchPosSettingsPatch = {
-      business_day_starts_at: draft.dayStart,
-      pos_settings: {
-        mode: draft.mode,
-        printing_device_id: draft.printingDevice === '' ? null : draft.printingDevice,
-        screen_lock_minutes: lock,
-        queue_numbers: draft.queue,
-        alerts,
-        booking_slot_minutes: slot,
-        holidays: draft.holidays,
-      },
+      ...(changed.has('dayStart') ? { business_day_starts_at: draft.dayStart } : {}),
+      ...(Object.keys(settings).length > 0 ? { pos_settings: settings } : {}),
     };
     save.mutate(
       { branchId, patch: body },
@@ -223,7 +229,7 @@ function SettingsForm({ branchId, data }: { branchId: number; data: BranchPosSet
 
       <FormError message={errors.form} />
       <div>
-        <Button type="submit" size="lg" icon={Save} loading={save.isPending}>
+        <Button type="submit" size="lg" icon={Save} loading={save.isPending} disabled={!dirty}>
           {t('pos_set_save')}
         </Button>
       </div>

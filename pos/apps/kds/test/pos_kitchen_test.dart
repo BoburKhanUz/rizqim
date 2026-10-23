@@ -198,22 +198,67 @@ void main() {
         expect(find.byType(MangalCard), findsOneWidget);
         expect(find.byType(TicketCard), findsNothing);
         expect(find.text('Xona 3'), findsOneWidget);
-        // round 1: 4 + 2 lamb in one row, chicken; round 2 on its own
-        expect(find.text('6 six'), findsOneWidget);
-        expect(find.text('4 six'), findsOneWidget);
+        // round 1: the "achchiq" lamb is not merged with the plain one, chicken; round 2 on its own
+        expect(find.text('4 six'), findsNWidgets(2));
+        expect(find.text('2 six'), findsOneWidget);
         expect(find.text('3 six'), findsOneWidget);
-        expect(find.text("Qo'y shashlik"), findsNWidgets(2));
+        expect(find.text("Qo'y shashlik"), findsNWidgets(3));
         expect(find.text('1-bosqich'), findsWidgets);
         expect(find.text('2-bosqich'), findsWidgets);
         expect(find.text('Jami: 13 six'), findsOneWidget);
         expect(find.text('achchiq'), findsOneWidget);
         expect(tester.takeException(), isNull);
 
-        // the group bumps all its lines at once
-        await tester.tap(find.text('6 six'));
+        // a tap bumps its row only
+        await tester.tap(find.text('2 six'));
         await tester.pumpAndSettle();
-        expect(h.backend.to('POST', '/ready').length, 2);
-        expect(find.text('Jami: 7 six'), findsOneWidget);
+        expect(h.backend.to('POST', '/ready').length, 1);
+        expect(find.text('Jami: 11 six'), findsOneWidget);
+        // the "achchiq" lamb was not in that group: still to cook, with its note
+        expect(find.text('achchiq'), findsOneWidget);
+        final List<Object?> items =
+            h.state.orders.single['items']! as List<Object?>;
+        expect(
+          (items.first! as Map<String, Object?>)['kitchen_status'],
+          'sent',
+        );
+      },
+    );
+
+    testWidgets(
+      'a skewer with a note or a modifier is its own row: the note belongs to that row only and one tap bumps only it',
+      (WidgetTester tester) async {
+        final KdsHarness h = posKitchen(stationValues: onlyMangal);
+        h.state.addPosOrder(
+          lines: const <PosLine>[
+            PosLine("Qo'y shashlik", '4', station: 1),
+            PosLine("Qo'y shashlik", '2', station: 1, note: 'achchiq'),
+            PosLine("Qo'y shashlik", '3', station: 1, mods: <String>['Piyoz']),
+            PosLine("Qo'y shashlik", '1', station: 1, mods: <String>['Piyoz']),
+          ],
+        );
+        await pumpBoard(tester, h);
+        expect(find.text("Qo'y shashlik"), findsNWidgets(3));
+        expect(find.text('2 six'), findsOneWidget);
+        expect(find.text('achchiq'), findsOneWidget);
+        // same modifier: one row (3 + 1)
+        expect(find.text('4 six'), findsNWidgets(2));
+        expect(find.text('Piyoz'), findsOneWidget);
+
+        await tester.tap(find.text('2 six'));
+        await tester.pumpAndSettle();
+        final List<Object?> items =
+            h.state.orders.single['items']! as List<Object?>;
+        expect(
+          h.backend.to('POST', '/ready').single.uri.path,
+          contains('/items/${(items[1]! as Map<String, Object?>)['id']}/'),
+        );
+        expect(find.text('Jami: 8 six'), findsOneWidget);
+        // the group of two with the same modifier bumps both at once
+        await tester.tap(find.text('Piyoz'));
+        await tester.pumpAndSettle();
+        expect(h.backend.to('POST', '/ready').length, 3);
+        expect(find.text('Jami: 4 six'), findsOneWidget);
       },
     );
 
@@ -275,8 +320,13 @@ void main() {
   });
 
   group('pre-orders', () {
+    // A held line has no station yet (the server writes it when the line is sent): the KDS takes it from the
+    // branch's routes, the dish's own route first, else its category's
     Future<KdsHarness> queued(WidgetTester tester) async {
       final KdsHarness h = posKitchen(stationValues: allStations);
+      h.state
+        ..categoryRoutes[20] = 2
+        ..productRoutes[41] = 1;
       h.state.addPosOrder(
         table: 'Xona 5',
         lines: const <PosLine>[
@@ -284,7 +334,7 @@ void main() {
             'Toy oshi',
             '5 kg',
             unit: 'kg',
-            station: 2,
+            category: 20,
             status: 'pending',
             fire: 'hold',
             dueIn: Duration(hours: 3),
@@ -292,7 +342,8 @@ void main() {
           PosLine(
             "Qo'y kabob",
             '10',
-            station: 1,
+            product: 41,
+            category: 20,
             status: 'pending',
             fire: 'hold',
             dueIn: Duration(hours: 1),
@@ -362,6 +413,58 @@ void main() {
         expect(find.text("Qo'y kabob"), findsNothing);
         await advance(tester, h, const Duration(minutes: 2));
         expect(find.text("Qo'y kabob"), findsOneWidget);
+        expect(find.textContaining('Oldindan buyurtmalar (1)'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'a held line without a station shows on the screen of the station its dish is routed to, not on "Umumiy"',
+      (WidgetTester tester) async {
+        final KdsHarness h = posKitchen(
+          stationValues: const <String, Object?>{
+            'stations_chosen': true,
+            'stations_ids': '2',
+            'stations_general': false,
+          },
+        );
+        h.state.categoryRoutes[20] = 2;
+        h.state.addPosOrder(
+          table: 'Xona 5',
+          lines: const <PosLine>[
+            PosLine(
+              'Toy oshi',
+              '5 kg',
+              unit: 'kg',
+              category: 20,
+              status: 'pending',
+              fire: 'hold',
+              dueIn: Duration(minutes: 100),
+            ),
+            PosLine(
+              'Choy',
+              '2',
+              category: 99,
+              status: 'pending',
+              fire: 'hold',
+              dueIn: Duration(minutes: 100),
+            ),
+          ],
+        );
+        await pumpBoard(tester, h);
+        // osh lead 120 min: due in 100 min is on the osh board already (the "other" lead, 30 min, would queue it)
+        expect(find.text('Toy oshi'), findsOneWidget);
+        expect(find.text('Choy'), findsNothing, reason: 'unrouted: Umumiy');
+        expect(find.textContaining('Oldindan buyurtmalar (0)'), findsOneWidget);
+
+        // the "Umumiy" screen does not get the routed osh, only the unrouted tea (queued: 100 min > 30 min)
+        await tester.tap(find.byKey(const ValueKey<String>('stations-button')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const ValueKey<String>('station-2')));
+        await tester.tap(find.byKey(const ValueKey<String>('station-general')));
+        await tester.pump();
+        await tester.tap(buttonLabeled('Davom etish'));
+        await tester.pumpAndSettle();
+        expect(find.text('Toy oshi'), findsNothing);
         expect(find.textContaining('Oldindan buyurtmalar (1)'), findsOneWidget);
       },
     );
@@ -590,6 +693,47 @@ void main() {
       },
     );
 
+    testWidgets(
+      'a cancelled order is judged "recent" by the server clock (Date header), not the tablet clock 5 min ahead',
+      (WidgetTester tester) async {
+        final KdsHarness h = posKitchen(stationValues: allStations);
+        h.state.now = () => h.now.subtract(const Duration(minutes: 5));
+        final String uuid = h.state.addPosOrder(
+          lines: const <PosLine>[PosLine("Qo'y shashlik", '4', station: 1)],
+        );
+        // cancelled just now (server clock): the first list has no cooking ticket to read the server time from
+        h.state.cancelOrder(uuid, reason: 'Mehmonlar ketdi');
+        await pumpBoard(tester, h);
+        expect(find.text(VoidBadge.label), findsWidgets);
+        expect(find.text('Sabab: Mehmonlar ketdi'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'a cancellation during work uses the server time of the cooking tickets (no Date header), the tablet 5 min ahead',
+      (WidgetTester tester) async {
+        final KdsHarness h = posKitchen(stationValues: allStations);
+        h.state.sendDate = false;
+        h.state.now = () => h.now.subtract(const Duration(minutes: 5));
+        final String uuid = h.state.addPosOrder(
+          lines: const <PosLine>[PosLine("Qo'y shashlik", '4', station: 1)],
+        );
+        // another table keeps cooking: its waiting time gives the server clock
+        h.state.addPosOrder(
+          table: 'Xona 9',
+          lines: const <PosLine>[PosLine('Osh', '1', station: 2)],
+        );
+        await pumpBoard(tester, h);
+        h.state.cancelOrder(uuid, reason: 'Mehmonlar ketdi');
+        await event(tester);
+        expect(find.text(VoidBadge.label), findsWidgets);
+        expect(h.sound.voidPlays, 1);
+        // and it goes after the window by the server clock too
+        await advance(tester, h, const Duration(minutes: 2, seconds: 5));
+        expect(find.text(VoidBadge.label), findsNothing);
+      },
+    );
+
     testWidgets('a voided mangal row shows the badge too', (
       WidgetTester tester,
     ) async {
@@ -612,6 +756,83 @@ void main() {
       expect(find.text('Sabab: Tugadi'), findsOneWidget);
       expect(find.text('Jami: 4 six'), findsOneWidget);
     });
+  });
+
+  group('sound and "Yangi" follow this screen', () {
+    testWidgets(
+      'a new order or a void on another station is silent here; one on this station plays',
+      (WidgetTester tester) async {
+        final KdsHarness h = posKitchen(stationValues: onlyMangal);
+        final String uuid = h.state.addPosOrder(
+          lines: const <PosLine>[
+            PosLine("Qo'y shashlik", '4', station: 1),
+            PosLine('Osh', '1', station: 2),
+          ],
+        );
+        await pumpBoard(tester, h);
+        expect(h.sound.plays, 0);
+
+        h.state.addPosOrder(
+          lines: const <PosLine>[PosLine('Osh', '2', station: 2)],
+        );
+        await event(tester);
+        expect(h.sound.plays, 0, reason: 'an osh order is not for the mangal');
+
+        final List<Object?> items =
+            h.state.orders.first['items']! as List<Object?>;
+        h.state.voidLine(
+          uuid,
+          (items[1]! as Map<String, Object?>)['id']! as int,
+        );
+        await event(tester);
+        expect(
+          h.sound.voidPlays,
+          0,
+          reason: 'the voided osh is not on this screen',
+        );
+
+        h.state.addPosOrder(
+          lines: const <PosLine>[PosLine('Tovuq shashlik', '2', station: 1)],
+        );
+        await event(tester);
+        expect(h.sound.plays, 1);
+        expect(h.sound.voidPlays, 0);
+      },
+    );
+
+    testWidgets(
+      'a new round on an open table plays the cue and is marked "Yangi" on the ticket and its round',
+      (WidgetTester tester) async {
+        final KdsHarness h = posKitchen(stationValues: allStations);
+        final String uuid = h.state.addPosOrder(
+          lines: const <PosLine>[PosLine('Osh', '1', station: 2)],
+        );
+        await pumpBoard(tester, h);
+        expect(find.text(NewBadge.label), findsNothing);
+
+        h.state.addLines(uuid, const <PosLine>[
+          PosLine('Achichuk', '1', station: 3, round: 2),
+        ]);
+        await event(tester);
+        expect(h.sound.plays, 1);
+        // the ticket header and the "2-bosqich" heading, not the first round
+        expect(find.text(NewBadge.label), findsNWidgets(2));
+        final Finder round2 = find.ancestor(
+          of: find.text('2-bosqich'),
+          matching: find.byType(Row),
+        );
+        expect(
+          find.descendant(
+            of: round2.first,
+            matching: find.text(NewBadge.label),
+          ),
+          findsOneWidget,
+        );
+
+        await advance(tester, h, const Duration(minutes: 1));
+        expect(find.text(NewBadge.label), findsNothing);
+      },
+    );
   });
 
   group('served', () {

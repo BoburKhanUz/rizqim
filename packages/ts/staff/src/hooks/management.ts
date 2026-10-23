@@ -217,6 +217,8 @@ export function useSaveServiceFee(options: MutationExtras<ServiceFeeRow, Service
     mutationFn: (input: ServiceFeeInput) => saveServiceFee(api, input),
     onSuccess: (...args) => {
       void queryClient.invalidateQueries({ queryKey: managementKeys.serviceFees });
+      // A hall's own charge is shown with the hall (floorKeys.allHalls; the floor hooks import this file, so the key is spelt here)
+      if (args[1].hall_id !== undefined && args[1].hall_id !== null) void queryClient.invalidateQueries({ queryKey: ['owner', 'halls'] });
       return options.onSuccess?.(...args);
     },
   });

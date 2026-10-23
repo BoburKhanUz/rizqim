@@ -166,6 +166,7 @@ abstract class PosOrdersApi {
   ///
   /// `service_charge`, `place_fee`, `room_fee` or `min_spend_topup` taken off this order with a `reason` (the guest.
   /// objected; the manager decided): orders.discount or a manager's `approval_token`. Audited. Needs orders.manage.
+  /// 409 `paid_bill_affected` when a paid bill carries it (P3-35).
   ///
   /// [idempotencyKey] - Required: a new UUID per action, the same one when retrying it (428 or 400 without).
   @POST('/v1/pos/orders/{uuid}/charges/{charge}/waive')
@@ -179,7 +180,7 @@ abstract class PosOrdersApi {
   /// Change the guests count.
   ///
   /// The per-guest charges follow; guests who joined get the automatic "choy-non" lines as a new round. Needs.
-  /// orders.manage.
+  /// orders.manage. 409 `paid_bill_affected` when a charge a paid bill carries would go down (P3-35).
   ///
   /// [idempotencyKey] - Required: a new UUID per action, the same one when retrying it (428 or 400 without).
   @POST('/v1/pos/orders/{uuid}/guests')
@@ -209,7 +210,8 @@ abstract class PosOrdersApi {
   /// Before the line reached the kitchen: orders.manage, its stock and kazan portion go back. Once sent (or after the.
   /// bill was printed): `reason` is required and orders.void_item, or a manager's one-time `approval_token` (POST.
   /// /pos/approvals); the kitchen sees it struck through. `restock` (sent lines) returns the portion when it was not.
-  /// cooked. 403 `approval_required` / `approval_invalid`; 422 `already_void`.
+  /// cooked. 403 `approval_required` / `approval_invalid`; 422 `already_void`; 409 `paid_bill_affected` for a line on a.
+  /// bill being paid (refund that payment first, P3-35).
   ///
   /// [idempotencyKey] - Required: a new UUID per action, the same one when retrying it (428 or 400 without).
   @POST('/v1/pos/orders/{uuid}/items/{item}/void')
@@ -224,6 +226,8 @@ abstract class PosOrdersApi {
   ///
   /// `source_uuid`'s lines move to this order (after its rounds), its guests are added and it is closed as merged.
   /// Both open hall orders of one branch, no printed bill, no payment; both versions are checked. Needs tables.manage.
+  /// P3-35: a booking's order hands its booking and deposits to this order; orders of two different bookings are 422.
+  /// `merge_bookings_conflict`.
   ///
   /// [idempotencyKey] - Required: a new UUID per action, the same one when retrying it (428 or 400 without).
   @POST('/v1/pos/orders/{uuid}/merge')
@@ -237,6 +241,7 @@ abstract class PosOrdersApi {
   ///
   /// Another table, room or tapchan of the same branch: the new hall's service charge and the new place's room tariff.
   /// and minimum spend apply. A room with an open order is 422 `table_occupied` (merge instead). Needs tables.manage.
+  /// 409 `paid_bill_affected` when a charge a paid bill carries would go down (P3-35).
   ///
   /// [idempotencyKey] - Required: a new UUID per action, the same one when retrying it (428 or 400 without).
   @POST('/v1/pos/orders/{uuid}/move')

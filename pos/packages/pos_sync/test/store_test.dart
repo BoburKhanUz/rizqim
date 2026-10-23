@@ -291,4 +291,126 @@ void main() {
     await again.close();
     expect((await openStore(FileSyncStorage(dir))).pendingCount, 2);
   });
+
+  group('writes that come at the same time', () {
+    Future<Directory> tempDir() async {
+      final Directory dir = await Directory.systemTemp.createTemp(
+        'pos_sync_race',
+      );
+      addTearDown(() => dir.delete(recursive: true));
+      return dir;
+    }
+
+    List<String> seqs(SyncStore s) => <String>[
+      for (final SyncOperation o in s.pending) '${o.seq}:${o.payload['order']}',
+    ];
+
+    test('two operations queued at once get their own seq each', () async {
+      final SyncStore store = await openStore(MemorySyncStorage());
+      final List<SyncOperation> ops = await Future.wait(<Future<SyncOperation>>[
+        store.enqueue(SyncOpType.orderOpen, <String, Object?>{
+          'order': 'a',
+        }, staffId: 3),
+        store.enqueue(SyncOpType.orderOpen, <String, Object?>{
+          'order': 'b',
+        }, staffId: 3),
+      ]);
+      expect(ops.map((SyncOperation o) => o.seq), <int>[1, 2]);
+      expect(store.lastSeq, 2);
+    });
+
+    test('queueing and the sender\'s answer at once on a fresh file: both reach the disk', () async {
+      final Directory dir = await tempDir();
+      final FileSyncStorage first = FileSyncStorage(dir);
+      await (await openStore(first)).enqueue(
+        SyncOpType.orderOpen,
+        <String, Object?>{'order': 'o1'},
+        staffId: 3,
+      );
+      await first.close();
+
+      // Restart (journal not open yet); the network is back: the sender's answer comes while the cashier pays
+      final FileSyncStorage disk = FileSyncStorage(dir);
+      final SyncStore store = await openStore(disk);
+      final String opened = store.pending.single.opId;
+      await Future.wait(<Future<void>>[
+        store.enqueue(SyncOpType.billPay, <String, Object?>{
+          'order': 'o1',
+          'bill': 'b1',
+        }, staffId: 3),
+        store.applyResults(<SyncResult>[
+          SyncResult(opId: opened, seq: 1, status: SyncOpStatus.applied),
+        ]),
+      ]);
+      expect(store.pending.map((SyncOperation o) => o.type), <String>[
+        SyncOpType.billPay,
+      ]);
+      await disk.close();
+
+      final SyncStore again = await openStore(FileSyncStorage(dir));
+      expect(
+        again.pending.map((SyncOperation o) => '${o.seq}:${o.type}'),
+        <String>['2:${SyncOpType.billPay}'],
+      );
+      expect(again.answered.single.opId, opened);
+    });
+
+    test('many operations and answers at once on a file: seq unique, nothing lost after a restart', () async {
+      final Directory dir = await tempDir();
+      final FileSyncStorage disk = FileSyncStorage(dir);
+      final SyncStore store = await openStore(disk);
+      await store.enqueue(SyncOpType.orderOpen, <String, Object?>{
+        'order': 'first',
+      }, staffId: 3);
+      final String firstId = store.pending.single.opId;
+      await Future.wait(<Future<void>>[
+        store.enqueue(SyncOpType.orderRound, <String, Object?>{
+          'order': 'a',
+        }, staffId: 3),
+        store.applyResults(<SyncResult>[
+          SyncResult(opId: firstId, seq: 1, status: SyncOpStatus.applied),
+        ]),
+        store.enqueue(SyncOpType.orderRound, <String, Object?>{
+          'order': 'x',
+        }, staffId: 3),
+        store.putDoc('order:a', <String, Object?>{'version': 1}),
+        store.enqueue(SyncOpType.orderRound, <String, Object?>{
+          'order': 'y',
+        }, staffId: 3),
+        store.markReloaded(),
+        store.markContact(),
+      ]);
+      expect(seqs(store), <String>['2:a', '3:x', '4:y']);
+      await disk.close();
+
+      final SyncStore again = await openStore(FileSyncStorage(dir));
+      expect(seqs(again), <String>['2:a', '3:x', '4:y']);
+      expect(again.lastSeq, 4);
+    });
+
+    test('forgetting the terminal empties the queue and copies but keeps the seq going', () async {
+      final MemorySyncStorage disk = MemorySyncStorage();
+      final SyncStore store = await openStore(disk);
+      await store.enqueue(SyncOpType.orderOpen, <String, Object?>{
+        'order': 'o',
+        'local_number': 'K1-004',
+      }, staffId: 3);
+      await store.putDoc('order:o', <String, Object?>{'version': 1});
+      await store.clear();
+      expect(store.pending, isEmpty);
+      expect(store.docKeys(), isEmpty);
+
+      final SyncStore reopened = await openStore(disk);
+      expect(reopened.pending, isEmpty);
+      expect(reopened.docKeys(), isEmpty);
+      // The server refuses a seq the device already used (seq_reused)
+      final SyncOperation next = await reopened.enqueue(
+        SyncOpType.orderOpen,
+        <String, Object?>{'order': 'p'},
+        staffId: 3,
+      );
+      expect(next.seq, 2);
+      expect(reopened.nextLocalNumber('K1'), 'K1-005');
+    });
+  });
 }

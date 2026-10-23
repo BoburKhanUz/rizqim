@@ -21,7 +21,7 @@ void main() {
     );
     final PosData pos = PosData(client);
     await client.auth.pairTerminal('ABCD-EFGH');
-    await client.auth.signInStaff(userId: 3, pin: '2468');
+    await client.auth.signInStaff(userId: 3, pin: '4827');
     final PosBootstrap boot = await pos.session.loadBootstrap();
     expect(boot.shift!.isOpen, isTrue);
     expect(pos.session.phase, PosSessionPhase.ready);

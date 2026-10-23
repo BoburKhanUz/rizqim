@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:pos_sync/pos_sync.dart';
@@ -79,8 +80,17 @@ class PosData {
         ..shiftUuid = (() => session.shift?.uuid)
         ..bootstrap = (() => session.bootstrap ?? o.storedBootstrap())
         ..catalog = catalog.cached;
+      // The journal and copies belong to this pairing: a re-paired till must not send them with its new token
+      _authSub = client.auth.events.listen((AuthEvent e) {
+        if (e.kind == AuthEventKind.terminalRevoked ||
+            e.kind == AuthEventKind.terminalForgotten) {
+          unawaited(o.forget());
+        }
+      });
     }
   }
+
+  StreamSubscription<AuthEvent>? _authSub;
 
   /// Internetsiz cheklangan rejim (kassa); ofitsiantda `null`.
   late final PosOffline? offline;
@@ -104,6 +114,7 @@ class PosData {
   PosConnectivity get connectivity => http.connectivity;
 
   Future<void> dispose() async {
+    await _authSub?.cancel();
     await offline?.dispose();
     await session.dispose();
     await catalog.dispose();

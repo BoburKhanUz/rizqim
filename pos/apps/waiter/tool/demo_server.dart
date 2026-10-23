@@ -1,5 +1,5 @@
-// Ofitsiant ilovasini Linux'da backend'siz ishga tushirish va suratga olish uchun soxta backend: Botir (PIN 1357)
-// ofitsiantning ikkita ochiq xonasi (biridan taom tayyor), Aziz Qodirovning (PIN 1111) bitta xonasi, qolgani bo'sh.
+// Ofitsiant ilovasini Linux'da backend'siz ishga tushirish va suratga olish uchun soxta backend: Botir (PIN 3691)
+// ofitsiantning ikkita ochiq xonasi (biridan taom tayyor), Aziz Qodirovning (PIN 7305) bitta xonasi, qolgani bo'sh.
 //
 //   cd pos/apps/waiter && dart run tool/demo_server.dart --port 8789
 //   flutter run -d linux --dart-define=RIZQIM_API_URL=http://127.0.0.1:8789/api \
@@ -35,7 +35,7 @@ void _seed(FakePosState s) {
     'role': 'waiter',
     'staff_code': '1005',
   });
-  s.pins[_aziz] = '1111';
+  s.pins[_aziz] = '7305';
   s.openShift();
 
   // Buyurtmalar haqiqiy yo'llar bilan ochiladi (jami va versiyalar to'g'ri bo'lishi uchun)

@@ -522,4 +522,4 @@ Telefonda: Mini App → **Profil** → **Qarzdorlar**: kim qancha qarz (eng katt
 | Eski kassa bilan ikki marta chek chiqyapti | Darhol to'xtating: [Ikki marta hisoblamaslik](#ikki-marta-hisoblamaslik). Buxgalterga ayting |
 | Chekda "Bu fiskal chek emas" | Hozir fiskal ulanish sinov rejimida (3-bo'lim). Bu normal |
 | Zal xaritasi kassada bo'sh | **Zal va xonalar** da zal va joylar qo'shilmagan yoki zal yopiq (**Zal ochiq** o'chiq) |
-| Internet uzildi | Kassa [Internet uzilsa (tez orada)](kassa.md#20-internet-uzilsa-tez-orada) bo'limida yozilganidek ishlaydi; ofitsiant telefoni faqat ko'rish rejimida |
+| Internet uzildi | Kassa [Internet uzilsa](kassa.md#20-internet-uzilsa) bo'limida yozilganidek ishlaydi; ofitsiant telefoni faqat ko'rish rejimida |

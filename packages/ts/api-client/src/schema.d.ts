@@ -2465,8 +2465,8 @@ export interface paths {
         /**
          * Ask again for a bill's receipt
          * @description For a bill whose payments cover it but whose sale receipt is not issued ("fiskal kutmoqda": pending or failed):
-         *     asks the fiscal provider again (same receipt, never a second one); issued: the bill is paid and the order closed
-         *     when every bill is. Needs pos.take_payment.
+         *     asks the fiscal provider again (same receipt, never a second one; P3-35: a receipt the provider refused is sent
+         *     again too); issued: the bill is paid and the order closed when every bill is. Needs pos.take_payment.
          */
         post: operations["posBill.fiscalRetry"];
         delete?: never;
@@ -3220,6 +3220,7 @@ export interface paths {
          * Waive a charge line
          * @description `service_charge`, `place_fee`, `room_fee` or `min_spend_topup` taken off this order with a `reason` (the guest
          *     objected; the manager decided): orders.discount or a manager's `approval_token`. Audited. Needs orders.manage.
+         *     409 `paid_bill_affected` when a paid bill carries it (P3-35).
          */
         post: operations["posOrder.waive"];
         delete?: never;
@@ -3263,7 +3264,7 @@ export interface paths {
         /**
          * Change the guests count
          * @description The per-guest charges follow; guests who joined get the automatic "choy-non" lines as a new round. Needs
-         *     orders.manage.
+         *     orders.manage. 409 `paid_bill_affected` when a charge a paid bill carries would go down (P3-35).
          */
         post: operations["posOrder.guests"];
         delete?: never;
@@ -3308,7 +3309,8 @@ export interface paths {
          * @description Before the line reached the kitchen: orders.manage, its stock and kazan portion go back. Once sent (or after the
          *     bill was printed): `reason` is required and orders.void_item, or a manager's one-time `approval_token` (POST
          *     /pos/approvals); the kitchen sees it struck through. `restock` (sent lines) returns the portion when it was not
-         *     cooked. 403 `approval_required` / `approval_invalid`; 422 `already_void`.
+         *     cooked. 403 `approval_required` / `approval_invalid`; 422 `already_void`; 409 `paid_bill_affected` for a line on a
+         *     bill being paid (refund that payment first, P3-35).
          */
         post: operations["posOrder.void"];
         delete?: never;
@@ -3330,6 +3332,8 @@ export interface paths {
          * Merge another order into this one
          * @description `source_uuid`'s lines move to this order (after its rounds), its guests are added and it is closed as merged.
          *     Both open hall orders of one branch, no printed bill, no payment; both versions are checked. Needs tables.manage.
+         *     P3-35: a booking's order hands its booking and deposits to this order; orders of two different bookings are 422
+         *     `merge_bookings_conflict`.
          */
         post: operations["posOrder.merge"];
         delete?: never;
@@ -3351,6 +3355,7 @@ export interface paths {
          * Move the order to another table
          * @description Another table, room or tapchan of the same branch: the new hall's service charge and the new place's room tariff
          *     and minimum spend apply. A room with an open order is 422 `table_occupied` (merge instead). Needs tables.manage.
+         *     409 `paid_bill_affected` when a charge a paid bill carries would go down (P3-35).
          */
         post: operations["posOrder.move"];
         delete?: never;
@@ -3462,13 +3467,15 @@ export interface paths {
         put?: never;
         /**
          * Refund a payment within the shift
-         * @description Gives back `amount` of a cash, card or QR payment (`payment_uuid`) of a paid bill, taken in the open shift of
-         *     this terminal (or `shift_uuid`): 409 `refund_outside_shift` for another shift's payment, 422
-         *     `refund_tender_invalid` for a deposit or nasiya part, 422 `refund_exceeds_payment` beyond what is left of it,
-         *     409 `bill_not_fiscalized` before the sale receipt is issued, 409 `not_enough_cash` beyond the drawer's cash.
-         *     `reason` is required. Needs pos.refund, or a manager's `approval_token` for it (403 `approval_required`). Cash
-         *     leaves the drawer; a REFUND receipt naming the sale receipt is asked for (`fiscal`); the owner is told in
-         *     Telegram.
+         * @description Gives back `amount` of a payment (`payment_uuid`) of a paid bill, taken in the open shift of this terminal (or
+         *     `shift_uuid`): 409 `refund_outside_shift` for another shift's payment, 422 `refund_tender_invalid` for one that
+         *     is not a bill's, 422 `refund_exceeds_payment` beyond what is left of it, 409 `bill_not_fiscalized` before the sale
+         *     receipt is issued, 409 `shift_closed` when the shift closed meanwhile, 409 `not_enough_cash` beyond the drawer's
+         *     cash. `reason` is required. Needs pos.refund, or a manager's `approval_token` for it (403 `approval_required`).
+         *     Cash leaves the drawer; P3-35: a deposit part (`prepayment`) goes back to the booking's deposit (409
+         *     `reverse_exceeds_applied`), a nasiya part (`account`) comes off the customer's debt (409 `reverse_exceeds_charge`,
+         *     `more_than_debt` when it was repaid); neither moves cash. A REFUND receipt naming the sale receipt is asked for
+         *     (`fiscal`; its payment marked `prepayment` / `credit` for those parts); the owner is told in Telegram.
          */
         post: operations["posRefund.store"];
         delete?: never;
@@ -3518,7 +3525,8 @@ export interface paths {
          *     sign-in (the owner or a manager in the web panel or the Mini App) gets the branch's open shifts: `branch_id`
          *     (default: the caller's own branch; an owner without one names it, else every branch they see is listed in
          *     `shifts`); `shift`/`report` is then the most recently opened of them. `shifts`: every open shift with its X
-         *     report (a terminal: just its own). Another store's branch: 404; one the caller does not work in: 403.
+         *     report (a terminal: just its own). Another store's branch: 404; one the caller does not work in: 403. Needs
+         *     pos.open_shift, pos.close_shift, pos.take_payment or (P3-35, read-only) reports.view.
          */
         get: operations["posShift.current"];
         put?: never;
@@ -3638,10 +3646,12 @@ export interface paths {
          *     it is applied once), `type` (order.open, order.round, order.send, order.void, order.served, bill.create, bill.pay,
          *     order.close), `occurred_at` (the device's clock), `staff_id` (who did it: signed in on this till before the
          *     outage, with the permission) and `payload`. Each result: `status` applied | conflict (applied, but a manager
-         *     should look: oversold, payment on a cancelled order, amount mismatch, stale menu, a taken room) | rejected (not
-         *     applied: "Sinxronlash xatolari"), `reason`, `message` and `refs` (the server's order uuid and version, local
-         *     number, line ids, bill and payment uuids, flags). `sent_at` (the device's clock now) gives the clock skew: more
-         *     than 5 minutes is `clock_warning`. `queue` (size, oldest_at) is what is still in the device's queue including
+         *     should look: oversold, payment on a cancelled order, amount mismatch, stale menu, a taken room, a device price the
+         *     dish never had — `offline_price_mismatch`, the server's price applied) | rejected (not applied: "Sinxronlash
+         *          * xatolari"; `invalid_payload` for content the server cannot store), `reason`, `message` and `refs` (the server's
+         *     order uuid and version, local number, line ids, bill and payment uuids, flags). `sent_at` (the device's clock now)
+         *     gives the clock skew: more than 5 minutes is `clock_warning` (and corrects the operations' times, kept within the
+         *     last 48 hours). `stopped_at`: a temporary database failure only. `queue` (size, oldest_at) is what is still in the device's queue including
          *     this batch: the shift does not close while it is not empty. Only a POS terminal's own token.
          */
         post: operations["posSync.store"];
@@ -17366,6 +17376,8 @@ export interface operations {
                                     round_no?: number | null;
                                     fire_mode?: string;
                                     station_id?: number | null;
+                                    product_id?: number | null;
+                                    category_id?: number | null;
                                     sent_at?: string | null;
                                     due_at?: string | null;
                                     seat_no?: number | null;
@@ -17841,6 +17853,8 @@ export interface operations {
                                     round_no?: number | null;
                                     fire_mode?: string;
                                     station_id?: number | null;
+                                    product_id?: number | null;
+                                    category_id?: number | null;
                                     sent_at?: string | null;
                                     due_at?: string | null;
                                     seat_no?: number | null;
@@ -19929,6 +19943,8 @@ export interface operations {
                                     round_no?: number | null;
                                     fire_mode?: string;
                                     station_id?: number | null;
+                                    product_id?: number | null;
+                                    category_id?: number | null;
                                     sent_at?: string | null;
                                     due_at?: string | null;
                                     seat_no?: number | null;
@@ -22152,7 +22168,7 @@ export interface operations {
             query?: {
                 /** @description One branch; omit for every branch the caller works in (a branch terminal: its branch). */
                 branch_id?: number;
-                /** @description 1 to also list orders that are ready but not handed over yet. */
+                /** @description 1 (or true) to also list orders that are ready but not handed over yet. */
                 include_ready?: boolean;
                 /** @description Minutes (1-60): also list the orders cancelled or rejected that long ago at most, with canceled_at. */
                 canceled_within?: number;
@@ -22202,6 +22218,8 @@ export interface operations {
                                 round_no?: number | null;
                                 fire_mode?: string;
                                 station_id?: number | null;
+                                product_id?: number | null;
+                                category_id?: number | null;
                                 sent_at?: string | null;
                                 due_at?: string | null;
                                 seat_no?: number | null;
@@ -22328,6 +22346,8 @@ export interface operations {
                                 round_no?: number | null;
                                 fire_mode?: string;
                                 station_id?: number | null;
+                                product_id?: number | null;
+                                category_id?: number | null;
                                 sent_at?: string | null;
                                 due_at?: string | null;
                                 seat_no?: number | null;
@@ -22435,6 +22455,8 @@ export interface operations {
                                 round_no?: number | null;
                                 fire_mode?: string;
                                 station_id?: number | null;
+                                product_id?: number | null;
+                                category_id?: number | null;
                                 sent_at?: string | null;
                                 due_at?: string | null;
                                 seat_no?: number | null;
@@ -22515,6 +22537,8 @@ export interface operations {
                                 round_no?: number | null;
                                 fire_mode?: string;
                                 station_id?: number | null;
+                                product_id?: number | null;
+                                category_id?: number | null;
                                 sent_at?: string | null;
                                 due_at?: string | null;
                                 seat_no?: number | null;
@@ -22597,6 +22621,8 @@ export interface operations {
                                 round_no?: number | null;
                                 fire_mode?: string;
                                 station_id?: number | null;
+                                product_id?: number | null;
+                                category_id?: number | null;
                                 sent_at?: string | null;
                                 due_at?: string | null;
                                 seat_no?: number | null;
@@ -22716,6 +22742,8 @@ export interface operations {
                                 round_no?: number | null;
                                 fire_mode?: string;
                                 station_id?: number | null;
+                                product_id?: number | null;
+                                category_id?: number | null;
                                 sent_at?: string | null;
                                 due_at?: string | null;
                                 seat_no?: number | null;

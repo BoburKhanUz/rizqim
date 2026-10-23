@@ -26,9 +26,17 @@ final next = await pos.orders.addRound(order.uuid, version: order.version, items
   `billing`, `shifts`, `bookings`, `accounts`. P3-22 qo'shgani (`PosData.http` ustida yaratiladi):
   `FiscalReceiptRepository` (chek: MXIK qatorlari, fiskal belgi, QR) va `OnlineOrderRepository` (qabul kutayotgan
   onlayn buyurtmalar, qabul qilish, rad etish, bugun yopilganlar).
+- **Modellar:** X/Z hisobot `PosShiftReport` to'liq tiplangan (`sales`, `tenders`, `cards`, `byChannel`, `byWaiter`,
+  `discounts`, `voids`, `refunds`, `deposits`, `credit`, `cash`; yopilgan smenada `PosShift.summary`), `raw` — serverning
+  o'z javobi. Schyot: serverda `paying` yo'q — `PosBill.isTaken` (to'lov olingan), `awaitingReceipt` (to'liq to'langan,
+  chek chiqmagan). `PosTenderInput.tendered` / `change` — naqdda berilgan pul va qaytim.
 - **Xatolar:** `PosVersionConflict` (`currentVersion`), `PosApprovalRequired` (`permission`), `PosApprovalRejected`,
   `PosConflict`, `PosRejected`, `PosValidationException`, `PosForbidden`, `PosNotFound`, `PosNetworkException` —
-  hammasi `ApiException`, matn o'zbekcha, `data` va `idempotencyKey` bilan.
+  hammasi `ApiException`, matn o'zbekcha, `data` va `idempotencyKey` bilan. `PosReasons` — sabab kodlari va matni;
+  P3-35: `paid_bill_affected`, `merge_bookings_conflict`, `shift_closed`, `account_unknown` da ilovaning o'z matni
+  server matnidan ustun (`PosReasons.clientWorded`), summa aytadigan `reverse_exceeds_applied`, `reverse_exceeds_charge`,
+  `more_than_debt` da server matni qoladi. `needsOrderReload` — ekrandagi buyurtma eskirgan (`version_conflict`,
+  `order_closed`, `order_changed`, `paid_bill_affected`).
 - **Qoidalar:** har o'zgartiruvchi so'rovda `Idempotency-Key` (yangi amal — yangi kalit; tarmoq xatosidan keyin aynan
   o'sha amal — xatodagi kalit), buyurtmada `version`. Pul — `PosMoney`, miqdor — `PosQuantity` (`pos_core`).
 - **Real-time:** `PosRealtime.create(...)` — `private-pos-branch.{id}` terminal tokeni bilan; `events` (tiplangan
@@ -48,13 +56,26 @@ final next = await pos.orders.addRound(order.uuid, version: order.version, items
   (`OfflineOrderBook`, narx — `OfflinePricing`, `pos_core` pulida), amal navbatga yoziladi; qolganlari
   (`PosOfflineUnavailable`, 503 `offline_unavailable`) — mehmonlar, ko'chirish, birlashtirish, bekor qilish,
   qaytarish, smena ochish/yopish, kassa harakati.
-- **Holat:** `offline.status` (`OfflineStatus`), `changes`, `synced` (yuborilgan amallar natijasi — sotuv chekini chop
-  etish uchun). Oflaynda `GET /pos/sync/status` 15–60 soniyada; aloqa qaytsa navbat `SyncSender` bilan ketadi, keyin
+- **Holat:** `offline.status` (`OfflineStatus`), `changes`, `synced` (shu yuborishda javob olgan amallar),
+  `salesToPrint` / `salePrinted(opId)` (oflayn to'langan, serverga yetgan, sotuv cheki hali chop etilmagan schyotlar —
+  diskda, qayta kirishda yo'qolmaydi va qayta chiqmaydi). Oflaynda `GET /pos/sync/status` 15–60 soniyada; aloqa qaytsa navbat `SyncSender` bilan ketadi, keyin
   zal va buyurtmalar serverdan qayta olinadi.
 - **Xatolar:** `serverErrors()` (`PosSyncErrorsPage`), `resolveError(opId, resolution, note)`, `syncNow()`.
+  P3-35: `PosSyncReasons` — sabab va belgilar matni (`invalid_payload`, `modifier_not_found`, `offline_price_mismatch`,
+  `device_time_clamped` va boshqalar; server matni bo'lmasa `PosSyncError.message`), `PosSyncPriceNotice.of(ops)` —
+  server narxida saqlangan qatorlar (kassirga xabar), `syncTouchesOrder(ops, ref, resolve)` — ekran o'z buyurtmasini
+  qayta yuklashi kerakmi.
+- **Onlayn schyot oflaynda:** onlayn tuzilgan schyot (nusxasi `createBills` / `bills` javobidan) uzilishdan keyin ham
+  chop etiladi va to'lanadi. Qisman to'langan schyot saqlanadi (to'lov olingan — `paid` yoki unda to'lov bor), yangi
+  bitta schyotga faqat qolgani tushadi; buyurtma har schyot to'liq to'langanda yopiladi.
+- **Terminal uzilsa** (`terminalForgotten`, `terminalRevoked`): `forget()` — navbat, nusxalar va chek ro'yxati
+  o'chiriladi, `seq` davom etadi (server bir `seq` ni ikki marta olmaydi). Uzishdan oldin navbat bo'sh bo'lsin.
 
 Soxta backend: `FakeSyncBackend` (`pos_data/testing.dart`) — `FakePosState` ga `/pos/sync` yo'llarini qo'shadi
-(`received`, `rejectNext`, `resolved`). Test: `test/offline_test.dart`.
+(`received`, `rejectNext`, `flagNext` — P3-35 belgilari, `resolved`). `FakePosState` serverdagidek `Idempotency-Key` ni eslaydi: o'sha kalit va
+o'sha tana — birinchi javob qaytadi (`replayed`), boshqa tana — 409. Soxta PIN'lar serverdagi oddiy-PIN qoidasidan
+o'tadi (kassir 4827, ofitsiant 3691, menejer 5926; `test/fake_pins_test.dart`). Test: `test/offline_test.dart`,
+`test/offline_book_test.dart`.
 
 ## Sinov
 
@@ -64,5 +85,5 @@ dart run tool/fake_pos_server.dart --port 8788   # soxta backend + Reverb (kassa
 ```
 
 `package:pos_data/testing.dart`: `FakePosState` (soxta backend; qo'shimcha yo'llar — `extraRoutes`),
-`FakeCashierBackend` (schyot, to'lov, fiskal "kutmoqda", qaytarish, smena va Z, bron, avans, nasiya, onlayn navbat), `FakePosAdapter` (Dio), `FakePosRealtimeHub`,
+`FakeCashierBackend` (schyot, to'lov, fiskal "kutmoqda", qaytarish — P3-35 dan avans va nasiya qismlari ham, smena va Z, bron, avans, nasiya, onlayn navbat; P3-35 qoidalari: `has_payments`, `paid_bill_affected`, `merge_bookings_conflict`, `payment_status = refunded`), `FakePosAdapter` (Dio), `FakePosRealtimeHub`,
 `FakePosServer`. `test/fixtures/*.json` — mahalliy backend'dagi choyxona oqimidan olingan haqiqiy javoblar.
