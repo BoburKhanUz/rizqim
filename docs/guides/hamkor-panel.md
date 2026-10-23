@@ -5,6 +5,7 @@ Buyurtmalarni qabul qilasiz, menyuni yuritasiz, xodimlarni qo'shasiz, hisobotlar
 
 Telefondan ishlash kerak bo'lsa, [Telegram Mini App qo'llanmasiga](mini-app-xodim.md) qarang.
 Oshxona planshetini ulash — shu qo'llanmaning 8-bo'limida; oshpaz ishi — [oshxona ekrani qo'llanmasida](oshxona-ekrani.md).
+Kassa tizimini (zal xaritasi, xona narxi, fiskal chek, printerlar) sozlash — [ega-pos-sozlash.md](ega-pos-sozlash.md); kassir ishi — [kassa.md](kassa.md).
 
 ## Mundarija
 
