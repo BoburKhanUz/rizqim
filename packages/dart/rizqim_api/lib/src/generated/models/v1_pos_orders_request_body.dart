@@ -5,7 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'channel4.dart';
-import 'items20.dart';
+import 'items21.dart';
 
 part 'v1_pos_orders_request_body.g.dart';
 
@@ -39,7 +39,7 @@ class V1PosOrdersRequestBody {
   final String? externalId;
   final String? note;
   final bool? send;
-  final List<Items20>? items;
+  final List<Items21>? items;
 
   Map<String, Object?> toJson() => _$V1PosOrdersRequestBodyToJson(this);
 }

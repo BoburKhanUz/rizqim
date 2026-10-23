@@ -1,0 +1,8 @@
+{
+  "success": false,
+  "message": "Bu amal uchun menejer tasdig'i kerak.",
+  "data": {
+    "reason": "approval_required",
+    "permission": "orders.void_item"
+  }
+}

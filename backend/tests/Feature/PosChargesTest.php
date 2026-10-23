@@ -82,7 +82,9 @@ class PosChargesTest extends TestCase
     {
         $this->tariff('weekday', '100000');
         $this->tariff('weekend', '150000');
-        RoomTariffCalendar::create(['store_id' => $this->store->id, 'branch_id' => $this->branch->id, 'weekend_days' => [3], 'holidays' => ['2026-10-22']]);
+        RoomTariffCalendar::create(['store_id' => $this->store->id, 'branch_id' => $this->branch->id, 'weekend_days' => [3]]);
+        // P3-26: the branch's one holiday list is its POS settings' (the calendar keeps the weekend days)
+        $this->branch->forceFill(['pos_settings' => [...($this->branch->pos_settings ?? []), 'holidays' => ['2026-10-22']]])->save();
 
         // Wednesday is this branch's day off
         $this->assertSame('150000.00', $this->open()->room_fee_amount);

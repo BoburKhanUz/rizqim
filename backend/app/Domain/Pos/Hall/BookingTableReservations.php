@@ -32,7 +32,7 @@ class BookingTableReservations implements TableReservations
                 ->when($hasLinks, fn ($query) => $query->orWhereIn('booking_tables.dining_table_id', $tableIds)))
             ->orderBy('bookings.starts_at')
             ->get(array_merge(
-                ['bookings.uuid', 'bookings.starts_at', 'bookings.guests_planned', 'bookings.dining_table_id'],
+                ['bookings.uuid', 'bookings.starts_at', 'bookings.guests_planned', 'bookings.dining_table_id', 'bookings.contact_name', 'bookings.contact_phone'],
                 $hasLinks ? ['booking_tables.dining_table_id as linked_table_id'] : [],
             ));
 
@@ -47,6 +47,8 @@ class BookingTableReservations implements TableReservations
                     'booking_uuid' => (string) $row->uuid,
                     'starts_at' => \Illuminate\Support\Carbon::parse((string) $row->starts_at)->toJSON(),
                     'guests' => $row->guests_planned !== null ? (int) $row->guests_planned : null,
+                    'contact_name' => isset($row->contact_name) && $row->contact_name !== '' ? (string) $row->contact_name : null,
+                    'contact_phone' => isset($row->contact_phone) && $row->contact_phone !== '' ? (string) $row->contact_phone : null,
                 ];
             }
         }

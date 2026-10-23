@@ -59,10 +59,13 @@ class _PosCustomerAccountsApi implements PosCustomerAccountsApi {
   @override
   Future<PostV1PosCustomerAccountsResponse> customerAccountStore({
     required V1PosCustomerAccountsRequestBody body,
+    String? idempotencyKey,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{};
-    final _headers = <String, dynamic>{};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{r'Idempotency-Key': idempotencyKey};
+    _headers.removeWhere((k, v) => v == null);
     final _data = <String, dynamic>{};
     _data.addAll(body.toJson());
     final _options = _setStreamType<PostV1PosCustomerAccountsResponse>(
@@ -146,12 +149,14 @@ class _PosCustomerAccountsApi implements PosCustomerAccountsApi {
   @override
   Future<PatchV1PosCustomerAccountsUuidResponse> customerAccountUpdate({
     required String uuid,
+    String? idempotencyKey,
     V1PosCustomerAccountsUuidRequestBody? body,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{};
     queryParameters.removeWhere((k, v) => v == null);
-    final _headers = <String, dynamic>{};
+    final _headers = <String, dynamic>{r'Idempotency-Key': idempotencyKey};
+    _headers.removeWhere((k, v) => v == null);
     final _data = <String, dynamic>{};
     _data.addAll(body?.toJson() ?? <String, dynamic>{});
     final _options = _setStreamType<PatchV1PosCustomerAccountsUuidResponse>(
@@ -180,10 +185,13 @@ class _PosCustomerAccountsApi implements PosCustomerAccountsApi {
   customerAccountAdjust({
     required String uuid,
     required V1PosCustomerAccountsUuidAdjustmentsRequestBody body,
+    String? idempotencyKey,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{};
-    final _headers = <String, dynamic>{};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{r'Idempotency-Key': idempotencyKey};
+    _headers.removeWhere((k, v) => v == null);
     final _data = <String, dynamic>{};
     _data.addAll(body.toJson());
     final _options =
@@ -215,11 +223,13 @@ class _PosCustomerAccountsApi implements PosCustomerAccountsApi {
   @override
   Future<PostV1PosCustomerAccountsUuidRepaymentsResponse> customerAccountRepay({
     required String uuid,
+    required String idempotencyKey,
     required V1PosCustomerAccountsUuidRepaymentsRequestBody body,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{};
-    final _headers = <String, dynamic>{};
+    final _headers = <String, dynamic>{r'Idempotency-Key': idempotencyKey};
+    _headers.removeWhere((k, v) => v == null);
     final _data = <String, dynamic>{};
     _data.addAll(body.toJson());
     final _options =

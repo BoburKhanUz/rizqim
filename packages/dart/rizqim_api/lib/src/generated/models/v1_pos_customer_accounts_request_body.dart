@@ -16,6 +16,7 @@ class V1PosCustomerAccountsRequestBody {
     this.isBlocked,
     this.note,
     this.branchId,
+    this.approvalToken,
   });
 
   factory V1PosCustomerAccountsRequestBody.fromJson(
@@ -33,6 +34,8 @@ class V1PosCustomerAccountsRequestBody {
   final String? note;
   @JsonKey(name: 'branch_id')
   final int? branchId;
+  @JsonKey(name: 'approval_token')
+  final String? approvalToken;
 
   Map<String, Object?> toJson() =>
       _$V1PosCustomerAccountsRequestBodyToJson(this);

@@ -40,6 +40,7 @@ class Product {
     required this.mxikCode,
     required this.packageCode,
     required this.vatRate,
+    required this.quickAdd,
     required this.isActive,
     required this.imageUrl,
     required this.imageThumbUrls,
@@ -87,6 +88,8 @@ class Product {
   final String? packageCode;
   @JsonKey(name: 'vat_rate')
   final String? vatRate;
+  @JsonKey(name: 'quick_add')
+  final bool quickAdd;
   @JsonKey(name: 'is_active')
   final bool isActive;
   @JsonKey(name: 'image_url')

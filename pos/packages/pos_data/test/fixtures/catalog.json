@@ -1,0 +1,310 @@
+{
+  "success": true,
+  "message": "",
+  "data": {
+    "channel": "pos_hall",
+    "menu_version": "53df1dd96feb",
+    "branch": {
+      "id": 1,
+      "name": "Chilonzor"
+    },
+    "categories": [
+      {
+        "id": 1,
+        "uuid": "01a1629e-f109-709e-8751-a7f2a0d2e2f9",
+        "name": "Taomlar",
+        "slug": "taomlar-EenbZ",
+        "parent_id": null,
+        "sort_order": 1,
+        "image": null,
+        "image_url": null,
+        "image_thumb_urls": {
+          "sm": null,
+          "md": null
+        }
+      }
+    ],
+    "products": [
+      {
+        "id": 1,
+        "uuid": "01a1629e-f112-715b-8561-b10b259cf37a",
+        "store_id": 1,
+        "category_id": 1,
+        "name": "Choy",
+        "slug": "choy-IJ6wI",
+        "description": null,
+        "type": "physical",
+        "sku": null,
+        "status": "active",
+        "sort_order": 0,
+        "has_variants": false,
+        "created_at": "2026-10-22T07:59:06.000000Z",
+        "updated_at": "2026-10-22T07:59:06.000000Z",
+        "deleted_at": null,
+        "image": null,
+        "batch_tracked": false,
+        "kind": "dish",
+        "mxik_code": null,
+        "package_code": null,
+        "vat_rate": null,
+        "is_available": true,
+        "unavailable_reason": null,
+        "station_id": null,
+        "image_url": null,
+        "is_active": true,
+        "image_thumb_urls": {
+          "sm": null,
+          "md": null
+        },
+        "variants": [
+          {
+            "id": 1,
+            "uuid": "8dd20eda-3f45-4cfe-affb-b81b827ca492",
+            "product_id": 1,
+            "name": "Choynak",
+            "sku": null,
+            "price": "5000.00",
+            "stock": 1000,
+            "attributes_json": null,
+            "is_active": true,
+            "created_at": "2026-10-22T07:59:06.000000Z",
+            "updated_at": "2026-10-22T07:59:06.000000Z",
+            "deleted_at": null,
+            "unit": "piece",
+            "quantity_step": null,
+            "min_quantity": null,
+            "batch_consumption": "1.000",
+            "unit_label": null,
+            "base_price": "5000.00",
+            "is_available": true,
+            "unavailable_reason": null
+          }
+        ],
+        "modifier_groups": []
+      },
+      {
+        "id": 2,
+        "uuid": "01a1629e-f129-7161-8a4b-a047166d2e80",
+        "store_id": 1,
+        "category_id": 1,
+        "name": "Non",
+        "slug": "non-KRLIw",
+        "description": null,
+        "type": "physical",
+        "sku": null,
+        "status": "active",
+        "sort_order": 0,
+        "has_variants": false,
+        "created_at": "2026-10-22T07:59:06.000000Z",
+        "updated_at": "2026-10-22T07:59:06.000000Z",
+        "deleted_at": null,
+        "image": null,
+        "batch_tracked": false,
+        "kind": "dish",
+        "mxik_code": null,
+        "package_code": null,
+        "vat_rate": null,
+        "is_available": true,
+        "unavailable_reason": null,
+        "station_id": null,
+        "image_url": null,
+        "is_active": true,
+        "image_thumb_urls": {
+          "sm": null,
+          "md": null
+        },
+        "variants": [
+          {
+            "id": 2,
+            "uuid": "31116302-f0f6-4920-9096-9385f28e65d6",
+            "product_id": 2,
+            "name": "Dona",
+            "sku": null,
+            "price": "4000.00",
+            "stock": 1000,
+            "attributes_json": null,
+            "is_active": true,
+            "created_at": "2026-10-22T07:59:06.000000Z",
+            "updated_at": "2026-10-22T07:59:06.000000Z",
+            "deleted_at": null,
+            "unit": "piece",
+            "quantity_step": null,
+            "min_quantity": null,
+            "batch_consumption": "1.000",
+            "unit_label": null,
+            "base_price": "4000.00",
+            "is_available": true,
+            "unavailable_reason": null
+          }
+        ],
+        "modifier_groups": []
+      },
+      {
+        "id": 3,
+        "uuid": "01a1629e-f131-7105-8841-6e3b91b08570",
+        "store_id": 1,
+        "category_id": 1,
+        "name": "Osh",
+        "slug": "osh-vlj3r",
+        "description": null,
+        "type": "physical",
+        "sku": null,
+        "status": "active",
+        "sort_order": 0,
+        "has_variants": false,
+        "created_at": "2026-10-22T07:59:06.000000Z",
+        "updated_at": "2026-10-22T07:59:06.000000Z",
+        "deleted_at": null,
+        "image": null,
+        "batch_tracked": true,
+        "kind": "dish",
+        "mxik_code": null,
+        "package_code": null,
+        "vat_rate": null,
+        "is_available": true,
+        "unavailable_reason": null,
+        "station_id": 1,
+        "image_url": null,
+        "is_active": true,
+        "image_thumb_urls": {
+          "sm": null,
+          "md": null
+        },
+        "variants": [
+          {
+            "id": 3,
+            "uuid": "681853ff-5482-4240-a4d1-b9c8ca8ec45d",
+            "product_id": 3,
+            "name": "Choyxona oshi",
+            "sku": null,
+            "price": "120000.00",
+            "stock": 1000,
+            "attributes_json": null,
+            "is_active": true,
+            "created_at": "2026-10-22T07:59:06.000000Z",
+            "updated_at": "2026-10-22T07:59:06.000000Z",
+            "deleted_at": null,
+            "unit": "kg",
+            "quantity_step": "0.500",
+            "min_quantity": "0.500",
+            "batch_consumption": "1.000",
+            "unit_label": "kg (guruch)",
+            "base_price": "120000.00",
+            "is_available": true,
+            "unavailable_reason": null
+          }
+        ],
+        "modifier_groups": []
+      },
+      {
+        "id": 4,
+        "uuid": "01a1629e-f139-7180-9de3-7cf88ac4153d",
+        "store_id": 1,
+        "category_id": 1,
+        "name": "Shashlik",
+        "slug": "shashlik-UlVpv",
+        "description": null,
+        "type": "physical",
+        "sku": null,
+        "status": "active",
+        "sort_order": 0,
+        "has_variants": false,
+        "created_at": "2026-10-22T07:59:06.000000Z",
+        "updated_at": "2026-10-22T07:59:06.000000Z",
+        "deleted_at": null,
+        "image": null,
+        "batch_tracked": false,
+        "kind": "dish",
+        "mxik_code": null,
+        "package_code": null,
+        "vat_rate": null,
+        "is_available": true,
+        "unavailable_reason": null,
+        "station_id": null,
+        "image_url": null,
+        "is_active": true,
+        "image_thumb_urls": {
+          "sm": null,
+          "md": null
+        },
+        "variants": [
+          {
+            "id": 4,
+            "uuid": "2bddcda4-00a8-4b2c-8867-6c1eb3ea69d2",
+            "product_id": 4,
+            "name": "Six",
+            "sku": null,
+            "price": "18000.00",
+            "stock": 1000,
+            "attributes_json": null,
+            "is_active": true,
+            "created_at": "2026-10-22T07:59:06.000000Z",
+            "updated_at": "2026-10-22T07:59:06.000000Z",
+            "deleted_at": null,
+            "unit": "piece",
+            "quantity_step": null,
+            "min_quantity": null,
+            "batch_consumption": "1.000",
+            "unit_label": null,
+            "base_price": "18000.00",
+            "is_available": true,
+            "unavailable_reason": null
+          }
+        ],
+        "modifier_groups": [
+          {
+            "id": 1,
+            "uuid": "01a1629e-f143-722c-995f-60271e614ae2",
+            "name": "Qo'shimcha",
+            "name_i18n": null,
+            "min_select": 0,
+            "max_select": null,
+            "is_required": false,
+            "sort_order": 0,
+            "is_active": true,
+            "modifiers": [
+              {
+                "id": 1,
+                "uuid": "01a1629e-f14a-70cf-860a-94d07928b617",
+                "modifier_group_id": 1,
+                "name": "Piyoz",
+                "name_i18n": null,
+                "price_delta": "2000.00",
+                "max_quantity": 1,
+                "product_variant_id": null,
+                "sort_order": 0,
+                "is_active": true,
+                "is_available": true,
+                "unavailable_reason": null
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "availability": {
+      "branch_id": 1,
+      "stopped": {
+        "products": [],
+        "variants": [],
+        "modifiers": []
+      },
+      "sold_out": {
+        "variants": []
+      },
+      "stop_list": [],
+      "batches": [
+        {
+          "id": 1,
+          "uuid": "01a1629e-f16b-724d-bab6-b2e06bd9eec0",
+          "product_id": 3,
+          "product_variant_id": null,
+          "label": null,
+          "quantity_produced": 10,
+          "quantity_left": 10,
+          "started_at": "2026-10-22T07:59:06.000000Z"
+        }
+      ]
+    }
+  }
+}

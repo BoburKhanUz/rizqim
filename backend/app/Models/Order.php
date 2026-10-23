@@ -46,6 +46,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property \Illuminate\Support\Carbon|null $business_date
  * @property int|null $queue_number
  * @property \Illuminate\Support\Carbon|null $bill_locked_at
+ * @property \Illuminate\Support\Carbon|null $bill_requested_at a waiter asked the till for the bill (P3-26)
+ * @property int|null $bill_requested_by
  * @property \Illuminate\Support\Carbon|null $closed_at
  *
  * P3-17: the booking the order was opened from ("Keldi") and when a pre-order is due
@@ -124,6 +126,8 @@ class Order extends Model
             'business_date' => 'date',
             'queue_number' => 'integer',
             'bill_locked_at' => 'datetime',
+            'bill_requested_at' => 'datetime', // P3-26
+            'bill_requested_by' => 'integer',
             'closed_at' => 'datetime',
             // P3-17: booking (its deposits are the order's prepayment) and the due time of a pre-order
             'booking_id' => 'integer',

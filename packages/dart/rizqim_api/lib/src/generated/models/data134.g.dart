@@ -44,7 +44,7 @@ Data134 _$Data134FromJson(Map<String, dynamic> json) => Data134(
       .map((e) => Items17.fromJson(e as Map<String, dynamic>))
       .toList(),
   payments: (json['payments'] as List<dynamic>)
-      .map((e) => Payments18.fromJson(e as Map<String, dynamic>))
+      .map((e) => Payments24.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 

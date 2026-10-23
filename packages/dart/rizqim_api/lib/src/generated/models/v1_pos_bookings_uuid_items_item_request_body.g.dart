@@ -10,6 +10,7 @@ V1PosBookingsUuidItemsItemRequestBody
 _$V1PosBookingsUuidItemsItemRequestBodyFromJson(Map<String, dynamic> json) =>
     V1PosBookingsUuidItemsItemRequestBody(
       productVariantId: (json['product_variant_id'] as num?)?.toInt(),
+      productVariantUuid: json['product_variant_uuid'] as String?,
       quantity: json['quantity'] as num?,
       modifiers: (json['modifiers'] as List<dynamic>?)
           ?.map((e) => Modifiers5.fromJson(e as Map<String, dynamic>))
@@ -25,6 +26,7 @@ Map<String, dynamic> _$V1PosBookingsUuidItemsItemRequestBodyToJson(
   V1PosBookingsUuidItemsItemRequestBody instance,
 ) => <String, dynamic>{
   'product_variant_id': instance.productVariantId,
+  'product_variant_uuid': instance.productVariantUuid,
   'quantity': instance.quantity,
   'modifiers': instance.modifiers,
   'note': instance.note,

@@ -17,6 +17,8 @@ export const POLL_INTERVAL_MS = {
   notifications: 15_000,
   ownerFinance: 10_000,
   stopList: 15_000, // the stop-list and the batches of a branch (events make them instant when real-time is on)
+  shiftSummary: 30_000, // the open shift's X figures move with every payment, but a phone glance does not need them faster
+  debtors: 60_000, // a debt changes at a sale on credit or a repayment: once a minute is enough
   menuAvailability: 20_000, // the stop-list / sold-out state of a store's menu (events make it instant when real-time is on)
 } as const;
 

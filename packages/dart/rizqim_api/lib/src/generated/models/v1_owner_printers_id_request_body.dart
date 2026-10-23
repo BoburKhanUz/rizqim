@@ -6,7 +6,6 @@ import 'package:json_annotation/json_annotation.dart';
 
 import 'purpose.dart';
 import 'connection.dart';
-import 'paper_width.dart';
 
 part 'v1_owner_printers_id_request_body.g.dart';
 
@@ -35,7 +34,7 @@ class V1OwnerPrintersIdRequestBody {
   final String? address;
   final int? port;
   @JsonKey(name: 'paper_width')
-  final PaperWidth? paperWidth;
+  final int? paperWidth;
   @JsonKey(name: 'station_id')
   final int? stationId;
   @JsonKey(name: 'device_id')

@@ -1,0 +1,29 @@
+{
+  "success": true,
+  "message": "Smena ochildi.",
+  "data": {
+    "uuid": "01a1629f-a3b6-7282-8e9d-240478b72112",
+    "status": "open",
+    "branch_id": 1,
+    "device": {
+      "uuid": "01a1629e-f1a2-72fc-8b0b-a0c143a02b28",
+      "name": "Kassa till"
+    },
+    "business_date": "2026-10-22",
+    "opened_at": "2026-10-22T07:59:51+00:00",
+    "opened_by": {
+      "id": 3,
+      "name": "Kamola Kassir"
+    },
+    "opening_cash": "100000.00",
+    "closed_at": null,
+    "closed_by": null,
+    "expected_cash": null,
+    "counted_cash": null,
+    "counted_breakdown": null,
+    "difference": null,
+    "z_number": null,
+    "force_closed": false,
+    "close_note": null
+  }
+}

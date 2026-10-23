@@ -122,6 +122,8 @@ describe('pollingQueryOptions', () => {
       ownerFinance: 10_000,
       stopList: 15_000,
       menuAvailability: 20_000,
+      shiftSummary: 30_000,
+      debtors: 60_000,
     });
   });
 });

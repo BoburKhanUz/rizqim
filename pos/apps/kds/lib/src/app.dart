@@ -12,6 +12,7 @@ import 'screens/pairing_screen.dart';
 import 'screens/staff_sign_in_screen.dart';
 import 'settings/kds_settings.dart';
 import 'sound/ticket_sound.dart';
+import 'stations/station_selection.dart';
 
 /// Ulangan terminal uchun real-time (kalit sozlanmagan yoki terminal filialsiz bo'lsa `null`).
 typedef RealtimeFactory = BranchRealtime? Function(
@@ -25,15 +26,26 @@ class KdsServices {
     required this.client,
     required this.settings,
     TicketSound? sound,
+    StationSelectionController? stations,
     this.realtimeFactory,
     this.clock,
     this.pollInterval = AppConfig.pollInterval,
     this.livePollInterval = AppConfig.livePollInterval,
-  }) : sound = sound ?? SilentTicketSound();
+  }) : sound = sound ?? SilentTicketSound(),
+       stations = stations ?? StationSelectionController(MemorySettingsStore());
 
   final RizqimClient client;
   final KdsSettingsController settings;
   final TicketSound sound;
+
+  /// Oshpaz tanlagan sexlar (qurilmada saqlanadi).
+  final StationSelectionController stations;
+
+  /// Sexlar, ketgan buyurtma tafsiloti va qozon (xodim PIN sessiyasi bilan).
+  late final KitchenSetupService setup = KitchenSetupService(
+    client.dio,
+    clock: clock,
+  );
   final RealtimeFactory? realtimeFactory;
   final DateTime Function()? clock;
   final Duration pollInterval;
@@ -283,6 +295,8 @@ class _TerminalHomeState extends State<TerminalHome> {
       realtime: _realtime,
       branchId: widget.terminal.branch?.id ?? widget.terminal.device.branchId,
       canManage: staff.can('kitchen.manage'),
+      setup: _s.setup,
+      selection: _s.stations,
       clock: _s.clock,
       pollInterval: _s.pollInterval,
       livePollInterval: _s.livePollInterval,
@@ -312,6 +326,8 @@ class _TerminalHomeState extends State<TerminalHome> {
         auth: _auth,
         terminal: widget.terminal,
         settings: _s.settings,
+        selection: _s.stations,
+        setup: _s.setup,
         realtime: _realtime,
         clock: _s.clock,
       );

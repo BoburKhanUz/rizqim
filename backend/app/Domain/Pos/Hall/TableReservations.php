@@ -12,10 +12,10 @@ interface TableReservations
 {
     /**
      * Bookings still expected (not arrived, not cancelled) that start between `$from` and `$until`, per table id: the
-     * earliest one of each table.
+     * earliest one of each table, with the guest's name and phone (P3-26; the caller decides who sees them).
      *
      * @param  list<int>  $tableIds
-     * @return array<int, array{booking_uuid: string, starts_at: string, guests: int|null}>
+     * @return array<int, array{booking_uuid: string, starts_at: string, guests: int|null, contact_name: string|null, contact_phone: string|null}>
      */
     public function upcoming(int $branchId, array $tableIds, CarbonInterface $from, CarbonInterface $until): array;
 }

@@ -2,6 +2,8 @@
 
 namespace App\Services\Order;
 
+use App\Domain\Pos\Contracts\KitchenStationResolver;
+use App\Enums\FireMode;
 use App\Enums\KitchenItemStatus;
 use App\Enums\OrderStatus;
 use App\Enums\OrderType;
@@ -78,7 +80,20 @@ class KitchenService
 
             // P3-12: a POS line is in the kitchen only once it was sent; a voided one is gone, a served one done. A
             // recalled POS line goes back to `sent` (still in the kitchen), an online one to `pending` as before
-            if ($item->isVoid() || !$item->reachedKitchen()) {
+            // P3-26: a held pre-order line with its due time (osh cooked hours ahead) may be bumped ready before the
+            // till sends it: ready implies sent, so it gets its station and sent_at now, like a send would give it
+            $heldEarly = $to === KitchenItemStatus::READY && !$item->isVoid() && !$item->reachedKitchen()
+                && $item->fire_mode === FireMode::HOLD && $item->due_at !== null
+                && $item->kitchen_status === KitchenItemStatus::PENDING;
+            if ($heldEarly) {
+                $resolver = app()->bound(KitchenStationResolver::class) ? app(KitchenStationResolver::class) : null;
+                $item->forceFill([
+                    'sent_at' => now(),
+                    'station_id' => $item->station_id ?? $resolver?->stationIdFor($item),
+                ]);
+            }
+
+            if ($item->isVoid() || (!$heldEarly && !$item->reachedKitchen())) {
                 throw new OrderTransitionException(
                     $item->isVoid() ? "Bu taom o'chirilgan." : "Bu taom hali oshxonaga yuborilmagan.",
                     422,
@@ -133,6 +148,10 @@ class KitchenService
                 'kitchen_status' => $to->value,
                 'ready_at' => $to === KitchenItemStatus::READY ? now() : null,
             ])->save();
+            if ($heldEarly) {
+                // The line left the till's "not sent" list: devices holding the order refetch it (version)
+                $order->forceFill(['version' => (int) $order->version + 1])->save();
+            }
 
             // P2-33: with a courier already assigned the order stays courier_assigned (no status move either way)
             // P3-12: a POS line sent and not ready yet (or not sent yet) is still to cook too

@@ -15,6 +15,7 @@ use App\Enums\OrderType;
 use App\Enums\PaymentStatus;
 use App\Enums\Permission;
 use App\Events\Broadcast\KitchenItemStatusChangedBroadcast;
+use App\Events\Broadcast\OrderBillRequestedBroadcast;
 use App\Events\Broadcast\OrderCreatedBroadcast;
 use App\Events\Broadcast\OrderItemsChangedBroadcast;
 use App\Events\Broadcast\OrderStatusChangedBroadcast;
@@ -543,6 +544,42 @@ class PosOrderService implements PosOrderOpener
 
             return ['served', [(int) $item->id]];
         }, $approvalToken);
+    }
+
+    /**
+     * P3-26: the waiter asks the till for the bill ("Schyot so'raldi"): stamps bill_requested_at / _by, bumps the
+     * version and announces order.bill_requested on the branch's channels. Idempotent: asked once already (and no bill
+     * printed since), it answers the order unchanged, nothing is announced again. $version is checked when given
+     * (409 when stale). orders.manage; the waiter rule (another waiter's order: a manager's approval token).
+     */
+    public function requestBill(Order $order, ?int $version, User $actor, ?string $approvalToken = null): Order
+    {
+        return DB::transaction(function () use ($order, $version, $actor, $approvalToken) {
+            $locked = Order::whereKey($order->getKey())->lockForUpdate()->firstOrFail();
+            $this->assertMutable($locked);
+            if ($version !== null && (int) $locked->version !== $version) {
+                throw PosOrderException::versionConflict((int) $locked->version);
+            }
+            if ($locked->bill_requested_at !== null) {
+                return $locked;
+            }
+            $this->waiters->guard($locked, $actor, $approvalToken);
+
+            $locked->forceFill([
+                'bill_requested_at' => now(),
+                'bill_requested_by' => $actor->id,
+                'version' => (int) $locked->version + 1,
+            ])->save();
+            $locked->refresh();
+
+            $this->audit->record('pos.bill_requested', $locked, [], [], array_filter([
+                'short_code' => $locked->short_code,
+                'table' => $locked->table_ref,
+            ], fn ($value) => $value !== null), ['actor' => $actor]);
+            event(new OrderBillRequestedBroadcast($locked));
+
+            return $locked;
+        });
     }
 
     /**

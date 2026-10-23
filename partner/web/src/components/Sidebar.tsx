@@ -26,7 +26,7 @@ export function Sidebar({ items, userName, role, open, onLogout, badges = {} }: 
   return (
     <aside
       className={cx(
-        'z-20 flex w-64 shrink-0 flex-col gap-4 border-r border-line bg-surface p-3',
+        'z-20 flex w-64 shrink-0 flex-col gap-4 border-r border-line bg-surface p-3 print:hidden',
         // Tablet and desktop: a column that stays while the page scrolls. Narrow: a drawer under the top bar.
         'md:sticky md:top-0 md:h-screen md:w-60 lg:w-64',
         open ? 'max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:top-[53px] max-md:overflow-y-auto' : 'max-md:hidden',

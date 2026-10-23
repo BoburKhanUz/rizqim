@@ -114,6 +114,8 @@ export function makeOrder(over: Partial<Order> = {}): Order {
     bill_locked_at: null,
     closed_at: null,
     long_open_alerted_at: null,
+    bill_requested_at: null,
+    bill_requested_by: null,
     ...over,
   };
 }

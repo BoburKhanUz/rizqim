@@ -7,15 +7,15 @@ part of 'data185.dart';
 // **************************************************************************
 
 Data185 _$Data185FromJson(Map<String, dynamic> json) => Data185(
-  user: User.fromJson(json['user'] as Map<String, dynamic>),
-  store: json['store'] == null
-      ? null
-      : Store.fromJson(json['store'] as Map<String, dynamic>),
-  smsVerificationRequired: json['sms_verification_required'] as bool,
+  regions: (json['regions'] as List<dynamic>)
+      .map((e) => Regions2.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  districts: (json['districts'] as List<dynamic>)
+      .map((e) => Districts2.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data185ToJson(Data185 instance) => <String, dynamic>{
-  'user': instance.user,
-  'store': instance.store,
-  'sms_verification_required': instance.smsVerificationRequired,
+  'regions': instance.regions,
+  'districts': instance.districts,
 };

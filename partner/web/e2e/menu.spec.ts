@@ -46,6 +46,8 @@ test('a dish sold by weight is created and offers a modifier group', async ({ pa
   await variant.getByLabel('1 kg narxi (so\'m)').fill('185000')
   await variant.getByLabel('Qadam (kg)').fill('0.5')
   await variant.getByLabel('Eng kam miqdor (kg)').fill('0.5')
+  // P3-26: offered on the POS quick-add strip
+  await page.getByRole('switch', { name: "Tezkor qo'shish" }).click()
   await page.getByRole('button', { name: 'Yaratish' }).click()
 
   // The editor of the new dish opens, with the parts that need a saved dish
@@ -54,9 +56,11 @@ test('a dish sold by weight is created and offers a modifier group', async ({ pa
   expect(productCall.body).toMatchObject({
     name: 'Qazi',
     is_active: '1',
+    quick_add: '1',
     variants: [{ name: 'kg', price: 185000, unit: 'kg', quantity_step: 0.5, min_quantity: 0.5 }],
   })
   const created = api.menu.products.find((product) => product.name === 'Qazi')!
+  expect(created.quick_add).toBe(true)
   expect(created.variants[0]).toMatchObject({ unit: 'kg', price: '185000.00', quantity_step: '0.500', min_quantity: '0.500' })
 
   // --- The dish offers the group

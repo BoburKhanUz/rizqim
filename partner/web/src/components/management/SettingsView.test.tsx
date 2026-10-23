@@ -205,6 +205,19 @@ describe('SettingsView: service charge and place fee', () => {
     expect(((await calls.find((call) => call.method === 'PUT')!.json()) as { branch_id: number }).branch_id).toBe(2);
   });
 
+  it("does not mistake a hall's own row for the branch's: a branch with only a hall row still starts from the store's values", async () => {
+    const withHall = { ...FEES, settings: [{ ...FEES.settings[0]! }, { hall_id: 7, ...FEES.settings[1]!, branch_id: 1, service_charge_percent: '15.00' }, FEES.settings[1]!] };
+    base({ 'GET /api/v1/owner/service-fees': () => ok(withHall), 'PUT /api/v1/owner/service-fees': () => ok(FEES.settings[0]) });
+    const typing = userEvent.setup();
+    renderPage(<SettingsView />);
+    await typing.click(await screen.findByRole('tab', { name: 'Xizmat haqi' }));
+    await screen.findByLabelText('Foiz');
+
+    await typing.selectOptions(screen.getByLabelText('Qaysi uchun'), 'Markaz');
+    expect(screen.getByText(/Bu filial uchun alohida sozlama yo'q/)).toBeInTheDocument();
+    expect(screen.getByLabelText('Foiz')).toHaveValue('10');
+  });
+
   it("shows the server's refusal of a percent", async () => {
     base({ 'GET /api/v1/owner/service-fees': () => ok(FEES), 'PUT /api/v1/owner/service-fees': () => refusal('Xato', 422, { errors: { service_charge_percent: ['Foiz 30 dan oshmasin.'] } }) });
     const typing = userEvent.setup();

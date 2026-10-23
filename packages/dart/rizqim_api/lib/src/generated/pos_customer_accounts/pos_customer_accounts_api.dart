@@ -45,10 +45,15 @@ abstract class PosCustomerAccountsApi {
   /// Open a customer account.
   ///
   /// `name` required; `phone` (+998…, unique in the store), `group_name`, `credit_limit` (null: no limit; 0: no credit),.
-  /// `note`, `branch_id` (only that branch; default: store-wide, a branch-bound manager's own branch).
+  /// `note`, `branch_id` (only that branch; default: store-wide, a branch-bound manager's own branch). Needs.
+  /// customer_accounts.manage; P3-26: a cashier at the till (pos.take_payment) sends a manager's one-time.
+  /// `approval_token` for customer_accounts.manage (POST /pos/approvals; 403 `approval_required` without).
+  ///
+  /// [idempotencyKey] - Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer.
   @POST('/v1/pos/customer-accounts')
   Future<PostV1PosCustomerAccountsResponse> customerAccountStore({
     @Body() required V1PosCustomerAccountsRequestBody body,
+    @Header('Idempotency-Key') String? idempotencyKey,
   });
 
   /// Debtors.
@@ -65,30 +70,40 @@ abstract class PosCustomerAccountsApi {
 
   /// Change a customer account.
   ///
-  /// Only the fields sent change; `is_blocked: true` stops new credit (repayments still work).
+  /// Only the fields sent change; `is_blocked: true` stops new credit (repayments still work). Needs.
+  /// customer_accounts.manage; P3-26: a cashier (pos.take_payment) sends a manager's one-time `approval_token` for it.
+  ///
+  /// [idempotencyKey] - Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer.
   @PATCH('/v1/pos/customer-accounts/{uuid}')
   Future<PatchV1PosCustomerAccountsUuidResponse> customerAccountUpdate({
     @Path('uuid') required String uuid,
+    @Header('Idempotency-Key') String? idempotencyKey,
     @Body() V1PosCustomerAccountsUuidRequestBody? body,
   });
 
   /// Correct the debt.
   ///
   /// `amount` > 0 adds to the debt, < 0 takes from it (a write-off); `note` required. The debt never goes below 0.
+  ///
+  /// [idempotencyKey] - Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer.
   @POST('/v1/pos/customer-accounts/{uuid}/adjustments')
   Future<PostV1PosCustomerAccountsUuidAdjustmentsResponse>
   customerAccountAdjust({
     @Path('uuid') required String uuid,
     @Body() required V1PosCustomerAccountsUuidAdjustmentsRequestBody body,
+    @Header('Idempotency-Key') String? idempotencyKey,
   });
 
   /// Take a repayment.
   ///
   /// `amount` (at most the debt), `tender` cash|card|qr (`card_type`, `transaction_id`), `note`. Issues a CREDIT.
   /// receipt (`fiscal_receipt_uuid`); the owner is told on Telegram. The `Idempotency-Key` header is required.
+  ///
+  /// [idempotencyKey] - Required: a new UUID per action, the same one when retrying it (428 or 400 without).
   @POST('/v1/pos/customer-accounts/{uuid}/repayments')
   Future<PostV1PosCustomerAccountsUuidRepaymentsResponse> customerAccountRepay({
     @Path('uuid') required String uuid,
+    @Header('Idempotency-Key') required String idempotencyKey,
     @Body() required V1PosCustomerAccountsUuidRepaymentsRequestBody body,
   });
 

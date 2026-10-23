@@ -50,7 +50,7 @@ Build vaqtida bundle ichiga yoziladi; o'zgartirgandan keyin qayta build qiling. 
 | Yo'l | Nima bor |
 |---|---|
 | `main.tsx`, `App.tsx` | kirish nuqtasi; marshrutlar (har sahifa `lazyWithRetry` bilan alohida chunk), rolga mos pastki navigatsiya, offline va "faqat Telegram" ekranlari |
-| `pages/` | bitta ekran — bitta fayl: mijoz (`Home`, `Stores`, `StoreDetail`, `CategoryDetail`, `Cart`, `Orders`, `CustomerProfile`, `Complaints`, `Notifications`, `Success`), xodim (`ManagerDashboard`, `CourierDashboard`, `Admin*`, `Owner*`, `Profile`), `Superadmin*` |
+| `pages/` | bitta ekran — bitta fayl: mijoz (`Home`, `Stores`, `StoreDetail`, `CategoryDetail`, `Cart`, `Orders`, `CustomerProfile`, `Complaints`, `Notifications`, `Success`), xodim (`ManagerDashboard`, `CourierDashboard`, `Admin*`, `Owner*`, `Profile`, `ShiftSummary` — «Smena xulosasi», `Debtors` — «Qarzdorlar»; menejer va ega uchun, `@rizqim/staff` hook'lari bilan), `Superadmin*` |
 | `components/` | umumiy komponentlar (`Feedback`, `PhoneVerificationModal`, `VariantSelectorModal`, `NotificationCenter`, `HeroPromoSlider`); `map/` — xarita (`LazyMapPicker`, `MapPicker`, `mapConfig`) |
 | `features/address/` | manzil tanlash: `AddressLocationField` (GPS, qidiruv, pin), `geocodeApi`, `geolocation`, `coordinates` |
 | `hooks/` | `useTelegramAuth`, `useOrders`/`useStaffOrders`, `useStores`, `useCatalog`, `useNotifications`, `useVisibleInterval` |
@@ -77,7 +77,7 @@ Build vaqtida bundle ichiga yoziladi; o'zgartirgandan keyin qayta build qiling. 
 
 ## Ma'lumot yangilanishi
 
-Ro'yxatlar so'rov (polling) bilan yangilanadi (`lib/polling.ts`): mijoz buyurtmalari 10 s, menejer 8 s, kuryer va admin buyurtmalari 15 s, xabarnomalar 15 s, egasi moliyasi 10 s. Sahifa yashirin bo'lsa so'rov to'xtaydi, qaytganda yoki tarmoq tiklanganda yangilanadi; ketma-ket xatolarda interval ikki baravar oshadi (ko'pi bilan 120 s). Pul summalari API'dan o'nli satr (`"15000.00"`) bo'lib keladi: hisob-kitob va ko'rsatishdan oldin `lib/money.ts` (`toAmount`, `sumAmounts`) va `lib/format.ts` (`formatUzbekSum`) dan o'tkaziladi.
+Ro'yxatlar so'rov (polling) bilan yangilanadi (`lib/polling.ts`): mijoz buyurtmalari 10 s, menejer 8 s, kuryer va admin buyurtmalari 15 s, xabarnomalar 15 s, egasi moliyasi 10 s, smena xulosasi 30 s, qarzdorlar 60 s. Sahifa yashirin bo'lsa so'rov to'xtaydi, qaytganda yoki tarmoq tiklanganda yangilanadi; ketma-ket xatolarda interval ikki baravar oshadi (ko'pi bilan 120 s). Pul summalari API'dan o'nli satr (`"15000.00"`) bo'lib keladi: hisob-kitob va ko'rsatishdan oldin `lib/money.ts` (`toAmount`, `sumAmounts`) va `lib/format.ts` (`formatUzbekSum`) dan o'tkaziladi.
 
 ## Testlar
 

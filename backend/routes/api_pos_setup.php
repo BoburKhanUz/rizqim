@@ -13,12 +13,15 @@ use App\Http\Controllers\Api\V1\Management\KitchenStationController;
 use App\Http\Controllers\Api\V1\Management\KitchenStationRouteController;
 use App\Http\Controllers\Api\V1\Management\PrinterController;
 use App\Http\Controllers\Api\V1\Pos\PosBootstrapController;
+use App\Http\Controllers\Api\V1\Pos\PosCatalogController;
 use App\Support\RowId;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->group(function () {
     // Everything a terminal needs to start work on its branch (a terminal PIN session or a normal staff sign-in)
     Route::get('/pos/bootstrap', [PosBootstrapController::class, 'show'])->middleware('permission:orders.view');
+    // P3-26: the POS menu with a typed answer (the same as GET /catalog?channel=pos_hall|pos_takeaway)
+    Route::get('/pos/catalog', [PosCatalogController::class, 'index'])->middleware('permission:menu.view');
 
     Route::middleware(['not-staff-session', 'permission:settings.manage'])->group(function () {
         Route::get('/owner/kitchen-stations', [KitchenStationController::class, 'index']);

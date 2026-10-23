@@ -44,7 +44,7 @@ Booking4 _$Booking4FromJson(Map<String, dynamic> json) => Booking4(
       .map((e) => Items14.fromJson(e as Map<String, dynamic>))
       .toList(),
   payments: (json['payments'] as List<dynamic>)
-      .map((e) => Payments15.fromJson(e as Map<String, dynamic>))
+      .map((e) => Payments20.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 

@@ -30,6 +30,8 @@ class KitchenService {
 
   /// `GET /staff/kitchen/tickets`: `accepted` va `preparing` buyurtmalar ([includeReady] bilan `ready` ham),
   /// eskisidan yangisiga. [branchId] berilmasa — xodim ishlaydigan filial(lar); terminal sessiyasida terminal filiali.
+  /// [canceledWithin] (P3-26, daqiqa, 1–60): shuncha vaqt ichida bekor qilingan yoki rad etilgan, oshxonaga yetgan
+  /// buyurtmalar ham ([KitchenTicket.isCanceled], [KitchenTicket.canceledAt]) — doskada chizib ko'rsatish uchun.
   ///
   /// Yaratilgan klient (`api.kitchen.staffOrderTickets`) butun javobni bitta model bilan o'qiydi: bitta mos kelmagan
   /// chipta hammasini yiqitardi. Shuning uchun javob xom olinadi va har chipta yaratilgan javob modeli bilan alohida
@@ -37,6 +39,7 @@ class KitchenService {
   Future<KitchenTicketList> tickets({
     int? branchId,
     bool includeReady = false,
+    int? canceledWithin,
   }) async {
     final Response<Object?> response;
     try {
@@ -45,6 +48,7 @@ class KitchenService {
         queryParameters: <String, Object?>{
           'branch_id': ?branchId,
           if (includeReady) 'include_ready': true,
+          'canceled_within': ?canceledWithin,
         },
       );
     } on DioException catch (e) {

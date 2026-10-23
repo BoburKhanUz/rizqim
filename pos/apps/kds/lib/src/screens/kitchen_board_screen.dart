@@ -5,12 +5,19 @@ import 'package:rizqim_api/rizqim_api.dart';
 import 'package:rizqim_core/rizqim_core.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
+import '../board/board_view.dart';
 import '../board/kitchen_board_controller.dart';
+import '../board/skewer_groups.dart';
 import '../realtime/branch_realtime.dart';
 import '../settings/kds_settings.dart';
+import '../stations/station_selection.dart';
 import '../widgets/connection_status.dart';
+import '../widgets/kazan_panel.dart';
+import '../widgets/mangal_card.dart';
+import '../widgets/preorder_queue.dart';
 import '../widgets/recent_strip.dart';
 import '../widgets/settings_dialog.dart';
+import '../widgets/station_picker.dart';
 import '../widgets/ticket_card.dart';
 import '../widgets/unpair_dialog.dart';
 
@@ -22,6 +29,8 @@ class KitchenBoardScreen extends StatefulWidget {
     required this.auth,
     required this.terminal,
     required this.settings,
+    this.selection,
+    this.setup,
     this.realtime,
     this.clock,
   });
@@ -30,33 +39,50 @@ class KitchenBoardScreen extends StatefulWidget {
   final AuthSession auth;
   final PairedTerminal terminal;
   final KdsSettingsController settings;
+
+  /// Oshpaz tanlagan sexlar (sex tanlash va mangal ko'rinishi); `null` — sexlar yo'q.
+  final StationSelectionController? selection;
+
+  /// Qozon paneli uchun (`batches.manage`); `null` — panel yo'q.
+  final KitchenSetupService? setup;
   final BranchRealtime? realtime;
   final DateTime Function()? clock;
 
   /// Bitta ustunning eng kichik kengligi.
   static const double minColumnWidth = 340;
 
-  static int columnsFor(double width) =>
-      (width / minColumnWidth).floor().clamp(1, 6);
+  /// Mangal kartochkasi kengroq: katta yozuv va six soni.
+  static const double minMangalColumnWidth = 440;
+
+  static int columnsFor(double width, {double min = minColumnWidth}) =>
+      (width / min).floor().clamp(1, 6);
 
   @override
   State<KitchenBoardScreen> createState() => _KitchenBoardScreenState();
 }
 
+/// Doskaning bo'limlari.
+enum BoardTab { active, preorder, kazan }
+
 class _KitchenBoardScreenState extends State<KitchenBoardScreen> {
   late final ValueNotifier<DateTime> _now = ValueNotifier<DateTime>(_read());
   Timer? _tick;
   StreamSubscription<BoardNotice>? _notices;
+  BoardTab _tab = BoardTab.active;
+
+  /// Oshpaz sexlarni o'zgartirmoqda (tanlash ekrani ochiq).
+  bool _choosing = false;
 
   DateTime _read() => (widget.clock ?? DateTime.now)();
 
   @override
   void initState() {
     super.initState();
-    _tick = Timer.periodic(
-      const Duration(seconds: 1),
-      (_) => _now.value = _read(),
-    );
+    _tick = Timer.periodic(const Duration(seconds: 1), (_) {
+      _now.value = _read();
+      // O'chirilgan qator yo'qolishi va oldindan buyurtma doskaga chiqishi vaqti
+      widget.controller.tick();
+    });
     _notices = widget.controller.notices.listen(_showNotice);
   }
 
@@ -129,6 +155,16 @@ class _KitchenBoardScreenState extends State<KitchenBoardScreen> {
     final KitchenBoardController board = widget.controller;
     final RzColors c = context.rz;
     final DateTime? last = board.lastSuccess;
+    final BoardView view = board.buildView();
+    final bool canKazan =
+        widget.setup != null &&
+        (widget.auth.staff?.can('batches.manage') ?? false);
+    // Ruxsat olinsa yoki bo'lim yo'qolsa doskaga qaytadi
+    final BoardTab tab = _tab == BoardTab.kazan && !canKazan
+        ? BoardTab.active
+        : _tab;
+    final bool choosing =
+        board.ready && (_choosing || board.needsStationChoice);
     return Scaffold(
       body: SafeArea(
         child: Column(
@@ -146,7 +182,7 @@ class _KitchenBoardScreenState extends State<KitchenBoardScreen> {
             _TopBar(
               terminal: widget.terminal,
               staffName: widget.auth.staff?.userName ?? '',
-              count: board.tickets.length,
+              count: view.active.length,
               realtime: widget.realtime,
               clock: _now,
               muted: settings.muted,
@@ -156,6 +192,24 @@ class _KitchenBoardScreenState extends State<KitchenBoardScreen> {
               onSettings: _openSettings,
               onSignOut: _signOut,
             ),
+            if (board.ready && !choosing)
+              _SectionBar(
+                tab: tab,
+                activeCount: view.active.length,
+                queueCount: view.queue.length,
+                showKazan: canKazan,
+                onTab: (BoardTab t) => setState(() => _tab = t),
+                stationLabel: _stationLabel(board),
+                onStations: board.stations?.isNotEmpty ?? false
+                    ? () => setState(() => _choosing = true)
+                    : null,
+                mode: widget.selection?.value.mode,
+                mangal: board.mangalView,
+                showMode:
+                    board.stations?.any((KitchenStation s) => s.isMangal) ??
+                    false,
+                onMode: (KitchenViewMode m) => widget.selection?.setMode(m),
+              ),
             if (board.error != null && !board.offline && board.loaded)
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
@@ -184,7 +238,24 @@ class _KitchenBoardScreenState extends State<KitchenBoardScreen> {
               child: MediaQuery.withClampedTextScaling(
                 minScaleFactor: settings.fontScale,
                 maxScaleFactor: settings.fontScale,
-                child: _board(context, settings),
+                child: choosing
+                    ? _picker(board)
+                    : switch (tab) {
+                        BoardTab.kazan => KazanPanel(
+                          service: widget.setup!,
+                          branchId: board.branchId,
+                          events: widget.realtime?.events,
+                        ),
+                        BoardTab.preorder when board.ready => PreorderQueue(
+                          items: view.queue,
+                          clock: _now,
+                          onReady: board.canManage
+                              ? (QueuedLine q) =>
+                                    unawaited(board.bumpLine(q.ticket, q.line))
+                              : null,
+                        ),
+                        _ => _board(context, settings, view),
+                      },
               ),
             ),
             if (board.recent.isNotEmpty)
@@ -202,11 +273,45 @@ class _KitchenBoardScreenState extends State<KitchenBoardScreen> {
     );
   }
 
-  Widget _board(BuildContext context, KdsSettings settings) {
+  /// Sarlavhadagi sex nomlari ("Mangal, Osh"); sexlar ma'lum bo'lmasa `null`.
+  String? _stationLabel(KitchenBoardController board) {
+    final List<KitchenStation>? stations = board.stations;
+    final StationSelection? sel = widget.selection?.value;
+    if (stations == null || stations.isEmpty || sel == null || !sel.chosen) {
+      return null;
+    }
+    final List<String> names = <String>[
+      for (final KitchenStation s in stations)
+        if (sel.stationIds.contains(s.id)) s.name,
+      if (sel.general) 'Umumiy',
+    ];
+    if (names.isEmpty) return null;
+    return names.join(', ');
+  }
+
+  Widget _picker(KitchenBoardController board) {
+    final StationSelectionController sel = widget.selection!;
+    return StationPicker(
+      stations: board.stations ?? const <KitchenStation>[],
+      initial: sel.value,
+      onCancel: board.needsStationChoice
+          ? null
+          : () => setState(() => _choosing = false),
+      onConfirm: (Set<int> ids, bool general) {
+        sel.choose(stationIds: ids, general: general);
+        setState(() {
+          _choosing = false;
+          _tab = BoardTab.active;
+        });
+      },
+    );
+  }
+
+  Widget _board(BuildContext context, KdsSettings settings, BoardView view) {
     final KitchenBoardController board = widget.controller;
-    if (!board.loaded) {
+    if (!board.ready) {
       final ApiException? error = board.error;
-      if (error == null) {
+      if (error == null || board.loaded) {
         return const Center(child: CircularProgressIndicator());
       }
       return Center(
@@ -221,7 +326,7 @@ class _KitchenBoardScreenState extends State<KitchenBoardScreen> {
         ),
       );
     }
-    final List<KitchenTicket> tickets = board.tickets;
+    final List<BoardTicket> tickets = view.active;
     if (tickets.isEmpty) {
       return const EmptyState(
         icon: Icons.soup_kitchen_outlined,
@@ -229,11 +334,17 @@ class _KitchenBoardScreenState extends State<KitchenBoardScreen> {
         message: 'Yangi buyurtmalar shu yerda chiqadi.',
       );
     }
+    final bool mangal = board.mangalView;
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints box) {
-        final int n = KitchenBoardScreen.columnsFor(box.maxWidth - 24);
-        final List<List<KitchenTicket>> columns = <List<KitchenTicket>>[
-          for (var i = 0; i < n; i++) <KitchenTicket>[],
+        final int n = KitchenBoardScreen.columnsFor(
+          box.maxWidth - 24,
+          min: mangal
+              ? KitchenBoardScreen.minMangalColumnWidth
+              : KitchenBoardScreen.minColumnWidth,
+        );
+        final List<List<BoardTicket>> columns = <List<BoardTicket>>[
+          for (var i = 0; i < n; i++) <BoardTicket>[],
         ];
         // Eskisi chap yuqorida, keyin o'ngga va pastga
         for (var i = 0; i < tickets.length; i++) {
@@ -251,27 +362,47 @@ class _KitchenBoardScreenState extends State<KitchenBoardScreen> {
                     padding: EdgeInsets.only(left: col == 0 ? 0 : 12),
                     child: Column(
                       children: <Widget>[
-                        for (final KitchenTicket t in columns[col])
+                        for (final BoardTicket e in columns[col])
                           Padding(
                             padding: const EdgeInsets.only(bottom: 12),
-                            child: TicketCard(
-                              key: ValueKey<String>(t.uuid),
-                              ticket: t,
-                              clock: _now,
-                              settings: settings,
-                              canManage: board.canManage,
-                              isNew: board.isNew(t.uuid, now),
-                              isLineBusy: board.isLineBusy,
-                              orderBusy: board.isOrderBusy(t.uuid),
-                              onLineTap: (KitchenLine line) => unawaited(
-                                line.isReady
-                                    ? board.recallLine(t.uuid, line.id)
-                                    : board.bumpLine(t, line),
-                              ),
-                              onBumpAll: () => unawaited(board.bumpAll(t)),
-                              onMarkReady: () =>
-                                  unawaited(board.markOrderReady(t)),
-                            ),
+                            child: mangal
+                                ? MangalCard(
+                                    key: ValueKey<String>(e.ticket.uuid),
+                                    entry: e,
+                                    clock: _now,
+                                    settings: settings,
+                                    canManage: board.canManage,
+                                    isNew: board.isNew(e.ticket.uuid, now),
+                                    isLineBusy: board.isLineBusy,
+                                    orderBusy: board.isOrderBusy(e.ticket.uuid),
+                                    onGroupTap: (SkewerGroup g) =>
+                                        _onGroupTap(e.ticket, g),
+                                    onBumpAll: () =>
+                                        unawaited(board.bumpAll(e.ticket)),
+                                  )
+                                : TicketCard(
+                                    key: ValueKey<String>(e.ticket.uuid),
+                                    entry: e,
+                                    clock: _now,
+                                    settings: settings,
+                                    canManage: board.canManage,
+                                    isNew: board.isNew(e.ticket.uuid, now),
+                                    isLineBusy: board.isLineBusy,
+                                    orderBusy: board.isOrderBusy(e.ticket.uuid),
+                                    onLineTap: (KitchenLine line) => unawaited(
+                                      line.isReady
+                                          ? board.recallLine(
+                                              e.ticket.uuid,
+                                              line.id,
+                                            )
+                                          : board.bumpLine(e.ticket, line),
+                                    ),
+                                    onBumpAll: () =>
+                                        unawaited(board.bumpAll(e.ticket)),
+                                    onMarkReady: () => unawaited(
+                                      board.markOrderReady(e.ticket),
+                                    ),
+                                  ),
                           ),
                       ],
                     ),
@@ -281,6 +412,194 @@ class _KitchenBoardScreenState extends State<KitchenBoardScreen> {
           ),
         );
       },
+    );
+  }
+
+  /// Mangal: taomning hamma donalari birdan "tayyor" bo'ladi; tayyorni bossangiz qaytariladi.
+  void _onGroupTap(KitchenTicket ticket, SkewerGroup group) {
+    final KitchenBoardController board = widget.controller;
+    final List<KitchenLine> todo = group.bumpable;
+    if (todo.isNotEmpty) {
+      unawaited(board.bumpAll(ticket.copyWith(lines: todo)));
+      return;
+    }
+    for (final KitchenLine l in group.lines) {
+      if (l.isReady) unawaited(board.recallLine(ticket.uuid, l.id));
+    }
+  }
+}
+
+/// Doska bo'limlari (faol, oldindan buyurtmalar, qozon), tanlangan sexlar va mangal ko'rinishi.
+class _SectionBar extends StatelessWidget {
+  const _SectionBar({
+    required this.tab,
+    required this.activeCount,
+    required this.queueCount,
+    required this.showKazan,
+    required this.onTab,
+    required this.stationLabel,
+    required this.onStations,
+    required this.mode,
+    required this.mangal,
+    required this.showMode,
+    required this.onMode,
+  });
+
+  final BoardTab tab;
+  final int activeCount;
+  final int queueCount;
+  final bool showKazan;
+  final ValueChanged<BoardTab> onTab;
+  final String? stationLabel;
+  final VoidCallback? onStations;
+  final KitchenViewMode? mode;
+  final bool mangal;
+  final bool showMode;
+  final ValueChanged<KitchenViewMode> onMode;
+
+  @override
+  Widget build(BuildContext context) {
+    final RzColors c = context.rz;
+    final double width = MediaQuery.sizeOf(context).width;
+    // Tor ekranda yorliqlar yo'q (faqat ikonka va son), o'rtachada faqat tanlangani
+    final bool tiny = width < 700;
+    final bool narrow = width < 900;
+    Widget tabButton(BoardTab t, String label, IconData icon, {int? count}) {
+      final bool on = tab == t;
+      return Semantics(
+        button: true,
+        selected: on,
+        label: count == null ? label : '$label, $count',
+        excludeSemantics: true,
+        child: Material(
+          color: on ? c.brand : Colors.transparent,
+          borderRadius: BorderRadius.circular(RzRadius.control),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(RzRadius.control),
+            onTap: () => onTab(t),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 48, minWidth: 48),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Icon(icon, color: on ? c.onBrand : c.fgMuted),
+                    if (!tiny && (!narrow || on)) ...<Widget>[
+                      const SizedBox(width: 8),
+                      Text(
+                        count == null ? label : '$label ($count)',
+                        style: RzType.headline.copyWith(
+                          color: on ? c.onBrand : c.fg,
+                        ),
+                      ),
+                    ] else if (count != null && count > 0) ...<Widget>[
+                      const SizedBox(width: 6),
+                      Text(
+                        '$count',
+                        style: RzType.headline.copyWith(color: c.fg),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Material(
+      color: c.surface,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          border: Border(bottom: BorderSide(color: c.line)),
+        ),
+        child: Row(
+          children: <Widget>[
+            tabButton(
+              BoardTab.active,
+              'Buyurtmalar',
+              Icons.receipt_long_outlined,
+              count: activeCount,
+            ),
+            const SizedBox(width: 6),
+            tabButton(
+              BoardTab.preorder,
+              'Oldindan buyurtmalar',
+              Icons.schedule_rounded,
+              count: queueCount,
+            ),
+            if (showKazan) ...<Widget>[
+              const SizedBox(width: 6),
+              tabButton(BoardTab.kazan, 'Qozon', Icons.rice_bowl_outlined),
+            ],
+            // Qolgan joyni oladi, o'ng tomonga tekislanadi: sex nomlari to'liq ko'rinsin
+            Expanded(
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    if (showMode && mode != null) ...<Widget>[
+                      SegmentedButton<bool>(
+                        showSelectedIcon: false,
+                        style: SegmentedButton.styleFrom(
+                          selectedBackgroundColor: c.brand,
+                          selectedForegroundColor: c.onBrand,
+                          minimumSize: const Size(64, 48),
+                        ),
+                        segments: const <ButtonSegment<bool>>[
+                          ButtonSegment<bool>(
+                            value: false,
+                            label: Text('Oddiy'),
+                          ),
+                          ButtonSegment<bool>(
+                            value: true,
+                            icon: Icon(Icons.local_fire_department_outlined),
+                            label: Text('Mangal'),
+                          ),
+                        ],
+                        selected: <bool>{mangal},
+                        onSelectionChanged: (Set<bool> v) => onMode(
+                          v.first
+                              ? KitchenViewMode.mangal
+                              : KitchenViewMode.standard,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                    if (onStations != null)
+                      Flexible(
+                        child: Tooltip(
+                          message: "Sexlarni o'zgartirish",
+                          child: TextButton.icon(
+                            key: const ValueKey<String>('stations-button'),
+                            onPressed: onStations,
+                            style: TextButton.styleFrom(
+                              minimumSize: const Size(48, 48),
+                              foregroundColor: c.brandSoftFg,
+                            ),
+                            icon: const Icon(Icons.tune_rounded),
+                            label: Text(
+                              stationLabel == null
+                                  ? 'Sexlar'
+                                  : 'Sex: $stationLabel',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: RzType.headline,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

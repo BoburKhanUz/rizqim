@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:rizqim_api/rizqim_api.dart';
@@ -6,6 +7,8 @@ import 'package:rizqim_api/rizqim_api.dart';
 import '../realtime/branch_realtime.dart';
 import '../settings/kds_settings.dart';
 import '../sound/ticket_sound.dart';
+import '../stations/station_selection.dart';
+import 'board_view.dart';
 
 /// "Tayyor" deb belgilangan qator: "Yaqinda tayyor" lentasida turadi, undan qaytarish mumkin.
 @immutable
@@ -49,6 +52,9 @@ class KitchenBoardController extends ChangeNotifier {
     this.realtime,
     this.branchId,
     this.canManage = true,
+    this.setup,
+    this.selection,
+    this.voidWindow = const Duration(minutes: 2),
     DateTime Function()? clock,
     this.pollInterval = const Duration(seconds: 15),
     this.livePollInterval = const Duration(seconds: 60),
@@ -71,6 +77,15 @@ class KitchenBoardController extends ChangeNotifier {
 
   /// Xodimda `kitchen.manage` bor: "tayyor" va "qaytarish" tugmalari. Yo'q bo'lsa doska faqat ko'rish uchun.
   final bool canManage;
+
+  /// Sexlar (`/pos/bootstrap`) va ketgan buyurtma tafsiloti. `null` — sexlar yo'q, hamma chipta ko'rsatiladi.
+  final KitchenSetupService? setup;
+
+  /// Oshpaz tanlagan sexlar. `null` — filtr yo'q.
+  final StationSelectionController? selection;
+
+  /// O'chirilgan qator ("O'CHIRILDI") doskada shuncha vaqt turadi, keyin yo'qoladi.
+  final Duration voidWindow;
 
   final Duration pollInterval;
   final Duration livePollInterval;
@@ -99,6 +114,20 @@ class KitchenBoardController extends ChangeNotifier {
 
   final List<RecentBump> _recent = <RecentBump>[];
   final Map<String, DateTime> _firstSeen = <String, DateTime>{};
+
+  /// Sexlar: `null` — hali yuklanmagan yoki serverda yo'q (eski server, ruxsat yo'q): filtr ishlamaydi.
+  List<KitchenStation>? _stations;
+  bool _stationsLoaded = false;
+  bool _stationsRetry = false;
+  Future<void>? _loadingStations;
+
+  /// O'chirilgan qator birinchi ko'ringan payt (qurilma soati): [voidWindow] shundan sanaladi.
+  final Map<int, DateTime> _voidSeen = <int, DateTime>{};
+
+  /// Bekor qilingan yoki rad etilgan buyurtmalar (P3-26: server `canceled_within` bilan o'zi beradi): qisqa vaqt
+  /// "O'CHIRILDI" bilan ko'rsatiladi.
+  final Map<String, VoidedTicket> _voidedTickets = <String, VoidedTicket>{};
+  DateTime? _boundary;
 
   static final DateTime _longAgo = DateTime.fromMillisecondsSinceEpoch(0);
 
@@ -140,7 +169,61 @@ class KitchenBoardController extends ChangeNotifier {
   }
 
   bool get loaded => _loaded;
+
+  /// Tayyor: chiptalar va (kerak bo'lsa) sexlar yuklangan.
+  bool get ready => _loaded && (setup == null || _stationsLoaded);
   bool get truncated => _truncated;
+
+  /// Faol va KDS'da ko'rsatiladigan sexlar; `null` — ma'lumot yo'q.
+  List<KitchenStation>? get stations => _stations;
+  bool get stationsLoaded => _stationsLoaded;
+
+  /// Sexlar bor, lekin oshpaz hali tanlamagan (yoki tanlagani endi yo'q): tanlash ekrani chiqadi.
+  bool get needsStationChoice {
+    final List<KitchenStation>? list = _stations;
+    final StationSelectionController? sel = selection;
+    if (list == null || list.isEmpty || sel == null) return false;
+    return !sel.value.validFor(list);
+  }
+
+  /// Sex filtri ishlaydi: sexlar bor va oshpaz tanlagan (sexlar ro'yxati yuklanmasa ham saqlangan tanlov amal qiladi).
+  bool get _filtering {
+    final StationSelectionController? sel = selection;
+    if (sel == null || !sel.value.chosen) return false;
+    final List<KitchenStation>? list = _stations;
+    return list == null || (list.isNotEmpty && sel.value.validFor(list));
+  }
+
+  /// Mangal ko'rinishi yoqilgan.
+  bool get mangalView =>
+      isMangalView(selection?.value ?? const StationSelection(), _stations);
+
+  /// Ekranga chiqadigan doska: faol chiptalar va oldindan buyurtma navbati (sex tanloviga ko'ra).
+  BoardView buildView() {
+    final BoardView view = buildBoardView(
+      tickets: tickets,
+      selection: selection?.value ?? const StationSelection(),
+      filter: _filtering,
+      stations: _stations,
+      settings: settings.value,
+      now: _clock(),
+      voidSeen: _voidSeen,
+      voidWindow: voidWindow,
+      voidedTickets: _voidedTickets.values,
+    );
+    _boundary = view.nextBoundary;
+    return view;
+  }
+
+  /// Soat yurganda ekran bergan signal: o'chirilgan qator yo'qolishi yoki oldindan buyurtma doskaga chiqishi vaqti
+  /// kelgan bo'lsa qayta chizadi.
+  void tick() {
+    final DateTime? at = _boundary;
+    if (at != null && !_clock().isBefore(at)) {
+      _boundary = null;
+      _notify();
+    }
+  }
 
   /// Oxirgi ro'yxatda o'qib bo'lmagan (doskaga chiqmagan) chiptalar soni: ilova versiyasi serverdan eski bo'lishi mumkin.
   int get skippedTickets => _skipped;
@@ -173,6 +256,8 @@ class KitchenBoardController extends ChangeNotifier {
   // --- yuklash ------------------------------------------------------------------------------------------------------
 
   void start() {
+    selection?.addListener(_onSelection);
+    unawaited(loadStations());
     final BranchRealtime? rt = realtime;
     if (rt != null) {
       _eventSub = rt.events.listen((_) => _scheduleEventRefresh());
@@ -195,6 +280,28 @@ class KitchenBoardController extends ChangeNotifier {
     unawaited(refresh());
   }
 
+  void _onSelection() => _notify();
+
+  /// Sexlarni yuklaydi (`/pos/bootstrap`). Serverda yo'q yoki ruxsat yo'q (404, 403) bo'lsa sexlarsiz ishlaydi; tarmoq
+  /// xatosida keyingi yangilashda yana uriniladi.
+  Future<void> loadStations() {
+    final KitchenSetupService? api = setup;
+    if (api == null) return Future<void>.value();
+    return _loadingStations ??= () async {
+      try {
+        final KitchenSetup result = await api.setup(branchId: branchId);
+        if (_disposed) return;
+        _stations = result.stations;
+        _stationsRetry = false;
+      } on ApiException catch (e) {
+        if (_disposed) return;
+        _stationsRetry = e.isNetworkError || (e.statusCode ?? 0) >= 500;
+      }
+      _stationsLoaded = true;
+      _notify();
+    }().whenComplete(() => _loadingStations = null);
+  }
+
   /// Chiptalarni qayta so'raydi. Bir vaqtda bittadan; ish paytida yana chaqirilsa, tugagach yana bir marta.
   Future<void> refresh() {
     if (_refreshing != null) {
@@ -214,18 +321,30 @@ class KitchenBoardController extends ChangeNotifier {
 
   Future<void> _fetch() async {
     try {
-      final KitchenTicketList list = await service.tickets(branchId: branchId);
+      final KitchenTicketList list = await service.tickets(
+        branchId: branchId,
+        // P3-26: yaqinda bekor qilinganlar ham (alohida so'rovsiz chizib ko'rsatish uchun)
+        canceledWithin: math.max(1, (voidWindow.inSeconds / 60).ceil()),
+      );
       if (_disposed) return;
       final DateTime now = _clock();
+      final List<KitchenTicket> live = <KitchenTicket>[
+        for (final KitchenTicket t in list.tickets)
+          if (!t.isCanceled) t,
+      ];
+      final List<KitchenTicket> canceled = <KitchenTicket>[
+        for (final KitchenTicket t in list.tickets)
+          if (t.isCanceled) t,
+      ];
       var fresh = false;
-      for (final KitchenTicket t in list.tickets) {
+      for (final KitchenTicket t in live) {
         if (_firstSeen.containsKey(t.uuid)) continue;
         // Birinchi yuklashdagilar "yangi" emas
         _firstSeen[t.uuid] = _loaded ? now : _longAgo;
         if (_loaded) fresh = true;
       }
       final Set<String> present = <String>{
-        for (final KitchenTicket t in list.tickets) t.uuid,
+        for (final KitchenTicket t in live) t.uuid,
       };
       _firstSeen.removeWhere(
         (String uuid, DateTime at) =>
@@ -233,7 +352,12 @@ class KitchenBoardController extends ChangeNotifier {
       );
       // "Buyurtma tayyor" javob kutayotgan bo'lsa ham, serverda yo'q bo'lsa endi yashirish shart emas
       _hidden.removeWhere((String uuid) => !present.contains(uuid));
-      _server = list.tickets;
+      final List<KitchenTicket> before = _server;
+      final bool firstLoad = !_loaded;
+      _server = live;
+      final bool voidedLines = _trackVoids(before, live, now, firstLoad);
+      final bool canceledOrders = _trackCanceled(canceled, now, firstLoad);
+      final bool voided = voidedLines || canceledOrders;
       _truncated = list.truncated;
       if (list.skipped.isNotEmpty && list.skipped.length != _skipped) {
         for (final KitchenTicketSkip skip in list.skipped) {
@@ -244,13 +368,96 @@ class KitchenBoardController extends ChangeNotifier {
       _error = null;
       _lastSuccess = now;
       _loaded = true;
-      if (fresh && !settings.value.muted) unawaited(sound.play());
+      if (voided && !settings.value.muted) {
+        unawaited(sound.playVoid());
+      } else if (fresh && !settings.value.muted) {
+        unawaited(sound.play());
+      }
+      if (_stationsRetry) unawaited(loadStations());
     } on ApiException catch (e) {
       if (_disposed) return;
       _error = e;
     }
     _pruneRecent();
     _notify();
+  }
+
+  /// Yangi o'chirilgan qatorlarni qayd qiladi ([voidWindow] shundan sanaladi). Ovozli signal kerakmi (`true`): ish paytida
+  /// qator endi o'chirilgan. Birinchi yuklashda yaqinda o'chirilganlar ko'rsatiladi, lekin ovoz chalinmaydi.
+  bool _trackVoids(
+    List<KitchenTicket> before,
+    List<KitchenTicket> now,
+    DateTime at,
+    bool firstLoad,
+  ) {
+    final Set<int> wasLive = <int>{
+      for (final KitchenTicket t in before)
+        for (final KitchenLine l in t.lines)
+          if (!l.isVoid) l.id,
+    };
+    var cue = false;
+    final Set<int> present = <int>{};
+    for (final KitchenTicket t in now) {
+      for (final KitchenLine l in t.lines) {
+        if (!l.isVoid) continue;
+        present.add(l.id);
+        if (_voidSeen.containsKey(l.id)) continue;
+        // Server soati bo'yicha qachon o'chirilgan: eskisi (restartdan oldingi) qayta ko'rsatilmaydi
+        final DateTime? voidedAt = l.voidedAt;
+        final bool recent = voidedAt != null
+            ? serverNowAt(t, at).difference(voidedAt) < voidWindow
+            : wasLive.contains(l.id);
+        if (!recent) {
+          _voidSeen[l.id] = _longAgo;
+          continue;
+        }
+        _voidSeen[l.id] = at;
+        if (!firstLoad) cue = true;
+      }
+    }
+    _voidSeen.removeWhere(
+      (int id, DateTime seen) =>
+          !present.contains(id) && at.difference(seen) > voidWindow,
+    );
+    return cue;
+  }
+
+  /// Server bergan bekor qilingan buyurtmalar ([KitchenTicket.canceledAt] [voidWindow] ichida): pishmagan qatorlari
+  /// "O'CHIRILDI" bilan qisqa vaqt ko'rsatiladi. Ovoz kerakmi (`true`): ish paytida yangi bekor qilingan buyurtma.
+  bool _trackCanceled(
+    List<KitchenTicket> canceled,
+    DateTime at,
+    bool firstLoad,
+  ) {
+    _voidedTickets.removeWhere(
+      (String uuid, VoidedTicket v) => at.difference(v.seenAt) > voidWindow,
+    );
+    var cue = false;
+    for (final KitchenTicket t in canceled) {
+      if (_voidedTickets.containsKey(t.uuid)) continue;
+      final DateTime? when = t.canceledAt;
+      if (when != null && serverNowAt(t, at).difference(when) >= voidWindow) {
+        continue;
+      }
+      // Bekor qilingan buyurtmaning pishmagan qatorlari o'chirilgan sanaladi (server ularni `void` qiladi; onlayn
+      // buyurtmada qatorlar `pending` qolishi mumkin)
+      final KitchenTicket shown = t.copyWith(
+        lines: <KitchenLine>[
+          for (final KitchenLine l in t.lines)
+            if (l.isDone || l.isVoid)
+              l
+            else
+              l.copyWith(
+                status: KitchenLineStatus.voided,
+                voidReason: l.voidReason ?? 'Buyurtma bekor qilindi',
+              ),
+        ],
+      );
+      if (!shown.lines.any((KitchenLine l) => l.isVoid)) continue;
+      _voidedTickets[t.uuid] = VoidedTicket(shown, at);
+      if (!firstLoad) cue = true;
+    }
+    return cue;
   }
 
   void _scheduleEventRefresh() {
@@ -272,7 +479,7 @@ class KitchenBoardController extends ChangeNotifier {
 
   /// Qator tayyor ("bump").
   Future<void> bumpLine(KitchenTicket ticket, KitchenLine line) async {
-    if (!canManage || _lineOverrides.containsKey(line.id) || line.isReady) {
+    if (!canManage || _lineOverrides.containsKey(line.id) || !_canBump(line)) {
       return;
     }
     final RecentBump entry = _recentFor(ticket, line);
@@ -329,7 +536,7 @@ class KitchenBoardController extends ChangeNotifier {
     if (!canManage || _busyOrders.contains(ticket.uuid)) return;
     final List<KitchenLine> pending = ticket.lines
         .where(
-          (KitchenLine l) => !l.isReady && !_lineOverrides.containsKey(l.id),
+          (KitchenLine l) => _canBump(l) && !_lineOverrides.containsKey(l.id),
         )
         .toList();
     if (pending.isEmpty) return;
@@ -384,6 +591,10 @@ class KitchenBoardController extends ChangeNotifier {
 
   // --- yordamchilar -----------------------------------------------------------------------------------------------
 
+  /// Qatorni "tayyor" deb belgilash mumkin: pishayotgan, o'chirilmagan; ushlab turilgan oldindan buyurtma — faqat vaqti
+  /// bo'lsa (P3-26: server uni yuborilgan deb ham belgilaydi).
+  bool _canBump(KitchenLine l) => l.canBeReady;
+
   RecentBump _recentFor(KitchenTicket t, KitchenLine l) => RecentBump(
     orderUuid: t.uuid,
     code: t.code,
@@ -437,6 +648,7 @@ class KitchenBoardController extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    selection?.removeListener(_onSelection);
     _pollTimer?.cancel();
     _debounce?.cancel();
     unawaited(_eventSub?.cancel());

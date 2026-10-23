@@ -23,6 +23,8 @@ class Order6 {
     required this.unbilledAmount,
     required this.fiscalPending,
     required this.billsOutOfDate,
+    required this.bookingUuid,
+    required this.depositAvailable,
   });
 
   factory Order6.fromJson(Map<String, Object?> json) => _$Order6FromJson(json);
@@ -52,6 +54,10 @@ class Order6 {
   final bool fiscalPending;
   @JsonKey(name: 'bills_out_of_date')
   final bool billsOutOfDate;
+  @JsonKey(name: 'booking_uuid')
+  final String? bookingUuid;
+  @JsonKey(name: 'deposit_available')
+  final String depositAvailable;
 
   Map<String, Object?> toJson() => _$Order6ToJson(this);
 }

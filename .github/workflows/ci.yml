@@ -113,6 +113,8 @@ jobs:
               - 'pos/packages/**'
               - 'packages/dart/rizqim_core/**'
               - 'packages/dart/rizqim_ui/**'
+              # P3-20: pos_data is built on the API client
+              - 'packages/dart/rizqim_api/**'
               - 'pubspec*'
               - 'analysis_options.yaml'
               - '.github/workflows/ci.yml'
@@ -762,6 +764,7 @@ jobs:
           fi
 
   # --- P3-15: POS packages (pos_core, pos_hardware, pos_ui) ---------------------------------------------------------
+  # P3-20: pos_data (Flutter-free, `dart test`: repositories against a fake HTTP layer and real backend fixtures) too.
   # Format and analyze of the whole workspace already run in the flutter job; this job runs the packages' own tests:
   # ESC/POS bytes, text snapshots of receipts (test/goldens/*.txt), the LAN printer emulator, the print queue and the
   # golden images of the touch components (Linux, same Flutter version as the images were made with).

@@ -38,7 +38,7 @@ abstract class OwnerPrintersApi {
   /// picture. `name` is unique within the branch.
   @POST('/v1/owner/printers')
   Future<PostV1OwnerPrintersResponse> printerStore({
-    @Body() V1OwnerPrintersRequestBody? body,
+    @Body() required V1OwnerPrintersRequestBody body,
   });
 
   /// Delete a printer

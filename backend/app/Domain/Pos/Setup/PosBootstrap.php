@@ -82,6 +82,8 @@ final class PosBootstrap
             'halls' => [],
             'tables' => [],
             'shift' => null,
+            // P3-26: the one-tap buttons (QuickItemsBootstrapSection)
+            'quick_items' => [],
         ];
 
         foreach (app()->tagged(self::CONTRIBUTORS) as $contributor) {

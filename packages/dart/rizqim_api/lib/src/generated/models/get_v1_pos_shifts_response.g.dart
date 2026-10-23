@@ -12,7 +12,7 @@ GetV1PosShiftsResponse _$GetV1PosShiftsResponseFromJson(
   success: json['success'] as bool,
   message: json['message'] as String,
   data: (json['data'] as List<dynamic>)
-      .map((e) => Data163.fromJson(e as Map<String, dynamic>))
+      .map((e) => Data168.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 

@@ -16,3 +16,7 @@ workspace:
   - pos/packages/pos_core
   - pos/packages/pos_hardware
   - pos/packages/pos_ui
+  # P3-20: POS data layer and the cashier and waiter app shells
+  - pos/packages/pos_data
+  - pos/apps/cashier
+  - pos/apps/waiter

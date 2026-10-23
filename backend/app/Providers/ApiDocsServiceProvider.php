@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Enums\UserRole;
 use App\Http\Controllers\ApiDocsController;
 use App\Models\User;
+use App\OpenApi\IdempotencyKeyHeader;
 use Dedoc\Scramble\Scramble;
 use Illuminate\Routing\Route as RoutingRoute;
 use Illuminate\Support\Facades\Gate;
@@ -32,7 +33,9 @@ class ApiDocsServiceProvider extends ServiceProvider
         // Laravel registers broadcasting/auth for GET and POST; laravel-echo uses POST, so that is the documented one
         Scramble::configure()->resolveOperationMethodsUsing(
             fn (RoutingRoute $route) => $route->uri() === 'api/broadcasting/auth' ? 'POST' : $route->methods()[0],
-        );
+        )
+            // P3-26: the Idempotency-Key header on every route that honours it (required on the POS ones)
+            ->withOperationTransformers(IdempotencyKeyHeader::class);
 
         if (!$this->app->routesAreCached()) {
             Route::middleware((array) config('scramble.middleware', []))->group(function () {

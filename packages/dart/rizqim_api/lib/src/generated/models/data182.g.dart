@@ -7,11 +7,11 @@ part of 'data182.dart';
 // **************************************************************************
 
 Data182 _$Data182FromJson(Map<String, dynamic> json) => Data182(
-  storeId: (json['store_id'] as num).toInt(),
-  inviteLink: json['invite_link'] as String,
+  rating: json['rating'] as String,
+  reviewCount: (json['review_count'] as num).toInt(),
 );
 
 Map<String, dynamic> _$Data182ToJson(Data182 instance) => <String, dynamic>{
-  'store_id': instance.storeId,
-  'invite_link': instance.inviteLink,
+  'rating': instance.rating,
+  'review_count': instance.reviewCount,
 };

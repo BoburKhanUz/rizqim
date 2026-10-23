@@ -5,6 +5,8 @@ import { ImagePlus, X } from 'lucide-react';
 import { Button, Card, Field, fieldClass } from '@rizqim/ui';
 import { productEditorFormData, useSaveProduct, type Category, type Product } from '@rizqim/staff';
 import { useT } from '../I18nProvider';
+import { checkFiscalDraft, fiscalChanges, fiscalDraftFrom, type FiscalDraft } from '../fiscal/productFiscal';
+import { ProductFiscalFields } from '../fiscal/ProductFiscalFields';
 import { ErrorBanner, SuccessNote } from './ErrorBanner';
 import { parseDecimal } from './numbers';
 import { ProductThumb } from './ProductThumb';
@@ -13,7 +15,7 @@ import { Switch } from './Switch';
 import { emptyVariant, variantFromApi, VariantFields, type VariantDraft } from './VariantFields';
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
-const KNOWN_FIELDS = /^(name|description|category_id|sort_order|image|variants(\.\d+\.(name|price|unit|quantity_step|min_quantity|batch_consumption))?)$/;
+const KNOWN_FIELDS = /^(name|description|category_id|sort_order|image|kind|mxik_code|package_code|vat_rate|variants(\.\d+\.(name|price|unit|quantity_step|min_quantity|batch_consumption|unit_label))?)$/;
 
 interface Draft {
   name: string;
@@ -21,20 +23,24 @@ interface Draft {
   categoryId: string;
   isActive: boolean;
   batchTracked: boolean;
+  quickAdd: boolean;
   sortOrder: string;
   variants: VariantDraft[];
+  fiscal: FiscalDraft;
 }
 
 function draftFrom(product: Product | null, defaultVariantName: string): Draft {
-  if (!product) return { name: '', description: '', categoryId: '', isActive: true, batchTracked: false, sortOrder: '', variants: [emptyVariant(defaultVariantName)] };
+  if (!product) return { name: '', description: '', categoryId: '', isActive: true, batchTracked: false, quickAdd: false, sortOrder: '', variants: [emptyVariant(defaultVariantName)], fiscal: fiscalDraftFrom(null) };
   return {
     name: product.name,
     description: product.description ?? '',
     categoryId: String(product.category_id),
     isActive: product.is_active,
     batchTracked: product.batch_tracked,
+    quickAdd: product.quick_add,
     sortOrder: String(product.sort_order),
     variants: (product.variants ?? []).length > 0 ? (product.variants ?? []).map(variantFromApi) : [emptyVariant(defaultVariantName)],
+    fiscal: fiscalDraftFrom(product),
   };
 }
 
@@ -51,6 +57,8 @@ interface ProductFormProps {
 export function ProductForm({ product, categories, canManage, onCreated }: ProductFormProps) {
   const t = useT();
   const [draft, setDraft] = useState<Draft>(() => draftFrom(product, t('menu_variant_default')));
+  // The fiscal fields as the product had them: only what the person changed is sent
+  const [initialFiscal, setInitialFiscal] = useState<FiscalDraft>(() => fiscalDraftFrom(product));
   const [image, setImage] = useState<{ file: File; preview: string | null } | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [banner, setBanner] = useState<string | null>(null);
@@ -95,6 +103,7 @@ export function ProductForm({ product, categories, canManage, onCreated }: Produ
     if (draft.name.trim() === '') found.name = t('menu_err_required');
     if (draft.categoryId === '') found.category_id = t('menu_err_required');
     if (draft.sortOrder.trim() !== '' && parseDecimal(draft.sortOrder) === null) found.sort_order = t('menu_err_number');
+    Object.assign(found, checkFiscalDraft(draft.fiscal, t));
     draft.variants.forEach((variant, index) => {
       if (variant.name.trim() === '') found[`variants.${index}.name`] = t('menu_err_required');
       if (parseDecimal(variant.price) === null) found[`variants.${index}.price`] = variant.price.trim() === '' ? t('menu_err_required') : t('menu_err_number');
@@ -123,6 +132,8 @@ export function ProductForm({ product, categories, canManage, onCreated }: Produ
         quantity_step: measured ? parseDecimal(variant.step) : null,
         min_quantity: measured ? parseDecimal(variant.min) : null,
         ...(variant.consumption.trim() !== '' ? { batch_consumption: parseDecimal(variant.consumption) } : {}),
+        // The unit on the receipt: sent when it has a text, or to clear one the variant had
+        ...(variant.unitLabel.trim() !== '' ? { unit_label: variant.unitLabel.trim() } : variant.unitLabelWas ? { unit_label: null } : {}),
       };
     });
     const form = productEditorFormData({
@@ -131,15 +142,20 @@ export function ProductForm({ product, categories, canManage, onCreated }: Produ
       category_id: draft.categoryId,
       is_active: draft.isActive,
       batch_tracked: draft.batchTracked,
+      quick_add: draft.quickAdd,
       sort_order: parseDecimal(draft.sortOrder),
       image: image?.file ?? null,
       variants,
+      ...fiscalChanges(initialFiscal, draft.fiscal),
     });
 
     try {
       const result = await save.mutateAsync({ id: product?.id ?? null, form });
       if (!product && result) return onCreated(result);
-      if (result?.variants) setDraft(draftFrom(result, t('menu_variant_default')));
+      if (result?.variants) {
+        setDraft(draftFrom(result, t('menu_variant_default')));
+        setInitialFiscal(fiscalDraftFrom(result));
+      }
       clearImage();
       setSaved(true);
     } catch (error) {
@@ -232,8 +248,17 @@ export function ProductForm({ product, categories, canManage, onCreated }: Produ
                 <span className="block text-footnote text-fg-muted">{t('menu_batch_tracked_hint')}</span>
               </span>
             </div>
+            <div className="flex items-center gap-2">
+              <Switch checked={draft.quickAdd} onChange={(checked) => patch({ quickAdd: checked })} label={t('menu_quick_add')} />
+              <span className="text-body text-fg">
+                {t('menu_quick_add')}
+                <span className="block text-footnote text-fg-muted">{t('menu_quick_add_hint')}</span>
+              </span>
+            </div>
           </div>
         </Card>
+
+        <ProductFiscalFields draft={draft.fiscal} onChange={(changes) => patch({ fiscal: { ...draft.fiscal, ...changes } })} errors={errors} />
 
         <Card className="flex flex-col gap-4">
           <h2 className="text-headline font-bold text-fg">{t('menu_section_variants')}</h2>

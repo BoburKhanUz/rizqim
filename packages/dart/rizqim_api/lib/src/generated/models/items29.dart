@@ -4,9 +4,9 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'modifiers11.dart';
-import 'added_by6.dart';
-import 'voided_by6.dart';
+import 'modifiers12.dart';
+import 'added_by5.dart';
+import 'voided_by5.dart';
 
 part 'items29.g.dart';
 
@@ -58,7 +58,7 @@ class Items29 {
   final String quantityLabel;
   @JsonKey(name: 'unit_price')
   final String unitPrice;
-  final List<Modifiers11> modifiers;
+  final List<Modifiers12> modifiers;
   @JsonKey(name: 'modifiers_total')
   final String modifiersTotal;
   @JsonKey(name: 'total_price')
@@ -79,13 +79,13 @@ class Items29 {
   @JsonKey(name: 'ready_at')
   final String? readyAt;
   @JsonKey(name: 'added_by')
-  final AddedBy6? addedBy;
+  final AddedBy5? addedBy;
   @JsonKey(name: 'added_at')
   final String? addedAt;
   @JsonKey(name: 'voided_at')
   final String? voidedAt;
   @JsonKey(name: 'voided_by')
-  final VoidedBy6? voidedBy;
+  final VoidedBy5? voidedBy;
   @JsonKey(name: 'void_reason')
   final String? voidReason;
 

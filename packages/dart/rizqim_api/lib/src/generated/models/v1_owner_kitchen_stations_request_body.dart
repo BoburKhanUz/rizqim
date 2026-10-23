@@ -4,11 +4,20 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'kind3.dart';
+
 part 'v1_owner_kitchen_stations_request_body.g.dart';
 
 @JsonSerializable()
 class V1OwnerKitchenStationsRequestBody {
-  const V1OwnerKitchenStationsRequestBody({this.branchId});
+  const V1OwnerKitchenStationsRequestBody({
+    required this.name,
+    this.branchId,
+    this.kind,
+    this.sortOrder,
+    this.isActive,
+    this.showOnKds,
+  });
 
   factory V1OwnerKitchenStationsRequestBody.fromJson(
     Map<String, Object?> json,
@@ -16,6 +25,14 @@ class V1OwnerKitchenStationsRequestBody {
 
   @JsonKey(name: 'branch_id')
   final int? branchId;
+  final String name;
+  final Kind3? kind;
+  @JsonKey(name: 'sort_order')
+  final int? sortOrder;
+  @JsonKey(name: 'is_active')
+  final bool? isActive;
+  @JsonKey(name: 'show_on_kds')
+  final bool? showOnKds;
 
   Map<String, Object?> toJson() =>
       _$V1OwnerKitchenStationsRequestBodyToJson(this);

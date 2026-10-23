@@ -18,9 +18,7 @@ V1OwnerPrintersIdRequestBody _$V1OwnerPrintersIdRequestBodyFromJson(
       : Connection.fromJson(json['connection'] as String),
   address: json['address'] as String?,
   port: (json['port'] as num?)?.toInt(),
-  paperWidth: json['paper_width'] == null
-      ? null
-      : PaperWidth.fromJson((json['paper_width'] as num).toInt()),
+  paperWidth: (json['paper_width'] as num?)?.toInt(),
   stationId: (json['station_id'] as num?)?.toInt(),
   deviceId: json['device_id'] as String?,
   isActive: json['is_active'] as bool?,

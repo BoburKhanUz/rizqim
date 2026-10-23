@@ -4,19 +4,11 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'tables5.dart';
-
 part 'halls.g.dart';
 
 @JsonSerializable()
 class Halls {
-  const Halls({
-    required this.id,
-    required this.name,
-    required this.sortOrder,
-    required this.isActive,
-    required this.tables,
-  });
+  const Halls({required this.id, required this.name, required this.sortOrder});
 
   factory Halls.fromJson(Map<String, Object?> json) => _$HallsFromJson(json);
 
@@ -24,9 +16,6 @@ class Halls {
   final String name;
   @JsonKey(name: 'sort_order')
   final int sortOrder;
-  @JsonKey(name: 'is_active')
-  final bool isActive;
-  final List<Tables5> tables;
 
   Map<String, Object?> toJson() => _$HallsToJson(this);
 }

@@ -1,0 +1,14 @@
+{
+  "success": true,
+  "message": "Tasdiqlandi.",
+  "data": {
+    "token": "approval-token-from-local-backend",
+    "permission": "orders.void_item",
+    "expires_at": "2026-10-22T08:00:52+00:00",
+    "approved_by": {
+      "id": 2,
+      "name": "Malika Menejer",
+      "role": "manager"
+    }
+  }
+}

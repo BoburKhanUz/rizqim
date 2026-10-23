@@ -16,6 +16,10 @@ export interface VariantDraft {
   step: string;
   min: string;
   consumption: string;
+  // The unit printed on the fiscal receipt ("kg (guruch)"); empty: the unit's own word
+  unitLabel: string;
+  // true: the stored variant had a label (clearing it must be sent)
+  unitLabelWas?: boolean;
   // What the API says is left (read only: the product form does not set it)
   stock?: number | string | null;
 }
@@ -23,7 +27,7 @@ export interface VariantDraft {
 let counter = 0;
 export const newVariantKey = () => `variant-${++counter}`;
 
-export const emptyVariant = (name = ''): VariantDraft => ({ key: newVariantKey(), name, price: '', unit: 'piece', step: '', min: '', consumption: '' });
+export const emptyVariant = (name = ''): VariantDraft => ({ key: newVariantKey(), name, price: '', unit: 'piece', step: '', min: '', consumption: '', unitLabel: '' });
 
 export function variantFromApi(variant: {
   id: number;
@@ -33,6 +37,7 @@ export function variantFromApi(variant: {
   quantity_step: string | null;
   min_quantity: string | null;
   batch_consumption: string;
+  unit_label?: string | null;
   stock: number;
 }): VariantDraft {
   return {
@@ -45,6 +50,8 @@ export function variantFromApi(variant: {
     min: toInputText(variant.min_quantity),
     // 1 is the default of the API: shown empty, so only a changed consumption is sent
     consumption: Number(variant.batch_consumption) === 1 ? '' : toInputText(variant.batch_consumption),
+    unitLabel: variant.unit_label ?? '',
+    unitLabelWas: Boolean(variant.unit_label),
     stock: variant.stock,
   };
 }
@@ -113,6 +120,9 @@ export function VariantFields({ variants, onChange, batchTracked, errors }: Vari
                   </Field>
                 </>
               )}
+              <Field label={t('fiscal_product_unitLabel')} hint={t('fiscal_product_unitLabelHint')} error={error('unit_label')}>
+                {(control) => <input {...control} className={fieldClass} maxLength={64} value={variant.unitLabel} onChange={(event) => update(index, { unitLabel: event.target.value })} />}
+              </Field>
               {batchTracked && (
                 <Field label={t('menu_consumption')} hint={t('menu_consumption_hint')} error={error('menu_batch_consumption')}>
                   {(control) => <input {...control} className={fieldClass} inputMode="decimal" value={variant.consumption} onChange={(event) => update(index, { consumption: event.target.value })} />}

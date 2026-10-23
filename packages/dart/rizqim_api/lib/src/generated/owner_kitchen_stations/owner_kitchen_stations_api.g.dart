@@ -52,14 +52,13 @@ class _OwnerKitchenStationsApi implements OwnerKitchenStationsApi {
 
   @override
   Future<PutV1OwnerKitchenStationRoutesResponse> kitchenStationRouteAssign({
-    V1OwnerKitchenStationRoutesRequestBody? body,
+    required V1OwnerKitchenStationRoutesRequestBody body,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{};
-    queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
     final _data = <String, dynamic>{};
-    _data.addAll(body?.toJson() ?? <String, dynamic>{});
+    _data.addAll(body.toJson());
     final _options = _setStreamType<PutV1OwnerKitchenStationRoutesResponse>(
       Options(method: 'PUT', headers: _headers, extra: _extra)
           .compose(
@@ -146,14 +145,13 @@ class _OwnerKitchenStationsApi implements OwnerKitchenStationsApi {
 
   @override
   Future<PostV1OwnerKitchenStationsResponse> kitchenStationStore({
-    V1OwnerKitchenStationsRequestBody? body,
+    required V1OwnerKitchenStationsRequestBody body,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{};
-    queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
     final _data = <String, dynamic>{};
-    _data.addAll(body?.toJson() ?? <String, dynamic>{});
+    _data.addAll(body.toJson());
     final _options = _setStreamType<PostV1OwnerKitchenStationsResponse>(
       Options(method: 'POST', headers: _headers, extra: _extra)
           .compose(

@@ -2,6 +2,7 @@
 
 namespace App\Domain\Pos\Orders;
 
+use App\Domain\Pos\Billing\BillPresenter;
 use App\Models\Order;
 use App\Models\OrderChargeWaiver;
 use App\Models\OrderItem;
@@ -47,7 +48,11 @@ class PosOrderPresenter
             'opened_by' => (int) $order->user_id,
             'device_id' => $order->device_id,
             'booking_id' => $order->getAttribute('booking_id') !== null ? (int) $order->getAttribute('booking_id') : null,
+            // P3-26: the booking by its public id and what its deposits still hold to pay the bills with
+            'booking_uuid' => BillPresenter::bookingUuid($order),
+            'deposit_available' => BillPresenter::depositAvailable($order)->toString(),
             'bill_locked' => $order->getAttribute('bill_locked_at') !== null,
+            'bill_requested_at' => $order->bill_requested_at?->toJSON(),
             'notes' => $order->notes,
             'opened_at' => $order->created_at?->toJSON(),
             'updated_at' => $order->updated_at?->toJSON(),

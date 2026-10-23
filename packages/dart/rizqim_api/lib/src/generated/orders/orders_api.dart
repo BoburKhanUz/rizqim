@@ -65,7 +65,7 @@ abstract class OrdersApi {
   /// `branch_closed`, or `below_minimum_order` (with `data.min_order_amount` and `data.subtotal`). Stores without.
   /// zones keep the branch radius rule and the store's delivery fee.
   ///
-  /// [idempotencyKey] - Optional, 1-255 visible characters (e.g. a UUID made per checkout attempt). Same key + same body within 24 hours: the first response is returned again; another body: 409.
+  /// [idempotencyKey] - Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer.
   @POST('/v1/orders')
   Future<PostV1OrdersResponse> orderStore({
     @Body() required V1OrdersRequestBody body,

@@ -24,11 +24,13 @@ class _KitchenApi implements KitchenApi {
   Future<GetV1StaffKitchenTicketsResponse> staffOrderTickets({
     int? branchId,
     bool? includeReady,
+    int? canceledWithin,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{
       r'branch_id': branchId,
       r'include_ready': includeReady,
+      r'canceled_within': canceledWithin,
     };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};

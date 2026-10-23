@@ -34,6 +34,7 @@ Data _$DataFromJson(Map<String, dynamic> json) => Data(
   mxikCode: json['mxik_code'] as String?,
   packageCode: json['package_code'] as String?,
   vatRate: json['vat_rate'] as String?,
+  quickAdd: json['quick_add'] as bool,
   isActive: json['is_active'] as bool,
   imageUrl: json['image_url'] as String?,
   imageThumbUrls: ImageThumbUrls2.fromJson(
@@ -84,6 +85,7 @@ Map<String, dynamic> _$DataToJson(Data instance) => <String, dynamic>{
   'mxik_code': instance.mxikCode,
   'package_code': instance.packageCode,
   'vat_rate': instance.vatRate,
+  'quick_add': instance.quickAdd,
   'is_active': instance.isActive,
   'image_url': instance.imageUrl,
   'image_thumb_urls': instance.imageThumbUrls,

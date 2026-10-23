@@ -4,18 +4,18 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'hall8.dart';
-import 'table8.dart';
-import 'waiter10.dart';
-import 'charges12.dart';
-import 'items30.dart';
+import 'hall7.dart';
+import 'table7.dart';
+import 'waiter9.dart';
+import 'charges10.dart';
+import 'items29.dart';
 
 part 'data156.g.dart';
 
 @JsonSerializable()
 class Data156 {
   const Data156({
-    required this.uuid,
+    required this.tableRef,
     required this.shortCode,
     required this.status,
     required this.channel,
@@ -26,14 +26,17 @@ class Data156 {
     required this.hall,
     required this.table,
     required this.hallRef,
-    required this.tableRef,
+    required this.uuid,
     required this.guestsCount,
     required this.waiter,
     required this.openedBy,
     required this.deviceId,
     required this.bookingId,
+    required this.bookingUuid,
+    required this.depositAvailable,
     required this.billLocked,
-    required this.notes,
+    required this.billRequestedAt,
+    required this.items,
     required this.openedAt,
     required this.updatedAt,
     required this.subtotal,
@@ -45,7 +48,7 @@ class Data156 {
     required this.totalPrice,
     required this.charges,
     required this.rounds,
-    required this.items,
+    required this.notes,
   });
 
   factory Data156.fromJson(Map<String, Object?> json) =>
@@ -62,23 +65,29 @@ class Data156 {
   @JsonKey(name: 'branch_id')
   final int? branchId;
   final int version;
-  final Hall8? hall;
-  final Table8? table;
+  final Hall7? hall;
+  final Table7? table;
   @JsonKey(name: 'hall_ref')
   final String? hallRef;
   @JsonKey(name: 'table_ref')
   final String? tableRef;
   @JsonKey(name: 'guests_count')
   final int? guestsCount;
-  final Waiter10? waiter;
+  final Waiter9? waiter;
   @JsonKey(name: 'opened_by')
   final int openedBy;
   @JsonKey(name: 'device_id')
   final int? deviceId;
   @JsonKey(name: 'booking_id')
   final int? bookingId;
+  @JsonKey(name: 'booking_uuid')
+  final String? bookingUuid;
+  @JsonKey(name: 'deposit_available')
+  final String depositAvailable;
   @JsonKey(name: 'bill_locked')
   final bool billLocked;
+  @JsonKey(name: 'bill_requested_at')
+  final String? billRequestedAt;
   final String? notes;
   @JsonKey(name: 'opened_at')
   final String? openedAt;
@@ -96,9 +105,9 @@ class Data156 {
   final String minSpendTopupAmount;
   @JsonKey(name: 'total_price')
   final String totalPrice;
-  final Charges12 charges;
+  final Charges10 charges;
   final int rounds;
-  final List<Items30> items;
+  final List<Items29> items;
 
   Map<String, Object?> toJson() => _$Data156ToJson(this);
 }

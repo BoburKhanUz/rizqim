@@ -22,10 +22,21 @@ export async function fetchOwnerCategories(api: StaffApi): Promise<Category[]> {
   return body.data ?? [];
 }
 
+// The fiscal fields of a product (P3-11): what it is on a receipt (dish or service), its MXIK and package code, its own VAT
+// rate. Left out (undefined): the server keeps the stored value. null or "": clears it (a cleared `kind` is a dish).
+export type ProductKind = 'dish' | 'service';
+
+export interface ProductFiscalInput {
+  kind?: ProductKind | null;
+  mxik_code?: string | null;
+  package_code?: string | null;
+  vat_rate?: number | string | null;
+}
+
 // A product as the form sends it (multipart, so the image can go along). `variants` is a JSON array:
 // [{"id": 1, "name": "...", "price": 25000}, ...]: one without an id is created, an existing one left out is deleted;
 // "unit" (piece|kg|l), "quantity_step", "min_quantity" and "batch_consumption" are optional (docs/MENU.md).
-export interface ProductInput {
+export interface ProductInput extends ProductFiscalInput {
   name: string;
   description?: string | null;
   category_id: number | string;
@@ -33,6 +44,8 @@ export interface ProductInput {
   image?: File | null;
   variants: ReadonlyArray<object>;
   batch_tracked?: boolean;
+  // P3-26: offered on the POS quick-add strip (bootstrap `quick_items`). Left out: the stored value stays.
+  quick_add?: boolean;
 }
 
 // The multipart body of ProductInput. Booleans go as "1"/"0" (Laravel's boolean rule takes both).
@@ -43,8 +56,13 @@ export function productFormData(input: ProductInput): FormData {
   form.append('category_id', String(input.category_id));
   if (input.is_active !== undefined) form.append('is_active', input.is_active ? '1' : '0');
   if (input.batch_tracked !== undefined) form.append('batch_tracked', input.batch_tracked ? '1' : '0');
+  if (input.quick_add !== undefined) form.append('quick_add', input.quick_add ? '1' : '0');
   if (input.image) form.append('image', input.image);
   form.append('variants', JSON.stringify(input.variants));
+  for (const field of ['kind', 'mxik_code', 'package_code', 'vat_rate'] as const) {
+    const value = input[field];
+    if (value !== undefined) form.append(field, value === null ? '' : String(value));
+  }
   return form;
 }
 

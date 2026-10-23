@@ -16,6 +16,7 @@ _$V1PosCustomerAccountsUuidRequestBodyFromJson(Map<String, dynamic> json) =>
       isBlocked: json['is_blocked'] as bool?,
       note: json['note'] as String?,
       branchId: (json['branch_id'] as num?)?.toInt(),
+      approvalToken: json['approval_token'] as String?,
     );
 
 Map<String, dynamic> _$V1PosCustomerAccountsUuidRequestBodyToJson(
@@ -28,4 +29,5 @@ Map<String, dynamic> _$V1PosCustomerAccountsUuidRequestBodyToJson(
   'is_blocked': instance.isBlocked,
   'note': instance.note,
   'branch_id': instance.branchId,
+  'approval_token': instance.approvalToken,
 };

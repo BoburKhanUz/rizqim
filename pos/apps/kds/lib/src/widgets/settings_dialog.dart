@@ -85,104 +85,168 @@ class _SettingsDialog extends StatelessWidget {
               },
             );
 
-            return SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: <Widget>[
-                  Text('Sozlamalar', style: RzType.title.copyWith(color: c.fg)),
-                  const SizedBox(height: 8),
-                  row(
-                    'Yangi buyurtma ovozi',
-                    null,
-                    Switch(
-                      value: !s.muted,
-                      onChanged: (bool on) =>
-                          settings.update(s.copyWith(muted: !on)),
-                    ),
-                  ),
-                  row(
-                    "Qorong'i mavzu",
-                    null,
-                    Switch(
-                      value: s.dark,
-                      onChanged: (bool on) =>
-                          settings.update(s.copyWith(dark: on)),
-                    ),
-                  ),
-                  row(
-                    'Shrift',
-                    null,
-                    SegmentedButton<double>(
-                      showSelectedIcon: false,
-                      style: SegmentedButton.styleFrom(
-                        selectedBackgroundColor: c.brand,
-                        selectedForegroundColor: c.onBrand,
-                        minimumSize: const Size(64, 48),
-                      ),
-                      segments: <ButtonSegment<double>>[
-                        for (final double f in KdsSettings.fontChoices)
-                          ButtonSegment<double>(
-                            value: f,
-                            label: Text('${(f * 100).round()}%'),
+            // Qatorlar aylanadi, "Yopish" doim ko'rinadi (sozlamalar ko'p)
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                Flexible(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: <Widget>[
+                        Text(
+                          'Sozlamalar',
+                          style: RzType.title.copyWith(color: c.fg),
+                        ),
+                        const SizedBox(height: 8),
+                        row(
+                          'Yangi buyurtma ovozi',
+                          null,
+                          Switch(
+                            value: !s.muted,
+                            onChanged: (bool on) =>
+                                settings.update(s.copyWith(muted: !on)),
                           ),
-                      ],
-                      selected: <double>{s.fontScale},
-                      onSelectionChanged: (Set<double> v) =>
-                          settings.update(s.copyWith(fontScale: v.first)),
-                    ),
-                  ),
-                  const Divider(height: 24),
-                  row(
-                    'Shoshiling (sariq)',
-                    'Kutish vaqti shundan oshsa',
-                    dropdown<int>(
-                      s.warnAfter.inMinutes,
-                      <int>{
-                        ...KdsSettings.warnChoices,
-                        s.warnAfter.inMinutes,
-                      }.toList()..sort(),
-                      (int m) => '$m daqiqa',
-                      (int m) => settings.update(
-                        s.copyWith(warnAfter: Duration(minutes: m)),
-                      ),
-                    ),
-                  ),
-                  row(
-                    'Kechikdi (qizil)',
-                    'Kutish vaqti shundan oshsa',
-                    dropdown<int>(
-                      s.lateAfter.inMinutes,
-                      <int>{
-                          ...KdsSettings.lateChoices,
-                          s.lateAfter.inMinutes,
-                        }.where((int m) => m > s.warnAfter.inMinutes).toList()
-                        ..sort(),
-                      (int m) => '$m daqiqa',
-                      (int m) => settings.update(
-                        s.copyWith(lateAfter: Duration(minutes: m)),
-                      ),
-                    ),
-                  ),
-                  row(
-                    'Avtomatik chiqish',
-                    'Ekranga shuncha vaqt tegilmasa, PIN qayta so\'raladi',
-                    dropdown<Duration?>(
-                      s.idleTimeout,
-                      KdsSettings.idleChoices.contains(s.idleTimeout)
-                          ? KdsSettings.idleChoices
-                          : <Duration?>[
-                              ...KdsSettings.idleChoices,
-                              s.idleTimeout,
+                        ),
+                        row(
+                          "Qorong'i mavzu",
+                          null,
+                          Switch(
+                            value: s.dark,
+                            onChanged: (bool on) =>
+                                settings.update(s.copyWith(dark: on)),
+                          ),
+                        ),
+                        row(
+                          'Shrift',
+                          null,
+                          SegmentedButton<double>(
+                            showSelectedIcon: false,
+                            style: SegmentedButton.styleFrom(
+                              selectedBackgroundColor: c.brand,
+                              selectedForegroundColor: c.onBrand,
+                              minimumSize: const Size(64, 48),
+                            ),
+                            segments: <ButtonSegment<double>>[
+                              for (final double f in KdsSettings.fontChoices)
+                                ButtonSegment<double>(
+                                  value: f,
+                                  label: Text('${(f * 100).round()}%'),
+                                ),
                             ],
-                      _idleLabel,
-                      (Duration? d) =>
-                          settings.update(s.copyWith(idleTimeout: () => d)),
+                            selected: <double>{s.fontScale},
+                            onSelectionChanged: (Set<double> v) =>
+                                settings.update(s.copyWith(fontScale: v.first)),
+                          ),
+                        ),
+                        const Divider(height: 24),
+                        row(
+                          'Shoshiling (sariq)',
+                          'Kutish vaqti shundan oshsa',
+                          dropdown<int>(
+                            s.warnAfter.inMinutes,
+                            <int>{
+                              ...KdsSettings.warnChoices,
+                              s.warnAfter.inMinutes,
+                            }.toList()..sort(),
+                            (int m) => '$m daqiqa',
+                            (int m) => settings.update(
+                              s.copyWith(warnAfter: Duration(minutes: m)),
+                            ),
+                          ),
+                        ),
+                        row(
+                          'Kechikdi (qizil)',
+                          'Kutish vaqti shundan oshsa',
+                          dropdown<int>(
+                            s.lateAfter.inMinutes,
+                            <int>{
+                                  ...KdsSettings.lateChoices,
+                                  s.lateAfter.inMinutes,
+                                }
+                                .where((int m) => m > s.warnAfter.inMinutes)
+                                .toList()
+                              ..sort(),
+                            (int m) => '$m daqiqa',
+                            (int m) => settings.update(
+                              s.copyWith(lateAfter: Duration(minutes: m)),
+                            ),
+                          ),
+                        ),
+                        const Divider(height: 24),
+                        row(
+                          'Avtomatik chiqish',
+                          'Ekranga shuncha vaqt tegilmasa, PIN qayta so\'raladi',
+                          dropdown<Duration?>(
+                            s.idleTimeout,
+                            KdsSettings.idleChoices.contains(s.idleTimeout)
+                                ? KdsSettings.idleChoices
+                                : <Duration?>[
+                                    ...KdsSettings.idleChoices,
+                                    s.idleTimeout,
+                                  ],
+                            _idleLabel,
+                            (Duration? d) => settings.update(
+                              s.copyWith(idleTimeout: () => d),
+                            ),
+                          ),
+                        ),
+                        const Divider(height: 24),
+                        row(
+                          'Osh: oldindan chiqish',
+                          'Oldindan buyurtma muddatidan shuncha oldin doskaga chiqadi',
+                          dropdown<int>(
+                            s.leadOsh.inMinutes,
+                            <int>{
+                              ...KdsSettings.leadOshChoices,
+                              s.leadOsh.inMinutes,
+                            }.toList()..sort(),
+                            (int m) => '$m daqiqa',
+                            (int m) => settings.update(
+                              s.copyWith(leadOsh: Duration(minutes: m)),
+                            ),
+                          ),
+                        ),
+                        row(
+                          'Mangal: oldindan chiqish',
+                          null,
+                          dropdown<int>(
+                            s.leadMangal.inMinutes,
+                            <int>{
+                              ...KdsSettings.leadMangalChoices,
+                              s.leadMangal.inMinutes,
+                            }.toList()..sort(),
+                            (int m) => '$m daqiqa',
+                            (int m) => settings.update(
+                              s.copyWith(leadMangal: Duration(minutes: m)),
+                            ),
+                          ),
+                        ),
+                        row(
+                          'Boshqa sexlar: oldindan chiqish',
+                          null,
+                          dropdown<int>(
+                            s.leadOther.inMinutes,
+                            <int>{
+                              ...KdsSettings.leadOtherChoices,
+                              s.leadOther.inMinutes,
+                            }.toList()..sort(),
+                            (int m) => '$m daqiqa',
+                            (int m) => settings.update(
+                              s.copyWith(leadOther: Duration(minutes: m)),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  Wrap(
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+                  child: Wrap(
                     alignment: WrapAlignment.spaceBetween,
                     spacing: 12,
                     runSpacing: 12,
@@ -204,8 +268,8 @@ class _SettingsDialog extends StatelessWidget {
                       ),
                     ],
                   ),
-                ],
-              ),
+                ),
+              ],
             );
           },
         ),

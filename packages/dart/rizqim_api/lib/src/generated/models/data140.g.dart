@@ -7,13 +7,15 @@ part of 'data140.dart';
 // **************************************************************************
 
 Data140 _$Data140FromJson(Map<String, dynamic> json) => Data140(
-  account: Account.fromJson(json['account'] as String),
-  entries: (json['entries'] as List<dynamic>)
-      .map((e) => Entries2.fromJson(e as Map<String, dynamic>))
+  totalDebt: json['total_debt'] as String,
+  count: (json['count'] as num).toInt(),
+  accounts: (json['accounts'] as List<dynamic>)
+      .map((e) => Accounts2.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 
 Map<String, dynamic> _$Data140ToJson(Data140 instance) => <String, dynamic>{
-  'account': instance.account,
-  'entries': instance.entries,
+  'total_debt': instance.totalDebt,
+  'count': instance.count,
+  'accounts': instance.accounts,
 };

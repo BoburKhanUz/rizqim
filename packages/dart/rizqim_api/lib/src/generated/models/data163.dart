@@ -4,9 +4,10 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'device11.dart';
-import 'opened_by.dart';
-import 'closed_by.dart';
+import 'hall13.dart';
+import 'table13.dart';
+import 'waiter15.dart';
+import 'online3.dart';
 
 part 'data163.g.dart';
 
@@ -14,57 +15,78 @@ part 'data163.g.dart';
 class Data163 {
   const Data163({
     required this.uuid,
+    required this.shortCode,
     required this.status,
+    required this.channel,
+    required this.type,
     required this.branchId,
-    required this.device,
+    required this.version,
+    required this.hall,
+    required this.table,
+    required this.hallRef,
+    required this.tableRef,
+    required this.guestsCount,
+    required this.waiter,
+    required this.itemsCount,
+    required this.subtotal,
+    required this.totalPrice,
+    required this.paymentStatus,
+    required this.billLocked,
+    required this.billRequested,
+    required this.fiscalPending,
+    required this.bookingId,
     required this.businessDate,
     required this.openedAt,
-    required this.openedBy,
-    required this.openingCash,
     required this.closedAt,
-    required this.closedBy,
-    required this.expectedCash,
-    required this.countedCash,
-    required this.countedBreakdown,
-    required this.difference,
-    required this.zNumber,
-    required this.forceClosed,
-    required this.closeNote,
+    required this.updatedAt,
+    required this.online,
   });
 
   factory Data163.fromJson(Map<String, Object?> json) =>
       _$Data163FromJson(json);
 
   final String uuid;
+  @JsonKey(name: 'short_code')
+  final String? shortCode;
   final String status;
+  final String channel;
+  final String type;
   @JsonKey(name: 'branch_id')
   final int branchId;
-  final Device11? device;
+  final int version;
+  final Hall13? hall;
+  final Table13? table;
+  @JsonKey(name: 'hall_ref')
+  final String? hallRef;
+  @JsonKey(name: 'table_ref')
+  final String? tableRef;
+  @JsonKey(name: 'guests_count')
+  final int? guestsCount;
+  final Waiter15? waiter;
+  @JsonKey(name: 'items_count')
+  final int itemsCount;
+  final String subtotal;
+  @JsonKey(name: 'total_price')
+  final String totalPrice;
+  @JsonKey(name: 'payment_status')
+  final String paymentStatus;
+  @JsonKey(name: 'bill_locked')
+  final bool billLocked;
+  @JsonKey(name: 'bill_requested')
+  final bool billRequested;
+  @JsonKey(name: 'fiscal_pending')
+  final bool fiscalPending;
+  @JsonKey(name: 'booking_id')
+  final int? bookingId;
   @JsonKey(name: 'business_date')
-  final String businessDate;
+  final String? businessDate;
   @JsonKey(name: 'opened_at')
-  final String openedAt;
-  @JsonKey(name: 'opened_by')
-  final OpenedBy? openedBy;
-  @JsonKey(name: 'opening_cash')
-  final String openingCash;
+  final String? openedAt;
   @JsonKey(name: 'closed_at')
   final String? closedAt;
-  @JsonKey(name: 'closed_by')
-  final ClosedBy? closedBy;
-  @JsonKey(name: 'expected_cash')
-  final String? expectedCash;
-  @JsonKey(name: 'counted_cash')
-  final String? countedCash;
-  @JsonKey(name: 'counted_breakdown')
-  final Map<String, int>? countedBreakdown;
-  final String? difference;
-  @JsonKey(name: 'z_number')
-  final int? zNumber;
-  @JsonKey(name: 'force_closed')
-  final bool forceClosed;
-  @JsonKey(name: 'close_note')
-  final String? closeNote;
+  @JsonKey(name: 'updated_at')
+  final String? updatedAt;
+  final Online3? online;
 
   Map<String, Object?> toJson() => _$Data163ToJson(this);
 }

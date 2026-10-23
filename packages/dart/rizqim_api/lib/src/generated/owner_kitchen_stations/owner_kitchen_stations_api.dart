@@ -41,7 +41,7 @@ abstract class OwnerKitchenStationsApi {
   /// not). `data` is the branch's routes afterwards.
   @PUT('/v1/owner/kitchen-station-routes')
   Future<PutV1OwnerKitchenStationRoutesResponse> kitchenStationRouteAssign({
-    @Body() V1OwnerKitchenStationRoutesRequestBody? body,
+    @Body() required V1OwnerKitchenStationRoutesRequestBody body,
   });
 
   /// Remove one route.
@@ -69,7 +69,7 @@ abstract class OwnerKitchenStationsApi {
   /// (PUT /owner/kitchen-station-routes).
   @POST('/v1/owner/kitchen-stations')
   Future<PostV1OwnerKitchenStationsResponse> kitchenStationStore({
-    @Body() V1OwnerKitchenStationsRequestBody? body,
+    @Body() required V1OwnerKitchenStationsRequestBody body,
   });
 
   /// Delete a kitchen station.

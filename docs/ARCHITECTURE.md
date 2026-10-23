@@ -175,6 +175,26 @@ chek, schyot, marka va X/Z shablonlari; `pos_ui` — sensor ekran komponentlari,
 Keyin `pos_sync` — internetsiz cheklangan rejim (SQLite navbat, P3-31). Ilovalar (`cashier`, `waiter`, `kds`) shu
 paketlar va `packages/dart/rizqim_api` ustida quriladi.
 
+**POS ma'lumot qatlami** (`pos/packages/pos_data`, P3-20; Flutter'siz, `dart test`): kassa va ofitsiant ilovalari
+backend bilan faqat shu paket orqali ishlaydi. `PosData` bitta `RizqimClient` (bitta Dio, token va 401 boshqaruvi)
+ustida: `PosSession` (ulangan terminal + xodim PIN sessiyasi, ruxsatlar, filial, bootstrap, smena), `ApprovalService`
+(`POST /pos/approvals` → bir martalik token) va repozitoriylar — bootstrap, menyu (`menu_version` bo'yicha keshlanadi),
+zal, buyurtma, schyot, smena, bron, nasiya. Har o'zgartiruvchi so'rovda `Idempotency-Key` (tarmoq xatosidan keyin o'sha
+kalit bilan qayta yuboriladi) va buyurtma `version`i; 409/422/403 sabablari tiplangan istisnolarga aylanadi
+(`PosVersionConflict`, `PosApprovalRequired`, `PosConflict`, `PosRejected`, ... — hammasi `ApiException`, o'zbekcha
+matn bilan). Pul — `PosMoney` (tiyin), miqdor — `PosQuantity`. Modellar yaratilgan klient o'rniga qo'lda, JSON ustida
+yozilgan: POS javoblarining bir qismi spetsifikatsiyada `object`, pul satr, ba'zi yaratilgan metodlarda
+`Idempotency-Key` yo'q va bitta yangi maydon butun javobni yiqitmasligi kerak. `PosRealtime` — `private-pos-branch.{id}`
+kanali terminal tokeni bilan (tiplangan `PosEvent`lar, qayta ulanganda `resubscribed`), `PosRefreshScheduler` — polling
+zaxirasi (jonli bo'lmasa 15 s, jonli bo'lsa ham 60 s). `package:pos_data/testing.dart` — soxta backend (Dio adapteri,
+Reverb va Linux'da ishga tushirish uchun HTTP server): ilovalar testlari va suratlari shu bilan.
+
+```
+cashier / waiter (Flutter)  ──  PosScope / WaiterScope (DI)  ──  feature sahifalari
+        └─ pos_data: PosSession, ApprovalService, *Repository, PosRealtime
+              └─ rizqim_api: RizqimClient (Dio + AuthInterceptor), PusherClient, ChannelAuth
+```
+
 ## 5. Ma'lumotlar modeli
 
 PostgreSQL 17. Asosiy jadvallar va bog'lanishlar:

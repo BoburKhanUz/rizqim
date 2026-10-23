@@ -139,6 +139,9 @@ export interface PaymentsQuery extends HistoryQuery {
   status?: string;
   // click | payme | ...
   provider?: string;
+  // P3-14: the fiscal receipt of the payment - blocked (the owner has to fix the menu or the settings) | pending | failed |
+  // recorded
+  fiscal_status?: string;
   branch_id?: number;
 }
 

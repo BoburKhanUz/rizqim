@@ -29,7 +29,7 @@ Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->prefix('pos'
         Route::patch('/bookings/{uuid}/items/{item}', [BookingController::class, 'updateItem'])->whereUuid('uuid')->where('item', RowId::ROUTE_PATTERN)->middleware(EnsureIdempotency::class);
         Route::delete('/bookings/{uuid}/items/{item}', [BookingController::class, 'removeItem'])->whereUuid('uuid')->where('item', RowId::ROUTE_PATTERN)->middleware(EnsureIdempotency::class);
 
-        Route::post('/bookings/{uuid}/deposits', [BookingController::class, 'takeDeposit'])->whereUuid('uuid')->middleware(EnsureIdempotency::class);
+        Route::post('/bookings/{uuid}/deposits', [BookingController::class, 'takeDeposit'])->whereUuid('uuid')->middleware(EnsureIdempotency::class . ':pos.bookings.deposit');
         Route::post('/bookings/{uuid}/deposits/{payment}/refund', [BookingController::class, 'refundDeposit'])->whereUuid(['uuid', 'payment'])->middleware(EnsureIdempotency::class);
         Route::post('/bookings/{uuid}/deposits/{payment}/retain', [BookingController::class, 'retainDeposit'])->whereUuid(['uuid', 'payment'])->middleware(EnsureIdempotency::class);
     });
@@ -40,12 +40,14 @@ Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->prefix('pos'
         Route::get('/customer-accounts/debtors', [CustomerAccountController::class, 'debtors']);
         Route::get('/customer-accounts/{uuid}', [CustomerAccountController::class, 'show'])->whereUuid('uuid');
         Route::get('/customer-accounts/{uuid}/statement', [CustomerAccountController::class, 'statement'])->whereUuid('uuid');
-        Route::post('/customer-accounts/{uuid}/repayments', [CustomerAccountController::class, 'repay'])->whereUuid('uuid')->middleware(EnsureIdempotency::class);
+        Route::post('/customer-accounts/{uuid}/repayments', [CustomerAccountController::class, 'repay'])->whereUuid('uuid')->middleware(EnsureIdempotency::class . ':pos.accounts.repay');
+        // P3-26: opening or changing an account at the till: customer_accounts.manage, or a cashier with a manager's
+        // approval token for it (checked in the controller, ApprovalGate)
+        Route::post('/customer-accounts', [CustomerAccountController::class, 'store'])->middleware(EnsureIdempotency::class);
+        Route::patch('/customer-accounts/{uuid}', [CustomerAccountController::class, 'update'])->whereUuid('uuid')->middleware(EnsureIdempotency::class);
     });
 
     Route::middleware('permission:customer_accounts.manage')->group(function () {
-        Route::post('/customer-accounts', [CustomerAccountController::class, 'store'])->middleware(EnsureIdempotency::class);
-        Route::patch('/customer-accounts/{uuid}', [CustomerAccountController::class, 'update'])->whereUuid('uuid')->middleware(EnsureIdempotency::class);
         Route::post('/customer-accounts/{uuid}/adjustments', [CustomerAccountController::class, 'adjust'])->whereUuid('uuid')->middleware(EnsureIdempotency::class);
     });
 });

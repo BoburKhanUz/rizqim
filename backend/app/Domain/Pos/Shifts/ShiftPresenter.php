@@ -15,6 +15,12 @@ final class ShiftPresenter
 {
     public const SHIFT = 'array{uuid: string, status: string, branch_id: int, device: array{uuid: string, name: string}|null, business_date: string, opened_at: string, opened_by: array{id: int, name: string}|null, opening_cash: string, closed_at: string|null, closed_by: array{id: int, name: string}|null, expected_cash: string|null, counted_cash: string|null, counted_breakdown: array<string, int>|null, difference: string|null, z_number: int|null, force_closed: bool, close_note: string|null}';
 
+    /** The Z report as kept at closing (`summary`): the X report then, plus what was left open by a forced close. */
+    public const SUMMARY = 'array{' . ShiftReport::REPORT_FIELDS . ', open_orders?: list<string>, pending_receipts?: array{bills: list<string>, refunds: list<string>}}';
+
+    /** A shift with its Z report (`summary`: null while open). */
+    public const DETAIL = 'array{uuid: string, status: string, branch_id: int, device: array{uuid: string, name: string}|null, business_date: string, opened_at: string, opened_by: array{id: int, name: string}|null, opening_cash: string, closed_at: string|null, closed_by: array{id: int, name: string}|null, expected_cash: string|null, counted_cash: string|null, counted_breakdown: array<string, int>|null, difference: string|null, z_number: int|null, force_closed: bool, close_note: string|null, summary: ' . self::SUMMARY . '|null}';
+
     /**
      * @return array<string, mixed>
      */

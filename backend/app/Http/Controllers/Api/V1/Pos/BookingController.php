@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1\Pos;
 
+use App\Domain\Pos\Billing\PosFiscalReceipt;
 use App\Domain\Pos\Booking\BookingDepositService;
 use App\Domain\Pos\Booking\BookingEventType;
 use App\Domain\Pos\Booking\BookingItemService;
@@ -19,6 +20,7 @@ use App\Models\BookingItem;
 use App\Models\BookingPayment;
 use App\Models\Branch;
 use App\Models\Order;
+use App\Models\ProductVariant;
 use App\Models\Store;
 use App\Services\Auth\PermissionService;
 use App\Support\Money;
@@ -254,10 +256,13 @@ class BookingController extends MenuStaffController
 
     /**
      * Confirm a booking
+     *
+     * Optional `version` (the booking's, 409 when stale).
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . BookingPresenter::DETAIL . '}')]
     public function confirm(Request $request, string $uuid): JsonResponse
     {
+        $request->validate(['version' => 'nullable|integer|min:1'], UzValidation::messages());
         $booking = $this->bookings->confirm($this->booking($request, $uuid), $request->user(), $this->version($request));
 
         return $this->success($this->presenter->detail($booking->refresh()), 'Bron tasdiqlandi.');
@@ -285,6 +290,7 @@ class BookingController extends MenuStaffController
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . BookingPresenter::DETAIL . '}')]
     public function noShow(Request $request, string $uuid): JsonResponse
     {
+        $request->validate(['version' => 'nullable|integer|min:1'], UzValidation::messages());
         $booking = $this->bookings->noShow($this->booking($request, $uuid), $request->user(), $this->version($request));
 
         return $this->success($this->presenter->detail($booking->refresh()), '"Kelmadi" deb belgilandi.');
@@ -326,7 +332,8 @@ class BookingController extends MenuStaffController
     /**
      * Add a pre-ordered dish
      *
-     * `product_variant_id`, `quantity` (kg dishes in their steps: 1.5), `modifiers` [{modifier_id, quantity}],
+     * `product_variant_id` (or P3-26 `product_variant_uuid`, the variant's uuid as POS order lines take it), `quantity`
+     * (kg dishes in their steps: 1.5), `modifiers` [{modifier_id, quantity}],
      * `note`, `due_at` (when it must be ready; default the booking's start). Only while the booking is requested or
      * confirmed.
      */
@@ -335,7 +342,9 @@ class BookingController extends MenuStaffController
     {
         $booking = $this->booking($request, $uuid);
         $data = $this->itemData($request->validate([
-            'product_variant_id' => 'required|integer|min:1|max:999999999999999999',
+            'product_variant_id' => 'required_without:product_variant_uuid|nullable|integer|min:1|max:999999999999999999',
+            // P3-26: the variant's uuid, as the POS order lines take it (variant_id)
+            'product_variant_uuid' => 'required_without:product_variant_id|nullable|uuid',
             'quantity' => 'required|numeric|gt:0|max:100000',
             'modifiers' => 'nullable|array|max:50',
             'modifiers.*.modifier_id' => UzValidation::rowId(true),
@@ -358,7 +367,8 @@ class BookingController extends MenuStaffController
         $booking = $this->booking($request, $uuid);
         $line = $this->item($booking, $item);
         $data = $this->itemData($request->validate([
-            'product_variant_id' => 'sometimes|integer|min:1|max:999999999999999999',
+            'product_variant_id' => 'sometimes|nullable|integer|min:1|max:999999999999999999',
+            'product_variant_uuid' => 'sometimes|nullable|uuid', // P3-26
             'quantity' => 'sometimes|numeric|gt:0|max:100000',
             'modifiers' => 'nullable|array|max:50',
             'modifiers.*.modifier_id' => UzValidation::rowId(true),
@@ -391,7 +401,7 @@ class BookingController extends MenuStaffController
      * (`fiscal_receipt_uuid`, `fiscal_status`). The `Idempotency-Key` header is required: a retry returns the same
      * deposit and never a second receipt. A requested booking becomes confirmed.
      */
-    #[ApiDocResponse(201, type: 'array{success: true, message: string, data: array{booking: ' . BookingPresenter::DETAIL . ', payment: ' . BookingPresenter::PAYMENT . '}}')]
+    #[ApiDocResponse(201, type: 'array{success: true, message: string, data: array{booking: ' . BookingPresenter::DETAIL . ', payment: ' . BookingPresenter::PAYMENT . ', fiscal: ' . PosFiscalReceipt::FISCAL . '}}')]
     public function takeDeposit(Request $request, string $uuid): JsonResponse
     {
         $key = $this->idempotencyKey($request);
@@ -418,6 +428,8 @@ class BookingController extends MenuStaffController
         return $this->success([
             'booking' => $this->presenter->detail($booking->refresh()),
             'payment' => $this->presenter->payment($payment),
+            // P3-26: the ADVANCE receipt as registered, for the till to print
+            'fiscal' => PosFiscalReceipt::fiscal($payment->fiscal_status, $payment->fiscal_receipt_uuid, null, (int) $booking->store_id),
         ], 'Avans qabul qilindi.', 201);
     }
 
@@ -428,10 +440,15 @@ class BookingController extends MenuStaffController
      * one-time `approval_token` (POST /pos/approvals). By default no receipt is issued (the refund is documented with
      * a refund act; a store may switch on a REFUND receipt). Not while the guests are seated (arrived).
      */
-    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{booking: ' . BookingPresenter::DETAIL . ', payment: ' . BookingPresenter::PAYMENT . '}}')]
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{booking: ' . BookingPresenter::DETAIL . ', payment: ' . BookingPresenter::PAYMENT . ', fiscal: ' . PosFiscalReceipt::FISCAL . '}}')]
     public function refundDeposit(Request $request, string $uuid, string $payment): JsonResponse
     {
-        return $this->settleDeposit($request, $uuid, $payment, true);
+        $data = $request->validate([
+            'reason' => 'required|string|max:500',
+            'approval_token' => 'nullable|string|max:255',
+        ], UzValidation::messages());
+
+        return $this->settleDeposit($request, $data, $uuid, $payment, true);
     }
 
     /**
@@ -441,19 +458,22 @@ class BookingController extends MenuStaffController
      * required. Needs orders.cancel: a cashier sends a manager's `approval_token`. Issues a SALE receipt for the booking
      * service paid from the advance (a store may switch it off).
      */
-    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{booking: ' . BookingPresenter::DETAIL . ', payment: ' . BookingPresenter::PAYMENT . '}}')]
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{booking: ' . BookingPresenter::DETAIL . ', payment: ' . BookingPresenter::PAYMENT . ', fiscal: ' . PosFiscalReceipt::FISCAL . '}}')]
     public function retainDeposit(Request $request, string $uuid, string $payment): JsonResponse
-    {
-        return $this->settleDeposit($request, $uuid, $payment, false);
-    }
-
-    private function settleDeposit(Request $request, string $uuid, string $paymentUuid, bool $refund): JsonResponse
     {
         $data = $request->validate([
             'reason' => 'required|string|max:500',
             'approval_token' => 'nullable|string|max:255',
         ], UzValidation::messages());
 
+        return $this->settleDeposit($request, $data, $uuid, $payment, false);
+    }
+
+    /**
+     * @param  array{reason: string, approval_token?: string|null}  $data
+     */
+    private function settleDeposit(Request $request, array $data, string $uuid, string $paymentUuid, bool $refund): JsonResponse
+    {
         $user = $request->user();
         $booking = $this->booking($request, $uuid);
         $payment = BookingPayment::where('booking_id', $booking->id)->where('uuid', $paymentUuid)->first();
@@ -469,6 +489,8 @@ class BookingController extends MenuStaffController
         return $this->success([
             'booking' => $this->presenter->detail($booking->refresh()),
             'payment' => $this->presenter->payment($payment),
+            // P3-26: the receipt this settlement issued (REFUND or SALE; none when the store does not issue one)
+            'fiscal' => PosFiscalReceipt::fiscal($payment->settle_fiscal_status, $payment->settle_receipt_uuid, null, (int) $booking->store_id),
         ], $refund ? 'Avans qaytarildi.' : 'Avans ushlab qolindi.');
     }
 
@@ -598,7 +620,16 @@ class BookingController extends MenuStaffController
     private function itemData(array $data, Booking $booking): array
     {
         $out = [];
-        if (array_key_exists('product_variant_id', $data)) {
+        if (isset($data['product_variant_uuid'])) {
+            // P3-26: by uuid, within the booking's store only
+            $variantId = ProductVariant::where('uuid', (string) $data['product_variant_uuid'])
+                ->whereHas('product', fn ($query) => $query->where('store_id', $booking->store_id))
+                ->value('id');
+            if ($variantId === null) {
+                throw ValidationException::withMessages(['product_variant_uuid' => 'Taom topilmadi.']);
+            }
+            $out['product_variant_id'] = (int) $variantId;
+        } elseif (isset($data['product_variant_id'])) {
             $out['product_variant_id'] = (int) $data['product_variant_id'];
         }
         if (array_key_exists('quantity', $data)) {

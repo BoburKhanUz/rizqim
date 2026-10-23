@@ -4,24 +4,39 @@ import { hasAny, homePath, sectionOf, visibleNav } from './permissions';
 const OWNER = [
   'orders.view', 'orders.manage', 'orders.cancel', 'menu.view', 'menu.manage', 'stoplist.manage', 'batches.manage', 'staff.view',
   'branches.manage', 'zones.manage', 'settings.manage', 'reports.view', 'finance.view',
+  'tables.manage', 'bookings.manage', 'customer_accounts.manage', 'pos.close_shift',
 ];
 
 describe('visibleNav', () => {
   it('shows every section to an owner, zones included', () => {
     expect(visibleNav(OWNER).map((item) => item.key)).toEqual([
-      'dashboard', 'orders', 'menu', 'stoplist', 'batches', 'staff', 'branches', 'zones', 'settings', 'reports', 'finance',
+      'dashboard', 'orders', 'bookings', 'floor', 'menu', 'stoplist', 'batches', 'shifts', 'accounts', 'staff', 'branches', 'zones', 'settings', 'possetup', 'fiscal', 'reports', 'finance',
     ]);
   });
 
   it('hides what the permissions do not open (a manager has no zones, settings or finance)', () => {
     const manager = ['orders.view', 'menu.view', 'stoplist.manage', 'batches.manage', 'staff.view', 'branches.manage', 'reports.view'];
-    expect(visibleNav(manager).map((item) => item.key)).toEqual(['dashboard', 'orders', 'menu', 'stoplist', 'batches', 'staff', 'branches', 'reports']);
+    expect(visibleNav(manager).map((item) => item.key)).toEqual(['dashboard', 'orders', 'menu', 'stoplist', 'batches', 'shifts', 'staff', 'branches', 'fiscal', 'reports']);
+  });
+
+  it('gives a manager the POS sections their permissions open (bookings, tables, nasiya, shifts), not the settings ones', () => {
+    const manager = ['orders.view', 'menu.view', 'reports.view', 'tables.manage', 'bookings.manage', 'customer_accounts.manage', 'pos.close_shift', 'branches.manage'];
+    const keys = visibleNav(manager).map((item) => item.key);
+    expect(keys).toEqual(['dashboard', 'orders', 'bookings', 'floor', 'menu', 'shifts', 'accounts', 'branches', 'fiscal', 'reports']);
+    expect(keys).not.toContain('possetup');
+  });
+
+  it('keeps the fiscal section from people who only read the menu (a cook, a waiter)', () => {
+    expect(visibleNav(['orders.view', 'menu.view', 'kitchen.manage']).map((item) => item.key)).toEqual(['dashboard', 'orders', 'menu']);
+    expect(visibleNav(['menu.manage']).map((item) => item.key)).toEqual(['menu', 'fiscal']);
   });
 
   it('opens a section with any one of its permissions', () => {
     expect(visibleNav(['batches.manage']).map((item) => item.key)).toEqual(['batches']); // a cook: the kazan, not the stop-list
     expect(visibleNav(['orders.view']).map((item) => item.key)).toEqual(['dashboard', 'orders']);
-    expect(visibleNav(['settings.manage']).map((item) => item.key)).toEqual(['branches', 'settings']);
+    expect(visibleNav(['settings.manage']).map((item) => item.key)).toEqual(['branches', 'settings', 'possetup', 'fiscal']);
+    expect(visibleNav(['bookings.manage']).map((item) => item.key)).toEqual(['bookings']);
+    expect(visibleNav(['pos.close_shift']).map((item) => item.key)).toEqual(['shifts']);
     expect(hasAny(['a'], ['b', 'a'])).toBe(true);
     expect(hasAny([], ['a'])).toBe(false);
   });
@@ -39,5 +54,8 @@ describe('visibleNav', () => {
     expect(sectionOf('/ordersx')).toBeUndefined();
     expect(sectionOf('/stoplist/batches')?.key).toBe('batches');
     expect(sectionOf('/stoplist')?.key).toBe('stoplist');
+    expect(sectionOf('/pos-setup')?.key).toBe('possetup');
+    expect(sectionOf('/fiscal')?.key).toBe('fiscal');
+    expect(sectionOf('/floor')?.key).toBe('floor');
   });
 });

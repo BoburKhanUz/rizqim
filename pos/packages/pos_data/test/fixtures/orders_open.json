@@ -1,0 +1,37 @@
+{
+  "success": true,
+  "message": "",
+  "data": [
+    {
+      "uuid": "01a1629f-a44c-71d0-bf5c-bae0b999ad72",
+      "short_code": "POSUPU9IM",
+      "status": "preparing",
+      "channel": "pos_hall",
+      "type": "dine_in",
+      "branch_id": 1,
+      "version": 4,
+      "hall": {
+        "id": 1,
+        "name": "Asosiy zal"
+      },
+      "table": {
+        "id": 1,
+        "name": "1-xona",
+        "kind": "room"
+      },
+      "hall_ref": "Asosiy zal",
+      "table_ref": "1-xona",
+      "guests_count": 3,
+      "waiter": null,
+      "items_count": 3,
+      "subtotal": "202000.00",
+      "total_price": "522200.00",
+      "payment_status": "pending",
+      "bill_locked": false,
+      "fiscal_pending": false,
+      "booking_id": null,
+      "opened_at": "2026-10-22T07:59:51.000000Z",
+      "updated_at": "2026-10-22T07:59:53.000000Z"
+    }
+  ]
+}

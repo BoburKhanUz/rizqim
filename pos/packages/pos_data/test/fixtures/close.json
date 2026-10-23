@@ -1,0 +1,194 @@
+{
+  "success": true,
+  "message": "Buyurtma yopildi.",
+  "data": {
+    "order": {
+      "uuid": "01a1629f-a44c-71d0-bf5c-bae0b999ad72",
+      "status": "delivered",
+      "payment_status": "paid",
+      "version": 9,
+      "queue_number": 1,
+      "business_date": "2026-10-22",
+      "bill_locked_at": "2026-10-22T07:59:54+00:00",
+      "closed_at": "2026-10-22T08:02:59+00:00",
+      "total_price": "522200.00",
+      "billed_amount": "522200.00",
+      "paid_amount": "522200.00",
+      "unbilled_amount": "0.00",
+      "fiscal_pending": false,
+      "bills_out_of_date": false
+    },
+    "bills": [
+      {
+        "uuid": "01a1629f-aca2-7148-a019-8d92f4b38af8",
+        "order_uuid": "01a1629f-a44c-71d0-bf5c-bae0b999ad72",
+        "number": 1,
+        "status": "paid",
+        "split_mode": "equal",
+        "subtotal": "101000.00",
+        "discount": "0.00",
+        "room_fee_amount": "150000.00",
+        "min_spend_topup_amount": "0.00",
+        "service_charge_amount": "10100.00",
+        "place_fee_amount": "0.00",
+        "total": "261100.00",
+        "paid_amount": "261100.00",
+        "due_amount": "0.00",
+        "guests_share": null,
+        "per_guest_amount": null,
+        "printed_count": 1,
+        "printed_at": "2026-10-22T07:59:54+00:00",
+        "paid_at": "2026-10-22T07:59:54+00:00",
+        "fiscal": {
+          "status": "issued",
+          "receipt_uuid": "01a1629f-aeab-7214-9240-cc5db501b3d1",
+          "error": null
+        },
+        "items": [
+          {
+            "order_item_id": 1,
+            "product_name": "Choy",
+            "variant_name": "Choynak",
+            "unit": "piece",
+            "quantity": 1,
+            "amount": "5000.00",
+            "discount_amount": "0.00"
+          },
+          {
+            "order_item_id": 2,
+            "product_name": "Non",
+            "variant_name": "Dona",
+            "unit": "piece",
+            "quantity": 1.5,
+            "amount": "6000.00",
+            "discount_amount": "0.00"
+          },
+          {
+            "order_item_id": 3,
+            "product_name": "Osh",
+            "variant_name": "Choyxona oshi",
+            "unit": "kg",
+            "quantity": 0.75,
+            "amount": "90000.00",
+            "discount_amount": "0.00"
+          }
+        ],
+        "payments": [
+          {
+            "uuid": "01a1629f-ae7a-7181-8677-ba1c70d97aae",
+            "tender": "cash",
+            "amount": "261100.00",
+            "tendered_amount": "1000000.00",
+            "change_amount": "738900.00",
+            "card_type": null,
+            "transaction_id": null,
+            "reference": null,
+            "status": "paid",
+            "paid_at": "2026-10-22T07:59:54+00:00"
+          }
+        ],
+        "created_at": "2026-10-22T07:59:54+00:00"
+      },
+      {
+        "uuid": "01a1629f-acab-700f-b90f-d86e93384d2c",
+        "order_uuid": "01a1629f-a44c-71d0-bf5c-bae0b999ad72",
+        "number": 2,
+        "status": "paid",
+        "split_mode": "equal",
+        "subtotal": "101000.00",
+        "discount": "0.00",
+        "room_fee_amount": "150000.00",
+        "min_spend_topup_amount": "0.00",
+        "service_charge_amount": "10100.00",
+        "place_fee_amount": "0.00",
+        "total": "261100.00",
+        "paid_amount": "261100.00",
+        "due_amount": "0.00",
+        "guests_share": null,
+        "per_guest_amount": null,
+        "printed_count": 0,
+        "printed_at": null,
+        "paid_at": "2026-10-22T08:02:59+00:00",
+        "fiscal": {
+          "status": "issued",
+          "receipt_uuid": "01a162a2-80ef-7335-85e4-989e40f57a41",
+          "error": null
+        },
+        "items": [
+          {
+            "order_item_id": 1,
+            "product_name": "Choy",
+            "variant_name": "Choynak",
+            "unit": "piece",
+            "quantity": 1,
+            "amount": "5000.00",
+            "discount_amount": "0.00"
+          },
+          {
+            "order_item_id": 2,
+            "product_name": "Non",
+            "variant_name": "Dona",
+            "unit": "piece",
+            "quantity": 1.5,
+            "amount": "6000.00",
+            "discount_amount": "0.00"
+          },
+          {
+            "order_item_id": 3,
+            "product_name": "Osh",
+            "variant_name": "Choyxona oshi",
+            "unit": "kg",
+            "quantity": 0.75,
+            "amount": "90000.00",
+            "discount_amount": "0.00"
+          }
+        ],
+        "payments": [
+          {
+            "uuid": "01a162a2-80bb-73ca-b37f-8a40e5d43d79",
+            "tender": "card",
+            "amount": "100000.00",
+            "tendered_amount": null,
+            "change_amount": null,
+            "card_type": "uzcard",
+            "transaction_id": "T1",
+            "reference": null,
+            "status": "paid",
+            "paid_at": "2026-10-22T08:02:59+00:00"
+          },
+          {
+            "uuid": "01a162a2-80cc-7025-a9b7-689e7fd3f8b0",
+            "tender": "account",
+            "amount": "161100.00",
+            "tendered_amount": null,
+            "change_amount": null,
+            "card_type": null,
+            "transaction_id": null,
+            "reference": null,
+            "status": "paid",
+            "paid_at": "2026-10-22T08:02:59+00:00"
+          }
+        ],
+        "created_at": "2026-10-22T07:59:54+00:00"
+      }
+    ],
+    "refunds": [
+      {
+        "uuid": "01a162a2-83ce-70af-a74f-59cd8cfb8e56",
+        "order_uuid": "01a1629f-a44c-71d0-bf5c-bae0b999ad72",
+        "bill_uuid": "01a1629f-aca2-7148-a019-8d92f4b38af8",
+        "payment_uuid": "01a1629f-ae7a-7181-8677-ba1c70d97aae",
+        "amount": "1000.00",
+        "method": "cash",
+        "reason": "xato",
+        "approved_by": null,
+        "fiscal": {
+          "status": "issued",
+          "receipt_uuid": "01a162a2-83f9-71f0-8aff-54769b71743a",
+          "error": null
+        },
+        "created_at": "2026-10-22T08:03:00+00:00"
+      }
+    ]
+  }
+}

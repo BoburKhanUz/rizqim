@@ -1,0 +1,80 @@
+{
+  "success": true,
+  "message": "Schyot chiqarildi.",
+  "data": {
+    "bill": {
+      "uuid": "01a1629f-aca2-7148-a019-8d92f4b38af8",
+      "order_uuid": "01a1629f-a44c-71d0-bf5c-bae0b999ad72",
+      "number": 1,
+      "status": "printed",
+      "split_mode": "equal",
+      "subtotal": "101000.00",
+      "discount": "0.00",
+      "room_fee_amount": "150000.00",
+      "min_spend_topup_amount": "0.00",
+      "service_charge_amount": "10100.00",
+      "place_fee_amount": "0.00",
+      "total": "261100.00",
+      "paid_amount": "0.00",
+      "due_amount": "261100.00",
+      "guests_share": null,
+      "per_guest_amount": null,
+      "printed_count": 1,
+      "printed_at": "2026-10-22T07:59:54+00:00",
+      "paid_at": null,
+      "fiscal": {
+        "status": null,
+        "receipt_uuid": null,
+        "error": null
+      },
+      "items": [
+        {
+          "order_item_id": 1,
+          "product_name": "Choy",
+          "variant_name": "Choynak",
+          "unit": "piece",
+          "quantity": 1,
+          "amount": "5000.00",
+          "discount_amount": "0.00"
+        },
+        {
+          "order_item_id": 2,
+          "product_name": "Non",
+          "variant_name": "Dona",
+          "unit": "piece",
+          "quantity": 1.5,
+          "amount": "6000.00",
+          "discount_amount": "0.00"
+        },
+        {
+          "order_item_id": 3,
+          "product_name": "Osh",
+          "variant_name": "Choyxona oshi",
+          "unit": "kg",
+          "quantity": 0.75,
+          "amount": "90000.00",
+          "discount_amount": "0.00"
+        }
+      ],
+      "payments": [],
+      "created_at": "2026-10-22T07:59:54+00:00"
+    },
+    "copy": false,
+    "order": {
+      "uuid": "01a1629f-a44c-71d0-bf5c-bae0b999ad72",
+      "status": "preparing",
+      "payment_status": "pending",
+      "version": 6,
+      "queue_number": 1,
+      "business_date": "2026-10-22",
+      "bill_locked_at": "2026-10-22T07:59:54+00:00",
+      "closed_at": null,
+      "total_price": "522200.00",
+      "billed_amount": "522200.00",
+      "paid_amount": "0.00",
+      "unbilled_amount": "0.00",
+      "fiscal_pending": false,
+      "bills_out_of_date": false
+    }
+  }
+}

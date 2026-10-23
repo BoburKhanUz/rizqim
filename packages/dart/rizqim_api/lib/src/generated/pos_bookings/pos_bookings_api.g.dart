@@ -63,10 +63,13 @@ class _PosBookingsApi implements PosBookingsApi {
   @override
   Future<PostV1PosBookingsResponse> bookingStore({
     required V1PosBookingsRequestBody body,
+    String? idempotencyKey,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{};
-    final _headers = <String, dynamic>{};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{r'Idempotency-Key': idempotencyKey};
+    _headers.removeWhere((k, v) => v == null);
     final _data = <String, dynamic>{};
     _data.addAll(body.toJson());
     final _options = _setStreamType<PostV1PosBookingsResponse>(
@@ -160,12 +163,14 @@ class _PosBookingsApi implements PosBookingsApi {
   @override
   Future<PatchV1PosBookingsUuidResponse> bookingUpdate({
     required String uuid,
+    String? idempotencyKey,
     V1PosBookingsUuidRequestBody? body,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{};
     queryParameters.removeWhere((k, v) => v == null);
-    final _headers = <String, dynamic>{};
+    final _headers = <String, dynamic>{r'Idempotency-Key': idempotencyKey};
+    _headers.removeWhere((k, v) => v == null);
     final _data = <String, dynamic>{};
     _data.addAll(body?.toJson() ?? <String, dynamic>{});
     final _options = _setStreamType<PatchV1PosBookingsUuidResponse>(
@@ -192,12 +197,14 @@ class _PosBookingsApi implements PosBookingsApi {
   @override
   Future<PostV1PosBookingsUuidArriveResponse> bookingArrive({
     required String uuid,
+    String? idempotencyKey,
     V1PosBookingsUuidArriveRequestBody? body,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{};
     queryParameters.removeWhere((k, v) => v == null);
-    final _headers = <String, dynamic>{};
+    final _headers = <String, dynamic>{r'Idempotency-Key': idempotencyKey};
+    _headers.removeWhere((k, v) => v == null);
     final _data = <String, dynamic>{};
     _data.addAll(body?.toJson() ?? <String, dynamic>{});
     final _options = _setStreamType<PostV1PosBookingsUuidArriveResponse>(
@@ -225,10 +232,13 @@ class _PosBookingsApi implements PosBookingsApi {
   Future<PostV1PosBookingsUuidCancelResponse> bookingCancel({
     required String uuid,
     required V1PosBookingsUuidCancelRequestBody body,
+    String? idempotencyKey,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{};
-    final _headers = <String, dynamic>{};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{r'Idempotency-Key': idempotencyKey};
+    _headers.removeWhere((k, v) => v == null);
     final _data = <String, dynamic>{};
     _data.addAll(body.toJson());
     final _options = _setStreamType<PostV1PosBookingsUuidCancelResponse>(
@@ -255,11 +265,16 @@ class _PosBookingsApi implements PosBookingsApi {
   @override
   Future<PostV1PosBookingsUuidConfirmResponse> bookingConfirm({
     required String uuid,
+    String? idempotencyKey,
+    V1PosBookingsUuidConfirmRequestBody? body,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{};
-    final _headers = <String, dynamic>{};
-    const Map<String, dynamic>? _data = null;
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{r'Idempotency-Key': idempotencyKey};
+    _headers.removeWhere((k, v) => v == null);
+    final _data = <String, dynamic>{};
+    _data.addAll(body?.toJson() ?? <String, dynamic>{});
     final _options = _setStreamType<PostV1PosBookingsUuidConfirmResponse>(
       Options(method: 'POST', headers: _headers, extra: _extra)
           .compose(
@@ -284,11 +299,13 @@ class _PosBookingsApi implements PosBookingsApi {
   @override
   Future<PostV1PosBookingsUuidDepositsResponse> bookingTakeDeposit({
     required String uuid,
+    required String idempotencyKey,
     required V1PosBookingsUuidDepositsRequestBody body,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{};
-    final _headers = <String, dynamic>{};
+    final _headers = <String, dynamic>{r'Idempotency-Key': idempotencyKey};
+    _headers.removeWhere((k, v) => v == null);
     final _data = <String, dynamic>{};
     _data.addAll(body.toJson());
     final _options = _setStreamType<PostV1PosBookingsUuidDepositsResponse>(
@@ -314,11 +331,19 @@ class _PosBookingsApi implements PosBookingsApi {
 
   @override
   Future<PostV1PosBookingsUuidDepositsPaymentRefundResponse>
-  bookingRefundDeposit({required String uuid, required String payment}) async {
+  bookingRefundDeposit({
+    required String uuid,
+    required String payment,
+    required V1PosBookingsUuidDepositsPaymentRefundRequestBody body,
+    String? idempotencyKey,
+  }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{};
-    final _headers = <String, dynamic>{};
-    const Map<String, dynamic>? _data = null;
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{r'Idempotency-Key': idempotencyKey};
+    _headers.removeWhere((k, v) => v == null);
+    final _data = <String, dynamic>{};
+    _data.addAll(body.toJson());
     final _options =
         _setStreamType<PostV1PosBookingsUuidDepositsPaymentRefundResponse>(
           Options(method: 'POST', headers: _headers, extra: _extra)
@@ -347,11 +372,19 @@ class _PosBookingsApi implements PosBookingsApi {
 
   @override
   Future<PostV1PosBookingsUuidDepositsPaymentRetainResponse>
-  bookingRetainDeposit({required String uuid, required String payment}) async {
+  bookingRetainDeposit({
+    required String uuid,
+    required String payment,
+    required V1PosBookingsUuidDepositsPaymentRetainRequestBody body,
+    String? idempotencyKey,
+  }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{};
-    final _headers = <String, dynamic>{};
-    const Map<String, dynamic>? _data = null;
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{r'Idempotency-Key': idempotencyKey};
+    _headers.removeWhere((k, v) => v == null);
+    final _data = <String, dynamic>{};
+    _data.addAll(body.toJson());
     final _options =
         _setStreamType<PostV1PosBookingsUuidDepositsPaymentRetainResponse>(
           Options(method: 'POST', headers: _headers, extra: _extra)
@@ -382,10 +415,13 @@ class _PosBookingsApi implements PosBookingsApi {
   Future<PostV1PosBookingsUuidItemsResponse> bookingAddItem({
     required String uuid,
     required V1PosBookingsUuidItemsRequestBody body,
+    String? idempotencyKey,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{};
-    final _headers = <String, dynamic>{};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{r'Idempotency-Key': idempotencyKey};
+    _headers.removeWhere((k, v) => v == null);
     final _data = <String, dynamic>{};
     _data.addAll(body.toJson());
     final _options = _setStreamType<PostV1PosBookingsUuidItemsResponse>(
@@ -413,10 +449,13 @@ class _PosBookingsApi implements PosBookingsApi {
   Future<DeleteV1PosBookingsUuidItemsItemResponse> bookingRemoveItem({
     required String uuid,
     required String item,
+    String? idempotencyKey,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{};
-    final _headers = <String, dynamic>{};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{r'Idempotency-Key': idempotencyKey};
+    _headers.removeWhere((k, v) => v == null);
     const Map<String, dynamic>? _data = null;
     final _options = _setStreamType<DeleteV1PosBookingsUuidItemsItemResponse>(
       Options(method: 'DELETE', headers: _headers, extra: _extra)
@@ -443,12 +482,14 @@ class _PosBookingsApi implements PosBookingsApi {
   Future<PatchV1PosBookingsUuidItemsItemResponse> bookingUpdateItem({
     required String uuid,
     required String item,
+    String? idempotencyKey,
     V1PosBookingsUuidItemsItemRequestBody? body,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{};
     queryParameters.removeWhere((k, v) => v == null);
-    final _headers = <String, dynamic>{};
+    final _headers = <String, dynamic>{r'Idempotency-Key': idempotencyKey};
+    _headers.removeWhere((k, v) => v == null);
     final _data = <String, dynamic>{};
     _data.addAll(body?.toJson() ?? <String, dynamic>{});
     final _options = _setStreamType<PatchV1PosBookingsUuidItemsItemResponse>(
@@ -475,11 +516,16 @@ class _PosBookingsApi implements PosBookingsApi {
   @override
   Future<PostV1PosBookingsUuidNoShowResponse> bookingNoShow({
     required String uuid,
+    String? idempotencyKey,
+    V1PosBookingsUuidNoShowRequestBody? body,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{};
-    final _headers = <String, dynamic>{};
-    const Map<String, dynamic>? _data = null;
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{r'Idempotency-Key': idempotencyKey};
+    _headers.removeWhere((k, v) => v == null);
+    final _data = <String, dynamic>{};
+    _data.addAll(body?.toJson() ?? <String, dynamic>{});
     final _options = _setStreamType<PostV1PosBookingsUuidNoShowResponse>(
       Options(method: 'POST', headers: _headers, extra: _extra)
           .compose(

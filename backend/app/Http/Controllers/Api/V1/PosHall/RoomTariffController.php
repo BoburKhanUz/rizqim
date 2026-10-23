@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\PosHall;
 
 use App\Domain\Pos\Hall\BusinessCalendar;
+use App\Domain\Pos\Setup\PosSettings;
 use App\Enums\DayType;
 use App\Enums\DiningTableKind;
 use App\Enums\Permission;
@@ -21,6 +22,7 @@ use Dedoc\Scramble\Attributes\Response as ApiDocResponse;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -117,8 +119,9 @@ class RoomTariffController extends ManagementController
     /**
      * Set the branch's weekend days and holidays
      *
-     * `weekend_days`: ISO weekdays (1 = Monday … 7 = Sunday); `holidays`: dates (Y-m-d), at most 400. The holidays of
-     * the branch POS settings count too.
+     * `weekend_days`: ISO weekdays (1 = Monday … 7 = Sunday); `holidays`: dates (Y-m-d), at most 400. P3-26: the
+     * holidays are the branch's one list, the same as `pos_settings.holidays` (PUT /owner/branches/{id}/pos-settings):
+     * saving here replaces that list.
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . self::CALENDAR . '}')]
     public function calendarUpdate(Request $request, AuditLogger $audit, BusinessCalendar $calendar): JsonResponse
@@ -127,20 +130,27 @@ class RoomTariffController extends ManagementController
             'branch_id' => 'required|integer|min:1',
             'weekend_days' => 'present|array|max:7',
             'weekend_days.*' => 'integer|min:1|max:7|distinct',
-            'holidays' => 'present|array|max:400',
+            'holidays' => 'present|array|max:' . PosSettings::MAX_HOLIDAYS,
             'holidays.*' => 'date_format:Y-m-d|distinct',
+        ], [
+            'holidays.*.date_format' => "Bayram sanasi YYYY-MM-DD ko'rinishida bo'lishi kerak.",
         ]);
         $branch = $this->branch($request, Permission::SETTINGS_MANAGE, $data['branch_id']);
 
-        $row = RoomTariffCalendar::firstOrNew(['branch_id' => $branch->id], ['store_id' => $branch->store_id]);
         $before = $this->calendar($branch, $calendar);
-        $weekend = array_values(array_unique(array_map('intval', $data['weekend_days'])));
-        sort($weekend);
-        $holidays = array_values(array_unique($data['holidays']));
-        sort($holidays);
-        $row->fill(['weekend_days' => $weekend, 'holidays' => $holidays])->save();
+        DB::transaction(function () use ($branch, $data) {
+            $weekend = array_values(array_unique(array_map('intval', $data['weekend_days'])));
+            sort($weekend);
+            RoomTariffCalendar::updateOrCreate(['branch_id' => $branch->id], ['store_id' => $branch->store_id, 'weekend_days' => $weekend, 'holidays' => null]);
 
-        $after = $this->calendar($branch, $calendar);
+            // The holidays live in the branch's POS settings (one list for the tariffs, the bootstrap and the panel)
+            $locked = Branch::whereKey($branch->id)->lockForUpdate()->firstOrFail();
+            $stored = $locked->getAttribute('pos_settings');
+            $stored = is_string($stored) ? json_decode($stored, true) : $stored;
+            $locked->forceFill(['pos_settings' => PosSettings::merge(is_array($stored) ? $stored : null, ['holidays' => $data['holidays']])])->save();
+        });
+
+        $after = $this->calendar($branch->refresh(), $calendar);
         $audit->record('pos.room_calendar_changed', $branch, $before, $after, [], ['branch_id' => (int) $branch->id]);
 
         return $this->success($after, 'Kalendar saqlandi.');
@@ -156,7 +166,8 @@ class RoomTariffController extends ManagementController
         return [
             'branch_id' => (int) $branch->id,
             'weekend_days' => $calendar->weekendDays($row),
-            'holidays' => array_map('strval', $row !== null ? $row->holidays ?? [] : []),
+            // P3-26: the branch's one holiday list (pos_settings.holidays)
+            'holidays' => $calendar->holidays($branch, $row),
         ];
     }
 
