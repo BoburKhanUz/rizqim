@@ -11,7 +11,7 @@ V1PosOrdersUuidRoundsRequestBody _$V1PosOrdersUuidRoundsRequestBodyFromJson(
 ) => V1PosOrdersUuidRoundsRequestBody(
   version: (json['version'] as num).toInt(),
   items: (json['items'] as List<dynamic>)
-      .map((e) => Items39.fromJson(e as Map<String, dynamic>))
+      .map((e) => Items40.fromJson(e as Map<String, dynamic>))
       .toList(),
   fireMode: json['fire_mode'] == null
       ? null

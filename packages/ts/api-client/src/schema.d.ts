@@ -991,17 +991,19 @@ export interface paths {
          * @description `business_day_starts_at`: "HH:MM", the local time (`timezone` of the store) the business day starts, 05:00 unless
          *     changed. `pos_settings`: every key, stored values over the defaults: `mode` counter|table|hybrid,
          *     `printing_device_id` (uuid of the "chop etuvchi" kassa), `screen_lock_minutes` (0: never), `queue_numbers`,
-         *     `alerts` (`open_room_hours`, `void_amount`, `discount_percent`, `unaccepted_online_minutes`; null: off),
-         *     `holidays` (YYYY-MM-DD), `booking_slot_minutes` (null: the server default).
+         *     `cashier_discount_max_percent` (P3-37: the discount percent a cashier gives alone, "10.00" by default; null or
+         *     "0.00": always a manager's PIN), `alerts` (`open_room_hours`, `void_amount`, `discount_percent`,
+         *     `unaccepted_online_minutes`, `cash_out_amount` — one cash out of the drawer of at least this, "500000.00" by
+         *     default; null: off), `holidays` (YYYY-MM-DD), `booking_slot_minutes` (null: the server default).
          */
         get: operations["branchPosSettings.show"];
         /**
          * Change the branch's POS settings
          * @description Send only what changes. `business_day_starts_at`: "HH:MM" from 00:00 to 11:59 (an early opener may set 04:00).
          *     `pos_settings`: `mode`; `printing_device_id` (uuid of a POS terminal of this branch, or null for none);
-         *     `screen_lock_minutes` 0-240; `queue_numbers`; `alerts` merges key by key (`open_room_hours` 1-72,
-         *     `void_amount` 0-100000000, `discount_percent` 0-100, `unaccepted_online_minutes` 1-120; null switches that alert
-         *     off); `holidays` replaces the whole list (up to 400 dates); `booking_slot_minutes` 30-1440 (how long a booking without an end
+         *     `screen_lock_minutes` 0-240; `queue_numbers`; `cashier_discount_max_percent` 0-100 (2 decimals) or null;
+         *     `alerts` merges key by key (`open_room_hours` 1-72, `void_amount` 0-100000000, `discount_percent` 0-100,
+         *     `unaccepted_online_minutes` 1-120, `cash_out_amount` 0-100000000; null switches that alert off); `holidays` replaces the whole list (up to 400 dates); `booking_slot_minutes` 30-1440 (how long a booking without an end
          *     time holds its room; null: the server default). An unknown key is 422.
          */
         put: operations["branchPosSettings.update"];
@@ -1761,9 +1763,27 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** GET /owner/permissions: the store's role -> permission matrix, with the defaults alongside */
+        /**
+         * The store's permission matrix
+         * @description GET /owner/permissions (permissions.manage; not from a terminal PIN session). `roles`: owner (`editable: false`,
+         *     its set is fixed), then manager, cashier, waiter, cook, courier (`editable: true`), each with its Uzbek `label`.
+         *     `permissions`: every permission `key` (e.g. `orders.discount`, `pos.reprint_bill`, `pos.cash_in_out`) with its
+         *     Uzbek `label`; `grantable: false` ones (orders.refund, finance.manage, settings.manage, zones.manage,
+         *     staff.manage, audit.view, permissions.manage) stay the owner's and can only be taken away from a role, never
+         *     granted. `matrix`: this store's effective set, role => permission key => allowed (every role and every key
+         *     present). `defaults`: the same shape for the role defaults (RolePermissions; docs/AUTH.md): a cell that differs
+         *     from it is this store's override. 403 `store_required` for an account without a store.
+         */
         get: operations["staffAccess.permissions"];
-        /** PUT /owner/permissions {role, permission, allowed: true|false|null}: grant, take away, or back to the default */
+        /**
+         * Change one cell of the matrix
+         * @description PUT /owner/permissions {role, permission, allowed} (permissions.manage). `role`: manager, cashier, waiter, cook or
+         *     courier (the owner's set is fixed: 422). `permission`: a permission key. `allowed`: true grants it to the role in
+         *     this store, false takes it away, null puts the role's default back (sending the default itself is the same as
+         *     null). Granting a non-grantable permission: 422. Audited (`permissions.changed`) when the cell changes; takes
+         *     effect at once for every staff member of that role, terminal PIN sessions included. Answers the cell as it is
+         *     now (`allowed`: the effective value).
+         */
         put: operations["staffAccess.updatePermission"];
         post?: never;
         delete?: never;
@@ -2808,8 +2828,10 @@ export interface paths {
          *     `data`: `server_time`; `menu_version` (refetch GET /catalog?channel=pos_* when it changes); `store` (id, name,
          *     timezone); `branch` (id, name, address, phone, timezone, `business_day_starts_at` "HH:MM", `business_date`
          *     (the business day it is now), `pos_settings`: `mode` counter|table|hybrid, `printing_device_id` (uuid of the
-         *     "chop etuvchi" kassa or null), `screen_lock_minutes` (0: never), `queue_numbers`, `alerts` (`open_room_hours`,
-         *     `void_amount`, `discount_percent`, `unaccepted_online_minutes`; null: off), `holidays` (dates), `booking_slot_minutes` (default length of a booking, null: the server's)); `device` (the
+         *     "chop etuvchi" kassa or null), `screen_lock_minutes` (0: never), `queue_numbers`, `cashier_discount_max_percent`
+         *     (P3-37: the discount percent a cashier gives without a manager; null or "0.00": always a manager), `alerts`
+         *     (`open_room_hours`, `void_amount`, `discount_percent`, `unaccepted_online_minutes`, `cash_out_amount`; null: off),
+         *     `holidays` (dates), `booking_slot_minutes` (default length of a booking, null: the server's)); `device` (the
          *     terminal: uuid, type, name, `is_printing_device`; null outside a terminal session); `user` (id, name, role,
          *     permissions); `stations` (active kitchen stations); `station_routes` (dish to station: by product and by
          *     category; a product route beats its category's); `printers` (active ones this terminal can use: LAN and
@@ -3178,7 +3200,10 @@ export interface paths {
          *     payments first, POST /pos/refunds). Every line still on the order is voided — lines already sent get a kitchen
          *     void ("O'CHIRILDI"), unsent lines give their stock and kazan portion back — open or printed bills are voided, the
          *     order becomes `canceled` and its table free; a booking's order completes the booking (its deposits stay
-         *     `taken`, to refund or retain). Audited; the owner is alerted. 422 `order_closed`, 409 `version_conflict`.
+         *     `taken`, to refund or retain). Audited; the owner is alerted. P3-37: a closed order whose every payment was
+         *     refunded in full (`payment_status` refunded) is cancelled too, with the same permission: it becomes `canceled`,
+         *     keeps `closed_at`, its lines and paid bills stay, no receipt is issued (the refund receipts already reverse the
+         *     sale). Any other closed or cancelled order: 422 `order_closed`. 409 `version_conflict`.
          */
         post: operations["posOrder.cancel"];
         delete?: never;
@@ -3246,6 +3271,38 @@ export interface paths {
          *     Needs pos.take_payment.
          */
         post: operations["posBill.close"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/orders/{uuid}/discount": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Give or take off a discount
+         * @description P3-37. `kind` `percent` (`value` 0 < v ≤ 100, two decimals) or `amount` (`value` in so'm, 0 < v ≤ the dishes'
+         *     subtotal); `value` 0 takes the discount off. `reason` is required unless `value` is 0 (up to 255). The
+         *     discount is on the dishes (`charges.items_subtotal`), before the service charge; `discount` is its amount in
+         *     whole so'm (half-up). A percent stays a percent: adding or voiding lines works it out again; an amount never
+         *     exceeds the dishes. Who: orders.discount — any discount; a cashier (pos.take_payment) up to the branch's
+         *     `pos_settings.cashier_discount_max_percent` (an amount by its percent of the dishes), while no bill was printed;
+         *     otherwise 403 `approval_required` (`permission: orders.discount`): send a manager's one-time `approval_token`
+         *     for orders.discount (POST /pos/approvals). Taking a discount off needs orders.manage only. The waiter rule
+         *     applies. 409 `paid_bill_affected` once a bill of the order has a payment or is paid (refund first); 409
+         *     `version_conflict`; 422 `order_closed`; 422 validation (`value` above the dishes, `reason` missing). A printed
+         *     bill no longer matches: bill again (POST /pos/orders/{uuid}/bills). Audited (`pos.order.discount`, old and
+         *     new); the owner is alerted at `pos_settings.alerts.discount_percent` and above; `order.items_changed` with
+         *     `change: charges_changed`. Not available offline (no sync operation).
+         */
+        post: operations["posOrder.discount"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3572,8 +3629,10 @@ export interface paths {
          * @description `type`: `cash_in`, `cash_out`, `wage` (paid to an employee: `employee_id` required) or `purchase` (bazaar
          *     shopping); `category` from the type's list (cash_in: change_fund, owner, other; cash_out: collection, owner,
          *     supplies, utilities, other; wage: daily_wage, advance, bonus; purchase: bazaar, meat, bread, supplies, other);
-         *     `other` needs a `note`. Money out never exceeds the expected cash (409 `not_enough_cash`). Needs pos.cash_in_out,
-         *     or a manager's `approval_token` for it (403 `approval_required`). The shift must be open (409 `shift_closed`).
+         *     `other` needs a `note`. Money out never exceeds the expected cash (409 `not_enough_cash`). Needs pos.cash_in_out
+         *     (a cashier's by default since P3-37), or a manager's `approval_token` for it (403 `approval_required`). The shift
+         *     must be open (409 `shift_closed`). P3-37: one movement out (cash_out, wage, purchase) of at least the branch's
+         *     `pos_settings.alerts.cash_out_amount` alerts the owner.
          */
         post: operations["posShift.cashMovement"];
         delete?: never;
@@ -4905,6 +4964,10 @@ export interface components {
             sync_flags: {
                 [key: string]: unknown;
             }[] | null;
+            discount_kind: string | null;
+            discount_value: string | null;
+            discount_reason: string | null;
+            discount_by: number | null;
             type: string;
             address: string | null;
             store?: components["schemas"]["Store"];
@@ -8609,11 +8672,13 @@ export interface operations {
                                 printing_device_id: string | null;
                                 screen_lock_minutes: number;
                                 queue_numbers: boolean;
+                                cashier_discount_max_percent: string | null;
                                 alerts: {
                                     open_room_hours: number | null;
                                     void_amount: string | null;
                                     discount_percent: string | null;
                                     unaccepted_online_minutes: number | null;
+                                    cash_out_amount: string | null;
                                 };
                                 holidays: string[];
                                 booking_slot_minutes: number | null;
@@ -8645,11 +8710,13 @@ export interface operations {
                         printing_device_id?: string | null;
                         screen_lock_minutes?: number;
                         queue_numbers?: boolean;
+                        cashier_discount_max_percent?: number | null;
                         alerts?: {
                             open_room_hours?: number | null;
                             void_amount?: number | null;
                             discount_percent?: number | null;
                             unaccepted_online_minutes?: number | null;
+                            cash_out_amount?: number | null;
                         };
                         booking_slot_minutes?: number | null;
                         holidays?: string[];
@@ -8675,11 +8742,13 @@ export interface operations {
                                 printing_device_id: string | null;
                                 screen_lock_minutes: number;
                                 queue_numbers: boolean;
+                                cashier_discount_max_percent: string | null;
                                 alerts: {
                                     open_room_hours: number | null;
                                     void_amount: string | null;
                                     discount_percent: string | null;
                                     unaccepted_online_minutes: number | null;
+                                    cash_out_amount: string | null;
                                 };
                                 holidays: string[];
                                 booking_slot_minutes: number | null;
@@ -11501,7 +11570,8 @@ export interface operations {
                         message: string;
                         data: {
                             roles: {
-                                role: string;
+                                /** @enum {string} */
+                                role: "owner" | "manager" | "cashier" | "waiter" | "cook" | "courier";
                                 label: string;
                                 editable: boolean;
                             }[];
@@ -11562,7 +11632,8 @@ export interface operations {
                         success: boolean;
                         message: string;
                         data: {
-                            role: string;
+                            /** @enum {string} */
+                            role: "manager" | "cashier" | "waiter" | "cook" | "courier";
                             permission: string;
                             allowed: boolean;
                         };
@@ -16278,11 +16349,13 @@ export interface operations {
                                     printing_device_id: string | null;
                                     screen_lock_minutes: number;
                                     queue_numbers: boolean;
+                                    cashier_discount_max_percent: string | null;
                                     alerts: {
                                         open_room_hours: number | null;
                                         void_amount: string | null;
                                         discount_percent: string | null;
                                         unaccepted_online_minutes: number | null;
+                                        cash_out_amount: string | null;
                                     };
                                     holidays: string[];
                                     booking_slot_minutes: number | null;
@@ -17495,6 +17568,11 @@ export interface operations {
                             updated_at: string | null;
                             subtotal: string;
                             discount: string;
+                            /** @enum {string|null} */
+                            discount_kind: "percent" | "amount" | null;
+                            discount_value: string | null;
+                            discount_reason: string | null;
+                            discount_by: number | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -17645,6 +17723,11 @@ export interface operations {
                             updated_at: string | null;
                             subtotal: string;
                             discount: string;
+                            /** @enum {string|null} */
+                            discount_kind: "percent" | "amount" | null;
+                            discount_value: string | null;
+                            discount_reason: string | null;
+                            discount_by: number | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -18374,6 +18457,11 @@ export interface operations {
                             updated_at: string | null;
                             subtotal: string;
                             discount: string;
+                            /** @enum {string|null} */
+                            discount_kind: "percent" | "amount" | null;
+                            discount_value: string | null;
+                            discount_reason: string | null;
+                            discount_by: number | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -18535,6 +18623,11 @@ export interface operations {
                             updated_at: string | null;
                             subtotal: string;
                             discount: string;
+                            /** @enum {string|null} */
+                            discount_kind: "percent" | "amount" | null;
+                            discount_value: string | null;
+                            discount_reason: string | null;
+                            discount_by: number | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -18697,6 +18790,11 @@ export interface operations {
                             updated_at: string | null;
                             subtotal: string;
                             discount: string;
+                            /** @enum {string|null} */
+                            discount_kind: "percent" | "amount" | null;
+                            discount_value: string | null;
+                            discount_reason: string | null;
+                            discount_by: number | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -18991,6 +19089,175 @@ export interface operations {
             401: components["responses"]["AuthenticationException"];
         };
     };
+    "posOrder.discount": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required: a new UUID per action, the same one when retrying it (428 or 400 without). */
+                "Idempotency-Key": string;
+            };
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    version: number;
+                    /** @enum {string} */
+                    kind: "percent" | "amount";
+                    value: number;
+                    reason?: string | null;
+                    approval_token?: string | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            short_code: string | null;
+                            status: string;
+                            channel: string;
+                            type: string;
+                            store_id: number;
+                            branch_id: number | null;
+                            version: number;
+                            hall: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            table: {
+                                id: number;
+                                name: string;
+                                kind: string;
+                            } | null;
+                            hall_ref: string | null;
+                            table_ref: string | null;
+                            guests_count: number | null;
+                            waiter: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            opened_by: number;
+                            device_id: number | null;
+                            booking_id: number | null;
+                            booking_uuid: string | null;
+                            deposit_available: string;
+                            bill_locked: boolean;
+                            bill_requested_at: string | null;
+                            notes: string | null;
+                            opened_at: string | null;
+                            updated_at: string | null;
+                            subtotal: string;
+                            discount: string;
+                            /** @enum {string|null} */
+                            discount_kind: "percent" | "amount" | null;
+                            discount_value: string | null;
+                            discount_reason: string | null;
+                            discount_by: number | null;
+                            service_charge_amount: string;
+                            place_fee_amount: string;
+                            room_fee_amount: string;
+                            min_spend_topup_amount: string;
+                            total_price: string;
+                            charges: {
+                                items_subtotal: string;
+                                discount: string;
+                                service_charge_percent: string;
+                                service_charge_amount: string;
+                                place_fee_amount: string;
+                                room_fee_amount: string;
+                                room_tariff_id: number | null;
+                                business_date: string | null;
+                                day_type: string | null;
+                                min_spend: string;
+                                min_spend_topup_amount: string;
+                                waived: string[];
+                                total: string;
+                                waivers: {
+                                    charge: string;
+                                    reason: string;
+                                    waived_by: number | null;
+                                    approved_by: number | null;
+                                    waived_at: string | null;
+                                }[];
+                            };
+                            offline: {
+                                local_number: string | null;
+                                created_at: string | null;
+                                synced_at: string | null;
+                                flags: {
+                                    flag: string;
+                                    op_id: string | null;
+                                    amount: string | null;
+                                    name: string | null;
+                                }[];
+                            } | null;
+                            rounds: number;
+                            items: {
+                                id: number;
+                                round_no: number | null;
+                                product_variant_id: number | null;
+                                product_name: string;
+                                variant_name: string | null;
+                                quantity: number;
+                                unit: string;
+                                quantity_label: string;
+                                unit_price: string;
+                                modifiers: {
+                                    id: number;
+                                    name: string;
+                                    group_name: string | null;
+                                    quantity: number;
+                                    price_delta: string;
+                                }[];
+                                modifiers_total: string;
+                                total_price: string;
+                                note: string | null;
+                                seat_no: number | null;
+                                fire_mode: string | null;
+                                due_at: string | null;
+                                kitchen_status: string;
+                                station_id: number | null;
+                                sent_at: string | null;
+                                ready_at: string | null;
+                                added_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                added_at: string | null;
+                                voided_at: string | null;
+                                voided_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                void_reason: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
     "posOrder.guests": {
         parameters: {
             query?: never;
@@ -19058,6 +19325,11 @@ export interface operations {
                             updated_at: string | null;
                             subtotal: string;
                             discount: string;
+                            /** @enum {string|null} */
+                            discount_kind: "percent" | "amount" | null;
+                            discount_value: string | null;
+                            discount_reason: string | null;
+                            discount_by: number | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -19219,6 +19491,11 @@ export interface operations {
                             updated_at: string | null;
                             subtotal: string;
                             discount: string;
+                            /** @enum {string|null} */
+                            discount_kind: "percent" | "amount" | null;
+                            discount_value: string | null;
+                            discount_reason: string | null;
+                            discount_by: number | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -19390,6 +19667,11 @@ export interface operations {
                             updated_at: string | null;
                             subtotal: string;
                             discount: string;
+                            /** @enum {string|null} */
+                            discount_kind: "percent" | "amount" | null;
+                            discount_value: string | null;
+                            discount_reason: string | null;
+                            discount_by: number | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -19561,6 +19843,11 @@ export interface operations {
                             updated_at: string | null;
                             subtotal: string;
                             discount: string;
+                            /** @enum {string|null} */
+                            discount_kind: "percent" | "amount" | null;
+                            discount_value: string | null;
+                            discount_reason: string | null;
+                            discount_by: number | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -19722,6 +20009,11 @@ export interface operations {
                             updated_at: string | null;
                             subtotal: string;
                             discount: string;
+                            /** @enum {string|null} */
+                            discount_kind: "percent" | "amount" | null;
+                            discount_value: string | null;
+                            discount_reason: string | null;
+                            discount_by: number | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -20045,6 +20337,11 @@ export interface operations {
                             updated_at: string | null;
                             subtotal: string;
                             discount: string;
+                            /** @enum {string|null} */
+                            discount_kind: "percent" | "amount" | null;
+                            discount_value: string | null;
+                            discount_reason: string | null;
+                            discount_by: number | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -20220,6 +20517,11 @@ export interface operations {
                             updated_at: string | null;
                             subtotal: string;
                             discount: string;
+                            /** @enum {string|null} */
+                            discount_kind: "percent" | "amount" | null;
+                            discount_value: string | null;
+                            discount_reason: string | null;
+                            discount_by: number | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -20381,6 +20683,11 @@ export interface operations {
                             updated_at: string | null;
                             subtotal: string;
                             discount: string;
+                            /** @enum {string|null} */
+                            discount_kind: "percent" | "amount" | null;
+                            discount_value: string | null;
+                            discount_reason: string | null;
+                            discount_by: number | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;

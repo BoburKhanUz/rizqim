@@ -4,6 +4,8 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'role.dart';
+
 part 'data90.g.dart';
 
 @JsonSerializable()
@@ -16,7 +18,7 @@ class Data90 {
 
   factory Data90.fromJson(Map<String, Object?> json) => _$Data90FromJson(json);
 
-  final String role;
+  final Role role;
   final String permission;
   final bool allowed;
 

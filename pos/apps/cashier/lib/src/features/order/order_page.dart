@@ -10,6 +10,7 @@ import '../../shell/approval_dialog.dart';
 import '../../shell/limited_mode.dart';
 import '../../shell/pos_scope.dart';
 import '../../shell/routes.dart';
+import 'discount_dialog.dart';
 import 'frequent_items.dart';
 import 'kitchen_tickets.dart';
 import 'line_dialogs.dart';
@@ -308,6 +309,38 @@ class _OrderPageState extends State<OrderPage> {
     await ctl.waiveCharge(kind, r.reason, approve: _approve);
   }
 
+  /// P3-37: chegirma oynasi; chegaradan ko'pi — server so'raganda menejer PIN'i ([withApproval]).
+  Future<void> _discount() async {
+    final OrderController ctl = _ctl!;
+    final PosOrder? o = ctl.order;
+    if (o == null) return;
+    final DiscountRules rules = DiscountRules.of(_scope.session);
+    final DiscountInput? d = await showDiscountDialog(
+      context,
+      order: o,
+      unlimited: rules.unlimited,
+      limitHundredths: rules.limitHundredths,
+    );
+    if (d == null || !mounted) return;
+    await ctl.discount(d.kind, d.value, reason: d.reason, approve: _approve);
+  }
+
+  Future<void> _removeDiscount() async {
+    final OrderController ctl = _ctl!;
+    final PosOrder? o = ctl.order;
+    if (o == null) return;
+    final bool ok = await confirmDialog(
+      context,
+      title: 'Chegirma olib tashlansinmi?',
+      message:
+          '${discountLabel(o)} (${o.discount.format()}) olib tashlanadi, jami qayta hisoblanadi.',
+      confirmLabel: 'Olib tashlash',
+      cancelLabel: 'Qolish',
+    );
+    if (!ok || !mounted) return;
+    await ctl.removeDiscount(approve: _approve);
+  }
+
   Future<void> _guests() async {
     final OrderController ctl = _ctl!;
     final int? n = await showGuestsDialog(
@@ -519,6 +552,16 @@ class _OrderPageState extends State<OrderPage> {
               label: const Text('Birlashtirish'),
             ),
           ),
+        if (o != null && DiscountRules.of(_scope.session).allowed)
+          Tooltip(
+            message: limited ? discountOfflineReason : 'Chegirma',
+            child: TextButton.icon(
+              key: const ValueKey<String>('order-discount'),
+              onPressed: canChange ? _discount : null,
+              icon: const Icon(Icons.percent_rounded),
+              label: const Text('Chegirma'),
+            ),
+          ),
         if (o != null)
           PopupMenuButton<String>(
             tooltip: "Boshqa amallar",
@@ -607,6 +650,10 @@ class _OrderPageState extends State<OrderPage> {
       onBill: () => unawaited(_bill()),
       onCharge: (PosChargeKind k, bool waived) =>
           unawaited(_onCharge(k, waived)),
+      onRemoveDiscount:
+          DiscountRules.of(_scope.session).allowed && !limitedMode(context)
+          ? () => unawaited(_removeDiscount())
+          : null,
     );
     final RzColors c = context.rz;
     return Column(
@@ -632,7 +679,7 @@ class _OrderPageState extends State<OrderPage> {
           MaterialBanner(
             backgroundColor: Color.alphaBlend(c.brandSoft, c.surface),
             content: const Text(
-              "Schyot chiqarilgan: o'chirish va xizmat qatorini olib tashlash menejer tasdig'i bilan.",
+              "Schyot chiqarilgan: o'chirish, chegirma va xizmat qatorini olib tashlash menejer tasdig'i bilan.",
             ),
             actions: const <Widget>[SizedBox.shrink()],
           ),

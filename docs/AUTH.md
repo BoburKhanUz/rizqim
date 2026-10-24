@@ -247,7 +247,7 @@ superadmin uchun.
 | `orders.view` | Buyurtmalarni ko'rish (P2-11: `GET /staff/orders*`, `pos-branch` kanali, o'z filiali) | ✓ | ✓ | ✓ | ✓ | ✓ |  |
 | `orders.manage` | Buyurtma yaratish va holatini o'zgartirish | ✓ | ✓ | ✓ | ✓ |  |  |
 | `orders.cancel` | Buyurtmani bekor qilish yoki rad etish | ✓ | ✓ |  |  |  |  |
-| `orders.discount` | Chegirma berish | ✓ | ✓ |  |  |  |  |
+| `orders.discount` | Chegirma berish (har qanday miqdorda). P3-37: kassir (`pos.take_payment`) bu ruxsatsiz ham filial sozlamasidagi `cashier_discount_max_percent` gacha (standart 10%) o'zi beradi, undan ko'pini va schyot chiqqandan keyingisini — menejer PIN tasdig'i bilan | ✓ | ✓ |  |  |  |  |
 | `orders.void_item` | Taomni chekdan o'chirish | ✓ | ✓ |  |  |  |  |
 | `orders.assign_courier` | Kuryer biriktirish (`GET /couriers`, `POST /orders/{uuid}/assign-courier`) va biriktirilgan kuryer olib ketganini belgilash (`on_the_way`, P2-30) | ✓ | ✓ |  |  |  |  |
 | `orders.refund` | Pulni qaytarish |  |  |  |  |  |  |
@@ -273,9 +273,9 @@ superadmin uchun.
 | `permissions.manage` | Ruxsatlarni o'zgartirish | ✓ |  |  |  |  |  |
 | `pos.open_shift` | Smenani ochish | ✓ | ✓ | ✓ |  |  |  |
 | `pos.close_shift` | Smenani yopish | ✓ | ✓ | ✓ |  |  |  |
-| `pos.cash_in_out` | Kassaga pul kiritish va chiqarish | ✓ | ✓ |  |  |  |  |
+| `pos.cash_in_out` | Kassaga pul kiritish va chiqarish (P3-37: kassir ham, menejersiz; chiqim `cash_out_amount` dan oshsa egaga xabar) | ✓ | ✓ | ✓ |  |  |  |
 | `pos.take_payment` | To'lov qabul qilish | ✓ | ✓ | ✓ |  |  |  |
-| `pos.reprint_bill` | Schyotni qayta chiqarish | ✓ | ✓ |  |  |  |  |
+| `pos.reprint_bill` | Schyotni qayta chiqarish ("NUSXA"; P3-37: kassir ham, menejersiz) | ✓ | ✓ | ✓ |  |  |  |
 | `bookings.manage` | Bron daftari: taqvim, bron, oldindan buyurtma, avans olish, "Keldi" (P3-17: `/pos/bookings*`; avansni qaytarish — `pos.refund`, ushlab qolish — `orders.cancel` yoki menejer PIN tasdig'i) | ✓ | ✓ | ✓ |  |  |  |
 | `customer_accounts.manage` | Nasiya hisoblari: ochish, limit, bloklash, qarzni tuzatish (P3-17); ko'rish va qarz to'lovini qabul qilish `pos.take_payment` bilan ham | ✓ | ✓ |  |  |  |  |
 | `pos.refund` | Smena ichida pulni qaytarish (P3-18: `POST /pos/refunds` — shu smenada olingan naqd, karta yoki QR to'lov, qaytarish cheki bilan); kassir menejer PIN tasdig'i bilan | ✓ | ✓ |  |  |  |  |
@@ -284,7 +284,9 @@ superadmin uchun.
 panelda "Ruxsatlar" sahifasida menejer, kassir, ofitsiant, oshpaz va kuryer huquqlarini o'zgartira oladi (`null` —
 standartga qaytarish). Ega huquqlari o'zgarmaydi. Quyidagilarni boshqa rolga berib bo'lmaydi: `orders.refund`,
 `finance.manage`, `settings.manage`, `zones.manage`, `staff.manage`, `audit.view`, `permissions.manage`.
-`GET /owner/permissions` — joriy jadval va standartlar. Bu endpointlar chaqiruvchining o'z do'koni uchun: do'konsiz
+`GET /owner/permissions` — joriy jadval va standartlar (javob shakli: [API.md](API.md), "Kassadagi chegirma va kassir
+huquqlari (P3-37)"). P3-37 (egasining 24.10.2026 qarori): kassirning standart huquqlariga `pos.reprint_bill` va
+`pos.cash_in_out` qo'shildi; qaytarish (`pos.refund`) va bekor qilish (`orders.cancel`) menejer PIN bilan qoladi. Bu endpointlar chaqiruvchining o'z do'koni uchun: do'konsiz
 superadmin 403 (`data.reason = store_required`) oladi va do'kon ruxsatlarini panel orqali boshqaradi.
 
 **Hisobotlar.** `GET /owner/analytics` ega va menejer uchun, `reports.view` bilan (do'kon o'zgartirishlari hisobga

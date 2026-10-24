@@ -24,7 +24,7 @@ use Illuminate\Validation\ValidationException;
 #[Group('Owner: POS settings', "Filialning POS sozlamalari: rejim, biznes kun boshlanishi, chop etuvchi kassa, ekran qulfi, ogohlantirish chegaralari (P3-13).")]
 class BranchPosSettingsController extends ManagementController
 {
-    private const SETTINGS = 'array{branch_id: int, timezone: string, business_day_starts_at: string, pos_settings: array{mode: string, printing_device_id: string|null, screen_lock_minutes: int, queue_numbers: bool, alerts: array{open_room_hours: int|null, void_amount: string|null, discount_percent: string|null, unaccepted_online_minutes: int|null}, holidays: list<string>, booking_slot_minutes: int|null}}';
+    private const SETTINGS = 'array{branch_id: int, timezone: string, business_day_starts_at: string, pos_settings: array{mode: string, printing_device_id: string|null, screen_lock_minutes: int, queue_numbers: bool, cashier_discount_max_percent: string|null, alerts: array{open_room_hours: int|null, void_amount: string|null, discount_percent: string|null, unaccepted_online_minutes: int|null, cash_out_amount: string|null}, holidays: list<string>, booking_slot_minutes: int|null}}';
 
     /**
      * The branch's POS settings
@@ -32,8 +32,10 @@ class BranchPosSettingsController extends ManagementController
      * `business_day_starts_at`: "HH:MM", the local time (`timezone` of the store) the business day starts, 05:00 unless
      * changed. `pos_settings`: every key, stored values over the defaults: `mode` counter|table|hybrid,
      * `printing_device_id` (uuid of the "chop etuvchi" kassa), `screen_lock_minutes` (0: never), `queue_numbers`,
-     * `alerts` (`open_room_hours`, `void_amount`, `discount_percent`, `unaccepted_online_minutes`; null: off),
-     * `holidays` (YYYY-MM-DD), `booking_slot_minutes` (null: the server default).
+     * `cashier_discount_max_percent` (P3-37: the discount percent a cashier gives alone, "10.00" by default; null or
+     * "0.00": always a manager's PIN), `alerts` (`open_room_hours`, `void_amount`, `discount_percent`,
+     * `unaccepted_online_minutes`, `cash_out_amount` — one cash out of the drawer of at least this, "500000.00" by
+     * default; null: off), `holidays` (YYYY-MM-DD), `booking_slot_minutes` (null: the server default).
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . self::SETTINGS . '}')]
     public function show(Request $request, int $id): JsonResponse
@@ -48,9 +50,9 @@ class BranchPosSettingsController extends ManagementController
      *
      * Send only what changes. `business_day_starts_at`: "HH:MM" from 00:00 to 11:59 (an early opener may set 04:00).
      * `pos_settings`: `mode`; `printing_device_id` (uuid of a POS terminal of this branch, or null for none);
-     * `screen_lock_minutes` 0-240; `queue_numbers`; `alerts` merges key by key (`open_room_hours` 1-72,
-     * `void_amount` 0-100000000, `discount_percent` 0-100, `unaccepted_online_minutes` 1-120; null switches that alert
-     * off); `holidays` replaces the whole list (up to 400 dates); `booking_slot_minutes` 30-1440 (how long a booking without an end
+     * `screen_lock_minutes` 0-240; `queue_numbers`; `cashier_discount_max_percent` 0-100 (2 decimals) or null;
+     * `alerts` merges key by key (`open_room_hours` 1-72, `void_amount` 0-100000000, `discount_percent` 0-100,
+     * `unaccepted_online_minutes` 1-120, `cash_out_amount` 0-100000000; null switches that alert off); `holidays` replaces the whole list (up to 400 dates); `booking_slot_minutes` 30-1440 (how long a booking without an end
      * time holds its room; null: the server default). An unknown key is 422.
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . self::SETTINGS . '}')]
@@ -65,11 +67,13 @@ class BranchPosSettingsController extends ManagementController
             'pos_settings.printing_device_id' => ['sometimes', 'nullable', 'uuid'],
             'pos_settings.screen_lock_minutes' => ['sometimes', 'integer', 'min:0', 'max:240'],
             'pos_settings.queue_numbers' => ['sometimes', 'boolean'],
+            'pos_settings.cashier_discount_max_percent' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:100', 'decimal:0,2'],
             'pos_settings.alerts' => ['sometimes', 'array'],
             'pos_settings.alerts.open_room_hours' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:72'],
             'pos_settings.alerts.void_amount' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:100000000', 'decimal:0,2'],
             'pos_settings.alerts.discount_percent' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:100', 'decimal:0,2'],
             'pos_settings.alerts.unaccepted_online_minutes' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:120'],
+            'pos_settings.alerts.cash_out_amount' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:100000000', 'decimal:0,2'],
             'pos_settings.booking_slot_minutes' => ['sometimes', 'nullable', 'integer', 'min:30', 'max:1440'],
             'pos_settings.holidays' => ['sometimes', 'array', 'max:' . PosSettings::MAX_HOLIDAYS],
             'pos_settings.holidays.*' => ['date_format:Y-m-d'],
@@ -83,10 +87,12 @@ class BranchPosSettingsController extends ManagementController
             'pos_settings.printing_device_id' => 'Chop etuvchi kassa',
             'pos_settings.screen_lock_minutes' => 'Ekran qulfi (daqiqa)',
             'pos_settings.queue_numbers' => 'Navbat raqami',
+            'pos_settings.cashier_discount_max_percent' => 'Kassir chegirmasi chegarasi (%)',
             'pos_settings.alerts.open_room_hours' => 'Ochiq xona (soat)',
             'pos_settings.alerts.void_amount' => "O'chirilgan summa",
             'pos_settings.alerts.discount_percent' => 'Chegirma (%)',
             'pos_settings.alerts.unaccepted_online_minutes' => 'Qabul qilinmagan onlayn buyurtma (daqiqa)',
+            'pos_settings.alerts.cash_out_amount' => 'Kassadan chiqim summasi',
             'pos_settings.booking_slot_minutes' => 'Bron muddati (daqiqa)',
             'pos_settings.holidays' => 'Bayram kunlari',
         ]);

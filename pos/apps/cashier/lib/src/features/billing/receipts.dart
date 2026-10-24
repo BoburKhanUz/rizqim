@@ -146,8 +146,13 @@ PreCheck preCheckOf({
         bill.serviceChargeAmount,
         percent: _percent(order?.charges.serviceChargePercent),
       ),
+    // P3-37: a percent discount shows its percent ("Chegirma 10%")
     if (!bill.discount.isZero)
-      BillCharge(BillChargeKind.discount, -bill.discount.abs()),
+      BillCharge(
+        BillChargeKind.discount,
+        -bill.discount.abs(),
+        percent: _percent(order?.discountPercent),
+      ),
   ],
   prepaid: prepaid,
   splitCount: bill.guestsShare,
@@ -312,6 +317,9 @@ FiscalReceipt saleReceiptOf({
     fiscal: _fiscalOf(detail),
     note: _nonFiscalNote(detail),
     isCopy: copy,
+    // P3-37: the server's lines are after the discount — the receipt tells it once at the end
+    discount: bill.discount.abs(),
+    discountPercent: _percent(order?.discountPercent),
   );
 }
 

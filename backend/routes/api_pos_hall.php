@@ -89,6 +89,10 @@ Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->group(functi
         // (checked in PosOrderService::cancel)
         Route::post('/orders/{uuid}/cancel', [PosOrderController::class, 'cancel'])->whereUuid('uuid')->middleware(['permission:orders.cancel,orders.manage', $idempotent('pos.orders.cancel')]);
 
+        // P3-37: a discount — orders.discount, a cashier within the branch's limit, or orders.manage with a manager's
+        // approval token (checked in PosOrderService::discount)
+        Route::post('/orders/{uuid}/discount', [PosOrderController::class, 'discount'])->whereUuid('uuid')->middleware(['permission:orders.discount,orders.manage', $idempotent('pos.orders.discount')]);
+
         Route::middleware('permission:tables.manage')->group(function () use ($idempotent) {
             Route::post('/orders/{uuid}/move', [PosOrderController::class, 'move'])->whereUuid('uuid')->middleware($idempotent('pos.orders.move'));
             Route::post('/orders/{uuid}/merge', [PosOrderController::class, 'merge'])->whereUuid('uuid')->middleware($idempotent('pos.orders.merge'));

@@ -341,6 +341,36 @@ class PosOrderRepository {
     });
   }
 
+  /// `POST /pos/orders/{uuid}/discount` (P3-37): buyurtmaga chegirma. [kind] — foiz yoki summa, [value] — API
+  /// satri (`"10"`, `"50000.00"`); `"0"` chegirmani olib tashlaydi ([reason] shunda shart emas, aks holda majburiy).
+  ///
+  /// Kassir o'zi filial chegarasigacha (`pos_settings.cashier_discount_max_percent`) beradi; undan ko'pi —
+  /// [PosApprovalRequired] (`orders.discount` menejer tasdig'i). To'lov olingan schyot bo'lsa — [PosConflict]
+  /// `paid_bill_affected`. Internetsiz rejimda — [PosOfflineUnavailable] (navbatga yozilmaydi).
+  Future<PosOrder> discount(
+    String uuid, {
+    required int version,
+    required PosDiscountKind kind,
+    required String value,
+    String? reason,
+    String? approvalToken,
+    String? idempotencyKey,
+  }) async {
+    if (_limited) {
+      throw const PosOfflineUnavailable(
+        'Chegirma uchun internet kerak: aloqa tiklangach bering.',
+      );
+    }
+    final String? why = reason?.trim();
+    return _post(uuid, 'discount', idempotencyKey, <String, Object?>{
+      'version': version,
+      'kind': kind.wire,
+      'value': value,
+      if (why != null && why.isNotEmpty) 'reason': why,
+      'approval_token': ?approvalToken,
+    });
+  }
+
   /// `POST /pos/orders/{uuid}/charges/{charge}/waive`: xizmat qatorini sabab bilan olib tashlash.
   Future<PosOrder> waiveCharge(
     String uuid,

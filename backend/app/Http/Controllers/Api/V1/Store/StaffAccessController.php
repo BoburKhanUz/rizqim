@@ -111,9 +111,18 @@ class StaffAccessController extends Controller
     }
 
     /**
-     * GET /owner/permissions: the store's role -> permission matrix, with the defaults alongside.
+     * The store's permission matrix
+     *
+     * GET /owner/permissions (permissions.manage; not from a terminal PIN session). `roles`: owner (`editable: false`,
+     * its set is fixed), then manager, cashier, waiter, cook, courier (`editable: true`), each with its Uzbek `label`.
+     * `permissions`: every permission `key` (e.g. `orders.discount`, `pos.reprint_bill`, `pos.cash_in_out`) with its
+     * Uzbek `label`; `grantable: false` ones (orders.refund, finance.manage, settings.manage, zones.manage,
+     * staff.manage, audit.view, permissions.manage) stay the owner's and can only be taken away from a role, never
+     * granted. `matrix`: this store's effective set, role => permission key => allowed (every role and every key
+     * present). `defaults`: the same shape for the role defaults (RolePermissions; docs/AUTH.md): a cell that differs
+     * from it is this store's override. 403 `store_required` for an account without a store.
      */
-    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{roles: list<array{role: string, label: string, editable: bool}>, permissions: list<array{key: string, label: string, grantable: bool}>, matrix: array<string, array<string, bool>>, defaults: array<string, array<string, bool>>}}')]
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{roles: list<array{role: \'owner\'|\'manager\'|\'cashier\'|\'waiter\'|\'cook\'|\'courier\', label: string, editable: bool}>, permissions: list<array{key: string, label: string, grantable: bool}>, matrix: array<string, array<string, bool>>, defaults: array<string, array<string, bool>>}}')]
     public function permissions(Request $request): JsonResponse
     {
         /** @var User $actor */
@@ -139,9 +148,16 @@ class StaffAccessController extends Controller
     }
 
     /**
-     * PUT /owner/permissions {role, permission, allowed: true|false|null}: grant, take away, or back to the default.
+     * Change one cell of the matrix
+     *
+     * PUT /owner/permissions {role, permission, allowed} (permissions.manage). `role`: manager, cashier, waiter, cook or
+     * courier (the owner's set is fixed: 422). `permission`: a permission key. `allowed`: true grants it to the role in
+     * this store, false takes it away, null puts the role's default back (sending the default itself is the same as
+     * null). Granting a non-grantable permission: 422. Audited (`permissions.changed`) when the cell changes; takes
+     * effect at once for every staff member of that role, terminal PIN sessions included. Answers the cell as it is
+     * now (`allowed`: the effective value).
      */
-    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{role: string, permission: string, allowed: bool}}')]
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{role: \'manager\'|\'cashier\'|\'waiter\'|\'cook\'|\'courier\', permission: string, allowed: bool}}')]
     public function updatePermission(Request $request): JsonResponse
     {
         $data = $request->validate([

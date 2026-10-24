@@ -145,6 +145,70 @@ void main() {
     });
   }
 
+  test('P3-37: the order discount on the sale receipt and the pre-check', () {
+    FiscalReceipt sale({PosMoney lineDiscount = PosMoney.zero}) =>
+        FiscalReceipt(
+          type: FiscalReceiptType.sale,
+          header: header,
+          number: '000124',
+          issuedAt: closed,
+          lines: <ReceiptLine>[
+            ReceiptLine(
+              name: 'Osh',
+              quantity: pcs(1),
+              unitPrice: const PosMoney.som(171000),
+              amount: const PosMoney.som(171000),
+              discount: lineDiscount,
+            ),
+          ],
+          payments: const <ReceiptPayment>[
+            ReceiptPayment(PosTender.cash, PosMoney.som(171000)),
+          ],
+          discount: const PosMoney.som(19000),
+          discountPercent: '10.00',
+        );
+    for (final PaperWidth paper in PaperWidth.values) {
+      // The server's lines are after the discount: it is told once at the end, the total stays the lines' sum
+      final PrintLayout told = layoutFiscalReceipt(sale(), paper);
+      expectFits(told);
+      expect(texts(told), contains('Berilgan chegirma 10%:'));
+      expect(texts(told), contains('19 000'));
+      expect(sale().total, const PosMoney.som(171000));
+      // Lines that show their own discount: no second line
+      final PrintLayout perLine = layoutFiscalReceipt(
+        sale(lineDiscount: const PosMoney.som(19000)),
+        paper,
+      );
+      expect(texts(perLine), isNot(contains('Berilgan chegirma')));
+      expect(texts(perLine), contains('Chegirma'));
+
+      final PreCheck check = PreCheck(
+        header: header,
+        printedAt: closed,
+        items: <PreCheckItem>[
+          PreCheckItem(
+            name: 'Osh',
+            quantity: pcs(1),
+            unitPrice: const PosMoney.som(190000),
+            amount: const PosMoney.som(190000),
+          ),
+        ],
+        charges: const <BillCharge>[
+          BillCharge(
+            BillChargeKind.discount,
+            PosMoney.som(-19000),
+            percent: '10.00',
+          ),
+        ],
+      );
+      final PrintLayout pre = layoutPreCheck(check, paper);
+      expectFits(pre);
+      expect(texts(pre), contains('Chegirma 10%:'));
+      expect(texts(pre), contains('-19 000'));
+      expect(check.total, const PosMoney.som(171000));
+    }
+  });
+
   test('receipt totals: VAT by rate and money received', () {
     final FiscalReceipt r = saleReceipt(fiscal: issued);
     expect(r.total, const PosMoney.som(4480000));

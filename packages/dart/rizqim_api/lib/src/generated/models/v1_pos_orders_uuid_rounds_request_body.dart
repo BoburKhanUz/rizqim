@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'items39.dart';
+import 'items40.dart';
 import 'fire_mode.dart';
 
 part 'v1_pos_orders_uuid_rounds_request_body.g.dart';
@@ -24,7 +24,7 @@ class V1PosOrdersUuidRoundsRequestBody {
   ) => _$V1PosOrdersUuidRoundsRequestBodyFromJson(json);
 
   final int version;
-  final List<Items39> items;
+  final List<Items40> items;
   @JsonKey(name: 'fire_mode')
   final FireMode? fireMode;
   final bool? send;

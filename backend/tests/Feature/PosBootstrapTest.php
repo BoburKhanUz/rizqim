@@ -70,12 +70,19 @@ class PosBootstrapTest extends TestCase
         $this->assertSame('table', $data['branch']['pos_settings']['mode']);
         $this->assertSame($terminal->uuid, $data['branch']['pos_settings']['printing_device_id']);
         $this->assertTrue($data['branch']['pos_settings']['queue_numbers']);
-        $this->assertSame(['open_room_hours', 'void_amount', 'discount_percent', 'unaccepted_online_minutes'], array_keys($data['branch']['pos_settings']['alerts']));
+        $this->assertSame(['open_room_hours', 'void_amount', 'discount_percent', 'unaccepted_online_minutes', 'cash_out_amount'], array_keys($data['branch']['pos_settings']['alerts']));
+        // P3-37: the cashier's own discount limit and the cash-out alert, with their defaults
+        $this->assertSame('10.00', $data['branch']['pos_settings']['cashier_discount_max_percent']);
+        $this->assertSame('500000.00', $data['branch']['pos_settings']['alerts']['cash_out_amount']);
 
         $this->assertSame(['uuid' => $terminal->uuid, 'type' => 'pos', 'name' => 'Kassa', 'is_printing_device' => true], $data['device']);
         $this->assertSame($this->cashier->id, $data['user']['id']);
         $this->assertSame('cashier', $data['user']['role']);
         $this->assertContains('pos.take_payment', $data['user']['permissions']);
+        // P3-37: a cashier prints bill copies and moves cash alone by default; discounts above the limit stay a manager's
+        $this->assertContains('pos.reprint_bill', $data['user']['permissions']);
+        $this->assertContains('pos.cash_in_out', $data['user']['permissions']);
+        $this->assertNotContains('orders.discount', $data['user']['permissions']);
         $this->assertNotContains('settings.manage', $data['user']['permissions']);
 
         // Active stations of this branch only, in screen order; the routing for offline use

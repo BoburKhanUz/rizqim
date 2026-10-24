@@ -126,14 +126,30 @@ export async function deletePrinter(api: StaffApi, id: number): Promise<void> {
 
 // --- Branch POS settings -------------------------------------------------------------------------------------------------------------
 
-export type BranchPosSettings = OkData<'branchPosSettings.show'>;
-export type BranchPosSettingsPatch = NonNullable<JsonRequest<'branchPosSettings.update'>>;
+// P3-37: `cashier_discount_max_percent` ("0.00"-"100.00" or null: the cashier always asks a manager; default "10.00") and the
+// alert `cash_out_amount` (money string or null; default "500000.00") are written out here until the generated client
+// carries them (the intersections below then say the same thing twice, harmlessly).
+type GeneratedPosSettings = OkData<'branchPosSettings.show'>;
+export type BranchPosSettings = Omit<GeneratedPosSettings, 'pos_settings'> & {
+  pos_settings: GeneratedPosSettings['pos_settings'] & {
+    cashier_discount_max_percent?: string | null;
+    alerts: { cash_out_amount?: string | null };
+  };
+};
+type GeneratedPosSettingsPatch = NonNullable<JsonRequest<'branchPosSettings.update'>>;
+export type BranchPosSettingsPatch = Omit<GeneratedPosSettingsPatch, 'pos_settings'> & {
+  pos_settings?: NonNullable<GeneratedPosSettingsPatch['pos_settings']> & {
+    // 0-100 with up to 2 decimals; null (or 0): the cashier always needs a manager's PIN for a discount
+    cashier_discount_max_percent?: number | null;
+    alerts?: { cash_out_amount?: number | null };
+  };
+};
 
 export const POS_MODES = ['counter', 'table', 'hybrid'] as const;
 export type PosMode = (typeof POS_MODES)[number];
 
 // The alerts the owner is told about; a key set to null switches that alert off
-export const ALERT_KEYS = ['open_room_hours', 'void_amount', 'discount_percent', 'unaccepted_online_minutes'] as const;
+export const ALERT_KEYS = ['open_room_hours', 'void_amount', 'discount_percent', 'unaccepted_online_minutes', 'cash_out_amount'] as const;
 export type AlertKey = (typeof ALERT_KEYS)[number];
 
 export async function fetchBranchPosSettings(api: StaffApi, branchId: number): Promise<BranchPosSettings> {

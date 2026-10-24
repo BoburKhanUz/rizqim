@@ -94,7 +94,14 @@ class PosShiftsTest extends TestCase
         $shift = $this->openShift('100000');
         $managerToken = null;
 
-        // A cashier needs a manager for the drawer
+        // P3-37: a cashier puts money in and takes it out alone by default...
+        $this->pos('POST', "/shifts/{$shift->uuid}/cash-movements", ['type' => 'cash_in', 'category' => 'change_fund', 'amount' => '10000'])
+            ->assertCreated()->assertJsonPath('data.movement.approved_by', null);
+        $this->pos('POST', "/shifts/{$shift->uuid}/cash-movements", ['type' => 'cash_out', 'category' => 'collection', 'amount' => '10000'])
+            ->assertCreated()->assertJsonPath('data.movement.approved_by', null);
+
+        // ...unless the owner took the drawer away from cashiers in this store: then a manager's PIN
+        app(\App\Services\Auth\PermissionService::class)->setOverride($this->store, \App\Enums\UserRole::CASHIER, \App\Enums\Permission::POS_CASH_IN_OUT, false);
         $this->pos('POST', "/shifts/{$shift->uuid}/cash-movements", ['type' => 'purchase', 'category' => 'bazaar', 'amount' => '60000', 'note' => 'Guruch, sabzi'])
             ->assertForbidden()->assertJsonPath('data.reason', 'approval_required');
 
@@ -111,7 +118,7 @@ class PosShiftsTest extends TestCase
         $as(['type' => 'cash_in', 'category' => 'change_fund', 'amount' => '50000'])->assertCreated();
 
         $report = $this->withBearer($this->cashierToken)->getJson("/api/v1/pos/shifts/{$shift->uuid}/x-report")->assertOk()->json('data.report.cash');
-        $this->assertSame(['100000.00', '60000.00', '20000.00', '50000.00', '70000.00'], [$report['opening'], $report['purchases'], $report['wages'], $report['cash_in'], $report['expected']]);
+        $this->assertSame(['100000.00', '60000.00', '20000.00', '60000.00', '10000.00', '70000.00'], [$report['opening'], $report['purchases'], $report['wages'], $report['cash_in'], $report['cash_out'], $report['expected']]);
         $this->assertDatabaseHas('audit_logs', ['action' => 'pos.cash_movement', 'user_id' => $this->manager->id]);
     }
 

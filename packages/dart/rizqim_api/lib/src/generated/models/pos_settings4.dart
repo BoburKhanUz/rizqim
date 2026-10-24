@@ -15,6 +15,7 @@ class PosSettings4 {
     required this.printingDeviceId,
     required this.screenLockMinutes,
     required this.queueNumbers,
+    required this.cashierDiscountMaxPercent,
     required this.alerts,
     required this.holidays,
     required this.bookingSlotMinutes,
@@ -30,6 +31,8 @@ class PosSettings4 {
   final int screenLockMinutes;
   @JsonKey(name: 'queue_numbers')
   final bool queueNumbers;
+  @JsonKey(name: 'cashier_discount_max_percent')
+  final String? cashierDiscountMaxPercent;
   final Alerts4 alerts;
   final List<String> holidays;
   @JsonKey(name: 'booking_slot_minutes')

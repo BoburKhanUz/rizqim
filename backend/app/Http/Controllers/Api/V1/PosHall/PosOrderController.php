@@ -54,7 +54,7 @@ class PosOrderController extends PosHallController
 
     public const LIST_ITEM = 'array{uuid: string, short_code: string|null, status: string, channel: string, type: string, branch_id: int, version: int, hall: array{id: int, name: string|null}|null, table: array{id: int, name: string, kind: string}|null, hall_ref: string|null, table_ref: string|null, guests_count: int|null, waiter: array{id: int, name: string|null}|null, items_count: int, subtotal: string, total_price: string, payment_status: string, bill_locked: bool, bill_requested: bool, fiscal_pending: bool, booking_id: int|null, business_date: string|null, opened_at: string|null, closed_at: string|null, updated_at: string|null, online: ' . StaffOrderController::ORDER . '|null}';
 
-    public const ORDER = 'array{uuid: string, short_code: string|null, status: string, channel: string, type: string, store_id: int, branch_id: int|null, version: int, hall: array{id: int, name: string|null}|null, table: array{id: int, name: string, kind: string}|null, hall_ref: string|null, table_ref: string|null, guests_count: int|null, waiter: array{id: int, name: string|null}|null, opened_by: int, device_id: int|null, booking_id: int|null, booking_uuid: string|null, deposit_available: string, bill_locked: bool, bill_requested_at: string|null, notes: string|null, opened_at: string|null, updated_at: string|null, subtotal: string, discount: string, service_charge_amount: string, place_fee_amount: string, room_fee_amount: string, min_spend_topup_amount: string, total_price: string, charges: ' . self::CHARGES . ', offline: array{local_number: string|null, created_at: string|null, synced_at: string|null, flags: list<array{flag: string, op_id: string|null, amount: string|null, name: string|null}>}|null, rounds: int, items: list<' . self::ITEM . '>}';
+    public const ORDER = 'array{uuid: string, short_code: string|null, status: string, channel: string, type: string, store_id: int, branch_id: int|null, version: int, hall: array{id: int, name: string|null}|null, table: array{id: int, name: string, kind: string}|null, hall_ref: string|null, table_ref: string|null, guests_count: int|null, waiter: array{id: int, name: string|null}|null, opened_by: int, device_id: int|null, booking_id: int|null, booking_uuid: string|null, deposit_available: string, bill_locked: bool, bill_requested_at: string|null, notes: string|null, opened_at: string|null, updated_at: string|null, subtotal: string, discount: string, discount_kind: \'percent\'|\'amount\'|null, discount_value: string|null, discount_reason: string|null, discount_by: int|null, service_charge_amount: string, place_fee_amount: string, room_fee_amount: string, min_spend_topup_amount: string, total_price: string, charges: ' . self::CHARGES . ', offline: array{local_number: string|null, created_at: string|null, synced_at: string|null, flags: list<array{flag: string, op_id: string|null, amount: string|null, name: string|null}>}|null, rounds: int, items: list<' . self::ITEM . '>}';
 
     /**
      * One POS order
@@ -332,6 +332,53 @@ class PosOrderController extends PosHallController
         $order = $this->order($user, $uuid, Permission::ORDERS_MANAGE);
 
         return $this->change($request, fn () => $orders->waive($order, (int) $data['version'], $user, $this->charge($charge), (string) $data['reason'], $data['approval_token'] ?? null), 'Qator olib tashlandi.');
+    }
+
+    /**
+     * Give or take off a discount
+     *
+     * P3-37. `kind` `percent` (`value` 0 < v ≤ 100, two decimals) or `amount` (`value` in so'm, 0 < v ≤ the dishes'
+     * subtotal); `value` 0 takes the discount off. `reason` is required unless `value` is 0 (up to 255). The
+     * discount is on the dishes (`charges.items_subtotal`), before the service charge; `discount` is its amount in
+     * whole so'm (half-up). A percent stays a percent: adding or voiding lines works it out again; an amount never
+     * exceeds the dishes. Who: orders.discount — any discount; a cashier (pos.take_payment) up to the branch's
+     * `pos_settings.cashier_discount_max_percent` (an amount by its percent of the dishes), while no bill was printed;
+     * otherwise 403 `approval_required` (`permission: orders.discount`): send a manager's one-time `approval_token`
+     * for orders.discount (POST /pos/approvals). Taking a discount off needs orders.manage only. The waiter rule
+     * applies. 409 `paid_bill_affected` once a bill of the order has a payment or is paid (refund first); 409
+     * `version_conflict`; 422 `order_closed`; 422 validation (`value` above the dishes, `reason` missing). A printed
+     * bill no longer matches: bill again (POST /pos/orders/{uuid}/bills). Audited (`pos.order.discount`, old and
+     * new); the owner is alerted at `pos_settings.alerts.discount_percent` and above; `order.items_changed` with
+     * `change: charges_changed`. Not available offline (no sync operation).
+     */
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . self::ORDER . '}')]
+    #[HeaderParameter('Idempotency-Key', description: 'Required: a new UUID per action, the same one when retrying it (428 without).', type: 'string')]
+    public function discount(Request $request, string $uuid, PosOrderService $orders): JsonResponse
+    {
+        $user = $this->staff($request);
+        $this->requireIdempotencyKey($request);
+        $data = $request->validate([
+            'version' => 'required|integer|min:0',
+            'kind' => 'required|string|in:percent,amount',
+            'value' => ['required', 'numeric', 'min:0', 'max:9999999999', 'decimal:0,2'],
+            'reason' => 'nullable|string|max:255',
+            'approval_token' => 'nullable|string|max:255',
+        ], [
+            'kind.in' => "Chegirma turi percent yoki amount bo'lishi kerak.",
+            'value.decimal' => "Chegirma ko'pi bilan 2 kasr xonali son bo'lishi kerak.",
+        ]);
+
+        $order = $this->order($user, $uuid, Permission::ORDERS_VIEW);
+
+        return $this->change($request, fn () => $orders->discount(
+            $order,
+            (int) $data['version'],
+            $user,
+            (string) $data['kind'],
+            (string) $data['value'],
+            $data['reason'] ?? null,
+            $data['approval_token'] ?? null,
+        ), 'Chegirma saqlandi.');
     }
 
     /**
@@ -619,7 +666,10 @@ class PosOrderController extends PosHallController
      * payments first, POST /pos/refunds). Every line still on the order is voided — lines already sent get a kitchen
      * void ("O'CHIRILDI"), unsent lines give their stock and kazan portion back — open or printed bills are voided, the
      * order becomes `canceled` and its table free; a booking's order completes the booking (its deposits stay
-     * `taken`, to refund or retain). Audited; the owner is alerted. 422 `order_closed`, 409 `version_conflict`.
+     * `taken`, to refund or retain). Audited; the owner is alerted. P3-37: a closed order whose every payment was
+     * refunded in full (`payment_status` refunded) is cancelled too, with the same permission: it becomes `canceled`,
+     * keeps `closed_at`, its lines and paid bills stay, no receipt is issued (the refund receipts already reverse the
+     * sale). Any other closed or cancelled order: 422 `order_closed`. 409 `version_conflict`.
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . self::ORDER . '}')]
     #[HeaderParameter('Idempotency-Key', description: 'Required: a new UUID per action, the same one when retrying it (428 without).', type: 'string')]

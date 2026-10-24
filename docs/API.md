@@ -615,7 +615,11 @@ Chop etishni server emas, terminalning o'zi bajaradi ([POS_SPEC.md](POS_SPEC.md)
 - `pos_settings.queue_numbers` — navbat raqami (standart `false`).
 - `pos_settings.alerts` — kalit bo'yicha qo'shiladi, `null` shu ogohlantirishni o'chiradi: `open_room_hours` (1–72, standart 6),
   `void_amount` (0–100 000 000, standart `"200000.00"`), `discount_percent` (0–100, standart `"10.00"`),
-  `unaccepted_online_minutes` (1–120, standart 3).
+  `unaccepted_online_minutes` (1–120, standart 3), `cash_out_amount` (P3-37: bitta kassadan chiqim — `cash_out`,
+  `wage`, `purchase` — shu summadan kam bo'lmasa egaga xabar; 0–100 000 000, standart `"500000.00"`).
+- `pos_settings.cashier_discount_max_percent` (P3-37) — kassir (`pos.take_payment`, `orders.discount` siz) o'zi bera
+  oladigan chegirma foizi: 0–100, 2 xonagacha (son yoki satr), javobda satr (`"10.00"`, standart); `null` yoki `0` —
+  kassir har doim menejer PIN bilan. `GET /pos/bootstrap` da ham shu kalit.
 - `pos_settings.holidays` — `YYYY-MM-DD` sanalar (≤400), butun ro'yxat almashtiriladi. P3-26: filialning **yagona**
   bayramlar ro'yxati — `GET/PUT /owner/room-tariffs/calendar` dagi `holidays` ham shu ro'yxat (u yerdan yozilsa shu
   yerda ko'rinadi). Migratsiya `2026_10_27_100300` eski kalendar bayramlarini shu yerga qo'shib, kalendar ustunini
@@ -1190,7 +1194,8 @@ yoki filial buyurtmasi — 404, boshqa filialda ochish — 403. Har o'zgartiruvc
 | `POST /pos/orders/{uuid}/charges/{charge}/waive {version, reason, approval_token?}` | `orders.manage` + `orders.discount` yoki tasdiq | `service_charge`, `place_fee`, `room_fee` yoki `min_spend_topup` ni sabab bilan olib tashlash |
 | `POST /pos/orders/{uuid}/charges/{charge}/restore {version}` | `orders.manage` | olib tashlangan qatorni qaytarish |
 | `POST /pos/orders/{uuid}/items/{id}/served {version}` | `orders.manage` | taom mehmonga berildi (`ready` → `served`) |
-| `POST /pos/orders/{uuid}/cancel {version, reason, approval_token?}` | `orders.cancel` yoki `orders.manage` + menejer tasdig'i | butun buyurtmani bekor qilish (pastda) |
+| `POST /pos/orders/{uuid}/cancel {version, reason, approval_token?}` | `orders.cancel` yoki `orders.manage` + menejer tasdig'i | butun buyurtmani bekor qilish (pastda); P3-37: to'liq qaytarilgan yopiq buyurtmani ham |
+| `POST /pos/orders/{uuid}/discount {version, kind, value, reason?, approval_token?}` | `orders.discount`, yoki `orders.manage` (kassir — o'z chegarasigacha, qolgani menejer tasdig'i bilan) | chegirma berish yoki olib tashlash (P3-37, pastda "Kassadagi chegirma va kassir huquqlari") |
 
 O'zgartiruvchi har POS endpointi ixtiyoriy `approval_token` ham qabul qiladi (ofitsiant qoidasi, pastda).
 
@@ -1273,7 +1278,10 @@ qaytmaydi — pishgan), yuborilmaganlarining qoldig'i va qozon ulushi qaytadi; o
 buyurtma `canceled` (stol yoki xona bo'shaydi), `cancelled_by` — xodim; bron buyurtmasi bo'lsa bron `completed`
 bo'ladi, avanslari `taken` qoladi — keyin qaytariladi yoki ushlab qolinadi (P3-17). Jurnal `pos.order_cancelled`
 (summa, sabab, kim tasdiqladi, nechta qator), egaga xabar. `ready` holatdagi olib ketish buyurtmasini ham bekor qilish
-mumkin.
+mumkin. P3-37: **yopilgan** buyurtma faqat har bir to'lovi to'liq qaytarilgan bo'lsa (`payment_status = refunded`,
+`paid` to'lov qolmagan) bekor qilinadi — o'sha ruxsat va tasdiq bilan; holati `canceled`, `closed_at` qoladi, qatorlari
+va to'langan schyotlari o'zgarmaydi, yangi chek chiqmaydi (qaytarish cheklari bor), jurnalda `after_refund: true`.
+Boshqa har qanday yopiq yoki bekor qilingan buyurtma — 422 `order_closed`.
 
 **Ofitsiant qoidasi** (POS_SPEC 11). Roli ofitsiant bo'lgan xodim faqat **o'z** buyurtmasini o'zgartiradi
 (`waiter_id` — u). Ofitsianti yo'q buyurtma uning birinchi o'zgarishida (odatda bosqich qo'shishda) unga o'tadi.
@@ -1566,3 +1574,99 @@ to'ldiriladi).
 
 Testlar: `tests/Feature/PosSync/PosSyncFlowTest.php`, `PosSyncConflictsTest.php`, `PosSyncAccessTest.php`,
 `PosSyncReviewFixesTest.php` (P3-35).
+
+## Kassadagi chegirma va kassir huquqlari (P3-37)
+
+Egasining 24.10.2026 qarori ([POS_SPEC.md](POS_SPEC.md) 2.9, 2.10, 11): kassir schyot nusxasini chiqaradi va kassaga
+pul kiritadi/chiqaradi menejersiz; chegirmani o'z chegarasigacha o'zi beradi; qaytarish va bekor qilish menejer PIN
+bilan qoladi. Har bir rol huquqini ega do'kon bo'yicha o'zgartiradi (`GET/PUT /owner/permissions`, pastda).
+
+### `POST /pos/orders/{uuid}/discount`
+
+Boshqa POS buyurtma amallari kabi: oddiy xodim kirishi yoki terminaldagi PIN sessiyasi, `Idempotency-Key` majburiy
+(yo'q — 428), `version` (eskisi — 409 `version_conflict`). Marshrut `permission:orders.discount,orders.manage`.
+
+So'rov:
+
+| Maydon | Tur | Ma'nosi |
+|---|---|---|
+| `version` | int | buyurtmaning terminaldagi versiyasi |
+| `kind` | `"percent"` \| `"amount"` | foiz yoki summa |
+| `value` | son yoki satr, 2 xonagacha | `percent`: 0 < v ≤ 100; `amount`: 0 < v ≤ taomlar summasi (`charges.items_subtotal`). `0` — chegirmani olib tashlash |
+| `reason` | string ≤255 | majburiy (`value` 0 bo'lsa — yo'q) |
+| `approval_token` | string? | menejerning `orders.discount` uchun bir martalik tasdig'i (`POST /pos/approvals`) |
+
+Qoidalar:
+
+- Chegirma butun buyurtmaning **taomlariga** (xizmat haqi, xona puli va boshqa qatorlardan oldin); xizmat haqi va
+  minimal summa farqi chegirmadan keyingi summadan hisoblanadi.
+- `orders.discount` — buyurtmaning hisoblangan chegirma summasi, butun so'mgacha (half-up). Foiz **foizligicha
+  qoladi**: taom qo'shilsa yoki o'chirilsa qayta hisoblanadi. Summa taomlardan oshmaydi (taomlar kamaysa, chegirma ham
+  taomlar summasigacha tushadi; yana ko'paysa — to'liq qaytadi).
+- Kim: `orders.discount` (ega, menejer) — har qanday; kassir (`pos.take_payment`) — filialning
+  `pos_settings.cashier_discount_max_percent` gacha (summa — taomlarga nisbatan foizi bo'yicha), faqat schyot
+  chiqmaguncha (schyot chiqqach buyurtma qulflangan: chegirma faqat menejer bilan); qolgan hollarda 403
+  `approval_required` (`data.permission = orders.discount`) — menejer PIN tasdig'i bilan qayta yuboriladi (noto'g'ri
+  token — 403 `approval_invalid` va h.k.). Chegirmani olib tashlash (`value` 0) — `orders.manage` yetarli. Ofitsiant
+  qoidasi amal qiladi.
+- Rad etiladi: buyurtma yopilgan yoki bekor qilingan — 422 `order_closed`; schyotida to'lov bor yoki to'langan — 409
+  `paid_bill_affected` (avval to'lovni qaytaring); noto'g'ri qiymat — 422 (`errors.value`, `errors.reason`,
+  `errors.kind`). Chiqarilgan (lekin to'lanmagan) schyot buyurtmaga mos kelmay qoladi: uni va nusxasini chop etish
+  409 `order_changed`, schyot qayta tuziladi (`POST /pos/orders/{uuid}/bills`).
+- Javob — buyurtma (`GET /pos/orders/{uuid}` shakli) yangi maydonlar bilan: `discount_kind` (`percent`|`amount`|`null`),
+  `discount_value` (kiritilgan qiymat, `"10.00"` yoki `"50000.00"`; `null`), `discount_reason`, `discount_by` (xodim
+  id), `discount` (summa).
+- Jurnal `pos.order.discount` (`before`/`after`: `kind`, `value`, `amount`, `reason`; `payload`: `items_subtotal`,
+  `percent`, `approved_by`, `removed`). Chegirma taomlarning `pos_settings.alerts.discount_percent` foizidan kam
+  bo'lmasa — egaga xabar (olib tashlash xabar bermaydi). Real-time: `order.items_changed` (`change: charges_changed`).
+- Internetsiz rejimda yo'q (sinxronlash amali yo'q): kassa ilovasi oflaynda chegirmani bermaydi.
+
+Pul oqimi: schyotlar chegirmani taomlar summasiga proporsional bo'ladi (`order_bill_items.discount_amount`,
+`order_bills.discount`); fiskal chekda har bir taom qatori chegirmadan keyingi summada, chek jami — schyot jami; X/Z
+hisobotida `discounts` — chegirmali schyotlar soni va chegirma summasi, `sales.discount` — summa.
+
+### Kassir huquqlari va kassadan chiqim
+
+- Kassirning standart huquqlariga `pos.reprint_bill` (schyot nusxasi, "NUSXA") va `pos.cash_in_out` (kirim, chiqim, ish
+  haqi, bozorlik) qo'shildi ([AUTH.md](AUTH.md)). Ega ularni do'kon bo'yicha olib qo'ysa, avvalgidek menejer PIN
+  tasdig'i so'raladi.
+- Bitta chiqim harakati (`cash_out`, `wage`, `purchase`) `pos_settings.alerts.cash_out_amount` dan kam bo'lmasa (standart
+  500 000 so'm, `null` — o'chiq), egaga xabar boradi (summa, sabab — kategoriya va izoh, xodim, kim). Kirim xabar
+  bermaydi.
+- Schyot nusxasi ham, birinchi chop etish kabi, buyurtma schyotdan keyin o'zgargan bo'lsa (to'lanmagan schyot)
+  chiqmaydi: 409 `order_changed`.
+
+### `GET/PUT /owner/permissions` (rol huquqlari sahifasi)
+
+`permissions.manage` (ega), `not-staff-session`; do'konsiz hisob — 403 `store_required`.
+
+`GET /owner/permissions` javobi (`data`):
+
+```json
+{
+  "roles": [{"role": "owner", "label": "Ega", "editable": false}, {"role": "cashier", "label": "Kassir", "editable": true}],
+  "permissions": [{"key": "orders.discount", "label": "Chegirma berish", "grantable": true}],
+  "matrix":   {"cashier": {"orders.discount": false, "pos.reprint_bill": true}},
+  "defaults": {"cashier": {"orders.discount": false, "pos.reprint_bill": true}}
+}
+```
+
+- `roles` — `owner` (o'zgarmaydi), `manager`, `cashier`, `waiter`, `cook`, `courier` tartibida.
+- `permissions` — hamma ruxsat kaliti va o'zbekcha nomi; `grantable: false` (orders.refund, finance.manage,
+  settings.manage, zones.manage, staff.manage, audit.view, permissions.manage) boshqa rolga berilmaydi, faqat olib
+  qo'yiladi.
+- `matrix` — do'konning amaldagi jadvali: rol → ruxsat kaliti → `true|false` (har rol va har kalit bor). `defaults` —
+  xuddi shu shaklda standart jadval; farq qiladigan katak — shu do'konning o'zgartirishi.
+
+`PUT /owner/permissions {role, permission, allowed}`: `role` — `manager|cashier|waiter|cook|courier` (ega — 422),
+`permission` — kalit, `allowed` — `true` (berish), `false` (olib qo'yish), `null` (standartga qaytarish; standart
+qiymatning o'zi yuborilsa ham shunday). Berib bo'lmaydigan ruxsatni berish — 422. Javob: `{role, permission, allowed}`
+(amaldagi qiymat). O'zgarsa jurnal `permissions.changed`; shu roldagi hamma xodimga darhol ta'sir qiladi (terminal PIN
+sessiyalari ham).
+
+Migratsiya (qo'shimcha, qaytariladigan): `2026_10_30_100000_add_discount_details_to_orders_table` (orders:
+`discount_kind`, `discount_value`, `discount_reason`, `discount_by`).
+
+Testlar: `tests/Feature/PosDiscountTest.php`, `tests/Feature/PosDiscountEndToEndTest.php` (chegirma → ikki schyot →
+to'lov → cheklar → X/Z), `tests/Feature/PosBilling/PosCashierPermissionsTest.php` (katta chiqim xabari, to'liq
+qaytarilgan buyurtmani bekor qilish), `PosBranchSettingsApiTest`, `PermissionMatrixTest`.

@@ -34,7 +34,7 @@ use Illuminate\Support\Facades\DB;
  *  - opened on a terminal (a staff PIN session) with the opening cash; one open shift per terminal; its business day
  *    follows the branch's day start (BusinessDay);
  *  - cash put in or taken out by hand with a category (bazaar purchase, wage paid to an employee...), never more than
- *    the drawer holds;
+ *    the drawer holds; one movement out of at least pos_settings.alerts.cash_out_amount alerts the owner (P3-37);
  *  - closed with the cash counted by banknote: the difference to the expected cash is kept, the Z report is frozen in
  *    `summary`, numbered per branch (`z_number`) and sent to the owner. A shift with open orders or sales whose
  *    receipt is still pending does not close, unless a manager forces it with a reason (open orders then wait for the
@@ -46,6 +46,13 @@ final class ShiftService
     /** Banknotes and coins (so'm) the cashier counts at closing. */
     public const DENOMINATIONS = [200000, 100000, 50000, 20000, 10000, 5000, 2000, 1000, 500, 200, 100];
 
+    /** The manual movement categories as the owner's alert names them (CashMovementType::categories()). */
+    private const CATEGORY_LABELS = [
+        'collection' => 'inkassatsiya', 'owner' => 'egaga', 'supplies' => "xo'jalik mollari", 'utilities' => "kommunal to'lov",
+        'other' => 'boshqa', 'daily_wage' => 'kunlik ish haqi', 'advance' => 'avans', 'bonus' => 'mukofot',
+        'bazaar' => 'bozorlik', 'meat' => "go'sht", 'bread' => 'non',
+    ];
+
     public function __construct(
         private readonly PermissionService $permissions,
         private readonly ManagerApprovalService $approvals,
@@ -55,6 +62,7 @@ final class ShiftService
         private readonly BillFiscalizer $fiscalizer,
         private readonly ShiftOwnerSummary $summary,
         private readonly \App\Domain\Pos\Sync\PosSyncErrors $syncErrors,
+        private readonly \App\Domain\Pos\Accounts\PosOwnerAlerts $alerts,
     ) {}
 
     public function current(Device $device): ?PosShift
@@ -210,6 +218,10 @@ final class ShiftService
                 'approved_by' => $approvedBy,
             ], fn ($value) => $value !== null), ['actor' => $user, 'device' => $device]);
 
+            if ($type->sign() < 0) {
+                $this->cashOutAlert($shift, $type, $category, $amount, $note, $employee, $user, $approvedBy);
+            }
+
             if ($applied) {
                 $applied();
             }
@@ -220,6 +232,31 @@ final class ShiftService
         event(new ShiftChangedBroadcast($shift->refresh(), 'cash_movement'));
 
         return $movement;
+    }
+
+    /**
+     * P3-37: the owner hears about one movement out of the drawer (cash out, wage, purchase) of at least the branch's
+     * pos_settings.alerts.cash_out_amount (null: never). After the movement commits (PosOwnerAlerts).
+     */
+    private function cashOutAlert(PosShift $shift, CashMovementType $type, string $category, Money $amount, ?string $note, ?User $employee, User $user, ?int $approvedBy): void
+    {
+        $branch = Branch::find($shift->branch_id);
+        $stored = $branch?->getAttribute('pos_settings');
+        $threshold = \App\Domain\Pos\Setup\PosSettings::resolve(is_array($stored) ? $stored : null)['alerts']['cash_out_amount'];
+        if ($threshold === null || $amount->isLessThan($threshold)) {
+            return;
+        }
+
+        $labels = [CashMovementType::CASH_OUT->value => 'Kassadan pul chiqarildi', CashMovementType::WAGE->value => 'Kassadan ish haqi berildi', CashMovementType::PURCHASE->value => 'Kassadan xarid qilindi'];
+        $approver = $approvedBy !== null ? User::whereKey($approvedBy)->value('name') : null;
+
+        $this->alerts->send((int) $shift->store_id, implode("\n", array_filter([
+            '💸 ' . ($labels[$type->value] ?? 'Kassadan chiqim') . ': ' . \App\Domain\Pos\Accounts\PosOwnerAlerts::sum($amount),
+            $branch?->name ? "Filial: {$branch->name}" : null,
+            'Sabab: ' . (self::CATEGORY_LABELS[$category] ?? $category) . ($note !== null && $note !== '' ? " — {$note}" : ''),
+            $employee !== null ? "Xodim: {$employee->name}" : null,
+            "Kim: {$user->name}" . ($approver !== null ? "\nTasdiqladi: {$approver}" : ''),
+        ])));
     }
 
     /**

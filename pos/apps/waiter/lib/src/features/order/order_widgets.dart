@@ -297,7 +297,18 @@ class RoundSection extends StatelessWidget {
   }
 }
 
-/// Buyurtma hisobi (serverdan): taomlar, xizmat haqi, xona puli, minimal summaga qo'shimcha, jami.
+/// "Chegirma 10%" (foizli) yoki "Chegirma".
+String _discountLabel(PosOrder order) {
+  final String? p = order.discountPercent;
+  if (p == null) return 'Chegirma';
+  try {
+    return 'Chegirma ${formatPercent(p)}%';
+  } on FormatException {
+    return 'Chegirma';
+  }
+}
+
+/// Buyurtma hisobi (serverdan): taomlar, chegirma, xizmat haqi, xona puli, minimal summaga qo'shimcha, jami.
 class OrderTotals extends StatelessWidget {
   const OrderTotals({super.key, required this.order});
 
@@ -332,7 +343,9 @@ class OrderTotals extends StatelessWidget {
         child: Column(
           children: <Widget>[
             row('Taomlar', order.subtotal),
-            if (order.discount.isPositive) row('Chegirma', -order.discount),
+            // P3-37: the cashier's discount, read only (the waiter has no discount action)
+            if (order.discount.isPositive)
+              row(_discountLabel(order), -order.discount),
             if (order.serviceChargeAmount.isPositive)
               row(
                 'Xizmat haqi (${formatPercent(order.charges.serviceChargePercent)}%)',

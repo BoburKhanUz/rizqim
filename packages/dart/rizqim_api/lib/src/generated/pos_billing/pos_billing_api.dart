@@ -246,8 +246,10 @@ abstract class PosBillingApi {
   /// `type`: `cash_in`, `cash_out`, `wage` (paid to an employee: `employee_id` required) or `purchase` (bazaar.
   /// shopping); `category` from the type's list (cash_in: change_fund, owner, other; cash_out: collection, owner,.
   /// supplies, utilities, other; wage: daily_wage, advance, bonus; purchase: bazaar, meat, bread, supplies, other);.
-  /// `other` needs a `note`. Money out never exceeds the expected cash (409 `not_enough_cash`). Needs pos.cash_in_out,.
-  /// or a manager's `approval_token` for it (403 `approval_required`). The shift must be open (409 `shift_closed`).
+  /// `other` needs a `note`. Money out never exceeds the expected cash (409 `not_enough_cash`). Needs pos.cash_in_out.
+  /// (a cashier's by default since P3-37), or a manager's `approval_token` for it (403 `approval_required`). The shift.
+  /// must be open (409 `shift_closed`). P3-37: one movement out (cash_out, wage, purchase) of at least the branch's.
+  /// `pos_settings.alerts.cash_out_amount` alerts the owner.
   ///
   /// [idempotencyKey] - Required: a new UUID per action, the same one when retrying it (428 or 400 without).
   @POST('/v1/pos/shifts/{uuid}/cash-movements')

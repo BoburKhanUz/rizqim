@@ -545,7 +545,7 @@ class _QueuePageState extends State<QueuePage> with RefreshingState {
           PosCard(
             title: 'Bugun yopilgan (${_finished.length})',
             trailing: Text(
-              'Chek nusxasi va qaytarish',
+              'Chek nusxasi, qaytarish va bekor qilish',
               style: RzType.footnote.copyWith(color: c.fgMuted),
             ),
             child: Column(
@@ -556,8 +556,12 @@ class _QueuePageState extends State<QueuePage> with RefreshingState {
                     key: ValueKey<String>('finished-${o.uuid}'),
                     contentPadding: const EdgeInsets.symmetric(horizontal: 4),
                     leading: Icon(
-                      Icons.check_circle_outline_rounded,
-                      color: c.successSoftFg,
+                      o.status == 'canceled'
+                          ? Icons.cancel_outlined
+                          : Icons.check_circle_outline_rounded,
+                      color: o.status == 'canceled'
+                          ? c.fgMuted
+                          : c.successSoftFg,
                     ),
                     title: Text(
                       _place(o),
@@ -570,9 +574,27 @@ class _QueuePageState extends State<QueuePage> with RefreshingState {
                       ].join(' · '),
                       style: RzType.footnote.copyWith(color: c.fgMuted),
                     ),
-                    trailing: Text(
-                      o.totalPrice.format(),
-                      style: RzType.body.copyWith(color: c.fg),
+                    // P3-37: a fully refunded order may be cancelled from its bill screen
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        if (o.status == 'canceled')
+                          const TonePill(
+                            label: 'Bekor qilingan',
+                            tone: StatusTone.neutral,
+                          )
+                        else if (o.paymentStatus == 'refunded')
+                          const TonePill(
+                            label: 'Pul qaytarilgan',
+                            tone: StatusTone.warning,
+                            icon: Icons.undo_rounded,
+                          ),
+                        const SizedBox(width: 8),
+                        Text(
+                          o.totalPrice.format(),
+                          style: RzType.body.copyWith(color: c.fg),
+                        ),
+                      ],
                     ),
                     onTap: () async {
                       await CashierRoutes.openBilling<void>(

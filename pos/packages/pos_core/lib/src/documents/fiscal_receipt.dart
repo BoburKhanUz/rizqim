@@ -97,6 +97,8 @@ final class FiscalReceipt {
     this.customerName,
     this.isCopy = false,
     this.footer = 'Xaridingiz uchun rahmat!',
+    this.discount = PosMoney.zero,
+    this.discountPercent,
   });
 
   final FiscalReceiptType type;
@@ -132,6 +134,17 @@ final class FiscalReceipt {
   /// Qayta chop etilgan nusxa ("NUSXA").
   final bool isCopy;
   final String footer;
+
+  /// Chekdagi buyurtma chegirmasi (musbat; qatorlar summasi ichida, [ReceiptLine.amount] chegirmadan keyin). Qatorlar
+  /// o'z chegirmasini ko'rsatmasa chek oxirida alohida aytiladi.
+  final PosMoney discount;
+
+  /// Foizli chegirmaning foizi (`"10"`); summa bo'lsa `null`.
+  final String? discountPercent;
+
+  /// Qatorlarda chegirma ko'rsatilmagan, lekin chekda chegirma bor: oxirida "Berilgan chegirma" qatori chiqadi.
+  bool get showsDiscountTotal =>
+      discount.isPositive && lines.every((ReceiptLine l) => l.discount.isZero);
 
   /// Qatorlar jami.
   PosMoney get total => PosMoney.sum(lines.map((ReceiptLine l) => l.amount));

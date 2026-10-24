@@ -80,7 +80,7 @@ void main() {
   });
 
   testWidgets(
-    'equal split shows each share, creates 3 bills; pre-check prints, a reprint is a NUSXA with approval',
+    'equal split shows each share, creates 3 bills; pre-check prints, a reprint is a NUSXA without a manager',
     (WidgetTester tester) async {
       final P22 p = P22();
       // 1.5 kg osh + 2 choy = 190 000, xizmat haqi 10% = 19 000, xona puli 300 000 → 509 000
@@ -120,12 +120,9 @@ void main() {
       expect(check, contains('1-xona'));
       expect(check, isNot(contains('NUSXA')));
 
-      // Qayta chiqarish: kassirda pos.reprint_bill yo'q — menejer tasdig'i
+      // Qayta chiqarish: P3-37 — kassirda pos.reprint_bill bor, menejer kerak emas
       await tapButton(tester, 'Nusxa chiqarish');
-      expect(find.text("Menejer tasdig'i"), findsOneWidget);
-      expect(find.text('Schyotni qayta chiqarish'), findsOneWidget);
-      await typePin(tester, '5926');
-      await tester.pumpAndSettle();
+      expect(find.text("Menejer tasdig'i"), findsNothing);
       expect(p.receipts, hasLength(2));
       expect(p.receipts.last, contains('NUSXA'));
     },

@@ -564,6 +564,25 @@ void main() {
       h.pos.orders.move(room, version: order.version, tableId: 2),
       throwsA(isA<PosOfflineUnavailable>()),
     );
+    // P3-37: no discount offline (no sync op), said in Uzbek; nothing is queued
+    final int queued = h.offline.store.pendingCount;
+    await expectLater(
+      h.pos.orders.discount(
+        room,
+        version: order.version,
+        kind: PosDiscountKind.percent,
+        value: '10',
+        reason: 'Doimiy mijoz',
+      ),
+      throwsA(
+        isA<PosOfflineUnavailable>().having(
+          (PosOfflineUnavailable e) => e.message,
+          'message',
+          contains('Chegirma uchun internet kerak'),
+        ),
+      ),
+    );
+    expect(h.offline.store.pendingCount, queued);
     await expectLater(
       h.pos.billing.createBills(
         room,

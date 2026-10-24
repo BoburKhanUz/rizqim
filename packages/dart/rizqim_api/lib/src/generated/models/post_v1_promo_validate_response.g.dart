@@ -11,7 +11,7 @@ PostV1PromoValidateResponse _$PostV1PromoValidateResponseFromJson(
 ) => PostV1PromoValidateResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data179.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data180.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1PromoValidateResponseToJson(

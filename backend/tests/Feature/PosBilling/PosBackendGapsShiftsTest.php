@@ -57,6 +57,8 @@ class PosBackendGapsShiftsTest extends TestCase
     public function test_a_drawer_movement_names_its_employee_cashier_and_approver(): void
     {
         $shift = $this->openShift('100000');
+        // P3-37: cashiers hold pos.cash_in_out by default; this store's owner took it away, so a manager approves
+        app(\App\Services\Auth\PermissionService::class)->setOverride($this->store, \App\Enums\UserRole::CASHIER, \App\Enums\Permission::POS_CASH_IN_OUT, false);
 
         $movement = $this->pos('POST', "/shifts/{$shift->uuid}/cash-movements", ['type' => 'wage', 'category' => 'daily_wage', 'amount' => '20000', 'employee_id' => $this->waiter->id, 'approval_token' => $this->approval('pos.cash_in_out')])
             ->assertCreated()->json('data.movement');

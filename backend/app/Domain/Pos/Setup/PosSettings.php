@@ -15,9 +15,12 @@ use DateTimeZone;
  * - `printing_device_id`: the public id (uuid) of the "chop etuvchi" till, which prints the tickets of online orders.
  * - `screen_lock_minutes`: idle minutes until the terminal locks its screen (0: never).
  * - `queue_numbers`: a queue number for every counter order.
+ * - `cashier_discount_max_percent` (P3-37): the discount a cashier (pos.take_payment without orders.discount) may give
+ *   alone, "0.00"-"100.00"; above it, or when null or 0, a manager's PIN.
  * - `alerts`: thresholds that alert the owner/manager; null switches one off. `open_room_hours` (a room open for
  *   this long), `void_amount` (a voided line worth at least this), `discount_percent` (a discount of at least this
- *   percent), `unaccepted_online_minutes` (an online order nobody accepted for this long).
+ *   percent), `unaccepted_online_minutes` (an online order nobody accepted for this long), `cash_out_amount` (P3-37:
+ *   one cash movement out of the drawer — cash out, wage, purchase — of at least this).
  * - `holidays`: dates (YYYY-MM-DD) the branch's holiday tariff applies on.
  * - `booking_slot_minutes`: how long a booking holds its room when it has no end time (30-1440); null: the default of
  *   config/pos_bookings.php (read by App\Domain\Pos\Booking\PosSettingsReader).
@@ -27,16 +30,19 @@ final class PosSettings
     public const MODES = ['counter', 'table', 'hybrid'];
 
     /** Keys written by the API, in the order they are shown. */
-    public const KEYS = ['mode', 'printing_device_id', 'screen_lock_minutes', 'queue_numbers', 'alerts', 'holidays', 'booking_slot_minutes'];
+    public const KEYS = ['mode', 'printing_device_id', 'screen_lock_minutes', 'queue_numbers', 'cashier_discount_max_percent', 'alerts', 'holidays', 'booking_slot_minutes'];
 
-    public const ALERT_KEYS = ['open_room_hours', 'void_amount', 'discount_percent', 'unaccepted_online_minutes'];
+    public const ALERT_KEYS = ['open_room_hours', 'void_amount', 'discount_percent', 'unaccepted_online_minutes', 'cash_out_amount'];
+
+    /** Alert thresholds that are money or a percent (decimal strings); the others are whole numbers. */
+    public const DECIMAL_ALERT_KEYS = ['void_amount', 'discount_percent', 'cash_out_amount'];
 
     public const DEFAULT_BUSINESS_DAY_START = '05:00';
 
     public const MAX_HOLIDAYS = 400;
 
     /**
-     * @return array{mode: string, printing_device_id: string|null, screen_lock_minutes: int, queue_numbers: bool, alerts: array{open_room_hours: int|null, void_amount: string|null, discount_percent: string|null, unaccepted_online_minutes: int|null}, holidays: list<string>, booking_slot_minutes: int|null}
+     * @return array{mode: string, printing_device_id: string|null, screen_lock_minutes: int, queue_numbers: bool, cashier_discount_max_percent: string|null, alerts: array{open_room_hours: int|null, void_amount: string|null, discount_percent: string|null, unaccepted_online_minutes: int|null, cash_out_amount: string|null}, holidays: list<string>, booking_slot_minutes: int|null}
      */
     public static function defaults(): array
     {
@@ -45,11 +51,13 @@ final class PosSettings
             'printing_device_id' => null,
             'screen_lock_minutes' => 5,
             'queue_numbers' => false,
+            'cashier_discount_max_percent' => '10.00',
             'alerts' => [
                 'open_room_hours' => 6,
                 'void_amount' => '200000.00',
                 'discount_percent' => '10.00',
                 'unaccepted_online_minutes' => 3,
+                'cash_out_amount' => '500000.00',
             ],
             'holidays' => [],
             'booking_slot_minutes' => null,
@@ -60,7 +68,7 @@ final class PosSettings
      * The settings as a terminal and the panel read them: every key present, stored values over the defaults.
      *
      * @param  array<string, mixed>|null  $stored
-     * @return array{mode: string, printing_device_id: string|null, screen_lock_minutes: int, queue_numbers: bool, alerts: array{open_room_hours: int|null, void_amount: string|null, discount_percent: string|null, unaccepted_online_minutes: int|null}, holidays: list<string>, booking_slot_minutes: int|null}
+     * @return array{mode: string, printing_device_id: string|null, screen_lock_minutes: int, queue_numbers: bool, cashier_discount_max_percent: string|null, alerts: array{open_room_hours: int|null, void_amount: string|null, discount_percent: string|null, unaccepted_online_minutes: int|null, cash_out_amount: string|null}, holidays: list<string>, booking_slot_minutes: int|null}
      */
     public static function resolve(?array $stored): array
     {
@@ -79,6 +87,14 @@ final class PosSettings
         if (isset($stored['queue_numbers']) && is_bool($stored['queue_numbers'])) {
             $settings['queue_numbers'] = $stored['queue_numbers'];
         }
+        if (array_key_exists('cashier_discount_max_percent', $stored)) {
+            $value = $stored['cashier_discount_max_percent'];
+            if ($value === null) {
+                $settings['cashier_discount_max_percent'] = null;
+            } elseif (is_numeric($value) && (float) $value >= 0 && (float) $value <= 100) {
+                $settings['cashier_discount_max_percent'] = Money::of($value)->toString();
+            }
+        }
 
         $alerts = is_array($stored['alerts'] ?? null) ? $stored['alerts'] : [];
         foreach (self::ALERT_KEYS as $key) {
@@ -88,7 +104,7 @@ final class PosSettings
             $value = $alerts[$key];
             $settings['alerts'][$key] = match (true) {
                 $value === null => null, // switched off
-                in_array($key, ['open_room_hours', 'unaccepted_online_minutes'], true) => is_int($value) && $value > 0 ? $value : $settings['alerts'][$key],
+                !in_array($key, self::DECIMAL_ALERT_KEYS, true) => is_int($value) && $value > 0 ? $value : $settings['alerts'][$key],
                 is_numeric($value) && (float) $value >= 0 => Money::of($value)->toString(),
                 default => $settings['alerts'][$key],
             };
@@ -125,7 +141,7 @@ final class PosSettings
                 foreach (self::ALERT_KEYS as $alert) {
                     if (array_key_exists($alert, $changes['alerts'])) {
                         $value = $changes['alerts'][$alert];
-                        $settings['alerts'][$alert] = $value === null ? null : (in_array($alert, ['void_amount', 'discount_percent'], true) ? Money::of($value)->toString() : (int) $value);
+                        $settings['alerts'][$alert] = $value === null ? null : (in_array($alert, self::DECIMAL_ALERT_KEYS, true) ? Money::of($value)->toString() : (int) $value);
                     }
                 }
                 continue;
@@ -136,6 +152,7 @@ final class PosSettings
                 'screen_lock_minutes' => (int) $changes['screen_lock_minutes'],
                 'queue_numbers' => (bool) $changes['queue_numbers'],
                 'booking_slot_minutes' => $changes['booking_slot_minutes'] === null ? null : (int) $changes['booking_slot_minutes'],
+                'cashier_discount_max_percent' => $changes['cashier_discount_max_percent'] === null ? null : Money::of($changes['cashier_discount_max_percent'])->toString(),
                 default => $changes[$key],
             };
         }

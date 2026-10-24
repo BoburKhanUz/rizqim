@@ -13,6 +13,7 @@ import '../../shell/feature_placeholder.dart';
 import '../../shell/limited_mode.dart';
 import '../../shell/pos_scope.dart';
 import '../../shell/routes.dart';
+import '../order/discount_dialog.dart';
 import '../order/kitchen_tickets.dart';
 import 'cashier_ui.dart';
 import 'payment_page.dart';
@@ -43,6 +44,11 @@ class _BillingPageState extends State<BillingPage> with RefreshingState {
   bool _busy = false;
   String? _selected;
   bool _bookingLooked = false;
+
+  // P3-37: a discount whose answer was lost goes again as it went (key, body, token — and the version it carried)
+  final LostRequest _lostDiscount = LostRequest();
+  String? _discountSignature;
+  int? _discountVersion;
 
   PosScope get _scope => PosScope.of(context);
 
@@ -209,14 +215,24 @@ class _BillingPageState extends State<BillingPage> with RefreshingState {
     setState(() => _busy = true);
     final bool reprint = bill.printedCount > 0;
     await runGuarded(context, () async {
-      final PosBillResult r = await withApproval<PosBillResult>(
-        context,
-        (String? token) => _scope.data.billing.printBill(
-          bill.uuid,
-          version: _order?.version,
-          approvalToken: token,
-        ),
-      );
+      final PosBillResult r;
+      try {
+        r = await withApproval<PosBillResult>(
+          context,
+          (String? token) => _scope.data.billing.printBill(
+            bill.uuid,
+            version: _order?.version,
+            approvalToken: token,
+          ),
+        );
+      } on PosConflict catch (e) {
+        // P3-37: a copy of a bill the order has outgrown is refused like a first print
+        if (e.reason == 'order_changed' && mounted) {
+          showPosMessage(context, "Buyurtma o'zgargan: schyotni qayta tuzing.");
+          return;
+        }
+        rethrow;
+      }
       if (!mounted) return;
       final ReceiptPrinter printer = ReceiptPrinter.of(context);
       final PreCheck check = preCheckOf(
@@ -305,25 +321,115 @@ class _BillingPageState extends State<BillingPage> with RefreshingState {
     if (refund != null && mounted) await refresh();
   }
 
-  /// P3-35: buyurtmaning hamma to'lovi qaytarilgan (`payment_status = refunded`) va u hali ochiq — endi uni bekor
-  /// qilish mumkin (server `has_payments` demaydi).
+  /// P3-37: chegirma schyotga to'lov olinmaguncha beriladi (keyin server `paid_bill_affected` deydi); internetsiz yo'q.
+  bool get _canDiscount {
+    final PosBilling? b = _billing;
+    final PosOrder? o = _order;
+    return b != null &&
+        o != null &&
+        o.isOpen &&
+        !b.order.isClosed &&
+        !b.bills.any(_settled) &&
+        DiscountRules.of(_scope.session).allowed;
+  }
+
+  Future<void> _discount({bool remove = false}) async {
+    final PosOrder? o = _order;
+    if (o == null) return;
+    final DiscountInput? d;
+    if (remove) {
+      d = DiscountInput(
+        kind: o.discountKind ?? PosDiscountKind.percent,
+        value: '0',
+        reason: '',
+      );
+    } else {
+      final DiscountRules rules = DiscountRules.of(_scope.session);
+      d = await showDiscountDialog(
+        context,
+        order: o,
+        unlimited: rules.unlimited,
+        limitHundredths: rules.limitHundredths,
+      );
+    }
+    if (d == null || !mounted) return;
+    final DiscountInput input = d;
+    final String signature =
+        '${input.kind.wire}:${input.value}:${input.reason}';
+    // A new request carries the order's version; the retry of a lost one the version it went with
+    if (!_lostDiscount.pending || _discountSignature != signature) {
+      _discountVersion = o.version;
+    }
+    _discountSignature = signature;
+    final int version = _discountVersion ?? o.version;
+    setState(() => _busy = true);
+    final PosScope scope = _scope;
+    await runGuarded(context, () async {
+      try {
+        await _lostDiscount.run<PosOrder>(
+          context,
+          signature,
+          (String? token, String? key) => scope.data.orders.discount(
+            widget.orderUuid,
+            version: token != null && key == null ? o.version : version,
+            kind: input.kind,
+            value: input.value,
+            reason: input.reason,
+            approvalToken: token,
+            idempotencyKey: key,
+          ),
+        );
+      } on PosException catch (e) {
+        if (e is PosVersionConflict || e.needsOrderReload) unawaited(refresh());
+        rethrow;
+      }
+      if (!mounted) return;
+      showPosMessage(
+        context,
+        remove
+            ? 'Chegirma olib tashlandi.'
+            : 'Chegirma berildi. Schyot yangi summa bilan qayta tuziladi.',
+      );
+    });
+    if (!mounted) return;
+    setState(() => _busy = false);
+    await refresh();
+  }
+
+  Widget _discountButton() => RzButton(
+    key: const ValueKey<String>('billing-discount'),
+    label: (_order?.hasDiscount ?? false)
+        ? "Chegirmani o'zgartirish"
+        : 'Chegirma',
+    icon: Icons.percent_rounded,
+    size: RzButtonSize.lg,
+    variant: RzButtonVariant.secondary,
+    onPressed: _busy ? null : () => unawaited(_discount()),
+  );
+
+  /// P3-35: buyurtmaning hamma to'lovi qaytarilgan (`payment_status = refunded`) — endi uni bekor qilish mumkin
+  /// (server `has_payments` demaydi). P3-37: yopilgan buyurtma ham (to'lovi to'liq qaytarilgan bo'lsa).
   bool get _cancellableAfterRefund {
     final PosBillingOrder? state = _billing?.order;
     return state != null &&
-        !state.isClosed &&
         state.paymentStatus == 'refunded' &&
-        (_order?.isOpen ?? false);
+        state.status != 'canceled' &&
+        _order != null &&
+        _order!.status != 'canceled';
   }
 
   Future<void> _cancelOrder() async {
     final PosOrder? before = _order;
     if (before == null) return;
+    final bool wasClosed = _billing?.order.isClosed ?? false;
     final String? reason = await askReason(
       context,
       title: 'Buyurtmani bekor qilish',
-      message:
-          "To'lovlar qaytarilgan. Hamma taom o'chiriladi, oshxonaga yuborilganlari uchun «O'CHIRILDI» markasi chiqadi, "
-          "joy bo'shaydi.",
+      message: wasClosed
+          ? "To'lovlar qaytarilgan. Yopilgan buyurtma bekor qilingan deb belgilanadi; qaytarish cheklari o'z joyida "
+                "qoladi. Menejer tasdig'i kerak."
+          : "To'lovlar qaytarilgan. Hamma taom o'chiriladi, oshxonaga yuborilganlari uchun «O'CHIRILDI» markasi chiqadi, "
+                "joy bo'shaydi.",
       presets: const <String>[
         'Mehmonlar ketdi',
         "Xato to'lov",
@@ -345,6 +451,11 @@ class _BillingPageState extends State<BillingPage> with RefreshingState {
           approvalToken: token,
         ),
       );
+      if (wasClosed) {
+        // The guests have eaten and gone: no kitchen tickets, the page shows the cancelled order
+        if (mounted) showPosMessage(context, 'Buyurtma bekor qilindi.');
+        return;
+      }
       final KitchenTickets tickets = KitchenTickets(
         printing: scope.printing,
         bootstrap: () => scope.session.bootstrap,
@@ -521,76 +632,109 @@ class _BillingPageState extends State<BillingPage> with RefreshingState {
     return _billing!.bills.isEmpty ? null : _billing!.bills.first;
   }
 
-  Widget _closed(RzColors c, PosBilling billing) => Center(
-    child: ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 560),
-      child: PosCard(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Icon(Icons.check_circle_rounded, size: 56, color: c.success),
-            const SizedBox(height: 12),
-            Text('Buyurtma yopildi', style: RzType.title.copyWith(color: c.fg)),
-            const SizedBox(height: 8),
-            AmountRow(
-              label: "To'langan",
-              amount: billing.order.paidAmount,
-              bold: true,
-            ),
-            for (final PosRefund r in billing.refunds)
+  Widget _closed(RzColors c, PosBilling billing) {
+    final bool canceled = billing.order.status == 'canceled';
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 560),
+        child: PosCard(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Icon(
+                canceled ? Icons.cancel_rounded : Icons.check_circle_rounded,
+                size: 56,
+                color: canceled ? c.fgMuted : c.success,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                canceled ? 'Buyurtma bekor qilingan' : 'Buyurtma yopildi',
+                style: RzType.title.copyWith(color: c.fg),
+              ),
+              const SizedBox(height: 8),
               AmountRow(
-                label: 'Qaytarilgan${r.reason == null ? '' : ' (${r.reason})'}',
-                amount: r.amount,
-                negative: true,
-                muted: true,
+                label: "To'langan",
+                amount: billing.order.paidAmount,
+                bold: true,
               ),
-            const SizedBox(height: 12),
-            for (final PosBill b in billing.bills.where(
-              (PosBill b) => b.isPaid,
-            ))
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      '${b.number}-schyot · ${b.total.format()}',
-                      style: RzType.body.copyWith(color: c.fg),
-                    ),
-                    Wrap(
-                      spacing: 8,
-                      children: <Widget>[
-                        TextButton(
-                          onPressed: () => unawaited(
-                            printSale(context, b, _order, copy: true),
-                          ),
-                          child: const Text('Chek nusxasi'),
-                        ),
-                        if (!limitedMode(context) &&
-                            hasRefundable(b, billing.refunds))
-                          TextButton(
-                            key: ValueKey<String>('refund-${b.uuid}'),
-                            onPressed: () => _refund(b),
-                            child: const Text('Pulni qaytarish'),
-                          ),
-                      ],
-                    ),
-                  ],
+              for (final PosRefund r in billing.refunds)
+                AmountRow(
+                  label:
+                      'Qaytarilgan${r.reason == null ? '' : ' (${r.reason})'}',
+                  amount: r.amount,
+                  negative: true,
+                  muted: true,
                 ),
+              const SizedBox(height: 12),
+              for (final PosBill b in billing.bills.where(
+                (PosBill b) => b.isPaid,
+              ))
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        '${b.number}-schyot · ${b.total.format()}',
+                        style: RzType.body.copyWith(color: c.fg),
+                      ),
+                      Wrap(
+                        spacing: 8,
+                        children: <Widget>[
+                          TextButton(
+                            onPressed: () => unawaited(
+                              printSale(context, b, _order, copy: true),
+                            ),
+                            child: const Text('Chek nusxasi'),
+                          ),
+                          if (!limitedMode(context) &&
+                              hasRefundable(b, billing.refunds))
+                            TextButton(
+                              key: ValueKey<String>('refund-${b.uuid}'),
+                              onPressed: () => _refund(b),
+                              child: const Text('Pulni qaytarish'),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              if (_cancellableAfterRefund && !limitedMode(context)) ...<Widget>[
+                const NoticeBanner(
+                  message: "Buyurtmaning hamma to'lovi qaytarildi: endi uni bekor qilish mumkin.",
+                  tone: StatusTone.info,
+                ),
+                const SizedBox(height: 8),
+                RzButton(
+                  key: const ValueKey<String>('cancel-after-refund'),
+                  label: 'Buyurtmani bekor qilish',
+                  icon: Icons.cancel_outlined,
+                  variant: RzButtonVariant.danger,
+                  fullWidth: true,
+                  onPressed: _busy ? null : () => unawaited(_cancelOrder()),
+                ),
+                const SizedBox(height: 8),
+              ],
+              const SizedBox(height: 8),
+              RzButton(
+                label: 'Zalga qaytish',
+                icon: Icons.table_restaurant_outlined,
+                size: RzButtonSize.lg,
+                fullWidth: true,
+                onPressed: canceled ? _toFloor : _finish,
               ),
-            const SizedBox(height: 8),
-            RzButton(
-              label: 'Zalga qaytish',
-              icon: Icons.table_restaurant_outlined,
-              size: RzButtonSize.lg,
-              fullWidth: true,
-              onPressed: _finish,
-            ),
-          ],
+            ],
+          ),
         ),
       ),
-    ),
-  );
+    );
+  }
+
+  void _toFloor() {
+    final PosScope scope = _scope;
+    Navigator.of(context).popUntil((Route<Object?> r) => r.isFirst);
+    scope.go(CashierDestination.floor);
+  }
 
   Widget _orderSummary(RzColors c) {
     final PosOrder order = _order!;
@@ -624,11 +768,12 @@ class _BillingPageState extends State<BillingPage> with RefreshingState {
             ),
           if (!order.placeFeeAmount.isZero)
             AmountRow(label: 'Joy puli', amount: order.placeFeeAmount),
-          if (!order.discount.isZero)
+          if (order.hasDiscount)
             AmountRow(
-              label: 'Chegirma',
+              label: discountLabel(order),
               amount: order.discount,
               negative: true,
+              trailing: order.discountReason,
             ),
           const Divider(height: 20),
           AmountRow(
@@ -649,10 +794,30 @@ class _BillingPageState extends State<BillingPage> with RefreshingState {
               amount: _depositAvailable,
               tone: StatusTone.success,
             ),
+          if (_canDiscount && !limitedMode(context)) ...<Widget>[
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: <Widget>[
+                _discountButton(),
+                if (order.hasDiscount) _removeDiscountButton(),
+              ],
+            ),
+          ],
         ],
       ),
     );
   }
+
+  Widget _removeDiscountButton() => RzButton(
+    key: const ValueKey<String>('billing-remove-discount'),
+    label: 'Chegirmani olib tashlash',
+    icon: Icons.backspace_outlined,
+    size: RzButtonSize.lg,
+    variant: RzButtonVariant.ghost,
+    onPressed: _busy ? null : () => unawaited(_discount(remove: true)),
+  );
 
   static String _percentLabel(String raw) {
     try {
@@ -842,6 +1007,10 @@ class _BillingPageState extends State<BillingPage> with RefreshingState {
                 onPressed: () =>
                     unawaited(printSale(context, bill, _order, copy: true)),
               ),
+            if (_canDiscount && !limitedMode(context)) ...<Widget>[
+              _discountButton(),
+              if (_order?.hasDiscount ?? false) _removeDiscountButton(),
+            ],
             if (refundable && bill.isPaid && !limitedMode(context))
               RzButton(
                 label: 'Pulni qaytarish',
@@ -856,7 +1025,8 @@ class _BillingPageState extends State<BillingPage> with RefreshingState {
           Padding(
             padding: const EdgeInsets.only(top: 8),
             child: Text(
-              'Schyot ${bill.printedCount} marta chiqarilgan: qayta chiqarilsa "NUSXA" yoziladi (menejer tasdig\'i).',
+              'Schyot ${bill.printedCount} marta chiqarilgan: qayta chiqarilsa "NUSXA" yoziladi'
+              '${session.can(PosPermissions.reprintBill) ? '.' : " (menejer tasdig'i)."}',
               style: RzType.footnote.copyWith(color: c.fgMuted),
             ),
           ),
@@ -987,7 +1157,12 @@ class BillPreview extends StatelessWidget {
           if (!bill.placeFeeAmount.isZero)
             AmountRow(label: 'Joy puli', amount: bill.placeFeeAmount),
           if (!bill.discount.isZero)
-            AmountRow(label: 'Chegirma', amount: bill.discount, negative: true),
+            AmountRow(
+              label: discountLabel(order),
+              amount: bill.discount,
+              negative: true,
+              trailing: order?.discountReason,
+            ),
           const Divider(height: 20),
           AmountRow(label: 'Jami', amount: bill.total, bold: true, large: true),
           if (prepaid.isPositive)

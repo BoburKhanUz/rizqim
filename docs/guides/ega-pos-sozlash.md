@@ -346,6 +346,7 @@ LAN printerga marka chiqadi.
 | **Ekran qulfi** | Necha daqiqa tegilmasa, PIN so'raladi (0 — qulflanmaydi; standart 5) |
 | **Bron ushlab turish vaqti** | Tugash vaqti yozilmagan bron xonani necha daqiqa ushlaydi (30–1440; standart 300, ya'ni 5 soat) |
 | **Navbat raqamlari** | Har biznes kunda buyurtmalarga 1 dan boshlab raqam beriladi |
+| **Kassir menejersiz beradigan eng katta chegirma, %** | Kassir shu foizgacha chegirmani **o'zi** beradi (standart 10). Undan katta chegirma uchun menejer o'z PIN'ini kiritadi. Maydonni **bo'sh** qoldirsangiz (yoki 0 yozsangiz), kassir **har safar** menejerdan so'raydi. Ko'proq: [Chegirma](#chegirma-kim-qancha-beradi) |
 | **Egaga xabar chegaralari** | Pastda |
 | **Bayram kunlari** | Xona narxi kalendaridagi ro'yxat bilan bitta |
 
@@ -353,8 +354,10 @@ LAN printerga marka chiqadi.
 
 - **Xona uzoq ochiq** — soat (standart 6): xona shuncha soatdan ortiq ochiq tursa.
 - **O'chirilgan taom summasi** — oshxonaga yuborilgandan keyin o'chirilgan taom shu summadan qimmat bo'lsa.
-- **Chegirma foizi** — chegirma shu foizdan oshsa (hozircha kassada chegirma yo'q).
+- **Chegirma foizi** — kassada berilgan chegirma shu foizdan oshsa (standart 10).
 - **Qabul qilinmagan onlayn buyurtma** — daqiqa (standart 3).
+- **Kassadan katta summa chiqarildi** — kassadan bir marta shu summadan ko'p pul chiqarilsa (standart 500 000 so'm). Kassir pulni o'zi chiqaradi
+  (sababini yozadi), siz esa katta summadan darhol xabardor bo'lasiz.
 
 Quyidagi xabarlar **doim** keladi: xona puli, xizmat haqi yoki minimal summa farqi olib tashlansa; buyurtma bekor qilinsa; pul qaytarilsa;
 bron avansi qaytarilsa yoki ushlab qolinsa; katta nasiya (standart 500 000 so'mdan) va har bir qarz to'lovi; smena yopilganda Z xulosasi.
@@ -398,9 +401,10 @@ Rollar va nimalar qila oladi:
 | Yuborilgan taomni o'chirish | ha | ha | menejer tasdig'i bilan | | |
 | Butun buyurtmani bekor qilish | ha | ha | menejer tasdig'i bilan | | |
 | Xona puli, xizmat haqini olib tashlash | ha | ha | menejer tasdig'i bilan | | |
-| Schyot nusxasini qayta chiqarish | ha | ha | menejer tasdig'i bilan | | |
+| Schyot nusxasini qayta chiqarish (chekda "NUSXA" yoziladi) | ha | ha | ha | | |
 | Pulni qaytarish (qaytarish cheki bilan) | ha | ha | menejer tasdig'i bilan | | |
-| Kassaga kirim va chiqim | ha | ha | menejer tasdig'i bilan | | |
+| Kassaga pul kiritish va chiqarish (chiqarishda sabab yoziladi) | ha | ha | ha | | |
+| Chegirma berish | ha | ha | belgilangan foizgacha o'zi; undan ko'pi menejer tasdig'i bilan | | |
 | Nasiyaga yopish | ha | ha | **doim** menejer tasdig'i bilan | | |
 | Nasiya hisobini ochish, limitni o'zgartirish | ha | ha | | | |
 | Avansni qaytarish yoki ushlab qolish | ha | ha | menejer tasdig'i bilan | | |
@@ -414,9 +418,56 @@ kim so'ragan va kim tasdiqlagan yoziladi.
 
 Ofitsiant faqat **o'z** xonalarini o'zgartiradi. Boshqa ofitsiantning buyurtmasi — menejer tasdig'i bilan.
 
-Huquqlarni siz do'kon bo'yicha o'zgartirishingiz mumkin ([panel qo'llanmasi](hamkor-panel.md#1-kim-nimani-koradi)): masalan,
-ishonchli kassirga pulni qaytarish huquqini berish. Filialga biriktirilgan xodim faqat o'sha filial terminalida ishlaydi.
+Jadvaldagilar — standart. Uni do'kon bo'yicha o'zingiz o'zgartira olasiz: pastdagi [Huquqlar sahifasi](#huquqlar-sahifasi-xodim-nimani-ozi-qiladi).
+Filialga biriktirilgan xodim faqat o'sha filial terminalida ishlaydi.
 Xodim ketsa yoki PIN begonaga bilinsa, PIN'ni almashtiring yoki o'chiring: xodimning terminaldagi sessiyasi darhol yopiladi.
+
+### Kassir nimani o'zi qiladi: standart qoidalar
+
+Rizqim'da kassirga quyidagicha ruxsat berilgan (siz o'zgartirmaguncha):
+
+- **O'zi qiladi:** chekni qayta chiqarish ("NUSXA" belgisi bilan), kassaga pul kiritish, kassadan pul chiqarish (sababini yozadi), chegirma — **belgilangan
+  foizgacha**.
+- **Menejer PIN'i bilan:** pulni qaytarish (qaytim), butun buyurtmani bekor qilish, taomni chekdan o'chirish, belgilangan foizdan katta chegirma.
+
+Nega shunday: kundalik, tez-tez bo'ladigan ishlar (chek nusxasi, kassaga pul solish) navbatni to'xtatmasin. Pul qaytishi yoki buyurtma yo'qolishi
+mumkin bo'lgan amallarda esa ikkinchi odam — menejer — o'z PIN'i bilan javob beradi. Katta summa kassadan chiqarilsa, sizga baribir xabar keladi
+([filialning kassa sozlamalari](#8-filialning-kassa-sozlamalari)).
+
+### Chegirma: kim qancha beradi
+
+1. **Kassir**: **Kassir menejersiz beradigan eng katta chegirma** sozlamasidagi foizgacha (standart 10%) o'zi beradi. Foizni yoki so'mni kiritish mumkin;
+   so'mda kiritilsa, u buyurtma summasining necha foizi ekani hisoblanadi.
+2. **Foizdan katta chegirma**: kassa menejer PIN'ini so'raydi. Menejer yoki ega o'z PIN'ini kiritadi, chegirma beriladi.
+3. **Menejer va ega**: istalgan chegirmani cheklovsiz beradi.
+4. Sozlama **bo'sh** (yoki 0) bo'lsa, kassir hech qanday chegirmani o'zi bera olmaydi: har safar menejerdan so'raydi.
+
+Chegirma sababi yoziladi va jurnalga tushadi. Chegirma foizi **Chegirma foizi** xabar chegarasidan oshsa, sizga xabar keladi.
+Foizli chegirma buyurtmaga taom qo'shilsa yoki o'chirilsa o'zi qayta hisoblanadi. To'lov boshlangan schyotga chegirma berib bo'lmaydi.
+Internet uzilganda (cheklangan rejimda) chegirma berib bo'lmaydi: u keyin, internet qaytganda beriladi.
+
+### Huquqlar sahifasi: xodim nimani o'zi qiladi
+
+Faqat **ega** ko'radi va o'zgartiradi. Chap menyuda **Huquqlar** bo'limini oching.
+
+1. Yuqoridagi yorliqlardan lavozimni tanlang: **Menejer**, **Kassir**, **Ofitsiant**, **Oshpaz** yoki **Kuryer**. Ega yorlig'i yo'q: eganing huquqlari
+   o'zgarmaydi.
+2. Pastda shu lavozim **o'zi qila oladigan** ishlar ro'yxati turadi. Har birining yonida qisqa nom va bir qator tushuntirish bor (masalan,
+   **Qaytim qilish** — mijozga pulni qaytaradi). Ishlar guruhlangan: Buyurtmalar, Kassa va pul, Oshxona va zal, Menyu, Xodimlar va qurilmalar
+   va hokazo.
+3. Tugmani yoqsangiz — xodim bu ishni o'zi qiladi. O'chirsangiz — kassa menejer PIN'ini so'raydi (qaytim, bekor qilish va chegirma kabi ishlarda).
+   O'zgarish **darhol saqlanadi**, alohida saqlash tugmasi yo'q. Yashil "saqlandi" xabari chiqadi.
+4. **Pul bilan bog'liq** belgisi: pulni chiqarishi yoki buyurtmani bekor qilishi mumkin bo'lgan ishlar (qaytim, bekor qilish, chekdan o'chirish,
+   chegirma, kassaga pul kiritish va chiqarish). Bunday ishga ruxsat bermoqchi bo'lsangiz, tizim avval so'raydi: **Ruxsat berish** ni bosing.
+   Ruxsatni olib tashlash savolsiz bajariladi.
+5. Standartdan o'zgargan qatorda **O'zgartirilgan** belgisi, "Standart: ruxsat bor / ruxsat yo'q" yozuvi va **Standartga qaytarish** tugmasi turadi.
+   Tugmani bossangiz, qator Rizqim'ning standart holatiga qaytadi. Tugmani qo'lda standart holatga qaytarsangiz ham xuddi shunday bo'ladi.
+
+Ba'zi huquqlarni boshqa lavozimga berib bo'lmaydi: do'kon hisobidan pul yechish, do'kon sozlamalari, yetkazish hududlari, xodimlar va lavozimlarni
+boshqarish, harakatlar jurnali va shu Huquqlar sahifasi. Ular faqat egada qoladi. Sahifada shunday huquq ko'rinsa, "Buni faqat ega bajaradi" deb yoziladi.
+
+Ruxsati bo'lmagan xodim sahifani (va menyudagi bo'limni) umuman ko'rmaydi. Har bir o'zgarish harakatlar jurnaliga yoziladi: kim, qaysi lavozimga, qaysi
+huquqni o'zgartirgani. O'zgarish serverda darhol kuchga kiradi. Kassada allaqachon kirib o'tirgan xodimning ekranidagi tugmalar esa u PIN bilan qaytadan kirgandan keyin yangilanishi mumkin.
 
 ## 11. Smenalar va Z hisobotlarni ko'rish
 

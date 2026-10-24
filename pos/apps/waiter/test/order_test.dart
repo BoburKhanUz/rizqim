@@ -55,6 +55,29 @@ void main() {
     expect(buttonLabeled('Yuborish (1)'), findsNothing);
   });
 
+  testWidgets(
+    'P3-37: the cashier\'s discount shows in the totals; the waiter has no discount action',
+    (WidgetTester tester) async {
+      final WaiterHarness h = WaiterHarness();
+      await openOwnOrder(
+        tester,
+        h,
+        before: (String uuid) {
+          h.state.orders[uuid]!
+            ..['discount_kind'] = 'percent'
+            ..['discount_value'] = '10.00'
+            ..['discount_reason'] = 'Doimiy mijoz';
+          h.state.orders[uuid]!['discount'] = '19000.00';
+        },
+      );
+      expect(find.text('Chegirma 10%'), findsOneWidget);
+      expect(find.text('−${const PosMoney.som(19000).format()}'), findsNothing);
+      expect(find.text(const PosMoney.som(-19000).format()), findsOneWidget);
+      expect(find.textContaining('Chegirma berish'), findsNothing);
+      expect(find.byIcon(Icons.percent_rounded), findsNothing);
+    },
+  );
+
   testWidgets('adds a round: quick buttons, kg keypad, modifiers, then sends', (
     WidgetTester tester,
   ) async {

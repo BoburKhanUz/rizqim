@@ -20,7 +20,8 @@ use Illuminate\Support\Carbon;
  *
  *  - a line voided after it was sent to the kitchen, worth at least `void_amount`;
  *  - a waived charge line (room fee, minimum spend top-up, service charge, place fee): always — the research names
- *    each one (R20); `discount_percent` is for discounts, which the POS has no endpoint for yet;
+ *    each one (R20);
+ *  - a discount (P3-37) of at least `discount_percent` of the dishes (an amount by its share of them);
  *  - a cancelled order: always;
  *  - a hall order open longer than `open_room_hours`: once per order (orders.long_open_alerted_at), by the
  *    pos:alert-long-open schedule.
@@ -37,7 +38,7 @@ class PosOrderAlerts
     ) {}
 
     /**
-     * @return array{open_room_hours: int|null, void_amount: string|null, discount_percent: string|null, unaccepted_online_minutes: int|null}
+     * @return array{open_room_hours: int|null, void_amount: string|null, discount_percent: string|null, unaccepted_online_minutes: int|null, cash_out_amount: string|null}
      */
     public function thresholds(?Branch $branch): array
     {
@@ -68,6 +69,26 @@ class PosOrderAlerts
         }
 
         $this->alerts->send((int) $order->store_id, "✂️ {$charge->label()} olib tashlandi: " . PosOwnerAlerts::sum($amount)
+            . "\n{$this->place($order)}"
+            . "\nSabab: {$reason}"
+            . "\n{$this->people($actor, $approvedBy)}");
+    }
+
+    /**
+     * P3-37: a discount given at the till, when its percent of the dishes reaches the branch's `discount_percent`.
+     */
+    public function discountGiven(Order $order, string $kind, Money $value, Money $percent, string $reason, User $actor, ?int $approvedBy): void
+    {
+        $threshold = $this->thresholds($order->branch)['discount_percent'];
+        if ($threshold === null || $percent->isLessThan($threshold)) {
+            return;
+        }
+
+        $given = $kind === 'percent'
+            ? rtrim(rtrim($value->toString(), '0'), '.') . '%'
+            : PosOwnerAlerts::sum($value) . ' (' . rtrim(rtrim($percent->toString(), '0'), '.') . '%)';
+
+        $this->alerts->send((int) $order->store_id, "🏷 Chegirma berildi: {$given} — " . PosOwnerAlerts::sum((string) $order->discount)
             . "\n{$this->place($order)}"
             . "\nSabab: {$reason}"
             . "\n{$this->people($actor, $approvedBy)}");

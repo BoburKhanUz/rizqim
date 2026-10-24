@@ -42,7 +42,8 @@ class PosBranchSettingsApiTest extends TestCase
             ->assertJsonPath('data.pos_settings.queue_numbers', false)
             ->assertJsonPath('data.pos_settings.holidays', []);
 
-        $this->assertSame(['open_room_hours' => 6, 'void_amount' => '200000.00', 'discount_percent' => '10.00', 'unaccepted_online_minutes' => 3], $response->json('data.pos_settings.alerts'));
+        $this->assertSame(['open_room_hours' => 6, 'void_amount' => '200000.00', 'discount_percent' => '10.00', 'unaccepted_online_minutes' => 3, 'cash_out_amount' => '500000.00'], $response->json('data.pos_settings.alerts'));
+        $this->assertSame('10.00', $response->json('data.pos_settings.cashier_discount_max_percent'));
         $this->assertNull($this->branch->fresh()->pos_settings);
         $this->assertSame('05:00:00', $this->branch->fresh()->business_day_starts_at);
     }
@@ -67,7 +68,7 @@ class PosBranchSettingsApiTest extends TestCase
             ->assertJsonPath('data.pos_settings.printing_device_id', $terminal->uuid)
             ->assertJsonPath('data.pos_settings.screen_lock_minutes', 0)
             ->assertJsonPath('data.pos_settings.queue_numbers', true)
-            ->assertJsonPath('data.pos_settings.alerts', ['open_room_hours' => 8, 'void_amount' => '150000.50', 'discount_percent' => null, 'unaccepted_online_minutes' => 3])
+            ->assertJsonPath('data.pos_settings.alerts', ['open_room_hours' => 8, 'void_amount' => '150000.50', 'discount_percent' => null, 'unaccepted_online_minutes' => 3, 'cash_out_amount' => '500000.00'])
             ->assertJsonPath('data.pos_settings.holidays', ['2026-12-31', '2027-01-01']);
         $this->assertSame('04:00:00', $this->branch->fresh()->business_day_starts_at);
 
@@ -78,7 +79,7 @@ class PosBranchSettingsApiTest extends TestCase
             ->assertJsonPath('data.pos_settings.mode', 'counter')
             ->assertJsonPath('data.pos_settings.printing_device_id', $terminal->uuid)
             ->assertJsonPath('data.pos_settings.queue_numbers', true)
-            ->assertJsonPath('data.pos_settings.alerts', ['open_room_hours' => 8, 'void_amount' => '150000.50', 'discount_percent' => null, 'unaccepted_online_minutes' => 10]);
+            ->assertJsonPath('data.pos_settings.alerts', ['open_room_hours' => 8, 'void_amount' => '150000.50', 'discount_percent' => null, 'unaccepted_online_minutes' => 10, 'cash_out_amount' => '500000.00']);
 
         // null clears the printing till; an empty list clears the holidays
         $this->as($this->owner, 'PUT', $this->url(), ['pos_settings' => ['printing_device_id' => null, 'holidays' => []]])
@@ -132,6 +133,45 @@ class PosBranchSettingsApiTest extends TestCase
         $put(['pos_settings' => ['theme' => 'dark']])->assertStatus(422)->assertJsonValidationErrors('pos_settings.theme');
         $put(['pos_settings' => ['alerts' => ['void_count' => 3]]])->assertStatus(422)->assertJsonValidationErrors('pos_settings.alerts.void_count');
         $this->assertNull($this->branch->fresh()->pos_settings);
+    }
+
+    public function test_the_cashiers_discount_limit_and_the_cash_out_alert_are_validated_saved_and_read_back(): void
+    {
+        $put = fn (array $payload) => $this->as($this->owner, 'PUT', $this->url(), $payload);
+
+        // P3-37: validated
+        foreach ([-1, 100.01, '12.345', 'ten'] as $bad) {
+            $put(['pos_settings' => ['cashier_discount_max_percent' => $bad]])->assertStatus(422)->assertJsonValidationErrors('pos_settings.cashier_discount_max_percent');
+        }
+        foreach ([-1, 100000001, '10.123'] as $bad) {
+            $put(['pos_settings' => ['alerts' => ['cash_out_amount' => $bad]]])->assertStatus(422)->assertJsonValidationErrors('pos_settings.alerts.cash_out_amount');
+        }
+        $this->assertNull($this->branch->fresh()->pos_settings);
+
+        // Saved as decimal strings; the other keys keep their defaults
+        $put(['pos_settings' => ['cashier_discount_max_percent' => 15.5, 'alerts' => ['cash_out_amount' => '1000000']]])
+            ->assertOk()
+            ->assertJsonPath('data.pos_settings.cashier_discount_max_percent', '15.50')
+            ->assertJsonPath('data.pos_settings.alerts.cash_out_amount', '1000000.00')
+            ->assertJsonPath('data.pos_settings.alerts.discount_percent', '10.00');
+        $this->assertSame('15.50', $this->branch->fresh()->pos_settings['cashier_discount_max_percent']);
+
+        // null: the cashier always asks a manager; the alert is off
+        $put(['pos_settings' => ['cashier_discount_max_percent' => null, 'alerts' => ['cash_out_amount' => null]]])
+            ->assertOk()
+            ->assertJsonPath('data.pos_settings.cashier_discount_max_percent', null)
+            ->assertJsonPath('data.pos_settings.alerts.cash_out_amount', null);
+        $put(['pos_settings' => ['cashier_discount_max_percent' => 0]])->assertOk()->assertJsonPath('data.pos_settings.cashier_discount_max_percent', '0.00');
+
+        // The till reads the same values in its bootstrap
+        $this->assertSame('0.00', PosSettings::resolve($this->branch->fresh()->pos_settings)['cashier_discount_max_percent']);
+        $this->assertNull(PosSettings::resolve($this->branch->fresh()->pos_settings)['alerts']['cash_out_amount']);
+
+        // A stored value that no longer fits reads as the default
+        $this->branch->forceFill(['pos_settings' => ['cashier_discount_max_percent' => 'lots', 'alerts' => ['cash_out_amount' => 'x']]])->save();
+        $this->as($this->owner, 'GET', $this->url())->assertOk()
+            ->assertJsonPath('data.pos_settings.cashier_discount_max_percent', '10.00')
+            ->assertJsonPath('data.pos_settings.alerts.cash_out_amount', '500000.00');
     }
 
     public function test_the_printing_till_must_be_a_pos_terminal_of_this_branch(): void

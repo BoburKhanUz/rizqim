@@ -62,6 +62,12 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property \Illuminate\Support\Carbon|null $offline_created_at
  * @property \Illuminate\Support\Carbon|null $synced_at
  * @property array<int, array<string, mixed>>|null $sync_flags
+ *
+ * P3-37: a discount given at the till; `discount` above is the amount it comes to (App\Domain\Pos\Orders)
+ * @property string|null $discount_kind percent|amount
+ * @property numeric-string|null $discount_value
+ * @property string|null $discount_reason
+ * @property int|null $discount_by
  */
 class Order extends Model
 {
@@ -144,6 +150,9 @@ class Order extends Model
             'offline_created_at' => 'datetime',
             'synced_at' => 'datetime',
             'sync_flags' => 'array',
+            // P3-37: the till's discount (kind, the value typed, who gave it); `discount` is its amount
+            'discount_value' => 'decimal:2',
+            'discount_by' => 'integer',
         ];
     }
 

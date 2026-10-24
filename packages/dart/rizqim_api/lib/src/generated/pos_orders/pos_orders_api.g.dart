@@ -292,6 +292,39 @@ class _PosOrdersApi implements PosOrdersApi {
   }
 
   @override
+  Future<PostV1PosOrdersUuidDiscountResponse> posOrderDiscount({
+    required String uuid,
+    required String idempotencyKey,
+    required V1PosOrdersUuidDiscountRequestBody body,
+  }) async {
+    final _extra = <String, dynamic>{};
+    final queryParameters = <String, dynamic>{};
+    final _headers = <String, dynamic>{r'Idempotency-Key': idempotencyKey};
+    _headers.removeWhere((k, v) => v == null);
+    final _data = <String, dynamic>{};
+    _data.addAll(body.toJson());
+    final _options = _setStreamType<PostV1PosOrdersUuidDiscountResponse>(
+      Options(method: 'POST', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/v1/pos/orders/${uuid}/discount',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late PostV1PosOrdersUuidDiscountResponse _value;
+    try {
+      _value = PostV1PosOrdersUuidDiscountResponse.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
   Future<PostV1PosOrdersUuidGuestsResponse> posOrderGuests({
     required String uuid,
     required String idempotencyKey,

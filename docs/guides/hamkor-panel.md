@@ -40,6 +40,8 @@ Ruxsatni ega beradi.
 | Yetkazish zonalari | ha | yo'q |
 | Sozlamalar: Do'kon, Xizmat haqi | ha | yo'q |
 | Sozlamalar: Qurilmalar | ha | ha |
+| Kassa sozlamalari | ha | yo'q |
+| Huquqlar | ha | yo'q |
 | Hisobotlar | ha | ha |
 | Moliya | ha | yo'q |
 
@@ -47,8 +49,8 @@ Muhim:
 
 - Menejer filialga biriktirilgan bo'lsa, u faqat o'z filialidagi buyurtmalar, xodimlar va qurilmalarni ko'radi.
 - Panel ega va menejer uchun mo'ljallangan. Kassir, ofitsiant, oshpaz va kuryer uchun alohida ilovalar bor.
-- Ruxsatlar rolga qarab beriladi. Ega ularni o'zgartirishi mumkin (masalan, menejerga Moliyani ko'rishni berish).
-  Shunda menyuda yangi bo'lim paydo bo'ladi.
+- Ruxsatlar rolga qarab beriladi. Ega ularni **Huquqlar** bo'limida o'zgartirishi mumkin (masalan, menejerga Moliyani ko'rishni berish).
+  Shunda menyuda yangi bo'lim paydo bo'ladi. [Huquqlar](#huquqlar-xodim-nimani-ozi-qiladi) haqida pastda.
 - Menyuni menejer hozircha faqat ko'radi (keyinchalik o'zgarishi mumkin).
 
 ## 2. Panelga kirish
@@ -375,6 +377,14 @@ Har bir o'zgarish harakatlar jurnaliga yoziladi.
 ### Xodimni o'chirish
 
 Qatordagi chiqindi savat belgisi → **O'chirish**. Xodim do'kondan olib tashlanadi va ilovalarga kira olmaydi. Buni faqat ega qiladi.
+
+### Huquqlar: xodim nimani o'zi qiladi
+
+Faqat ega ko'radi. **Huquqlar** bo'limida har bir lavozim (Menejer, Kassir, Ofitsiant, Oshpaz, Kuryer) uchun oddiy tilda yozilgan ro'yxat turadi, masalan
+"Qaytim qilish — mijozga pulni qaytaradi". Tugmani yoqsangiz, xodim bu ishni o'zi qiladi; o'chirsangiz, kassa menejer PIN'ini so'raydi.
+O'zgarish darhol saqlanadi. Pul bilan bog'liq ishlar (qaytim, bekor qilish, chegirma, kassadan pul chiqarish) alohida belgilangan va ruxsat berishdan
+oldin tizim so'raydi. O'zgargan qator **O'zgartirilgan** deb belgilanadi, **Standartga qaytarish** tugmasi uni Rizqim'ning standart holatiga qaytaradi.
+To'liq tushuntirish va kassirning standart qoidalari — [Kassa sozlash qo'llanmasi](ega-pos-sozlash.md#huquqlar-sahifasi-xodim-nimani-ozi-qiladi).
 
 ## 8. Sozlamalar va qurilmalar
 

@@ -196,6 +196,7 @@ class PosSettings {
     this.alerts = const PosAlerts(),
     this.holidays = const <String>[],
     this.bookingSlotMinutes,
+    this.cashierDiscountMaxPercent,
   });
 
   factory PosSettings.fromJson(PosJson j) => PosSettings(
@@ -208,6 +209,7 @@ class PosSettings {
         : const PosAlerts(),
     holidays: j.strings('holidays'),
     bookingSlotMinutes: j.intOrNull('booking_slot_minutes'),
+    cashierDiscountMaxPercent: j.strOrNull('cashier_discount_max_percent'),
   );
 
   final PosMode mode;
@@ -222,6 +224,21 @@ class PosSettings {
   final List<String> holidays;
   final int? bookingSlotMinutes;
 
+  /// Kassir menejersiz beradigan eng katta chegirma foizi (`"10.00"`, P3-37). `null` yoki 0 — har chegirma menejer
+  /// tasdig'i bilan.
+  final String? cashierDiscountMaxPercent;
+
+  /// [cashierDiscountMaxPercent] foizning yuzdan birlarida (`"10.00"` → 1000); yo'q yoki noto'g'ri — 0.
+  int get cashierDiscountMaxHundredths {
+    final String? raw = cashierDiscountMaxPercent;
+    if (raw == null) return 0;
+    try {
+      return percentHundredths(raw);
+    } on FormatException {
+      return 0;
+    }
+  }
+
   /// Ekran qulfi muddati (0 — `null`: qulflanmaydi).
   Duration? get screenLock =>
       screenLockMinutes <= 0 ? null : Duration(minutes: screenLockMinutes);
@@ -233,6 +250,7 @@ class PosAlerts {
     this.voidAmount,
     this.discountPercent,
     this.unacceptedOnlineMinutes,
+    this.cashOutAmount,
   });
 
   factory PosAlerts.fromJson(PosJson j) => PosAlerts(
@@ -240,12 +258,16 @@ class PosAlerts {
     voidAmount: j.moneyOrNull('void_amount'),
     discountPercent: j.strOrNull('discount_percent'),
     unacceptedOnlineMinutes: j.intOrNull('unaccepted_online_minutes'),
+    cashOutAmount: j.moneyOrNull('cash_out_amount'),
   );
 
   final int? openRoomHours;
   final PosMoney? voidAmount;
   final String? discountPercent;
   final int? unacceptedOnlineMinutes;
+
+  /// Bitta kassadan chiqim shu summadan kam bo'lmasa egaga xabar boradi (P3-37); `null` — xabar yo'q.
+  final PosMoney? cashOutAmount;
 }
 
 class PosDeviceInfo {

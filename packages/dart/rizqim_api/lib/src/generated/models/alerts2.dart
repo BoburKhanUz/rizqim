@@ -13,6 +13,7 @@ class Alerts2 {
     required this.voidAmount,
     required this.discountPercent,
     required this.unacceptedOnlineMinutes,
+    required this.cashOutAmount,
   });
 
   factory Alerts2.fromJson(Map<String, Object?> json) =>
@@ -26,6 +27,8 @@ class Alerts2 {
   final String? discountPercent;
   @JsonKey(name: 'unaccepted_online_minutes')
   final int? unacceptedOnlineMinutes;
+  @JsonKey(name: 'cash_out_amount')
+  final String? cashOutAmount;
 
   Map<String, Object?> toJson() => _$Alerts2ToJson(this);
 }
