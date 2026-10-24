@@ -7,7 +7,7 @@ import 'support/p22.dart';
 
 void main() {
   testWidgets(
-    'open a shift with opening cash, cash out for bozorlik with approval, X report view and print',
+    'open a shift with opening cash, cash out for bozorlik (no manager), X report view and print',
     (WidgetTester tester) async {
       final P22 p = P22();
       await pumpHome(tester, p.h);
@@ -20,7 +20,7 @@ void main() {
       expect(find.text('Smena ochiq'), findsWidgets);
       expect(find.text(uzs(100000)), findsWidgets);
 
-      // Chiqim: bozorlik, go'sht — kassirda pos.cash_in_out yo'q, menejer tasdiqlaydi
+      // Chiqim: bozorlik, go'sht — P3-37: kassirda pos.cash_in_out bor, menejer kerak emas
       await tapKey(tester, 'cash-out');
       expect(find.text('Kassadan chiqim'), findsOneWidget);
       await tester.tap(find.widgetWithText(ChoiceChip, "Go'sht"));
@@ -32,10 +32,7 @@ void main() {
       );
       await enter(tester, 'movement-amount', '30000');
       await tapKey(tester, 'movement-submit');
-      expect(find.text("Menejer tasdig'i"), findsOneWidget);
-      expect(find.text('Kassaga kirim yoki chiqim'), findsOneWidget);
-      await typePin(tester, '5926');
-      await tester.pumpAndSettle();
+      expect(find.text("Menejer tasdig'i"), findsNothing);
       expect(p.backend.movements.single['category'], 'meat');
       expect(p.drawerKicks, 1);
       expect(find.text("Bozorlik · Go'sht"), findsOneWidget);

@@ -186,8 +186,10 @@ class PosShiftController extends PosBillingController
      * `type`: `cash_in`, `cash_out`, `wage` (paid to an employee: `employee_id` required) or `purchase` (bazaar
      * shopping); `category` from the type's list (cash_in: change_fund, owner, other; cash_out: collection, owner,
      * supplies, utilities, other; wage: daily_wage, advance, bonus; purchase: bazaar, meat, bread, supplies, other);
-     * `other` needs a `note`. Money out never exceeds the expected cash (409 `not_enough_cash`). Needs pos.cash_in_out,
-     * or a manager's `approval_token` for it (403 `approval_required`). The shift must be open (409 `shift_closed`).
+     * `other` needs a `note`. Money out never exceeds the expected cash (409 `not_enough_cash`). Needs pos.cash_in_out
+     * (a cashier's by default since P3-37), or a manager's `approval_token` for it (403 `approval_required`). The shift
+     * must be open (409 `shift_closed`). P3-37: one movement out (cash_out, wage, purchase) of at least the branch's
+     * `pos_settings.alerts.cash_out_amount` alerts the owner.
      */
     #[ApiDocResponse(201, type: 'array{success: true, message: string, data: array{movement: array{uuid: string, type: string, category: string|null, amount: string, note: string|null, employee_id: int|null, employee: array{id: int, name: string|null}|null, user: array{id: int, name: string|null}|null, approved_by: int|null, approver: array{id: int, name: string|null}|null, created_at: string|null}, shift: ' . ShiftPresenter::SHIFT . '}}')]
     public function cashMovement(Request $request, ShiftService $shifts, ShiftPresenter $presenter, string $uuid): JsonResponse

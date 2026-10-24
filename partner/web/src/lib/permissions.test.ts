@@ -4,13 +4,13 @@ import { hasAny, homePath, sectionOf, visibleNav } from './permissions';
 const OWNER = [
   'orders.view', 'orders.manage', 'orders.cancel', 'menu.view', 'menu.manage', 'stoplist.manage', 'batches.manage', 'staff.view',
   'branches.manage', 'zones.manage', 'settings.manage', 'reports.view', 'finance.view',
-  'tables.manage', 'bookings.manage', 'customer_accounts.manage', 'pos.close_shift',
+  'tables.manage', 'bookings.manage', 'customer_accounts.manage', 'pos.close_shift', 'permissions.manage',
 ];
 
 describe('visibleNav', () => {
   it('shows every section to an owner, zones included', () => {
     expect(visibleNav(OWNER).map((item) => item.key)).toEqual([
-      'dashboard', 'orders', 'bookings', 'floor', 'menu', 'stoplist', 'batches', 'shifts', 'accounts', 'staff', 'branches', 'zones', 'settings', 'possetup', 'fiscal', 'reports', 'finance',
+      'dashboard', 'orders', 'bookings', 'floor', 'menu', 'stoplist', 'batches', 'shifts', 'accounts', 'staff', 'branches', 'zones', 'settings', 'possetup', 'permissions', 'fiscal', 'reports', 'finance',
     ]);
   });
 
@@ -35,6 +35,7 @@ describe('visibleNav', () => {
     expect(visibleNav(['batches.manage']).map((item) => item.key)).toEqual(['batches']); // a cook: the kazan, not the stop-list
     expect(visibleNav(['orders.view']).map((item) => item.key)).toEqual(['dashboard', 'orders']);
     expect(visibleNav(['settings.manage']).map((item) => item.key)).toEqual(['branches', 'settings', 'possetup', 'fiscal']);
+    expect(visibleNav(['permissions.manage']).map((item) => item.key)).toEqual(['permissions']); // only the owner holds it
     expect(visibleNav(['bookings.manage']).map((item) => item.key)).toEqual(['bookings']);
     expect(visibleNav(['pos.close_shift']).map((item) => item.key)).toEqual(['shifts']);
     expect(hasAny(['a'], ['b', 'a'])).toBe(true);
@@ -55,6 +56,7 @@ describe('visibleNav', () => {
     expect(sectionOf('/stoplist/batches')?.key).toBe('batches');
     expect(sectionOf('/stoplist')?.key).toBe('stoplist');
     expect(sectionOf('/pos-setup')?.key).toBe('possetup');
+    expect(sectionOf('/permissions')?.key).toBe('permissions');
     expect(sectionOf('/fiscal')?.key).toBe('fiscal');
     expect(sectionOf('/floor')?.key).toBe('floor');
   });

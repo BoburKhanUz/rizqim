@@ -55,6 +55,13 @@ class _CashMovementDialogState extends State<_CashMovementDialog> {
   final LostRequest _lost = LostRequest();
 
   @override
+  void initState() {
+    super.initState();
+    // The owner-alert hint follows the amount
+    _amount.addListener(() => setState(() {}));
+  }
+
+  @override
   void dispose() {
     _amount.dispose();
     _note.dispose();
@@ -130,6 +137,24 @@ class _CashMovementDialogState extends State<_CashMovementDialog> {
     }
   }
 
+  /// P3-37: bitta chiqim filial chegarasidan (`alerts.cash_out_amount`) kam bo'lmasa egaga xabar boradi (server
+  /// yuboradi; kassir oldindan biladi).
+  bool _alertsOwner(BuildContext context) {
+    if (widget.incoming) return false;
+    final PosMoney? limit = PosScope.of(context)
+        .session
+        .bootstrap
+        ?.branch
+        .settings
+        .alerts
+        .cashOutAmount;
+    final PosMoney? amount = parseMoney(_amount.text);
+    return limit != null &&
+        limit.isPositive &&
+        amount != null &&
+        amount >= limit;
+  }
+
   @override
   Widget build(BuildContext context) {
     final RzColors c = context.rz;
@@ -187,6 +212,14 @@ class _CashMovementDialogState extends State<_CashMovementDialog> {
                     ? null
                     : 'Kassada: ${widget.expectedCash!.format()}',
               ),
+              if (_alertsOwner(context)) ...<Widget>[
+                const SizedBox(height: 8),
+                Text(
+                  "Katta chiqim: egaga xabar boradi.",
+                  key: const ValueKey<String>('movement-owner-alert'),
+                  style: RzType.footnote.copyWith(color: c.warningSoftFg),
+                ),
+              ],
               const SizedBox(height: 12),
               TextField(
                 key: const ValueKey<String>('movement-note'),

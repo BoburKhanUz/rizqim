@@ -120,6 +120,8 @@ texnik qaror, egasi uchun farqi yo'q.
 
 - **Smena** — bitta kassa (terminal) uchun ish davri. Ochishda boshlang'ich naqd kiritiladi (`pos.open_shift`).
 - Smena davomida: naqd sotuv, qaytarish, **kassaga kirim/chiqim** (`pos.cash_in_out`) kategoriya va izoh bilan.
+  P3-37: kassir kirim va chiqimni menejersiz qiladi; bitta chiqim (chiqim, ish haqi, bozorlik) filial sozlamasidagi
+  `alerts.cash_out_amount` (standart 500 000 so'm) dan kam bo'lmasa, egaga xabar boradi.
   Choyxona kategoriyalari: bozorlik, ish haqi, xodimga berilgan pul (avans). Xodimga berilgan pul xodimga bog'lanadi
   (kassa kamomadi "ish haqi" deb tushuntirilmasligi uchun).
 - **X-hisobot** — smenani yopmasdan oraliq hisobot: to'lov turlari bo'yicha, kanal bo'yicha, chegirma, o'chirish,
@@ -234,8 +236,16 @@ birida kanal belgisi, turi (zal, olib ketish, yetkazish), holati va vaqti.
   summa farqi, xizmat haqi va joy narxi alohida qatorlarda, chegirma, olingan avans, to'lanadigan qoldiq, jami,
   **kishi boshiga summa** (jami ÷ mehmonlar soni) va **"Bu fiskal chek emas"** yozuvi.
 - Birinchi schyot chiqqandan keyin buyurtma **qulflanadi**: taom qo'shish mumkin (yangi schyot kerak bo'ladi), lekin
-  o'chirish va chegirma faqat menejer tasdig'i bilan. Schyotni qayta chiqarish — `pos.reprint_bill`, "NUSXA" belgisi
-  bilan.
+  o'chirish va chegirma faqat menejer tasdig'i bilan (kassirning o'z chegirma chegarasi ham endi ishlamaydi).
+  Schyotni qayta chiqarish — `pos.reprint_bill`, "NUSXA" belgisi bilan (P3-37: kassir ham, menejersiz). Buyurtma
+  schyotdan keyin o'zgargan bo'lsa (taom, chegirma), eski schyot ham, uning nusxasi ham chiqmaydi (`order_changed`):
+  schyot qayta tuziladi.
+- **Chegirma** (P3-37, `POST /pos/orders/{uuid}/discount`): butun buyurtmaning taomlariga, foiz yoki summa, sabab bilan.
+  Foiz foizligicha qoladi: taom qo'shilsa yoki o'chirilsa, qayta hisoblanadi; summa taomlar summasidan oshmaydi.
+  Chegirma butun so'mgacha yaxlitlanadi; xizmat haqi chegirmadan keyingi summadan olinadi. Schyotlarga taomlar
+  summasiga proporsional bo'linadi, fiskal chekda har bir taom qatori chegirmadan keyingi summada, chek jami schyot
+  jamiga teng; X va Z hisobotida "Chegirma" (chegirmali schyotlar soni va summasi). Qiymat 0 — chegirmani olib
+  tashlash. Internetsiz rejimda chegirma yo'q.
 - **Hisobni bo'lish:** (a) taom bo'yicha (qatorlarni bir nechta schyotga taqsimlash, kasr miqdor ham), (b) mehmon
   bo'yicha (qatordagi mehmon raqami), (c) teng N ulushga (qoldiq tiyin birinchi schyotga). Xona puli, xizmat haqi va
   joy narxi schyotlar orasida proporsional bo'linadi. Har bir schyot alohida to'lanadi va **har biri alohida sotuv
@@ -267,19 +277,23 @@ birida kanal belgisi, turi (zal, olib ketish, yetkazish), holati va vaqti.
 | Oshxonaga **yuborilmagan** qatorni o'chirish | — | `orders.manage` |
 | **Yuborilgan** qatorni o'chirish | sabab majburiy, "O'CHIRILDI" markasi | `orders.void_item` (yo'q bo'lsa menejer PIN) |
 | Butun buyurtmani bekor qilish | sabab majburiy; to'lov bo'lsa avval qaytarish | `orders.cancel` |
-| Chegirma (summa yoki %) / xizmat haqini olib tashlash | sabab majburiy | `orders.discount` |
+| Chegirma (summa yoki %) | sabab majburiy; to'lovi olingan schyot bo'lsa rad etiladi (409 `paid_bill_affected`) | `orders.discount` — har qanday; kassir (`pos.take_payment`) — filialning `cashier_discount_max_percent` gacha (standart 10%, summa — taomlarga nisbatan foizi), schyot chiqmaguncha; undan ko'pi — menejer PIN (P3-37) |
+| Chegirmani olib tashlash (qiymat 0) | — | `orders.manage` |
+| Xizmat haqini olib tashlash | sabab majburiy | `orders.discount` (yo'q bo'lsa menejer PIN) |
 | Xona puli yoki minimal summa farqini olib tashlash | sabab majburiy | `orders.discount` (yo'q bo'lsa menejer PIN) |
-| Schyotni qayta chiqarish | "NUSXA" belgisi | `pos.reprint_bill` |
+| Schyotni qayta chiqarish | "NUSXA" belgisi | `pos.reprint_bill` (kassirda ham bor, P3-37) |
+| Kassaga kirim / chiqim | kategoriya; "boshqa" bo'lsa izoh; chiqim kassadagidan ko'p emas | `pos.cash_in_out` (kassirda ham bor, P3-37); katta chiqim — egaga xabar |
 | Yopilgan buyurtma bo'yicha pul qaytarish (smena ichida, naqd, karta yoki QR) | sabab, qaysi to'lovdan; **qaytarish cheki** asl sotuv chekiga bog'lanadi | **yangi** `pos.refund` (P3-18) |
 | Schyotning avans yoki nasiya qismini qaytarish (P3-35) | sabab; kassadan pul chiqmaydi: avans qismi bron avansiga qaytadi (keyin qaytariladi yoki ushlab qolinadi), nasiya qismi mijoz qarzidan ayiriladi (qarz to'langan bo'lsa — menejer qo'lda); **qaytarish cheki** asl sotuv chekiga bog'lanadi (4.4) | `pos.refund` |
 | To'lovi olingan schyotga tegadigan o'zgarish (qatorni o'chirish, mehmon soni, ko'chirish, xizmat haqini olib tashlash) | rad etiladi (409 `paid_bill_affected`): avval to'lovni qaytarish (P3-35) | — |
-| To'langan buyurtmani bekor qilish | faqat qaytarish cheki bilan | `orders.cancel` + `pos.refund` |
+| To'langan buyurtmani bekor qilish | faqat qaytarish cheki bilan: avval har bir to'lov to'liq qaytariladi, keyin yopilgan buyurtma bekor qilinadi (P3-37: holati `canceled`, `closed_at` qoladi, yangi chek chiqmaydi); qisman qaytarilgan yoki qaytarilmagan yopiq buyurtma — 422 `order_closed` | `orders.cancel` (yo'q bo'lsa menejer PIN) + `pos.refund` |
 | Bron avansini qaytarish (bron bekor) | sabab; hujjatlar: ariza, shaxsni tasdiqlovchi hujjat nusxasi, qaytarish dalolatnomasi, naqd bo'lsa chiqim orderi, asl bo'nak cheki. Chek chiqmaydi (4.4) | `bookings.manage` |
 | Bron avansini ushlab qolish (mehmon kelmadi yoki kech bekor qildi) | sabab; menejer tasdig'i; chek turi buxgalter bilan tekshiriladi (T3) | `bookings.manage` + menejer tasdig'i |
 | Onlayn to'langan / yetkazilgan buyurtmani platforma hisobida qaytarish | mavjud tartib | `orders.refund` (faqat superadmin, o'zgarmaydi) |
 
 Hammasi harakatlar jurnaliga (kim, qaysi terminal, kim tasdiqladi, sabab, summa). Egaga Telegram/push ogohlantirishi:
-yuborilgandan keyingi o'chirish, X% dan katta chegirma, buyurtmani bekor qilish, qaytarish, avansni ushlab qolish,
+yuborilgandan keyingi o'chirish, `alerts.discount_percent` (standart 10%) dan kam bo'lmagan chegirma, `alerts.cash_out_amount`
+dan kam bo'lmagan kassadan chiqim (P3-37), buyurtmani bekor qilish, qaytarish, avansni ushlab qolish,
 nasiyaga yopish, xona puli yoki xizmat haqini olib tashlash, choy va nonsiz yopilgan xona, N soatdan ko'p ochiq xona
 yoki stol (chegaralar sozlanadi).
 
@@ -867,6 +881,8 @@ Keyin (v1.1): `regular_groups` (doimiy guruh: jo'ra boshi, odatiy kun, xona va m
 | `payments` | `bill_id`, `shift_id`, `device_id`, `received_by`, `tendered_amount`, `change_amount`, `card_type`, `transaction_id`, `reference`. `provider` ga POS qiymatlari — `PosTender`: `cash`, `card` (alohida terminal), `qr`, `prepayment` (avans ofseti), `account` (nasiya). `p2p` qiymati **yo'q** | P3-18 | aralash va bo'lingan to'lov, chek rekvizitlari |
 | `service_fee_settings` | `hall_id` (nullable) | P3-12 | zal yoki zona bo'yicha boshqa foiz |
 | `branches` | `business_day_starts_at` (vaqt, standart 05:00), `pos_settings` (jsonb: rejim, navbat raqami, "chop etuvchi" kassa, ekran qulfi vaqti, ogohlantirish chegaralari) | P3-13 | filial POS sozlamalari |
+| `orders` | `discount_kind` (`percent`/`amount`/bo'sh), `discount_value` (kiritilgan qiymat), `discount_reason`, `discount_by`; `discount` — hisoblangan summa | P3-37 | kassadagi chegirma |
+| `branches.pos_settings` | `cashier_discount_max_percent` (standart "10.00"), `alerts.cash_out_amount` (standart "500000.00") | P3-37 | kassir chegirmasi chegarasi, katta chiqim ogohlantirishi |
 | `orders`, `order_items`, `payments`, `menu_batches`, `devices`, `fiscal_receipts` | `local_number` (offline `K1-017`), `offline_created_at`, `synced_at`, `sync_flags`; `client_line_id`, `price_source` (`offline_snapshot`); `offline_paid_at`, `synced_at`; `oversold_quantity`; `sync_prefix`, `sync_last_seq`, `sync_pending_ops`, `sync_oldest_op_at`, `sync_reported_at`, `sync_clock_skew_seconds`; `sold_at` | P3-31 | internetsiz rejim |
 
 `DeviceType` ga yangi tur qo'shish shart emas: mijoz ekrani odatda kassaning ikkinchi ekrani. Alohida planshet bo'lsa —
@@ -877,7 +893,9 @@ Keyin (v1.1): `regular_groups` (doimiy guruh: jo'ra boshi, odatiy kun, xona va m
 Mavjud `App\Enums\Permission` nomlari va standart jadval (`RolePermissions`). Ega har birini do'kon bo'yicha
 o'zgartira oladi. Huquqi yo'q xodim menejer PIN'i bilan tasdiq so'raydi (`POST /pos/approvals`, `ManagerApprovals`).
 3-bosqichda uchta yangi ruxsat qo'shiladi: `bookings.manage`, `customer_accounts.manage` (P3-17) va `pos.refund`
-(P3-18); standart rollari pastdagi jadvaldagidek (`RolePermissions`, [AUTH.md](AUTH.md)).
+(P3-18); standart rollari pastdagi jadvaldagidek (`RolePermissions`, [AUTH.md](AUTH.md)). P3-37 (egasining 24.10.2026
+qarori): kassir schyot nusxasini chiqaradi va kassaga kirim/chiqim qiladi menejersiz; qaytarish va bekor qilish menejer
+PIN bilan qoladi. Ega har bir rolni do'kon bo'yicha hamkor panelidagi "Ruxsatlar" sahifasida o'zgartiradi.
 
 | Amal | Ruxsat | Ega | Menejer | Kassir | Ofitsiant | Oshpaz |
 |---|---|:-:|:-:|:-:|:-:|:-:|
@@ -886,12 +904,13 @@ o'zgartira oladi. Huquqi yo'q xodim menejer PIN'i bilan tasdiq so'raydi (`POST /
 | Stol tanlash, ko'chirish, birlashtirish | `tables.manage` | ✓ | ✓ | ✓ | ✓ |  |
 | Yuborilgan qatorni o'chirish | `orders.void_item` | ✓ | ✓ |  |  |  |
 | Buyurtmani bekor qilish, onlayn buyurtmani rad etish | `orders.cancel` | ✓ | ✓ |  |  |  |
-| Chegirma, xizmat haqi, xona puli yoki minimal summa farqini olib tashlash | `orders.discount` | ✓ | ✓ |  |  |  |
-| Schyotni qayta chiqarish | `pos.reprint_bill` | ✓ | ✓ |  |  |  |
+| Har qanday chegirma; xizmat haqi, xona puli yoki minimal summa farqini olib tashlash | `orders.discount` | ✓ | ✓ |  |  |  |
+| Chegirma filialning `cashier_discount_max_percent` igacha (P3-37; schyot chiqmaguncha) | `pos.take_payment` | ✓ | ✓ | ✓ |  |  |
+| Schyotni qayta chiqarish | `pos.reprint_bill` | ✓ | ✓ | ✓ |  |  |
 | To'lov qabul qilish, hisobni bo'lish | `pos.take_payment` | ✓ | ✓ | ✓ |  |  |
 | Smenani ochish | `pos.open_shift` | ✓ | ✓ | ✓ |  |  |
 | Smenani yopish, X/Z hisobot | `pos.close_shift` | ✓ | ✓ | ✓ |  |  |
-| Kassaga kirim/chiqim | `pos.cash_in_out` | ✓ | ✓ |  |  |  |
+| Kassaga kirim/chiqim | `pos.cash_in_out` | ✓ | ✓ | ✓ |  |  |
 | Nasiyaga yopish (`account` to'lov turi) | `pos.take_payment` + har doim menejer tasdig'i | ✓ | ✓ | ✓ |  |  |
 | Smena ichida pul qaytarish (qaytarish cheki bilan) | **`pos.refund` (yangi)** | ✓ | ✓ |  |  |  |
 | Bron yaratish, o'zgartirish, "Keldi", avans olish va qaytarish; oldindan buyurtma | **`bookings.manage` (yangi)** | ✓ | ✓ | ✓ |  |  |
@@ -935,7 +954,7 @@ boshqaruv endpointlari mavjud `/owner/*` prefiksida. Mavjud javob shakllari o'zg
 | Bootstrap va katalog | `GET /pos/bootstrap` (filial, zallar va xonalar, sexlar, printerlar, POS sozlamalari, xodimlar, joriy smena, `menu_version`); `GET /catalog?channel=pos_hall` (yoki `pos_takeaway`) | P3-13 |
 | Zallar, xonalar, tariflar (boshqaruv) | zallar va zonalar, stollar, xonalar va tapchanlar, xona tariflari, zal bo'yicha xizmat haqi, choy-non qoidasi — `/owner/*` | P3-12, P3-13 |
 | Sexlar va printerlar (boshqaruv) | sexlar, yo'naltirish, printerlar, filial POS sozlamalari — `/owner/*` | P3-13 |
-| POS buyurtmalari | ochish (stol, xona yoki stolsiz), ochiq buyurtmalar ro'yxati, bosqich qo'shish, yuborish va "ushlab turish", qatorni o'chirish, ko'chirish va birlashtirish, onlayn buyurtmani qabul qilish yoki rad etish, chegirma va xizmat haqini olib tashlash | P3-12 |
+| POS buyurtmalari | ochish (stol, xona yoki stolsiz), ochiq buyurtmalar ro'yxati, bosqich qo'shish, yuborish va "ushlab turish", qatorni o'chirish, ko'chirish va birlashtirish, onlayn buyurtmani qabul qilish yoki rad etish, chegirma (P3-37) va xizmat haqini olib tashlash | P3-12, P3-37 |
 | Bronlar | bron daftari va taqvim, to'qnashuv tekshiruvi, oldindan buyurtma qatorlari, avans (bo'nak cheki), qaytarish va ushlab qolish, "Keldi" → buyurtma | P3-17 |
 | Mijoz hisoblari (nasiya) | hisoblar, limit, qarz va to'lovlar (kredit cheki), qarzdorlar | P3-17 |
 | Schyotlar va to'lovlar | schyot yaratish va bo'lish, chiqarish (qulflash), to'lov (aralash, avans ofseti, nasiyaga yopish), yopish fiskal chek orqali, bekor qilish, qaytarish | P3-18 |

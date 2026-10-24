@@ -8490,7 +8490,7 @@
         "/v1/owner/branches/{id}/pos-settings": {
             "get": {
                 "operationId": "branchPosSettings.show",
-                "description": "`business_day_starts_at`: \"HH:MM\", the local time (`timezone` of the store) the business day starts, 05:00 unless\nchanged. `pos_settings`: every key, stored values over the defaults: `mode` counter|table|hybrid,\n`printing_device_id` (uuid of the \"chop etuvchi\" kassa), `screen_lock_minutes` (0: never), `queue_numbers`,\n`alerts` (`open_room_hours`, `void_amount`, `discount_percent`, `unaccepted_online_minutes`; null: off),\n`holidays` (YYYY-MM-DD), `booking_slot_minutes` (null: the server default).",
+                "description": "`business_day_starts_at`: \"HH:MM\", the local time (`timezone` of the store) the business day starts, 05:00 unless\nchanged. `pos_settings`: every key, stored values over the defaults: `mode` counter|table|hybrid,\n`printing_device_id` (uuid of the \"chop etuvchi\" kassa), `screen_lock_minutes` (0: never), `queue_numbers`,\n`cashier_discount_max_percent` (P3-37: the discount percent a cashier gives alone, \"10.00\" by default; null or\n\"0.00\": always a manager's PIN), `alerts` (`open_room_hours`, `void_amount`, `discount_percent`,\n`unaccepted_online_minutes`, `cash_out_amount` — one cash out of the drawer of at least this, \"500000.00\" by\ndefault; null: off), `holidays` (YYYY-MM-DD), `booking_slot_minutes` (null: the server default).",
                 "summary": "The branch's POS settings",
                 "tags": [
                     "Owner: POS settings"
@@ -8549,6 +8549,12 @@
                                                         "queue_numbers": {
                                                             "type": "boolean"
                                                         },
+                                                        "cashier_discount_max_percent": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
                                                         "alerts": {
                                                             "type": "object",
                                                             "properties": {
@@ -8575,13 +8581,20 @@
                                                                         "integer",
                                                                         "null"
                                                                     ]
+                                                                },
+                                                                "cash_out_amount": {
+                                                                    "type": [
+                                                                        "string",
+                                                                        "null"
+                                                                    ]
                                                                 }
                                                             },
                                                             "required": [
                                                                 "open_room_hours",
                                                                 "void_amount",
                                                                 "discount_percent",
-                                                                "unaccepted_online_minutes"
+                                                                "unaccepted_online_minutes",
+                                                                "cash_out_amount"
                                                             ]
                                                         },
                                                         "holidays": {
@@ -8602,6 +8615,7 @@
                                                         "printing_device_id",
                                                         "screen_lock_minutes",
                                                         "queue_numbers",
+                                                        "cashier_discount_max_percent",
                                                         "alerts",
                                                         "holidays",
                                                         "booking_slot_minutes"
@@ -8632,7 +8646,7 @@
             },
             "put": {
                 "operationId": "branchPosSettings.update",
-                "description": "Send only what changes. `business_day_starts_at`: \"HH:MM\" from 00:00 to 11:59 (an early opener may set 04:00).\n`pos_settings`: `mode`; `printing_device_id` (uuid of a POS terminal of this branch, or null for none);\n`screen_lock_minutes` 0-240; `queue_numbers`; `alerts` merges key by key (`open_room_hours` 1-72,\n`void_amount` 0-100000000, `discount_percent` 0-100, `unaccepted_online_minutes` 1-120; null switches that alert\noff); `holidays` replaces the whole list (up to 400 dates); `booking_slot_minutes` 30-1440 (how long a booking without an end\ntime holds its room; null: the server default). An unknown key is 422.",
+                "description": "Send only what changes. `business_day_starts_at`: \"HH:MM\" from 00:00 to 11:59 (an early opener may set 04:00).\n`pos_settings`: `mode`; `printing_device_id` (uuid of a POS terminal of this branch, or null for none);\n`screen_lock_minutes` 0-240; `queue_numbers`; `cashier_discount_max_percent` 0-100 (2 decimals) or null;\n`alerts` merges key by key (`open_room_hours` 1-72, `void_amount` 0-100000000, `discount_percent` 0-100,\n`unaccepted_online_minutes` 1-120, `cash_out_amount` 0-100000000; null switches that alert off); `holidays` replaces the whole list (up to 400 dates); `booking_slot_minutes` 30-1440 (how long a booking without an end\ntime holds its room; null: the server default). An unknown key is 422.",
                 "summary": "Change the branch's POS settings",
                 "tags": [
                     "Owner: POS settings"
@@ -8683,6 +8697,12 @@
                                             "queue_numbers": {
                                                 "type": "boolean"
                                             },
+                                            "cashier_discount_max_percent": {
+                                                "type": [
+                                                    "number",
+                                                    "null"
+                                                ]
+                                            },
                                             "alerts": {
                                                 "type": "object",
                                                 "properties": {
@@ -8713,6 +8733,12 @@
                                                         ],
                                                         "minimum": 1,
                                                         "maximum": 120
+                                                    },
+                                                    "cash_out_amount": {
+                                                        "type": [
+                                                            "number",
+                                                            "null"
+                                                        ]
                                                     }
                                                 }
                                             },
@@ -8783,6 +8809,12 @@
                                                         "queue_numbers": {
                                                             "type": "boolean"
                                                         },
+                                                        "cashier_discount_max_percent": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
                                                         "alerts": {
                                                             "type": "object",
                                                             "properties": {
@@ -8809,13 +8841,20 @@
                                                                         "integer",
                                                                         "null"
                                                                     ]
+                                                                },
+                                                                "cash_out_amount": {
+                                                                    "type": [
+                                                                        "string",
+                                                                        "null"
+                                                                    ]
                                                                 }
                                                             },
                                                             "required": [
                                                                 "open_room_hours",
                                                                 "void_amount",
                                                                 "discount_percent",
-                                                                "unaccepted_online_minutes"
+                                                                "unaccepted_online_minutes",
+                                                                "cash_out_amount"
                                                             ]
                                                         },
                                                         "holidays": {
@@ -8836,6 +8875,7 @@
                                                         "printing_device_id",
                                                         "screen_lock_minutes",
                                                         "queue_numbers",
+                                                        "cashier_discount_max_percent",
                                                         "alerts",
                                                         "holidays",
                                                         "booking_slot_minutes"
@@ -17822,7 +17862,8 @@
         "/v1/owner/permissions": {
             "get": {
                 "operationId": "staffAccess.permissions",
-                "summary": "GET /owner/permissions: the store's role -> permission matrix, with the defaults alongside",
+                "description": "GET /owner/permissions (permissions.manage; not from a terminal PIN session). `roles`: owner (`editable: false`,\nits set is fixed), then manager, cashier, waiter, cook, courier (`editable: true`), each with its Uzbek `label`.\n`permissions`: every permission `key` (e.g. `orders.discount`, `pos.reprint_bill`, `pos.cash_in_out`) with its\nUzbek `label`; `grantable: false` ones (orders.refund, finance.manage, settings.manage, zones.manage,\nstaff.manage, audit.view, permissions.manage) stay the owner's and can only be taken away from a role, never\ngranted. `matrix`: this store's effective set, role => permission key => allowed (every role and every key\npresent). `defaults`: the same shape for the role defaults (RolePermissions; docs/AUTH.md): a cell that differs\nfrom it is this store's override. 403 `store_required` for an account without a store.",
+                "summary": "The store's permission matrix",
                 "tags": [
                     "Owner: staff access"
                 ],
@@ -17849,7 +17890,15 @@
                                                         "type": "object",
                                                         "properties": {
                                                             "role": {
-                                                                "type": "string"
+                                                                "type": "string",
+                                                                "enum": [
+                                                                    "owner",
+                                                                    "manager",
+                                                                    "cashier",
+                                                                    "waiter",
+                                                                    "cook",
+                                                                    "courier"
+                                                                ]
                                                             },
                                                             "label": {
                                                                 "type": "string"
@@ -17940,7 +17989,8 @@
             },
             "put": {
                 "operationId": "staffAccess.updatePermission",
-                "summary": "PUT /owner/permissions {role, permission, allowed: true|false|null}: grant, take away, or back to the default",
+                "description": "PUT /owner/permissions {role, permission, allowed} (permissions.manage). `role`: manager, cashier, waiter, cook or\ncourier (the owner's set is fixed: 422). `permission`: a permission key. `allowed`: true grants it to the role in\nthis store, false takes it away, null puts the role's default back (sending the default itself is the same as\nnull). Granting a non-grantable permission: 422. Audited (`permissions.changed`) when the cell changes; takes\neffect at once for every staff member of that role, terminal PIN sessions included. Answers the cell as it is\nnow (`allowed`: the effective value).",
+                "summary": "Change one cell of the matrix",
                 "tags": [
                     "Owner: staff access"
                 ],
@@ -17998,7 +18048,14 @@
                                             "type": "object",
                                             "properties": {
                                                 "role": {
-                                                    "type": "string"
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "manager",
+                                                        "cashier",
+                                                        "waiter",
+                                                        "cook",
+                                                        "courier"
+                                                    ]
                                                 },
                                                 "permission": {
                                                     "type": "string"
@@ -35339,7 +35396,7 @@
         "/v1/pos/bootstrap": {
             "get": {
                 "operationId": "posBootstrap.show",
-                "description": "A terminal's staff PIN session works its terminal's branch; a normal staff sign-in works the staff member's own\nbranch. An owner (or a terminal paired to the whole store) names the branch with `branch_id`; another store's\nbranch is 404, another branch than the caller's own 403 (orders.view).\n\n`data`: `server_time`; `menu_version` (refetch GET /catalog?channel=pos_* when it changes); `store` (id, name,\ntimezone); `branch` (id, name, address, phone, timezone, `business_day_starts_at` \"HH:MM\", `business_date`\n(the business day it is now), `pos_settings`: `mode` counter|table|hybrid, `printing_device_id` (uuid of the\n\"chop etuvchi\" kassa or null), `screen_lock_minutes` (0: never), `queue_numbers`, `alerts` (`open_room_hours`,\n`void_amount`, `discount_percent`, `unaccepted_online_minutes`; null: off), `holidays` (dates), `booking_slot_minutes` (default length of a booking, null: the server's)); `device` (the\nterminal: uuid, type, name, `is_printing_device`; null outside a terminal session); `user` (id, name, role,\npermissions); `stations` (active kitchen stations); `station_routes` (dish to station: by product and by\ncategory; a product route beats its category's); `printers` (active ones this terminal can use: LAN and\nBluetooth printers, and the USB or built-in printers attached to this very terminal); `staff` (id, name, role,\nphoto_url: to pick a waiter); `halls` (open halls and zones), `tables` (their active places; `layout` in grid\ncells of the floor plan, 40 x 24), `shift` (the shift open on this terminal; null outside a terminal session or\nwith none open); P3-31: `offline`, what the till keeps for the limited mode (fees per hall and channel, today's room\nfee and minimum spend per place, the choy-non items, its local number prefix and next number, the limits);\nP3-26: `quick_items`, the one-tap buttons (products marked `quick_add` in the menu, then the\nbranch's per-guest \"choy-non\" items: `source` quick_add | auto_guest, `variant_uuid` to add as a line; prices and\navailability from the POS catalog).",
+                "description": "A terminal's staff PIN session works its terminal's branch; a normal staff sign-in works the staff member's own\nbranch. An owner (or a terminal paired to the whole store) names the branch with `branch_id`; another store's\nbranch is 404, another branch than the caller's own 403 (orders.view).\n\n`data`: `server_time`; `menu_version` (refetch GET /catalog?channel=pos_* when it changes); `store` (id, name,\ntimezone); `branch` (id, name, address, phone, timezone, `business_day_starts_at` \"HH:MM\", `business_date`\n(the business day it is now), `pos_settings`: `mode` counter|table|hybrid, `printing_device_id` (uuid of the\n\"chop etuvchi\" kassa or null), `screen_lock_minutes` (0: never), `queue_numbers`, `cashier_discount_max_percent`\n(P3-37: the discount percent a cashier gives without a manager; null or \"0.00\": always a manager), `alerts`\n(`open_room_hours`, `void_amount`, `discount_percent`, `unaccepted_online_minutes`, `cash_out_amount`; null: off),\n`holidays` (dates), `booking_slot_minutes` (default length of a booking, null: the server's)); `device` (the\nterminal: uuid, type, name, `is_printing_device`; null outside a terminal session); `user` (id, name, role,\npermissions); `stations` (active kitchen stations); `station_routes` (dish to station: by product and by\ncategory; a product route beats its category's); `printers` (active ones this terminal can use: LAN and\nBluetooth printers, and the USB or built-in printers attached to this very terminal); `staff` (id, name, role,\nphoto_url: to pick a waiter); `halls` (open halls and zones), `tables` (their active places; `layout` in grid\ncells of the floor plan, 40 x 24), `shift` (the shift open on this terminal; null outside a terminal session or\nwith none open); P3-31: `offline`, what the till keeps for the limited mode (fees per hall and channel, today's room\nfee and minimum spend per place, the choy-non items, its local number prefix and next number, the limits);\nP3-26: `quick_items`, the one-tap buttons (products marked `quick_add` in the menu, then the\nbranch's per-guest \"choy-non\" items: `source` quick_add | auto_guest, `variant_uuid` to add as a line; prices and\navailability from the POS catalog).",
                 "summary": "POS bootstrap",
                 "tags": [
                     "POS: bootstrap"
@@ -35444,6 +35501,12 @@
                                                                 "queue_numbers": {
                                                                     "type": "boolean"
                                                                 },
+                                                                "cashier_discount_max_percent": {
+                                                                    "type": [
+                                                                        "string",
+                                                                        "null"
+                                                                    ]
+                                                                },
                                                                 "alerts": {
                                                                     "type": "object",
                                                                     "properties": {
@@ -35470,13 +35533,20 @@
                                                                                 "integer",
                                                                                 "null"
                                                                             ]
+                                                                        },
+                                                                        "cash_out_amount": {
+                                                                            "type": [
+                                                                                "string",
+                                                                                "null"
+                                                                            ]
                                                                         }
                                                                     },
                                                                     "required": [
                                                                         "open_room_hours",
                                                                         "void_amount",
                                                                         "discount_percent",
-                                                                        "unaccepted_online_minutes"
+                                                                        "unaccepted_online_minutes",
+                                                                        "cash_out_amount"
                                                                     ]
                                                                 },
                                                                 "holidays": {
@@ -35497,6 +35567,7 @@
                                                                 "printing_device_id",
                                                                 "screen_lock_minutes",
                                                                 "queue_numbers",
+                                                                "cashier_discount_max_percent",
                                                                 "alerts",
                                                                 "holidays",
                                                                 "booking_slot_minutes"
@@ -40547,6 +40618,35 @@
                                                 "discount": {
                                                     "type": "string"
                                                 },
+                                                "discount_kind": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "enum": [
+                                                        "percent",
+                                                        "amount",
+                                                        null
+                                                    ]
+                                                },
+                                                "discount_value": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "discount_reason": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "discount_by": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "service_charge_amount": {
                                                     "type": "string"
                                                 },
@@ -40986,6 +41086,10 @@
                                                 "updated_at",
                                                 "subtotal",
                                                 "discount",
+                                                "discount_kind",
+                                                "discount_value",
+                                                "discount_reason",
+                                                "discount_by",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
                                                 "room_fee_amount",
@@ -41240,6 +41344,35 @@
                                                 "discount": {
                                                     "type": "string"
                                                 },
+                                                "discount_kind": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "enum": [
+                                                        "percent",
+                                                        "amount",
+                                                        null
+                                                    ]
+                                                },
+                                                "discount_value": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "discount_reason": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "discount_by": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "service_charge_amount": {
                                                     "type": "string"
                                                 },
@@ -41679,6 +41812,10 @@
                                                 "updated_at",
                                                 "subtotal",
                                                 "discount",
+                                                "discount_kind",
+                                                "discount_value",
+                                                "discount_reason",
+                                                "discount_by",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
                                                 "room_fee_amount",
@@ -44415,7 +44552,7 @@
         "/v1/pos/orders/{uuid}/cancel": {
             "post": {
                 "operationId": "posOrder.cancel",
-                "description": "`reason` is required. orders.cancel, or a manager's one-time `approval_token` for orders.cancel (POST\n/pos/approvals; 403 `approval_required`). An order with a payment is refused: 409 `has_payments` (refund the\npayments first, POST /pos/refunds). Every line still on the order is voided — lines already sent get a kitchen\nvoid (\"O'CHIRILDI\"), unsent lines give their stock and kazan portion back — open or printed bills are voided, the\norder becomes `canceled` and its table free; a booking's order completes the booking (its deposits stay\n`taken`, to refund or retain). Audited; the owner is alerted. 422 `order_closed`, 409 `version_conflict`.",
+                "description": "`reason` is required. orders.cancel, or a manager's one-time `approval_token` for orders.cancel (POST\n/pos/approvals; 403 `approval_required`). An order with a payment is refused: 409 `has_payments` (refund the\npayments first, POST /pos/refunds). Every line still on the order is voided — lines already sent get a kitchen\nvoid (\"O'CHIRILDI\"), unsent lines give their stock and kazan portion back — open or printed bills are voided, the\norder becomes `canceled` and its table free; a booking's order completes the booking (its deposits stay\n`taken`, to refund or retain). Audited; the owner is alerted. P3-37: a closed order whose every payment was\nrefunded in full (`payment_status` refunded) is cancelled too, with the same permission: it becomes `canceled`,\nkeeps `closed_at`, its lines and paid bills stay, no receipt is issued (the refund receipts already reverse the\nsale). Any other closed or cancelled order: 422 `order_closed`. 409 `version_conflict`.",
                 "summary": "Cancel the whole order",
                 "tags": [
                     "POS: orders"
@@ -44656,6 +44793,35 @@
                                                 },
                                                 "discount": {
                                                     "type": "string"
+                                                },
+                                                "discount_kind": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "enum": [
+                                                        "percent",
+                                                        "amount",
+                                                        null
+                                                    ]
+                                                },
+                                                "discount_value": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "discount_reason": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "discount_by": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
                                                 },
                                                 "service_charge_amount": {
                                                     "type": "string"
@@ -45096,6 +45262,10 @@
                                                 "updated_at",
                                                 "subtotal",
                                                 "discount",
+                                                "discount_kind",
+                                                "discount_value",
+                                                "discount_reason",
+                                                "discount_by",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
                                                 "room_fee_amount",
@@ -45383,6 +45553,35 @@
                                                 "discount": {
                                                     "type": "string"
                                                 },
+                                                "discount_kind": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "enum": [
+                                                        "percent",
+                                                        "amount",
+                                                        null
+                                                    ]
+                                                },
+                                                "discount_value": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "discount_reason": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "discount_by": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "service_charge_amount": {
                                                     "type": "string"
                                                 },
@@ -45822,6 +46021,10 @@
                                                 "updated_at",
                                                 "subtotal",
                                                 "discount",
+                                                "discount_kind",
+                                                "discount_value",
+                                                "discount_reason",
+                                                "discount_by",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
                                                 "room_fee_amount",
@@ -46115,6 +46318,35 @@
                                                 "discount": {
                                                     "type": "string"
                                                 },
+                                                "discount_kind": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "enum": [
+                                                        "percent",
+                                                        "amount",
+                                                        null
+                                                    ]
+                                                },
+                                                "discount_value": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "discount_reason": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "discount_by": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "service_charge_amount": {
                                                     "type": "string"
                                                 },
@@ -46554,6 +46786,10 @@
                                                 "updated_at",
                                                 "subtotal",
                                                 "discount",
+                                                "discount_kind",
+                                                "discount_value",
+                                                "discount_reason",
+                                                "discount_by",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
                                                 "room_fee_amount",
@@ -47551,11 +47787,11 @@
                 }
             }
         },
-        "/v1/pos/orders/{uuid}/guests": {
+        "/v1/pos/orders/{uuid}/discount": {
             "post": {
-                "operationId": "posOrder.guests",
-                "description": "The per-guest charges follow; guests who joined get the automatic \"choy-non\" lines as a new round. Needs\norders.manage. 409 `paid_bill_affected` when a charge a paid bill carries would go down (P3-35).",
-                "summary": "Change the guests count",
+                "operationId": "posOrder.discount",
+                "description": "P3-37. `kind` `percent` (`value` 0 < v ≤ 100, two decimals) or `amount` (`value` in so'm, 0 < v ≤ the dishes'\nsubtotal); `value` 0 takes the discount off. `reason` is required unless `value` is 0 (up to 255). The\ndiscount is on the dishes (`charges.items_subtotal`), before the service charge; `discount` is its amount in\nwhole so'm (half-up). A percent stays a percent: adding or voiding lines works it out again; an amount never\nexceeds the dishes. Who: orders.discount — any discount; a cashier (pos.take_payment) up to the branch's\n`pos_settings.cashier_discount_max_percent` (an amount by its percent of the dishes), while no bill was printed;\notherwise 403 `approval_required` (`permission: orders.discount`): send a manager's one-time `approval_token`\nfor orders.discount (POST /pos/approvals). Taking a discount off needs orders.manage only. The waiter rule\napplies. 409 `paid_bill_affected` once a bill of the order has a payment or is paid (refund first); 409\n`version_conflict`; 422 `order_closed`; 422 validation (`value` above the dishes, `reason` missing). A printed\nbill no longer matches: bill again (POST /pos/orders/{uuid}/bills). Audited (`pos.order.discount`, old and\nnew); the owner is alerted at `pos_settings.alerts.discount_percent` and above; `order.items_changed` with\n`change: charges_changed`. Not available offline (no sync operation).",
+                "summary": "Give or take off a discount",
                 "tags": [
                     "POS: orders"
                 ],
@@ -47589,10 +47825,22 @@
                                         "type": "integer",
                                         "minimum": 0
                                     },
-                                    "guests_count": {
-                                        "type": "integer",
-                                        "minimum": 1,
-                                        "maximum": 500
+                                    "kind": {
+                                        "type": "string",
+                                        "enum": [
+                                            "percent",
+                                            "amount"
+                                        ]
+                                    },
+                                    "value": {
+                                        "type": "number"
+                                    },
+                                    "reason": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "maxLength": 255
                                     },
                                     "approval_token": {
                                         "type": [
@@ -47604,7 +47852,8 @@
                                 },
                                 "required": [
                                     "version",
-                                    "guests_count"
+                                    "kind",
+                                    "value"
                                 ]
                             }
                         }
@@ -47795,6 +48044,35 @@
                                                 },
                                                 "discount": {
                                                     "type": "string"
+                                                },
+                                                "discount_kind": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "enum": [
+                                                        "percent",
+                                                        "amount",
+                                                        null
+                                                    ]
+                                                },
+                                                "discount_value": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "discount_reason": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "discount_by": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
                                                 },
                                                 "service_charge_amount": {
                                                     "type": "string"
@@ -48235,6 +48513,767 @@
                                                 "updated_at",
                                                 "subtotal",
                                                 "discount",
+                                                "discount_kind",
+                                                "discount_value",
+                                                "discount_reason",
+                                                "discount_by",
+                                                "service_charge_amount",
+                                                "place_fee_amount",
+                                                "room_fee_amount",
+                                                "min_spend_topup_amount",
+                                                "total_price",
+                                                "charges",
+                                                "offline",
+                                                "rounds",
+                                                "items"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/pos/orders/{uuid}/guests": {
+            "post": {
+                "operationId": "posOrder.guests",
+                "description": "The per-guest charges follow; guests who joined get the automatic \"choy-non\" lines as a new round. Needs\norders.manage. 409 `paid_bill_affected` when a charge a paid bill carries would go down (P3-35).",
+                "summary": "Change the guests count",
+                "tags": [
+                    "POS: orders"
+                ],
+                "parameters": [
+                    {
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "required": true,
+                        "description": "Required: a new UUID per action, the same one when retrying it (428 or 400 without).",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "version": {
+                                        "type": "integer",
+                                        "minimum": 0
+                                    },
+                                    "guests_count": {
+                                        "type": "integer",
+                                        "minimum": 1,
+                                        "maximum": 500
+                                    },
+                                    "approval_token": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "maxLength": 255
+                                    }
+                                },
+                                "required": [
+                                    "version",
+                                    "guests_count"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "uuid": {
+                                                    "type": "string"
+                                                },
+                                                "short_code": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "status": {
+                                                    "type": "string"
+                                                },
+                                                "channel": {
+                                                    "type": "string"
+                                                },
+                                                "type": {
+                                                    "type": "string"
+                                                },
+                                                "store_id": {
+                                                    "type": "integer"
+                                                },
+                                                "branch_id": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "version": {
+                                                    "type": "integer"
+                                                },
+                                                "hall": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "properties": {
+                                                        "id": {
+                                                            "type": "integer"
+                                                        },
+                                                        "name": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "id",
+                                                        "name"
+                                                    ]
+                                                },
+                                                "table": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "properties": {
+                                                        "id": {
+                                                            "type": "integer"
+                                                        },
+                                                        "name": {
+                                                            "type": "string"
+                                                        },
+                                                        "kind": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "id",
+                                                        "name",
+                                                        "kind"
+                                                    ]
+                                                },
+                                                "hall_ref": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "table_ref": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "guests_count": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "waiter": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "properties": {
+                                                        "id": {
+                                                            "type": "integer"
+                                                        },
+                                                        "name": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "id",
+                                                        "name"
+                                                    ]
+                                                },
+                                                "opened_by": {
+                                                    "type": "integer"
+                                                },
+                                                "device_id": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "booking_id": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "booking_uuid": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "deposit_available": {
+                                                    "type": "string"
+                                                },
+                                                "bill_locked": {
+                                                    "type": "boolean"
+                                                },
+                                                "bill_requested_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "notes": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "opened_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "updated_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "subtotal": {
+                                                    "type": "string"
+                                                },
+                                                "discount": {
+                                                    "type": "string"
+                                                },
+                                                "discount_kind": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "enum": [
+                                                        "percent",
+                                                        "amount",
+                                                        null
+                                                    ]
+                                                },
+                                                "discount_value": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "discount_reason": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "discount_by": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "service_charge_amount": {
+                                                    "type": "string"
+                                                },
+                                                "place_fee_amount": {
+                                                    "type": "string"
+                                                },
+                                                "room_fee_amount": {
+                                                    "type": "string"
+                                                },
+                                                "min_spend_topup_amount": {
+                                                    "type": "string"
+                                                },
+                                                "total_price": {
+                                                    "type": "string"
+                                                },
+                                                "charges": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "items_subtotal": {
+                                                            "type": "string"
+                                                        },
+                                                        "discount": {
+                                                            "type": "string"
+                                                        },
+                                                        "service_charge_percent": {
+                                                            "type": "string"
+                                                        },
+                                                        "service_charge_amount": {
+                                                            "type": "string"
+                                                        },
+                                                        "place_fee_amount": {
+                                                            "type": "string"
+                                                        },
+                                                        "room_fee_amount": {
+                                                            "type": "string"
+                                                        },
+                                                        "room_tariff_id": {
+                                                            "type": [
+                                                                "integer",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "business_date": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "day_type": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "min_spend": {
+                                                            "type": "string"
+                                                        },
+                                                        "min_spend_topup_amount": {
+                                                            "type": "string"
+                                                        },
+                                                        "waived": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "total": {
+                                                            "type": "string"
+                                                        },
+                                                        "waivers": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "charge": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "reason": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "waived_by": {
+                                                                        "type": [
+                                                                            "integer",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "approved_by": {
+                                                                        "type": [
+                                                                            "integer",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "waived_at": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "charge",
+                                                                    "reason",
+                                                                    "waived_by",
+                                                                    "approved_by",
+                                                                    "waived_at"
+                                                                ]
+                                                            }
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "items_subtotal",
+                                                        "discount",
+                                                        "service_charge_percent",
+                                                        "service_charge_amount",
+                                                        "place_fee_amount",
+                                                        "room_fee_amount",
+                                                        "room_tariff_id",
+                                                        "business_date",
+                                                        "day_type",
+                                                        "min_spend",
+                                                        "min_spend_topup_amount",
+                                                        "waived",
+                                                        "total",
+                                                        "waivers"
+                                                    ]
+                                                },
+                                                "offline": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "properties": {
+                                                        "local_number": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "created_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "synced_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "flags": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "flag": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "op_id": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "amount": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "name": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "flag",
+                                                                    "op_id",
+                                                                    "amount",
+                                                                    "name"
+                                                                ]
+                                                            }
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "local_number",
+                                                        "created_at",
+                                                        "synced_at",
+                                                        "flags"
+                                                    ]
+                                                },
+                                                "rounds": {
+                                                    "type": "integer"
+                                                },
+                                                "items": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "id": {
+                                                                "type": "integer"
+                                                            },
+                                                            "round_no": {
+                                                                "type": [
+                                                                    "integer",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "product_variant_id": {
+                                                                "type": [
+                                                                    "integer",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "product_name": {
+                                                                "type": "string"
+                                                            },
+                                                            "variant_name": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "quantity": {
+                                                                "type": "number"
+                                                            },
+                                                            "unit": {
+                                                                "type": "string"
+                                                            },
+                                                            "quantity_label": {
+                                                                "type": "string"
+                                                            },
+                                                            "unit_price": {
+                                                                "type": "string"
+                                                            },
+                                                            "modifiers": {
+                                                                "type": "array",
+                                                                "items": {
+                                                                    "type": "object",
+                                                                    "properties": {
+                                                                        "id": {
+                                                                            "type": "integer"
+                                                                        },
+                                                                        "name": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "group_name": {
+                                                                            "type": [
+                                                                                "string",
+                                                                                "null"
+                                                                            ]
+                                                                        },
+                                                                        "quantity": {
+                                                                            "type": "integer"
+                                                                        },
+                                                                        "price_delta": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "required": [
+                                                                        "id",
+                                                                        "name",
+                                                                        "group_name",
+                                                                        "quantity",
+                                                                        "price_delta"
+                                                                    ]
+                                                                }
+                                                            },
+                                                            "modifiers_total": {
+                                                                "type": "string"
+                                                            },
+                                                            "total_price": {
+                                                                "type": "string"
+                                                            },
+                                                            "note": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "seat_no": {
+                                                                "type": [
+                                                                    "integer",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "fire_mode": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "due_at": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "kitchen_status": {
+                                                                "type": "string"
+                                                            },
+                                                            "station_id": {
+                                                                "type": [
+                                                                    "integer",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "sent_at": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "ready_at": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "added_by": {
+                                                                "type": [
+                                                                    "object",
+                                                                    "null"
+                                                                ],
+                                                                "properties": {
+                                                                    "id": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "name": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "id",
+                                                                    "name"
+                                                                ]
+                                                            },
+                                                            "added_at": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "voided_at": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "voided_by": {
+                                                                "type": [
+                                                                    "object",
+                                                                    "null"
+                                                                ],
+                                                                "properties": {
+                                                                    "id": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "name": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "id",
+                                                                    "name"
+                                                                ]
+                                                            },
+                                                            "void_reason": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "id",
+                                                            "round_no",
+                                                            "product_variant_id",
+                                                            "product_name",
+                                                            "variant_name",
+                                                            "quantity",
+                                                            "unit",
+                                                            "quantity_label",
+                                                            "unit_price",
+                                                            "modifiers",
+                                                            "modifiers_total",
+                                                            "total_price",
+                                                            "note",
+                                                            "seat_no",
+                                                            "fire_mode",
+                                                            "due_at",
+                                                            "kitchen_status",
+                                                            "station_id",
+                                                            "sent_at",
+                                                            "ready_at",
+                                                            "added_by",
+                                                            "added_at",
+                                                            "voided_at",
+                                                            "voided_by",
+                                                            "void_reason"
+                                                        ]
+                                                    }
+                                                }
+                                            },
+                                            "required": [
+                                                "uuid",
+                                                "short_code",
+                                                "status",
+                                                "channel",
+                                                "type",
+                                                "store_id",
+                                                "branch_id",
+                                                "version",
+                                                "hall",
+                                                "table",
+                                                "hall_ref",
+                                                "table_ref",
+                                                "guests_count",
+                                                "waiter",
+                                                "opened_by",
+                                                "device_id",
+                                                "booking_id",
+                                                "booking_uuid",
+                                                "deposit_available",
+                                                "bill_locked",
+                                                "bill_requested_at",
+                                                "notes",
+                                                "opened_at",
+                                                "updated_at",
+                                                "subtotal",
+                                                "discount",
+                                                "discount_kind",
+                                                "discount_value",
+                                                "discount_reason",
+                                                "discount_by",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
                                                 "room_fee_amount",
@@ -48522,6 +49561,35 @@
                                                 "discount": {
                                                     "type": "string"
                                                 },
+                                                "discount_kind": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "enum": [
+                                                        "percent",
+                                                        "amount",
+                                                        null
+                                                    ]
+                                                },
+                                                "discount_value": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "discount_reason": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "discount_by": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "service_charge_amount": {
                                                     "type": "string"
                                                 },
@@ -48961,6 +50029,10 @@
                                                 "updated_at",
                                                 "subtotal",
                                                 "discount",
+                                                "discount_kind",
+                                                "discount_value",
+                                                "discount_reason",
+                                                "discount_by",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
                                                 "room_fee_amount",
@@ -49271,6 +50343,35 @@
                                                 "discount": {
                                                     "type": "string"
                                                 },
+                                                "discount_kind": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "enum": [
+                                                        "percent",
+                                                        "amount",
+                                                        null
+                                                    ]
+                                                },
+                                                "discount_value": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "discount_reason": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "discount_by": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "service_charge_amount": {
                                                     "type": "string"
                                                 },
@@ -49710,6 +50811,10 @@
                                                 "updated_at",
                                                 "subtotal",
                                                 "discount",
+                                                "discount_kind",
+                                                "discount_value",
+                                                "discount_reason",
+                                                "discount_by",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
                                                 "room_fee_amount",
@@ -50009,6 +51114,35 @@
                                                 "discount": {
                                                     "type": "string"
                                                 },
+                                                "discount_kind": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "enum": [
+                                                        "percent",
+                                                        "amount",
+                                                        null
+                                                    ]
+                                                },
+                                                "discount_value": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "discount_reason": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "discount_by": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "service_charge_amount": {
                                                     "type": "string"
                                                 },
@@ -50448,6 +51582,10 @@
                                                 "updated_at",
                                                 "subtotal",
                                                 "discount",
+                                                "discount_kind",
+                                                "discount_value",
+                                                "discount_reason",
+                                                "discount_by",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
                                                 "room_fee_amount",
@@ -50732,6 +51870,35 @@
                                                 "discount": {
                                                     "type": "string"
                                                 },
+                                                "discount_kind": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "enum": [
+                                                        "percent",
+                                                        "amount",
+                                                        null
+                                                    ]
+                                                },
+                                                "discount_value": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "discount_reason": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "discount_by": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "service_charge_amount": {
                                                     "type": "string"
                                                 },
@@ -51171,6 +52338,10 @@
                                                 "updated_at",
                                                 "subtotal",
                                                 "discount",
+                                                "discount_kind",
+                                                "discount_value",
+                                                "discount_reason",
+                                                "discount_by",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
                                                 "room_fee_amount",
@@ -52179,6 +53350,35 @@
                                                 "discount": {
                                                     "type": "string"
                                                 },
+                                                "discount_kind": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "enum": [
+                                                        "percent",
+                                                        "amount",
+                                                        null
+                                                    ]
+                                                },
+                                                "discount_value": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "discount_reason": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "discount_by": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "service_charge_amount": {
                                                     "type": "string"
                                                 },
@@ -52618,6 +53818,10 @@
                                                 "updated_at",
                                                 "subtotal",
                                                 "discount",
+                                                "discount_kind",
+                                                "discount_value",
+                                                "discount_reason",
+                                                "discount_by",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
                                                 "room_fee_amount",
@@ -52980,6 +54184,35 @@
                                                 "discount": {
                                                     "type": "string"
                                                 },
+                                                "discount_kind": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "enum": [
+                                                        "percent",
+                                                        "amount",
+                                                        null
+                                                    ]
+                                                },
+                                                "discount_value": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "discount_reason": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "discount_by": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "service_charge_amount": {
                                                     "type": "string"
                                                 },
@@ -53419,6 +54652,10 @@
                                                 "updated_at",
                                                 "subtotal",
                                                 "discount",
+                                                "discount_kind",
+                                                "discount_value",
+                                                "discount_reason",
+                                                "discount_by",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
                                                 "room_fee_amount",
@@ -53709,6 +54946,35 @@
                                                 "discount": {
                                                     "type": "string"
                                                 },
+                                                "discount_kind": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "enum": [
+                                                        "percent",
+                                                        "amount",
+                                                        null
+                                                    ]
+                                                },
+                                                "discount_value": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "discount_reason": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "discount_by": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "service_charge_amount": {
                                                     "type": "string"
                                                 },
@@ -54148,6 +55414,10 @@
                                                 "updated_at",
                                                 "subtotal",
                                                 "discount",
+                                                "discount_kind",
+                                                "discount_value",
+                                                "discount_reason",
+                                                "discount_by",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
                                                 "room_fee_amount",
@@ -57319,7 +58589,7 @@
         "/v1/pos/shifts/{uuid}/cash-movements": {
             "post": {
                 "operationId": "posShift.cashMovement",
-                "description": "`type`: `cash_in`, `cash_out`, `wage` (paid to an employee: `employee_id` required) or `purchase` (bazaar\nshopping); `category` from the type's list (cash_in: change_fund, owner, other; cash_out: collection, owner,\nsupplies, utilities, other; wage: daily_wage, advance, bonus; purchase: bazaar, meat, bread, supplies, other);\n`other` needs a `note`. Money out never exceeds the expected cash (409 `not_enough_cash`). Needs pos.cash_in_out,\nor a manager's `approval_token` for it (403 `approval_required`). The shift must be open (409 `shift_closed`).",
+                "description": "`type`: `cash_in`, `cash_out`, `wage` (paid to an employee: `employee_id` required) or `purchase` (bazaar\nshopping); `category` from the type's list (cash_in: change_fund, owner, other; cash_out: collection, owner,\nsupplies, utilities, other; wage: daily_wage, advance, bonus; purchase: bazaar, meat, bread, supplies, other);\n`other` needs a `note`. Money out never exceeds the expected cash (409 `not_enough_cash`). Needs pos.cash_in_out\n(a cashier's by default since P3-37), or a manager's `approval_token` for it (403 `approval_required`). The shift\nmust be open (409 `shift_closed`). P3-37: one movement out (cash_out, wage, purchase) of at least the branch's\n`pos_settings.alerts.cash_out_amount` alerts the owner.",
                 "summary": "Cash in or out of the drawer",
                 "tags": [
                     "POS: billing"
@@ -67838,6 +69108,30 @@
                             "additionalProperties": {}
                         }
                     },
+                    "discount_kind": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "discount_value": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "discount_reason": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "discount_by": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ]
+                    },
                     "type": {
                         "type": "string"
                     },
@@ -68049,6 +69343,10 @@
                     "offline_created_at",
                     "synced_at",
                     "sync_flags",
+                    "discount_kind",
+                    "discount_value",
+                    "discount_reason",
+                    "discount_by",
                     "type",
                     "address"
                 ],

@@ -25,7 +25,8 @@ const posSettings = (over: Record<string, unknown> = {}) => ({
     printing_device_id: null,
     screen_lock_minutes: 5,
     queue_numbers: false,
-    alerts: { open_room_hours: 6, void_amount: '200000.00', discount_percent: '10.00', unaccepted_online_minutes: 3 },
+    cashier_discount_max_percent: '10.00',
+    alerts: { open_room_hours: 6, void_amount: '200000.00', discount_percent: '10.00', unaccepted_online_minutes: 3, cash_out_amount: '500000.00' },
     holidays: ['2026-12-31'],
     booking_slot_minutes: null,
   },
@@ -308,6 +309,76 @@ describe('Kassa sozlamalari (filial)', () => {
     await typing.click(screen.getByRole('button', { name: 'Saqlash' }));
     await waitFor(() => expect(calls.some((call) => call.method === 'PUT')).toBe(true));
     expect(await last(calls, 'PUT').json()).toEqual({ pos_settings: { screen_lock_minutes: 10 } });
+  });
+
+  it("shows the cashier's discount limit and the cash-out alert as the server keeps them (P3-37)", async () => {
+    await open('Kassa sozlamalari');
+    expect(await screen.findByLabelText("Kassir menejersiz beradigan eng katta chegirma, %")).toHaveValue('10');
+    expect(screen.getByText("Kassir shu foizgacha chegirmani o'zi beradi. Bo'sh qoldirsangiz, kassir har safar menejer PIN kodini so'raydi.")).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'Kassadan katta summa chiqarildi' })).toBeChecked();
+    expect(screen.getByLabelText('Kassadan katta summa chiqarildi: qiymat')).toHaveValue('500000');
+    expect(screen.getByText("Kassadan shu summadan ko'p pul chiqarilsa xabar bering")).toBeInTheDocument();
+  });
+
+  it('sends only the discount limit when only it changed, a number with up to two decimals', async () => {
+    const { calls, typing } = await open('Kassa sozlamalari', { 'PUT /api/v1/owner/branches/1/pos-settings': () => ok(posSettings()) });
+    const field = await screen.findByLabelText("Kassir menejersiz beradigan eng katta chegirma, %");
+    await typing.clear(field);
+    await typing.type(field, '12,5');
+    await typing.click(screen.getByRole('button', { name: 'Saqlash' }));
+    await waitFor(() => expect(calls.some((call) => call.method === 'PUT')).toBe(true));
+    expect(await last(calls, 'PUT').json()).toEqual({ pos_settings: { cashier_discount_max_percent: 12.5 } });
+  });
+
+  it('sends null when the limit is emptied: the cashier then always needs a manager', async () => {
+    const { calls, typing } = await open('Kassa sozlamalari', { 'PUT /api/v1/owner/branches/1/pos-settings': () => ok(posSettings()) });
+    await typing.clear(await screen.findByLabelText("Kassir menejersiz beradigan eng katta chegirma, %"));
+    await typing.click(screen.getByRole('button', { name: 'Saqlash' }));
+    await waitFor(() => expect(calls.some((call) => call.method === 'PUT')).toBe(true));
+    expect(await last(calls, 'PUT').json()).toEqual({ pos_settings: { cashier_discount_max_percent: null } });
+  });
+
+  it('refuses a discount limit above 100 or with three decimals before saving', async () => {
+    const { calls, typing } = await open('Kassa sozlamalari');
+    const field = await screen.findByLabelText("Kassir menejersiz beradigan eng katta chegirma, %");
+    await typing.clear(field);
+    await typing.type(field, '101');
+    await typing.click(screen.getByRole('button', { name: 'Saqlash' }));
+    expect(await screen.findByText("0 dan 100 gacha son kiriting (ikki xonagacha kasr bilan) yoki bo'sh qoldiring.")).toBeInTheDocument();
+    await typing.clear(field);
+    await typing.type(field, '5.123');
+    await typing.click(screen.getByRole('button', { name: 'Saqlash' }));
+    expect(screen.getByText("0 dan 100 gacha son kiriting (ikki xonagacha kasr bilan) yoki bo'sh qoldiring.")).toBeInTheDocument();
+    expect(calls.some((call) => call.method === 'PUT')).toBe(false);
+  });
+
+  it('sends the cash-out alert as a number under alerts, and null when it is switched off', async () => {
+    const { calls, typing } = await open('Kassa sozlamalari', { 'PUT /api/v1/owner/branches/1/pos-settings': () => ok(posSettings()) });
+    const value = await screen.findByLabelText('Kassadan katta summa chiqarildi: qiymat');
+    await typing.clear(value);
+    await typing.type(value, '300 000');
+    await typing.click(screen.getByRole('button', { name: 'Saqlash' }));
+    await waitFor(() => expect(calls.filter((call) => call.method === 'PUT')).toHaveLength(1));
+    expect(await last(calls, 'PUT').json()).toEqual({ pos_settings: { alerts: { cash_out_amount: 300000 } } });
+
+    await typing.click(screen.getByRole('checkbox', { name: 'Kassadan katta summa chiqarildi' }));
+    await typing.click(screen.getByRole('button', { name: 'Saqlash' }));
+    await waitFor(() => expect(calls.filter((call) => call.method === 'PUT')).toHaveLength(2));
+    expect(await last(calls, 'PUT').json()).toEqual({ pos_settings: { alerts: { cash_out_amount: null } } });
+  });
+
+  it('shows an older server that does not know the new settings as empty and off, and sends nothing for them', async () => {
+    const old = posSettings();
+    delete (old.pos_settings as Record<string, unknown>).cashier_discount_max_percent;
+    delete (old.pos_settings.alerts as Record<string, unknown>).cash_out_amount;
+    const { calls, typing } = await open('Kassa sozlamalari', { 'GET /api/v1/owner/branches/1/pos-settings': () => ok(old), 'PUT /api/v1/owner/branches/1/pos-settings': () => ok(old) });
+    expect(await screen.findByLabelText("Kassir menejersiz beradigan eng katta chegirma, %")).toHaveValue('');
+    expect(screen.getByRole('checkbox', { name: 'Kassadan katta summa chiqarildi' })).not.toBeChecked();
+    await typing.clear(screen.getByLabelText('Ekran qulfi'));
+    await typing.type(screen.getByLabelText('Ekran qulfi'), '7');
+    await typing.click(screen.getByRole('button', { name: 'Saqlash' }));
+    await waitFor(() => expect(calls.some((call) => call.method === 'PUT')).toBe(true));
+    expect(await last(calls, 'PUT').json()).toEqual({ pos_settings: { screen_lock_minutes: 7 } });
   });
 
   it("shows the server's refusal of a value under its field", async () => {

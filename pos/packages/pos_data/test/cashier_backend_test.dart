@@ -547,21 +547,12 @@ void main() {
         final PosShift opened = await h.pos.shifts.open(
           openingCash: const PosMoney.som(100000),
         );
-        await expectLater(
-          h.pos.shifts.cashMovement(
-            opened.uuid,
-            type: PosCashMovementType.purchase,
-            category: 'bazaar',
-            amount: const PosMoney.som(30000),
-          ),
-          throwsA(isA<PosApprovalRequired>()),
-        );
+        // P3-37: the cashier holds pos.cash_in_out by default — no manager
         final PosCashMovement purchase = await h.pos.shifts.cashMovement(
           opened.uuid,
           type: PosCashMovementType.purchase,
           category: 'bazaar',
           amount: const PosMoney.som(30000),
-          approvalToken: (await managerToken(PosPermissions.cashInOut)).token,
         );
         expect(purchase.type, 'purchase');
         await expectLater(
@@ -570,7 +561,6 @@ void main() {
             type: PosCashMovementType.cashOut,
             category: 'collection',
             amount: const PosMoney.som(500000),
-            approvalToken: (await managerToken(PosPermissions.cashInOut)).token,
           ),
           throwsA(
             isA<PosConflict>().having(

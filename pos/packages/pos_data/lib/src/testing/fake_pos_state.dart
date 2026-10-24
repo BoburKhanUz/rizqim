@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:pos_core/pos_core.dart' show divideHalfUp, percentHundredths;
+
 /// Soxta javob.
 class FakeResponse {
   const FakeResponse(
@@ -104,7 +106,9 @@ class FakePosState {
       'menu.view',
       'pos.open_shift',
       'pos.close_shift',
+      'pos.cash_in_out',
       'pos.take_payment',
+      'pos.reprint_bill',
       'bookings.manage',
     ],
     'waiter': <String>[
@@ -136,6 +140,12 @@ class FakePosState {
 
   /// Filial POS sozlamasi: ekran qulfi (daqiqa).
   int screenLockMinutes = 5;
+
+  /// Filial POS sozlamasi (P3-37): kassir menejersiz beradigan chegirma foizi; `null` — har chegirma tasdiq bilan.
+  String? cashierDiscountMaxPercent = '10.00';
+
+  /// Filial POS sozlamasi (P3-37): shu summadan katta chiqimda egaga xabar.
+  String? cashOutAlertAmount = '500000.00';
 
   /// Bootstrap'dagi printerlar.
   List<Map<String, Object?>> printers = <Map<String, Object?>>[
@@ -1019,9 +1029,11 @@ class FakePosState {
               'void_amount': '200000.00',
               'discount_percent': '10.00',
               'unaccepted_online_minutes': 3,
+              'cash_out_amount': cashOutAlertAmount,
             },
             'holidays': <Object?>[],
             'booking_slot_minutes': null,
+            'cashier_discount_max_percent': cashierDiscountMaxPercent,
           },
         },
         'device': <String, Object?>{
@@ -1360,6 +1372,10 @@ class FakePosState {
       'updated_at': opened,
       'subtotal': '0.00',
       'discount': '0.00',
+      'discount_kind': null,
+      'discount_value': null,
+      'discount_reason': null,
+      'discount_by': null,
       'service_charge_amount': '0.00',
       'place_fee_amount': '0.00',
       'room_fee_amount': '0.00',
@@ -1478,21 +1494,30 @@ class FakePosState {
         ((charges['waived'] as List<Object?>?) ?? const <Object?>[])
             .cast<String>();
     final bool hall = order['channel'] == 'pos_hall';
+    // P3-37 (PosChargesCalculator): a percent discount is taken again from the lines as they stand, whole so'm half-up;
+    // an amount stays as given (never more than the lines); the service charge is on what is left after it
+    final int discount = discountOf(
+      order['discount_kind'] as String?,
+      order['discount_value'],
+      subtotal,
+    );
+    final int after = subtotal - discount;
     final int service = hall && !waived.contains('service_charge')
-        ? (subtotal * 10 / 100).round() ~/ 100 * 100
+        ? (after * 10 / 100).round() ~/ 100 * 100
         : 0;
     final bool room =
         (order['table'] as Map<String, Object?>?)?['kind'] == 'room';
     final int roomFee = room && !waived.contains('room_fee') ? 30000000 : 0;
-    final int total = subtotal + service + roomFee;
+    final int total = after + service + roomFee;
     order
       ..['subtotal'] = _money(subtotal)
+      ..['discount'] = _money(discount)
       ..['service_charge_amount'] = _money(service)
       ..['room_fee_amount'] = _money(roomFee)
       ..['total_price'] = _money(total)
       ..['charges'] = <String, Object?>{
         'items_subtotal': _money(subtotal),
-        'discount': '0.00',
+        'discount': _money(discount),
         'service_charge_percent': hall ? '10.00' : '0.00',
         'service_charge_amount': _money(service),
         'place_fee_amount': '0.00',
@@ -1506,6 +1531,18 @@ class FakePosState {
         'total': _money(total),
         'waivers': charges['waivers'] ?? <Object?>[],
       };
+  }
+
+  /// Chegirma summasi (tiyin) qatorlar jami [subtotal] dan: foiz — butun so'mga half-up, summa — jamidan ko'p emas.
+  static int discountOf(String? kind, Object? value, int subtotal) {
+    if (kind == null || value == null) return 0;
+    final int hundredths = percentHundredths('$value');
+    if (kind == 'percent') {
+      // tiyin × (foiz × 100) / 10 000 → so'm (÷ 100) half-up → tiyin
+      return divideHalfUp(subtotal * hundredths, 1000000) * 100;
+    }
+    final int amount = hundredths;
+    return amount > subtotal ? subtotal : amount;
   }
 
   void _touch(
@@ -1832,6 +1869,8 @@ class FakePosState {
           'order': _eventOrder(order),
         });
         return _ok(order, message: 'Buyurtma bekor qilindi.');
+      case <String>['discount']:
+        return _discount(order, data, member);
       case <String>['charges', final String charge, final String op]:
         final Map<String, Object?> charges =
             order['charges']! as Map<String, Object?>;
@@ -1861,6 +1900,89 @@ class FakePosState {
     }
     return _notFound();
   }
+
+  /// `POST /pos/orders/{uuid}/discount` (P3-37, docs/API.md): `orders.discount` — istalgan; aks holda kassir
+  /// (`pos.take_payment`) filial chegarasigacha (summa — taomlar jamidan foizi), schyot chiqmagan bo'lsa; qolgani
+  /// menejer tasdig'i bilan. `value` 0 — chegirma olib tashlanadi.
+  FakeResponse _discount(
+    Map<String, Object?> order,
+    Map<String, Object?> data,
+    Map<String, Object?> member,
+  ) {
+    final Object? kind = data['kind'];
+    if (kind != 'percent' && kind != 'amount') {
+      return _invalid('kind', 'Chegirma turini tanlang: foiz yoki summa.');
+    }
+    final int value;
+    try {
+      value = percentHundredths('${data['value'] ?? ''}');
+    } on FormatException {
+      return _invalid('value', "Chegirma qiymatini to'g'ri kiriting.");
+    }
+    var subtotal = 0;
+    for (final Map<String, Object?> i in _items(order)) {
+      if (i['kitchen_status'] != 'void') subtotal += _tiyin(i['total_price']);
+    }
+    final String reason = '${data['reason'] ?? ''}'.trim();
+    if (value > 0) {
+      if (kind == 'percent' && value > 10000) {
+        return _invalid('value', "Chegirma 100 foizdan oshmaydi.");
+      }
+      if (kind == 'amount' && value > subtotal) {
+        return _invalid('value', 'Chegirma taomlar summasidan oshmaydi.');
+      }
+      if (reason.isEmpty) {
+        return _invalid('reason', 'Chegirma sababini yozing.');
+      }
+      if (reason.length > 255) {
+        return _invalid('reason', 'Sabab 255 belgidan oshmasin.');
+      }
+      final List<String> perms = permissionsOf(member);
+      if (!perms.contains('orders.discount')) {
+        final String? max = cashierDiscountMaxPercent;
+        final int limit = max == null ? 0 : percentHundredths(max);
+        final bool within = kind == 'percent'
+            ? value <= limit
+            : value * 10000 <= limit * subtotal;
+        final bool own =
+            perms.contains('pos.take_payment') &&
+            limit > 0 &&
+            within &&
+            order['bill_locked'] != true;
+        if (!own) {
+          final FakeResponse? denied = _authorize(
+            member,
+            'orders.discount',
+            data['approval_token'],
+          );
+          if (denied != null) return denied;
+        }
+      }
+    }
+    final String? stored = value == 0
+        ? null
+        : '${value ~/ 100}.${(value % 100).toString().padLeft(2, '0')}';
+    order
+      ..['discount_kind'] = value == 0 ? null : kind
+      ..['discount_value'] = stored
+      ..['discount_reason'] = value == 0 ? null : reason
+      ..['discount_by'] = value == 0 ? null : member['id'];
+    // Like the server: the existing `charges_changed` change
+    _touch(order, 'charges_changed');
+    return _ok(
+      order,
+      message: value == 0 ? 'Chegirma olib tashlandi.' : 'Chegirma berildi.',
+    );
+  }
+
+  static FakeResponse _invalid(String field, String message) =>
+      FakeResponse(422, <String, Object?>{
+        'success': false,
+        'message': message,
+        'errors': <String, Object?>{
+          field: <String>[message],
+        },
+      });
 
   Map<String, Object?>? _item(Map<String, Object?> order, int id) {
     for (final Map<String, Object?> i in _items(order)) {

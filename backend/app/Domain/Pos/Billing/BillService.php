@@ -115,7 +115,9 @@ final class BillService
             $approvedBy = null;
             if ($copy) {
                 $approvedBy = $this->approvals->authorize($user, Permission::POS_REPRINT_BILL, $order, $approvalToken, $device);
-            } elseif ($bill->status !== BillStatus::PAID && !$bill->payments()->exists() && $bill->basis !== BillableOrder::fingerprint($order)) {
+            }
+            // P3-37: a copy too (cashiers print copies alone now): a bill the order outgrew is billed again, not reprinted
+            if ($bill->status !== BillStatus::PAID && !$bill->payments()->exists() && $bill->basis !== BillableOrder::fingerprint($order)) {
                 throw self::orderChanged();
             }
             // A manager who approved the copy also covers another waiter's order

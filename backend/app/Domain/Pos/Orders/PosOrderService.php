@@ -8,6 +8,8 @@ use App\Domain\Pos\Billing\BillStatus;
 use App\Domain\Pos\Billing\BillableOrder;
 use App\Domain\Pos\Billing\PosActionException;
 use App\Domain\Pos\Contracts\PosOrderOpener;
+use App\Domain\Pos\Accounts\PosOwnerAlerts;
+use App\Domain\Pos\Setup\PosSettings;
 use App\Enums\DiningTableKind;
 use App\Enums\FireMode;
 use App\Enums\KitchenItemStatus;
@@ -37,7 +39,9 @@ use App\Services\Audit\AuditLogger;
 use App\Services\Auth\PermissionService;
 use App\Services\Order\OrderStatusService;
 use App\Services\Order\OrderTransitionException;
+use App\Support\Money;
 use App\Support\Quantity;
+use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
 use Closure;
 use Illuminate\Database\QueryException;
@@ -54,7 +58,7 @@ use Throwable;
  * guests, move the order to another table, merge two orders, waive or restore a charge line. Every mutation runs under
  * the order's row lock, checks the version the client last saw (409 when another device changed it meanwhile), bumps
  * it, recalculates the charges (PosChargesCalculator), is audited (with the terminal) and announced on the branch's
- * channels (order.items_changed).
+ * channels (order.items_changed). P3-37: a discount (percent or amount) with the cashier's own limit.
  *
  * The staff member's access to the order's branch is the caller's check (StaffOrderScope); the permissions an action
  * needs beyond orders.manage (orders.void_item, orders.discount, orders.cancel) are checked here, where a one-time
@@ -588,6 +592,134 @@ class PosOrderService implements PosOrderOpener
     }
 
     /**
+     * P3-37: a discount on the order's dishes (POS_SPEC 2.10): `percent` (0 < value ≤ 100) stays a percent — worked out
+     * again with every line change (PosChargesCalculator::discountOf) — or `amount` (0 < value ≤ the dishes); value 0
+     * takes the discount off (that raises the bill: orders.manage is enough). Who: orders.discount, any discount; a
+     * cashier (pos.take_payment) up to the branch's pos_settings.cashier_discount_max_percent (an amount by its
+     * percent of the dishes) while no bill was printed; anyone else, or above it, a manager's approval token for
+     * orders.discount. Refused once a bill of the order is being paid (409 `paid_bill_affected`: refund it first).
+     * Audited (old and new), the owner alerted at pos_settings.alerts.discount_percent and above.
+     */
+    public function discount(Order $order, int $version, User $actor, string $kind, string $value, ?string $reason, ?string $approvalToken): Order
+    {
+        if (!in_array($kind, ['percent', 'amount'], true)) {
+            throw ValidationException::withMessages(['kind' => "Chegirma turi percent yoki amount bo'lishi kerak."]);
+        }
+        $value = Money::of($value);
+        $removing = $value->isZero();
+        $reason = $reason !== null && trim($reason) !== '' ? mb_substr(trim($reason), 0, 255) : null;
+        if ($value->isNegative()) {
+            throw ValidationException::withMessages(['value' => "Chegirma manfiy bo'lishi mumkin emas."]);
+        }
+        if (!$removing && $reason === null) {
+            throw ValidationException::withMessages(['reason' => 'Chegirma sababini yozing.']);
+        }
+        if (!$removing && $kind === 'percent' && $value->isGreaterThan(100)) {
+            throw ValidationException::withMessages(['value' => "Chegirma 100 foizdan oshmasligi kerak."]);
+        }
+
+        return $this->mutate($order, $version, $actor, function (Order $order) use ($actor, $kind, $value, $removing, $reason, $approvalToken) {
+            if ($this->hasTakenBills($order)) {
+                throw new PosOrderException(
+                    "Buyurtmaning schyoti to'lanmoqda yoki to'langan: chegirmani o'zgartirish uchun avval to'lovni qaytaring.",
+                    409,
+                    'paid_bill_affected',
+                );
+            }
+
+            $items = $this->charges->compute($order)->itemsSubtotal;
+            $before = $this->discountState($order);
+
+            $approvedBy = null;
+            $percent = null;
+            if (!$removing) {
+                if ($kind === 'amount' && $value->isGreaterThan($items)) {
+                    throw ValidationException::withMessages(['value' => "Chegirma taomlar summasidan (" . PosOwnerAlerts::sum($items) . ") katta bo'lmasligi kerak."]);
+                }
+                // The discount as a percent of the dishes: what the cashier's limit and the owner's alert read
+                $percent = $kind === 'percent' ? $value : ($items->isPositive() ? Money::of(BigDecimal::of($value->toString())->multipliedBy(100)->dividedBy($items->toString(), 2, RoundingMode::Up)) : Money::of(100));
+
+                if (!$this->cashierMayDiscount($actor, $order, $kind, $value, $items)) {
+                    $approvedBy = $this->authorizeOrApprove($actor, $order, Permission::ORDERS_DISCOUNT, $approvalToken);
+                }
+            }
+            $approvedBy = $this->waiters->guard($order, $actor, $approvedBy === null ? $approvalToken : null, $approvedBy) ?? $approvedBy;
+
+            $order->forceFill($removing ? [
+                'discount_kind' => null,
+                'discount_value' => null,
+                'discount_reason' => null,
+                'discount_by' => null,
+                'discount' => '0.00',
+            ] : [
+                'discount_kind' => $kind,
+                'discount_value' => $value->toString(),
+                'discount_reason' => $reason,
+                'discount_by' => $actor->id,
+            ])->save();
+            $this->charges->recalculate($order);
+            $after = $this->discountState($order);
+
+            $this->audit->record('pos.order.discount', $order, $before, $after, array_filter([
+                'items_subtotal' => $items->toString(),
+                'percent' => $percent?->toString(),
+                'approved_by' => $approvedBy,
+                'removed' => $removing ?: null,
+            ], fn ($value) => $value !== null), ['actor' => $actor]);
+
+            if ($percent !== null) {
+                $this->alerts->discountGiven($order, $kind, $value, $percent, (string) $reason, $actor, $approvedBy);
+            }
+
+            return ['charges_changed', []];
+        }, null, false);
+    }
+
+    /**
+     * Whether $actor gives this discount without a manager: orders.discount always; a cashier (pos.take_payment) up
+     * to the branch's cashier_discount_max_percent, and only while no bill of the order was printed (the bill lock:
+     * from then on a discount needs a manager, POS_SPEC 2.9).
+     */
+    protected function cashierMayDiscount(User $actor, Order $order, string $kind, Money $value, Money $items): bool
+    {
+        if ($this->permissions->allows($actor, Permission::ORDERS_DISCOUNT, $order)) {
+            return true;
+        }
+        if ($this->billLocked($order) || !$this->permissions->allows($actor, Permission::POS_TAKE_PAYMENT, $order)) {
+            return false;
+        }
+
+        $branch = $order->branch;
+        $stored = $branch?->getAttribute('pos_settings');
+        $limit = PosSettings::resolve(is_array($stored) ? $stored : null)['cashier_discount_max_percent'];
+        if ($limit === null || !Money::of($limit)->isPositive()) {
+            return false;
+        }
+
+        // An amount by its share of the dishes: amount × 100 ≤ items × limit, exactly
+        return $kind === 'percent'
+            ? $value->isLessThanOrEqualTo($limit)
+            : BigDecimal::of($value->toString())->multipliedBy(100)->isLessThanOrEqualTo(BigDecimal::of($items->toString())->multipliedBy($limit));
+    }
+
+    /**
+     * The order's discount as the audit log records it.
+     *
+     * @return array{kind: string|null, value: string|null, amount: string, reason: string|null}
+     */
+    protected function discountState(Order $order): array
+    {
+        $value = $order->getAttribute('discount_value');
+
+        return [
+            'kind' => $order->getAttribute('discount_kind'),
+            'value' => $value !== null ? Money::of((string) $value)->toString() : null,
+            'amount' => Money::of($order->discount)->toString(),
+            'reason' => $order->getAttribute('discount_reason'),
+        ];
+    }
+
+    /**
      * Puts a waived charge back (it raises the bill: orders.manage is enough).
      */
     public function restoreCharge(Order $order, int $version, User $actor, PosCharge $charge, ?string $approvalToken = null): Order
@@ -682,7 +814,8 @@ class PosOrderService implements PosOrderOpener
      * a kitchen void ("O'CHIRILDI") and keep their portion (it was cooked); unsent ones give their stock and kazan
      * portion back. Open or printed bills are voided, the order becomes `canceled` (its table is free), its booking is
      * completed (PosBookingServiceProvider: the booking's deposits stay `taken`, to be refunded or retained), the
-     * change is audited and the owner alerted.
+     * change is audited and the owner alerted. P3-37: a closed order whose every payment was refunded in full is
+     * cancelled too (cancelRefunded); any other closed order stays 422 `order_closed`.
      */
     public function cancel(Order $order, int $version, User $actor, string $reason, ?string $approvalToken): Order
     {
@@ -697,7 +830,15 @@ class PosOrderService implements PosOrderOpener
                 throw PosOrderException::notPos();
             }
             if ($locked->getAttribute('closed_at') !== null || !in_array($locked->status, [...self::OPEN_STATUSES, OrderStatus::READY], true)) {
-                throw PosOrderException::closed();
+                // P3-37: a closed order whose every payment was refunded may still be cancelled; nothing else closed
+                if (!$this->fullyRefunded($locked)) {
+                    throw PosOrderException::closed();
+                }
+                if ((int) $locked->version !== $version) {
+                    throw PosOrderException::versionConflict((int) $locked->version);
+                }
+
+                return $this->cancelRefunded($locked, $actor, $reason, $approvalToken);
             }
             if ((int) $locked->version !== $version) {
                 throw PosOrderException::versionConflict((int) $locked->version);
@@ -712,7 +853,7 @@ class PosOrderService implements PosOrderOpener
                     "Buyurtmada to'lov bor: avval to'lovni qaytaring (qaytarish cheki bilan), keyin bekor qiling.",
                     409,
                     'has_payments',
-                    ['paid_amount' => \App\Support\Money::sum(...$paid->all())->toString()],
+                    ['paid_amount' => Money::sum(...$paid->all())->toString()],
                 );
             }
 
@@ -785,14 +926,73 @@ class PosOrderService implements PosOrderOpener
         });
 
         $leftDeposit = $cancelled->getAttribute('booking_id') !== null
-            ? \App\Support\Money::of((string) \App\Models\BookingPayment::where('booking_id', $cancelled->getAttribute('booking_id'))
+            ? Money::of((string) \App\Models\BookingPayment::where('booking_id', $cancelled->getAttribute('booking_id'))
                 ->where('status', 'taken')
                 ->selectRaw('coalesce(sum(amount - applied_amount - refunded_amount - retained_amount), 0) as left_amount')
                 ->value('left_amount'))
-            : \App\Support\Money::zero();
+            : Money::zero();
         $this->alerts->orderCancelled($cancelled, $alert['amount'], $reason, $actor, $alert['approved_by'], $leftDeposit);
 
         return $cancelled;
+    }
+
+    /**
+     * P3-37: a closed (paid) POS order whose payments were all refunded in full: payment_status `refunded`, a refunded
+     * payment and none still paid.
+     */
+    protected function fullyRefunded(Order $order): bool
+    {
+        return $order->getAttribute('closed_at') !== null
+            && $order->status === OrderStatus::DELIVERED
+            && $order->payment_status === PaymentStatus::REFUNDED
+            && Payment::where('order_id', $order->id)->where('status', PaymentStatus::REFUNDED->value)->exists()
+            && !Payment::where('order_id', $order->id)->where('status', PaymentStatus::PAID->value)->exists();
+    }
+
+    /**
+     * P3-37: cancels a closed order refunded in full (the guests got their money back; the refund receipts already
+     * reverse its sale receipts): the same permission (orders.cancel or a manager's approval token) and waiter rule as
+     * any cancel; the order becomes `canceled` and keeps `closed_at`, its lines (served) and paid bills stay as they
+     * were — no stock moves, no receipt is asked for. Audited and alerted like any cancel. Runs under the order's lock.
+     *
+     * @return array{0: Order, 1: array{amount: string, approved_by: int|null}}
+     */
+    protected function cancelRefunded(Order $locked, User $actor, string $reason, ?string $approvalToken): array
+    {
+        $approvedBy = $this->authorizeOrApprove($actor, $locked, Permission::ORDERS_CANCEL, $approvalToken);
+        $approvedBy = $this->waiters->guard($locked, $actor, $approvedBy === null ? $approvalToken : null, $approvedBy) ?? $approvedBy;
+
+        $from = $locked->status;
+        $amount = (string) $locked->total_price;
+        $locked->forceFill([
+            'status' => OrderStatus::CANCELED->value,
+            'cancel_reason' => \App\Enums\CancelReason::OTHER->value,
+            'cancel_note' => $reason,
+            'cancelled_by' => $actor->id,
+            'version' => (int) $locked->version + 1,
+        ])->save();
+        OrderStatusHistory::create([
+            'order_id' => $locked->id,
+            'user_id' => $actor->id,
+            'from_status' => $from->value,
+            'status' => OrderStatus::CANCELED->value,
+            'notes' => "POS: to'liq qaytarilgan buyurtma bekor qilindi ({$actor->name}) | Sabab: {$reason}",
+        ]);
+        $locked->refresh();
+
+        $this->audit->record('pos.order_cancelled', $locked, ['status' => $from->value], ['status' => OrderStatus::CANCELED->value], array_filter([
+            'short_code' => $locked->short_code,
+            'table' => $locked->table_ref,
+            'amount' => $amount,
+            'reason' => $reason,
+            'approved_by' => $approvedBy,
+            'after_refund' => true,
+        ], fn ($value) => $value !== null), ['actor' => $actor]);
+
+        event(new OrderStatusChangedBroadcast($locked));
+        event(new OrderItemsChangedBroadcast($locked, 'cancelled', []));
+
+        return [$locked, ['amount' => $amount, 'approved_by' => $approvedBy]];
     }
 
     /**

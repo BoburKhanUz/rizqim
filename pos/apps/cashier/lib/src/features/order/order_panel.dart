@@ -4,6 +4,7 @@ import 'package:pos_data/pos_data.dart';
 import 'package:pos_ui/pos_ui.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
+import 'discount_dialog.dart';
 import 'order_controller.dart';
 import 'order_draft.dart';
 import 'order_format.dart';
@@ -22,6 +23,7 @@ class OrderPanel extends StatefulWidget {
     required this.onSendHeld,
     required this.onBill,
     required this.onCharge,
+    this.onRemoveDiscount,
   });
 
   final OrderController controller;
@@ -39,6 +41,9 @@ class OrderPanel extends StatefulWidget {
 
   /// Xizmat qatorini olib tashlash yoki qaytarish.
   final void Function(PosChargeKind kind, bool waived) onCharge;
+
+  /// P3-37: chegirmani olib tashlash (`null` — amal yo'q: internetsiz yoki ruxsat yo'q).
+  final VoidCallback? onRemoveDiscount;
 
   @override
   State<OrderPanel> createState() => _OrderPanelState();
@@ -175,7 +180,11 @@ class _OrderPanelState extends State<OrderPanel> {
           Divider(height: 1, color: c.line),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-            child: _Totals(controller: ctl, onCharge: widget.onCharge),
+            child: _Totals(
+              controller: ctl,
+              onCharge: widget.onCharge,
+              onRemoveDiscount: widget.onRemoveDiscount,
+            ),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
@@ -419,10 +428,15 @@ class _DraftSection extends StatelessWidget {
 }
 
 class _Totals extends StatelessWidget {
-  const _Totals({required this.controller, required this.onCharge});
+  const _Totals({
+    required this.controller,
+    required this.onCharge,
+    this.onRemoveDiscount,
+  });
 
   final OrderController controller;
   final void Function(PosChargeKind kind, bool waived) onCharge;
+  final VoidCallback? onRemoveDiscount;
 
   @override
   Widget build(BuildContext context) {
@@ -461,8 +475,17 @@ class _Totals extends StatelessWidget {
         label: 'Taomlar',
         amount: ch.itemsSubtotal.isZero ? o.subtotal : ch.itemsSubtotal,
       ),
-      if (!o.discount.isZero)
-        PosTotalsLine(label: 'Chegirma', amount: o.discount, negative: true),
+      if (o.hasDiscount)
+        PosTotalsLine(
+          label: discountLabel(o),
+          amount: o.discount,
+          negative: true,
+          detail: o.discountReason,
+          actionLabel: open && onRemoveDiscount != null
+              ? 'Olib tashlash'
+              : null,
+          onAction: open ? onRemoveDiscount : null,
+        ),
       ?charge(PosChargeKind.roomFee, 'Xona puli', o.roomFeeAmount),
       ?charge(
         PosChargeKind.minSpendTopup,

@@ -110,12 +110,15 @@ class FakeCashierBackend {
     if (m == 'POST' && p == '/v1/pos/refunds') return _refund(r);
     if (m == 'POST' &&
         (x = _match(
-              r'^/v1/pos/orders/([^/]+)/(cancel|merge|items/(\d+)/void|charges/([a-z_]+)/waive)$',
+              r'^/v1/pos/orders/([^/]+)/(cancel|merge|discount|items/(\d+)/void|charges/([a-z_]+)/waive)$',
               p,
             )) !=
             null) {
       final Map<String, Object?>? order = state.orders[x!.group(1)];
       if (order != null) {
+        if (x.group(2) == 'cancel' && order['status'] == 'delivered') {
+          return _cancelRefunded(order, r);
+        }
         final FakeResponse? refused = _guardOrderChange(order, x, r);
         if (refused != null) return refused;
       }
@@ -177,9 +180,11 @@ class FakeCashierBackend {
         .length,
     'subtotal': o['subtotal'],
     'total_price': o['total_price'],
-    'payment_status': o['status'] == 'delivered'
-        ? 'paid'
-        : (_paidOf(o) > 0 ? 'partial' : 'pending'),
+    'payment_status': _allRefunded(o)
+        ? 'refunded'
+        : (o['status'] == 'delivered'
+              ? 'paid'
+              : (_paidOf(o) > 0 ? 'partial' : 'pending')),
     'bill_locked': o['bill_locked'],
     'bill_requested': o['bill_requested_at'] != null,
     'fiscal_pending': _fiscalPending(o),
@@ -619,23 +624,53 @@ class FakeCashierBackend {
           'receipt_uuid': null,
           'error': null,
         },
-        'items': <Object?>[
-          for (final MapEntry<int, int> e in parts[k].entries)
-            if (e.value > 0)
-              <String, Object?>{
-                'order_item_id': e.key,
-                'product_name': byId[e.key]!['product_name'],
-                'variant_name': byId[e.key]!['variant_name'],
-                'unit': byId[e.key]!['unit'],
-                'quantity': e.value / 1000,
-                'amount': _m(amountOf(e.key, e.value)),
-                'discount_amount': '0.00',
-              },
-        ],
+        'items': _billLines(
+          parts[k],
+          byId,
+          amountOf,
+          share['discount']!,
+          subtotals[k],
+        ),
         'payments': <Object?>[],
         'created_at': _iso(state.now()),
       });
     }
+  }
+
+  /// Schyot qatorlari; schyotning chegirmasi qatorlarga summasi bo'yicha taqsimlanadi (backend `BillSplitter`
+  /// kabi: qatorning `discount_amount`, oxirgisi qoldiqni oladi).
+  static List<Object?> _billLines(
+    Map<int, int> part,
+    Map<int, Map<String, Object?>> byId,
+    int Function(int id, int q) amountOf,
+    int discount,
+    int subtotal,
+  ) {
+    final List<MapEntry<int, int>> lines = <MapEntry<int, int>>[
+      for (final MapEntry<int, int> e in part.entries)
+        if (e.value > 0) e,
+    ];
+    var given = 0;
+    return <Object?>[
+      for (var n = 0; n < lines.length; n++)
+        () {
+          final MapEntry<int, int> e = lines[n];
+          final int amount = amountOf(e.key, e.value);
+          final int share = n == lines.length - 1
+              ? discount - given
+              : (subtotal == 0 ? 0 : (discount * amount / subtotal).round());
+          given += share;
+          return <String, Object?>{
+            'order_item_id': e.key,
+            'product_name': byId[e.key]!['product_name'],
+            'variant_name': byId[e.key]!['variant_name'],
+            'unit': byId[e.key]!['unit'],
+            'quantity': e.value / 1000,
+            'amount': _m(amount),
+            'discount_amount': _m(share),
+          };
+        }(),
+    ];
   }
 
   FakeResponse _print(
@@ -893,14 +928,15 @@ class FakeCashierBackend {
           'package_code': null,
           'unit': i['unit'] == 'kg' ? 'kg' : 'dona',
           'quantity': '${i['quantity']}',
+          // The receipt line is the share after its discount (BillFiscalizer)
           'unit_price': _m(
             _milli(i['quantity']) == 0
                 ? 0
-                : (_t(i['amount']) * 1000 / _milli(i['quantity'])).round(),
+                : (_net(i) * 1000 / _milli(i['quantity'])).round(),
           ),
-          'amount': i['amount'],
+          'amount': _m(_net(i)),
           'vat_rate': '12',
-          'vat_amount': _m((_t(i['amount']) * 12 / 112).round()),
+          'vat_amount': _m((_net(i) * 12 / 112).round()),
           'no_vat': false,
         },
       for (final (String key, String name) in <(String, String)>[
@@ -959,6 +995,9 @@ class FakeCashierBackend {
       ],
     };
   }
+
+  static int _net(Map<String, Object?> line) =>
+      _t(line['amount']) - _t(line['discount_amount']);
 
   /// Bitta qatorli chek (avans, kredit).
   Map<String, Object?> _simpleReceipt(
@@ -1277,6 +1316,21 @@ class FakeCashierBackend {
         if (_paymentsOf(b).isNotEmpty) b,
     ];
     final String action = x.group(2)!;
+    if (action == 'discount') {
+      // P3-37: a closed order is the state's 422; a bill with money on it is not discounted afterwards
+      if (order['status'] == 'delivered' || order['status'] == 'canceled') {
+        return null;
+      }
+      if (taken.isEmpty) return null;
+      return const FakeResponse(409, <String, Object?>{
+        'success': false,
+        'message': "Schyotga to'lov olingan: chegirma berish uchun avval to'lovni qaytaring.",
+        'data': <String, Object?>{
+          'reason': 'paid_bill_affected',
+          'bills_reason': 'bills_out_of_date',
+        },
+      });
+    }
     if (action == 'cancel') {
       final List<Map<String, Object?>> paid = <Map<String, Object?>>[
         for (final Map<String, Object?> b in taken)
@@ -1331,6 +1385,65 @@ class FakeCashierBackend {
         'bills_reason': 'bills_out_of_date',
       },
     });
+  }
+
+  /// P3-37 (API contract 4): a CLOSED order whose every payment is refunded may be cancelled — the same permission
+  /// (`orders.cancel` or a manager), status `canceled`, `closed_at` kept, no new receipt. Any other closed order stays
+  /// 422 `order_closed`.
+  FakeResponse _cancelRefunded(Map<String, Object?> order, FakeRequest r) {
+    if (!_allRefunded(order)) {
+      return _fail(
+        422,
+        'order_closed',
+        "Buyurtma yopilgan yoki bekor qilingan: uni o'zgartirib bo'lmaydi.",
+      );
+    }
+    final FakeResponse? denied = state.authorize(
+      r.member,
+      'orders.cancel',
+      r.data['approval_token'],
+    );
+    if (denied != null) return denied;
+    if ((r.data['version'] as num?)?.toInt() != order['version']) {
+      return FakeResponse(409, <String, Object?>{
+        'success': false,
+        'message': "Buyurtma boshqa qurilmada o'zgartirildi. Uni qayta yuklang va amalni takrorlang.",
+        'data': <String, Object?>{
+          'reason': 'version_conflict',
+          'version': order['version'],
+        },
+      });
+    }
+    order
+      ..['status'] = 'canceled'
+      ..['cancel_reason'] = r.data['reason']
+      ..['version'] = (order['version']! as int) + 1
+      ..['updated_at'] = _iso(state.now());
+    state.emit('order.status_changed', <String, Object?>{
+      'order': <String, Object?>{
+        'uuid': order['uuid'],
+        'status': 'canceled',
+        'store_id': FakePosState.storeId,
+        'branch_id': FakePosState.branchId,
+        'courier_id': null,
+        'updated_at': order['updated_at'],
+      },
+    });
+    state.emit('order.items_changed', <String, Object?>{
+      'order': <String, Object?>{
+        'uuid': order['uuid'],
+        'status': 'canceled',
+        'store_id': FakePosState.storeId,
+        'branch_id': FakePosState.branchId,
+        'courier_id': null,
+        'updated_at': order['updated_at'],
+      },
+      'version': order['version'],
+      'table_id': (order['table'] as Map<String, Object?>?)?['id'],
+      'change': 'cancelled',
+      'item_ids': <int>[],
+    });
+    return _ok(order, message: 'Buyurtma bekor qilindi.');
   }
 
   /// P3-35 (`AdvanceLedger::reverse`): the bill's deposit part back to the booking's deposits, newest first; a deposit
@@ -1577,7 +1690,12 @@ class FakeCashierBackend {
         },
       ],
       'by_waiter': <Object?>[],
-      'discounts': <String, Object?>{'count': 0, 'amount': '0.00'},
+      'discounts': <String, Object?>{
+        'count': billSet
+            .where((Map<String, Object?> b) => _t(b['discount']) > 0)
+            .length,
+        'amount': _m(billsSum('discount')),
+      },
       'voids': <String, Object?>{'count': 0, 'amount': '0.00'},
       'refunds': <String, Object?>{
         'count': refundsIn.length,

@@ -152,6 +152,8 @@ void main() {
     (WidgetTester tester) async {
       final P22 p = P22();
       p.state.openShift();
+      // P3-37: cashiers hold pos.cash_in_out by default; the owner took it away here, so a manager approves it
+      p.state.rolePermissions['cashier']!.remove('pos.cash_in_out');
       await pumpHome(tester, p.h);
       await openSection(tester, 'Smena');
       loseApproved(p, '/cash-movements');

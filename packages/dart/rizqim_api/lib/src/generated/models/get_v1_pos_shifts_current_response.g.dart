@@ -11,7 +11,7 @@ GetV1PosShiftsCurrentResponse _$GetV1PosShiftsCurrentResponseFromJson(
 ) => GetV1PosShiftsCurrentResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data170.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data171.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1PosShiftsCurrentResponseToJson(

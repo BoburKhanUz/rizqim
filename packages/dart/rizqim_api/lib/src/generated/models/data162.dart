@@ -7,6 +7,7 @@ import 'package:json_annotation/json_annotation.dart';
 import 'hall12.dart';
 import 'table12.dart';
 import 'waiter14.dart';
+import 'discount_kind.dart';
 import 'charges15.dart';
 import 'offline11.dart';
 import 'items35.dart';
@@ -16,7 +17,7 @@ part 'data162.g.dart';
 @JsonSerializable()
 class Data162 {
   const Data162({
-    required this.guestsCount,
+    required this.waiter,
     required this.shortCode,
     required this.status,
     required this.channel,
@@ -28,8 +29,8 @@ class Data162 {
     required this.table,
     required this.hallRef,
     required this.tableRef,
+    required this.guestsCount,
     required this.uuid,
-    required this.waiter,
     required this.openedBy,
     required this.deviceId,
     required this.bookingId,
@@ -38,10 +39,14 @@ class Data162 {
     required this.billLocked,
     required this.billRequestedAt,
     required this.notes,
-    required this.items,
+    required this.openedAt,
     required this.updatedAt,
     required this.subtotal,
-    required this.discount,
+    required this.items,
+    required this.discountKind,
+    required this.discountValue,
+    required this.discountReason,
+    required this.discountBy,
     required this.serviceChargeAmount,
     required this.placeFeeAmount,
     required this.roomFeeAmount,
@@ -50,7 +55,7 @@ class Data162 {
     required this.charges,
     required this.offline,
     required this.rounds,
-    required this.openedAt,
+    required this.discount,
   });
 
   factory Data162.fromJson(Map<String, Object?> json) =>
@@ -97,6 +102,14 @@ class Data162 {
   final String? updatedAt;
   final String subtotal;
   final String discount;
+  @JsonKey(name: 'discount_kind')
+  final DiscountKind? discountKind;
+  @JsonKey(name: 'discount_value')
+  final String? discountValue;
+  @JsonKey(name: 'discount_reason')
+  final String? discountReason;
+  @JsonKey(name: 'discount_by')
+  final int? discountBy;
   @JsonKey(name: 'service_charge_amount')
   final String serviceChargeAmount;
   @JsonKey(name: 'place_fee_amount')

@@ -83,4 +83,18 @@ describe('branch POS settings', () => {
     expect(saved.business_day_starts_at).toBe('04:00');
     expect(await calls[1]!.json()).toEqual({ business_day_starts_at: '04:00', pos_settings: { mode: 'table', alerts: { void_amount: null, open_room_hours: 8 } } });
   });
+
+  it("reads and saves the cashier's discount limit and the cash-out alert (P3-37)", async () => {
+    const { calls } = mockFetch({
+      'GET /api/v1/owner/branches/3/pos-settings': () =>
+        ok({ branch_id: 3, timezone: 'Asia/Tashkent', business_day_starts_at: '05:00', pos_settings: { mode: 'hybrid', screen_lock_minutes: 5, cashier_discount_max_percent: '10.00', alerts: { cash_out_amount: '500000.00' }, holidays: [] } }),
+      'PUT /api/v1/owner/branches/3/pos-settings': () => ok({ branch_id: 3, timezone: 'Asia/Tashkent', business_day_starts_at: '05:00', pos_settings: { cashier_discount_max_percent: null, alerts: { cash_out_amount: null } } }),
+    });
+    const api = testApi();
+    const settings = await fetchBranchPosSettings(api, 3);
+    expect(settings.pos_settings.cashier_discount_max_percent).toBe('10.00');
+    expect(settings.pos_settings.alerts.cash_out_amount).toBe('500000.00');
+    await saveBranchPosSettings(api, 3, { pos_settings: { cashier_discount_max_percent: null, alerts: { cash_out_amount: null } } });
+    expect(await calls[1]!.json()).toEqual({ pos_settings: { cashier_discount_max_percent: null, alerts: { cash_out_amount: null } } });
+  });
 });

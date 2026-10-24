@@ -19,6 +19,7 @@ const ALERTS: Record<AlertKey, { min: number; max: number; integer: boolean; fal
   void_amount: { min: 0, max: 100_000_000, integer: false, fallback: '200000', suffix: "so'm" },
   discount_percent: { min: 0, max: 100, integer: false, fallback: '10', suffix: '%' },
   unaccepted_online_minutes: { min: 1, max: 120, integer: true, fallback: '3', suffix: 'daq' },
+  cash_out_amount: { min: 0, max: 100_000_000, integer: false, fallback: '500000', suffix: "so'm" },
 };
 
 interface Draft {
@@ -27,6 +28,8 @@ interface Draft {
   printingDevice: string;
   lock: string;
   queue: boolean;
+  // The biggest discount (%) a cashier gives without a manager; empty: always a manager's PIN
+  cashierDiscount: string;
   alerts: Record<AlertKey, { on: boolean; value: string }>;
   slot: string;
   holidays: string[];
@@ -43,6 +46,7 @@ function draftOf(settings: BranchPosSettings): Draft {
     printingDevice: pos.printing_device_id ?? '',
     lock: String(pos.screen_lock_minutes),
     queue: pos.queue_numbers,
+    cashierDiscount: textOf(pos.cashier_discount_max_percent, ''),
     alerts,
     slot: pos.booking_slot_minutes === null ? '' : String(pos.booking_slot_minutes),
     holidays: [...pos.holidays].sort(),
@@ -55,6 +59,7 @@ const SERVER_FIELDS = [
   'pos_settings.printing_device_id',
   'pos_settings.screen_lock_minutes',
   'pos_settings.queue_numbers',
+  'pos_settings.cashier_discount_max_percent',
   'pos_settings.booking_slot_minutes',
   'pos_settings.holidays',
   ...ALERT_KEYS.map((key) => `pos_settings.alerts.${key}`),
@@ -95,6 +100,9 @@ function SettingsForm({ branchId, data }: { branchId: number; data: BranchPosSet
     if (draft.lock.trim() === '' || !Number.isInteger(lock) || lock < 0 || lock > 240) problems.lock = t('pos_set_lockRange');
     const slot = draft.slot.trim() === '' ? null : Number(draft.slot);
     if (slot !== null && (!Number.isInteger(slot) || slot < 30 || slot > 1440)) problems.slot = t('pos_set_slotRange');
+    const discount = parseDecimal(draft.cashierDiscount);
+    // 0-100 with at most two decimals
+    if (discount === undefined || (discount !== null && (discount < 0 || discount > 100 || Math.abs(discount * 100 - Math.round(discount * 100)) > 1e-6))) problems.cashierDiscount = t('pos_set_cashierDiscountRange');
     const alerts: Record<string, number | null> = {};
     for (const key of ALERT_KEYS) {
       const entry = draft.alerts[key];
@@ -117,6 +125,7 @@ function SettingsForm({ branchId, data }: { branchId: number; data: BranchPosSet
     if (changed.has('printingDevice')) settings.printing_device_id = draft.printingDevice === '' ? null : draft.printingDevice;
     if (changed.has('lock')) settings.screen_lock_minutes = lock;
     if (changed.has('queue')) settings.queue_numbers = draft.queue;
+    if (changed.has('cashierDiscount')) settings.cashier_discount_max_percent = discount ?? null;
     if (changed.has('slot')) settings.booking_slot_minutes = slot;
     if (changed.has('holidays')) settings.holidays = draft.holidays;
     const alertChanges = Object.fromEntries(changedKeys(draft.alerts, base.alerts).map((key) => [key, alerts[key] ?? null]));
@@ -163,6 +172,14 @@ function SettingsForm({ branchId, data }: { branchId: number; data: BranchPosSet
             error={serverError('pos_settings.printing_device_id')}
           />
           <NumberField label={t('pos_set_lock')} hint={t('pos_set_lockHint')} value={draft.lock} onChange={(lock) => patch({ lock })} inputMode="numeric" suffix="daq" error={local.lock ?? serverError('pos_settings.screen_lock_minutes')} />
+          <NumberField
+            label={t('pos_set_cashierDiscount')}
+            hint={t('pos_set_cashierDiscountHint')}
+            value={draft.cashierDiscount}
+            onChange={(cashierDiscount) => patch({ cashierDiscount })}
+            suffix="%"
+            error={local.cashierDiscount ?? serverError('pos_settings.cashier_discount_max_percent')}
+          />
           <NumberField label={t('pos_set_slot')} hint={t('pos_set_slotHint')} value={draft.slot} onChange={(slot) => patch({ slot })} inputMode="numeric" suffix="daq" error={local.slot ?? serverError('pos_settings.booking_slot_minutes')} />
         </div>
         <Check checked={draft.queue} onChange={(queue) => patch({ queue })} label={t('pos_set_queue')} hint={t('pos_set_queueHint')} />

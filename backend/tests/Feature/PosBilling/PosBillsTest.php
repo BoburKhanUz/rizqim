@@ -136,7 +136,7 @@ class PosBillsTest extends TestCase
             ->assertJsonPath('data.version', 1);
     }
 
-    public function test_printing_locks_the_order_and_a_copy_needs_a_manager(): void
+    public function test_printing_locks_the_order_and_a_copy_needs_pos_reprint_bill(): void
     {
         $order = $this->posOrder();
         $bill = $this->bill($order)->json('data.bills.0.uuid');
@@ -144,15 +144,20 @@ class PosBillsTest extends TestCase
         $this->pos('POST', "/bills/{$bill}/print")->assertOk()->assertJsonPath('data.copy', false)->assertJsonPath('data.bill.status', 'printed');
         $this->assertNotNull($order->refresh()->bill_locked_at);
 
+        // P3-37: a cashier prints a copy ("NUSXA") alone by default
+        $this->pos('POST', "/bills/{$bill}/print")->assertOk()->assertJsonPath('data.copy', true)->assertJsonPath('data.bill.printed_count', 2);
+
+        // A store whose owner took pos.reprint_bill away from cashiers: a manager's PIN
+        app(\App\Services\Auth\PermissionService::class)->setOverride($this->store, \App\Enums\UserRole::CASHIER, \App\Enums\Permission::POS_REPRINT_BILL, false);
         $this->pos('POST', "/bills/{$bill}/print")->assertForbidden()->assertJsonPath('data.reason', 'approval_required');
 
         $token = $this->approval('pos.reprint_bill');
         $this->pos('POST', "/bills/{$bill}/print", ['approval_token' => $token])->assertOk()
-            ->assertJsonPath('data.copy', true)->assertJsonPath('data.bill.printed_count', 2);
+            ->assertJsonPath('data.copy', true)->assertJsonPath('data.bill.printed_count', 3);
         $this->assertDatabaseHas('audit_logs', ['action' => 'pos.bill_reprinted', 'user_id' => $this->cashier->id]);
 
         // A manager reprints by themselves
-        $this->posAs($this->manager, 'POST', "/bills/{$bill}/print")->assertOk()->assertJsonPath('data.bill.printed_count', 3);
+        $this->posAs($this->manager, 'POST', "/bills/{$bill}/print")->assertOk()->assertJsonPath('data.bill.printed_count', 4);
     }
 
     public function test_a_round_added_after_the_bill_needs_a_new_bill(): void
@@ -164,7 +169,8 @@ class PosBillsTest extends TestCase
         $this->line($order, 'Shashlik', '2', '36000');
         $order->forceFill(['subtotal' => '166000', 'total_price' => '166000', 'version' => $order->version + 1])->save();
 
-        $this->pos('POST', "/bills/{$bill}/print")->assertStatus(403); // a copy, not allowed anyway
+        // A copy of a bill the order outgrew: refused (P3-37: the cashier may print copies, so this is the real check)
+        $this->pos('POST', "/bills/{$bill}/print")->assertStatus(409)->assertJsonPath('data.reason', 'order_changed');
         $this->getJson("/api/v1/pos/orders/{$order->uuid}/bills")->assertOk()->assertJsonPath('data.order.bills_out_of_date', true);
 
         $fresh = $this->bill($order)->assertCreated()->json('data');

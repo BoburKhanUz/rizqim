@@ -11,6 +11,7 @@ Alerts3 _$Alerts3FromJson(Map<String, dynamic> json) => Alerts3(
   voidAmount: json['void_amount'] as num?,
   discountPercent: json['discount_percent'] as num?,
   unacceptedOnlineMinutes: (json['unaccepted_online_minutes'] as num?)?.toInt(),
+  cashOutAmount: json['cash_out_amount'] as num?,
 );
 
 Map<String, dynamic> _$Alerts3ToJson(Alerts3 instance) => <String, dynamic>{
@@ -18,4 +19,5 @@ Map<String, dynamic> _$Alerts3ToJson(Alerts3 instance) => <String, dynamic>{
   'void_amount': instance.voidAmount,
   'discount_percent': instance.discountPercent,
   'unaccepted_online_minutes': instance.unacceptedOnlineMinutes,
+  'cash_out_amount': instance.cashOutAmount,
 };

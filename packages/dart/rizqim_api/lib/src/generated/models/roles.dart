@@ -4,6 +4,8 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'role2.dart';
+
 part 'roles.g.dart';
 
 @JsonSerializable()
@@ -16,7 +18,7 @@ class Roles {
 
   factory Roles.fromJson(Map<String, Object?> json) => _$RolesFromJson(json);
 
-  final String role;
+  final Role2 role;
   final String label;
   final bool editable;
 

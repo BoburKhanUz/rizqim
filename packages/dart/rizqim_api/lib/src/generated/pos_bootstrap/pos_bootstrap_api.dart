@@ -24,8 +24,10 @@ abstract class PosBootstrapApi {
   /// `data`: `server_time`; `menu_version` (refetch GET /catalog?channel=pos_* when it changes); `store` (id, name,.
   /// timezone); `branch` (id, name, address, phone, timezone, `business_day_starts_at` "HH:MM", `business_date`.
   /// (the business day it is now), `pos_settings`: `mode` counter|table|hybrid, `printing_device_id` (uuid of the.
-  /// "chop etuvchi" kassa or null), `screen_lock_minutes` (0: never), `queue_numbers`, `alerts` (`open_room_hours`,.
-  /// `void_amount`, `discount_percent`, `unaccepted_online_minutes`; null: off), `holidays` (dates), `booking_slot_minutes` (default length of a booking, null: the server's)); `device` (the.
+  /// "chop etuvchi" kassa or null), `screen_lock_minutes` (0: never), `queue_numbers`, `cashier_discount_max_percent`.
+  /// (P3-37: the discount percent a cashier gives without a manager; null or "0.00": always a manager), `alerts`.
+  /// (`open_room_hours`, `void_amount`, `discount_percent`, `unaccepted_online_minutes`, `cash_out_amount`; null: off),.
+  /// `holidays` (dates), `booking_slot_minutes` (default length of a booking, null: the server's)); `device` (the.
   /// terminal: uuid, type, name, `is_printing_device`; null outside a terminal session); `user` (id, name, role,.
   /// permissions); `stations` (active kitchen stations); `station_routes` (dish to station: by product and by.
   /// category; a product route beats its category's); `printers` (active ones this terminal can use: LAN and.

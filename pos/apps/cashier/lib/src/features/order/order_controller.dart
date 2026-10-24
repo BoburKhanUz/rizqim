@@ -68,6 +68,11 @@ class OrderController extends ChangeNotifier {
   // A round whose answer was lost (network): the version it carried, so the retry is the very same request
   String? _lostRoundFor;
   int? _lostRoundVersion;
+  // P3-37: a discount whose answer was lost (network): the retry is the very same request (key, version, body, token)
+  String? _lostDiscountFor;
+  int? _lostDiscountVersion;
+  String? _lostDiscountKey;
+  String? _lostDiscountToken;
   String? _externalId;
   int _draftGuests = 1;
   StreamSubscription<PosCatalog>? _catalogSub;
@@ -550,6 +555,59 @@ class OrderController extends ChangeNotifier {
         data.orders.restoreCharge(_uuid!, kind, version: v, approvalToken: t),
     approve: approve,
     success: '${kind.label} qaytarildi',
+  );
+
+  /// P3-37: buyurtmaga chegirma ([value] `"0"` — olib tashlash). Kassir chegarasidan ko'pi — server menejer
+  /// tasdig'ini so'raydi ([approve]). Javob kelmay qolsa (tarmoq) keyingi bosish aynan o'sha so'rovni — o'sha kalit,
+  /// versiya, tana va bo'lgan bo'lsa o'sha tasdiq bilan — yuboradi: server uni bir marta bajaradi.
+  Future<bool> discount(
+    PosDiscountKind kind,
+    String value, {
+    String? reason,
+    required ApprovalRunner approve,
+  }) {
+    final bool remove = value == '0';
+    final String what = 'discount:${kind.wire}:$value:${reason ?? ''}';
+    return _mutate(
+      (int v, String? t) async {
+        final bool retry = t == null && _lostDiscountFor == what;
+        final int version = retry ? _lostDiscountVersion! : v;
+        final String? token = retry ? _lostDiscountToken : t;
+        final String key = retry ? _lostDiscountKey! : _randomId();
+        try {
+          final PosOrder next = await data.orders.discount(
+            _uuid!,
+            version: version,
+            kind: kind,
+            value: value,
+            reason: reason,
+            approvalToken: token,
+            idempotencyKey: key,
+          );
+          _lostDiscountFor = null;
+          return next;
+        } on PosNetworkException catch (e) {
+          _lostDiscountFor = what;
+          _lostDiscountVersion = version;
+          _lostDiscountKey = e.idempotencyKey ?? key;
+          _lostDiscountToken = token;
+          rethrow;
+        } on PosException {
+          // The server answered: the next try is a new request
+          _lostDiscountFor = null;
+          rethrow;
+        }
+      },
+      approve: approve,
+      success: remove ? 'Chegirma olib tashlandi' : 'Chegirma berildi',
+    );
+  }
+
+  /// Chegirmani olib tashlash (`value` 0).
+  Future<bool> removeDiscount({required ApprovalRunner approve}) => discount(
+    _order?.discountKind ?? PosDiscountKind.percent,
+    '0',
+    approve: approve,
   );
 
   Future<bool> cancel(String reason, {required ApprovalRunner approve}) =>

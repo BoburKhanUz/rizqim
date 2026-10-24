@@ -11,6 +11,7 @@ PosSettings3 _$PosSettings3FromJson(Map<String, dynamic> json) => PosSettings3(
   printingDeviceId: json['printing_device_id'] as String?,
   screenLockMinutes: (json['screen_lock_minutes'] as num?)?.toInt(),
   queueNumbers: json['queue_numbers'] as bool?,
+  cashierDiscountMaxPercent: json['cashier_discount_max_percent'] as num?,
   alerts: json['alerts'] == null
       ? null
       : Alerts3.fromJson(json['alerts'] as Map<String, dynamic>),
@@ -26,6 +27,7 @@ Map<String, dynamic> _$PosSettings3ToJson(PosSettings3 instance) =>
       'printing_device_id': instance.printingDeviceId,
       'screen_lock_minutes': instance.screenLockMinutes,
       'queue_numbers': instance.queueNumbers,
+      'cashier_discount_max_percent': instance.cashierDiscountMaxPercent,
       'alerts': instance.alerts,
       'booking_slot_minutes': instance.bookingSlotMinutes,
       'holidays': instance.holidays?.map((e) => e.toIso8601String()).toList(),

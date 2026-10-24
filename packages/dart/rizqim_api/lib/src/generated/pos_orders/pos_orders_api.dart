@@ -13,6 +13,7 @@ import '../models/post_v1_pos_orders_uuid_accept_response.dart';
 import '../models/post_v1_pos_orders_uuid_cancel_response.dart';
 import '../models/post_v1_pos_orders_uuid_charges_charge_restore_response.dart';
 import '../models/post_v1_pos_orders_uuid_charges_charge_waive_response.dart';
+import '../models/post_v1_pos_orders_uuid_discount_response.dart';
 import '../models/post_v1_pos_orders_uuid_guests_response.dart';
 import '../models/post_v1_pos_orders_uuid_items_item_served_response.dart';
 import '../models/post_v1_pos_orders_uuid_items_item_void_response.dart';
@@ -28,6 +29,7 @@ import '../models/v1_pos_orders_uuid_accept_request_body.dart';
 import '../models/v1_pos_orders_uuid_cancel_request_body.dart';
 import '../models/v1_pos_orders_uuid_charges_charge_restore_request_body.dart';
 import '../models/v1_pos_orders_uuid_charges_charge_waive_request_body.dart';
+import '../models/v1_pos_orders_uuid_discount_request_body.dart';
 import '../models/v1_pos_orders_uuid_guests_request_body.dart';
 import '../models/v1_pos_orders_uuid_items_item_served_request_body.dart';
 import '../models/v1_pos_orders_uuid_items_item_void_request_body.dart';
@@ -138,7 +140,10 @@ abstract class PosOrdersApi {
   /// payments first, POST /pos/refunds). Every line still on the order is voided — lines already sent get a kitchen.
   /// void ("O'CHIRILDI"), unsent lines give their stock and kazan portion back — open or printed bills are voided, the.
   /// order becomes `canceled` and its table free; a booking's order completes the booking (its deposits stay.
-  /// `taken`, to refund or retain). Audited; the owner is alerted. 422 `order_closed`, 409 `version_conflict`.
+  /// `taken`, to refund or retain). Audited; the owner is alerted. P3-37: a closed order whose every payment was.
+  /// refunded in full (`payment_status` refunded) is cancelled too, with the same permission: it becomes `canceled`,.
+  /// keeps `closed_at`, its lines and paid bills stay, no receipt is issued (the refund receipts already reverse the.
+  /// sale). Any other closed or cancelled order: 422 `order_closed`. 409 `version_conflict`.
   ///
   /// [idempotencyKey] - Required: a new UUID per action, the same one when retrying it (428 or 400 without).
   @POST('/v1/pos/orders/{uuid}/cancel')
@@ -175,6 +180,30 @@ abstract class PosOrdersApi {
     @Path('charge') required String charge,
     @Header('Idempotency-Key') required String idempotencyKey,
     @Body() required V1PosOrdersUuidChargesChargeWaiveRequestBody body,
+  });
+
+  /// Give or take off a discount.
+  ///
+  /// P3-37. `kind` `percent` (`value` 0 < v ≤ 100, two decimals) or `amount` (`value` in so'm, 0 < v ≤ the dishes'.
+  /// subtotal); `value` 0 takes the discount off. `reason` is required unless `value` is 0 (up to 255). The.
+  /// discount is on the dishes (`charges.items_subtotal`), before the service charge; `discount` is its amount in.
+  /// whole so'm (half-up). A percent stays a percent: adding or voiding lines works it out again; an amount never.
+  /// exceeds the dishes. Who: orders.discount — any discount; a cashier (pos.take_payment) up to the branch's.
+  /// `pos_settings.cashier_discount_max_percent` (an amount by its percent of the dishes), while no bill was printed;.
+  /// otherwise 403 `approval_required` (`permission: orders.discount`): send a manager's one-time `approval_token`.
+  /// for orders.discount (POST /pos/approvals). Taking a discount off needs orders.manage only. The waiter rule.
+  /// applies. 409 `paid_bill_affected` once a bill of the order has a payment or is paid (refund first); 409.
+  /// `version_conflict`; 422 `order_closed`; 422 validation (`value` above the dishes, `reason` missing). A printed.
+  /// bill no longer matches: bill again (POST /pos/orders/{uuid}/bills). Audited (`pos.order.discount`, old and.
+  /// new); the owner is alerted at `pos_settings.alerts.discount_percent` and above; `order.items_changed` with.
+  /// `change: charges_changed`. Not available offline (no sync operation).
+  ///
+  /// [idempotencyKey] - Required: a new UUID per action, the same one when retrying it (428 or 400 without).
+  @POST('/v1/pos/orders/{uuid}/discount')
+  Future<PostV1PosOrdersUuidDiscountResponse> posOrderDiscount({
+    @Path('uuid') required String uuid,
+    @Header('Idempotency-Key') required String idempotencyKey,
+    @Body() required V1PosOrdersUuidDiscountRequestBody body,
   });
 
   /// Change the guests count.

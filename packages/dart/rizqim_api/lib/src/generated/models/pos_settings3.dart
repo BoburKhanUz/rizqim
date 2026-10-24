@@ -16,6 +16,7 @@ class PosSettings3 {
     this.printingDeviceId,
     this.screenLockMinutes,
     this.queueNumbers,
+    this.cashierDiscountMaxPercent,
     this.alerts,
     this.bookingSlotMinutes,
     this.holidays,
@@ -31,6 +32,8 @@ class PosSettings3 {
   final int? screenLockMinutes;
   @JsonKey(name: 'queue_numbers')
   final bool? queueNumbers;
+  @JsonKey(name: 'cashier_discount_max_percent')
+  final num? cashierDiscountMaxPercent;
   final Alerts3? alerts;
   @JsonKey(name: 'booking_slot_minutes')
   final int? bookingSlotMinutes;

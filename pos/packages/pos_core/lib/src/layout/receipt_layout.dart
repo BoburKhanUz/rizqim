@@ -77,6 +77,16 @@ PrintLayout layoutFiscalReceipt(FiscalReceipt r, PaperWidth paper) {
   for (final VatTotal vat in r.vatTotals) {
     w.pair('Shu jumladan QQS ${vat.rate}%:', paperAmount(vat.amount));
   }
+  if (r.showsDiscountTotal) {
+    // The lines are already after the discount: it is told, not taken again
+    final String? percent = r.discountPercent;
+    w.pair(
+      percent == null
+          ? 'Berilgan chegirma:'
+          : 'Berilgan chegirma ${formatPercent(percent)}%:',
+      paperAmount(r.discount),
+    );
+  }
   w.divider();
 
   for (final ReceiptPayment p in r.payments) {

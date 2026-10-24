@@ -20,6 +20,7 @@ export const uz = {
   nav_accounts: 'Nasiya',
   nav_shifts: 'Smenalar',
   nav_possetup: 'Kassa sozlamalari',
+  nav_permissions: 'Huquqlar',
   nav_fiscal: 'Fiskal',
   navAria: 'Asosiy menyu',
   openMenu: 'Menyuni ochish',

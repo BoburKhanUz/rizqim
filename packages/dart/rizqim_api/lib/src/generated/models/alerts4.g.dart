@@ -11,6 +11,7 @@ Alerts4 _$Alerts4FromJson(Map<String, dynamic> json) => Alerts4(
   voidAmount: json['void_amount'] as String?,
   discountPercent: json['discount_percent'] as String?,
   unacceptedOnlineMinutes: (json['unaccepted_online_minutes'] as num?)?.toInt(),
+  cashOutAmount: json['cash_out_amount'] as String?,
 );
 
 Map<String, dynamic> _$Alerts4ToJson(Alerts4 instance) => <String, dynamic>{
@@ -18,4 +19,5 @@ Map<String, dynamic> _$Alerts4ToJson(Alerts4 instance) => <String, dynamic>{
   'void_amount': instance.voidAmount,
   'discount_percent': instance.discountPercent,
   'unaccepted_online_minutes': instance.unacceptedOnlineMinutes,
+  'cash_out_amount': instance.cashOutAmount,
 };

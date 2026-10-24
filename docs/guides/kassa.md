@@ -19,7 +19,7 @@ qo'llanmasida](oshxona-ekrani.md). Boshlang'ich sozlash (zal xaritasi, tariflar,
 8. [Oshxonaga yuborish va "Berildi"](#8-oshxonaga-yuborish-va-berildi)
 9. [O'chirish va menejer tasdig'i](#9-ochirish-va-menejer-tasdigi)
 10. [Ko'chirish va birlashtirish](#10-kochirish-va-birlashtirish)
-11. [Schyot va hisobni bo'lish](#11-schyot-va-hisobni-bolish)
+11. [Schyot, chegirma va hisobni bo'lish](#11-schyot-chegirma-va-hisobni-bolish)
 12. [To'lov turlari](#12-tolov-turlari)
 13. [Fiskal chek va "Fiskal kutmoqda"](#13-fiskal-chek-va-fiskal-kutmoqda)
 14. [Pulni qaytarish](#14-pulni-qaytarish)
@@ -88,18 +88,21 @@ Ba'zi amallar uchun kassirda huquq yo'q. Shunda ekranda **Menejer tasdig'i** oyn
 Tasdiq bir marta ishlaydi, faqat shu amal va shu kassa uchun, qisqa vaqt (taxminan 1 daqiqa). Jurnalga ikkalangiz ham yoziladi:
 kim so'radi va kim tasdiqladi. Menejer PIN'i o'rnatilmagan bo'lsa: "Bu terminalda PIN o'rnatilgan menejer yo'q" — egaga ayting.
 
-Tasdiq kerak bo'ladigan amallar:
+Tasdiq kerak bo'ladigan va kerak bo'lmaydigan amallar (egasi 24.10.2026 da shunday belgiladi):
 
 | Amal | Kassirda |
 |---|---|
 | Oshxonaga yuborilgan taomni o'chirish | menejer tasdig'i |
 | Schyot chiqqandan keyin taom o'chirish | menejer tasdig'i |
-| Butun buyurtmani bekor qilish | menejer tasdig'i |
+| Butun buyurtmani bekor qilish (to'liq qaytarilgan yopiq buyurtmani ham) | menejer tasdig'i |
+| **Chegirma** egasi belgilagan foizgacha (standart 10%) | **o'zingiz**, menejersiz |
+| **Chegirma** undan ko'p, yoki schyot chiqqandan keyin | menejer tasdig'i |
 | Xona puli, xizmat haqi, joy puli yoki minimal summa farqini olib tashlash | menejer tasdig'i |
-| Schyotning nusxasini qayta chiqarish | menejer tasdig'i |
+| Schyotning nusxasini qayta chiqarish (**NUSXA**) | **o'zingiz**, menejersiz |
+| Kassaga kirim | **o'zingiz**, menejersiz |
+| Kassadan chiqim (sabab bilan) | **o'zingiz**, menejersiz; katta chiqim haqida egaga xabar boradi |
 | Pulni qaytarish | menejer tasdig'i |
 | Nasiyaga yopish | **doim** menejer tasdig'i |
-| Kassaga kirim yoki chiqim | menejer tasdig'i |
 | Bron avansini qaytarish yoki ushlab qolish | menejer tasdig'i |
 | Smenani majburan yopish | menejer tasdig'i |
 | Onlayn buyurtmani rad etish | menejer tasdig'i |
@@ -322,7 +325,7 @@ yuborish, "berildi" va mehmonlar soni o'zi takrorlanadi; qolganlarini qaytadan b
 ([14-bo'lim](#14-pulni-qaytarish)), keyin bekor qiling.
 
 **To'lovi boshlangan schyot.** Schyotning bir qismi to'langan bo'lsa, o'sha schyotdagi taomni o'chirish, mehmonlar sonini
-kamaytirish, boshqa joyga ko'chirish, birlashtirish yoki xizmat haqini olib tashlash mumkin emas (bular to'langan summaga
+kamaytirish, boshqa joyga ko'chirish, birlashtirish, xizmat haqini olib tashlash yoki chegirma berish mumkin emas (bular to'langan summaga
 tegadi). Ilova "Schyotning bir qismi to'langan: … Avval o'sha to'lovni qaytaring" deb yozadi, buyurtma o'zgarmaydi va
 qayta yuklanadi. Kerak bo'lsa avval to'lovni qaytaring ([14-bo'lim](#14-pulni-qaytarish)), keyin o'zgartiring.
 
@@ -333,8 +336,7 @@ summalar qatorida kerakli qatorni bosing → **Olib tashlash** → sabab ("Mehmo
 Hammasi harakatlar jurnaliga yoziladi. Egaga Telegram'ga xabar boradi: qimmat taom o'chirilsa, buyurtma bekor qilinsa, xona puli
 yoki xizmat haqi olib tashlansa. Shuning uchun sababni to'g'ri yozing.
 
-Eslatma: hozircha kassada **chegirma** (foiz yoki summa) berish tugmasi yo'q. Mehmonga yon berish kerak bo'lsa, menejer bilan
-gaplashing.
+Mehmonga yon berish (foiz yoki summa) — **Chegirma** tugmasi bilan: [11-bo'lim, Chegirma](#chegirma).
 
 ## 10. Ko'chirish va birlashtirish
 
@@ -357,7 +359,7 @@ Band xonaga ko'chirib bo'lmaydi: u holda buyurtmalarni birlashtiring.
 Shartlar: ikkala buyurtma ochiq, bitta filialniki, **schyot chiqarilmagan** va **to'lov olinmagan** bo'lsin. Taomlar bosqichlari bilan
 ko'chadi, mehmonlar soni qo'shiladi.
 
-## 11. Schyot va hisobni bo'lish
+## 11. Schyot, chegirma va hisobni bo'lish
 
 Mehmon hisob so'raganda buyurtma ekranida pastdagi **Schyot** tugmasini bosing. Yangi taomlar hali **Saqlash** yoki **Yuborish**
 bilan saqlanmagan bo'lsa, ilova "Avval yangi bosqichni yuboring yoki saqlang" deydi.
@@ -365,6 +367,49 @@ bilan saqlanmagan bo'lsa, ilova "Avval yangi bosqichni yuboring yoki saqlang" de
 Schyot ekranida **Buyurtma hisobi** bor: **Taomlar**, **Xona puli**, **Xizmat haqi N%**, **Joy puli**, **Chegirma**,
 **Jami**, **Bron avansi (mavjud)**. Minimal summa yetmagan bo'lsa, "Minimal summa gacha" farq qatori ham bo'ladi. Har biri alohida
 qator, chekda ham alohida chiqadi.
+
+### Chegirma
+
+Mehmonga chegirma — foizda (**%**) yoki so'mda. Tugma ikki joyda: buyurtma ekranining tepasida **Chegirma**, schyot ekranida
+**Chegirma** (to'lov olinmaguncha).
+
+1. **Chegirma** ni bosing.
+2. **Foiz (%)** yoki **Summa (so'm)** ni tanlang.
+3. Foiz uchun tez tugmalar: **5%**, **10%**, **15%**. Boshqa foiz yoki summani **Boshqa foiz** / **Summa** maydoniga yozing.
+   Oynada taxminiy summa ko'rinadi: "Chegirma: 19 000 so'm (taomlar 190 000 so'm dan)".
+4. **Sabab** — majburiy: **Doimiy mijoz**, **Ega ruxsati**, **Kechikish uchun uzr** yoki **Boshqa sabab** maydoniga yozing.
+5. **Chegirma berish**.
+
+**Chegara.** Oynaning tepasida sizning chegarangiz yoziladi, masalan: "Siz 10% gacha o'zingiz bera olasiz. Ko'prog'i — menejer
+PIN'i bilan." Chegarani ega har filial uchun belgilaydi (standart 10%). Summa bilan berilsa, uning taomlar summasidan foizi
+hisoblanadi: 190 000 so'mlik taomga 19 000 so'm — 10%, menejersiz; 30 000 so'm — 10% dan ko'p.
+
+- Chegaradan ko'p bo'lsa, oynada "Bu chegaradan ko'p: menejer PIN'i so'raladi" yoziladi. **Chegirma berish** dan keyin
+  **Menejer tasdig'i** oynasi chiqadi: menejer o'z PIN'ini teradi.
+- Ega chegarani belgilamagan bo'lsa (yoki 0%) — "Chegirma menejer PIN'i bilan beriladi": har chegirma menejer tasdig'i bilan.
+- **Schyot chiqarilgandan keyin** (qog'oz mehmonga berilgan) har qanday chegirma menejer tasdig'i bilan.
+- Menejer yoki ega o'zi kirgan bo'lsa, istalgan chegirmani tasdiqsiz beradi.
+
+**Chegirma qayerda ko'rinadi.** Buyurtma ekranidagi summalarda **Chegirma 10%** qatori (manfiy summa va sababi bilan),
+schyot ekranida, mehmonga beriladigan schyot qog'ozida (**Chegirma 10%: -19 000**) va sotuv chekida (**Berilgan chegirma
+10%**). Z va X hisobotda **Chegirmalar** qatori bor: smenadagi hamma chegirma summasi.
+
+**Foizli chegirma taomlar bilan o'zgaradi.** 10% berilgandan keyin taom qo'shilsa yoki o'chirilsa, chegirma yangi summadan qayta
+hisoblanadi. Summali chegirma (masalan, 20 000 so'm) o'zgarmaydi. Xizmat haqi chegirmadan keyingi summadan olinadi.
+
+**O'zgartirish va olib tashlash.** **Chegirma** ni qayta bossangiz, oyna joriy chegirma bilan ochiladi — yangisini bering.
+Olib tashlash: buyurtma summalarida **Chegirma** qatoridagi **Olib tashlash** (yoki schyot ekranida **Chegirmani olib
+tashlash**) → tasdiqlang. Olib tashlash uchun sabab va menejer kerak emas.
+
+Chegirma bo'lmaydigan hollar:
+
+- Schyotga **to'lov olingan** bo'lsa: "Schyotga to'lov olingan… avval to'lovni qaytaring". Chegirmani to'lovdan oldin bering.
+- Buyurtma yopilgan yoki bekor qilingan bo'lsa.
+- **Internetsiz rejimda**: tugma o'chiq, ustida "Chegirma uchun internet kerak." Internet tiklangach bering.
+
+Schyot chegirmadan oldin tuzilgan bo'lsa, chegirmadan keyin u qayta tuziladi (**Schyot tuzish**). Har chegirma harakatlar
+jurnaliga yoziladi (kim, qancha, sabab, kim tasdiqladi). Chegirma egasi belgilagan foizdan (masalan 10%) kam bo'lmasa, egaga
+Telegram'ga xabar boradi.
 
 ### Schyot tuzish
 
@@ -384,13 +429,14 @@ tuzasiz.
 
 ### Schyotni chiqarish
 
-**Schyotni chiqarish** — mehmonga beriladigan qog'oz. Unda taomlar, xona puli, xizmat haqi, avans, to'lanadigan qoldiq, jami
+**Schyotni chiqarish** — mehmonga beriladigan qog'oz. Unda taomlar, xona puli, xizmat haqi, chegirma, avans, to'lanadigan qoldiq, jami
 va **Kishi boshiga** summa yoziladi. Pastida **Bu fiskal chek emas** deb turadi: bu to'lov cheki emas.
 
 - Schyotni to'lashdan oldin chiqarish shart emas.
-- **Birinchi marta chiqqandan keyin buyurtma qulflanadi**: taom qo'shish mumkin (yangi schyot kerak bo'ladi), lekin o'chirish va
-  xizmat qatorlarini olib tashlash faqat menejer tasdig'i bilan.
-- Qayta chiqarish tugmasi **Nusxa chiqarish**: qog'ozda **NUSXA** yoziladi, menejer tasdig'i kerak.
+- **Birinchi marta chiqqandan keyin buyurtma qulflanadi**: taom qo'shish mumkin (yangi schyot kerak bo'ladi), lekin o'chirish,
+  chegirma va xizmat qatorlarini olib tashlash faqat menejer tasdig'i bilan.
+- Qayta chiqarish tugmasi **Nusxa chiqarish**: qog'ozda **NUSXA** yoziladi. Kassir uni o'zi chiqaradi, menejer kerak emas
+  (egasi bu huquqni olib qo'ygan bo'lsa — menejer tasdig'i). Har nusxa jurnalga yoziladi.
 
 ## 12. To'lov turlari
 
@@ -469,9 +515,17 @@ bog'liq — dialogda to'lovni tanlaganda shu yozib turiladi:
 Bitta schyotda bir nechta to'lov bo'lsa (masalan, avans + nasiya), har birini alohida qaytaring. Ro'yxatda har to'lovdan hali
 qaytarilmagan summa ko'rinadi.
 
-**Hamma to'lov qaytarilsa.** Buyurtma hali yopilmagan bo'lsa (masalan, schyotlardan biri to'langan, qolgani to'lanmagan), schyot
-ekranida "Buyurtmaning hamma to'lovi qaytarildi: endi uni bekor qilish mumkin" va **Buyurtmani bekor qilish** tugmasi chiqadi:
-sabab → menejer PIN'i. Yuborilgan taomlar uchun **O'CHIRILDI** markasi chiqadi, joy bo'shaydi.
+**Hamma to'lov qaytarilsa.** Schyot ekranida "Buyurtmaning hamma to'lovi qaytarildi: endi uni bekor qilish mumkin" va
+**Buyurtmani bekor qilish** tugmasi chiqadi: sabab → menejer PIN'i.
+
+- Buyurtma hali **ochiq** bo'lsa (masalan, schyotlardan biri to'langan, qolgani to'lanmagan): yuborilgan taomlar uchun
+  **O'CHIRILDI** markasi chiqadi, joy bo'shaydi.
+- Buyurtma **yopilgan** bo'lsa (hamma schyot to'langan edi, keyin hamma pul qaytarildi): **Navbat** → **Bugun yopilgan** →
+  buyurtmani bosing. Ro'yxatda u **Pul qaytarilgan** belgisi bilan turadi. **Buyurtmani bekor qilish** → sabab → menejer PIN'i.
+  Buyurtma **Bekor qilingan** bo'ladi: oshxonaga marka chiqmaydi, yangi chek chiqmaydi (qaytarish cheklari allaqachon bor).
+  Bu shunchaki hisobotda buyurtma "sotilgan" bo'lib qolmasligi uchun.
+
+Pulning bir qismi qaytarilgan bo'lsa, buyurtmani bekor qilib bo'lmaydi.
 
 Qoidalar:
 
@@ -612,7 +666,8 @@ KDS va boshqaruv panelida."
 - **Fiskal kutmoqda (N)** — [13-bo'lim](#13-fiskal-chek-va-fiskal-kutmoqda).
 - **Ochiq buyurtmalar (N)** — hamma kanallar, filtr: **Hammasi**, **Zal**, **Olib ketish**, **Onlayn**. Tepada jami summa. POS
   buyurtmasini bosing — u ochiladi.
-- **Bugun yopilgan (N)** — chek nusxasi va pulni qaytarish uchun.
+- **Bugun yopilgan (N)** — chek nusxasi, pulni qaytarish va to'liq qaytarilgan buyurtmani bekor qilish uchun. Belgilar:
+  **Pul qaytarilgan**, **Bekor qilingan**.
 
 ## 18. Kirim-chiqim, X va Z hisobot
 
@@ -631,12 +686,18 @@ Kassadan pul chiqsa yoki kirsa — **albatta yozing**, aks holda kunlik hisob tu
   - **Boshqa chiqim** — **Inkassatsiya**, **Egaga berildi**, **Xo'jalik**, **Kommunal**, **Boshqa**.
 
 **Summa**ni yozing, **Boshqa** bo'lsa **Izoh** majburiy ("nimaga berildi"). Chiqim kassadagi naqddan oshmaydi.
-**Kirim qilish** / **Chiqim qilish** → menejer PIN'i (kassirda bu huquq standart bo'yicha yo'q). Kassa qutisi ochiladi.
+**Kirim qilish** / **Chiqim qilish** — kassir o'zi qiladi, menejer kerak emas. Kassa qutisi ochiladi. Har yozuv jurnalga
+tushadi (kim, qancha, nima uchun).
+
+**Katta chiqim.** Bitta chiqim egasi belgilagan summadan (standart 500 000 so'm) kam bo'lmasa, oynada "Katta chiqim: egaga xabar
+boradi." yoziladi va egaga Telegram'ga xabar boradi. Chiqim baribir yoziladi — bu faqat ogohlantirish.
+
+Egasi kirim-chiqim huquqini kassirdan olib qo'ygan bo'lsa, oldingidek menejer PIN'i so'raladi.
 
 ### X hisobot
 
 X — smenani yopmasdan oraliq hisobot. **X hisobot** tugmasi: savdo (cheklar, qaytarilgan, sof tushum), to'lov turlari va karta
-turlari, **Pul emas (bugun kassaga tushmagan)** — avans ofseti va nasiya, **Avans va nasiya**, kanallar, ofitsiantlar,
+turlari, **Chegirmalar**, **Pul emas (bugun kassaga tushmagan)** — avans ofseti va nasiya, **Avans va nasiya**, kanallar, ofitsiantlar,
 **Kassa (naqd)** va oxirida **Kassada bo'lishi kerak**. **Chop etish** ni bosing. Istalgan vaqt olish mumkin.
 
 ### Z — smenani yopish
@@ -649,7 +710,7 @@ Kun oxirida:
    **Farq yo'q**, **Kamomad** yoki **Ortiqcha**.
 4. **Smenani yopish (Z)** → "Smena yopildi. Z-hisobot chop etildi."
 
-Z hisobotda yopish raqami (`Z-12`), kutilgan naqd, sanalgan naqd va farq bor. Egaga qisqa xulosa Telegram'ga boradi.
+Z hisobotda yopish raqami (`Z-12`), smenadagi **Chegirmalar** summasi, kutilgan naqd, sanalgan naqd va farq bor. Egaga qisqa xulosa Telegram'ga boradi.
 
 **Smena yopilmasa** — "Smena yopilmadi" va sababi chiqadi:
 
@@ -709,6 +770,7 @@ Narx — kassadagi oxirgi menyu nusxasidan; xizmat haqi, xona puli va choy-non �
 - Hisobni bo'lish (teng yoki taom bo'yicha): faqat bitta schyot.
 - QR, bron avansi va nasiya bilan to'lov; pulni qaytarish.
 - Mehmonlar sonini o'zgartirish, ko'chirish, birlashtirish, buyurtmani bekor qilish.
+- **Chegirma** berish yoki olib tashlash ("Chegirma uchun internet kerak").
 - Oshxonaga yuborilgan taomni o'chirish: internetsiz menejer tasdig'i olinmaydi.
 - Kirim-chiqim, smena ochish va **Z (smenani yopish)**.
 - Bronlar, nasiya hisoblari, Telegram va ilova buyurtmalari.
@@ -790,4 +852,6 @@ qayta bosing** — u ikki marta yozilmaydi va menejer PIN'i qayta so'ralmaydi.
 | Onlayn buyurtma chiqmayapti | Aloqa belgisini tekshiring. **Navbat** da **Yangilash**. Ovoz yoqilganini ko'ring |
 | Boshqa kassa buyurtmani o'zgartirdi | Ilova buyurtmani qayta yuklaydi; yo'qolgan amalni qayta bajaring |
 | Ekran qulflanib qoldi | PIN bilan oching. Saqlanmagan yangi taomlar yo'qolgan bo'lishi mumkin: qayta qo'shing |
-| Kassa chegirma bermayapti | Hozircha kassada chegirma yo'q; xizmat haqini sabab bilan olib tashlash mumkin ([9-bo'lim](#9-ochirish-va-menejer-tasdigi)) |
+| Chegirma berishda menejer PIN'i so'raldi | Chegirma sizning chegarangizdan (masalan 10%) ko'p yoki schyot allaqachon chiqarilgan. Menejerni chaqiring yoki kamroq bering ([Chegirma](#chegirma)) |
+| **Chegirma** tugmasi o'chiq | Internetsiz rejim yoki buyurtma yopilgan. Schyotga to'lov olingan bo'lsa, chegirma bo'lmaydi |
+| Yopilgan buyurtmani bekor qilib bo'lmayapti | Faqat hamma to'lovi to'liq qaytarilgan buyurtma bekor qilinadi ([14-bo'lim](#14-pulni-qaytarish)) |

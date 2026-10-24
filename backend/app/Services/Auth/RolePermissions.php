@@ -30,11 +30,13 @@ final class RolePermissions
                 P::BOOKINGS_MANAGE, P::CUSTOMER_ACCOUNTS_MANAGE, // P3-17
                 P::POS_REFUND, // P3-18: refunds within the shift (cashiers ask a manager's PIN)
             ],
-            // Closes bills and takes payment; cancelling, discounts and voids need a manager
+            // Closes bills and takes payment; cancelling, refunds and voids need a manager. A discount up to the
+            // branch's pos_settings.cashier_discount_max_percent comes with pos.take_payment (P3-37, PosOrderService)
             UserRole::CASHIER->value => [
                 P::ORDERS_VIEW, P::ORDERS_MANAGE, P::TABLES_MANAGE, P::MENU_VIEW,
                 P::POS_OPEN_SHIFT, P::POS_CLOSE_SHIFT, P::POS_TAKE_PAYMENT,
                 P::BOOKINGS_MANAGE, // P3-17: takes bookings and deposits at the till
+                P::POS_REPRINT_BILL, P::POS_CASH_IN_OUT, // P3-37 (owner's decision 24.10.2026): a bill copy, cash in and out alone
             ],
             UserRole::WAITER->value => [
                 P::ORDERS_VIEW, P::ORDERS_MANAGE, P::TABLES_MANAGE, P::MENU_VIEW,

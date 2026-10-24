@@ -6,6 +6,7 @@ import { FakeFiscal } from './fiscal'
 import { FakeFloor } from './floor'
 import { FakeMenu } from './menu'
 import { FakeOrders } from './orders'
+import { FakePermissions } from './permissions'
 import { FakeReports } from './reports'
 import { FakeShifts } from './shifts'
 import { FakeTeam } from './team'
@@ -20,6 +21,8 @@ export const OWNER_PERMISSIONS = [
   'menu.view', 'menu.manage', 'stoplist.manage', 'batches.manage',
   'staff.view', 'staff.manage', 'staff.pin', 'branches.manage', 'settings.manage', 'zones.manage', 'devices.view', 'devices.manage',
   'reports.view', 'finance.view',
+  // P3-37: the "Huquqlar" page
+  'permissions.manage',
   // P3-23: the POS sections (halls and tables, bookings, nasiya, shifts)
   'tables.manage', 'bookings.manage', 'customer_accounts.manage', 'pos.close_shift',
 ]
@@ -90,6 +93,7 @@ export class FakeBackend {
   floor: FakeFloor
   shifts: FakeShifts
   bookings: FakeBookings
+  permissions: FakePermissions
 
   constructor() {
     this.orders = new FakeOrders(this)
@@ -101,6 +105,7 @@ export class FakeBackend {
     this.floor = new FakeFloor(this)
     this.shifts = new FakeShifts(this)
     this.bookings = new FakeBookings(this)
+    this.permissions = new FakePermissions(this)
     this.accounts.set(OWNER.phone, [OWNER])
   }
 
@@ -262,7 +267,7 @@ export class FakeBackend {
       return { status: 200, body: { auth: 'e2e-key:fake-signature' } }
     }
 
-    for (const area of [this.orders, this.menu, this.team, this.zones, this.reports, this.fiscal, this.floor, this.shifts, this.bookings]) {
+    for (const area of [this.orders, this.menu, this.team, this.zones, this.reports, this.fiscal, this.floor, this.shifts, this.bookings, this.permissions]) {
       const reply = area.handle(req, json)
       if (reply) return reply
     }

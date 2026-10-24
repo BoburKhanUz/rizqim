@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data190.dart';
+import 'data191.dart';
 
 part 'get_v1_superadmin_stores_response.g.dart';
 
@@ -19,7 +19,7 @@ class GetV1SuperadminStoresResponse {
       _$GetV1SuperadminStoresResponseFromJson(json);
 
   final bool success;
-  final List<Data190> data;
+  final List<Data191> data;
 
   Map<String, Object?> toJson() => _$GetV1SuperadminStoresResponseToJson(this);
 }

@@ -132,3 +132,7 @@ export * from './api/accounts';
 export * from './hooks/accounts';
 export * from './api/shifts';
 export * from './hooks/shifts';
+
+// P3-37: the role permission table of the partner web's "Huquqlar" page (GET/PUT /owner/permissions)
+export * from './api/permissions';
+export * from './hooks/permissions';

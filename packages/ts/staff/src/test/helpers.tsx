@@ -121,6 +121,11 @@ export function makeOrder(over: Partial<Order> = {}): Order {
     offline_created_at: null,
     synced_at: null,
     sync_flags: null,
+    // Discount details (P3-37)
+    discount_kind: null,
+    discount_value: null,
+    discount_reason: null,
+    discount_by: null,
     ...over,
   };
 }

@@ -7,7 +7,9 @@ part of 'data154.dart';
 // **************************************************************************
 
 Data154 _$Data154FromJson(Map<String, dynamic> json) => Data154(
-  guestsCount: (json['guests_count'] as num?)?.toInt(),
+  waiter: json['waiter'] == null
+      ? null
+      : Waiter7.fromJson(json['waiter'] as Map<String, dynamic>),
   shortCode: json['short_code'] as String?,
   status: json['status'] as String,
   channel: json['channel'] as String,
@@ -23,10 +25,8 @@ Data154 _$Data154FromJson(Map<String, dynamic> json) => Data154(
       : Table5.fromJson(json['table'] as Map<String, dynamic>),
   hallRef: json['hall_ref'] as String?,
   tableRef: json['table_ref'] as String?,
+  guestsCount: (json['guests_count'] as num?)?.toInt(),
   uuid: json['uuid'] as String,
-  waiter: json['waiter'] == null
-      ? null
-      : Waiter7.fromJson(json['waiter'] as Map<String, dynamic>),
   openedBy: (json['opened_by'] as num).toInt(),
   deviceId: (json['device_id'] as num?)?.toInt(),
   bookingId: (json['booking_id'] as num?)?.toInt(),
@@ -35,12 +35,18 @@ Data154 _$Data154FromJson(Map<String, dynamic> json) => Data154(
   billLocked: json['bill_locked'] as bool,
   billRequestedAt: json['bill_requested_at'] as String?,
   notes: json['notes'] as String?,
+  openedAt: json['opened_at'] as String?,
+  updatedAt: json['updated_at'] as String?,
+  subtotal: json['subtotal'] as String,
   items: (json['items'] as List<dynamic>)
       .map((e) => Items27.fromJson(e as Map<String, dynamic>))
       .toList(),
-  updatedAt: json['updated_at'] as String?,
-  subtotal: json['subtotal'] as String,
-  discount: json['discount'] as String,
+  discountKind: json['discount_kind'] == null
+      ? null
+      : DiscountKind.fromJson(json['discount_kind'] as String?),
+  discountValue: json['discount_value'] as String?,
+  discountReason: json['discount_reason'] as String?,
+  discountBy: (json['discount_by'] as num?)?.toInt(),
   serviceChargeAmount: json['service_charge_amount'] as String,
   placeFeeAmount: json['place_fee_amount'] as String,
   roomFeeAmount: json['room_fee_amount'] as String,
@@ -51,7 +57,7 @@ Data154 _$Data154FromJson(Map<String, dynamic> json) => Data154(
       ? null
       : Offline4.fromJson(json['offline'] as Map<String, dynamic>),
   rounds: (json['rounds'] as num).toInt(),
-  openedAt: json['opened_at'] as String?,
+  discount: json['discount'] as String,
 );
 
 Map<String, dynamic> _$Data154ToJson(Data154 instance) => <String, dynamic>{
@@ -81,6 +87,10 @@ Map<String, dynamic> _$Data154ToJson(Data154 instance) => <String, dynamic>{
   'updated_at': instance.updatedAt,
   'subtotal': instance.subtotal,
   'discount': instance.discount,
+  'discount_kind': instance.discountKind,
+  'discount_value': instance.discountValue,
+  'discount_reason': instance.discountReason,
+  'discount_by': instance.discountBy,
   'service_charge_amount': instance.serviceChargeAmount,
   'place_fee_amount': instance.placeFeeAmount,
   'room_fee_amount': instance.roomFeeAmount,

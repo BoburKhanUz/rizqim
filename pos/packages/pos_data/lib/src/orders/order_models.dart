@@ -64,6 +64,24 @@ enum PosChargeKind {
   }
 }
 
+/// Buyurtma chegirmasi turi (`discount_kind`): foiz (qatorlar o'zgarsa qayta hisoblanadi) yoki summa.
+enum PosDiscountKind {
+  percent('percent', 'Foiz'),
+  amount('amount', "So'm");
+
+  const PosDiscountKind(this.wire, this.label);
+
+  final String wire;
+  final String label;
+
+  static PosDiscountKind? fromWire(String? value) {
+    for (final PosDiscountKind k in values) {
+      if (k.wire == value) return k;
+    }
+    return null;
+  }
+}
+
 /// `{id, name, kind}` — buyurtmadagi joy.
 class PosTableRef {
   const PosTableRef({
@@ -120,6 +138,10 @@ class PosOrder {
     this.updatedAt,
     this.subtotal = PosMoney.zero,
     this.discount = PosMoney.zero,
+    this.discountKind,
+    this.discountValue,
+    this.discountReason,
+    this.discountBy,
     this.serviceChargeAmount = PosMoney.zero,
     this.placeFeeAmount = PosMoney.zero,
     this.roomFeeAmount = PosMoney.zero,
@@ -156,6 +178,10 @@ class PosOrder {
     updatedAt: j.dateOrNull('updated_at'),
     subtotal: j.money('subtotal'),
     discount: j.money('discount'),
+    discountKind: PosDiscountKind.fromWire(j.strOrNull('discount_kind')),
+    discountValue: j.strOrNull('discount_value'),
+    discountReason: j.strOrNull('discount_reason'),
+    discountBy: j.intOrNull('discount_by'),
     serviceChargeAmount: j.money('service_charge_amount'),
     placeFeeAmount: j.money('place_fee_amount'),
     roomFeeAmount: j.money('room_fee_amount'),
@@ -212,7 +238,21 @@ class PosOrder {
   final DateTime? openedAt;
   final DateTime? updatedAt;
   final PosMoney subtotal;
+
+  /// Chegirma summasi (butun so'm; foizli chegirmada server har qayta hisoblashda yangilaydi).
   final PosMoney discount;
+
+  /// Chegirma turi (P3-37); chegirma yo'q — `null`.
+  final PosDiscountKind? discountKind;
+
+  /// Kassir kiritgan qiymat: foiz (`"10.00"`) yoki summa (`"50000.00"`).
+  final String? discountValue;
+
+  /// Chegirma sababi.
+  final String? discountReason;
+
+  /// Chegirmani bergan xodim id'si.
+  final int? discountBy;
   final PosMoney serviceChargeAmount;
   final PosMoney placeFeeAmount;
   final PosMoney roomFeeAmount;
@@ -228,6 +268,13 @@ class PosOrder {
   PosChannel? get posChannel => PosChannel.fromWire(channel);
 
   bool get isOpen => status != 'delivered' && status != 'canceled';
+
+  /// Buyurtmada chegirma bor.
+  bool get hasDiscount => discountKind != null || !discount.isZero;
+
+  /// Foizli chegirmaning foizi (`"10.00"`); summa bo'lsa yoki yo'q bo'lsa `null`.
+  String? get discountPercent =>
+      discountKind == PosDiscountKind.percent ? discountValue : null;
 
   /// O'chirilmagan qatorlar.
   Iterable<PosOrderItem> get activeItems =>

@@ -19,7 +19,9 @@ use App\Support\Money;
  * the order as it stands, run after every line, guest, table or discount change (recalculate() stores it on the order):
  *
  *   items             = Σ total_price of the lines that are not void
- *   after discount    = max(0, items − orders.discount)
+ *   discount          = the till's discount (P3-37): a percent of the items, whole so'm, half-up, worked out again
+ *                       with every line change; an amount, never more than the items. Without one, orders.discount
+ *   after discount    = max(0, items − discount)
  *   service charge    = after discount × percent / 100, whole so'm, half-up — the percent of the order's hall
  *                       (service_fee_settings.hall_id), else the branch's, else the store's (DiningFeeCalculator)
  *   place fee         = the same settings' "joy narxi": per guest (× guests, at least 1) or per table
@@ -46,11 +48,11 @@ class PosChargesCalculator
             ->where('kitchen_status', '!=', KitchenItemStatus::VOID->value)
             ->pluck('total_price')
             ->all());
-        $discount = Money::of($order->discount);
-
         if (!$order->channel->isPos()) {
-            return PosCharges::none($items, $discount);
+            return PosCharges::none($items, Money::of($order->discount));
         }
+
+        $discount = self::discountOf($order, $items);
 
         $after = Money::max(Money::zero(), $items->minus($discount));
         $guests = $order->guests_count !== null ? (int) $order->guests_count : null;
@@ -102,6 +104,25 @@ class PosChargesCalculator
     }
 
     /**
+     * The order's discount on $items (P3-37): `percent` → items × value / 100, whole so'm, half-up; `amount` → the
+     * value in whole so'm, at most the items; no kind → orders.discount as stored.
+     */
+    public static function discountOf(Order $order, Money $items): Money
+    {
+        $kind = $order->getAttribute('discount_kind');
+        $value = $order->getAttribute('discount_value');
+        if ($kind === null || $value === null) {
+            return Money::of($order->discount);
+        }
+
+        $discount = $kind === 'percent'
+            ? $items->percent((string) $value, 0)
+            : Money::of((string) $value)->roundTo(0);
+
+        return Money::max(Money::zero(), Money::min($discount, $items));
+    }
+
+    /**
      * compute() and store the result on the order (its subtotal, charge lines and total; no commission on POS
      * channels). The caller holds the order's row lock.
      */
@@ -112,6 +133,7 @@ class PosChargesCalculator
         if ($order->channel->isPos()) {
             $order->forceFill([
                 'subtotal' => $charges->itemsSubtotal->toString(),
+                'discount' => $charges->discount->toString(),
                 'service_charge_amount' => $charges->serviceCharge->toString(),
                 'place_fee_amount' => $charges->placeFee->toString(),
                 'room_fee_amount' => $charges->roomFee->toString(),

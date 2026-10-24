@@ -112,8 +112,9 @@ Tepada xona nomi va zal. Ichida:
 | **Berildi** | Mehmonga berilgan |
 | O'chirilgan | Sabab bilan o'chirilgan (**Sabab:** ...) |
 
-- **Hisob**: **Taomlar**, **Chegirma** (bo'lsa), **Xizmat haqi (10%)**, **Joy narxi**, **Xona puli**, **Jami**. Hamma summani server
-  hisoblaydi; telefon o'zi hisoblamaydi.
+- **Hisob**: **Taomlar**, **Chegirma** (bo'lsa, masalan **Chegirma 10%**), **Xizmat haqi (10%)**, **Joy narxi**, **Xona puli**,
+  **Jami**. Hamma summani server hisoblaydi; telefon o'zi hisoblamaydi. Chegirmani faqat kassir beradi: mehmon chegirma so'rasa,
+  kassirga ayting ([kassa qo'llanmasi](kassa.md#chegirma)).
 - Pastda ikki tugma: **Taom qo'shish** va **Schyot so'rash** (yuborilmagan taom bo'lsa, **Yuborish (N)** ham).
 - Tepada **Yangilash** va menyu (⋮).
 
