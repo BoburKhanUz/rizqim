@@ -13,6 +13,7 @@ import '../../shell/routes.dart';
 import '../billing/cashier_ui.dart';
 import '../billing/receipts.dart';
 import '../billing/tender_form.dart';
+import '../order/order_dialogs.dart';
 import 'booking_form_page.dart';
 import 'preorder_picker.dart';
 
@@ -97,13 +98,29 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
     if (!ok) await _reload();
   }
 
+  /// "Keldi": mehmonlar soni va joy (bron qilingan xona yoki boshqasi) so'raladi, so'ng buyurtma ochiladi.
   Future<void> _arrive() async {
-    setState(() => _busy = true);
     final PosScope scope = _scope;
+    ({int guests, FloorTable? table})? choice;
+    if (_b.status != 'arrived') {
+      choice = await showDialog<({int guests, FloorTable? table})>(
+        context: context,
+        builder: (BuildContext context) => _ArrivalDialog(
+          guests: _b.guestsPlanned ?? 1,
+          roomName: _roomName,
+          bookedTableId: _b.diningTableId,
+          loadFloor: () => scope.data.floor.load(),
+        ),
+      );
+      if (choice == null || !mounted) return;
+    }
+    setState(() => _busy = true);
     String? orderUuid;
     try {
       final PosArrival a = await scope.data.bookings.arrive(
         _b.uuid,
+        guests: choice?.guests,
+        diningTableId: choice?.table?.id,
         version: _b.version,
       );
       orderUuid = a.orderUuid;
@@ -706,6 +723,107 @@ class _DepositDialogState extends State<_DepositDialog> {
           label: 'Avansni olish',
           loading: _busy,
           onPressed: _submit,
+        ),
+      ],
+    );
+  }
+}
+
+/// "Mehmonlar keldi": nechta kishi keldi va qayerga o'tiradi (bron qilingan xona band yoki boshqasi kerak bo'lsa —
+/// boshqa joy).
+class _ArrivalDialog extends StatefulWidget {
+  const _ArrivalDialog({
+    required this.guests,
+    required this.roomName,
+    required this.bookedTableId,
+    required this.loadFloor,
+  });
+
+  final int guests;
+  final String? roomName;
+  final int? bookedTableId;
+  final Future<PosFloor> Function() loadFloor;
+
+  @override
+  State<_ArrivalDialog> createState() => _ArrivalDialogState();
+}
+
+class _ArrivalDialogState extends State<_ArrivalDialog> {
+  late int _guests = widget.guests < 1 ? 1 : widget.guests;
+  FloorTable? _table;
+
+  Future<void> _pickPlace() async {
+    final FloorTable? t = await showMoveDialog(
+      context,
+      loadFloor: widget.loadFloor,
+      currentTableId: _table?.id ?? widget.bookedTableId,
+    );
+    if (t == null || !mounted) return;
+    setState(() => _table = t.id == widget.bookedTableId ? null : t);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final RzColors c = context.rz;
+    final String place = _table?.name ?? widget.roomName ?? 'Bron qilingan joy';
+    return AlertDialog(
+      title: const Text('Mehmonlar keldi'),
+      content: SizedBox(
+        width: 420,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            Text(
+              'Necha kishi keldi',
+              style: RzType.headline.copyWith(color: c.fg),
+            ),
+            const SizedBox(height: 8),
+            GuestsPicker(
+              value: _guests,
+              onChanged: (int v) => setState(() => _guests = v < 1 ? 1 : v),
+            ),
+            const SizedBox(height: 16),
+            Text('Joy', style: RzType.headline.copyWith(color: c.fg)),
+            const SizedBox(height: 4),
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: Text(
+                    _table == null
+                        ? place
+                        : '$place (bron: ${widget.roomName ?? '—'})',
+                    key: const ValueKey<String>('arrival-place'),
+                    style: RzType.body.copyWith(color: c.fg),
+                  ),
+                ),
+                RzButton(
+                  label: 'Boshqa joy',
+                  icon: Icons.swap_horiz_rounded,
+                  variant: RzButtonVariant.secondary,
+                  onPressed: _pickPlace,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+      actions: <Widget>[
+        RzButton(
+          label: 'Bekor qilish',
+          variant: RzButtonVariant.ghost,
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        RzButton(
+          key: const ValueKey<String>('arrival-confirm'),
+          label: 'Buyurtmani ochish',
+          size: RzButtonSize.lg,
+          variant: RzButtonVariant.success,
+          onPressed: () => Navigator.of(context)
+              .pop<({int guests, FloorTable? table})>((
+                guests: _guests,
+                table: _table,
+              )),
         ),
       ],
     );

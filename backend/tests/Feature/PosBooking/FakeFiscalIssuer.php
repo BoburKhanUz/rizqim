@@ -33,6 +33,11 @@ class FakeFiscalIssuer implements FiscalIssuer
         ])['result'];
     }
 
+    public function reissue(FiscalDocument $document): FiscalIssueResult
+    {
+        return $this->issue($document);
+    }
+
     public function recordExternal(FiscalDocument $document, string $provider, array $providerData): FiscalIssueResult
     {
         return $this->issue($document);

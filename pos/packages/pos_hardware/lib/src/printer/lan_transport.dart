@@ -43,11 +43,13 @@ class LanPrinterTransport implements PrinterTransport {
   }
 
   @override
-  Future<void> send(Uint8List bytes) async {
+  Future<void> send(Uint8List bytes) => _write(bytes, checkPaper: true);
+
+  Future<void> _write(Uint8List bytes, {required bool checkPaper}) async {
     final Socket socket = await _connect();
     final _Reader reader = _Reader(socket);
     try {
-      if (checkPaperBeforePrint) {
+      if (checkPaper && checkPaperBeforePrint) {
         final PrinterStatus s = await _query(socket, reader);
         if (s == PrinterStatus.paperOut) {
           throw const PrinterException(
@@ -99,8 +101,10 @@ class LanPrinterTransport implements PrinterTransport {
     }
   }
 
+  /// Kassa qutisi qog'ozga bog'liq emas: qog'oz tugagan printer ham qutini ochadi (tekshiruvsiz yuboriladi).
   @override
-  Future<void> openDrawer(Uint8List kickBytes) => send(kickBytes);
+  Future<void> openDrawer(Uint8List kickBytes) =>
+      _write(kickBytes, checkPaper: false);
 
   @override
   Future<void> close() async {}

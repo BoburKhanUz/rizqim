@@ -19,6 +19,7 @@ class TicketCard extends StatelessWidget {
     required this.settings,
     required this.canManage,
     required this.isNew,
+    this.newRounds = const <int?>{},
     required this.isLineBusy,
     required this.orderBusy,
     required this.onLineTap,
@@ -33,6 +34,9 @@ class TicketCard extends StatelessWidget {
   final KdsSettings settings;
   final bool canManage;
   final bool isNew;
+
+  /// Yaqinda qo'shilgan qatorlari bor bosqichlar: ochiq stolning yangi bosqichi sarlavhasida "Yangi".
+  final Set<int?> newRounds;
   final bool Function(int lineId) isLineBusy;
   final bool orderBusy;
   final void Function(KitchenLine line) onLineTap;
@@ -124,7 +128,13 @@ class TicketCard extends StatelessWidget {
             if (rounds.length > 1 &&
                 (i == 0 ||
                     ticket.lines[i].roundNo != ticket.lines[i - 1].roundNo))
-              _RoundHeading(round: ticket.lines[i].roundNo),
+              _RoundHeading(
+                round: ticket.lines[i].roundNo,
+                // Hamma bosqich yangi (yangi chipta) bo'lsa sarlavhadagi belgi yetarli
+                isNew:
+                    newRounds.contains(ticket.lines[i].roundNo) &&
+                    !rounds.every(newRounds.contains),
+              ),
             _LineRow(
               line: ticket.lines[i],
               busy: isLineBusy(ticket.lines[i].id),
@@ -170,9 +180,10 @@ class TicketCard extends StatelessWidget {
 
 /// Bosqich sarlavhasi (chiptada bir nechta bosqich bo'lsa).
 class _RoundHeading extends StatelessWidget {
-  const _RoundHeading({required this.round});
+  const _RoundHeading({required this.round, this.isNew = false});
 
   final int? round;
+  final bool isNew;
 
   @override
   Widget build(BuildContext context) {
@@ -189,6 +200,7 @@ class _RoundHeading extends StatelessWidget {
               letterSpacing: 0.4,
             ),
           ),
+          if (isNew) ...<Widget>[const SizedBox(width: 8), const NewBadge()],
           const SizedBox(width: 8),
           Expanded(child: Divider(height: 1, color: c.line)),
         ],
@@ -285,25 +297,7 @@ class _Header extends StatelessWidget {
                       ),
                       if (isNew) ...<Widget>[
                         const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: c.info,
-                            borderRadius: BorderRadius.circular(
-                              RzRadius.control,
-                            ),
-                          ),
-                          child: Text(
-                            'Yangi',
-                            style: RzType.footnote.copyWith(
-                              color: c.onInfo,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
+                        const NewBadge(),
                       ],
                     ],
                   ),

@@ -38,6 +38,9 @@ class PosException extends ApiException {
   /// `approval_token` qo'shilsa) — yangi kalit kerak.
   final String? idempotencyKey;
 
+  /// Ekrandagi buyurtma eskirgan: uni (va schyotni) serverdan qayta yuklang ([PosReasons.reloadOrder]).
+  bool get needsOrderReload => PosReasons.reloadOrder.contains(reason);
+
   @override
   String toString() =>
       '$runtimeType($statusCode${reason != null ? ', $reason' : ''}): $message';
@@ -187,6 +190,46 @@ abstract final class PosReasons {
   static const String terminalRequired = 'terminal_required';
   static const String idempotencyKeyRequired = 'idempotency_key_required';
 
+  /// P3-35: o'zgarish to'lovi olingan schyotdagi taom yoki xizmat haqiga tegadi (409; o'chirish, mehmonlar,
+  /// ko'chirish, birlashtirish, xizmat qatori). Hech narsa o'zgarmagan: buyurtmani qayta yuklang, avval to'lovni
+  /// qaytaring.
+  static const String paidBillAffected = 'paid_bill_affected';
+
+  /// P3-35: ikkala buyurtma boshqa-boshqa bronniki — birlashtirib bo'lmaydi (422).
+  static const String mergeBookingsConflict = 'merge_bookings_conflict';
+
+  /// P3-35: smena shu orada (Z bilan) yopildi — to'lov yoki qaytarish yozilmadi (409).
+  static const String shiftClosed = 'shift_closed';
+
+  /// P3-35 qaytarish: avans qismi schyotga ayirilganidan ko'p (409).
+  static const String reverseExceedsApplied = 'reverse_exceeds_applied';
+
+  /// P3-35 qaytarish: nasiya qismi schyotga yozilganidan ko'p (409).
+  static const String reverseExceedsCharge = 'reverse_exceeds_charge';
+
+  /// P3-35 qaytarish: mijoz nasiyani qisman to'lagan, qolgan qarz qaytarishdan kam (409).
+  static const String moreThanDebt = 'more_than_debt';
+
+  /// P3-35 qaytarish: nasiya to'lovining hisobi topilmadi (409).
+  static const String accountUnknown = 'account_unknown';
+
+  /// Rad etilgan amaldan keyin buyurtma (va schyot) serverdan qayta yuklanadi: ekrandagi ko'rinish eskirgan.
+  static const Set<String> reloadOrder = <String>{
+    versionConflict,
+    'order_closed',
+    'order_changed',
+    paidBillAffected,
+  };
+
+  /// Bu sabablarda ilovaning o'z matni server matnidan ustun (kassada nima qilishni aniq aytadi). Summa aytadigan
+  /// sabablarda (`reverse_exceeds_*`, `more_than_debt`) server matni qoladi.
+  static const Set<String> clientWorded = <String>{
+    paidBillAffected,
+    mergeBookingsConflict,
+    shiftClosed,
+    accountUnknown,
+  };
+
   /// Tasdiq rad etilganini bildiruvchi sabablar ([PosApprovalRejected]).
   static const Set<String> approvalRejections = <String>{
     approvalInvalid,
@@ -255,6 +298,20 @@ abstract final class PosReasons {
     'invalid_transition': "Bron holatini bunday o'zgartirib bo'lmaydi.",
     'stale_version': "Bron boshqa qurilmada o'zgartirildi. Qayta yuklang.",
     'kitchen_status': "Taom hali oshxonaga yuborilmagan.",
+    paidBillAffected:
+        "Schyotning bir qismi to'langan: bu o'zgarish to'langan taom yoki xizmat haqiga tegadi. Avval o'sha "
+        "to'lovni qaytaring, keyin o'zgartiring. Buyurtma o'zgarmadi.",
+    mergeBookingsConflict: "Ikkala buyurtma ham boshqa-boshqa bronga tegishli: ularni birlashtirib bo'lmaydi.",
+    shiftClosed: "Smena shu orada yopildi: pul olinmadi va qaytarilmadi. Yangi smena oching va amalni qayta bajaring.",
+    reverseExceedsApplied:
+        "Bu schyotga avansdan shuncha ayirilmagan: kamroq summani qaytaring.",
+    reverseExceedsCharge:
+        "Bu schyot nasiyaga shuncha yozilmagan: kamroq summani qaytaring.",
+    moreThanDebt:
+        "Mijoz qarzining bir qismini to'lab bo'lgan: qolgan qarzdan ko'pini qaytarib bo'lmaydi. Farqni menejer "
+        "qo'lda hal qilsin.",
+    accountUnknown:
+        "Nasiya to'lovining hisobi topilmadi: qarzni menejer qo'lda tuzatsin.",
   };
 
   /// [reason] uchun o'zbekcha matn (noma'lum — `null`).

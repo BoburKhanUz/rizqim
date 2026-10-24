@@ -85,6 +85,27 @@ export class FakeFloor {
     return ok(this.tables)
   }
 
+  private createTable(input: Record<string, unknown>): Reply {
+    const hall = this.halls.find((candidate) => candidate.id === Number(input.hall_id))
+    if (!hall) return fail(422, 'The given data was invalid.', { hall_id: ['Zal topilmadi.'] })
+    const layout = (input.layout as Record<string, unknown> | undefined) ?? {}
+    const table: FakeTable = {
+      id: ++this.counter,
+      branch_id: hall.branch_id,
+      hall_id: hall.id,
+      name: String(input.name ?? ''),
+      kind: (input.kind as FakeTable['kind'] | undefined) ?? 'table',
+      seats: (input.seats as number | null | undefined) ?? null,
+      layout: { x: decimal(layout.x), y: decimal(layout.y), w: decimal(layout.w), h: decimal(layout.h) },
+      sort_order: 0,
+      is_active: input.is_active !== false,
+      min_spend: decimal(input.min_spend ?? null),
+      min_spend_mode: (input.min_spend_mode as FakeTable['min_spend_mode'] | undefined) ?? 'per_table',
+    }
+    this.tables.push(table)
+    return created(table)
+  }
+
   private saveTariff(input: Record<string, unknown>, existing: FakeTariff | null): Reply {
     const errors: Record<string, string[]> = {}
     if (!(Number(input.price) >= 0)) errors.price = ["Narx 0 dan kam bo'lmasin."]
@@ -115,6 +136,7 @@ export class FakeFloor {
 
     if (req.method === 'GET' && path === '/v1/owner/halls') return ok(this.halls.filter((hall) => !req.query.branch_id || hall.branch_id === Number(req.query.branch_id)).map((hall) => this.hallView(hall)))
     if (req.method === 'PUT' && path === '/v1/owner/dining-tables/layout') return this.layout(input)
+    if (req.method === 'POST' && path === '/v1/owner/dining-tables') return this.createTable(input)
     if (req.method === 'GET' && path === '/v1/owner/room-tariffs') return ok({ calendar: { branch_id: 1, ...this.calendar }, tariffs: this.tariffs })
     if (req.method === 'POST' && path === '/v1/owner/room-tariffs') return this.saveTariff(input, null)
     if (req.method === 'PUT' && path === '/v1/owner/room-tariffs/calendar') {

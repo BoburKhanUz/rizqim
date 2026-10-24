@@ -37,6 +37,11 @@ KitchenLine line(
   DateTime? voidedAt,
   String unit = 'piece',
   String? variant,
+  int? product,
+  int? category,
+  String? note,
+  List<KitchenModifier> modifiers = const <KitchenModifier>[],
+  DateTime? readyAt,
 }) => KitchenLine(
   id: id,
   productName: name,
@@ -51,6 +56,11 @@ KitchenLine line(
   sentAt: status == 'pending' && fire == 'hold' ? null : (sentAt ?? t0),
   dueAt: dueAt,
   voidedAt: voidedAt,
+  productId: product,
+  categoryId: category,
+  note: note,
+  modifiers: modifiers,
+  readyAt: readyAt,
 );
 
 /// Server clock = [t0] at receipt; the order was accepted 5 minutes before.
@@ -77,6 +87,7 @@ BoardView build(
   DateTime? now,
   KdsSettings settings = const KdsSettings(),
   Map<int, DateTime> voidSeen = const <int, DateTime>{},
+  KitchenStationRoutes routes = const KitchenStationRoutes(),
 }) => buildBoardView(
   tickets: tickets,
   selection: selection,
@@ -86,6 +97,7 @@ BoardView build(
   now: now ?? t0,
   voidSeen: voidSeen,
   voidWindow: const Duration(minutes: 2),
+  routes: routes,
 );
 
 void main() {
@@ -324,6 +336,106 @@ void main() {
     });
   });
 
+  group('a held line without a station (station routes)', () {
+    // osh category 20 -> osh (2); the lamb dish 41 -> mangal (1), whatever its category
+    const KitchenStationRoutes routes = KitchenStationRoutes(
+      products: <int, int>{41: 1},
+      categories: <int, int>{20: 2},
+    );
+    KitchenTicket preorder(Duration dueIn) => ticket(<KitchenLine>[
+      line(
+        7,
+        'Toy oshi',
+        category: 20,
+        status: 'pending',
+        fire: 'hold',
+        dueAt: t0.add(dueIn),
+      ),
+      line(
+        8,
+        "Qo'y kabob",
+        product: 41,
+        category: 20,
+        status: 'pending',
+        fire: 'hold',
+        dueAt: t0.add(dueIn),
+      ),
+    ]);
+    const StationSelection oshOnly = StationSelection(
+      chosen: true,
+      stationIds: <int>{2},
+    );
+    const StationSelection general = StationSelection(
+      chosen: true,
+      general: true,
+    );
+
+    test('is on the screen of the station its dish or category routes to', () {
+      final KitchenTicket t = preorder(const Duration(minutes: 20));
+      final BoardView osh = build(
+        <KitchenTicket>[t],
+        selection: oshOnly,
+        filter: true,
+        routes: routes,
+      );
+      expect(osh.active.single.ticket.lines.single.productName, 'Toy oshi');
+      expect(osh.active.single.ticket.lines.single.stationId, 2);
+      expect(
+        build(
+          <KitchenTicket>[t],
+          selection: general,
+          filter: true,
+          routes: routes,
+        ).active,
+        isEmpty,
+        reason: 'routed lines are not "Umumiy"',
+      );
+      // without routes it is a line without a station: "Umumiy" only
+      expect(
+        build(<KitchenTicket>[t], selection: oshOnly, filter: true).active,
+        isEmpty,
+      );
+    });
+
+    test('its lead time is the routed station kind: 120 min for osh, 30 for mangal', () {
+      final BoardView v = build(<KitchenTicket>[
+        preorder(const Duration(minutes: 100)),
+      ], routes: routes);
+      expect(v.active.single.ticket.lines.single.productName, 'Toy oshi');
+      final QueuedLine q = v.queue.single;
+      expect(q.line.productName, "Qo'y kabob");
+      expect(q.lead, const Duration(minutes: 30));
+      expect(q.station?.name, 'Mangal');
+      // unrouted, the osh would wait for the "other" lead (30 min)
+      expect(
+        build(<KitchenTicket>[preorder(const Duration(minutes: 100))]).queue,
+        hasLength(2),
+      );
+    });
+
+    test(
+      'a sent line or one with its own station keeps the server station',
+      () {
+        final KitchenTicket t = ticket(<KitchenLine>[
+          line(
+            1,
+            'Osh',
+            category: 20,
+            station: 3,
+            status: 'pending',
+            fire: 'hold',
+            dueAt: t0,
+          ),
+          line(2, 'Osh', category: 20, fire: 'hold'),
+        ]);
+        final List<KitchenLine> lines = build(<KitchenTicket>[
+          t,
+        ], routes: routes).active.single.ticket.lines;
+        expect(lines.map((KitchenLine l) => l.stationId), <int?>[3, null]);
+      },
+    );
+  });
+
   group('void', () {
     test(
       'a voided line shows for the window after it was first seen, then goes',
@@ -450,6 +562,48 @@ void main() {
       );
     });
 
+    test('a ticket with only pre-orders on the board waits from their due time, not the room session', () {
+      final KitchenTicket t = ticket(<KitchenLine>[
+        line(
+          7,
+          'Toy oshi',
+          station: 2,
+          status: 'pending',
+          fire: 'hold',
+          dueAt: t0.add(const Duration(minutes: 30)),
+        ),
+      ]);
+      final BoardTicket b = build(<KitchenTicket>[t]).active.single;
+      expect(b.waiting(t0), Duration.zero);
+      expect(
+        b.waiting(t0.add(const Duration(minutes: 40))),
+        const Duration(minutes: 10),
+      );
+    });
+
+    test('an all-ready ticket waits from its last ready line, not the room session', () {
+      final KitchenTicket t = ticket(<KitchenLine>[
+        line(
+          1,
+          'Osh',
+          station: 2,
+          status: 'ready',
+          sentAt: t0.subtract(const Duration(hours: 2)),
+          readyAt: t0.subtract(const Duration(minutes: 6)),
+        ),
+        line(
+          2,
+          'Non',
+          station: 2,
+          status: 'ready',
+          sentAt: t0.subtract(const Duration(hours: 2)),
+          readyAt: t0.subtract(const Duration(minutes: 2)),
+        ),
+      ]);
+      final BoardTicket b = build(<KitchenTicket>[t]).active.single;
+      expect(b.waiting(t0), const Duration(minutes: 2));
+    });
+
     test(
       'an online ticket keeps the server rule and the whole-order button',
       () {
@@ -512,6 +666,41 @@ void main() {
       expect(pendingSkewers(g), 3);
     });
 
+    test('a note or other modifiers keep a row apart; the same ones (in any order) merge', () {
+      const KitchenModifier onion = KitchenModifier(name: 'Piyoz');
+      const KitchenModifier spicy = KitchenModifier(
+        name: 'Achchiq',
+        groupName: 'Ta\'m',
+      );
+      final List<SkewerGroup> g = groupSkewers(<KitchenLine>[
+        line(1, "Qo'y", station: 1, qty: '4'),
+        line(2, "Qo'y", station: 1, qty: '2', note: 'yaxshi pishgan'),
+        line(
+          3,
+          "Qo'y",
+          station: 1,
+          qty: '3',
+          modifiers: <KitchenModifier>[onion, spicy],
+        ),
+        line(
+          4,
+          "Qo'y",
+          station: 1,
+          qty: '1',
+          modifiers: <KitchenModifier>[spicy, onion],
+        ),
+        line(5, "Qo'y", station: 1, qty: '5', note: ' yaxshi pishgan '),
+      ]);
+      expect(
+        g.map(
+          (SkewerGroup x) => x.lines.map((KitchenLine l) => l.id).join('+'),
+        ),
+        <String>['1', '2+5', '3+4'],
+      );
+      expect(g[1].count, 7);
+      expect(g[0].bumpable.map((KitchenLine l) => l.id), <int>[1]);
+    });
+
     test('variants stay apart, weighed dishes are never merged', () {
       final List<SkewerGroup> g = groupSkewers(<KitchenLine>[
         line(1, 'Kabob', station: 1, qty: '2', variant: 'katta'),
@@ -525,14 +714,15 @@ void main() {
     });
 
     test('a held row without a due time is flagged and not bumpable; with one it can be ready early', () {
+      // a held line has no station yet (the server writes it when the line is sent)
       final List<SkewerGroup> g = groupSkewers(<KitchenLine>[
-        line(1, "Qo'y", station: 1, status: 'pending', fire: 'hold'),
+        line(1, "Qo'y", status: 'pending', fire: 'hold'),
       ]);
       expect(g.single.held, isTrue);
       expect(g.single.bumpable, isEmpty);
       // P3-26: a pre-order with its due time may be marked ready before it is sent
       final List<SkewerGroup> due = groupSkewers(<KitchenLine>[
-        line(1, "Qo'y", station: 1, status: 'pending', fire: 'hold', dueAt: t0),
+        line(1, "Qo'y", status: 'pending', fire: 'hold', dueAt: t0),
       ]);
       expect(due.single.held, isFalse);
       expect(due.single.bumpable, hasLength(1));

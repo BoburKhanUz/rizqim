@@ -3,107 +3,79 @@ import 'package:pos_data/pos_data.dart';
 
 import '../billing/cashier_ui.dart';
 
-/// X/Z hisobotining to'liq o'qilishi (`report` / `summary`, docs/API.md "Smena, kassa, X va Z"): ekranda ko'rsatish va
-/// `pos_core` [ShiftReport] ga aylantirish.
+/// X/Z hisobotining ekrandagi va chop etiladigan ko'rinishi (`report` / `summary`, docs/API.md "Smena, kassa, X va Z";
+/// tiplangan [PosShiftReport] dan) va `pos_core` [ShiftReport] ga aylantirish.
 class ShiftReportView {
-  ShiftReportView(this.report) : _j = PosJson(report.raw);
+  ShiftReportView(this.report);
 
   final PosShiftReport report;
-  final PosJson _j;
 
-  PosJson _obj(String key) =>
-      _j.objOrNull(key) ?? const PosJson(<String, Object?>{});
+  PosShiftSales get _sales => report.sales;
+  PosShiftCash get _cash => report.cash;
 
-  PosJson get sales => _obj('sales');
-  PosJson get cash => _obj('cash');
-
-  PosMoney get received => sales.money('received');
-  PosMoney get refunded => sales.money('refunded');
-  PosMoney get net => sales.money('net');
-  int get bills => sales.intOrNull('bills') ?? 0;
-  PosMoney get billsTotal => sales.money('bills_total', fallback: received);
-  PosMoney get averageBill => sales.money('average_bill');
-  PosMoney get roomFee => sales.money('room_fee');
-  PosMoney get serviceCharge => sales.money('service_charge');
-  PosMoney get discount =>
-      _obj('discounts').money('amount', fallback: sales.money('discount'));
-  int get voidsCount => _obj('voids').intOrNull('count') ?? 0;
-  PosMoney get voidsAmount => _obj('voids').money('amount');
-  int get refundsCount => _obj('refunds').intOrNull('count') ?? 0;
+  PosMoney get received => report.received;
+  PosMoney get refunded => report.refunded;
+  PosMoney get net => report.net;
+  int get bills => report.bills;
+  PosMoney get billsTotal => _sales.billsTotal;
+  PosMoney get averageBill => _sales.averageBill;
+  PosMoney get roomFee => _sales.roomFee;
+  PosMoney get serviceCharge => _sales.serviceCharge;
+  PosMoney get discount => report.discounts.amount.isZero
+      ? _sales.discount
+      : report.discounts.amount;
+  int get voidsCount => report.voids.count;
+  PosMoney get voidsAmount => report.voids.amount;
+  int get refundsCount => report.refunds.count;
 
   /// To'lov turi → (soni, summa).
   List<({String tender, int count, PosMoney amount})> get byTender =>
       <({String tender, int count, PosMoney amount})>[
-        for (final PosJson t in _j.objects('by_tender', (PosJson x) => x))
-          (
-            tender: t.str('tender'),
-            count: t.intOrNull('count') ?? 0,
-            amount: t.money('amount'),
-          ),
+        for (final PosReportRow t in report.tenders)
+          (tender: t.key, count: t.count, amount: t.amount),
       ];
 
   /// Karta turlari.
   List<({String type, PosMoney amount})> get cards =>
       <({String type, PosMoney amount})>[
-        for (final PosJson t in _j.objects('cards', (PosJson x) => x))
-          (
-            type: t.strOrNull('card_type') ?? t.strOrNull('type') ?? 'other',
-            amount: t.money('amount'),
-          ),
+        for (final PosReportRow t in report.cards)
+          (type: t.key, amount: t.amount),
       ];
 
   List<({String channel, int orders, PosMoney amount})> get byChannel =>
       <({String channel, int orders, PosMoney amount})>[
-        for (final PosJson t in _j.objects('by_channel', (PosJson x) => x))
-          (
-            channel: t.str('channel'),
-            orders: t.intOrNull('orders') ?? 0,
-            amount: t.money('amount'),
-          ),
+        for (final PosReportRow t in report.byChannel)
+          (channel: t.key, orders: t.count, amount: t.amount),
       ];
 
   List<({String name, PosMoney amount, PosMoney service})> get byWaiter =>
       <({String name, PosMoney amount, PosMoney service})>[
-        for (final PosJson t in _j.objects('by_waiter', (PosJson x) => x))
+        for (final PosWaiterTotal t in report.byWaiter)
           (
-            name: t.strOrNull('name') ?? 'Ofitsiantsiz',
-            amount: t.money('amount'),
-            service: t.money('service_charge'),
+            name: t.name ?? 'Ofitsiantsiz',
+            amount: t.amount,
+            service: t.serviceCharge,
           ),
       ];
 
-  PosJson get _deposits => _obj('deposits');
-  PosMoney get depositsTaken =>
-      (_deposits.objOrNull('taken') ?? const PosJson(<String, Object?>{}))
-          .money('amount');
-  PosMoney get depositsApplied =>
-      (_deposits.objOrNull('applied') ?? const PosJson(<String, Object?>{}))
-          .money('amount');
-  PosMoney get depositsRefunded =>
-      (_deposits.objOrNull('refunded') ?? const PosJson(<String, Object?>{}))
-          .money('amount');
+  PosMoney get depositsTaken => report.deposits.taken.amount;
+  PosMoney get depositsApplied => report.deposits.applied.amount;
+  PosMoney get depositsRefunded => report.deposits.refunded.amount;
 
-  PosJson get _credit => _obj('credit');
-  PosMoney get creditSales =>
-      (_credit.objOrNull('sales') ?? const PosJson(<String, Object?>{})).money(
-        'amount',
-      );
-  PosMoney get creditRepayments =>
-      (_credit.objOrNull('repayments') ?? const PosJson(<String, Object?>{}))
-          .money('amount');
+  PosMoney get creditSales => report.credit.sales.amount;
+  PosMoney get creditRepayments => report.credit.repayments.amount;
 
-  PosMoney get openingCash => cash.money('opening');
-  PosMoney get cashSales => cash.money('sales');
-  PosMoney get cashRefunds => cash.money('refunds');
-  PosMoney get cashIn => cash.money('cash_in');
-  PosMoney get cashOut => cash.money('cash_out');
-  PosMoney get wages => cash.money('wages');
-  PosMoney get purchases => cash.money('purchases');
-  PosMoney get cashDeposits => cash.money('deposits');
-  PosMoney get cashDepositRefunds => cash.money('deposit_refunds');
-  PosMoney get cashRepayments => cash.money('repayments');
-  PosMoney get expectedCash =>
-      cash.money('expected', fallback: report.expectedCash);
+  PosMoney get openingCash => _cash.opening;
+  PosMoney get cashSales => _cash.sales;
+  PosMoney get cashRefunds => _cash.refunds;
+  PosMoney get cashIn => _cash.cashIn;
+  PosMoney get cashOut => _cash.cashOut;
+  PosMoney get wages => _cash.wages;
+  PosMoney get purchases => _cash.purchases;
+  PosMoney get cashDeposits => _cash.deposits;
+  PosMoney get cashDepositRefunds => _cash.depositRefunds;
+  PosMoney get cashRepayments => _cash.repayments;
+  PosMoney get expectedCash => report.expectedCash;
 
   /// `pos_core` hujjati (chop etish uchun). [counted] va [denominations] — Z uchun.
   ShiftReport toDocument({

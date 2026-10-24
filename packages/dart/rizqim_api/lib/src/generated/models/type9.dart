@@ -6,10 +6,37 @@ import 'package:json_annotation/json_annotation.dart';
 
 @JsonEnum()
 enum Type9 {
-  @JsonValue('percentage')
-  percentage('percentage'),
-  @JsonValue('fixed')
-  fixed('fixed'),
+  /// Incorrect name has been replaced. Original name: `order.open`.
+  @JsonValue('order.open')
+  undefined0('order.open'),
+
+  /// Incorrect name has been replaced. Original name: `order.round`.
+  @JsonValue('order.round')
+  undefined1('order.round'),
+
+  /// Incorrect name has been replaced. Original name: `order.send`.
+  @JsonValue('order.send')
+  undefined2('order.send'),
+
+  /// Incorrect name has been replaced. Original name: `order.void`.
+  @JsonValue('order.void')
+  undefined3('order.void'),
+
+  /// Incorrect name has been replaced. Original name: `order.served`.
+  @JsonValue('order.served')
+  undefined4('order.served'),
+
+  /// Incorrect name has been replaced. Original name: `bill.create`.
+  @JsonValue('bill.create')
+  undefined5('bill.create'),
+
+  /// Incorrect name has been replaced. Original name: `bill.pay`.
+  @JsonValue('bill.pay')
+  undefined6('bill.pay'),
+
+  /// Incorrect name has been replaced. Original name: `order.close`.
+  @JsonValue('order.close')
+  undefined7('order.close'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

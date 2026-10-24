@@ -62,7 +62,10 @@ class OrderController extends ChangeNotifier {
   PosRefreshScheduler? _scheduler;
   StreamSubscription<PosCatalog>? _catalogSub;
   Timer? _retry;
-  final Map<String, String> _retryKeys = <String, String>{};
+
+  /// Tarmoq xatosida javobi kelmagan amallar: kaliti va yuborilgan versiyasi (amal turi va tanasi bo'yicha).
+  final Map<String, ({String key, int version})> _retryKeys =
+      <String, ({String key, int version})>{};
   bool _disposed = false;
 
   PosSession get session => data.session;
@@ -205,7 +208,7 @@ class OrderController extends ChangeNotifier {
     PosFireMode mode,
   ) {
     final String sig =
-        'round:${order?.version}:${mode.wire}:${jsonEncode(<Object?>[for (final PosLineInput l in lines) l.toJson()])}';
+        'round:${mode.wire}:${jsonEncode(<Object?>[for (final PosLineInput l in lines) l.toJson()])}';
     return _change(
       approving,
       sig,
@@ -227,7 +230,7 @@ class OrderController extends ChangeNotifier {
   /// Yuborilmagan hamma `now` qatorlarni oshxonaga.
   Future<bool> sendPending(Approving approving) => _change(
     approving,
-    'send:${order?.version}',
+    'send',
     (String? token, int version, String? key) => data.orders.send(
       uuid,
       version: version,
@@ -240,7 +243,7 @@ class OrderController extends ChangeNotifier {
   /// Bitta (masalan, ushlab turilgan) qatorni oshxonaga.
   Future<bool> sendLine(Approving approving, int itemId) => _change(
     approving,
-    'send:${order?.version}:$itemId',
+    'send:$itemId',
     (String? token, int version, String? key) => data.orders.send(
       uuid,
       version: version,
@@ -254,7 +257,7 @@ class OrderController extends ChangeNotifier {
   /// Taom mehmonga berildi.
   Future<bool> markServed(Approving approving, int itemId) => _change(
     approving,
-    'served:${order?.version}:$itemId',
+    'served:$itemId',
     (String? token, int version, String? key) => data.orders.markServed(
       uuid,
       itemId,
@@ -272,7 +275,7 @@ class OrderController extends ChangeNotifier {
     for (final int id in ids) {
       final bool ok = await _change(
         approving,
-        'served:${order?.version}:$id',
+        'served:$id',
         (String? token, int version, String? key) => data.orders.markServed(
           uuid,
           id,
@@ -291,7 +294,7 @@ class OrderController extends ChangeNotifier {
   /// Yuborilmagan qatorni o'chirish (yuborilganini faqat kassir/menejer o'chiradi).
   Future<bool> voidPending(Approving approving, int itemId) => _change(
     approving,
-    'void:${order?.version}:$itemId',
+    'void:$itemId',
     (String? token, int version, String? key) => data.orders.voidItem(
       uuid,
       itemId,
@@ -304,7 +307,7 @@ class OrderController extends ChangeNotifier {
 
   Future<bool> setGuests(Approving approving, int guests) => _change(
     approving,
-    'guests:${order?.version}:$guests',
+    'guests:$guests',
     (String? token, int version, String? key) => data.orders.setGuests(
       uuid,
       version: version,
@@ -317,7 +320,7 @@ class OrderController extends ChangeNotifier {
 
   Future<bool> moveTo(Approving approving, int tableId) => _change(
     approving,
-    'move:${order?.version}:$tableId',
+    'move:$tableId',
     (String? token, int version, String? key) => data.orders.move(
       uuid,
       version: version,
@@ -337,17 +340,20 @@ class OrderController extends ChangeNotifier {
     busy = true;
     lastError = null;
     _notify();
-    final String sig = 'bill:${current.version}';
+    const String sig = 'bill';
+    final ({String key, int version})? retry = _retryKeys[sig];
+    final int version = retry?.version ?? current.version;
     try {
       final PosOrder next = await approving<PosOrder>(
         (String? token) => _remembering(
           sig,
           token,
+          version,
           () => data.orders.requestBill(
             uuid,
-            version: current.version,
+            version: version,
             approvalToken: token,
-            idempotencyKey: token == null ? _retryKeys[sig] : null,
+            idempotencyKey: token == null ? retry?.key : null,
           ),
         ),
       );
@@ -356,6 +362,7 @@ class OrderController extends ChangeNotifier {
       onNotice?.call("Schyot so'raldi: kassir uni chiqaradi.");
       return true;
     } on Object catch (e) {
+      _forgetUnlessLost(sig, e);
       await _handleFailure(e);
       return false;
     } finally {
@@ -377,24 +384,34 @@ class OrderController extends ChangeNotifier {
     busy = true;
     lastError = null;
     _notify();
+    // The same action again after a lost answer: the very same request (key, version, body), so the server answers
+    // it once whether the first one reached it or not; a newer version would make it a new request (applied twice)
+    final ({String key, int version})? retry = _retryKeys[signature];
+    final int version = retry?.version ?? current.version;
     try {
       final PosOrder next = await approving<PosOrder>(
         (String? token) => _remembering(
           signature,
           token,
-          () => call(
-            token,
-            current.version,
-            token == null ? _retryKeys[signature] : null,
-          ),
+          version,
+          () => call(token, version, token == null ? retry?.key : null),
         ),
       );
       _retryKeys.remove(signature);
       order = next;
-      if (next.billLocked) billStale = true;
+      if (retry != null) {
+        // A replayed answer may be older than what the poll has shown since
+        try {
+          order = await data.orders.get(uuid);
+        } on Object {
+          // the replayed one stays until the next poll
+        }
+      }
+      if (order!.billLocked) billStale = true;
       if (success != null) onNotice?.call(success);
       return true;
     } on Object catch (e) {
+      _forgetUnlessLost(signature, e);
       await _handleFailure(e);
       return false;
     } finally {
@@ -403,28 +420,38 @@ class OrderController extends ChangeNotifier {
     }
   }
 
-  /// Tarmoq xatosida amalning kalitini eslab qoladi: shu amal qayta bosilsa o'sha kalit yuboriladi.
+  /// Tarmoq xatosida amalning kaliti va versiyasini eslab qoladi: shu amal qayta bosilsa aynan o'sha so'rov ketadi.
   Future<T> _remembering<T>(
     String signature,
     String? token,
+    int version,
     Future<T> Function() call,
   ) async {
     try {
       return await call();
     } on PosNetworkException catch (e) {
       if (token == null && e.idempotencyKey != null) {
-        _retryKeys[signature] = e.idempotencyKey!;
+        _retryKeys[signature] = (key: e.idempotencyKey!, version: version);
       }
       rethrow;
     }
   }
 
+  /// Server javob berdi (rad etdi, versiya to'qnashuvi...): keyingi urinish yangi so'rov.
+  void _forgetUnlessLost(String signature, Object e) {
+    if (e is! PosNetworkException && e is! PosApprovalCancelled) {
+      _retryKeys.remove(signature);
+    }
+  }
+
   Future<void> _handleFailure(Object e) async {
     if (e is PosApprovalCancelled) return;
-    if (e is PosVersionConflict) {
-      // Boshqa qurilma o'zgartirgan: yangi ko'rinishni olib, amalni qayta bajarishni so'raymiz
+    if (e is PosVersionConflict || e is PosException && e.needsOrderReload) {
+      // Boshqa qurilma o'zgartirgan (P3-35: yoki schyoti to'lana boshlagan): yangi ko'rinishni olib, amalni qayta
+      // bajarishni so'raymiz
       try {
         order = await data.orders.get(uuid);
+        unawaited(_loadBill());
       } on Object {
         // yangilab bo'lmadi: xabar baribir ko'rsatiladi
       }

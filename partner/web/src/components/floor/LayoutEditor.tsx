@@ -9,7 +9,7 @@ import { errorText } from '../management/errors';
 import { FormError, Notice } from '../management/Notice';
 import { Gate } from '../pos/Gate';
 import { labelFor } from '../reports/format';
-import { clampRect, firstFreeSpot, GRID, layoutOf, moveRect, overlappingIds, pixelsToUnits, resizeRect, sameRect, sizeOf, toLayoutInput } from './layoutModel';
+import { clampRect, GRID, hallRects, layoutOf, moveRect, overlappingIds, pixelsToUnits, resizeRect, sameRect, toLayoutInput } from './layoutModel';
 
 interface Place {
   id: number;
@@ -28,11 +28,12 @@ interface Place {
 function placesOf(halls: Hall[]): Place[] {
   const places: Place[] = [];
   for (const hall of halls) {
-    const placed: FloorRect[] = hall.tables.map((table) => layoutOf(table)).filter((rect): rect is FloorRect => rect !== null).map((rect) => clampRect(rect));
+    const rects = hallRects(hall.tables);
+    let next = hall.tables.filter((table) => layoutOf(table) !== null).length;
     for (const table of hall.tables) {
       const saved = layoutOf(table);
-      const rect = saved ? clampRect(saved) : firstFreeSpot(sizeOf(table.kind), placed);
-      if (!saved) placed.push(rect);
+      // hallRects lists the saved rectangles first, then the spots of the unplaced places in their order
+      const rect = saved ? clampRect(saved) : rects[next++]!;
       places.push({ id: table.id, hallId: hall.id, name: table.name, kind: table.kind, seats: table.seats, active: table.is_active, rect, saved });
     }
   }

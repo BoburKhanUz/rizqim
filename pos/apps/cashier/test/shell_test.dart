@@ -36,7 +36,7 @@ void main() {
 
     await tester.tap(find.text('Kamola Karimova'));
     await tester.pumpAndSettle();
-    await typePin(tester, '2468');
+    await typePin(tester, '4827');
 
     // Ish ekrani: yuqori panel va bo'limlar
     expect(find.text('Rohat choyxonasi'), findsOneWidget);

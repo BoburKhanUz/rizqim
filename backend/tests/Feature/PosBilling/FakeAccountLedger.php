@@ -16,6 +16,9 @@ class FakeAccountLedger implements CustomerAccountLedger
     /** @var list<array{account: string, amount: string, bill_uuid: string, approved_by: int}> */
     public array $charges = [];
 
+    /** @var list<array{account: string, amount: string, bill_uuid: string, reference: string, approved_by: int}> */
+    public array $reversals = [];
+
     public function charge(string $accountUuid, Money $amount, string $billUuid, int $approvedByUserId): void
     {
         if ($accountUuid === self::BLOCKED) {
@@ -23,5 +26,10 @@ class FakeAccountLedger implements CustomerAccountLedger
         }
 
         $this->charges[] = ['account' => $accountUuid, 'amount' => $amount->toString(), 'bill_uuid' => $billUuid, 'approved_by' => $approvedByUserId];
+    }
+
+    public function reverse(string $accountUuid, Money $amount, string $billUuid, string $reference, int $approvedByUserId): void
+    {
+        $this->reversals[] = ['account' => $accountUuid, 'amount' => $amount->toString(), 'bill_uuid' => $billUuid, 'reference' => $reference, 'approved_by' => $approvedByUserId];
     }
 }

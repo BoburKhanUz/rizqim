@@ -15,7 +15,7 @@ import 'package:rizqim_ui/rizqim_ui.dart';
 /// Testdagi butun kassa: soxta backend ([FakePosAdapter]), soxta Reverb, xotiradagi omborlar, qo'lda suriladigan soat,
 /// xotiradagi printerlar ([printerFor]: printer id → soxta printer; qayta urinishsiz).
 class CashierHarness {
-  CashierHarness({bool realtime = true}) {
+  CashierHarness({bool realtime = true, SyncStore? offlineStore}) {
     adapter = FakePosAdapter(clock: () => now);
     // Sex printeri testda matn rejimida (rasm rejimi Flutter dvigatelini kutadi)
     for (final Map<String, Object?> p in adapter.state.printers) {
@@ -34,6 +34,7 @@ class CashierHarness {
       client: client,
       settings: settings,
       clock: () => now,
+      offlineStore: offlineStore,
       printing: CashierPrinting(
         printers: PosPrinters(
           queue: PrintQueue(

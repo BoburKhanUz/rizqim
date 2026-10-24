@@ -94,9 +94,24 @@ class VoidedTicket {
   final DateTime seenAt;
 }
 
+/// Sexi yozilmagan, hali yuborilmagan oldindan buyurtma qatori (`hold`): server sexni yuborishda yozadi, shuning uchun
+/// u filial yo'naltirishidan ([routes]: taom, bo'lmasa kategoriya) olinadi. Shunda qator o'z sexi ekranida turadi va
+/// doskaga chiqish vaqti o'sha sex turidan hisoblanadi. Sexi bor yoki yuborilgan qator o'zgarmaydi.
+KitchenLine routedLine(KitchenLine l, KitchenStationRoutes routes) {
+  if (l.stationId != null || l.fireMode != 'hold' || l.sentAt != null) {
+    return l;
+  }
+  final int? station = routes.stationFor(
+    productId: l.productId,
+    categoryId: l.categoryId,
+  );
+  return station == null ? l : l.copyWith(stationId: station);
+}
+
 /// Doskani yig'adi (toza funksiya: controller va testlar bir xil qoidadan foydalanadi).
 ///
-/// * sex tanlovi: faqat tanlangan sexlar (va "Umumiy") qatorlari; [filter] `false` bo'lsa hammasi;
+/// * sex tanlovi: faqat tanlangan sexlar (va "Umumiy") qatorlari; [filter] `false` bo'lsa hammasi; sexsiz ushlab
+///   turilgan qatorning sexi [routes] dan ([routedLine]);
 /// * o'chirilgan qator [voidSeen] dan [voidWindow] davomida ko'rinadi, keyin yo'qoladi;
 /// * ushlab turilgan (`hold`) qator muddati [KdsSettings.leadFor] dan uzoq bo'lsa oldindan buyurtma navbatiga o'tadi,
 ///   yaqinlashganda yoki yuborilganda faol doskaga chiqadi.
@@ -110,6 +125,7 @@ BoardView buildBoardView({
   required Map<int, DateTime> voidSeen,
   required Duration voidWindow,
   Iterable<VoidedTicket> voidedTickets = const <VoidedTicket>[],
+  KitchenStationRoutes routes = const KitchenStationRoutes(),
 }) {
   final Map<int, KitchenStation> byId = <int, KitchenStation>{
     for (final KitchenStation s in stations ?? const <KitchenStation>[])
@@ -130,7 +146,10 @@ BoardView buildBoardView({
 
   for (final KitchenTicket t in tickets) {
     final List<KitchenLine> shown = <KitchenLine>[];
-    for (final KitchenLine l in t.lines) {
+    var routed = false;
+    for (final KitchenLine raw in t.lines) {
+      final KitchenLine l = routedLine(raw, routes);
+      if (!identical(l, raw)) routed = true;
       if (!visibleStation(l)) continue;
       if (l.isVoid) {
         final DateTime? seen = voidSeen[l.id];
@@ -167,7 +186,7 @@ BoardView buildBoardView({
     // Hamma qator mehmonga berilgan: oshxonada ko'riladigan narsa qolmadi (stol yopilguncha doskada turmaydi)
     if (shown.every((KitchenLine l) => l.isServed)) continue;
     _byRound(shown);
-    final KitchenTicket visible = shown.length == t.lines.length
+    final KitchenTicket visible = shown.length == t.lines.length && !routed
         ? t
         : t.copyWith(lines: shown);
     active.add(_boardTicket(visible, t));
@@ -176,9 +195,12 @@ BoardView buildBoardView({
   for (final VoidedTicket v in voidedTickets) {
     final DateTime until = v.seenAt.add(voidWindow);
     if (!until.isAfter(now)) continue;
-    final List<KitchenLine> shown = v.ticket.lines
-        .where(visibleStation)
-        .toList();
+    final List<KitchenLine> shown = <KitchenLine>[
+      for (final KitchenLine raw in v.ticket.lines)
+        if (routedLine(raw, routes) case final KitchenLine l
+            when visibleStation(l))
+          l,
+    ];
     if (shown.isEmpty) continue;
     bound(until);
     active.add(
@@ -220,12 +242,47 @@ BoardTicket _boardTicket(KitchenTicket visible, KitchenTicket full) {
     posOrder: true,
     canMarkOrderReady: false,
     waiting: (DateTime now) {
+      final DateTime server = serverNowAt(visible, now);
+      Duration since(DateTime at) {
+        final Duration d = server.difference(at);
+        return d.isNegative ? Duration.zero : d;
+      }
+
+      // Pishayotgan qator bor: eng eskisi yuborilgandan
       final DateTime? oldest = _oldestCooking(visible);
-      if (oldest == null) return visible.waitingAt(now);
-      final Duration d = serverNowAt(visible, now).difference(oldest);
-      return d.isNegative ? Duration.zero : d;
+      if (oldest != null) return since(oldest);
+      // Faqat oldindan buyurtma (hali yuborilmagan): muddatigacha kechikish yo'q, keyin muddatdan sanaladi
+      final DateTime? due = _earliestHeldDue(visible);
+      if (due != null) return since(due);
+      // Hammasi tayyor (berilishini kutmoqda): oxirgisi tayyor bo'lgandan. Stol ochilganidan emas
+      final DateTime? ready = _latestReady(visible);
+      if (ready != null) return since(ready);
+      return visible.waitingAt(now);
     },
   );
+}
+
+/// Ushlab turilgan (yuborilmagan) qatorlarning eng yaqin muddati.
+DateTime? _earliestHeldDue(KitchenTicket t) {
+  DateTime? earliest;
+  for (final KitchenLine l in t.lines) {
+    final DateTime? due = l.dueAt;
+    if (!l.isHeld || due == null || l.isDone) continue;
+    if (earliest == null || due.isBefore(earliest)) earliest = due;
+  }
+  return earliest;
+}
+
+/// Hamma qator tayyor yoki berilgan bo'lsa, oxirgisi tayyor bo'lgan payt.
+DateTime? _latestReady(KitchenTicket t) {
+  DateTime? latest;
+  for (final KitchenLine l in t.lines) {
+    if (l.isVoid) continue;
+    if (!l.isDone) return null;
+    final DateTime? at = l.readyAt;
+    if (at != null && (latest == null || at.isAfter(latest))) latest = at;
+  }
+  return latest;
 }
 
 /// Eng eski pishayotgan (yuborilgan, tayyor emas) qatorning yuborilgan vaqti.

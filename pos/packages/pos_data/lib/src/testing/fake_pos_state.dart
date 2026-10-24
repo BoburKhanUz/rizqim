@@ -91,8 +91,9 @@ class FakePosState {
     },
   ];
 
-  /// Xodim id → PIN.
-  Map<int, String> pins = <int, String>{3: '2468', 4: '1357', 2: '5926'};
+  /// Xodim id → PIN. Serverdagi qoidaga mos (backend `StaffPinService::weakness`: 1234, 1111, 2468, 1357 kabi
+  /// oddiy kodlar qabul qilinmaydi).
+  Map<int, String> pins = <int, String>{3: '4827', 4: '3691', 2: '5926'};
 
   /// Rol → ruxsatlar (backend `RolePermissions` dagidek).
   Map<String, List<String>> rolePermissions = <String, List<String>>{
@@ -253,7 +254,44 @@ class FakePosState {
   /// aniqlangandan keyin birinchi bo'lib so'raladi; `null` — odatdagi javob.
   FakeResponse? Function(FakeRequest request)? extraRoutes;
 
+  /// P3-31: terminalning o'z tokeni bilan keladigan yo'llar (`POST /pos/sync`, `GET /pos/sync/status`) va xodim
+  /// sessiyasi bilan keladigan sinxronlash yo'llari ([FakeSyncBackend]).
+  FakeResponse? Function(
+    String method,
+    String path,
+    Map<String, String> query,
+    Map<String, Object?> data,
+  )?
+  terminalRoutes;
+  FakeResponse? Function(FakeRequest request)? syncRoutes;
+
   final Map<String, int> _staffTokens = <String, int>{};
+
+  /// P3-31: so'rovni [staffId] xodim nomidan bajaradi (sinxronlashda har amal o'z xodimi bilan keladi).
+  FakeResponse handleAsStaff(
+    int staffId,
+    String method,
+    String path,
+    Object? body, {
+    Map<String, String> query = const <String, String>{},
+    String? idempotencyKey,
+  }) {
+    final String token = 'sync-staff-$staffId';
+    _staffTokens[token] = staffId;
+    try {
+      return handle(
+        method,
+        path,
+        query,
+        body,
+        token,
+        idempotencyKey: idempotencyKey,
+      );
+    } finally {
+      _staffTokens.remove(token);
+    }
+  }
+
   final Map<String, ({String permission, bool used, DateTime expires})>
   _approvals = <String, ({String permission, bool used, DateTime expires})>{};
   final Map<int, int> _wrongPins = <int, int>{};
@@ -548,12 +586,90 @@ class FakePosState {
         });
       }
     }
+    if (!replayIdempotent || method == 'GET' || idempotencyKey == null) {
+      return _dispatch(method, path, query, body, token, idempotencyKey);
+    }
+    // As the server's IdempotencyService: the same key (per actor and route) with the same body gets the first
+    // successful answer again, with another body a 409
+    final String scope = '$token $method $path $idempotencyKey';
+    final String hash = _canonical(_decode(body));
+    final (String, FakeResponse)? seen = _replays[scope];
+    if (seen != null) {
+      if (seen.$1 != hash) {
+        return const FakeResponse(409, <String, Object?>{
+          'success': false,
+          'message': "Bu Idempotency-Key boshqa so'rov uchun ishlatilgan. Yangi so'rov uchun yangi kalit yuboring.",
+          'data': <Object?>[],
+        });
+      }
+      replayed++;
+      return seen.$2;
+    }
+    final FakeResponse r = _dispatch(
+      method,
+      path,
+      query,
+      body,
+      token,
+      idempotencyKey,
+    );
+    if (r.status >= 200 && r.status < 300) {
+      _replays[scope] = (
+        hash,
+        FakeResponse(
+          r.status,
+          jsonDecode(jsonEncode(r.body)),
+          headers: <String, String>{
+            ...r.headers,
+            'Idempotent-Replayed': 'true',
+          },
+        ),
+      );
+    }
+    return r;
+  }
+
+  /// Takroriy kalit bilan kelgan so'rovga eski javob qaytariladi (serverdagidek). O'chirilsa — har so'rov yangi.
+  bool replayIdempotent = true;
+
+  /// Shuncha so'rovga eski javob qaytarildi.
+  int replayed = 0;
+
+  final Map<String, (String, FakeResponse)> _replays =
+      <String, (String, FakeResponse)>{};
+
+  static String _canonical(Object? v) {
+    Object? sorted(Object? x) => x is Map
+        ? <String, Object?>{
+            for (final String k
+                in x.keys.map((Object? k) => '$k').toList()..sort())
+              k: sorted(x[k]),
+          }
+        : x is List
+        ? <Object?>[for (final Object? e in x) sorted(e)]
+        : x;
+    return jsonEncode(sorted(v));
+  }
+
+  FakeResponse _dispatch(
+    String method,
+    String path,
+    Map<String, String> query,
+    Object? body,
+    String? token,
+    String? idempotencyKey,
+  ) {
     final Map<String, Object?> data = _decode(body);
     final String p = path.replaceFirst(RegExp(r'^/api'), '');
 
     // Ulash va terminal
     if (method == 'POST' && p == '/v1/devices/pair') return _pair(data);
     if (p == '/broadcasting/auth') return _channelAuth(token, data);
+    if (p.startsWith('/v1/pos/sync') && token == terminalToken) {
+      if (!paired) return _unauthorized();
+      final FakeResponse? sync = terminalRoutes?.call(method, p, query, data);
+      if (sync != null) return sync;
+    }
     if (p.startsWith('/v1/terminal') || p.contains('/staff-session')) {
       if (!paired || token != terminalToken) return _unauthorized();
       if (method == 'GET' && p == '/v1/terminal/staff') {
@@ -587,6 +703,17 @@ class FakePosState {
       ),
     );
     if (extra != null) return extra;
+    final FakeResponse? sync = syncRoutes?.call(
+      FakeRequest(
+        method: method,
+        path: p,
+        query: query,
+        data: data,
+        member: member,
+        idempotencyKey: idempotencyKey,
+      ),
+    );
+    if (sync != null) return sync;
 
     if (method == 'GET' && p == '/v1/pos/bootstrap') {
       return _ok(_bootstrap(member));
@@ -951,6 +1078,51 @@ class FakePosState {
                 'device_id': deviceUuid,
               },
         'quick_items': quickItems,
+        // P3-31: what the till keeps for the limited mode (the fake's own rules: 10% in the hall, rooms 300 000)
+        'offline': <String, Object?>{
+          'device_prefix': 'K1',
+          'next_local_number': 1,
+          'business_date': _date(now()),
+          'day_type': 'weekday',
+          'fees': <Object?>[
+            <String, Object?>{
+              'hall_id': null,
+              'channel': 'pos_hall',
+              'service_charge_percent': '10.00',
+              'place_fee_amount': '0.00',
+              'place_fee_mode': 'per_person',
+            },
+            <String, Object?>{
+              'hall_id': null,
+              'channel': 'pos_takeaway',
+              'service_charge_percent': '0.00',
+              'place_fee_amount': '0.00',
+              'place_fee_mode': 'per_person',
+            },
+          ],
+          'places': <Object?>[
+            for (final Map<String, Object?> t in tables)
+              <String, Object?>{
+                'table_id': t['id'],
+                'hall_id': t['hall_id'],
+                'room_fee': t['kind'] == 'room' ? '300000.00' : '0.00',
+                'min_spend': '0.00',
+                'min_spend_mode': 'per_table',
+              },
+          ],
+          'guest_items': <Object?>[],
+          'limits': <String, Object?>{
+            'batch_size': 50,
+            'warn_after_minutes': 15,
+            'alert_after_minutes': 120,
+            'max_queued_orders': 500,
+            'menu_max_age_hours': 24,
+            'contact_max_age_hours': 24,
+            'fiscal_warn_hours': <int>[24, 40],
+            'fiscal_limit_hours': 48,
+            'clock_skew_warn_seconds': 300,
+          },
+        },
       };
 
   FakeResponse _catalog(String? channel) {
@@ -1344,6 +1516,14 @@ class FakePosState {
     order['version'] = (order['version']! as int) + 1;
     order['updated_at'] = _iso(now());
     _recompute(order);
+    _itemsChanged(order, change, itemIds);
+  }
+
+  void _itemsChanged(
+    Map<String, Object?> order,
+    String change,
+    List<int> itemIds,
+  ) {
     emit('order.items_changed', <String, Object?>{
       'order': _eventOrder(order),
       'version': order['version'],
@@ -1364,6 +1544,13 @@ class FakePosState {
 
   FakeResponse _open(Map<String, Object?> data, Map<String, Object?> member) {
     final String channel = '${data['channel']}';
+    // The device's own id: a repeat returns the order already opened (as the backend does)
+    final Object? external = data['external_id'];
+    if (external is String) {
+      for (final Map<String, Object?> o in orders.values) {
+        if (o['external_id'] == external) return _ok(o);
+      }
+    }
     final int? tableId = (data['table_id'] as num?)?.toInt();
     if (tableId != null) {
       final Map<String, Object?>? t = tables
@@ -1395,6 +1582,7 @@ class FakePosState {
       waiterId: (data['waiter_id'] as num?)?.toInt(),
       note: data['note'] as String?,
     );
+    if (external is String) order['external_id'] = external;
     final List<Object?> items =
         (data['items'] as List<Object?>?) ?? const <Object?>[];
     for (final Object? i in items) {
@@ -1509,8 +1697,16 @@ class FakePosState {
           }
         }
         order['rounds'] = round;
-        if (data['send'] == true) _sendLines(order, null);
-        _touch(order, 'round_added');
+        final List<int> added = <int>[
+          for (final Map<String, Object?> i in _items(order).skip(before))
+            i['id']! as int,
+        ];
+        final List<int> sent = data['send'] == true
+            ? _sendLines(order, null)
+            : const <int>[];
+        _touch(order, 'round_added', itemIds: added);
+        // P3-35: like the server, a round sent at once also says `sent` (the same version)
+        if (sent.isNotEmpty) _itemsChanged(order, 'sent', sent);
         return _ok(order, message: "Taomlar qo'shildi.");
       case <String>['send']:
         final List<int> sent = _sendLines(

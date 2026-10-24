@@ -1,13 +1,17 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:pos_core/pos_core.dart';
 import 'package:pos_data/pos_data.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
+import '../../shell/approval_dialog.dart';
 import '../../shell/pos_scope.dart';
 import '../billing/cashier_ui.dart';
 
-/// Nasiya hisobini ochish yoki o'zgartirish (`customer_accounts.manage`: ega, menejer): ism, telefon, guruh, limit
-/// (bo'sh — cheksiz, 0 — nasiya yo'q), izoh, "yangi nasiya to'xtatilgan".
+/// Nasiya hisobini ochish yoki o'zgartirish (`customer_accounts.manage`: ega, menejer; kassir — menejer PIN'i bilan,
+/// saqlashda tasdiq oynasi ochiladi): ism, telefon, guruh, limit (bo'sh — cheksiz, 0 — nasiya yo'q), izoh, "yangi nasiya
+/// to'xtatilgan".
 Future<PosCustomerAccount?> showAccountForm(
   BuildContext context, {
   PosCustomerAccount? account,
@@ -51,6 +55,9 @@ class _AccountFormState extends State<AccountForm> {
   bool _busy = false;
   String? _error;
 
+  /// Javobsiz qolgan saqlash: aynan o'zi (kalit, tasdiq) qayta yuboriladi, hisob ikki marta ochilmaydi.
+  final LostRequest _lost = LostRequest();
+
   bool get _queryIsPhone =>
       RegExp(r'^[\d +()-]{4,}$').hasMatch(widget.initialQuery ?? '');
 
@@ -90,10 +97,31 @@ class _AccountFormState extends State<AccountForm> {
     });
     final PosScope scope = PosScope.of(context);
     try {
-      final PosCustomerAccount saved = a == null
-          ? await scope.data.accounts.create(input)
-          : await scope.data.accounts.update(a!.uuid, input);
+      final PosCustomerAccount saved = await _lost.run<PosCustomerAccount>(
+        context,
+        '${a?.uuid}|${jsonEncode(input.toJson())}',
+        (String? token, String? key) => a == null
+            ? scope.data.accounts.create(
+                input,
+                approvalToken: token,
+                idempotencyKey: key,
+              )
+            : scope.data.accounts.update(
+                a!.uuid,
+                input,
+                approvalToken: token,
+                idempotencyKey: key,
+              ),
+      );
       if (mounted) Navigator.pop(context, saved);
+    } on PosApprovalCancelled {
+      // The manager did not confirm: the form stays open
+    } on PosNetworkException {
+      if (mounted) {
+        setState(
+          () => _error = "Aloqa yo'q: saqlandimi, noma'lum. Qayta saqlash xavfsiz — ikki marta yozilmaydi.",
+        );
+      }
     } on PosValidationException catch (e) {
       if (mounted) setState(() => _error = e.firstError);
     } on Object catch (e) {

@@ -56,8 +56,8 @@ abstract class PosBillingApi {
   /// Ask again for a bill's receipt.
   ///
   /// For a bill whose payments cover it but whose sale receipt is not issued ("fiskal kutmoqda": pending or failed):.
-  /// asks the fiscal provider again (same receipt, never a second one); issued: the bill is paid and the order closed.
-  /// when every bill is. Needs pos.take_payment.
+  /// asks the fiscal provider again (same receipt, never a second one; P3-35: a receipt the provider refused is sent.
+  /// again too); issued: the bill is paid and the order closed when every bill is. Needs pos.take_payment.
   ///
   /// [idempotencyKey] - Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer.
   @POST('/v1/pos/bills/{uuid}/fiscal-retry')
@@ -167,13 +167,15 @@ abstract class PosBillingApi {
 
   /// Refund a payment within the shift.
   ///
-  /// Gives back `amount` of a cash, card or QR payment (`payment_uuid`) of a paid bill, taken in the open shift of.
-  /// this terminal (or `shift_uuid`): 409 `refund_outside_shift` for another shift's payment, 422.
-  /// `refund_tender_invalid` for a deposit or nasiya part, 422 `refund_exceeds_payment` beyond what is left of it,.
-  /// 409 `bill_not_fiscalized` before the sale receipt is issued, 409 `not_enough_cash` beyond the drawer's cash.
-  /// `reason` is required. Needs pos.refund, or a manager's `approval_token` for it (403 `approval_required`). Cash.
-  /// leaves the drawer; a REFUND receipt naming the sale receipt is asked for (`fiscal`); the owner is told in.
-  /// Telegram.
+  /// Gives back `amount` of a payment (`payment_uuid`) of a paid bill, taken in the open shift of this terminal (or.
+  /// `shift_uuid`): 409 `refund_outside_shift` for another shift's payment, 422 `refund_tender_invalid` for one that.
+  /// is not a bill's, 422 `refund_exceeds_payment` beyond what is left of it, 409 `bill_not_fiscalized` before the sale.
+  /// receipt is issued, 409 `shift_closed` when the shift closed meanwhile, 409 `not_enough_cash` beyond the drawer's.
+  /// cash. `reason` is required. Needs pos.refund, or a manager's `approval_token` for it (403 `approval_required`).
+  /// Cash leaves the drawer; P3-35: a deposit part (`prepayment`) goes back to the booking's deposit (409.
+  /// `reverse_exceeds_applied`), a nasiya part (`account`) comes off the customer's debt (409 `reverse_exceeds_charge`,.
+  /// `more_than_debt` when it was repaid); neither moves cash. A REFUND receipt naming the sale receipt is asked for.
+  /// (`fiscal`; its payment marked `prepayment` / `credit` for those parts); the owner is told in Telegram.
   ///
   /// [idempotencyKey] - Required: a new UUID per action, the same one when retrying it (428 or 400 without).
   @POST('/v1/pos/refunds')
@@ -221,7 +223,8 @@ abstract class PosBillingApi {
   /// sign-in (the owner or a manager in the web panel or the Mini App) gets the branch's open shifts: `branch_id`.
   /// (default: the caller's own branch; an owner without one names it, else every branch they see is listed in.
   /// `shifts`); `shift`/`report` is then the most recently opened of them. `shifts`: every open shift with its X.
-  /// report (a terminal: just its own). Another store's branch: 404; one the caller does not work in: 403.
+  /// report (a terminal: just its own). Another store's branch: 404; one the caller does not work in: 403. Needs.
+  /// pos.open_shift, pos.close_shift, pos.take_payment or (P3-35, read-only) reports.view.
   ///
   /// [branchId] - A normal sign-in: the branch (default: the caller's own; an owner without one: every branch).
   @GET('/v1/pos/shifts/current')

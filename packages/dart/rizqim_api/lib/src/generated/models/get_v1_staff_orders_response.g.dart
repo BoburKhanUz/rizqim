@@ -12,9 +12,9 @@ GetV1StaffOrdersResponse _$GetV1StaffOrdersResponseFromJson(
   success: json['success'] as bool,
   message: json['message'] as String,
   data: (json['data'] as List<dynamic>)
-      .map((e) => Data177.fromJson(e as Map<String, dynamic>))
+      .map((e) => Data181.fromJson(e as Map<String, dynamic>))
       .toList(),
-  meta: Meta3.fromJson(json['meta'] as Map<String, dynamic>),
+  meta: Meta4.fromJson(json['meta'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1StaffOrdersResponseToJson(

@@ -2,13 +2,30 @@ import 'package:pos_core/pos_core.dart';
 
 import '../http/pos_http.dart';
 import '../json.dart';
+import '../offline/pos_offline.dart';
+import '../offline/sync_models.dart';
 import 'shift_models.dart';
 
 /// Smena, kassa harakatlari, X va Z (docs/API.md, "Smena, kassa, X va Z"). Yupqa qatlam: P3-22 kengaytiradi.
+///
+/// P3-31: cheklangan rejimda (aloqa yo'q yoki oflayn navbat hali serverga yetmagan) smena ochilmaydi, kirim-chiqim
+/// yozilmaydi va smena yopilmaydi (Z): [PosOfflineUnavailable] (docs/POS_SPEC.md 5.4).
 class ShiftRepository {
-  ShiftRepository(this._http);
+  ShiftRepository(this._http, {this.offline});
 
   final PosHttp _http;
+  final PosOffline? offline;
+
+  void _guard(String what) {
+    final PosOffline? o = offline;
+    if (o == null || !o.active) return;
+    throw PosOfflineUnavailable(
+      o.store.hasPending
+          ? "Oflayn navbatda ${o.store.pendingCount} ta amal serverga yetmagan: $what navbat bo'shagach."
+          : "Internet yo'q: $what faqat internet tiklangach.",
+      reason: 'offline_queue_not_empty',
+    );
+  }
 
   static PosShift _shift(Object? data) => PosShift.fromJson(dataObject(data));
 
@@ -20,6 +37,19 @@ class ShiftRepository {
 
   /// `POST /pos/shifts`: shu terminalda smena ochish. Ochiq bo'lsa — [PosConflict] `shift_already_open`.
   Future<PosShift> open({
+    required PosMoney openingCash,
+    String? note,
+    String? idempotencyKey,
+  }) async {
+    _guard('smena ochish');
+    return _open(
+      openingCash: openingCash,
+      note: note,
+      idempotencyKey: idempotencyKey,
+    );
+  }
+
+  Future<PosShift> _open({
     required PosMoney openingCash,
     String? note,
     String? idempotencyKey,
@@ -77,25 +107,47 @@ class ShiftRepository {
     int? employeeId,
     String? approvalToken,
     String? idempotencyKey,
-  }) => _http.mutate(
-    'POST',
-    '/v1/pos/shifts/$shiftUuid/cash-movements',
-    (Object? data) =>
-        PosCashMovement.fromJson(dataObject(data).obj('movement')),
-    idempotencyKey: idempotencyKey,
-    body: <String, Object?>{
-      'type': type.wire,
-      'category': category,
-      'amount': amount.toApiString(),
-      'note': ?note,
-      'employee_id': ?employeeId,
-      'approval_token': ?approvalToken,
-    },
-  );
+  }) async {
+    _guard('kassa kirim-chiqimi');
+    return _http.mutate(
+      'POST',
+      '/v1/pos/shifts/$shiftUuid/cash-movements',
+      (Object? data) =>
+          PosCashMovement.fromJson(dataObject(data).obj('movement')),
+      idempotencyKey: idempotencyKey,
+      body: <String, Object?>{
+        'type': type.wire,
+        'category': category,
+        'amount': amount.toApiString(),
+        'note': ?note,
+        'employee_id': ?employeeId,
+        'approval_token': ?approvalToken,
+      },
+    );
+  }
 
   /// `POST /pos/shifts/{uuid}/close` (Z): [countedBreakdown] — kupyura (so'm) → soni. Ochiq buyurtmalar bo'lsa
   /// [PosConflict] `shift_has_open_orders`; [force] + [reason] bilan majburan (menejer yoki tasdiq).
   Future<PosShift> close(
+    String shiftUuid, {
+    required Map<int, int> countedBreakdown,
+    bool force = false,
+    String? reason,
+    String? approvalToken,
+    String? idempotencyKey,
+  }) async {
+    _guard('smenani yopish (Z)');
+    return _close(
+      shiftUuid,
+      countedBreakdown: countedBreakdown,
+      force: force,
+      reason: reason,
+      approvalToken: approvalToken,
+      idempotencyKey: idempotencyKey,
+    );
+  }
+
+  Future<PosShift> _close(
     String shiftUuid, {
     required Map<int, int> countedBreakdown,
     bool force = false,

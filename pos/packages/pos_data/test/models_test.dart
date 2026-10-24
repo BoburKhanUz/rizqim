@@ -190,6 +190,78 @@ void main() {
       'opening',
       'sale',
     ]);
+    // P3-35: every part of the X/Z report is typed (no reading of raw)
+    final PosShiftReport r = x.report!;
+    expect(r.periodFrom, DateTime.utc(2026, 10, 22, 7, 59, 51));
+    expect(r.periodTo, isNull);
+    expect(r.sales.billsTotal, const PosMoney.som(261100));
+    expect(r.sales.roomFee, const PosMoney.som(150000));
+    expect(r.sales.serviceCharge, const PosMoney.som(10100));
+    expect(r.sales.averageBill, const PosMoney.som(261100));
+    expect(r.tenders.first.key, 'cash');
+    expect(r.tenders.first.count, 1);
+    expect(r.tenders, hasLength(5));
+    expect(r.cards, isEmpty);
+    expect(r.byChannel.single.key, 'pos_hall');
+    expect(r.byChannel.single.count, 1);
+    expect(r.byWaiter.single.waiterId, isNull);
+    expect(r.byWaiter.single.bills, 1);
+    expect(r.byWaiter.single.serviceCharge, const PosMoney.som(10100));
+    expect(r.voids.count, 1);
+    expect(r.voids.amount, const PosMoney.som(80000));
+    expect(r.discounts.count, 0);
+    expect(r.refunds.byMethod, isEmpty);
+    expect(r.deposits.taken.cash, PosMoney.zero);
+    expect(r.credit.repayments.amount, PosMoney.zero);
+    expect(r.cash.opening, const PosMoney.som(100000));
+    expect(r.cash.sales, const PosMoney.som(261100));
+    expect(r.cash.expected, const PosMoney.som(361100));
+    final PosShiftReport full = PosShiftReport.fromJson(
+      const PosJson(<String, Object?>{
+        'cards': <Object?>[
+          <String, Object?>{
+            'card_type': 'humo',
+            'count': 2,
+            'amount': '50000.00',
+          },
+        ],
+        'refunds': <String, Object?>{
+          'count': 1,
+          'amount': '20000.00',
+          'by_method': <Object?>[
+            <String, Object?>{
+              'method': 'cash',
+              'count': 1,
+              'amount': '20000.00',
+            },
+          ],
+        },
+        'deposits': <String, Object?>{
+          'taken': <String, Object?>{
+            'count': 1,
+            'amount': '300000.00',
+            'cash': '300000.00',
+          },
+          'applied': <String, Object?>{'count': 1, 'amount': '200000.00'},
+        },
+        'credit': <String, Object?>{
+          'sales': <String, Object?>{'count': 1, 'amount': '90000.00'},
+          'repayments': <String, Object?>{
+            'count': 1,
+            'amount': '40000.00',
+            'cash': '40000.00',
+          },
+        },
+      }),
+    );
+    expect(full.cards.single.key, 'humo');
+    expect(full.cards.single.count, 2);
+    expect(full.refunds.byMethod.single.amount, const PosMoney.som(20000));
+    expect(full.deposits.taken.cash, const PosMoney.som(300000));
+    expect(full.deposits.applied.amount, const PosMoney.som(200000));
+    expect(full.deposits.refunded.count, 0);
+    expect(full.credit.sales.amount, const PosMoney.som(90000));
+    expect(full.credit.repayments.cash, const PosMoney.som(40000));
 
     expect(
       PosShiftWithReport.fromJson(
@@ -274,5 +346,23 @@ void main() {
       ),
       isNull,
     );
+  });
+
+  test('a cash tender tells what the guest handed over and the change', () {
+    const PosTenderInput cash = PosTenderInput.cash(
+      PosMoney.som(87000),
+      tendered: PosMoney.som(100000),
+    );
+    expect(cash.tendered, const PosMoney.som(100000));
+    expect(cash.change, const PosMoney.som(13000));
+    expect(const PosTenderInput.cash(PosMoney.som(5000)).tendered, isNull);
+    expect(const PosTenderInput.cash(PosMoney.som(5000)).change, PosMoney.zero);
+    const PosTenderInput card = PosTenderInput.card(
+      PosMoney.som(5000),
+      cardType: 'humo',
+      transactionId: '1',
+    );
+    expect(card.tendered, isNull);
+    expect(card.toJson().containsKey('tendered_amount'), isFalse);
   });
 }

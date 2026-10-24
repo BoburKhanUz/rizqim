@@ -58,13 +58,57 @@ class KitchenStation {
   bool get isMangal => kind == StationKind.mangal;
 }
 
+/// Filialning taom -> sex yo'naltirishlari (`/pos/bootstrap` `station_routes`, faqat faol sexlar): taomning o'z
+/// yo'naltirishi, bo'lmasa kategoriyasiniki (backend `KitchenStationRouter` bilan bir qoida).
+class KitchenStationRoutes {
+  const KitchenStationRoutes({
+    this.products = const <int, int>{},
+    this.categories = const <int, int>{},
+  });
+
+  factory KitchenStationRoutes.fromJson(Object? raw) {
+    if (raw is! Map) return const KitchenStationRoutes();
+    Map<int, int> pairs(Object? list, String key) => <int, int>{
+      if (list is List)
+        for (final Object? e in list)
+          if (e is Map && e[key] is num && e['station_id'] is num)
+            (e[key]! as num).toInt(): (e['station_id']! as num).toInt(),
+    };
+    return KitchenStationRoutes(
+      products: pairs(raw['products'], 'product_id'),
+      categories: pairs(raw['categories'], 'category_id'),
+    );
+  }
+
+  /// Taom id -> sex id.
+  final Map<int, int> products;
+
+  /// Kategoriya id -> sex id.
+  final Map<int, int> categories;
+
+  bool get isEmpty => products.isEmpty && categories.isEmpty;
+
+  /// Taom ([productId], kategoriyasi [categoryId]) qaysi sexga boradi; yo'naltirilmagan bo'lsa `null`.
+  int? stationFor({int? productId, int? categoryId}) =>
+      (productId != null ? products[productId] : null) ??
+      (categoryId != null ? categories[categoryId] : null);
+}
+
 /// `GET /pos/bootstrap` dan oshxona ekraniga kerak qismi.
 class KitchenSetup {
-  const KitchenSetup({required this.stations, this.serverTime});
+  const KitchenSetup({
+    required this.stations,
+    this.serverTime,
+    this.routes = const KitchenStationRoutes(),
+  });
 
   /// Faol va KDS'da ko'rsatiladigan sexlar (`sort_order` bo'yicha).
   final List<KitchenStation> stations;
   final DateTime? serverTime;
+
+  /// Taom -> sex yo'naltirishlari: sexi hali yozilmagan qatorni (ushlab turilgan oldindan buyurtma) o'z sexida
+  /// ko'rsatish uchun.
+  final KitchenStationRoutes routes;
 }
 
 /// Qozon (partiya): filialda bir taom (yoki variant) uchun pishirilgan va qolgan porsiyalar.
@@ -188,6 +232,7 @@ class KitchenSetupService {
     return KitchenSetup(
       stations: stations,
       serverTime: _date(data['server_time']),
+      routes: KitchenStationRoutes.fromJson(data['station_routes']),
     );
   }
 

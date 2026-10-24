@@ -20,3 +20,7 @@ workspace:
   - pos/packages/pos_data
   - pos/apps/cashier
   - pos/apps/waiter
+  # P3-31: offline limited mode (durable queue and sync)
+  - pos/packages/pos_sync
+  # P3-33: the POS stack end-to-end test (real Laravel + Reverb through pos_data; scripts/pos-e2e.sh)
+  - e2e/pos

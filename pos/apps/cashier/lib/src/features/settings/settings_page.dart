@@ -9,12 +9,13 @@ import 'package:rizqim_core/rizqim_core.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
 import '../../printing/printing_service.dart';
+import '../../shell/limited_mode.dart';
 import '../../shell/pos_scope.dart';
 import '../../shell/unpair_dialog.dart';
 import '../billing/cashier_ui.dart';
 import 'cashier_prefs.dart';
 
-/// Sozlamalar (13-ekran 17): bootstrap'dagi printerlar (holati, sinov chop etish, xato ishlarni qayta yuborish; shu
+/// Sozlamalar (13-ekran 17; P3-31: menejerga "Sinxronlash xatolari"): bootstrap'dagi printerlar (holati, sinov chop etish, xato ishlarni qayta yuborish; shu
 /// qurilmada qog'oz eni va "matnni rasm sifatida"), yangi onlayn buyurtma ovozi, qurilma ma'lumoti va terminalni uzish.
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -102,6 +103,12 @@ class _SettingsPageState extends State<SettingsPage> {
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: <Widget>[
+          // P3-31: offline operations the server rejected or applied with a difference (managers settle them)
+          if (scope.data.offline != null &&
+              scope.session.can('orders.cancel')) ...<Widget>[
+            const SyncErrorsCard(),
+            const SizedBox(height: 16),
+          ],
           PosCard(
             title: 'Printerlar',
             child: printers.isEmpty

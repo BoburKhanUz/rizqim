@@ -116,7 +116,7 @@ void addOtherWaiter(WaiterHarness h) {
     'role': 'waiter',
     'staff_code': '1005',
   });
-  h.state.pins[otherWaiterId] = '1111';
+  h.state.pins[otherWaiterId] = '7305';
 }
 
 /// [tableId] dagi ochiq buyurtma [waiterId] (standart — Botir, kirgan ofitsiant) nomida. [lines] — (variant, miqdor).

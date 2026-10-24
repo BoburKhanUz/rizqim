@@ -75,7 +75,10 @@ class KitchenService {
               'meta': <String, Object?>{'truncated': false},
             });
         tickets.add(
-          KitchenTicket.fromJson(_plain(one.data.single), receivedAt: now),
+          KitchenTicket.fromJson(
+            _withRawItemFields(_plain(one.data.single), raw),
+            receivedAt: now,
+          ),
         );
       } on Object catch (e) {
         final Object? uuid = raw is Map ? raw['uuid'] : null;
@@ -92,7 +95,35 @@ class KitchenService {
       tickets: tickets,
       truncated: meta is Map && meta['truncated'] == true,
       skipped: skipped,
+      serverTime: parseHttpDate(response.headers.value('date')),
+      receivedAt: now,
     );
+  }
+
+  /// Qatorlarning spetsifikatsiyada (hali) yo'q maydonlari xom javobdan: yaratilgan model ularni tushirib yuboradi.
+  static const List<String> _rawItemFields = <String>[
+    'product_id',
+    'category_id',
+  ];
+
+  static Map<String, Object?> _withRawItemFields(
+    Map<String, Object?> plain,
+    Object? raw,
+  ) {
+    final Object? rawItems = raw is Map ? raw['items'] : null;
+    final Object? items = plain['items'];
+    if (rawItems is! List || items is! List) return plain;
+    for (var i = 0; i < items.length && i < rawItems.length; i++) {
+      final Object? item = items[i];
+      final Object? rawItem = rawItems[i];
+      if (item is! Map || rawItem is! Map || rawItem['id'] != item['id']) {
+        continue;
+      }
+      for (final String key in _rawItemFields) {
+        if (item[key] == null && rawItem[key] != null) item[key] = rawItem[key];
+      }
+    }
+    return plain;
   }
 
   /// `POST /staff/orders/{uuid}/items/{id}/ready`: qator tayyor ("bump"). Yangilangan chiptani qaytaradi. Oxirgi qator
@@ -160,4 +191,37 @@ class KitchenService {
   static Map<String, Object?> _plain(Object generated) =>
       (jsonDecode(jsonEncode(generated)) as Map<Object?, Object?>)
           .cast<String, Object?>();
+}
+
+const List<String> _months = <String>[
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
+
+/// HTTP `Date` sarlavhasi (RFC 7231 IMF-fixdate: `Thu, 22 Oct 2026 07:00:00 GMT`), UTC. O'qilmasa `null`.
+DateTime? parseHttpDate(String? value) {
+  final RegExpMatch? m = RegExp(
+    r'^\s*[A-Za-z]{3},\s+(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})\s+(\d{2}):(\d{2}):(\d{2})\s+GMT\s*$',
+  ).firstMatch(value ?? '');
+  if (m == null) return null;
+  final int month = _months.indexOf(m[2]!) + 1;
+  if (month == 0) return null;
+  return DateTime.utc(
+    int.parse(m[3]!),
+    month,
+    int.parse(m[1]!),
+    int.parse(m[4]!),
+    int.parse(m[5]!),
+    int.parse(m[6]!),
+  );
 }

@@ -75,3 +75,29 @@ String formatCount(num value) {
   final String s = value.toStringAsFixed(3);
   return s.replaceFirst(RegExp(r'0+$'), '').replaceFirst(RegExp(r'\.$'), '');
 }
+
+/// Ko'k "Yangi" belgisi: chipta yoki ochiq stolning bosqichi yaqinda qo'shilgan.
+class NewBadge extends StatelessWidget {
+  const NewBadge({super.key});
+
+  static const String label = 'Yangi';
+
+  @override
+  Widget build(BuildContext context) {
+    final RzColors c = context.rz;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: c.info,
+        borderRadius: BorderRadius.circular(RzRadius.control),
+      ),
+      child: Text(
+        label,
+        style: RzType.footnote.copyWith(
+          color: c.onInfo,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}

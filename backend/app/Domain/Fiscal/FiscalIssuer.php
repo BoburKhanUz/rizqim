@@ -14,6 +14,12 @@ interface FiscalIssuer
     public function issue(FiscalDocument $document): FiscalIssueResult;
 
     /**
+     * As issue(); review P3-35: a receipt registered under the key that the provider refused (`failed`) is sent again
+     * (the same receipt). For a retry someone asked for (the till's "retry", closing the order or the shift).
+     */
+    public function reissue(FiscalDocument $document): FiscalIssueResult;
+
+    /**
      * Records a receipt a payment provider registered itself (Payme SetFiscalData, Click fiscal data).
      *
      * @param  array<string, mixed>  $providerData

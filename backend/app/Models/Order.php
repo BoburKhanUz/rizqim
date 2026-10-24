@@ -56,6 +56,12 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  *
  * P3 integration fix: when the owner was told the hall order is open too long (once per order, R20)
  * @property \Illuminate\Support\Carbon|null $long_open_alerted_at
+ *
+ * P3-31: an order a till sold offline and synced later (App\Domain\Pos\Sync)
+ * @property string|null $local_number
+ * @property \Illuminate\Support\Carbon|null $offline_created_at
+ * @property \Illuminate\Support\Carbon|null $synced_at
+ * @property array<int, array<string, mixed>>|null $sync_flags
  */
 class Order extends Model
 {
@@ -134,6 +140,10 @@ class Order extends Model
             'due_at' => 'datetime',
             // P3 integration fix: the long-open alert (App\Domain\Pos\Orders\PosOrderAlerts)
             'long_open_alerted_at' => 'datetime',
+            // P3-31: offline sales (App\Domain\Pos\Sync): the device's local number, when it opened and reached us, flags
+            'offline_created_at' => 'datetime',
+            'synced_at' => 'datetime',
+            'sync_flags' => 'array',
         ];
     }
 

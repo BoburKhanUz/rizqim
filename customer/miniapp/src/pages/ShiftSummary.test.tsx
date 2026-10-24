@@ -63,7 +63,8 @@ let calls: FakeCall[];
 let open: ReturnType<typeof shift>[];
 let closed: ReturnType<typeof shift>[];
 let client: QueryClient;
-let permission: 'ok' | 'forbidden' | 'down';
+// reportsOnly: a manager with reports.view but no till permission is refused the till route /pos/shifts/current
+let permission: 'ok' | 'forbidden' | 'down' | 'reportsOnly';
 
 beforeEach(() => {
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -76,6 +77,8 @@ beforeEach(() => {
     if (call.path === '/pos/shifts' || call.path === '/pos/shifts/current') {
       if (permission === 'forbidden') return reply(403, { success: false, message: 'Ruxsat etilmagan' });
       if (permission === 'down') return reply(502, {});
+      if (permission === 'reportsOnly' && call.path === '/pos/shifts/current') return reply(403, { success: false, message: 'Ruxsat etilmagan' });
+      if (call.path === '/pos/shifts' && call.query.status === 'open') return success(open);
       // P3-26: the open shifts and their X reports come in one call
       if (call.path === '/pos/shifts/current') {
         const shifts = open.map((item) => ({ shift: item, report: report() }));
@@ -83,6 +86,8 @@ beforeEach(() => {
       }
       return success(closed);
     }
+    const x = /^\/pos\/shifts\/([^/]+)\/x-report$/.exec(call.path);
+    if (x && open.some((item) => item.uuid === x[1])) return success({ shift: open.find((item) => item.uuid === x[1]), report: report() });
     if (call.path === '/pos/shifts/s-closed') return success({ ...closed[0], summary: report({ sales: { bills: 14, net: '3150000.00' } }) });
     return reply(404, { success: false, message: "yo'q" });
   }));
@@ -185,6 +190,19 @@ describe('ShiftSummary', () => {
     await flush();
     await afterRetry();
     expect(screen.getByRole('button', { name: /Qayta urinish/i })).toBeInTheDocument();
+  });
+
+  it('shows the open shifts from the list for a manager who is refused the till route', async () => {
+    permission = 'reportsOnly';
+    open = [shift(), shift({ uuid: 's-open-2', device: { uuid: 'd2', name: 'Kassa 2' } })];
+    manager();
+    renderPage();
+    await flush();
+    expect(screen.queryByText('Ruxsat etilmagan')).not.toBeInTheDocument();
+    expect(within(screen.getByRole('group', { name: 'Ochiq smena: Kassa 1' })).getByText("1 400 000 so'm")).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Ochiq smena: Kassa 2' })).toBeInTheDocument();
+    expect(within(screen.getByRole('group', { name: 'Oxirgi Z hisobot' })).getByText('Z № 12')).toBeInTheDocument();
+    expect(callsTo(calls, '/pos/shifts').map((call) => call.query.status).sort()).toEqual(['closed', 'open']);
   });
 
   it('speaks Russian when the app does', async () => {

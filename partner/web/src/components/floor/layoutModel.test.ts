@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clampRect, DEFAULT_SIZE, firstFreeSpot, GRID, layoutOf, moveRect, overlappingIds, overlaps, pixelsToUnits, resizeRect, sameRect, sizeOf } from './layoutModel';
+import { clampRect, DEFAULT_SIZE, firstFreeSpot, GRID, hallRects, layoutOf, moveRect, overlappingIds, overlaps, pixelsToUnits, resizeRect, sameRect, sizeOf, spotForNewPlace } from './layoutModel';
 
 describe('clampRect', () => {
   it('keeps a place inside the grid and at least one cell big', () => {
@@ -79,5 +79,20 @@ describe('firstFreeSpot', () => {
   it('has a size for every kind and a default for an unknown one', () => {
     expect(sizeOf('room')).toEqual({ w: 5, h: 4 });
     expect(sizeOf('whatever')).toEqual(DEFAULT_SIZE.table);
+  });
+});
+
+describe('a new place', () => {
+  const at = (x: number, y: number, w: number, h: number) => ({ x: String(x), y: String(y), w: String(w), h: String(h) });
+  const none = { x: null, y: null, w: null, h: null };
+
+  it("goes to the first spot free of the hall's places, saved or drawn in their first free spot", () => {
+    const tables = [{ kind: 'room', layout: at(0, 0, 5, 4) }, { kind: 'tapchan', layout: none }];
+    expect(hallRects(tables)).toEqual([{ x: 0, y: 0, w: 5, h: 4 }, { x: 5, y: 0, w: 4, h: 3 }]);
+    expect(spotForNewPlace('table', tables)).toEqual({ x: 9, y: 0, w: 2, h: 2 });
+  });
+
+  it('starts at the top-left of an empty hall, sized by its kind', () => {
+    expect(spotForNewPlace('room', [])).toEqual({ x: 0, y: 0, ...DEFAULT_SIZE.room });
   });
 });

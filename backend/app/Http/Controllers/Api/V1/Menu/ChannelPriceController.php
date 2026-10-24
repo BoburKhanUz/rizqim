@@ -94,6 +94,8 @@ class ChannelPriceController extends MenuStaffController
             foreach ($rows as $row) {
                 ChannelPrice::create($row);
             }
+            // Review P3-35: an override removed (no row comes back) changes the POS price too
+            app(\App\Services\Catalog\PriceHistory::class)->recordProduct((int) $product->id);
         });
 
         $after = $this->rows($product->id);

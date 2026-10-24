@@ -27,6 +27,8 @@ class MenuBatch extends Model
     protected $casts = [
         'quantity_produced' => 'decimal:3',
         'quantity_left' => 'decimal:3',
+        // P3-31: sold offline beyond what was left (quantity_left stays at zero)
+        'oversold_quantity' => 'decimal:3',
         'started_at' => 'datetime',
         'sold_out_at' => 'datetime',
         'closed_at' => 'datetime',

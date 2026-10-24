@@ -63,6 +63,8 @@ class KitchenLine {
     this.note,
     this.voidedAt,
     this.voidReason,
+    this.productId,
+    this.categoryId,
   });
 
   factory KitchenLine.fromJson(Map<String, Object?> json) => KitchenLine(
@@ -84,6 +86,8 @@ class KitchenLine {
     note: json['note'] as String?,
     voidedAt: _date(json['voided_at']),
     voidReason: json['void_reason'] as String?,
+    productId: (json['product_id'] as num?)?.toInt(),
+    categoryId: (json['category_id'] as num?)?.toInt(),
   );
 
   final int id;
@@ -121,6 +125,11 @@ class KitchenLine {
   final DateTime? voidedAt;
   final String? voidReason;
 
+  /// Taom va uning kategoriyasi (POS qatori, server bersa): sexsiz ushlab turilgan qatorning sexini filial
+  /// yo'naltirishlaridan ([KitchenStationRoutes]) topish uchun.
+  final int? productId;
+  final int? categoryId;
+
   bool get isReady => status == KitchenLineStatus.ready;
 
   bool get isServed => status == KitchenLineStatus.served;
@@ -157,6 +166,9 @@ class KitchenLine {
     DateTime? readyAt,
     DateTime? voidedAt,
     String? voidReason,
+    int? stationId,
+    int? productId,
+    int? categoryId,
   }) => KitchenLine(
     id: id,
     productName: productName,
@@ -169,13 +181,15 @@ class KitchenLine {
     readyAt: readyAt ?? this.readyAt,
     roundNo: roundNo,
     fireMode: fireMode,
-    stationId: stationId,
+    stationId: stationId ?? this.stationId,
     sentAt: sentAt,
     dueAt: dueAt,
     seatNo: seatNo,
     note: note,
     voidedAt: voidedAt ?? this.voidedAt,
     voidReason: voidReason ?? this.voidReason,
+    productId: productId ?? this.productId,
+    categoryId: categoryId ?? this.categoryId,
   );
 }
 
@@ -319,7 +333,15 @@ class KitchenTicketList {
     required this.tickets,
     this.truncated = false,
     this.skipped = const <KitchenTicketSkip>[],
+    this.serverTime,
+    this.receivedAt,
   });
+
+  /// Javobning `Date` sarlavhasi (server soati, soniya aniqligida); sarlavha yo'q yoki o'qilmasa `null`.
+  final DateTime? serverTime;
+
+  /// Javob qurilmaga kelgan payt (qurilma soati): [serverTime] bilan farqi — server soati ofseti.
+  final DateTime? receivedAt;
 
   final List<KitchenTicket> tickets;
 

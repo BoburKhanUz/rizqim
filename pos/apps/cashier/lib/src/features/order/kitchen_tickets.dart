@@ -152,6 +152,14 @@ class KitchenPrintIssues extends ChangeNotifier {
   static KitchenPrintIssues of(CashierPrinting printing) =>
       _byPrinting[printing] ??= KitchenPrintIssues._();
 
+  static final Expando<KitchenPrintIssues> _receiptsByPrinting =
+      Expando<KitchenPrintIssues>();
+
+  /// Chek printeriga ketgan hujjatlar (sotuv, qaytarish, schyot, hisobot): qog'oz tugasa yoki printer javob bermasa
+  /// ish ekranlarida banner ko'rinadi (sotuv cheki "jim" yo'qolmasin).
+  static KitchenPrintIssues receiptsOf(CashierPrinting printing) =>
+      _receiptsByPrinting[printing] ??= KitchenPrintIssues._();
+
   final Map<String, PrintJob> _failed = <String, PrintJob>{};
   final Set<String> _watched = <String>{};
   final List<String> _renderErrors = <String>[];
@@ -218,9 +226,16 @@ class KitchenPrintIssues extends ChangeNotifier {
 
 /// "Marka chop etilmadi" banneri: sotuvni to'xtatmaydi, "Qayta urinish" va "Yopish" bilan.
 class KitchenPrintBanner extends StatelessWidget {
-  const KitchenPrintBanner({super.key, required this.issues});
+  const KitchenPrintBanner({
+    super.key,
+    required this.issues,
+    this.title = 'Marka chop etilmadi',
+  });
 
   final KitchenPrintIssues issues;
+
+  /// Sarlavha (soni qavsda qo'shiladi).
+  final String title;
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -249,7 +264,7 @@ class KitchenPrintBanner extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: <Widget>[
                       Text(
-                        'Marka chop etilmadi (${lines.length})',
+                        '$title (${lines.length})',
                         style: RzType.headline.copyWith(color: c.warningSoftFg),
                       ),
                       for (final String l in lines.take(3))

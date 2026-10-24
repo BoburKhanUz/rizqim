@@ -3,14 +3,17 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:pos_core/pos_core.dart';
 import 'package:pos_data/pos_data.dart';
+import 'package:pos_hardware/pos_hardware.dart';
 import 'package:rizqim_core/rizqim_core.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
 import '../../shell/approval_dialog.dart';
 import '../../shell/destinations.dart';
 import '../../shell/feature_placeholder.dart';
+import '../../shell/limited_mode.dart';
 import '../../shell/pos_scope.dart';
 import '../../shell/routes.dart';
+import '../order/kitchen_tickets.dart';
 import 'cashier_ui.dart';
 import 'payment_page.dart';
 import 'receipts.dart';
@@ -50,6 +53,9 @@ class _BillingPageState extends State<BillingPage> with RefreshingState {
       startRefreshing(
         _scope.realtime,
         filter: (PosEvent e) => e.orderUuid == widget.orderUuid,
+        offline: _scope.data.offline,
+        orderRef: widget.orderUuid,
+        onSynced: _priceChanged,
       );
       unawaited(refresh());
     }
@@ -91,6 +97,17 @@ class _BillingPageState extends State<BillingPage> with RefreshingState {
     }
   }
 
+  /// P3-35: offlayn sotilgan qator server narxida saqlandi: schyot jami o'zgargan bo'lishi mumkin (sahifa qayta
+  /// yuklanadi).
+  void _priceChanged(List<SyncOperation> ops) {
+    final List<PosSyncPriceNotice> notices = PosSyncPriceNotice.of(ops);
+    if (notices.isEmpty || !mounted) return;
+    showPosMessage(
+      context,
+      notices.map((PosSyncPriceNotice n) => n.message).join('\n'),
+    );
+  }
+
   /// "Keldi" bilan ochilgan buyurtmaning broni (ism va vaqt; avans qoldig'i — [PosBillingOrder.depositAvailable]).
   static Future<PosBooking?> _loadBooking(PosData data, String uuid) async {
     try {
@@ -105,6 +122,13 @@ class _BillingPageState extends State<BillingPage> with RefreshingState {
   PosMoney get _depositAvailable =>
       _billing?.order.depositAvailable ?? PosMoney.zero;
 
+  /// Schyotning avansdan ulushi (pre-check uchun): bitta avans hamma schyotdan ayrilmasin.
+  PosMoney _prepaidFor(PosBill bill) => depositShare(
+    _billing?.bills ?? const <PosBill>[],
+    bill,
+    _depositAvailable,
+  );
+
   static PosBill? _firstUnpaid(List<PosBill> bills) {
     for (final PosBill b in bills) {
       if (!b.isPaid) return b;
@@ -112,7 +136,7 @@ class _BillingPageState extends State<BillingPage> with RefreshingState {
     return null;
   }
 
-  static bool _settled(PosBill b) => b.status == 'paying' || b.status == 'paid';
+  static bool _settled(PosBill b) => b.isTaken;
 
   /// Schyotga hali tushmagan qatorlar (to'lov boshlangan schyotlardagisidan tashqari).
   List<SplitLine> _remainingLines() {
@@ -201,7 +225,7 @@ class _BillingPageState extends State<BillingPage> with RefreshingState {
         header: printer.header,
         now: _scope.services.now(),
         billsCount: _billing!.bills.length,
-        prepaid: _depositAvailable,
+        prepaid: _prepaidFor(r.bill),
         copy: r.copy || reprint,
       );
       await printer.print(
@@ -276,8 +300,70 @@ class _BillingPageState extends State<BillingPage> with RefreshingState {
       context,
       bill: bill,
       order: _order,
+      refunds: _billing?.refunds ?? const <PosRefund>[],
     );
     if (refund != null && mounted) await refresh();
+  }
+
+  /// P3-35: buyurtmaning hamma to'lovi qaytarilgan (`payment_status = refunded`) va u hali ochiq — endi uni bekor
+  /// qilish mumkin (server `has_payments` demaydi).
+  bool get _cancellableAfterRefund {
+    final PosBillingOrder? state = _billing?.order;
+    return state != null &&
+        !state.isClosed &&
+        state.paymentStatus == 'refunded' &&
+        (_order?.isOpen ?? false);
+  }
+
+  Future<void> _cancelOrder() async {
+    final PosOrder? before = _order;
+    if (before == null) return;
+    final String? reason = await askReason(
+      context,
+      title: 'Buyurtmani bekor qilish',
+      message:
+          "To'lovlar qaytarilgan. Hamma taom o'chiriladi, oshxonaga yuborilganlari uchun «O'CHIRILDI» markasi chiqadi, "
+          "joy bo'shaydi.",
+      presets: const <String>[
+        'Mehmonlar ketdi',
+        "Xato to'lov",
+        'Mijoz voz kechdi',
+      ],
+      confirmLabel: 'Buyurtmani bekor qilish',
+      confirmVariant: RzButtonVariant.danger,
+    );
+    if (reason == null || !mounted) return;
+    setState(() => _busy = true);
+    final PosScope scope = _scope;
+    await runGuarded(context, () async {
+      final PosOrder after = await withApproval<PosOrder>(
+        context,
+        (String? token) => scope.data.orders.cancel(
+          widget.orderUuid,
+          version: before.version,
+          reason: reason,
+          approvalToken: token,
+        ),
+      );
+      final KitchenTickets tickets = KitchenTickets(
+        printing: scope.printing,
+        bootstrap: () => scope.session.bootstrap,
+        now: scope.services.now,
+      );
+      for (final PosOrderItem i in before.items) {
+        final PosOrderItem? now = after.item(i.id);
+        if (i.wasSent && !i.isVoid && now != null) {
+          unawaited(tickets.printVoid(after, now));
+        }
+      }
+      if (!mounted) return;
+      showPosMessage(context, 'Buyurtma bekor qilindi. Joy bo\'shadi.');
+      Navigator.of(context).popUntil((Route<Object?> r) => r.isFirst);
+      scope.go(CashierDestination.floor);
+    });
+    if (!mounted) return;
+    setState(() => _busy = false);
+    await refresh();
   }
 
   @override
@@ -348,7 +434,11 @@ class _BillingPageState extends State<BillingPage> with RefreshingState {
     if (billing.order.isClosed) return _closed(c, billing);
     final bool building = _splitting || _needsBills;
     final PosBill? selected = _selectedBill;
-    final Widget left = building
+    // P3-31: offline one bill only (splitting needs the server)
+    final bool limited = limitedMode(context);
+    final Widget left = building && limited
+        ? _offlineSingleBill(c)
+        : building
         ? SplitBuilder(
             key: ValueKey<int>(_order!.version),
             lines: _remainingLines(),
@@ -396,6 +486,33 @@ class _BillingPageState extends State<BillingPage> with RefreshingState {
       },
     );
   }
+
+  Widget _offlineSingleBill(RzColors c) => PosCard(
+    title: 'Schyot',
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        const NoticeBanner(
+          icon: Icons.cloud_off_rounded,
+          message: "Internetsiz rejim: bitta schyot chiqadi. Hisobni bo'lish internet tiklangach.",
+        ),
+        const SizedBox(height: 12),
+        AmountRow(label: 'Jami', amount: _remainingTotal),
+        const SizedBox(height: 12),
+        RzButton(
+          key: const ValueKey<String>('offline-single-bill'),
+          label: 'Schyot chiqarish',
+          icon: Icons.receipt_long_outlined,
+          size: RzButtonSize.lg,
+          fullWidth: true,
+          loading: _busy,
+          onPressed: _busy
+              ? null
+              : () => unawaited(_createBills(const PosSplit.single())),
+        ),
+      ],
+    ),
+  );
 
   PosBill? get _selectedBill {
     for (final PosBill b in _billing!.bills) {
@@ -449,10 +566,8 @@ class _BillingPageState extends State<BillingPage> with RefreshingState {
                           ),
                           child: const Text('Chek nusxasi'),
                         ),
-                        if (b.payments.any(
-                          (PosPayment p) =>
-                              <String>['cash', 'card', 'qr'].contains(p.tender),
-                        ))
+                        if (!limitedMode(context) &&
+                            hasRefundable(b, billing.refunds))
                           TextButton(
                             key: ValueKey<String>('refund-${b.uuid}'),
                             onPressed: () => _refund(b),
@@ -548,7 +663,8 @@ class _BillingPageState extends State<BillingPage> with RefreshingState {
   }
 
   Widget _billList(RzColors c, PosBilling billing) {
-    final bool canResplit = !billing.bills.any(_settled);
+    final bool canResplit =
+        !billing.bills.any(_settled) && !limitedMode(context);
     return PosCard(
       title: billing.bills.length == 1
           ? 'Schyot'
@@ -573,9 +689,31 @@ class _BillingPageState extends State<BillingPage> with RefreshingState {
                 tone: StatusTone.info,
               ),
             ),
+          if (_cancellableAfterRefund && !limitedMode(context))
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  const NoticeBanner(
+                    message: "Buyurtmaning hamma to'lovi qaytarildi: endi uni bekor qilish mumkin.",
+                    tone: StatusTone.info,
+                  ),
+                  const SizedBox(height: 8),
+                  RzButton(
+                    key: const ValueKey<String>('cancel-after-refund'),
+                    label: 'Buyurtmani bekor qilish',
+                    icon: Icons.cancel_outlined,
+                    variant: RzButtonVariant.danger,
+                    onPressed: _busy ? null : () => unawaited(_cancelOrder()),
+                  ),
+                ],
+              ),
+            ),
           if (billing.bills.isNotEmpty &&
               billing.bills.every((PosBill b) => b.isPaid) &&
-              !billing.order.isClosed)
+              !billing.order.isClosed &&
+              !_cancellableAfterRefund)
             Padding(
               padding: const EdgeInsets.only(top: 12),
               child: RzButton(
@@ -644,15 +782,8 @@ class _BillingPageState extends State<BillingPage> with RefreshingState {
 
   Widget _billPanel(RzColors c, PosBill bill) {
     final PosSession session = _scope.session;
-    final bool fiscalWaiting =
-        bill.status == 'paying' &&
-        bill.dueAmount.isZero &&
-        bill.fiscal.isPending;
-    final bool refundable = bill.payments.any(
-      (PosPayment p) =>
-          <String>['cash', 'card', 'qr'].contains(p.tender) &&
-          p.status != 'refunded',
-    );
+    final bool fiscalWaiting = bill.awaitingReceipt && bill.fiscal.isPending;
+    final bool refundable = hasRefundable(bill, _billing!.refunds);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
@@ -672,7 +803,7 @@ class _BillingPageState extends State<BillingPage> with RefreshingState {
           bill: bill,
           order: _order,
           billsCount: _billing!.bills.length,
-          prepaid: _depositAvailable,
+          prepaid: _prepaidFor(bill),
         ),
         const SizedBox(height: 12),
         Wrap(
@@ -711,7 +842,7 @@ class _BillingPageState extends State<BillingPage> with RefreshingState {
                 onPressed: () =>
                     unawaited(printSale(context, bill, _order, copy: true)),
               ),
-            if (refundable && bill.isPaid)
+            if (refundable && bill.isPaid && !limitedMode(context))
               RzButton(
                 label: 'Pulni qaytarish',
                 icon: Icons.undo_rounded,
@@ -734,6 +865,26 @@ class _BillingPageState extends State<BillingPage> with RefreshingState {
   }
 }
 
+/// Bron avansi qoldig'ining shu schyotga tushadigan qismi: avans hali to'lanmagan schyotlarga raqam tartibida
+/// taqsimlanadi (har biriga qarzidan ko'p emas). 300 000 avans va uchta 200 000 schyot — 200 000, 100 000, 0.
+PosMoney depositShare(List<PosBill> bills, PosBill bill, PosMoney deposit) {
+  var left = deposit;
+  final List<PosBill> open =
+      bills
+          .where(
+            (PosBill b) =>
+                b.status != 'void' && !b.isPaid && b.dueAmount.isPositive,
+          )
+          .toList()
+        ..sort((PosBill a, PosBill b) => a.number.compareTo(b.number));
+  for (final PosBill b in open) {
+    final PosMoney share = left < b.dueAmount ? left : b.dueAmount;
+    if (b.uuid == bill.uuid) return share.isPositive ? share : PosMoney.zero;
+    left = left - share;
+  }
+  return PosMoney.zero;
+}
+
 /// Schyot holati: yorliq, rang, ikonka.
 (String, StatusTone, IconData) billStatus(PosBill b) => switch (b.status) {
   'paid' => (
@@ -741,12 +892,16 @@ class _BillingPageState extends State<BillingPage> with RefreshingState {
     StatusTone.success,
     Icons.check_circle_outline_rounded,
   ),
-  'paying' when b.dueAmount.isZero => (
+  _ when b.awaitingReceipt => (
     'Fiskal kutmoqda',
     StatusTone.warning,
     Icons.hourglass_top_rounded,
   ),
-  'paying' => ("Qisman to'langan", StatusTone.info, Icons.timelapse_rounded),
+  _ when b.isTaken => (
+    "Qisman to'langan",
+    StatusTone.info,
+    Icons.timelapse_rounded,
+  ),
   'printed' => ('Chiqarilgan', StatusTone.info, Icons.print_outlined),
   'void' => ('Bekor qilingan', StatusTone.neutral, Icons.block_rounded),
   _ => ('Ochiq', StatusTone.neutral, Icons.receipt_outlined),
@@ -885,8 +1040,9 @@ class BillPreview extends StatelessWidget {
 }
 
 /// Sotuv chekini chop etadi: serverdagi chek bilan (fiskal belgi, raqam, QR, kassa — P3-26: to'lov javobidagi
-/// `fiscal.receipt`, bo'lmasa `GET /pos/fiscal-receipts/{uuid}`), u ham bo'lmasa schyotdan.
-Future<void> printSale(
+/// `fiscal.receipt`, bo'lmasa `GET /pos/fiscal-receipts/{uuid}`), u ham bo'lmasa schyotdan. Navbatga tushgan ish
+/// (chiqqanini `job.done` bilan bilish mumkin) yoki `null`.
+Future<PrintJob?> printSale(
   BuildContext context,
   PosBill bill,
   PosOrder? order, {
@@ -899,7 +1055,7 @@ Future<void> printSale(
     scope.data,
     bill.fiscal,
   );
-  if (!context.mounted) return;
+  if (!context.mounted) return null;
   final FiscalReceipt doc = saleReceiptOf(
     bill: bill,
     order: order,
@@ -909,7 +1065,7 @@ Future<void> printSale(
     cashier: printer.cashier,
     copy: copy,
   );
-  await printer.print(
+  return printer.submit(
     context,
     (PaperWidth paper) => layoutFiscalReceipt(doc, paper),
     openDrawer: openDrawer,

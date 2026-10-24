@@ -25,6 +25,11 @@ String describeError(Object error) {
       _ => error.message,
     };
   }
+  if (error is PosConflict && error.reason == PosReasons.paidBillAffected) {
+    // P3-35: the waiter cannot refund; the cashier does it first
+    return "Bu buyurtmaning schyoti to'lana boshlagan: bu o'zgarish to'langan taomga yoki xizmat haqiga tegadi. "
+        "Buyurtma o'zgarmadi — kassirga ayting: u avval to'lovni qaytaradi.";
+  }
   if (error is PosValidationException) return error.firstError;
   if (error is ApiException) return error.message;
   return "Kutilmagan xato. Qayta urinib ko'ring.";

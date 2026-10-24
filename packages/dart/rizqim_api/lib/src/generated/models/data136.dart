@@ -16,6 +16,7 @@ import 'halls.dart';
 import 'tables5.dart';
 import 'shift.dart';
 import 'quick_items.dart';
+import 'offline.dart';
 
 part 'data136.g.dart';
 
@@ -36,6 +37,7 @@ class Data136 {
     required this.tables,
     required this.shift,
     required this.quickItems,
+    required this.offline,
   });
 
   factory Data136.fromJson(Map<String, Object?> json) =>
@@ -59,6 +61,7 @@ class Data136 {
   final Shift? shift;
   @JsonKey(name: 'quick_items')
   final List<QuickItems> quickItems;
+  final Offline offline;
 
   Map<String, Object?> toJson() => _$Data136ToJson(this);
 }

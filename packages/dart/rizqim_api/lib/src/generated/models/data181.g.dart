@@ -7,7 +7,7 @@ part of 'data181.dart';
 // **************************************************************************
 
 Data181 _$Data181FromJson(Map<String, dynamic> json) => Data181(
-  discount: json['discount'] as String,
+  subtotal: json['subtotal'] as String,
   shortCode: json['short_code'] as String?,
   status: json['status'] as String,
   statusLabel: json['status_label'] as String,
@@ -18,8 +18,8 @@ Data181 _$Data181FromJson(Map<String, dynamic> json) => Data181(
   branchName: json['branch_name'] as String?,
   paymentMethod: json['payment_method'] as String,
   paymentStatus: json['payment_status'] as String,
-  subtotal: json['subtotal'] as String,
   uuid: json['uuid'] as String,
+  discount: json['discount'] as String,
   deliveryPrice: json['delivery_price'] as String,
   serviceChargeAmount: json['service_charge_amount'] as String,
   placeFeeAmount: json['place_fee_amount'] as String,
@@ -30,19 +30,17 @@ Data181 _$Data181FromJson(Map<String, dynamic> json) => Data181(
   tableRef: json['table_ref'] as String?,
   cancelReason: json['cancel_reason'] as String?,
   cancelNote: json['cancel_note'] as String?,
-  customer: json['customer'] == null
+  waitingSeconds: (json['waiting_seconds'] as num).toInt(),
+  delivery: json['delivery'] == null
       ? null
-      : Customer6.fromJson(json['customer'] as Map<String, dynamic>),
-  statusHistory: (json['status_history'] as List<dynamic>)
-      .map((e) => StatusHistory2.fromJson(e as Map<String, dynamic>))
-      .toList(),
+      : Delivery7.fromJson(json['delivery'] as Map<String, dynamic>),
   courier: json['courier'] == null
       ? null
-      : Courier6.fromJson(json['courier'] as Map<String, dynamic>),
+      : Courier4.fromJson(json['courier'] as Map<String, dynamic>),
   itemsTotal: (json['items_total'] as num).toInt(),
   itemsReady: (json['items_ready'] as num).toInt(),
   items: (json['items'] as List<dynamic>)
-      .map((e) => Items46.fromJson(e as Map<String, dynamic>))
+      .map((e) => Items42.fromJson(e as Map<String, dynamic>))
       .toList(),
   createdAt: json['created_at'] as String?,
   updatedAt: json['updated_at'] as String?,
@@ -50,10 +48,9 @@ Data181 _$Data181FromJson(Map<String, dynamic> json) => Data181(
   preparingAt: json['preparing_at'] as String?,
   readyAt: json['ready_at'] as String?,
   closedAt: json['closed_at'] as String?,
-  waitingSeconds: (json['waiting_seconds'] as num).toInt(),
-  delivery: json['delivery'] == null
+  customer: json['customer'] == null
       ? null
-      : Delivery9.fromJson(json['delivery'] as Map<String, dynamic>),
+      : Customer4.fromJson(json['customer'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data181ToJson(Data181 instance) => <String, dynamic>{
@@ -93,5 +90,4 @@ Map<String, dynamic> _$Data181ToJson(Data181 instance) => <String, dynamic>{
   'ready_at': instance.readyAt,
   'closed_at': instance.closedAt,
   'waiting_seconds': instance.waitingSeconds,
-  'status_history': instance.statusHistory,
 };

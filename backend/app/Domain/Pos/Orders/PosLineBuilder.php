@@ -60,7 +60,12 @@ class PosLineBuilder
             $item = is_array($items[$line['index']] ?? null) ? $items[$line['index']] : [];
             $note = isset($item['note']) && is_string($item['note']) && trim($item['note']) !== '' ? mb_substr(trim($item['note']), 0, 255) : null;
             $fire = isset($item['fire_mode']) ? FireMode::tryFrom((string) $item['fire_mode']) : null;
-            $due = isset($item['due_at']) && is_string($item['due_at']) && $item['due_at'] !== '' ? Carbon::parse($item['due_at']) : null;
+            try {
+                $due = isset($item['due_at']) && is_string($item['due_at']) && $item['due_at'] !== '' ? Carbon::parse($item['due_at']) : null;
+            } catch (\Throwable) {
+                // Review P3-35: a due time that is no date is the request's mistake, never a server error
+                throw ValidationException::withMessages(["items.{$line['index']}.due_at" => "Tayyor bo'lish vaqti noto'g'ri."]);
+            }
 
             $lines[] = $line + [
                 'note' => $note,
@@ -173,7 +178,7 @@ class PosLineBuilder
             $variant = $line['variant'];
             $batch = $line['batch'];
 
-            $created->push(OrderItem::create([
+            $created->push($this->createLine($order, [
                 'order_id' => $order->id,
                 'product_variant_id' => $variant->id,
                 'product_name' => $variant->product->name,
@@ -211,6 +216,245 @@ class PosLineBuilder
         }
 
         return $created;
+    }
+
+    /**
+     * P3-31: stores a round a till sold offline (docs/POS_SPEC.md §5.3). The sale happened and the guest paid the
+     * device's price, so nothing that could have changed meanwhile refuses it: the device's unit price (and modifier
+     * prices) are kept (`price_source = offline_snapshot`), the stop-list, a hidden variant and the quantity rules are not
+     * checked again, the variant stock and the kazan give what they still have (never below zero) and whatever was
+     * missing is recorded (menu_batches.oversold_quantity) and flagged. Only a variant that is not this store's at all
+     * is refused (PosSyncException `variant_not_found`). Each line keeps the device's id (`client_line_id`).
+     *
+     * Returns the new lines and the flags for the manager: `offline_price` (the device's price differs from today's),
+     * `sold_while_unavailable` (stop-list, hidden or inactive), `oversold` (kazan), `stock_short`.
+     *
+     * @param  list<array{index: int, variant_uuid: string, quantity: Quantity, modifiers: array<string, int>, note: ?string, seat_no: ?int, fire_mode: FireMode, due_at: ?Carbon, client_line_id?: ?string, unit_price?: ?\App\Support\Money, modifier_prices?: array<string, \App\Support\Money>}>  $lines
+     * @return array{items: Collection<int, OrderItem>, flags: list<array<string, mixed>>}
+     */
+    public function addOffline(Order $order, Branch $branch, array $lines, int $roundNo, User $actor, ?Carbon $menuTakenAt = null): array
+    {
+        if ($lines === []) {
+            return ['items' => collect(), 'flags' => []];
+        }
+
+        $channelMenu = ChannelMenu::for((int) $order->store_id, $order->channel);
+        $variants = ProductVariant::withTrashed()
+            ->with(['product' => fn ($query) => $query->withTrashed()])
+            ->whereIn('uuid', array_values(array_unique(array_map(fn (array $line) => $line['variant_uuid'], $lines))))
+            ->whereHas('product', fn ($query) => $query->withTrashed()->where('store_id', $order->store_id))
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get()
+            ->keyBy(fn (ProductVariant $variant) => strtolower((string) $variant->uuid));
+
+        $stopList = $this->lines->stopList($branch);
+        $hiddenOnBranch = BranchProductVariant::where('branch_id', $branch->id)
+            ->whereIn('variant_id', $variants->pluck('id')->all())
+            ->where('is_active', false)
+            ->pluck('variant_id')
+            ->flip();
+        $modifierRows = $this->offlineModifiers($order, $lines);
+
+        // Review P3-35: the prices the till may have had, from its menu snapshot (a day back when it did not say) on
+        $from = $menuTakenAt !== null && $menuTakenAt->lt(now()) ? $menuTakenAt : now()->subHours(\App\Domain\Pos\Sync\PosSyncApplier::STALE_MENU_HOURS);
+        $history = app(\App\Services\Catalog\PriceHistory::class);
+        $variantPrices = $history->variantPrices($variants->pluck('id')->map(fn ($id) => (int) $id)->values()->all(), $order->channel, $from);
+        $modifierPrices = $history->modifierPrices($modifierRows->pluck('id')->map(fn ($id) => (int) $id)->values()->all(), $from);
+        $had = fn (array $prices, \App\Support\Money $price) => array_filter($prices, fn (\App\Support\Money $known) => $known->equals($price)) !== [];
+
+        $flags = [];
+        $priced = [];
+        foreach ($lines as $line) {
+            $variant = $variants->get($line['variant_uuid']);
+            if ($variant === null || $variant->product === null) {
+                throw new \App\Domain\Pos\Sync\PosSyncException('variant_not_found', "Taom topilmadi (menyudan butunlay o'chirilgan yoki boshqa do'konniki).", ['variant_id' => $line['variant_uuid']]);
+            }
+
+            $name = $this->lines->nameOf($variant);
+            $unavailable = !$variant->is_active || $variant->trashed() || $variant->product->trashed() || $variant->product->status !== 'active'
+                || $hiddenOnBranch->has($variant->id) || $channelMenu->isVariantHidden($variant)
+                || array_key_exists((int) $variant->product_id, $stopList[StopListSubject::PRODUCT->value])
+                || array_key_exists((int) $variant->id, $stopList[StopListSubject::VARIANT->value]);
+            if ($unavailable) {
+                $flags[] = ['flag' => 'sold_while_unavailable', 'line_id' => $line['client_line_id'] ?? null, 'name' => $name];
+            }
+
+            $current = $channelMenu->priceOf($variant);
+            $device = $line['unit_price'] ?? null;
+            $price = $device ?? $current;
+            $source = 'offline_snapshot';
+            if (!$price->equals($current)) {
+                if ($had($variantPrices[(int) $variant->id] ?? [], $price)) {
+                    $flags[] = ['flag' => 'offline_price', 'line_id' => $line['client_line_id'] ?? null, 'name' => $name, 'offline_price' => $price->toString(), 'current_price' => $current->toString()];
+                } else {
+                    // Review P3-35: a price the dish never had while the till's menu was taken: the server's applies
+                    $flags[] = ['flag' => 'offline_price_mismatch', 'line_id' => $line['client_line_id'] ?? null, 'name' => $name, 'device_price' => $price->toString(), 'server_price' => $current->toString()];
+                    $price = $current;
+                    $source = 'online';
+                }
+            }
+
+            $snapshot = [];
+            $modifiersTotal = \App\Support\Money::zero();
+            foreach ($line['modifiers'] as $uuid => $count) {
+                /** @var \App\Models\Modifier $row */
+                $row = $modifierRows->get(strtolower((string) $uuid));
+                $serverDelta = \App\Support\Money::of($row->price_delta);
+                $delta = ($line['modifier_prices'] ?? [])[strtolower((string) $uuid)] ?? $serverDelta;
+                if (!$delta->equals($serverDelta) && !$had($modifierPrices[(int) $row->id] ?? [], $delta)) {
+                    $flags[] = ['flag' => 'offline_price_mismatch', 'line_id' => $line['client_line_id'] ?? null, 'name' => "{$name}: {$row->name}", 'device_price' => $delta->toString(), 'server_price' => $serverDelta->toString()];
+                    $delta = $serverDelta;
+                    $source = 'online';
+                }
+                $total = $delta->times($count);
+                $modifiersTotal = $modifiersTotal->plus($total);
+                $snapshot[] = [
+                    'id' => (int) $row->id,
+                    'uuid' => $uuid,
+                    'group_id' => (int) $row->modifier_group_id,
+                    'group_name' => $row->group?->name,
+                    'name' => $row->name,
+                    'price_delta' => $delta->toString(),
+                    'quantity' => $count,
+                    'total' => $total->toString(),
+                ];
+            }
+
+            $priced[] = $line + [
+                'variant' => $variant,
+                'price' => $price,
+                'price_source' => $source,
+                'modifiers_snapshot' => $snapshot,
+                'modifiers_total' => $modifiersTotal,
+                'total' => $this->lines->lineTotal($price, $line['quantity'], $modifiersTotal, $variant->unit),
+            ];
+        }
+
+        // The kazan: what the open batch still holds; the rest is oversold (never below zero)
+        $productIds = array_values(array_unique(array_map(fn (array $line) => (int) $line['variant']->product_id, $priced)));
+        $open = MenuBatch::query()->where('branch_id', $branch->id)->whereIn('product_id', $productIds)->open()->orderBy('id')->lockForUpdate()->get();
+
+        $created = collect();
+        foreach ($priced as $line) {
+            /** @var ProductVariant $variant */
+            $variant = $line['variant'];
+            $name = $this->lines->nameOf($variant);
+            $batch = MenuAvailability::batchFor($variant, $open->where('product_id', $variant->product_id));
+            $need = $line['quantity']->times(MenuAvailability::consumptionOf($variant));
+            $taken = Quantity::zero();
+
+            if ($batch !== null) {
+                $left = Quantity::of(MenuBatch::whereKey($batch->id)->value('quantity_left') ?? 0);
+                $taken = $left->isLessThan($need) ? $left : $need;
+                if ($taken->isPositive() && !$this->batches->consume($batch, $taken, ProductVariant::where('product_id', $batch->product_id)->get(['id', 'product_id', 'batch_consumption']))) {
+                    $taken = Quantity::zero();
+                }
+                $short = $need->minus($taken);
+                if ($short->isPositive()) {
+                    MenuBatch::whereKey($batch->id)->increment('oversold_quantity', $short->toString()); // @phpstan-ignore argument.type
+                    MenuBatch::whereKey($batch->id)->whereNull('sold_out_at')->update(['sold_out_at' => now()]);
+                    $flags[] = ['flag' => 'oversold', 'line_id' => $line['client_line_id'] ?? null, 'name' => $name, 'batch_id' => (int) $batch->id, 'quantity' => $short->toString()];
+                }
+            } elseif ($variant->product->batch_tracked) {
+                // No kazan open any more: the portions came from one that was closed meanwhile
+                $last = MenuBatch::where('branch_id', $branch->id)->where('product_id', $variant->product_id)->latest('id')->first();
+                if ($last !== null) {
+                    MenuBatch::whereKey($last->id)->increment('oversold_quantity', $need->toString()); // @phpstan-ignore argument.type
+                }
+                $flags[] = ['flag' => 'oversold', 'line_id' => $line['client_line_id'] ?? null, 'name' => $name, 'batch_id' => $last !== null ? (int) $last->id : null, 'quantity' => $need->toString()];
+            }
+
+            // The variant stock: what is there, never below zero
+            $stock = Quantity::of(ProductVariant::withTrashed()->whereKey($variant->id)->value('stock') ?? 0);
+            $deduct = $stock->isLessThan($line['quantity']) ? $stock : $line['quantity'];
+            if ($deduct->isPositive()) {
+                ProductVariant::withTrashed()->whereKey($variant->id)->where('stock', '>=', $deduct->toString())->decrement('stock', $deduct->toString()); // @phpstan-ignore argument.type
+            }
+            if ($deduct->isLessThan($line['quantity'])) {
+                $flags[] = ['flag' => 'stock_short', 'line_id' => $line['client_line_id'] ?? null, 'name' => $name, 'quantity' => $line['quantity']->minus($deduct)->toString()];
+            }
+
+            $created->push($this->createLine($order, [
+                'order_id' => $order->id,
+                'product_variant_id' => $variant->id,
+                'product_name' => $variant->product->name,
+                'variant_name' => $variant->name,
+                'quantity' => $line['quantity']->toString(),
+                'unit' => $variant->unit->value,
+                'unit_price' => $line['price']->toString(),
+                'modifiers' => $line['modifiers_snapshot'] ?: null,
+                'modifiers_total' => $line['modifiers_total']->toString(),
+                'total_price' => $line['total']->toString(),
+                'batch_id' => $batch !== null && $taken->isPositive() ? $batch->id : null,
+                'batch_quantity' => $batch !== null && $taken->isPositive() ? $taken->toString() : null,
+                'kitchen_status' => KitchenItemStatus::PENDING->value,
+                'round_no' => $roundNo,
+                'fire_mode' => $line['fire_mode']->value,
+                'due_at' => $line['due_at'],
+                'note' => $line['note'],
+                'seat_no' => $line['seat_no'],
+                'added_by' => $actor->id,
+                'client_line_id' => $line['client_line_id'] ?? null,
+                'price_source' => $line['price_source'],
+            ]));
+        }
+
+        return ['items' => $created, 'flags' => $flags];
+    }
+
+    /**
+     * The modifiers an offline round names, by uuid, with their group (deleted ones too: the device sold them); only
+     * this store's (review P3-35): one the store never had refuses the operation (PosSyncException
+     * `modifier_not_found`), like an unknown variant.
+     *
+     * @param  list<array<string, mixed>>  $lines
+     * @return Collection<string, \App\Models\Modifier>
+     */
+    private function offlineModifiers(Order $order, array $lines): Collection
+    {
+        $uuids = [];
+        foreach ($lines as $line) {
+            foreach (array_keys($line['modifiers']) as $uuid) {
+                $uuids[] = strtolower((string) $uuid);
+            }
+        }
+        if ($uuids === []) {
+            return collect();
+        }
+
+        $rows = \App\Models\Modifier::withTrashed()
+            ->with(['group' => fn ($query) => $query->withTrashed()])
+            ->whereIn('uuid', array_values(array_unique($uuids)))
+            ->whereHas('group', fn ($query) => $query->withTrashed()->where('store_id', $order->store_id))
+            ->get()
+            ->keyBy(fn ($modifier) => strtolower((string) $modifier->uuid));
+        foreach (array_unique($uuids) as $uuid) {
+            if (!$rows->has($uuid)) {
+                throw new \App\Domain\Pos\Sync\PosSyncException('modifier_not_found', "Qo'shimcha topilmadi (menyudan butunlay o'chirilgan yoki boshqa do'konniki).", ['modifier_id' => $uuid]);
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Stores a line with its kitchen station (KitchenStationResolver, P3-13) from the start (review P3-35): a held
+     * pre-order shows on its station's display before it is sent; sending resolves it again (the routes may have
+     * changed meanwhile).
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    private function createLine(Order $order, array $attributes): OrderItem
+    {
+        $item = new OrderItem($attributes);
+        $item->setRelation('order', $order);
+        if (app()->bound(\App\Domain\Pos\Contracts\KitchenStationResolver::class)) {
+            $item->station_id = app(\App\Domain\Pos\Contracts\KitchenStationResolver::class)->stationIdFor($item);
+        }
+        $item->save();
+
+        return $item;
     }
 
     /**

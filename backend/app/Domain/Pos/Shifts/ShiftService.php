@@ -38,7 +38,8 @@ use Illuminate\Support\Facades\DB;
  *  - closed with the cash counted by banknote: the difference to the expected cash is kept, the Z report is frozen in
  *    `summary`, numbered per branch (`z_number`) and sent to the owner. A shift with open orders or sales whose
  *    receipt is still pending does not close, unless a manager forces it with a reason (open orders then wait for the
- *    next shift).
+ *    next shift). P3-31: nor while the till's offline queue still holds operations (as the till last reported it) or
+ *    while operations it synced were rejected and nobody resolved them ("Sinxronlash xatolari").
  */
 final class ShiftService
 {
@@ -53,6 +54,7 @@ final class ShiftService
         private readonly FiscalIssuer $fiscal,
         private readonly BillFiscalizer $fiscalizer,
         private readonly ShiftOwnerSummary $summary,
+        private readonly \App\Domain\Pos\Sync\PosSyncErrors $syncErrors,
     ) {}
 
     public function current(Device $device): ?PosShift
@@ -274,9 +276,24 @@ final class ShiftService
             throw PosActionException::conflict('shift_closed', 'Smena allaqachon yopilgan.');
         }
 
+        // P3-31: the till's offline queue first (POS_SPEC 5.4): what it still holds is not on the server yet
+        $unsynced = (int) (Device::whereKey($shift->device_id)->value('sync_pending_ops') ?? 0);
+        if ($unsynced > 0 && !$force) {
+            throw PosActionException::conflict('shift_has_unsynced_ops', "Kassada serverga yuborilmagan offlayn amallar bor ({$unsynced} ta): avval internet tiklanib, navbat bo'shasin yoki menejer smenani majburan yopsin.", [
+                'pending_ops' => $unsynced,
+            ]);
+        }
+
         // Receipts the provider confirmed meanwhile finish their bills and refunds first
         $pending = $this->pendingReceipts($shift);
         $openOrders = $this->openOrders($shift)->pluck('uuid')->all();
+        $syncErrors = $this->syncErrors->blockingShift($shift);
+
+        if ($syncErrors !== [] && $openOrders === [] && $pending['bills'] === [] && $pending['refunds'] === [] && !$force) {
+            throw PosActionException::conflict('shift_has_sync_errors', "Sinxronlash xatolari bor (" . count($syncErrors) . " ta): menejer ularni ko'rib chiqsin yoki smenani majburan yopsin.", [
+                'sync_errors' => $syncErrors,
+            ]);
+        }
 
         if (($pending['bills'] !== [] || $pending['refunds'] !== [] || $openOrders !== []) && !$force) {
             throw $openOrders !== []

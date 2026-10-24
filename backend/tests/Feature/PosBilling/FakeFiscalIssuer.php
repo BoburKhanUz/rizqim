@@ -47,6 +47,11 @@ class FakeFiscalIssuer implements FiscalIssuer
         return new FiscalIssueResult($uuid, $this->mode, $this->mode === 'issued' ? '123456789012' : null, null, $this->mode === 'failed' ? 'Provayder rad etdi.' : null);
     }
 
+    public function reissue(FiscalDocument $document): FiscalIssueResult
+    {
+        return $this->issue($document);
+    }
+
     public function recordExternal(FiscalDocument $document, string $provider, array $providerData): FiscalIssueResult
     {
         throw new RuntimeException('Not used by the POS.');

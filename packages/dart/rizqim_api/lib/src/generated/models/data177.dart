@@ -4,118 +4,70 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'customer4.dart';
-import 'delivery7.dart';
-import 'courier4.dart';
-import 'items42.dart';
+import 'staff4.dart';
+import 'device21.dart';
+import 'order12.dart';
+import 'resolved_by2.dart';
 
 part 'data177.g.dart';
 
 @JsonSerializable()
 class Data177 {
   const Data177({
-    required this.subtotal,
-    required this.shortCode,
-    required this.status,
-    required this.statusLabel,
+    required this.opId,
+    required this.seq,
     required this.type,
-    required this.channel,
-    required this.storeId,
-    required this.branchId,
-    required this.branchName,
-    required this.paymentMethod,
-    required this.paymentStatus,
-    required this.uuid,
-    required this.discount,
-    required this.deliveryPrice,
-    required this.serviceChargeAmount,
-    required this.placeFeeAmount,
-    required this.totalPrice,
-    required this.notes,
-    required this.guestsCount,
-    required this.hallRef,
-    required this.tableRef,
-    required this.cancelReason,
-    required this.cancelNote,
-    required this.waitingSeconds,
-    required this.delivery,
-    required this.courier,
-    required this.itemsTotal,
-    required this.itemsReady,
-    required this.items,
-    required this.createdAt,
-    required this.updatedAt,
-    required this.acceptedAt,
-    required this.preparingAt,
-    required this.readyAt,
-    required this.closedAt,
-    required this.customer,
+    required this.typeLabel,
+    required this.status,
+    required this.reason,
+    required this.message,
+    required this.staff,
+    required this.device,
+    required this.occurredAt,
+    required this.receivedAt,
+    required this.appliedAt,
+    required this.clockSkewSeconds,
+    required this.order,
+    required this.payload,
+    required this.refs,
+    required this.resolvedAt,
+    required this.resolvedBy,
+    required this.resolution,
+    required this.resolutionNote,
   });
 
   factory Data177.fromJson(Map<String, Object?> json) =>
       _$Data177FromJson(json);
 
-  final String uuid;
-  @JsonKey(name: 'short_code')
-  final String? shortCode;
-  final String status;
-  @JsonKey(name: 'status_label')
-  final String statusLabel;
+  @JsonKey(name: 'op_id')
+  final String opId;
+  final int seq;
   final String type;
-  final String channel;
-  @JsonKey(name: 'store_id')
-  final int storeId;
-  @JsonKey(name: 'branch_id')
-  final int? branchId;
-  @JsonKey(name: 'branch_name')
-  final String? branchName;
-  @JsonKey(name: 'payment_method')
-  final String paymentMethod;
-  @JsonKey(name: 'payment_status')
-  final String paymentStatus;
-  final String subtotal;
-  final String discount;
-  @JsonKey(name: 'delivery_price')
-  final String deliveryPrice;
-  @JsonKey(name: 'service_charge_amount')
-  final String serviceChargeAmount;
-  @JsonKey(name: 'place_fee_amount')
-  final String placeFeeAmount;
-  @JsonKey(name: 'total_price')
-  final String totalPrice;
-  final String? notes;
-  @JsonKey(name: 'guests_count')
-  final int? guestsCount;
-  @JsonKey(name: 'hall_ref')
-  final String? hallRef;
-  @JsonKey(name: 'table_ref')
-  final String? tableRef;
-  @JsonKey(name: 'cancel_reason')
-  final String? cancelReason;
-  @JsonKey(name: 'cancel_note')
-  final String? cancelNote;
-  final Customer4? customer;
-  final Delivery7? delivery;
-  final Courier4? courier;
-  @JsonKey(name: 'items_total')
-  final int itemsTotal;
-  @JsonKey(name: 'items_ready')
-  final int itemsReady;
-  final List<Items42> items;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
-  @JsonKey(name: 'updated_at')
-  final String? updatedAt;
-  @JsonKey(name: 'accepted_at')
-  final String? acceptedAt;
-  @JsonKey(name: 'preparing_at')
-  final String? preparingAt;
-  @JsonKey(name: 'ready_at')
-  final String? readyAt;
-  @JsonKey(name: 'closed_at')
-  final String? closedAt;
-  @JsonKey(name: 'waiting_seconds')
-  final int waitingSeconds;
+  @JsonKey(name: 'type_label')
+  final String typeLabel;
+  final String status;
+  final String? reason;
+  final String? message;
+  final Staff4? staff;
+  final Device21? device;
+  @JsonKey(name: 'occurred_at')
+  final String? occurredAt;
+  @JsonKey(name: 'received_at')
+  final String? receivedAt;
+  @JsonKey(name: 'applied_at')
+  final String? appliedAt;
+  @JsonKey(name: 'clock_skew_seconds')
+  final int? clockSkewSeconds;
+  final Order12? order;
+  final Map<String, dynamic> payload;
+  final Map<String, dynamic> refs;
+  @JsonKey(name: 'resolved_at')
+  final String? resolvedAt;
+  @JsonKey(name: 'resolved_by')
+  final ResolvedBy2? resolvedBy;
+  final String? resolution;
+  @JsonKey(name: 'resolution_note')
+  final String? resolutionNote;
 
   Map<String, Object?> toJson() => _$Data177ToJson(this);
 }

@@ -8,6 +8,7 @@ import 'hall14.dart';
 import 'table14.dart';
 import 'waiter16.dart';
 import 'charges16.dart';
+import 'offline12.dart';
 import 'items37.dart';
 
 part 'data164.g.dart';
@@ -15,7 +16,7 @@ part 'data164.g.dart';
 @JsonSerializable()
 class Data164 {
   const Data164({
-    required this.tableRef,
+    required this.guestsCount,
     required this.shortCode,
     required this.status,
     required this.channel,
@@ -26,8 +27,8 @@ class Data164 {
     required this.hall,
     required this.table,
     required this.hallRef,
+    required this.tableRef,
     required this.uuid,
-    required this.guestsCount,
     required this.waiter,
     required this.openedBy,
     required this.deviceId,
@@ -36,8 +37,8 @@ class Data164 {
     required this.depositAvailable,
     required this.billLocked,
     required this.billRequestedAt,
+    required this.notes,
     required this.items,
-    required this.openedAt,
     required this.updatedAt,
     required this.subtotal,
     required this.discount,
@@ -47,8 +48,9 @@ class Data164 {
     required this.minSpendTopupAmount,
     required this.totalPrice,
     required this.charges,
+    required this.offline,
     required this.rounds,
-    required this.notes,
+    required this.openedAt,
   });
 
   factory Data164.fromJson(Map<String, Object?> json) =>
@@ -106,6 +108,7 @@ class Data164 {
   @JsonKey(name: 'total_price')
   final String totalPrice;
   final Charges16 charges;
+  final Offline12? offline;
   final int rounds;
   final List<Items37> items;
 

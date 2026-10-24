@@ -36,8 +36,9 @@ use Throwable;
  *    (PosTender::ACCOUNT, nasiya) as `credit: true` (not money received now; research §5: the sale receipt is for
  *    the full amount when the food is served, a CREDIT receipt follows each repayment, P3-17);
  *  - the bill becomes `paid` only once its receipt is `issued`; a pending or failed receipt leaves the order
- *    "fiskal kutmoqda" (retry: POST /pos/bills/{uuid}/fiscal-retry; a receipt the provider confirms later finishes
- *    the bill through the fiscal.receipt_updated event);
+ *    "fiskal kutmoqda" (retry: POST /pos/bills/{uuid}/fiscal-retry, which sends a failed receipt again — review
+ *    P3-35, FiscalIssuer::reissue; a receipt the provider confirms later finishes the bill through the
+ *    fiscal.receipt_updated event);
  *  - a refund gets a REFUND receipt naming the bill's sale receipt, its lines the refunded share of the bill's.
  *
  * Receipts are asked for outside any transaction (so the sandbox or a provider answers at once) and under a stable
@@ -91,8 +92,12 @@ final class BillFiscalizer
                 idempotencyKey: "pos-bill:{$bill->uuid}:sale",
                 subjectType: OrderBill::FISCAL_SUBJECT,
                 subjectId: (int) $bill->id,
+                // P3-31: a bill paid offline is receipted at sync; the receipt keeps when the money was taken
+                soldAt: $payments->last()?->getAttribute('offline_paid_at'),
             );
-            $result = $this->issuer->issue($document);
+            // A receipt the provider refused before is sent again (review P3-35: the till's retry, the order's or the
+            // shift's close)
+            $result = $this->issuer->reissue($document);
         } catch (Throwable $e) {
             if (!$e instanceof FiscalException) {
                 report($e);
@@ -162,18 +167,13 @@ final class BillFiscalizer
             $payment = Payment::findOrFail($refund->payment_id);
             $amount = Money::of($refund->amount);
 
-            $result = $this->issuer->issue(new FiscalDocument(
+            $result = $this->issuer->reissue(new FiscalDocument(
                 type: FiscalReceiptType::REFUND,
                 storeId: (int) $refund->store_id,
                 branchId: $refund->branch_id !== null ? (int) $refund->branch_id : null,
                 deviceId: $refund->device_id !== null ? (int) $refund->device_id : null,
                 lines: $this->refundLines($bill, $amount),
-                payments: [new FiscalPayment(
-                    form: $this->formOf((string) $payment->provider),
-                    amount: $amount,
-                    cardType: $payment->getAttribute('card_type'),
-                    transactionId: $payment->getAttribute('transaction_id'),
-                )],
+                payments: [$this->refundPayment($bill, $payment, $amount)],
                 total: $amount,
                 idempotencyKey: "pos-refund:{$refund->uuid}",
                 originalReceiptUuid: (string) $bill->getAttribute('fiscal_receipt_uuid'),
@@ -310,6 +310,24 @@ final class BillFiscalizer
             ->all();
 
         return count($tenders) === 1 ? (FiscalPaymentForm::tryFrom((string) $tenders[0]) ?? FiscalPaymentForm::CASH) : FiscalPaymentForm::CASH;
+    }
+
+    /**
+     * The refund receipt's payment: the refunded payment's form; review P3-35: a deposit part goes back to the advance
+     * (`prepayment`, in the deposit's form), a nasiya part comes off the debt (`credit`): no money leaves the till.
+     */
+    private function refundPayment(OrderBill $bill, Payment $payment, Money $amount): FiscalPayment
+    {
+        return match (PosTender::tryFrom((string) $payment->provider)) {
+            PosTender::PREPAYMENT => new FiscalPayment($this->depositForm($bill), $amount, prepayment: true),
+            PosTender::ACCOUNT => new FiscalPayment(FiscalPaymentForm::CASH, $amount, credit: true),
+            default => new FiscalPayment(
+                form: $this->formOf((string) $payment->provider),
+                amount: $amount,
+                cardType: $payment->getAttribute('card_type'),
+                transactionId: $payment->getAttribute('transaction_id'),
+            ),
+        };
     }
 
     private function formOf(string $tender): FiscalPaymentForm

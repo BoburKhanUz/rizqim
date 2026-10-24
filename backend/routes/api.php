@@ -189,4 +189,7 @@ Route::prefix('v1')->group(function () {
 
     // P3-18: bills, split, payments, refunds, shifts with X/Z, manager approvals (docs/API.md "Schyot, to'lov va smena")
     require __DIR__ . '/api_pos_billing.php';
+
+    // P3-31: offline limited mode: POST /pos/sync, sync status and errors (docs/API.md "Internetsiz rejim")
+    require __DIR__ . '/api_pos_sync.php';
 });

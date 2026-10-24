@@ -54,7 +54,7 @@ class PosOrderController extends PosHallController
 
     public const LIST_ITEM = 'array{uuid: string, short_code: string|null, status: string, channel: string, type: string, branch_id: int, version: int, hall: array{id: int, name: string|null}|null, table: array{id: int, name: string, kind: string}|null, hall_ref: string|null, table_ref: string|null, guests_count: int|null, waiter: array{id: int, name: string|null}|null, items_count: int, subtotal: string, total_price: string, payment_status: string, bill_locked: bool, bill_requested: bool, fiscal_pending: bool, booking_id: int|null, business_date: string|null, opened_at: string|null, closed_at: string|null, updated_at: string|null, online: ' . StaffOrderController::ORDER . '|null}';
 
-    public const ORDER = 'array{uuid: string, short_code: string|null, status: string, channel: string, type: string, store_id: int, branch_id: int|null, version: int, hall: array{id: int, name: string|null}|null, table: array{id: int, name: string, kind: string}|null, hall_ref: string|null, table_ref: string|null, guests_count: int|null, waiter: array{id: int, name: string|null}|null, opened_by: int, device_id: int|null, booking_id: int|null, booking_uuid: string|null, deposit_available: string, bill_locked: bool, bill_requested_at: string|null, notes: string|null, opened_at: string|null, updated_at: string|null, subtotal: string, discount: string, service_charge_amount: string, place_fee_amount: string, room_fee_amount: string, min_spend_topup_amount: string, total_price: string, charges: ' . self::CHARGES . ', rounds: int, items: list<' . self::ITEM . '>}';
+    public const ORDER = 'array{uuid: string, short_code: string|null, status: string, channel: string, type: string, store_id: int, branch_id: int|null, version: int, hall: array{id: int, name: string|null}|null, table: array{id: int, name: string, kind: string}|null, hall_ref: string|null, table_ref: string|null, guests_count: int|null, waiter: array{id: int, name: string|null}|null, opened_by: int, device_id: int|null, booking_id: int|null, booking_uuid: string|null, deposit_available: string, bill_locked: bool, bill_requested_at: string|null, notes: string|null, opened_at: string|null, updated_at: string|null, subtotal: string, discount: string, service_charge_amount: string, place_fee_amount: string, room_fee_amount: string, min_spend_topup_amount: string, total_price: string, charges: ' . self::CHARGES . ', offline: array{local_number: string|null, created_at: string|null, synced_at: string|null, flags: list<array{flag: string, op_id: string|null, amount: string|null, name: string|null}>}|null, rounds: int, items: list<' . self::ITEM . '>}';
 
     /**
      * One POS order
@@ -199,7 +199,8 @@ class PosOrderController extends PosHallController
      * Before the line reached the kitchen: orders.manage, its stock and kazan portion go back. Once sent (or after the
      * bill was printed): `reason` is required and orders.void_item, or a manager's one-time `approval_token` (POST
      * /pos/approvals); the kitchen sees it struck through. `restock` (sent lines) returns the portion when it was not
-     * cooked. 403 `approval_required` / `approval_invalid`; 422 `already_void`.
+     * cooked. 403 `approval_required` / `approval_invalid`; 422 `already_void`; 409 `paid_bill_affected` for a line on a
+     * bill being paid (refund that payment first, P3-35).
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . self::ORDER . '}')]
     #[HeaderParameter('Idempotency-Key', description: 'Required: a new UUID per action, the same one when retrying it (428 without).', type: 'string')]
@@ -235,7 +236,7 @@ class PosOrderController extends PosHallController
      * Change the guests count
      *
      * The per-guest charges follow; guests who joined get the automatic "choy-non" lines as a new round. Needs
-     * orders.manage.
+     * orders.manage. 409 `paid_bill_affected` when a charge a paid bill carries would go down (P3-35).
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . self::ORDER . '}')]
     #[HeaderParameter('Idempotency-Key', description: 'Required: a new UUID per action, the same one when retrying it (428 without).', type: 'string')]
@@ -259,6 +260,7 @@ class PosOrderController extends PosHallController
      *
      * Another table, room or tapchan of the same branch: the new hall's service charge and the new place's room tariff
      * and minimum spend apply. A room with an open order is 422 `table_occupied` (merge instead). Needs tables.manage.
+     * 409 `paid_bill_affected` when a charge a paid bill carries would go down (P3-35).
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . self::ORDER . '}')]
     #[HeaderParameter('Idempotency-Key', description: 'Required: a new UUID per action, the same one when retrying it (428 without).', type: 'string')]
@@ -286,6 +288,8 @@ class PosOrderController extends PosHallController
      *
      * `source_uuid`'s lines move to this order (after its rounds), its guests are added and it is closed as merged.
      * Both open hall orders of one branch, no printed bill, no payment; both versions are checked. Needs tables.manage.
+     * P3-35: a booking's order hands its booking and deposits to this order; orders of two different bookings are 422
+     * `merge_bookings_conflict`.
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . self::ORDER . '}')]
     #[HeaderParameter('Idempotency-Key', description: 'Required: a new UUID per action, the same one when retrying it (428 without).', type: 'string')]
@@ -311,6 +315,7 @@ class PosOrderController extends PosHallController
      *
      * `service_charge`, `place_fee`, `room_fee` or `min_spend_topup` taken off this order with a `reason` (the guest
      * objected; the manager decided): orders.discount or a manager's `approval_token`. Audited. Needs orders.manage.
+     * 409 `paid_bill_affected` when a paid bill carries it (P3-35).
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . self::ORDER . '}')]
     #[HeaderParameter('Idempotency-Key', description: 'Required: a new UUID per action, the same one when retrying it (428 without).', type: 'string')]

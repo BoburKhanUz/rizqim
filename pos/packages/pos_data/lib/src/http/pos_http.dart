@@ -304,8 +304,11 @@ class PosHttp {
         _english.contains(server) ||
         server.startsWith('The ') ||
         server.startsWith("So'rov bajarilmadi");
-    if (!generic) return server;
     final String? known = PosReasons.describe(reason);
+    if (known != null && PosReasons.clientWorded.contains(reason)) {
+      return known;
+    }
+    if (!generic) return server;
     if (known != null) return known;
     return switch (status) {
       401 => 'Sessiya tugadi. PIN bilan qayta kiring.',

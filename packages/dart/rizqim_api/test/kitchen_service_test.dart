@@ -106,6 +106,60 @@ void main() {
     );
   });
 
+  test('a POS line keeps its product and category, and the list carries the server Date', () async {
+    adapter.handler = (RequestOptions o) => json(
+      200,
+      <String, Object?>{
+        'success': true,
+        'message': '',
+        'data': <Object?>[
+          ticketJson(
+            items: <Map<String, Object?>>[
+              <String, Object?>{
+                ...itemJson(id: 31, name: 'Toy oshi'),
+                'round_no': 1,
+                'fire_mode': 'hold',
+                'station_id': null,
+                'sent_at': null,
+                'due_at': '2026-10-20T15:00:00+05:00',
+                'seat_no': null,
+                'note': null,
+                'voided_at': null,
+                'void_reason': null,
+                'product_id': 7,
+                'category_id': 2,
+              },
+              itemJson(id: 32, name: 'Non'),
+            ],
+          ),
+        ],
+        'meta': <String, Object?>{'truncated': false},
+      },
+      headers: <String, List<String>>{
+        'date': <String>['Tue, 20 Oct 2026 06:58:30 GMT'],
+      },
+    );
+    final KitchenTicketList list = await client.kitchen.tickets();
+    final KitchenLine held = list.tickets.single.lines.first;
+    expect(held.isHeld, isTrue);
+    expect(held.stationId, isNull);
+    expect(held.productId, 7);
+    expect(held.categoryId, 2);
+    expect(list.tickets.single.lines.last.productId, isNull);
+    expect(list.serverTime, DateTime.utc(2026, 10, 20, 6, 58, 30));
+    expect(list.receivedAt, now);
+  });
+
+  test('the HTTP Date header is read as UTC; anything else is null', () {
+    expect(
+      parseHttpDate('Thu, 22 Oct 2026 07:05:09 GMT'),
+      DateTime.utc(2026, 10, 22, 7, 5, 9),
+    );
+    expect(parseHttpDate(null), isNull);
+    expect(parseHttpDate('yesterday'), isNull);
+    expect(parseHttpDate('Thu, 22 Foo 2026 07:05:09 GMT'), isNull);
+  });
+
   test('bump and recall return the updated ticket', () async {
     adapter.handler = (RequestOptions o) {
       final bool ready = o.uri.path.endsWith('/ready');

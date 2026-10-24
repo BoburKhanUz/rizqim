@@ -33,4 +33,14 @@ class FakeAdvanceLedger implements AdvanceLedger
 
         $this->applied[] = ['order_id' => (int) $order->id, 'amount' => $amount->toString(), 'bill_uuid' => $billUuid];
     }
+
+    public function reverse(Order $order, Money $amount, string $billUuid): void
+    {
+        $taken = Money::sum(...array_column(array_filter($this->applied, fn ($row) => $row['bill_uuid'] === $billUuid), 'amount'));
+        if ($amount->isGreaterThan($taken)) {
+            throw new RuntimeException('More than the bill took.');
+        }
+
+        $this->applied[] = ['order_id' => (int) $order->id, 'amount' => $amount->negated()->toString(), 'bill_uuid' => $billUuid];
+    }
 }

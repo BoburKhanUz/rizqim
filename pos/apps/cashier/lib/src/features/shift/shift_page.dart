@@ -7,6 +7,7 @@ import 'package:rizqim_core/rizqim_core.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
 import '../../shell/approval_dialog.dart';
+import '../../shell/limited_mode.dart';
 import '../../shell/pos_scope.dart';
 import '../../shell/routes.dart';
 import '../billing/cashier_ui.dart';
@@ -167,7 +168,14 @@ class _ShiftPageState extends State<ShiftPage> with RefreshingState {
     } else if (cur.shift == null || !cur.shift!.isOpen) {
       body = _closedView(c);
     } else {
-      body = _openView(c, cur.shift!, cur.report);
+      // P3-31: rebuilt when the limited mode starts or ends (Z waits for the offline queue)
+      return Material(
+        color: c.page,
+        child: OfflineStatusBuilder(
+          builder: (BuildContext context, OfflineStatus _) =>
+              _openView(c, cur.shift!, cur.report),
+        ),
+      );
     }
     return Material(color: c.page, child: body);
   }
@@ -264,12 +272,17 @@ class _ShiftPageState extends State<ShiftPage> with RefreshingState {
   Widget _openView(RzColors c, PosShift shift, PosShiftReport? report) {
     final ShiftReportView? v = report == null ? null : ShiftReportView(report);
     final PosSession session = _scope.session;
+    // P3-31: no cash movements and no Z until the offline queue has reached the server (POS_SPEC 5.4)
+    final PosOffline? offline = _scope.data.offline;
+    final bool limited = offline?.active ?? false;
     final bool cashOps =
-        session.can(PosPermissions.cashInOut) ||
-        session.needsApproval(PosPermissions.cashInOut);
+        !limited &&
+        (session.can(PosPermissions.cashInOut) ||
+            session.needsApproval(PosPermissions.cashInOut));
     final bool canClose =
-        session.can(PosPermissions.closeShift) ||
-        session.needsApproval(PosPermissions.closeShift);
+        !limited &&
+        (session.can(PosPermissions.closeShift) ||
+            session.needsApproval(PosPermissions.closeShift));
     return ListView(
       padding: const EdgeInsets.all(16),
       children: <Widget>[
@@ -348,6 +361,17 @@ class _ShiftPageState extends State<ShiftPage> with RefreshingState {
                 'fiskal kutayotgan chek bo\'lsa smena yopilmaydi.',
                 style: RzType.body.copyWith(color: c.fgMuted),
               ),
+              if (limited) ...<Widget>[
+                const SizedBox(height: 12),
+                NoticeBanner(
+                  key: const ValueKey<String>('z-blocked'),
+                  icon: Icons.cloud_off_rounded,
+                  tone: StatusTone.danger,
+                  message: (offline?.store.pendingCount ?? 0) > 0
+                      ? "Internetsiz rejim: navbatda ${offline!.store.pendingCount} ta amal serverga yetmagan. Navbat bo'shaguncha smena yopilmaydi (Z), kirim-chiqim yozilmaydi."
+                      : "Internet yo'q: smenani yopish (Z) va kirim-chiqim internet tiklangach.",
+                ),
+              ],
               const SizedBox(height: 12),
               Wrap(
                 spacing: 12,

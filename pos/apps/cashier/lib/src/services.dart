@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:pos_data/pos_data.dart';
 import 'package:rizqim_api/rizqim_api.dart';
 
@@ -23,7 +25,8 @@ class CashierServices {
     this.clock,
     this.pollInterval = AppConfig.pollInterval,
     this.livePollInterval = AppConfig.livePollInterval,
-  }) : data = data ?? PosData(client, clock: clock),
+    SyncStore? offlineStore,
+  }) : data = data ?? PosData(client, clock: clock, offlineStore: offlineStore),
        printing = printing ?? CashierPrinting();
 
   final RizqimClient client;
@@ -41,6 +44,42 @@ class CashierServices {
 
   AuthSession get auth => client.auth;
   PosSession get session => data.session;
+
+  /// P3-31: ekran qulfi internetsiz rejimda to'xtaydi — PIN faqat serverda tekshiriladi, qulflangan kassaga uzilish
+  /// paytida hech kim qayta kira olmaydi (docs/POS_SPEC.md 5.4).
+  Duration? idleTimeout() =>
+      data.offline?.active ?? false ? null : session.idleTimeout();
+
+  /// Ekran qulfi muddati o'zgarishi mumkin bo'lgan paytlar (bootstrap, internetsiz rejimga kirish va chiqish).
+  Stream<Object?> get idleChanges {
+    final PosOffline? offline = data.offline;
+    if (offline == null) return session.changes;
+    late final StreamController<Object?> out;
+    final List<StreamSubscription<Object?>> subs =
+        <StreamSubscription<Object?>>[];
+    bool? active;
+    out = StreamController<Object?>.broadcast(
+      onListen: () {
+        subs
+          ..add(session.changes.listen(out.add))
+          ..add(
+            offline.changes.listen((OfflineStatus s) {
+              if (s.active != active) {
+                active = s.active;
+                out.add(s);
+              }
+            }),
+          );
+      },
+      onCancel: () async {
+        for (final StreamSubscription<Object?> s in subs) {
+          await s.cancel();
+        }
+        subs.clear();
+      },
+    );
+    return out.stream;
+  }
 
   DateTime now() => (clock ?? DateTime.now)();
 }

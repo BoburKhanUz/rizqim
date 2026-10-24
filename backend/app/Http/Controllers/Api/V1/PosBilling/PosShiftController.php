@@ -59,7 +59,8 @@ class PosShiftController extends PosBillingController
      * sign-in (the owner or a manager in the web panel or the Mini App) gets the branch's open shifts: `branch_id`
      * (default: the caller's own branch; an owner without one names it, else every branch they see is listed in
      * `shifts`); `shift`/`report` is then the most recently opened of them. `shifts`: every open shift with its X
-     * report (a terminal: just its own). Another store's branch: 404; one the caller does not work in: 403.
+     * report (a terminal: just its own). Another store's branch: 404; one the caller does not work in: 403. Needs
+     * pos.open_shift, pos.close_shift, pos.take_payment or (P3-35, read-only) reports.view.
      */
     #[QueryParameter('branch_id', description: "A normal sign-in: the branch (default: the caller's own; an owner without one: every branch).", type: 'int', required: false)]
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{shift: ' . ShiftPresenter::SHIFT . '|null, report: ' . ShiftReport::REPORT . '|null, shifts: list<array{shift: ' . ShiftPresenter::SHIFT . ', report: ' . ShiftReport::REPORT . '}>}}')]

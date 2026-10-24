@@ -51,6 +51,9 @@ class _CashMovementDialogState extends State<_CashMovementDialog> {
   String? _error;
   bool _busy = false;
 
+  /// Javobsiz qolgan yozuv: aynan o'zi (kalit, tasdiq) qayta yuboriladi, ikki marta yozilmaydi.
+  final LostRequest _lost = LostRequest();
+
   @override
   void dispose() {
     _amount.dispose();
@@ -84,16 +87,21 @@ class _CashMovementDialogState extends State<_CashMovementDialog> {
     setState(() => _busy = true);
     final PosScope scope = PosScope.of(context);
     try {
-      final PosCashMovement m = await withApproval<PosCashMovement>(
+      final int? employee = _type == PosCashMovementType.wage
+          ? _employee
+          : null;
+      final PosCashMovement m = await _lost.run<PosCashMovement>(
         context,
-        (String? token) => scope.data.shifts.cashMovement(
+        '${_type.wire}|$_category|${amount!.toApiString()}|$note|$employee',
+        (String? token, String? key) => scope.data.shifts.cashMovement(
           widget.shiftUuid,
           type: _type,
           category: _category,
-          amount: amount!,
+          amount: amount,
           note: note.isEmpty ? null : note,
-          employeeId: _type == PosCashMovementType.wage ? _employee : null,
+          employeeId: employee,
           approvalToken: token,
+          idempotencyKey: key,
         ),
       );
       if (!mounted) return;
@@ -103,6 +111,13 @@ class _CashMovementDialogState extends State<_CashMovementDialog> {
         '${movementLabel(m)}: ${m.amount.format()} yozildi.',
       );
       Navigator.pop(context, m);
+    } on PosNetworkException {
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _error = "Aloqa yo'q: yozuv holati noma'lum. Qayta yuborish xavfsiz — ikki marta yozilmaydi.";
+        });
+      }
     } on Object catch (e) {
       if (mounted) {
         setState(() => _busy = false);

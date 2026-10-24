@@ -27,6 +27,58 @@ void main() {
     },
   );
 
+  test('a bill being paid is told by its payments, as the server keeps it open/printed (no "paying")', () {
+    PosBill bill(String status, {int paid = 0, int total = 200000}) => PosBill(
+      uuid: 'b',
+      orderUuid: 'o',
+      number: 1,
+      status: status,
+      total: PosMoney.som(total),
+      paidAmount: PosMoney.som(paid),
+      dueAmount: PosMoney.som(total - paid),
+    );
+    expect(bill('printed').isTaken, isFalse);
+    expect(bill('printed', paid: 50000).isTaken, isTrue);
+    expect(bill('printed', paid: 50000).awaitingReceipt, isFalse);
+    expect(bill('printed', paid: 200000).awaitingReceipt, isTrue);
+    expect(bill('paid', paid: 200000).awaitingReceipt, isFalse);
+    expect(bill('void', paid: 50000).isTaken, isFalse);
+    expect(billStatus(bill('printed', paid: 50000)).$1, "Qisman to'langan");
+    expect(billStatus(bill('open', paid: 200000)).$1, 'Fiskal kutmoqda');
+    expect(billStatus(bill('printed')).$1, 'Chiqarilgan');
+  });
+
+  test('a deposit is shared over the split bills, not taken off each one', () {
+    PosBill bill(int n, {String status = 'open', int paid = 0}) => PosBill(
+      uuid: 'b$n',
+      orderUuid: 'o',
+      number: n,
+      status: status,
+      total: const PosMoney.som(200000),
+      paidAmount: PosMoney.som(paid),
+      dueAmount: PosMoney.som(200000 - paid),
+    );
+    final List<PosBill> bills = <PosBill>[bill(3), bill(1), bill(2)];
+    const PosMoney deposit = PosMoney.som(300000);
+    expect(
+      bills.map((PosBill b) => depositShare(bills, b, deposit)),
+      <PosMoney>[
+        PosMoney.zero,
+        const PosMoney.som(200000),
+        const PosMoney.som(100000),
+      ],
+    );
+    // A void or covered bill takes none of it
+    final List<PosBill> other = <PosBill>[
+      bill(1, status: 'void'),
+      bill(2, paid: 200000),
+      bill(3),
+    ];
+    expect(depositShare(other, other[0], deposit), PosMoney.zero);
+    expect(depositShare(other, other[1], deposit), PosMoney.zero);
+    expect(depositShare(other, other[2], deposit), const PosMoney.som(200000));
+  });
+
   testWidgets(
     'equal split shows each share, creates 3 bills; pre-check prints, a reprint is a NUSXA with approval',
     (WidgetTester tester) async {

@@ -31,6 +31,7 @@ MenuBatch _$MenuBatchFromJson(Map<String, dynamic> json) => MenuBatch(
   updatedAt: json['updated_at'] == null
       ? null
       : DateTime.parse(json['updated_at'] as String),
+  oversoldQuantity: json['oversold_quantity'] as String,
   isOpen: json['is_open'] as bool,
   store: json['store'] == null
       ? null
@@ -63,6 +64,7 @@ Map<String, dynamic> _$MenuBatchToJson(MenuBatch instance) => <String, dynamic>{
   'closed_by': instance.closedBy,
   'created_at': instance.createdAt?.toIso8601String(),
   'updated_at': instance.updatedAt?.toIso8601String(),
+  'oversold_quantity': instance.oversoldQuantity,
   'is_open': instance.isOpen,
   'store': instance.store,
   'branch': instance.branch,

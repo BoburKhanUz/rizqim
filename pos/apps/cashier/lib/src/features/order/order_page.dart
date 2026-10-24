@@ -7,6 +7,7 @@ import 'package:pos_ui/pos_ui.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
 import '../../shell/approval_dialog.dart';
+import '../../shell/limited_mode.dart';
 import '../../shell/pos_scope.dart';
 import '../../shell/routes.dart';
 import 'frequent_items.dart';
@@ -454,6 +455,9 @@ class _OrderPageState extends State<OrderPage> {
     ];
     final bool hall = ctl.channel == PosChannel.hall;
     final bool canEdit = o != null && o.isOpen && !ctl.busy;
+    // P3-31: offline only rounds, sending, unsent voids and the bill (POS_SPEC 5.1)
+    final bool limited = limitedMode(context);
+    final bool canChange = canEdit && !limited;
     return AppBar(
       title: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -490,7 +494,7 @@ class _OrderPageState extends State<OrderPage> {
           ),
         if (hall && (o != null || ctl.isDraftOrder))
           TextButton.icon(
-            onPressed: ctl.isDraftOrder || canEdit ? _guests : null,
+            onPressed: ctl.isDraftOrder || canChange ? _guests : null,
             icon: const Icon(Icons.people_outline),
             label: Text(
               '${o?.guestsCount ?? ctl.draftGuests} mehmon',
@@ -499,18 +503,18 @@ class _OrderPageState extends State<OrderPage> {
           ),
         if (o != null && hall)
           Tooltip(
-            message: "Ko'chirish",
+            message: limited ? offlineOnlyReason : "Ko'chirish",
             child: TextButton.icon(
-              onPressed: canEdit ? _move : null,
+              onPressed: canChange ? _move : null,
               icon: const Icon(Icons.open_with),
               label: const Text("Ko'chirish"),
             ),
           ),
         if (o != null && hall)
           Tooltip(
-            message: 'Birlashtirish',
+            message: limited ? offlineOnlyReason : 'Birlashtirish',
             child: TextButton.icon(
-              onPressed: canEdit ? _merge : null,
+              onPressed: canChange ? _merge : null,
               icon: const Icon(Icons.call_merge),
               label: const Text('Birlashtirish'),
             ),
@@ -536,10 +540,11 @@ class _OrderPageState extends State<OrderPage> {
               ),
               PopupMenuItem<String>(
                 value: 'cancel',
-                enabled: canEdit,
-                child: const ListTile(
-                  leading: Icon(Icons.cancel_outlined),
-                  title: Text('Buyurtmani bekor qilish'),
+                enabled: canChange,
+                child: ListTile(
+                  leading: const Icon(Icons.cancel_outlined),
+                  title: const Text('Buyurtmani bekor qilish'),
+                  subtitle: limited ? const Text(offlineOnlyReason) : null,
                 ),
               ),
             ],

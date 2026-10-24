@@ -127,6 +127,72 @@ class CustomerAccountService implements CustomerAccountLedger
     }
 
     /**
+     * Review P3-35 (CustomerAccountLedger): the bill's nasiya part refunded at the till: the debt goes down by
+     * `amount` with an adjustment keyed by the bill and the refund (`reference`; the same one again is a no-op). Never more than
+     * the bill was charged less what was reversed before, never more than the debt left (409 `more_than_debt`: the
+     * guest repaid it already; the manager settles that by hand).
+     */
+    public function reverse(string $accountUuid, Money $amount, string $billUuid, string $reference, int $approvedByUserId): void
+    {
+        if (!$amount->isPositive() || $amount->isGreaterThan(self::MAX_AMOUNT)) {
+            throw new CustomerAccountException("Qaytariladigan summa noto'g'ri.", 'invalid_amount');
+        }
+        $approver = User::find($approvedByUserId);
+
+        DB::transaction(function () use ($accountUuid, $amount, $billUuid, $reference, $approver) {
+            $account = CustomerAccount::where('uuid', $accountUuid)->lockForUpdate()->first();
+            if ($account === null || ($approver !== null && (int) $account->store_id !== (int) $approver->store_id)) {
+                throw new CustomerAccountException('Nasiya hisobi topilmadi.', 'account_not_found', 404);
+            }
+            $key = mb_substr("bill-reversal:{$billUuid}:{$reference}", 0, 255);
+            if (CustomerAccountEntry::where('customer_account_id', $account->id)->where('idempotency_key', $key)->exists()) {
+                return; // the same refund again
+            }
+
+            $charge = CustomerAccountEntry::where('customer_account_id', $account->id)
+                ->where('type', CustomerAccountEntryType::CHARGE->value)
+                ->where('bill_uuid', $billUuid)
+                ->first();
+            $reversed = Money::of(CustomerAccountEntry::where('customer_account_id', $account->id)
+                ->where('type', CustomerAccountEntryType::ADJUSTMENT->value)
+                ->where('idempotency_key', 'like', "bill-reversal:{$billUuid}:%")
+                ->sum('amount'))->negated();
+            $left = $charge !== null ? Money::of($charge->amount)->minus($reversed) : Money::zero();
+            if ($amount->isGreaterThan($left)) {
+                throw new CustomerAccountException("Bu schyot nasiyaga {$left->toString()} so'm yozilgan: undan ko'pini qaytarib bo'lmaydi.", 'reverse_exceeds_charge', 409, ['left' => $left->toString()]);
+            }
+            if ($amount->isGreaterThan($account->balance)) {
+                throw new CustomerAccountException(
+                    "Mijoz qarzining bir qismini to'lagan: qolgan qarz {$account->balance} so'm. Farqni menejer qo'lda hal qilsin.",
+                    'more_than_debt',
+                    409,
+                    ['balance' => $account->balance],
+                );
+            }
+
+            $actor = auth()->user();
+            $entry = $this->record($account, CustomerAccountEntryType::ADJUSTMENT, $amount->negated(), [
+                'note' => "Kassada qaytarildi: schyotning nasiya qismi",
+                'idempotency_key' => $key,
+                'user_id' => $actor instanceof User ? $actor->id : $approver?->id,
+                'approved_by' => $approver?->id,
+                'branch_id' => $charge->branch_id ?? $account->branch_id,
+            ]);
+
+            $this->audit->record('customer_account.charge_reversed', $account, [], [], [
+                'entry_uuid' => $entry->uuid,
+                'amount' => $amount->toString(),
+                'bill_uuid' => $billUuid,
+                'approved_by' => $approver?->id,
+            ], ['store_id' => (int) $account->store_id, 'branch_id' => $entry->branch_id !== null ? (int) $entry->branch_id : null]);
+
+            $this->alerts->send((int) $account->store_id, "↩️ Nasiya qaytarildi: " . PosOwnerAlerts::sum($amount)
+                . "\nMijoz: {$account->name}\nQolgan qarz: " . PosOwnerAlerts::sum($account->balance)
+                . ($approver !== null ? "\nTasdiqladi: {$approver->name}" : ''));
+        });
+    }
+
+    /**
      * Money received against the debt, with its CREDIT receipt. Idempotent by `key` (the request's Idempotency-Key).
      */
     public function repay(CustomerAccount $account, Money $amount, PosTender $tender, ?string $cardType, ?string $transactionId, ?string $note, ?string $key, User $actor, ?int $deviceId, ?int $branchId): CustomerAccountEntry

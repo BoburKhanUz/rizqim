@@ -195,9 +195,7 @@ class _QueuePageState extends State<QueuePage> with RefreshingState {
       final PosBilling billing = await _scope.data.billing.bills(o.uuid);
       var issued = 0;
       for (final PosBill b in billing.bills) {
-        if (b.status != 'paying' ||
-            !b.dueAmount.isZero ||
-            !b.fiscal.isPending) {
+        if (!b.awaitingReceipt || !b.fiscal.isPending) {
           continue;
         }
         final PosBillResult r = await _scope.data.billing.fiscalRetry(b.uuid);

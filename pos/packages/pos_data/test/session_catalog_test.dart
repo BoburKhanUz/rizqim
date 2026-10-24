@@ -19,7 +19,7 @@ void main() {
       expect(s.branchName, 'Chilonzor');
       expect(s.branchId, 1);
 
-      await h.client.auth.signInStaff(userId: 3, pin: '2468');
+      await h.client.auth.signInStaff(userId: 3, pin: '4827');
       expect(s.phase, PosSessionPhase.signedIn);
       expect(s.staffName, 'Kamola Karimova');
       expect(s.staffRole, 'cashier');

@@ -30,8 +30,8 @@ void main() {
       expect(find.text('Jamshid aka'), findsOneWidget);
       expect(find.text('Sardor Rahimov'), findsOneWidget);
       expect(find.text('Qarzsiz'), findsNothing);
-      // Kassirda customer_accounts.manage yo'q: hisob ochish tugmasi yo'q
-      expect(find.text('Yangi hisob'), findsNothing);
+      // Kassirda customer_accounts.manage yo'q: hisob ochish menejer PIN'i bilan
+      expect(find.text('Yangi hisob'), findsOneWidget);
 
       await enter(tester, 'accounts-search', '1112');
       await tester.testTextInput.receiveAction(TextInputAction.search);
@@ -88,4 +88,42 @@ void main() {
     expect(a['is_blocked'], isTrue);
     expect(find.text("Yangi nasiya to'xtatilgan"), findsWidgets);
   });
+
+  testWidgets(
+    'a cashier opens and changes an account with the manager\'s PIN',
+    (WidgetTester tester) async {
+      // The save button spins under the PIN window: frames, not settle
+      Future<void> save() async {
+        await tester.tap(buttonLabeled('Saqlash').first);
+        for (var i = 0; i < 5; i++) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+      }
+
+      final P22 p = P22();
+      await pumpHome(tester, p.h);
+      await openSection(tester, 'Nasiya');
+      await tapButton(tester, 'Yangi hisob');
+      await enter(tester, 'account-name', 'Bekzod');
+      await enter(tester, 'account-phone', '90 777 66 55');
+      await enter(tester, 'account-limit', '500000');
+      await save();
+      expect(find.text("Menejer tasdig'i"), findsOneWidget);
+      expect(p.backend.accounts, isEmpty);
+      await typePin(tester, '5926');
+      await tester.pumpAndSettle();
+      final Map<String, Object?> a = p.backend.accounts.values.single;
+      expect(a['name'], 'Bekzod');
+      expect(a['credit_limit'], '500000.00');
+
+      // Changing it: the PIN again
+      await tapButton(tester, 'Tahrirlash');
+      await tapOn(tester, find.text("Yangi nasiya to'xtatilgan"));
+      await save();
+      expect(find.text("Menejer tasdig'i"), findsOneWidget);
+      await typePin(tester, '5926');
+      await tester.pumpAndSettle();
+      expect(a['is_blocked'], isTrue);
+    },
+  );
 }

@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { makeQueryClient, mockFetch, ok, json, wrapperFor } from '../test/helpers';
 import { StaffApiError } from '../api/errors';
+import { floorKeys } from './floor';
 import { staffKeys } from './keys';
 import { menuAdminKeys, useMenuBranches } from './menuAdmin';
 import {
@@ -140,6 +141,20 @@ describe('settings and device hooks', () => {
       await fee.result.current.mutateAsync({ service_charge_percent: 10, place_fee_amount: 0, place_fee_mode: 'per_person' });
     });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: managementKeys.serviceFees });
+    // The store's or a branch's fee is not shown with the halls
+    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: floorKeys.allHalls });
+  });
+
+  it("refetches the halls after a hall's own fee is saved (the hall carries its fee)", async () => {
+    mockFetch({ 'PUT /api/v1/owner/service-fees': () => ok({ branch_id: 1, hall_id: 1 }) });
+    const queryClient = makeQueryClient();
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+    const fee = renderHook(() => useSaveServiceFee(), { wrapper: wrapperFor(queryClient) });
+    await act(async () => {
+      await fee.result.current.mutateAsync({ hall_id: 1, branch_id: 1, service_charge_percent: 20, place_fee_amount: 0, place_fee_mode: 'per_person' });
+    });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: managementKeys.serviceFees });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: floorKeys.allHalls });
   });
 
   it('keeps the revoked and the live device lists apart, and refetches both after a revoke', async () => {

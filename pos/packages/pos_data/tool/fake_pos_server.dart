@@ -4,7 +4,7 @@
 //   cd pos/apps/cashier && flutter run -d linux --dart-define=RIZQIM_API_URL=http://127.0.0.1:8788/api \
 //     --dart-define=RIZQIM_REVERB_KEY=pos-key --dart-define=RIZQIM_REVERB_URL=ws://127.0.0.1:8788
 //
-// Ulash kodi — istalgan 8 belgi (ABCD-EFGH). PIN: kassir Kamola — 2468, ofitsiant Botir — 1357, menejer Malika — 5926.
+// Ulash kodi — istalgan 8 belgi (ABCD-EFGH). PIN: kassir Kamola — 4827, ofitsiant Botir — 3691, menejer Malika — 5926.
 // `--empty`: smena yopiq, buyurtmasiz (bron, nasiya va onlayn buyurtmasiz ham).
 import 'dart:io';
 

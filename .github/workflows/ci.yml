@@ -32,6 +32,8 @@ jobs:
       e2estack: ${{ steps.filter.outputs.e2estack }}
       # P3-15: POS packages (pos-packages job)
       pospkg: ${{ steps.filter.outputs.pospkg }}
+      # P3-33: the POS stack end-to-end test (pos-stack-e2e job)
+      posstack: ${{ steps.filter.outputs.posstack }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -128,6 +130,16 @@ jobs:
               - 'packages/ts/**'
               - 'e2e/**'
               - 'scripts/e2e-stack.sh'
+              - '.github/workflows/ci.yml'
+            # P3-33: the POS stack end-to-end test against the real backend (pos-stack-e2e job): the backend, the POS packages
+            # and the API client they are built on, the test and its script
+            posstack:
+              - 'backend/**'
+              - 'pos/packages/**'
+              - 'packages/dart/rizqim_api/**'
+              - 'e2e/pos/**'
+              - 'scripts/pos-e2e.sh'
+              - 'pubspec*'
               - '.github/workflows/ci.yml'
 
   backend-tests:
@@ -367,6 +379,10 @@ jobs:
       - name: Shellcheck
         run: |
           shellcheck scripts/*.sh backend/docker/entrypoint.sh infra/staging/*.sh
+
+      # Guards of the POS stack script (live pid file, --stop); needs no backend or Dart
+      - name: pos-e2e.sh guards
+        run: scripts/pos-e2e.test.sh
 
       # The script edits the Mini App nginx config at container start; fail here if that config changes shape
       - name: Staging noindex script still matches the Mini App nginx config
@@ -664,6 +680,92 @@ jobs:
             e2e/stack/playwright-report
             e2e/stack/test-results
             e2e/stack/.run/*.log
+          retention-days: 7
+
+  # P3-33: the POS stack end-to-end test. The real Postgres-backed Laravel (php artisan serve) and Reverb, a choyxona seeded
+  # by PosStackSeeder, driven only through pos_data like the cashier, waiter and kitchen apps drive them: the Thursday
+  # evening (shift, booking with a deposit, ten rooms served by two waiters and the cashier, split bills, every tender,
+  # SALE/ADVANCE/CREDIT/REFUND receipts, X and Z), a Telegram order accepted at the till, the real-time channel and a
+  # version conflict. scripts/pos-e2e.sh does all of it (it is the same command to run locally).
+  pos-stack-e2e:
+    name: POS stack e2e (Laravel, Reverb, pos_data)
+    needs: changes
+    if: needs.changes.outputs.posstack == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        # Same major version as docker-compose.yml
+        image: postgres:17
+        env:
+          POSTGRES_DB: rizqim_pos_e2e
+          POSTGRES_USER: rizqim
+          POSTGRES_PASSWORD: rizqim
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U rizqim -d rizqim_pos_e2e"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # Exact version, the same as in the flutter job
+      FLUTTER_VERSION: 3.47.5
+      POS_E2E_DB_DATABASE: rizqim_pos_e2e
+      POS_E2E_DB_USERNAME: rizqim
+      POS_E2E_DB_PASSWORD: rizqim
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_pgsql, pgsql, redis, intl, gd, bcmath, zip
+          coverage: none
+
+      - name: Composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v6
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: composer-${{ runner.os }}-php8.3-${{ hashFiles('backend/composer.lock') }}
+          restore-keys: composer-${{ runner.os }}-php8.3-
+
+      # No backend/.env: the script passes the whole configuration as environment variables
+      - name: Install backend dependencies
+        working-directory: backend
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get --enforce-lockfile
+
+      - name: Format and analyze the test
+        run: |
+          dart format --output=none --set-exit-if-changed e2e/pos
+          flutter analyze e2e/pos
+
+      - name: Start the stack and run the tests
+        run: scripts/pos-e2e.sh
+
+      - name: Upload the servers' logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pos-stack-e2e-logs
+          # .run (the servers' logs) is a hidden folder
+          include-hidden-files: true
+          path: |
+            e2e/pos/.run/*.log
           retention-days: 7
 
   # --- P2-13 Staff package (runs when packages/ts/staff or what it builds on changed, see the `staffpkg` filter) ---

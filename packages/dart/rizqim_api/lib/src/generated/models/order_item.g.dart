@@ -7,7 +7,7 @@ part of 'order_item.dart';
 // **************************************************************************
 
 OrderItem _$OrderItemFromJson(Map<String, dynamic> json) => OrderItem(
-  id: (json['id'] as num).toInt(),
+  unit: MenuUnit.fromJson(json['unit'] as String),
   orderId: (json['order_id'] as num).toInt(),
   productVariantId: (json['product_variant_id'] as num?)?.toInt(),
   productName: json['product_name'] as String,
@@ -24,7 +24,7 @@ OrderItem _$OrderItemFromJson(Map<String, dynamic> json) => OrderItem(
   deletedAt: json['deleted_at'] == null
       ? null
       : DateTime.parse(json['deleted_at'] as String),
-  unit: MenuUnit.fromJson(json['unit'] as String),
+  id: (json['id'] as num).toInt(),
   modifiers: (json['modifiers'] as List<dynamic>?)
       ?.map((e) => e as Map<String, dynamic>)
       .toList(),
@@ -40,9 +40,7 @@ OrderItem _$OrderItemFromJson(Map<String, dynamic> json) => OrderItem(
       ? null
       : FireMode.fromJson(json['fire_mode'] as String?),
   stationId: (json['station_id'] as num?)?.toInt(),
-  sentAt: json['sent_at'] == null
-      ? null
-      : DateTime.parse(json['sent_at'] as String),
+  priceSource: json['price_source'] as String?,
   dueAt: json['due_at'] == null
       ? null
       : DateTime.parse(json['due_at'] as String),
@@ -54,6 +52,10 @@ OrderItem _$OrderItemFromJson(Map<String, dynamic> json) => OrderItem(
   voidReason: json['void_reason'] as String?,
   seatNo: (json['seat_no'] as num?)?.toInt(),
   note: json['note'] as String?,
+  clientLineId: json['client_line_id'] as String?,
+  sentAt: json['sent_at'] == null
+      ? null
+      : DateTime.parse(json['sent_at'] as String),
   order: json['order'] == null
       ? null
       : Order.fromJson(json['order'] as Map<String, dynamic>),
@@ -97,6 +99,8 @@ Map<String, dynamic> _$OrderItemToJson(OrderItem instance) => <String, dynamic>{
   'void_reason': instance.voidReason,
   'seat_no': instance.seatNo,
   'note': instance.note,
+  'client_line_id': instance.clientLineId,
+  'price_source': instance.priceSource,
   'order': instance.order,
   'product_variant': instance.productVariant,
   'batch': instance.batch,

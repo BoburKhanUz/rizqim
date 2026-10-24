@@ -115,4 +115,75 @@ class BookingAdvanceLedger implements AdvanceLedger
             }
         });
     }
+
+    /**
+     * Review P3-35: the bill's offset given back (its prepayment part refunded), newest deposit first, recorded as a
+     * negative application so the deposit's history stays whole. A deposit that holds money again is `taken`.
+     */
+    public function reverse(Order $order, Money $amount, string $billUuid): void
+    {
+        if (!$amount->isPositive()) {
+            throw new AdvanceLedgerException("Avansga qaytariladigan summa musbat bo'lishi kerak.", 'invalid_amount');
+        }
+
+        $bookingId = $order->getAttribute('booking_id');
+        DB::transaction(function () use ($bookingId, $order, $amount, $billUuid) {
+            $booking = $bookingId !== null ? Booking::whereKey((int) $bookingId)->lockForUpdate()->first() : null;
+            // The deposits the bill took, wherever the booking is now (the order may have lost it in a merge)
+            $payments = BookingPayment::query()
+                ->where(fn ($query) => $query->where('order_id', $order->id)->when($booking !== null, fn ($query) => $query->orWhere('booking_id', $booking?->id)))
+                ->orderByDesc('id')
+                ->lockForUpdate()
+                ->get();
+
+            $net = [];
+            foreach ($payments as $payment) {
+                $sum = Money::zero();
+                foreach ($payment->applications ?? [] as $application) {
+                    if ($application['bill_uuid'] === $billUuid) {
+                        $sum = $sum->plus($application['amount']);
+                    }
+                }
+                $net[$payment->id] = $sum;
+            }
+            $applied = Money::sum(...array_values($net));
+            if ($amount->isGreaterThan($applied)) {
+                throw new AdvanceLedgerException(
+                    "Bu schyotga avansdan {$applied->toString()} so'm ayirilgan: undan ko'pini qaytarib bo'lmaydi.",
+                    'reverse_exceeds_applied',
+                    409,
+                    ['applied' => $applied->toString()],
+                );
+            }
+
+            $left = $amount;
+            foreach ($payments as $payment) {
+                if (!$left->isPositive()) {
+                    break;
+                }
+                $part = Money::min($left, $net[$payment->id]);
+                if (!$part->isPositive()) {
+                    continue;
+                }
+
+                $applications = $payment->applications ?? [];
+                $applications[] = ['bill_uuid' => $billUuid, 'amount' => $part->negated()->toString(), 'at' => now()->toJSON(), 'reversed' => true];
+                $payment->forceFill([
+                    'applied_amount' => Money::of($payment->applied_amount)->minus($part)->toString(),
+                    'applications' => $applications,
+                ]);
+                if ($payment->remaining()->isPositive()) {
+                    $payment->status = BookingPaymentStatus::TAKEN;
+                }
+                $payment->save();
+
+                $left = $left->minus($part);
+            }
+
+            if ($booking !== null) {
+                $booking->version = $booking->version + 1;
+                $booking->save();
+            }
+        });
+    }
 }

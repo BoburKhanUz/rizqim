@@ -382,14 +382,16 @@ class _PrinterLane {
   }
 
   void kick() {
-    if (running || paused || disposed) return;
+    if (running || disposed) return;
+    // A stopped lane still opens the drawer (the cashier is holding the change)
+    if (paused && _next() == null) return;
     running = true;
     unawaited(_run());
   }
 
   Future<void> _run() async {
     try {
-      while (!disposed && !paused) {
+      while (!disposed) {
         final PrintJob? job = _next();
         if (job == null) break;
         await _print(job);
@@ -399,9 +401,13 @@ class _PrinterLane {
     }
   }
 
+  /// Keyingi ish: navbat to'xtagan bo'lsa faqat kassa qutisi.
   PrintJob? _next() {
     for (final PrintJob j in jobs) {
-      if (j.status == PrintJobStatus.queued) return j;
+      if (j.status == PrintJobStatus.queued &&
+          (!paused || j.kind == PrintJobKind.drawer)) {
+        return j;
+      }
     }
     return null;
   }
@@ -455,6 +461,14 @@ class _PrinterLane {
           if (job.status != PrintJobStatus.queued) return; // bekor qilindi
           continue;
         }
+      }
+      if (job.kind == PrintJobKind.drawer) {
+        // A drawer kick is not kept for later (the drawer opening minutes later is worse) and does not stop the lane
+        jobs.remove(job);
+        job.status = PrintJobStatus.failed;
+        queue._emitJob(job);
+        queue._emitState(this);
+        return;
       }
       // urinishlar tugadi yoki odam kerak: ish xato, navbat to'xtaydi
       job.status = PrintJobStatus.failed;

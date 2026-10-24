@@ -51,6 +51,7 @@ import 'pos_bookings/pos_bookings_api.dart';
 import 'pos_bootstrap/pos_bootstrap_api.dart';
 import 'pos_customer_accounts/pos_customer_accounts_api.dart';
 import 'pos_orders/pos_orders_api.dart';
+import 'pos_sync/pos_sync_api.dart';
 import 'promo_codes/promo_codes_api.dart';
 import 'reports/reports_api.dart';
 import 'kitchen/kitchen_api.dart';
@@ -124,6 +125,7 @@ class RizqimApi {
   PosBootstrapApi? _posBootstrap;
   PosCustomerAccountsApi? _posCustomerAccounts;
   PosOrdersApi? _posOrders;
+  PosSyncApi? _posSync;
   PromoCodesApi? _promoCodes;
   ReportsApi? _reports;
   KitchenApi? _kitchen;
@@ -270,6 +272,8 @@ class RizqimApi {
 
   PosOrdersApi get posOrders =>
       _posOrders ??= PosOrdersApi(_dio, baseUrl: _baseUrl);
+
+  PosSyncApi get posSync => _posSync ??= PosSyncApi(_dio, baseUrl: _baseUrl);
 
   PromoCodesApi get promoCodes =>
       _promoCodes ??= PromoCodesApi(_dio, baseUrl: _baseUrl);

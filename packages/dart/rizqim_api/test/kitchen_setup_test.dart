@@ -85,12 +85,36 @@ void main() {
         'Mangal',
         'Osh',
       ]);
+      expect(setup.routes.isEmpty, isTrue, reason: 'no station_routes');
       expect(setup.stations.first.isMangal, isTrue);
       expect(setup.serverTime, DateTime.utc(2026, 10, 22, 8));
       expect(adapter.requests.single.uri.path, '/api/v1/pos/bootstrap');
       expect(adapter.requests.single.queryParameters['branch_id'], 3);
     },
   );
+
+  test('the station routes: a product route first, else its category; junk rows are dropped', () async {
+    adapter.handler = (RequestOptions o) => ok(<String, Object?>{
+      'stations': <Object?>[],
+      'station_routes': <String, Object?>{
+        'categories': <Object?>[
+          <String, Object?>{'category_id': 2, 'station_id': 1},
+          <String, Object?>{'category_id': 'x', 'station_id': 1},
+        ],
+        'products': <Object?>[
+          <String, Object?>{'product_id': 7, 'station_id': 2},
+          'junk',
+        ],
+      },
+    });
+    final KitchenStationRoutes routes = (await service.setup()).routes;
+    expect(routes.products, <int, int>{7: 2});
+    expect(routes.categories, <int, int>{2: 1});
+    expect(routes.stationFor(productId: 7, categoryId: 2), 2);
+    expect(routes.stationFor(productId: 8, categoryId: 2), 1);
+    expect(routes.stationFor(productId: 8, categoryId: 3), isNull);
+    expect(routes.stationFor(), isNull);
+  });
 
   test(
     'an unreadable bootstrap is "unexpected response", not "offline"',

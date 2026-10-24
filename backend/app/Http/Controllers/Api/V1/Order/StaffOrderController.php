@@ -46,7 +46,7 @@ class StaffOrderController extends Controller
 {
     use ApiResponse;
 
-    public const ITEM = 'array{id: int, product_name: string, variant_name: string|null, quantity: int|float, unit: string, quantity_label: string, modifiers: list<array{name: string, group_name?: string, quantity: int, price_delta?: string}>, kitchen_status: string, ready_at: string|null, round_no?: int|null, fire_mode?: string, station_id?: int|null, sent_at?: string|null, due_at?: string|null, seat_no?: int|null, note?: string|null, voided_at?: string|null, void_reason?: string|null, unit_price?: string, modifiers_total?: string, total_price?: string}';
+    public const ITEM = 'array{id: int, product_name: string, variant_name: string|null, quantity: int|float, unit: string, quantity_label: string, modifiers: list<array{name: string, group_name?: string, quantity: int, price_delta?: string}>, kitchen_status: string, ready_at: string|null, round_no?: int|null, fire_mode?: string, station_id?: int|null, product_id?: int|null, category_id?: int|null, sent_at?: string|null, due_at?: string|null, seat_no?: int|null, note?: string|null, voided_at?: string|null, void_reason?: string|null, unit_price?: string, modifiers_total?: string, total_price?: string}';
 
     public const ORDER = 'array{uuid: string, short_code: string|null, status: string, status_label: string, type: string, channel: string, store_id: int, branch_id: int|null, branch_name: string|null, payment_method: string, payment_status: string, subtotal: string, discount: string, delivery_price: string, service_charge_amount: string, place_fee_amount: string, total_price: string, notes: string|null, guests_count: int|null, hall_ref: string|null, table_ref: string|null, cancel_reason: string|null, cancel_note: string|null, customer: array{name: string|null, phone: string|null}|null, delivery: array{address: string|null, latitude: float|null, longitude: float|null, zone_name: string|null}|null, courier: array{id: int, name: string|null, phone: string|null}|null, items_total: int, items_ready: int, items: list<' . self::ITEM . '>, created_at: string|null, updated_at: string|null, accepted_at: string|null, preparing_at: string|null, ready_at: string|null, closed_at: string|null, waiting_seconds: int}';
 
@@ -291,7 +291,7 @@ class StaffOrderController extends Controller
      */
     #[Group('Kitchen')]
     #[QueryParameter('branch_id', description: 'One branch; omit for every branch the caller works in (a branch terminal: its branch).', type: 'int')]
-    #[QueryParameter('include_ready', description: '1 to also list orders that are ready but not handed over yet.', type: 'bool')]
+    #[QueryParameter('include_ready', description: '1 (or true) to also list orders that are ready but not handed over yet.', type: 'bool')]
     #[QueryParameter('canceled_within', description: 'Minutes (1-60): also list the orders cancelled or rejected that long ago at most, with canceled_at.', type: 'int', required: false)]
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: list<' . self::TICKET . '>, meta: array{truncated: bool}}')]
     public function tickets(Request $request): JsonResponse
@@ -299,7 +299,8 @@ class StaffOrderController extends Controller
         $user = $this->user($request);
         $request->validate([
             'branch_id' => 'nullable|string|max:20',
-            'include_ready' => 'nullable|boolean',
+            // Review P3-35: `true`/`false` as a query string carries them too (1/0 as before)
+            'include_ready' => ['nullable', Rule::in(['0', '1', 'true', 'false'])],
             'canceled_within' => 'nullable|integer|min:1|max:' . self::CANCELED_WITHIN_MAX,
         ], [
             'canceled_within.*' => "Bekor qilingan buyurtmalar davri 1 dan " . self::CANCELED_WITHIN_MAX . " daqiqagacha bo'lishi kerak.",

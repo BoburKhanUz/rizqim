@@ -65,6 +65,26 @@ test('a place is dragged and resized on the floor map, then the layout is saved'
   await expect(page.getByTestId('place-12')).toHaveAttribute('data-rect', '10,1,5,4')
 })
 
+test('a new place is created on the first free spot of its hall map, so the till draws the hall map', async ({ page, api, signIn, reverb }) => {
+  void reverb
+  await openSignedIn(page, signIn, '/floor')
+  const hall = page.getByRole('group', { name: 'Asosiy zal' })
+  await hall.getByRole('button', { name: "Joy qo'shish" }).click()
+  await page.getByLabel('Nomi').fill('Stol 9')
+  await page.getByRole('button', { name: 'Saqlash', exact: true }).click()
+  await expect(hall.getByText('Stol 9')).toBeVisible()
+
+  const request = api.callsTo('POST', '/v1/owner/dining-tables')[0]
+  expect(request.body).toMatchObject({ hall_id: 1, name: 'Stol 9', kind: 'table', layout: { x: 0, y: 0, w: 2, h: 2 } })
+  const created = api.floor.tables.find((table) => table.name === 'Stol 9')!
+  expect(created.layout).toEqual({ x: '0.00', y: '0.00', w: '2.00', h: '2.00' })
+
+  // The map shows it where it was saved: nothing to save
+  await page.getByRole('tab', { name: 'Zal xaritasi' }).click()
+  await expect(page.getByTestId(`place-${created.id}`)).toHaveAttribute('data-rect', '0,0,2,2')
+  await expect(page.getByText(/saqlanmagan/)).toHaveCount(0)
+})
+
 test('a room tariff is made for a kind of place and for the weekend', async ({ page, api, signIn, reverb }) => {
   void reverb
   await openSignedIn(page, signIn, '/floor')

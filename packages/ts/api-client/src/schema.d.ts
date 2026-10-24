@@ -2465,8 +2465,8 @@ export interface paths {
         /**
          * Ask again for a bill's receipt
          * @description For a bill whose payments cover it but whose sale receipt is not issued ("fiskal kutmoqda": pending or failed):
-         *     asks the fiscal provider again (same receipt, never a second one); issued: the bill is paid and the order closed
-         *     when every bill is. Needs pos.take_payment.
+         *     asks the fiscal provider again (same receipt, never a second one; P3-35: a receipt the provider refused is sent
+         *     again too); issued: the bill is paid and the order closed when every bill is. Needs pos.take_payment.
          */
         post: operations["posBill.fiscalRetry"];
         delete?: never;
@@ -2816,7 +2816,9 @@ export interface paths {
          *     Bluetooth printers, and the USB or built-in printers attached to this very terminal); `staff` (id, name, role,
          *     photo_url: to pick a waiter); `halls` (open halls and zones), `tables` (their active places; `layout` in grid
          *     cells of the floor plan, 40 x 24), `shift` (the shift open on this terminal; null outside a terminal session or
-         *     with none open); P3-26: `quick_items`, the one-tap buttons (products marked `quick_add` in the menu, then the
+         *     with none open); P3-31: `offline`, what the till keeps for the limited mode (fees per hall and channel, today's room
+         *     fee and minimum spend per place, the choy-non items, its local number prefix and next number, the limits);
+         *     P3-26: `quick_items`, the one-tap buttons (products marked `quick_add` in the menu, then the
          *     branch's per-guest "choy-non" items: `source` quick_add | auto_guest, `variant_uuid` to add as a line; prices and
          *     availability from the POS catalog).
          */
@@ -3218,6 +3220,7 @@ export interface paths {
          * Waive a charge line
          * @description `service_charge`, `place_fee`, `room_fee` or `min_spend_topup` taken off this order with a `reason` (the guest
          *     objected; the manager decided): orders.discount or a manager's `approval_token`. Audited. Needs orders.manage.
+         *     409 `paid_bill_affected` when a paid bill carries it (P3-35).
          */
         post: operations["posOrder.waive"];
         delete?: never;
@@ -3261,7 +3264,7 @@ export interface paths {
         /**
          * Change the guests count
          * @description The per-guest charges follow; guests who joined get the automatic "choy-non" lines as a new round. Needs
-         *     orders.manage.
+         *     orders.manage. 409 `paid_bill_affected` when a charge a paid bill carries would go down (P3-35).
          */
         post: operations["posOrder.guests"];
         delete?: never;
@@ -3306,7 +3309,8 @@ export interface paths {
          * @description Before the line reached the kitchen: orders.manage, its stock and kazan portion go back. Once sent (or after the
          *     bill was printed): `reason` is required and orders.void_item, or a manager's one-time `approval_token` (POST
          *     /pos/approvals); the kitchen sees it struck through. `restock` (sent lines) returns the portion when it was not
-         *     cooked. 403 `approval_required` / `approval_invalid`; 422 `already_void`.
+         *     cooked. 403 `approval_required` / `approval_invalid`; 422 `already_void`; 409 `paid_bill_affected` for a line on a
+         *     bill being paid (refund that payment first, P3-35).
          */
         post: operations["posOrder.void"];
         delete?: never;
@@ -3328,6 +3332,8 @@ export interface paths {
          * Merge another order into this one
          * @description `source_uuid`'s lines move to this order (after its rounds), its guests are added and it is closed as merged.
          *     Both open hall orders of one branch, no printed bill, no payment; both versions are checked. Needs tables.manage.
+         *     P3-35: a booking's order hands its booking and deposits to this order; orders of two different bookings are 422
+         *     `merge_bookings_conflict`.
          */
         post: operations["posOrder.merge"];
         delete?: never;
@@ -3349,6 +3355,7 @@ export interface paths {
          * Move the order to another table
          * @description Another table, room or tapchan of the same branch: the new hall's service charge and the new place's room tariff
          *     and minimum spend apply. A room with an open order is 422 `table_occupied` (merge instead). Needs tables.manage.
+         *     409 `paid_bill_affected` when a charge a paid bill carries would go down (P3-35).
          */
         post: operations["posOrder.move"];
         delete?: never;
@@ -3460,13 +3467,15 @@ export interface paths {
         put?: never;
         /**
          * Refund a payment within the shift
-         * @description Gives back `amount` of a cash, card or QR payment (`payment_uuid`) of a paid bill, taken in the open shift of
-         *     this terminal (or `shift_uuid`): 409 `refund_outside_shift` for another shift's payment, 422
-         *     `refund_tender_invalid` for a deposit or nasiya part, 422 `refund_exceeds_payment` beyond what is left of it,
-         *     409 `bill_not_fiscalized` before the sale receipt is issued, 409 `not_enough_cash` beyond the drawer's cash.
-         *     `reason` is required. Needs pos.refund, or a manager's `approval_token` for it (403 `approval_required`). Cash
-         *     leaves the drawer; a REFUND receipt naming the sale receipt is asked for (`fiscal`); the owner is told in
-         *     Telegram.
+         * @description Gives back `amount` of a payment (`payment_uuid`) of a paid bill, taken in the open shift of this terminal (or
+         *     `shift_uuid`): 409 `refund_outside_shift` for another shift's payment, 422 `refund_tender_invalid` for one that
+         *     is not a bill's, 422 `refund_exceeds_payment` beyond what is left of it, 409 `bill_not_fiscalized` before the sale
+         *     receipt is issued, 409 `shift_closed` when the shift closed meanwhile, 409 `not_enough_cash` beyond the drawer's
+         *     cash. `reason` is required. Needs pos.refund, or a manager's `approval_token` for it (403 `approval_required`).
+         *     Cash leaves the drawer; P3-35: a deposit part (`prepayment`) goes back to the booking's deposit (409
+         *     `reverse_exceeds_applied`), a nasiya part (`account`) comes off the customer's debt (409 `reverse_exceeds_charge`,
+         *     `more_than_debt` when it was repaid); neither moves cash. A REFUND receipt naming the sale receipt is asked for
+         *     (`fiscal`; its payment marked `prepayment` / `credit` for those parts); the owner is told in Telegram.
          */
         post: operations["posRefund.store"];
         delete?: never;
@@ -3516,7 +3525,8 @@ export interface paths {
          *     sign-in (the owner or a manager in the web panel or the Mini App) gets the branch's open shifts: `branch_id`
          *     (default: the caller's own branch; an owner without one names it, else every branch they see is listed in
          *     `shifts`); `shift`/`report` is then the most recently opened of them. `shifts`: every open shift with its X
-         *     report (a terminal: just its own). Another store's branch: 404; one the caller does not work in: 403.
+         *     report (a terminal: just its own). Another store's branch: 404; one the caller does not work in: 403. Needs
+         *     pos.open_shift, pos.close_shift, pos.take_payment or (P3-35, read-only) reports.view.
          */
         get: operations["posShift.current"];
         put?: never;
@@ -3613,6 +3623,103 @@ export interface paths {
          *     close. Needs pos.close_shift or reports.view.
          */
         get: operations["posShift.xReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send the offline queue
+         * @description Up to 50 operations of this till in its `seq` order, each with a new `op_id` (UUID; the same one when sent again:
+         *     it is applied once), `type` (order.open, order.round, order.send, order.void, order.served, bill.create, bill.pay,
+         *     order.close), `occurred_at` (the device's clock), `staff_id` (who did it: signed in on this till before the
+         *     outage, with the permission) and `payload`. Each result: `status` applied | conflict (applied, but a manager
+         *     should look: oversold, payment on a cancelled order, amount mismatch, stale menu, a taken room, a device price the
+         *     dish never had — `offline_price_mismatch`, the server's price applied) | rejected (not applied: "Sinxronlash
+         *          * xatolari"; `invalid_payload` for content the server cannot store), `reason`, `message` and `refs` (the server's
+         *     order uuid and version, local number, line ids, bill and payment uuids, flags). `sent_at` (the device's clock now)
+         *     gives the clock skew: more than 5 minutes is `clock_warning` (and corrects the operations' times, kept within the
+         *     last 48 hours). `stopped_at`: a temporary database failure only. `queue` (size, oldest_at) is what is still in the device's queue including
+         *     this batch: the shift does not close while it is not empty. Only a POS terminal's own token.
+         */
+        post: operations["posSync.store"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/sync/errors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Sync errors ("Sinxronlash xatolari")
+         * @description Offline operations of the caller's branch (or `branch_id`) that a manager should look at: rejected (not applied)
+         *     and conflicting (applied with a difference), not resolved yet; `all=1` resolved ones too; `device` (uuid) one
+         *     till. Newest first, 50 per page. Needs orders.view.
+         */
+        get: operations["posSync.errors"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/sync/errors/{opId}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resolve or dismiss a sync error
+         * @description The manager settled it by hand (`resolution: resolved`, e.g. entered the round again, refunded the guest) or
+         *     there is nothing to do (`dismissed`), with an optional `note`. A resolved rejected operation no longer keeps its
+         *     till's shift from closing. Repeating it changes nothing. Needs orders.cancel (owner, manager).
+         */
+        post: operations["posSync.resolve"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/sync/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Sync status of this till
+         * @description What the server holds for this till: the last `seq` it received, what the till last said about its queue, the
+         *     clock skew, and its operations that need a manager (rejected or conflicting, not resolved yet; newest first, at
+         *     most 100). `queue_size` / `oldest_at` (optional) report the queue now (0 after it drained). Only a POS terminal's
+         *     own token.
+         */
+        get: operations["posSync.status"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4471,6 +4578,14 @@ export interface components {
             created_at: string | null;
             /** Format: date-time */
             updated_at: string | null;
+            sync_prefix: string | null;
+            sync_last_seq: number;
+            sync_pending_ops: number;
+            /** Format: date-time */
+            sync_oldest_op_at: string | null;
+            /** Format: date-time */
+            sync_reported_at: string | null;
+            sync_clock_skew_seconds: number | null;
             user?: components["schemas"]["User"] | null;
             store?: components["schemas"]["Store"] | null;
             branch?: components["schemas"]["Branch"] | null;
@@ -4613,6 +4728,7 @@ export interface components {
             created_at: string | null;
             /** Format: date-time */
             updated_at: string | null;
+            oversold_quantity: string;
             is_open: boolean;
             store?: components["schemas"]["Store"];
             branch?: components["schemas"]["Branch"];
@@ -4781,6 +4897,14 @@ export interface components {
             /** Format: date-time */
             bill_requested_at: string | null;
             bill_requested_by: number | null;
+            local_number: string | null;
+            /** Format: date-time */
+            offline_created_at: string | null;
+            /** Format: date-time */
+            synced_at: string | null;
+            sync_flags: {
+                [key: string]: unknown;
+            }[] | null;
             type: string;
             address: string | null;
             store?: components["schemas"]["Store"];
@@ -4915,6 +5039,8 @@ export interface components {
             void_reason: string | null;
             seat_no: number | null;
             note: string | null;
+            client_line_id: string | null;
+            price_source: string | null;
             order?: components["schemas"]["Order"];
             product_variant?: components["schemas"]["ProductVariant"] | null;
             batch?: components["schemas"]["MenuBatch"] | null;
@@ -4974,6 +5100,10 @@ export interface components {
             card_type: string | null;
             transaction_id: string | null;
             reference: string | null;
+            /** Format: date-time */
+            offline_paid_at: string | null;
+            /** Format: date-time */
+            synced_at: string | null;
             order?: components["schemas"]["Order"] | null;
             bill?: components["schemas"]["OrderBill"] | null;
             shift?: components["schemas"]["PosShift"] | null;
@@ -16253,6 +16383,43 @@ export interface operations {
                                 quantity_per_guest: string | null;
                                 sort_order: number;
                             }[];
+                            offline: {
+                                device_prefix: string | null;
+                                next_local_number: number;
+                                business_date: string;
+                                day_type: string;
+                                fees: {
+                                    hall_id: number | null;
+                                    channel: string;
+                                    service_charge_percent: string;
+                                    place_fee_amount: string;
+                                    place_fee_mode: string;
+                                }[];
+                                places: {
+                                    table_id: number;
+                                    hall_id: number;
+                                    room_fee: string;
+                                    min_spend: string;
+                                    min_spend_mode: string;
+                                }[];
+                                guest_items: {
+                                    hall_id: number | null;
+                                    variant_uuid: string;
+                                    quantity_per_guest: string;
+                                    sort_order: number;
+                                }[];
+                                limits: {
+                                    batch_size: number;
+                                    warn_after_minutes: number;
+                                    alert_after_minutes: number;
+                                    max_queued_orders: number;
+                                    menu_max_age_hours: number;
+                                    contact_max_age_hours: number;
+                                    fiscal_warn_hours: number[];
+                                    fiscal_limit_hours: number;
+                                    clock_skew_warn_seconds: number;
+                                };
+                            };
                         };
                     };
                 };
@@ -17209,6 +17376,8 @@ export interface operations {
                                     round_no?: number | null;
                                     fire_mode?: string;
                                     station_id?: number | null;
+                                    product_id?: number | null;
+                                    category_id?: number | null;
                                     sent_at?: string | null;
                                     due_at?: string | null;
                                     seat_no?: number | null;
@@ -17353,6 +17522,17 @@ export interface operations {
                                     waived_at: string | null;
                                 }[];
                             };
+                            offline: {
+                                local_number: string | null;
+                                created_at: string | null;
+                                synced_at: string | null;
+                                flags: {
+                                    flag: string;
+                                    op_id: string | null;
+                                    amount: string | null;
+                                    name: string | null;
+                                }[];
+                            } | null;
                             rounds: number;
                             items: {
                                 id: number;
@@ -17492,6 +17672,17 @@ export interface operations {
                                     waived_at: string | null;
                                 }[];
                             };
+                            offline: {
+                                local_number: string | null;
+                                created_at: string | null;
+                                synced_at: string | null;
+                                flags: {
+                                    flag: string;
+                                    op_id: string | null;
+                                    amount: string | null;
+                                    name: string | null;
+                                }[];
+                            } | null;
                             rounds: number;
                             items: {
                                 id: number;
@@ -17662,6 +17853,8 @@ export interface operations {
                                     round_no?: number | null;
                                     fire_mode?: string;
                                     station_id?: number | null;
+                                    product_id?: number | null;
+                                    category_id?: number | null;
                                     sent_at?: string | null;
                                     due_at?: string | null;
                                     seat_no?: number | null;
@@ -18208,6 +18401,17 @@ export interface operations {
                                     waived_at: string | null;
                                 }[];
                             };
+                            offline: {
+                                local_number: string | null;
+                                created_at: string | null;
+                                synced_at: string | null;
+                                flags: {
+                                    flag: string;
+                                    op_id: string | null;
+                                    amount: string | null;
+                                    name: string | null;
+                                }[];
+                            } | null;
                             rounds: number;
                             items: {
                                 id: number;
@@ -18358,6 +18562,17 @@ export interface operations {
                                     waived_at: string | null;
                                 }[];
                             };
+                            offline: {
+                                local_number: string | null;
+                                created_at: string | null;
+                                synced_at: string | null;
+                                flags: {
+                                    flag: string;
+                                    op_id: string | null;
+                                    amount: string | null;
+                                    name: string | null;
+                                }[];
+                            } | null;
                             rounds: number;
                             items: {
                                 id: number;
@@ -18509,6 +18724,17 @@ export interface operations {
                                     waived_at: string | null;
                                 }[];
                             };
+                            offline: {
+                                local_number: string | null;
+                                created_at: string | null;
+                                synced_at: string | null;
+                                flags: {
+                                    flag: string;
+                                    op_id: string | null;
+                                    amount: string | null;
+                                    name: string | null;
+                                }[];
+                            } | null;
                             rounds: number;
                             items: {
                                 id: number;
@@ -18859,6 +19085,17 @@ export interface operations {
                                     waived_at: string | null;
                                 }[];
                             };
+                            offline: {
+                                local_number: string | null;
+                                created_at: string | null;
+                                synced_at: string | null;
+                                flags: {
+                                    flag: string;
+                                    op_id: string | null;
+                                    amount: string | null;
+                                    name: string | null;
+                                }[];
+                            } | null;
                             rounds: number;
                             items: {
                                 id: number;
@@ -19009,6 +19246,17 @@ export interface operations {
                                     waived_at: string | null;
                                 }[];
                             };
+                            offline: {
+                                local_number: string | null;
+                                created_at: string | null;
+                                synced_at: string | null;
+                                flags: {
+                                    flag: string;
+                                    op_id: string | null;
+                                    amount: string | null;
+                                    name: string | null;
+                                }[];
+                            } | null;
                             rounds: number;
                             items: {
                                 id: number;
@@ -19169,6 +19417,17 @@ export interface operations {
                                     waived_at: string | null;
                                 }[];
                             };
+                            offline: {
+                                local_number: string | null;
+                                created_at: string | null;
+                                synced_at: string | null;
+                                flags: {
+                                    flag: string;
+                                    op_id: string | null;
+                                    amount: string | null;
+                                    name: string | null;
+                                }[];
+                            } | null;
                             rounds: number;
                             items: {
                                 id: number;
@@ -19329,6 +19588,17 @@ export interface operations {
                                     waived_at: string | null;
                                 }[];
                             };
+                            offline: {
+                                local_number: string | null;
+                                created_at: string | null;
+                                synced_at: string | null;
+                                flags: {
+                                    flag: string;
+                                    op_id: string | null;
+                                    amount: string | null;
+                                    name: string | null;
+                                }[];
+                            } | null;
                             rounds: number;
                             items: {
                                 id: number;
@@ -19479,6 +19749,17 @@ export interface operations {
                                     waived_at: string | null;
                                 }[];
                             };
+                            offline: {
+                                local_number: string | null;
+                                created_at: string | null;
+                                synced_at: string | null;
+                                flags: {
+                                    flag: string;
+                                    op_id: string | null;
+                                    amount: string | null;
+                                    name: string | null;
+                                }[];
+                            } | null;
                             rounds: number;
                             items: {
                                 id: number;
@@ -19662,6 +19943,8 @@ export interface operations {
                                     round_no?: number | null;
                                     fire_mode?: string;
                                     station_id?: number | null;
+                                    product_id?: number | null;
+                                    category_id?: number | null;
                                     sent_at?: string | null;
                                     due_at?: string | null;
                                     seat_no?: number | null;
@@ -19789,6 +20072,17 @@ export interface operations {
                                     waived_at: string | null;
                                 }[];
                             };
+                            offline: {
+                                local_number: string | null;
+                                created_at: string | null;
+                                synced_at: string | null;
+                                flags: {
+                                    flag: string;
+                                    op_id: string | null;
+                                    amount: string | null;
+                                    name: string | null;
+                                }[];
+                            } | null;
                             rounds: number;
                             items: {
                                 id: number;
@@ -19953,6 +20247,17 @@ export interface operations {
                                     waived_at: string | null;
                                 }[];
                             };
+                            offline: {
+                                local_number: string | null;
+                                created_at: string | null;
+                                synced_at: string | null;
+                                flags: {
+                                    flag: string;
+                                    op_id: string | null;
+                                    amount: string | null;
+                                    name: string | null;
+                                }[];
+                            } | null;
                             rounds: number;
                             items: {
                                 id: number;
@@ -20103,6 +20408,17 @@ export interface operations {
                                     waived_at: string | null;
                                 }[];
                             };
+                            offline: {
+                                local_number: string | null;
+                                created_at: string | null;
+                                synced_at: string | null;
+                                flags: {
+                                    flag: string;
+                                    op_id: string | null;
+                                    amount: string | null;
+                                    name: string | null;
+                                }[];
+                            } | null;
                             rounds: number;
                             items: {
                                 id: number;
@@ -21400,6 +21716,352 @@ export interface operations {
             401: components["responses"]["AuthenticationException"];
         };
     };
+    "posSync.store": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer. */
+                "Idempotency-Key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: date-time */
+                    sent_at?: string | null;
+                    queue?: {
+                        size?: number | null;
+                        /** Format: date-time */
+                        oldest_at?: string | null;
+                    };
+                    operations: {
+                        /** Format: uuid */
+                        op_id: string;
+                        seq: number;
+                        /** @enum {string} */
+                        type: "order.open" | "order.round" | "order.send" | "order.void" | "order.served" | "bill.create" | "bill.pay" | "order.close";
+                        /** Format: date-time */
+                        occurred_at?: string | null;
+                        staff_id: number;
+                        payload: string[];
+                    }[];
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            server_time: string;
+                            clock_skew_seconds: number | null;
+                            clock_warning: boolean;
+                            stopped_at: number | null;
+                            results: {
+                                op_id: string;
+                                seq: number;
+                                type: string;
+                                status: string;
+                                reason: string | null;
+                                message: string | null;
+                                duplicate: boolean;
+                                refs: {
+                                    [key: string]: unknown;
+                                };
+                            }[];
+                            device: {
+                                uuid: string;
+                                name: string | null;
+                                prefix: string | null;
+                                last_seq: number;
+                                pending_ops: number;
+                                oldest_op_at: string | null;
+                                reported_at: string | null;
+                                clock_skew_seconds: number | null;
+                                clock_warning: boolean;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "posSync.errors": {
+        parameters: {
+            query?: {
+                branch_id?: number;
+                /** @description A till uuid. */
+                device?: string;
+                /** @description Resolved and dismissed ones too. */
+                all?: boolean;
+                page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            errors: {
+                                op_id: string;
+                                seq: number;
+                                type: string;
+                                type_label: string;
+                                status: string;
+                                reason: string | null;
+                                message: string | null;
+                                staff: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                device: {
+                                    uuid: string;
+                                    name: string | null;
+                                } | null;
+                                occurred_at: string | null;
+                                received_at: string | null;
+                                applied_at: string | null;
+                                clock_skew_seconds: number | null;
+                                order: {
+                                    uuid: string;
+                                    local_number: string | null;
+                                    short_code: string | null;
+                                    table_ref: string | null;
+                                    status: string;
+                                } | null;
+                                payload: {
+                                    [key: string]: unknown;
+                                };
+                                refs: {
+                                    [key: string]: unknown;
+                                };
+                                resolved_at: string | null;
+                                resolved_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                resolution: string | null;
+                                resolution_note: string | null;
+                            }[];
+                            meta: {
+                                current_page: number;
+                                last_page: number;
+                                per_page: number;
+                                total: number;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "posSync.resolve": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                opId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    resolution: "resolved" | "dismissed";
+                    note?: string | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            op_id: string;
+                            seq: number;
+                            type: string;
+                            type_label: string;
+                            status: string;
+                            reason: string | null;
+                            message: string | null;
+                            staff: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            device: {
+                                uuid: string;
+                                name: string | null;
+                            } | null;
+                            occurred_at: string | null;
+                            received_at: string | null;
+                            applied_at: string | null;
+                            clock_skew_seconds: number | null;
+                            order: {
+                                uuid: string;
+                                local_number: string | null;
+                                short_code: string | null;
+                                table_ref: string | null;
+                                status: string;
+                            } | null;
+                            payload: {
+                                [key: string]: unknown;
+                            };
+                            refs: {
+                                [key: string]: unknown;
+                            };
+                            resolved_at: string | null;
+                            resolved_by: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            resolution: string | null;
+                            resolution_note: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "posSync.status": {
+        parameters: {
+            query?: {
+                /** @description Operations still in the device queue now. */
+                queue_size?: number;
+                /** @description When the oldest of them happened (device clock). */
+                oldest_at?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            server_time: string;
+                            device: {
+                                uuid: string;
+                                name: string | null;
+                                prefix: string | null;
+                                last_seq: number;
+                                pending_ops: number;
+                                oldest_op_at: string | null;
+                                reported_at: string | null;
+                                clock_skew_seconds: number | null;
+                                clock_warning: boolean;
+                            };
+                            errors: {
+                                op_id: string;
+                                seq: number;
+                                type: string;
+                                type_label: string;
+                                status: string;
+                                reason: string | null;
+                                message: string | null;
+                                staff: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                device: {
+                                    uuid: string;
+                                    name: string | null;
+                                } | null;
+                                occurred_at: string | null;
+                                received_at: string | null;
+                                applied_at: string | null;
+                                clock_skew_seconds: number | null;
+                                order: {
+                                    uuid: string;
+                                    local_number: string | null;
+                                    short_code: string | null;
+                                    table_ref: string | null;
+                                    status: string;
+                                } | null;
+                                payload: {
+                                    [key: string]: unknown;
+                                };
+                                refs: {
+                                    [key: string]: unknown;
+                                };
+                                resolved_at: string | null;
+                                resolved_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                resolution: string | null;
+                                resolution_note: string | null;
+                            }[];
+                            errors_count: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
     "promoCode.validateCode": {
         parameters: {
             query?: never;
@@ -21506,7 +22168,7 @@ export interface operations {
             query?: {
                 /** @description One branch; omit for every branch the caller works in (a branch terminal: its branch). */
                 branch_id?: number;
-                /** @description 1 to also list orders that are ready but not handed over yet. */
+                /** @description 1 (or true) to also list orders that are ready but not handed over yet. */
                 include_ready?: boolean;
                 /** @description Minutes (1-60): also list the orders cancelled or rejected that long ago at most, with canceled_at. */
                 canceled_within?: number;
@@ -21556,6 +22218,8 @@ export interface operations {
                                 round_no?: number | null;
                                 fire_mode?: string;
                                 station_id?: number | null;
+                                product_id?: number | null;
+                                category_id?: number | null;
                                 sent_at?: string | null;
                                 due_at?: string | null;
                                 seat_no?: number | null;
@@ -21682,6 +22346,8 @@ export interface operations {
                                 round_no?: number | null;
                                 fire_mode?: string;
                                 station_id?: number | null;
+                                product_id?: number | null;
+                                category_id?: number | null;
                                 sent_at?: string | null;
                                 due_at?: string | null;
                                 seat_no?: number | null;
@@ -21789,6 +22455,8 @@ export interface operations {
                                 round_no?: number | null;
                                 fire_mode?: string;
                                 station_id?: number | null;
+                                product_id?: number | null;
+                                category_id?: number | null;
                                 sent_at?: string | null;
                                 due_at?: string | null;
                                 seat_no?: number | null;
@@ -21869,6 +22537,8 @@ export interface operations {
                                 round_no?: number | null;
                                 fire_mode?: string;
                                 station_id?: number | null;
+                                product_id?: number | null;
+                                category_id?: number | null;
                                 sent_at?: string | null;
                                 due_at?: string | null;
                                 seat_no?: number | null;
@@ -21951,6 +22621,8 @@ export interface operations {
                                 round_no?: number | null;
                                 fire_mode?: string;
                                 station_id?: number | null;
+                                product_id?: number | null;
+                                category_id?: number | null;
                                 sent_at?: string | null;
                                 due_at?: string | null;
                                 seat_no?: number | null;
@@ -22070,6 +22742,8 @@ export interface operations {
                                 round_no?: number | null;
                                 fire_mode?: string;
                                 station_id?: number | null;
+                                product_id?: number | null;
+                                category_id?: number | null;
                                 sent_at?: string | null;
                                 due_at?: string | null;
                                 seat_no?: number | null;

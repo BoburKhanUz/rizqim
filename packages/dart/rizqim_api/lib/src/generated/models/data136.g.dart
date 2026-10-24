@@ -39,6 +39,7 @@ Data136 _$Data136FromJson(Map<String, dynamic> json) => Data136(
   quickItems: (json['quick_items'] as List<dynamic>)
       .map((e) => QuickItems.fromJson(e as Map<String, dynamic>))
       .toList(),
+  offline: Offline.fromJson(json['offline'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data136ToJson(Data136 instance) => <String, dynamic>{
@@ -56,4 +57,5 @@ Map<String, dynamic> _$Data136ToJson(Data136 instance) => <String, dynamic>{
   'tables': instance.tables,
   'shift': instance.shift,
   'quick_items': instance.quickItems,
+  'offline': instance.offline,
 };

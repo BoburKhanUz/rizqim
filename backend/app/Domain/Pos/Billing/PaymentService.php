@@ -12,6 +12,7 @@ use App\Models\Device;
 use App\Models\Order;
 use App\Models\OrderBill;
 use App\Models\Payment;
+use App\Models\PosShift;
 use App\Models\User;
 use App\Services\Audit\AuditLogger;
 use App\Support\Money;
@@ -31,7 +32,8 @@ use Illuminate\Support\Facades\DB;
  *
  * Nothing may go over what the bill still owes. Every payment lands in the shift (cash in its drawer). When the bill
  * is covered its sale receipt is asked for (BillFiscalizer); the bill is paid, and the order closed once all bills
- * are, only when the receipt is issued.
+ * are, only when the receipt is issued. P3-31: a payment a till took offline comes through here at sync, with the
+ * device's time of payment (`offline_paid_at`).
  */
 final class PaymentService
 {
@@ -51,7 +53,7 @@ final class PaymentService
      *
      * @throws PosActionException
      */
-    public function pay(User $user, OrderBill $bill, array $tenders, ?string $approvalToken, ?string $shiftUuid, ?int $version, ?Device $device, ?Closure $applied = null): OrderBill
+    public function pay(User $user, OrderBill $bill, array $tenders, ?string $approvalToken, ?string $shiftUuid, ?int $version, ?Device $device, ?Closure $applied = null, ?\DateTimeInterface $offlinePaidAt = null): OrderBill
     {
         $order = Order::findOrFail($bill->order_id);
         $shift = $this->shifts->forAction($user, $shiftUuid, (int) $order->branch_id);
@@ -62,7 +64,13 @@ final class PaymentService
             $this->fiscalizer->lines($bill);
         }
 
-        [$bill, $covered] = DB::transaction(function () use ($user, $bill, $normalized, $approvalToken, $shift, $version, $device, $applied) {
+        [$bill, $covered] = DB::transaction(function () use ($user, $bill, $normalized, $approvalToken, $shift, $version, $device, $applied, $offlinePaidAt) {
+            // Review P3-35: the shift's row first (the Z and refunds lock it too, then the orders): a shift closed
+            // meanwhile takes no more money, and a closing Z never misses a payment made at the same moment
+            $shift = PosShift::whereKey($shift->id)->lockForUpdate()->firstOrFail();
+            if (!$shift->isOpen()) {
+                throw PosActionException::conflict('shift_closed', 'Smena yopilgan.');
+            }
             $order = BillService::lockOpenOrder(Order::findOrFail($bill->order_id), $version);
             $bill = OrderBill::whereKey($bill->id)->lockForUpdate()->firstOrFail();
 
@@ -130,6 +138,9 @@ final class PaymentService
                     'transaction_id' => $tender['transaction_id'],
                     'reference' => $tender['reference'],
                     'payload' => $payload,
+                    // P3-31: money a till took offline, synced now (the sale receipt keeps when it was taken)
+                    'offline_paid_at' => $offlinePaidAt,
+                    'synced_at' => $offlinePaidAt !== null ? now() : null,
                 ]);
                 if ($tender['tender']->isCashDrawer()) {
                     $this->shifts->recordSale($shift, $payment, $user, $device);

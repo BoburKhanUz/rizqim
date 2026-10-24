@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'items45.dart';
+import 'items41.dart';
 
 part 'data180.g.dart';
 
@@ -54,7 +54,7 @@ class Data180 {
   final int itemsTotal;
   @JsonKey(name: 'items_ready')
   final int itemsReady;
-  final List<Items45> items;
+  final List<Items41> items;
   @JsonKey(name: 'created_at')
   final String? createdAt;
   @JsonKey(name: 'accepted_at')
