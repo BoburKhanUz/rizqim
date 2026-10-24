@@ -625,6 +625,10 @@ Chop etishni server emas, terminalning o'zi bajaradi ([POS_SPEC.md](POS_SPEC.md)
   yerda ko'rinadi). Migratsiya `2026_10_27_100300` eski kalendar bayramlarini shu yerga qo'shib, kalendar ustunini
   bo'shatdi (`down` qaytarib ko'chiradi).
 - `pos_settings.booking_slot_minutes` — tugash vaqtisiz bron xonani qancha ushlab turadi: 30–1440 daqiqa yoki `null` (serverning standarti, 300).
+- `pos_settings.booking_confirmation` (P3-38) — mehmonga boradigan bron tasdig'i, kalit bo'yicha qo'shiladi:
+  `auto_send` (standart `true`: bron tasdiqlanganda o'zi yuboriladi), `sms` (standart `false`: SMS pulli — yoqilsa,
+  Telegrami yo'q mehmonga SMS ketadi), `cancel_policy` (bekor qilish qoidasi matni, ≤300 belgi, yoki `null`). Boshqa
+  kalit — 422. `GET /pos/bootstrap` da ham shu blok.
 Noma'lum kalit — 422 (saqlanmaydi). Javob: `branch_id`, `timezone`, `business_day_starts_at`, to'liq `pos_settings`
 (saqlanmaganlari standart qiymat bilan).
 
@@ -769,6 +773,8 @@ ishlaydi; terminali bekor qilingan sessiya hech narsa qila olmaydi. Pul — `"12
 | `PATCH /pos/bookings/{uuid}` | faqat yuborilgan maydonlar; vaqt yoki xona o'zgarsa to'qnashuv qayta tekshiriladi |
 | `POST /pos/bookings/{uuid}/confirm`, `/cancel` (`reason` majburiy), `/no-show` | holatni o'zgartirish |
 | `POST /pos/bookings/{uuid}/arrive` | "Keldi": buyurtma ochiladi (`guests`, boshqa xonaga — `dining_table_id`) |
+| `GET /pos/bookings/{uuid}/confirmation` | P3-38: mehmonga boradigan tasdiq matni (`text`, `lines`, `room_fee`, `channels`) — "Bron tasdig'i" bo'limi |
+| `POST /pos/bookings/{uuid}/confirmation/send` | P3-38: tasdiqni yuborish (`channel`: `auto`, `telegram`, `sms`; `Idempotency-Key`) |
 | `POST/PATCH/DELETE /pos/bookings/{uuid}/items[/{id}]` | oldindan buyurtma: `product_variant_id` yoki P3-26 `product_variant_uuid` (POS buyurtma qatorlaridagi kabi uuid; javobda ikkalasi ham), `quantity` (kg qadam bilan), `modifiers` `[{modifier_id, quantity}]`, `note`, `due_at` (tayyor bo'lish vaqti; standart — bron boshlanishi) |
 | `POST /pos/bookings/{uuid}/deposits` | avans olish (`Idempotency-Key` majburiy, doira `pos.bookings.deposit`) |
 | `POST /pos/bookings/{uuid}/deposits/{payment}/refund` | avansni qaytarish (`reason`, kerak bo'lsa `approval_token`) |
@@ -822,6 +828,86 @@ hech qaysi smenaga tushmaydi (pul boshqa joydan berilgan). Avans pulining yagona
 > (`booking_fee`, standart MXIK 10202002003000002), to'lov — oldindan to'langan (avans hisobidan); do'kon
 > `fiscal_settings.retained_deposit_receipt: false` bilan o'chira oladi. Ikkalasining standarti:
 > `POS_DEPOSIT_REFUND_RECEIPT`, `POS_RETAINED_DEPOSIT_RECEIPT` (`config/pos_bookings.php`).
+
+### Bron tasdig'i (P3-38)
+
+Kassa yoki web panelda yozilgan bron haqida mehmonga **bitta matn** boradi: Telegram, SMS yoki kassir nusxalab o'zi
+yuboradi (yoki chekdek chop etadi). Web panel bronlarni shu `/pos/*` endpointlari orqali (ega yoki menejer kirishi
+bilan) o'qiydi, shuning uchun alohida `/owner/...` nusxasi yo'q. Ruxsat — bronni o'qish bilan bir xil
+(`bookings.manage`), terminal PIN sessiyasi ham; boshqa do'kon yoki filial broni — 404.
+
+```
+Bron tasdiqlandi ✅
+Bahor choyxonasi, Chilonzor 9-kvartal
+📅 Shanba, 31-oktabr, 19:00–23:00
+🚪 Xona: "Katta xona" (20 kishilik) · 12 kishi
+💵 Xona puli: 300 000 so'm (dam olish kuni narxi)
+💵 Minimal buyurtma: 1 500 000 so'm
+💵 Xizmat haqi: 10%
+💵 Joy narxi: 5 000 so'm kishi boshiga (jami 60 000 so'm)
+🍽 Oldindan buyurtma: Osh 3 kg, Qozon kabob 2 kg
+💳 Bo'nak olindi: 500 000 so'm
+ℹ️ Bekor qilish: 24 soat oldin ayting.
+📞 +998712000000 · Bron raqami: 3F9A2C
+```
+
+**`GET /pos/bookings/{uuid}/confirmation`** → `{text, lines, room_fee, channels}`:
+- `text` — tayyor xabar (Telegram'ga shu ketadi). Sarlavha holatga qarab: `confirmed`/`arrived`/`completed` — "Bron
+  tasdiqlandi ✅", `requested` — "Bron qabul qilindi 📝", bekor qilingan/kelmagan — "Bron bekor qilindi ❌".
+- `lines` — `[{kind, label, value}]`, tartibi matndagidek. `kind`: `header`, `place`, `time`, `room`, `room_fee`,
+  `min_spend`, `service_charge`, `place_fee`, `pre_order`, `deposit`, `cancel_policy`, `contact`. `label` bo'sh
+  bo'lishi mumkin (`header`, `place`, `time`, `cancel_policy`, `contact`); matndagi qator — `label: value` (yoki faqat
+  `value`) va oldida belgi (emoji). Chop etishda belgilarsiz `lines` dan foydalaning. Bir nechta xonali banketda
+  `room` qatorining `label` i "Xonalar".
+- `room_fee` — `{amount: "300000.00", day_type: "weekday"|"weekend"|"holiday", tariff_id}` yoki `null` (xona hali
+  belgilanmagan yoki tarif yo'q). Tarif narxi 0 bo'lsa obyekt bor, matnda qator yo'q.
+- `channels` — `{telegram, sms}`: "Yuborish" hozir qaysi yo'l bilan keta oladi.
+
+**Summalar buyurtma hisobining o'z qoidalari bilan** (`PosChargesCalculator`, "Xona puli, minimal summa va xizmat
+haqi" bo'limi):
+- **Xona puli** — bronning asosiy xonasi tarifi (`RoomTariffResolver`: xonaning o'zi → zal ichidagi turi → filialdagi
+  turi) bron boshlanadigan **biznes kun**ning turi bo'yicha (`BusinessCalendar`: filial bayramlari
+  `pos_settings.holidays`, dam olish kunlari; kun boshlanishi 05:00 — shanba 01:00 dagi bron jumaniki). Bayramga o'z
+  tarifi bo'lmasa dam olish, u ham bo'lmasa hafta ichi narxi; `day_type` va qavsdagi so'z — **kunning** turi.
+  Xona belgilanmagan bo'lsa: "Xona: keyin belgilanadi", xona puli qatori va `room_fee` yo'q.
+- **Minimal buyurtma** — bronning o'z `min_spend` i (mehmon bilan kelishilgan), bo'lmasa xonaniki
+  (`dining_tables.min_spend`; `per_person` — "kishi boshiga (jami …)", `guests_planned` ga ko'paytirilib). Buyurtma
+  ham xuddi shu qoida bilan hisoblaydi ("Xona puli, minimal summa va xizmat haqi"): bronning summasi buyurtmaga tushadi.
+- **Xizmat haqi** va **joy narxi** — xona zalining sozlamasi, bo'lmasa filial yoki do'konniki
+  (`service_fee_settings`), faqat `pos_hall` kanaliga qo'llansa. Joy narxi `per_person` — "kishi boshiga (jami …)",
+  `per_table` — summa.
+- **Oldindan buyurtma** — bron qatorlari: "Nom (variant) 3 kg", "Somsa 10 dona".
+- **Bo'nak olindi** — bron avanslari yig'indisi, qaytarilganlari ayirilgan (`amount − refunded_amount`); 0 bo'lsa
+  qator yo'q.
+- **Bekor qilish qoidasi** — filialning `pos_settings.booking_confirmation.cancel_policy`.
+- **Aloqa** — filial telefoni (yo'q bo'lsa do'konniki) va **bron raqami**: bron `uuid` ining oxirgi 6 belgisi, katta
+  harflarda.
+
+**`POST /pos/bookings/{uuid}/confirmation/send`** — tana `{channel?: "auto"|"telegram"|"sms"}` (standart `auto`),
+`Idempotency-Key` sarlavhasi (bir xil kalit javobni qaytaradi, ikkinchi marta yubormaydi; har yangi yuborish — yangi
+kalit). Javob `{channel: "telegram"|"sms", queued: true}`:
+- `telegram` — `contact_phone` shu do'kon mijozi (`role: customer`, `store_id` shu do'kon yoki bo'sh; telefon
+  tasdiqlangani birinchi) ning raqami, uning Telegram akkaunti bor, bot sozlangan va mijoz "Buyurtma holati" xabarlarini
+  Telegram'da o'chirmagan. Xabar mijozning buyurtma xabarlari bilan bir yo'ldan ketadi (`TelegramMessenger`, navbat).
+- `sms` — filial `booking_confirmation.sms: true` qilgan va telefon bor. SMS matni xuddi shu, faqat belgilarsiz
+  (emoji SMS ni qimmatlashtiradi).
+- `auto` — Telegram bo'lsa Telegram, bo'lmasa SMS (yoqilgan bo'lsa), aks holda **422 `no_channel`** ("matnni nusxalab
+  o'zingiz yuboring"). Aniq `telegram` yoki `sms` so'ralib, u yo'l bo'lmasa ham 422 `no_channel`.
+- Faqat `requested` yoki `confirmed` bron: boshqa holatda 422 `booking_not_editable`.
+- Yuborish navbatga qo'yiladi (`SendBookingConfirmation`), bronda `confirmation_sent_at` va `confirmation_channel`
+  yoziladi (bron `version` i o'zgarmaydi), jurnalga `booking.confirmation_sent` (`channel`, `auto`), `booking.changed`
+  hodisasi. Qayta yuborish mumkin.
+
+**O'zi yuborish.** Bron tasdiqlanganda — `POST .../confirm`, `confirm: true` bilan yaratilganda yoki birinchi avans
+`requested` bronni tasdiqlaganda — filialda `auto_send: true` bo'lsa tasdiq `auto` yo'l bilan o'zi ketadi (jurnalda
+`auto: true`). Yo'l yo'q yoki xato bo'lsa faqat logga yoziladi, bron baribir tasdiqlanadi. Keyin vaqt, xona yoki
+mehmonlar soni o'zgarsa **qayta o'zi yuborilmaydi** — kassir qo'lda qayta yuboradi.
+
+**Bron JSON** (ro'yxat, taqvim, bitta bron): `confirmation_sent_at` (UTC ISO 8601 yoki `null`) va
+`confirmation_channel` (`telegram`, `sms` yoki `null`) — oxirgi yuborilgan tasdiq. Migratsiya
+`2026_10_31_100000_add_confirmation_to_bookings_table`.
+
+Testlar: `tests/Feature/PosBooking/PosBookingConfirmationTest.php`.
 
 ### Nasiya hisoblari
 
@@ -1312,7 +1398,8 @@ chegirmadan keyin = max(0, taomlar − discount)
 xizmat haqi       = chegirmadan keyin × foiz, butun so'm      (service_charge_amount; zal → filial → do'kon foizi)
 joy narxi         = mavjud sozlama: kishi boshiga × mehmon yoki stol uchun              (place_fee_amount)
 xona puli         = joyning tarifi, buyurtma ochilgan biznes kun turi bo'yicha           (room_fee_amount)
-minimal summa     = min_spend (per_person bo'lsa × mehmon)
+minimal summa     = bronning min_spend i (buyurtma brondan: orders.booking_id), bo'lmasa joyning min_spend i
+                    (per_person bo'lsa × mehmon)
 qo'shimcha        = max(0, minimal summa − chegirmadan keyin), butun so'm                 (min_spend_topup_amount)
 jami              = chegirmadan keyin + xizmat haqi + joy narxi + xona puli + qo'shimcha  (total_price)
 ```
@@ -1322,8 +1409,15 @@ jami              = chegirmadan keyin + xizmat haqi + joy narxi + xona puli + qo
   (`weekend_days`), aks holda hafta ichi.
 - **Tarif tanlash:** eng aniqi — joyning o'zi, keyin zaldagi joy turi, keyin filialdagi joy turi; har darajada
   bayramning o'z narxi bo'lmasa — dam olish kuni narxi, u ham bo'lmasa — hafta ichi narxi. Tarif yo'q — xona puli 0.
-- Xona puli va minimal summa faqat `pos_hall` va stol bilan; xizmat haqi va joy narxi sozlamadagi kanallar bo'yicha
-  (standart faqat `pos_hall`). Telegram va mobil buyurtmaga hech qachon qo'llanmaydi.
+- **Minimal summa** — buyurtma brondan ochilgan bo'lsa (`orders.booking_id`: "Keldi", yoki birlashtirishda bron shu
+  buyurtmaga o'tgan), mehmon bilan kelishilgan **bronning o'z `min_spend` i** (butun bron uchun, mehmonga
+  ko'paytirilmaydi) — joyniki undan katta yoki kichik bo'lsa ham. Bronda yo'q (yoki 0) bo'lsa — joyniki
+  (`dining_tables.min_spend`, `per_person` bo'lsa × buyurtmadagi mehmon). Bu bron tasdig'idagi "Minimal buyurtma"
+  bilan bitta qoida (`DiningFeeCalculator::minimumSpend`): mehmonga aytilgani hisobga tushadi. `charges.min_spend` —
+  amaldagi summa; farq qatori fiskal chekda "Minimal summaga qo'shimcha" bo'lib chiqadi.
+- Xona puli va joyning minimal summasi faqat `pos_hall` va stol bilan (bronning minimal summasi `pos_hall` da stolsiz
+  ham); xizmat haqi va joy narxi sozlamadagi kanallar bo'yicha (standart faqat `pos_hall`). Telegram va mobil
+  buyurtmaga hech qachon qo'llanmaydi.
 - Olib tashlangan qator 0 bo'ladi; `charges.waived` va `charges.waivers` (kim, sabab, kim tasdiqladi) ko'rsatadi.
 
 **Javob shakli** (har POS endpointi): `uuid`, `short_code`, `status`, `channel`, `type`, `version`, `hall`, `table`

@@ -147,6 +147,16 @@ class FakePosState {
   /// Filial POS sozlamasi (P3-37): shu summadan katta chiqimda egaga xabar.
   String? cashOutAlertAmount = '500000.00';
 
+  /// Filial POS sozlamasi: bayram kunlari (`YYYY-MM-DD`; xona puli bayram tarifi bilan).
+  List<String> holidays = <String>[];
+
+  /// Filial POS sozlamasi (P3-38): mehmonga bron tasdig'i — avtomatik yuborish, SMS (pullik), bekor qilish qoidasi.
+  final Map<String, Object?> bookingConfirmation = <String, Object?>{
+    'auto_send': true,
+    'sms': false,
+    'cancel_policy': null,
+  };
+
   /// Bootstrap'dagi printerlar.
   List<Map<String, Object?>> printers = <Map<String, Object?>>[
     <String, Object?>{
@@ -1031,9 +1041,10 @@ class FakePosState {
               'unaccepted_online_minutes': 3,
               'cash_out_amount': cashOutAlertAmount,
             },
-            'holidays': <Object?>[],
+            'holidays': <Object?>[...holidays],
             'booking_slot_minutes': null,
             'cashier_discount_max_percent': cashierDiscountMaxPercent,
+            'booking_confirmation': <String, Object?>{...bookingConfirmation},
           },
         },
         'device': <String, Object?>{

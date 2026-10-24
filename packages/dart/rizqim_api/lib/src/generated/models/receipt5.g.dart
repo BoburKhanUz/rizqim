@@ -24,7 +24,7 @@ Receipt5 _$Receipt5FromJson(Map<String, dynamic> json) => Receipt5(
   branchId: (json['branch_id'] as num?)?.toInt(),
   originalReceiptUuid: json['original_receipt_uuid'] as String?,
   lines: (json['lines'] as List<dynamic>)
-      .map((e) => Lines10.fromJson(e as Map<String, dynamic>))
+      .map((e) => Lines11.fromJson(e as Map<String, dynamic>))
       .toList(),
   payments: (json['payments'] as List<dynamic>)
       .map((e) => Payments19.fromJson(e as Map<String, dynamic>))

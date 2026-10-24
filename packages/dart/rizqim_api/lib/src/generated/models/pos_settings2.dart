@@ -5,6 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'alerts2.dart';
+import 'booking_confirmation2.dart';
 
 part 'pos_settings2.g.dart';
 
@@ -19,6 +20,7 @@ class PosSettings2 {
     required this.alerts,
     required this.holidays,
     required this.bookingSlotMinutes,
+    required this.bookingConfirmation,
   });
 
   factory PosSettings2.fromJson(Map<String, Object?> json) =>
@@ -37,6 +39,8 @@ class PosSettings2 {
   final List<String> holidays;
   @JsonKey(name: 'booking_slot_minutes')
   final int? bookingSlotMinutes;
+  @JsonKey(name: 'booking_confirmation')
+  final BookingConfirmation2 bookingConfirmation;
 
   Map<String, Object?> toJson() => _$PosSettings2ToJson(this);
 }

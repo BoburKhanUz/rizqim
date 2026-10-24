@@ -24,25 +24,33 @@ use DateTimeZone;
  * - `holidays`: dates (YYYY-MM-DD) the branch's holiday tariff applies on.
  * - `booking_slot_minutes`: how long a booking holds its room when it has no end time (30-1440); null: the default of
  *   config/pos_bookings.php (read by App\Domain\Pos\Booking\PosSettingsReader).
+ * - `booking_confirmation` (P3-38): the confirmation the guest is sent (App\Domain\Pos\Booking\BookingConfirmationService).
+ *   `auto_send` (default true): sent by itself when a booking becomes confirmed; `sms` (default false, an SMS costs
+ *   money): SMS may be used when the guest has no Telegram; `cancel_policy`: the branch's cancellation rule shown in it
+ *   (up to 300 characters, null: none). Merged key by key like `alerts`.
  */
 final class PosSettings
 {
     public const MODES = ['counter', 'table', 'hybrid'];
 
     /** Keys written by the API, in the order they are shown. */
-    public const KEYS = ['mode', 'printing_device_id', 'screen_lock_minutes', 'queue_numbers', 'cashier_discount_max_percent', 'alerts', 'holidays', 'booking_slot_minutes'];
+    public const KEYS = ['mode', 'printing_device_id', 'screen_lock_minutes', 'queue_numbers', 'cashier_discount_max_percent', 'alerts', 'holidays', 'booking_slot_minutes', 'booking_confirmation'];
 
     public const ALERT_KEYS = ['open_room_hours', 'void_amount', 'discount_percent', 'unaccepted_online_minutes', 'cash_out_amount'];
 
     /** Alert thresholds that are money or a percent (decimal strings); the others are whole numbers. */
     public const DECIMAL_ALERT_KEYS = ['void_amount', 'discount_percent', 'cash_out_amount'];
 
+    public const BOOKING_CONFIRMATION_KEYS = ['auto_send', 'sms', 'cancel_policy'];
+
+    public const CANCEL_POLICY_MAX = 300;
+
     public const DEFAULT_BUSINESS_DAY_START = '05:00';
 
     public const MAX_HOLIDAYS = 400;
 
     /**
-     * @return array{mode: string, printing_device_id: string|null, screen_lock_minutes: int, queue_numbers: bool, cashier_discount_max_percent: string|null, alerts: array{open_room_hours: int|null, void_amount: string|null, discount_percent: string|null, unaccepted_online_minutes: int|null, cash_out_amount: string|null}, holidays: list<string>, booking_slot_minutes: int|null}
+     * @return array{mode: string, printing_device_id: string|null, screen_lock_minutes: int, queue_numbers: bool, cashier_discount_max_percent: string|null, alerts: array{open_room_hours: int|null, void_amount: string|null, discount_percent: string|null, unaccepted_online_minutes: int|null, cash_out_amount: string|null}, holidays: list<string>, booking_slot_minutes: int|null, booking_confirmation: array{auto_send: bool, sms: bool, cancel_policy: string|null}}
      */
     public static function defaults(): array
     {
@@ -61,6 +69,11 @@ final class PosSettings
             ],
             'holidays' => [],
             'booking_slot_minutes' => null,
+            'booking_confirmation' => [
+                'auto_send' => true,
+                'sms' => false,
+                'cancel_policy' => null,
+            ],
         ];
     }
 
@@ -68,7 +81,7 @@ final class PosSettings
      * The settings as a terminal and the panel read them: every key present, stored values over the defaults.
      *
      * @param  array<string, mixed>|null  $stored
-     * @return array{mode: string, printing_device_id: string|null, screen_lock_minutes: int, queue_numbers: bool, cashier_discount_max_percent: string|null, alerts: array{open_room_hours: int|null, void_amount: string|null, discount_percent: string|null, unaccepted_online_minutes: int|null, cash_out_amount: string|null}, holidays: list<string>, booking_slot_minutes: int|null}
+     * @return array{mode: string, printing_device_id: string|null, screen_lock_minutes: int, queue_numbers: bool, cashier_discount_max_percent: string|null, alerts: array{open_room_hours: int|null, void_amount: string|null, discount_percent: string|null, unaccepted_online_minutes: int|null, cash_out_amount: string|null}, holidays: list<string>, booking_slot_minutes: int|null, booking_confirmation: array{auto_send: bool, sms: bool, cancel_policy: string|null}}
      */
     public static function resolve(?array $stored): array
     {
@@ -117,6 +130,16 @@ final class PosSettings
         $holidays = is_array($stored['holidays'] ?? null) ? $stored['holidays'] : [];
         $settings['holidays'] = self::normalizeHolidays(array_filter($holidays, 'is_string'));
 
+        $confirmation = is_array($stored['booking_confirmation'] ?? null) ? $stored['booking_confirmation'] : [];
+        foreach (['auto_send', 'sms'] as $key) {
+            if (isset($confirmation[$key]) && is_bool($confirmation[$key])) {
+                $settings['booking_confirmation'][$key] = $confirmation[$key];
+            }
+        }
+        if (array_key_exists('cancel_policy', $confirmation)) {
+            $settings['booking_confirmation']['cancel_policy'] = self::cancelPolicy($confirmation['cancel_policy']);
+        }
+
         return $settings;
     }
 
@@ -147,6 +170,16 @@ final class PosSettings
                 continue;
             }
 
+            if ($key === 'booking_confirmation') {
+                foreach (self::BOOKING_CONFIRMATION_KEYS as $field) {
+                    if (array_key_exists($field, $changes['booking_confirmation'])) {
+                        $value = $changes['booking_confirmation'][$field];
+                        $settings['booking_confirmation'][$field] = $field === 'cancel_policy' ? self::cancelPolicy($value) : (bool) $value;
+                    }
+                }
+                continue;
+            }
+
             $settings[$key] = match ($key) {
                 'holidays' => self::normalizeHolidays($changes['holidays']),
                 'screen_lock_minutes' => (int) $changes['screen_lock_minutes'],
@@ -158,6 +191,19 @@ final class PosSettings
         }
 
         return $settings;
+    }
+
+    /**
+     * The cancellation rule as stored: trimmed text up to CANCEL_POLICY_MAX characters, null when empty or not text.
+     */
+    public static function cancelPolicy(mixed $value): ?string
+    {
+        if (!is_string($value)) {
+            return null;
+        }
+        $value = trim($value);
+
+        return $value === '' ? null : mb_substr($value, 0, self::CANCEL_POLICY_MAX);
     }
 
     /**

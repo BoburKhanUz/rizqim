@@ -4,31 +4,70 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'type10.dart';
+import 'staff4.dart';
+import 'device21.dart';
+import 'order12.dart';
+import 'resolved_by2.dart';
 
 part 'data180.g.dart';
 
 @JsonSerializable()
 class Data180 {
   const Data180({
-    required this.id,
-    required this.code,
+    required this.opId,
+    required this.seq,
     required this.type,
-    required this.amount,
-    required this.discountAmount,
-    required this.description,
+    required this.typeLabel,
+    required this.status,
+    required this.reason,
+    required this.message,
+    required this.staff,
+    required this.device,
+    required this.occurredAt,
+    required this.receivedAt,
+    required this.appliedAt,
+    required this.clockSkewSeconds,
+    required this.order,
+    required this.payload,
+    required this.refs,
+    required this.resolvedAt,
+    required this.resolvedBy,
+    required this.resolution,
+    required this.resolutionNote,
   });
 
   factory Data180.fromJson(Map<String, Object?> json) =>
       _$Data180FromJson(json);
 
-  final int id;
-  final String code;
-  final Type10 type;
-  final num amount;
-  @JsonKey(name: 'discount_amount')
-  final num? discountAmount;
-  final String description;
+  @JsonKey(name: 'op_id')
+  final String opId;
+  final int seq;
+  final String type;
+  @JsonKey(name: 'type_label')
+  final String typeLabel;
+  final String status;
+  final String? reason;
+  final String? message;
+  final Staff4? staff;
+  final Device21? device;
+  @JsonKey(name: 'occurred_at')
+  final String? occurredAt;
+  @JsonKey(name: 'received_at')
+  final String? receivedAt;
+  @JsonKey(name: 'applied_at')
+  final String? appliedAt;
+  @JsonKey(name: 'clock_skew_seconds')
+  final int? clockSkewSeconds;
+  final Order12? order;
+  final Map<String, dynamic> payload;
+  final Map<String, dynamic> refs;
+  @JsonKey(name: 'resolved_at')
+  final String? resolvedAt;
+  @JsonKey(name: 'resolved_by')
+  final ResolvedBy2? resolvedBy;
+  final String? resolution;
+  @JsonKey(name: 'resolution_note')
+  final String? resolutionNote;
 
   Map<String, Object?> toJson() => _$Data180ToJson(this);
 }

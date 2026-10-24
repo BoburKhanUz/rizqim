@@ -8490,7 +8490,7 @@
         "/v1/owner/branches/{id}/pos-settings": {
             "get": {
                 "operationId": "branchPosSettings.show",
-                "description": "`business_day_starts_at`: \"HH:MM\", the local time (`timezone` of the store) the business day starts, 05:00 unless\nchanged. `pos_settings`: every key, stored values over the defaults: `mode` counter|table|hybrid,\n`printing_device_id` (uuid of the \"chop etuvchi\" kassa), `screen_lock_minutes` (0: never), `queue_numbers`,\n`cashier_discount_max_percent` (P3-37: the discount percent a cashier gives alone, \"10.00\" by default; null or\n\"0.00\": always a manager's PIN), `alerts` (`open_room_hours`, `void_amount`, `discount_percent`,\n`unaccepted_online_minutes`, `cash_out_amount` — one cash out of the drawer of at least this, \"500000.00\" by\ndefault; null: off), `holidays` (YYYY-MM-DD), `booking_slot_minutes` (null: the server default).",
+                "description": "`business_day_starts_at`: \"HH:MM\", the local time (`timezone` of the store) the business day starts, 05:00 unless\nchanged. `pos_settings`: every key, stored values over the defaults: `mode` counter|table|hybrid,\n`printing_device_id` (uuid of the \"chop etuvchi\" kassa), `screen_lock_minutes` (0: never), `queue_numbers`,\n`cashier_discount_max_percent` (P3-37: the discount percent a cashier gives alone, \"10.00\" by default; null or\n\"0.00\": always a manager's PIN), `alerts` (`open_room_hours`, `void_amount`, `discount_percent`,\n`unaccepted_online_minutes`, `cash_out_amount` — one cash out of the drawer of at least this, \"500000.00\" by\ndefault; null: off), `holidays` (YYYY-MM-DD), `booking_slot_minutes` (null: the server default),\n`booking_confirmation` (P3-38: `auto_send` true by default — the guest is sent the confirmation when a booking is\nconfirmed; `sms` false by default — SMS costs money; `cancel_policy` the cancellation rule in it, or null).",
                 "summary": "The branch's POS settings",
                 "tags": [
                     "Owner: POS settings"
@@ -8608,6 +8608,28 @@
                                                                 "integer",
                                                                 "null"
                                                             ]
+                                                        },
+                                                        "booking_confirmation": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "auto_send": {
+                                                                    "type": "boolean"
+                                                                },
+                                                                "sms": {
+                                                                    "type": "boolean"
+                                                                },
+                                                                "cancel_policy": {
+                                                                    "type": [
+                                                                        "string",
+                                                                        "null"
+                                                                    ]
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "auto_send",
+                                                                "sms",
+                                                                "cancel_policy"
+                                                            ]
                                                         }
                                                     },
                                                     "required": [
@@ -8618,7 +8640,8 @@
                                                         "cashier_discount_max_percent",
                                                         "alerts",
                                                         "holidays",
-                                                        "booking_slot_minutes"
+                                                        "booking_slot_minutes",
+                                                        "booking_confirmation"
                                                     ]
                                                 }
                                             },
@@ -8646,7 +8669,7 @@
             },
             "put": {
                 "operationId": "branchPosSettings.update",
-                "description": "Send only what changes. `business_day_starts_at`: \"HH:MM\" from 00:00 to 11:59 (an early opener may set 04:00).\n`pos_settings`: `mode`; `printing_device_id` (uuid of a POS terminal of this branch, or null for none);\n`screen_lock_minutes` 0-240; `queue_numbers`; `cashier_discount_max_percent` 0-100 (2 decimals) or null;\n`alerts` merges key by key (`open_room_hours` 1-72, `void_amount` 0-100000000, `discount_percent` 0-100,\n`unaccepted_online_minutes` 1-120, `cash_out_amount` 0-100000000; null switches that alert off); `holidays` replaces the whole list (up to 400 dates); `booking_slot_minutes` 30-1440 (how long a booking without an end\ntime holds its room; null: the server default). An unknown key is 422.",
+                "description": "Send only what changes. `business_day_starts_at`: \"HH:MM\" from 00:00 to 11:59 (an early opener may set 04:00).\n`pos_settings`: `mode`; `printing_device_id` (uuid of a POS terminal of this branch, or null for none);\n`screen_lock_minutes` 0-240; `queue_numbers`; `cashier_discount_max_percent` 0-100 (2 decimals) or null;\n`alerts` merges key by key (`open_room_hours` 1-72, `void_amount` 0-100000000, `discount_percent` 0-100,\n`unaccepted_online_minutes` 1-120, `cash_out_amount` 0-100000000; null switches that alert off); `holidays` replaces the whole list (up to 400 dates); `booking_slot_minutes` 30-1440 (how long a booking without an end\ntime holds its room; null: the server default); `booking_confirmation` merges key by key (`auto_send`, `sms`\nbooleans, `cancel_policy` text up to 300 characters or null). An unknown key is 422.",
                 "summary": "Change the branch's POS settings",
                 "tags": [
                     "Owner: POS settings"
@@ -8757,6 +8780,24 @@
                                                     "format": "date"
                                                 },
                                                 "maxItems": 400
+                                            },
+                                            "booking_confirmation": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "auto_send": {
+                                                        "type": "boolean"
+                                                    },
+                                                    "sms": {
+                                                        "type": "boolean"
+                                                    },
+                                                    "cancel_policy": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ],
+                                                        "maxLength": 300
+                                                    }
+                                                }
                                             }
                                         }
                                     }
@@ -8868,6 +8909,28 @@
                                                                 "integer",
                                                                 "null"
                                                             ]
+                                                        },
+                                                        "booking_confirmation": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "auto_send": {
+                                                                    "type": "boolean"
+                                                                },
+                                                                "sms": {
+                                                                    "type": "boolean"
+                                                                },
+                                                                "cancel_policy": {
+                                                                    "type": [
+                                                                        "string",
+                                                                        "null"
+                                                                    ]
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "auto_send",
+                                                                "sms",
+                                                                "cancel_policy"
+                                                            ]
                                                         }
                                                     },
                                                     "required": [
@@ -8878,7 +8941,8 @@
                                                         "cashier_discount_max_percent",
                                                         "alerts",
                                                         "holidays",
-                                                        "booking_slot_minutes"
+                                                        "booking_slot_minutes",
+                                                        "booking_confirmation"
                                                     ]
                                                 }
                                             },
@@ -27465,6 +27529,18 @@
                                                                     "null"
                                                                 ]
                                                             },
+                                                            "confirmation_sent_at": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "confirmation_channel": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
                                                             "created_at": {
                                                                 "type": [
                                                                     "string",
@@ -27508,6 +27584,8 @@
                                                             "arrived_at",
                                                             "completed_at",
                                                             "canceled_at",
+                                                            "confirmation_sent_at",
+                                                            "confirmation_channel",
                                                             "created_at",
                                                             "updated_at"
                                                         ]
@@ -27822,6 +27900,18 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "confirmation_sent_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "confirmation_channel": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "created_at": {
                                                     "type": [
                                                         "string",
@@ -28058,6 +28148,8 @@
                                                 "arrived_at",
                                                 "completed_at",
                                                 "canceled_at",
+                                                "confirmation_sent_at",
+                                                "confirmation_channel",
                                                 "created_at",
                                                 "updated_at",
                                                 "items",
@@ -28330,6 +28422,18 @@
                                                                                 "null"
                                                                             ]
                                                                         },
+                                                                        "confirmation_sent_at": {
+                                                                            "type": [
+                                                                                "string",
+                                                                                "null"
+                                                                            ]
+                                                                        },
+                                                                        "confirmation_channel": {
+                                                                            "type": [
+                                                                                "string",
+                                                                                "null"
+                                                                            ]
+                                                                        },
                                                                         "created_at": {
                                                                             "type": [
                                                                                 "string",
@@ -28373,6 +28477,8 @@
                                                                         "arrived_at",
                                                                         "completed_at",
                                                                         "canceled_at",
+                                                                        "confirmation_sent_at",
+                                                                        "confirmation_channel",
                                                                         "created_at",
                                                                         "updated_at"
                                                                     ]
@@ -28520,6 +28626,18 @@
                                                                     "null"
                                                                 ]
                                                             },
+                                                            "confirmation_sent_at": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "confirmation_channel": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
                                                             "created_at": {
                                                                 "type": [
                                                                     "string",
@@ -28563,6 +28681,8 @@
                                                             "arrived_at",
                                                             "completed_at",
                                                             "canceled_at",
+                                                            "confirmation_sent_at",
+                                                            "confirmation_channel",
                                                             "created_at",
                                                             "updated_at"
                                                         ]
@@ -28749,6 +28869,18 @@
                                                     ]
                                                 },
                                                 "canceled_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "confirmation_sent_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "confirmation_channel": {
                                                     "type": [
                                                         "string",
                                                         "null"
@@ -28990,6 +29122,8 @@
                                                 "arrived_at",
                                                 "completed_at",
                                                 "canceled_at",
+                                                "confirmation_sent_at",
+                                                "confirmation_channel",
                                                 "created_at",
                                                 "updated_at",
                                                 "items",
@@ -29286,6 +29420,18 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "confirmation_sent_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "confirmation_channel": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "created_at": {
                                                     "type": [
                                                         "string",
@@ -29522,6 +29668,8 @@
                                                 "arrived_at",
                                                 "completed_at",
                                                 "canceled_at",
+                                                "confirmation_sent_at",
+                                                "confirmation_channel",
                                                 "created_at",
                                                 "updated_at",
                                                 "items",
@@ -29745,6 +29893,18 @@
                                                             ]
                                                         },
                                                         "canceled_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "confirmation_sent_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "confirmation_channel": {
                                                             "type": [
                                                                 "string",
                                                                 "null"
@@ -29986,6 +30146,8 @@
                                                         "arrived_at",
                                                         "completed_at",
                                                         "canceled_at",
+                                                        "confirmation_sent_at",
+                                                        "confirmation_channel",
                                                         "created_at",
                                                         "updated_at",
                                                         "items",
@@ -30224,6 +30386,18 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "confirmation_sent_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "confirmation_channel": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "created_at": {
                                                     "type": [
                                                         "string",
@@ -30460,6 +30634,8 @@
                                                 "arrived_at",
                                                 "completed_at",
                                                 "canceled_at",
+                                                "confirmation_sent_at",
+                                                "confirmation_channel",
                                                 "created_at",
                                                 "updated_at",
                                                 "items",
@@ -30669,6 +30845,18 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "confirmation_sent_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "confirmation_channel": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "created_at": {
                                                     "type": [
                                                         "string",
@@ -30905,6 +31093,8 @@
                                                 "arrived_at",
                                                 "completed_at",
                                                 "canceled_at",
+                                                "confirmation_sent_at",
+                                                "confirmation_channel",
                                                 "created_at",
                                                 "updated_at",
                                                 "items",
@@ -30923,6 +31113,254 @@
                     },
                     "422": {
                         "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/pos/bookings/{uuid}/confirmation": {
+            "get": {
+                "operationId": "booking.confirmation",
+                "description": "P3-38. `text`: the ready message (Uzbek, with icons) as Telegram sends it; `lines`: the same, line by line\n(`kind`, `label` — may be empty —, `value`; the text line is \"label: value\"), for the apps to show, copy and\nprint. The charges follow the rules the order will use: `room_fee` the booked room's tariff for the day type of\nthe business date (weekday, weekend, holiday from the branch's holidays; null when there is no room or no\ntariff), the minimum spend (the booking's own, else the room's), the service charge and place fee of the room's\nhall. `channels`: what \"send\" can use now (`telegram`: the contact phone is a customer with the store's bot;\n`sms`: the branch allowed SMS and there is a phone).",
+                "summary": "The booking confirmation for the guest",
+                "tags": [
+                    "POS: bookings"
+                ],
+                "parameters": [
+                    {
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "text": {
+                                                    "type": "string"
+                                                },
+                                                "lines": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "kind": {
+                                                                "type": "string",
+                                                                "enum": [
+                                                                    "header",
+                                                                    "place",
+                                                                    "time",
+                                                                    "room",
+                                                                    "room_fee",
+                                                                    "min_spend",
+                                                                    "service_charge",
+                                                                    "place_fee",
+                                                                    "pre_order",
+                                                                    "deposit",
+                                                                    "cancel_policy",
+                                                                    "contact"
+                                                                ]
+                                                            },
+                                                            "label": {
+                                                                "type": "string"
+                                                            },
+                                                            "value": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "kind",
+                                                            "label",
+                                                            "value"
+                                                        ]
+                                                    }
+                                                },
+                                                "room_fee": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "properties": {
+                                                        "amount": {
+                                                            "type": "string"
+                                                        },
+                                                        "day_type": {
+                                                            "type": "string",
+                                                            "enum": [
+                                                                "weekday",
+                                                                "weekend",
+                                                                "holiday"
+                                                            ]
+                                                        },
+                                                        "tariff_id": {
+                                                            "type": "integer"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "amount",
+                                                        "day_type",
+                                                        "tariff_id"
+                                                    ]
+                                                },
+                                                "channels": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "telegram": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "sms": {
+                                                            "type": "boolean"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "telegram",
+                                                        "sms"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "text",
+                                                "lines",
+                                                "room_fee",
+                                                "channels"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/pos/bookings/{uuid}/confirmation/send": {
+            "post": {
+                "operationId": "booking.sendConfirmation",
+                "description": "P3-38. `channel`: auto (default: Telegram when the guest has it, else SMS when the branch allows it), telegram or\nsms. 422 `no_channel` when it cannot go that way (copy the text and send it by hand); 422 `booking_not_editable`\nunless the booking is requested or confirmed. Queued; the booking's `confirmation_sent_at` and\n`confirmation_channel` are set and `booking.confirmation_sent` is audited. Sending again is allowed (a new\nIdempotency-Key each time; the same key replays the answer and sends nothing).",
+                "summary": "Send the confirmation to the guest",
+                "tags": [
+                    "POS: bookings"
+                ],
+                "parameters": [
+                    {
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "description": "Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer.",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "channel": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "enum": [
+                                            "auto",
+                                            "telegram",
+                                            "sms",
+                                            null
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "channel": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "telegram",
+                                                        "sms"
+                                                    ]
+                                                },
+                                                "queued": {
+                                                    "type": "boolean"
+                                                }
+                                            },
+                                            "required": [
+                                                "channel",
+                                                "queued"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "No way to send it, or the booking is over",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
                     },
                     "401": {
                         "$ref": "#/components/responses/AuthenticationException"
@@ -31136,6 +31574,18 @@
                                                             ]
                                                         },
                                                         "canceled_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "confirmation_sent_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "confirmation_channel": {
                                                             "type": [
                                                                 "string",
                                                                 "null"
@@ -31377,6 +31827,8 @@
                                                         "arrived_at",
                                                         "completed_at",
                                                         "canceled_at",
+                                                        "confirmation_sent_at",
+                                                        "confirmation_channel",
                                                         "created_at",
                                                         "updated_at",
                                                         "items",
@@ -31993,6 +32445,18 @@
                                                                 "null"
                                                             ]
                                                         },
+                                                        "confirmation_sent_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "confirmation_channel": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
                                                         "created_at": {
                                                             "type": [
                                                                 "string",
@@ -32229,6 +32693,8 @@
                                                         "arrived_at",
                                                         "completed_at",
                                                         "canceled_at",
+                                                        "confirmation_sent_at",
+                                                        "confirmation_channel",
                                                         "created_at",
                                                         "updated_at",
                                                         "items",
@@ -32845,6 +33311,18 @@
                                                                 "null"
                                                             ]
                                                         },
+                                                        "confirmation_sent_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "confirmation_channel": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
                                                         "created_at": {
                                                             "type": [
                                                                 "string",
@@ -33081,6 +33559,8 @@
                                                         "arrived_at",
                                                         "completed_at",
                                                         "canceled_at",
+                                                        "confirmation_sent_at",
+                                                        "confirmation_channel",
                                                         "created_at",
                                                         "updated_at",
                                                         "items",
@@ -33744,6 +34224,18 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "confirmation_sent_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "confirmation_channel": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "created_at": {
                                                     "type": [
                                                         "string",
@@ -33980,6 +34472,8 @@
                                                 "arrived_at",
                                                 "completed_at",
                                                 "canceled_at",
+                                                "confirmation_sent_at",
+                                                "confirmation_channel",
                                                 "created_at",
                                                 "updated_at",
                                                 "items",
@@ -34178,6 +34672,18 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "confirmation_sent_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "confirmation_channel": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "created_at": {
                                                     "type": [
                                                         "string",
@@ -34414,6 +34920,8 @@
                                                 "arrived_at",
                                                 "completed_at",
                                                 "canceled_at",
+                                                "confirmation_sent_at",
+                                                "confirmation_channel",
                                                 "created_at",
                                                 "updated_at",
                                                 "items",
@@ -34687,6 +35195,18 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "confirmation_sent_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "confirmation_channel": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "created_at": {
                                                     "type": [
                                                         "string",
@@ -34923,6 +35443,8 @@
                                                 "arrived_at",
                                                 "completed_at",
                                                 "canceled_at",
+                                                "confirmation_sent_at",
+                                                "confirmation_channel",
                                                 "created_at",
                                                 "updated_at",
                                                 "items",
@@ -35132,6 +35654,18 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "confirmation_sent_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "confirmation_channel": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "created_at": {
                                                     "type": [
                                                         "string",
@@ -35368,6 +35902,8 @@
                                                 "arrived_at",
                                                 "completed_at",
                                                 "canceled_at",
+                                                "confirmation_sent_at",
+                                                "confirmation_channel",
                                                 "created_at",
                                                 "updated_at",
                                                 "items",
@@ -35396,7 +35932,7 @@
         "/v1/pos/bootstrap": {
             "get": {
                 "operationId": "posBootstrap.show",
-                "description": "A terminal's staff PIN session works its terminal's branch; a normal staff sign-in works the staff member's own\nbranch. An owner (or a terminal paired to the whole store) names the branch with `branch_id`; another store's\nbranch is 404, another branch than the caller's own 403 (orders.view).\n\n`data`: `server_time`; `menu_version` (refetch GET /catalog?channel=pos_* when it changes); `store` (id, name,\ntimezone); `branch` (id, name, address, phone, timezone, `business_day_starts_at` \"HH:MM\", `business_date`\n(the business day it is now), `pos_settings`: `mode` counter|table|hybrid, `printing_device_id` (uuid of the\n\"chop etuvchi\" kassa or null), `screen_lock_minutes` (0: never), `queue_numbers`, `cashier_discount_max_percent`\n(P3-37: the discount percent a cashier gives without a manager; null or \"0.00\": always a manager), `alerts`\n(`open_room_hours`, `void_amount`, `discount_percent`, `unaccepted_online_minutes`, `cash_out_amount`; null: off),\n`holidays` (dates), `booking_slot_minutes` (default length of a booking, null: the server's)); `device` (the\nterminal: uuid, type, name, `is_printing_device`; null outside a terminal session); `user` (id, name, role,\npermissions); `stations` (active kitchen stations); `station_routes` (dish to station: by product and by\ncategory; a product route beats its category's); `printers` (active ones this terminal can use: LAN and\nBluetooth printers, and the USB or built-in printers attached to this very terminal); `staff` (id, name, role,\nphoto_url: to pick a waiter); `halls` (open halls and zones), `tables` (their active places; `layout` in grid\ncells of the floor plan, 40 x 24), `shift` (the shift open on this terminal; null outside a terminal session or\nwith none open); P3-31: `offline`, what the till keeps for the limited mode (fees per hall and channel, today's room\nfee and minimum spend per place, the choy-non items, its local number prefix and next number, the limits);\nP3-26: `quick_items`, the one-tap buttons (products marked `quick_add` in the menu, then the\nbranch's per-guest \"choy-non\" items: `source` quick_add | auto_guest, `variant_uuid` to add as a line; prices and\navailability from the POS catalog).",
+                "description": "A terminal's staff PIN session works its terminal's branch; a normal staff sign-in works the staff member's own\nbranch. An owner (or a terminal paired to the whole store) names the branch with `branch_id`; another store's\nbranch is 404, another branch than the caller's own 403 (orders.view).\n\n`data`: `server_time`; `menu_version` (refetch GET /catalog?channel=pos_* when it changes); `store` (id, name,\ntimezone); `branch` (id, name, address, phone, timezone, `business_day_starts_at` \"HH:MM\", `business_date`\n(the business day it is now), `pos_settings`: `mode` counter|table|hybrid, `printing_device_id` (uuid of the\n\"chop etuvchi\" kassa or null), `screen_lock_minutes` (0: never), `queue_numbers`, `cashier_discount_max_percent`\n(P3-37: the discount percent a cashier gives without a manager; null or \"0.00\": always a manager), `alerts`\n(`open_room_hours`, `void_amount`, `discount_percent`, `unaccepted_online_minutes`, `cash_out_amount`; null: off),\n`holidays` (dates), `booking_slot_minutes` (default length of a booking, null: the server's),\n`booking_confirmation` (P3-38: `auto_send`, `sms`, `cancel_policy`)); `device` (the\nterminal: uuid, type, name, `is_printing_device`; null outside a terminal session); `user` (id, name, role,\npermissions); `stations` (active kitchen stations); `station_routes` (dish to station: by product and by\ncategory; a product route beats its category's); `printers` (active ones this terminal can use: LAN and\nBluetooth printers, and the USB or built-in printers attached to this very terminal); `staff` (id, name, role,\nphoto_url: to pick a waiter); `halls` (open halls and zones), `tables` (their active places; `layout` in grid\ncells of the floor plan, 40 x 24), `shift` (the shift open on this terminal; null outside a terminal session or\nwith none open); P3-31: `offline`, what the till keeps for the limited mode (fees per hall and channel, today's room\nfee and minimum spend per place, the choy-non items, its local number prefix and next number, the limits);\nP3-26: `quick_items`, the one-tap buttons (products marked `quick_add` in the menu, then the\nbranch's per-guest \"choy-non\" items: `source` quick_add | auto_guest, `variant_uuid` to add as a line; prices and\navailability from the POS catalog).",
                 "summary": "POS bootstrap",
                 "tags": [
                     "POS: bootstrap"
@@ -35560,6 +36096,28 @@
                                                                         "integer",
                                                                         "null"
                                                                     ]
+                                                                },
+                                                                "booking_confirmation": {
+                                                                    "type": "object",
+                                                                    "properties": {
+                                                                        "auto_send": {
+                                                                            "type": "boolean"
+                                                                        },
+                                                                        "sms": {
+                                                                            "type": "boolean"
+                                                                        },
+                                                                        "cancel_policy": {
+                                                                            "type": [
+                                                                                "string",
+                                                                                "null"
+                                                                            ]
+                                                                        }
+                                                                    },
+                                                                    "required": [
+                                                                        "auto_send",
+                                                                        "sms",
+                                                                        "cancel_policy"
+                                                                    ]
                                                                 }
                                                             },
                                                             "required": [
@@ -35570,7 +36128,8 @@
                                                                 "cashier_discount_max_percent",
                                                                 "alerts",
                                                                 "holidays",
-                                                                "booking_slot_minutes"
+                                                                "booking_slot_minutes",
+                                                                "booking_confirmation"
                                                             ]
                                                         }
                                                     },
@@ -66461,6 +67020,19 @@
                         ],
                         "format": "date-time"
                     },
+                    "confirmation_sent_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date-time"
+                    },
+                    "confirmation_channel": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
                     "store": {
                         "$ref": "#/components/schemas/Store"
                     },
@@ -66531,7 +67103,9 @@
                     "canceled_at",
                     "version",
                     "created_at",
-                    "updated_at"
+                    "updated_at",
+                    "confirmation_sent_at",
+                    "confirmation_channel"
                 ],
                 "title": "Booking"
             },

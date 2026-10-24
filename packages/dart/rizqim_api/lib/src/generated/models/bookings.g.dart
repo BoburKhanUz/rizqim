@@ -38,6 +38,8 @@ Bookings _$BookingsFromJson(Map<String, dynamic> json) => Bookings(
   arrivedAt: json['arrived_at'] as String?,
   completedAt: json['completed_at'] as String?,
   canceledAt: json['canceled_at'] as String?,
+  confirmationSentAt: json['confirmation_sent_at'] as String?,
+  confirmationChannel: json['confirmation_channel'] as String?,
   createdAt: json['created_at'] as String?,
   updatedAt: json['updated_at'] as String?,
 );
@@ -72,6 +74,8 @@ Map<String, dynamic> _$BookingsToJson(Bookings instance) => <String, dynamic>{
   'arrived_at': instance.arrivedAt,
   'completed_at': instance.completedAt,
   'canceled_at': instance.canceledAt,
+  'confirmation_sent_at': instance.confirmationSentAt,
+  'confirmation_channel': instance.confirmationChannel,
   'created_at': instance.createdAt,
   'updated_at': instance.updatedAt,
 };

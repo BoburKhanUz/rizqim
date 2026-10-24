@@ -255,6 +255,28 @@ class BookingRepository {
     body: <String, Object?>{'reason': reason, 'approval_token': ?approvalToken},
   );
 
+  /// P3-38: `GET /pos/bookings/{uuid}/confirmation` — mehmonga yuboriladigan tasdiq matni (xona puli qatori bilan) va
+  /// hozir ishlaydigan kanallar.
+  Future<PosBookingConfirmation> confirmation(String uuid) => _http.get(
+    '/v1/pos/bookings/$uuid/confirmation',
+    (Object? data) => PosBookingConfirmation.fromJson(dataObject(data)),
+  );
+
+  /// P3-38: `POST /pos/bookings/{uuid}/confirmation/send` — tasdiqni mehmonga yuboradi ([channel] `auto` (standart),
+  /// `telegram` yoki `sms`). Kanal yo'q — [PosRejected] `no_channel`. Har yuborish — yangi amal (yangi kalit); javobi
+  /// kelmagan yuborishni qayta yuborishda — o'sha [idempotencyKey] (xabar ikki marta ketmaydi).
+  Future<PosConfirmationSent> sendConfirmation(
+    String uuid, {
+    String? channel,
+    String? idempotencyKey,
+  }) => _http.mutate(
+    'POST',
+    '/v1/pos/bookings/$uuid/confirmation/send',
+    (Object? data) => PosConfirmationSent.fromJson(dataObject(data)),
+    idempotencyKey: idempotencyKey,
+    body: <String, Object?>{'channel': ?channel},
+  );
+
   Future<PosBooking> _action(
     String uuid,
     String action,

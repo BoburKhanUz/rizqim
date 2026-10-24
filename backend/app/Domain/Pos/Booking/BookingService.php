@@ -78,6 +78,10 @@ class BookingService
 
         $this->changed($booking);
 
+        if ($booking->status === BookingStatus::CONFIRMED) {
+            $this->confirmedNow($booking, $actor);
+        }
+
         return $booking;
     }
 
@@ -148,9 +152,22 @@ class BookingService
 
     public function confirm(Booking $booking, User $actor, ?int $version = null): Booking
     {
-        return $this->transition($booking, BookingStatus::CONFIRMED, $actor, $version, 'booking.confirmed', function (Booking $booking) {
+        $booking = $this->transition($booking, BookingStatus::CONFIRMED, $actor, $version, 'booking.confirmed', function (Booking $booking) {
             $booking->confirmed_at = now();
         });
+        $this->confirmedNow($booking, $actor);
+
+        return $booking;
+    }
+
+    /**
+     * P3-38: the booking just became confirmed (created confirmed, confirmed, or confirmed by its first deposit): the
+     * guest is sent the confirmation by itself when the branch wants it. After the commit; never fails the action.
+     * Changing the booking later sends nothing again: the cashier resends by hand.
+     */
+    public function confirmedNow(Booking $booking, User $actor): void
+    {
+        app(BookingConfirmationService::class)->autoSend($booking, $actor);
     }
 
     /**

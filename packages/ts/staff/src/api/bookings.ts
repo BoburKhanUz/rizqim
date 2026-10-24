@@ -10,10 +10,18 @@ import type { JsonRequest, OkData } from './types';
 
 // --- Bookings ----------------------------------------------------------------------------------------------------------
 
+// P3-38: the booking JSON carries when and how the guest was last sent the confirmation (null: never). Written out here until
+// the generated client carries it (the intersection then says the same thing twice, harmlessly).
+export interface BookingConfirmationFields {
+  confirmation_sent_at?: string | null;
+  // "telegram" or "sms"
+  confirmation_channel?: string | null;
+}
+
 export type BookingCalendar = OkData<'booking.calendar'>;
 export type CalendarRoom = BookingCalendar['rooms'][number];
-export type Booking = CalendarRoom['bookings'][number];
-export type BookingDetail = OkData<'booking.show'>;
+export type Booking = CalendarRoom['bookings'][number] & BookingConfirmationFields;
+export type BookingDetail = OkData<'booking.show'> & BookingConfirmationFields;
 export type BookingPayment = BookingDetail['payments'][number];
 export type BookingInput = JsonRequest<'booking.store'>;
 export type BookingPatch = NonNullable<JsonRequest<'booking.update'>>;
@@ -84,4 +92,54 @@ export async function cancelBooking(api: StaffApi, uuid: string, reason: string,
 // POST /pos/bookings/{uuid}/no-show: only after the booking's start
 export async function markBookingNoShow(api: StaffApi, uuid: string, key: string = newIdempotencyKey()): Promise<BookingDetail> {
   return unwrap(await api.client.POST('/v1/pos/bookings/{uuid}/no-show', { params: { path: { uuid } }, ...withIdempotency(key) })).data as BookingDetail;
+}
+
+// --- The confirmation the guest receives (P3-38; docs/API.md "Bron tasdig'i") -------------------------------------------------------
+// Written out by hand from the contract until the generated client carries the routes. The web panel reads bookings through
+// the /pos routes (an owner or manager sign-in), so the confirmation uses them too; there is no owner twin to call.
+
+export const CONFIRMATION_LINE_KINDS = ['header', 'place', 'time', 'room', 'room_fee', 'min_spend', 'service_charge', 'place_fee', 'pre_order', 'deposit', 'cancel_policy', 'contact'] as const;
+export type ConfirmationLineKind = (typeof CONFIRMATION_LINE_KINDS)[number];
+
+export interface ConfirmationLine {
+  kind: ConfirmationLineKind;
+  label: string;
+  value: string;
+}
+
+export interface BookingConfirmation {
+  // The ready message, as the guest gets it
+  text: string;
+  lines: ConfirmationLine[];
+  // The room fee the order will use for that date's day type; null when no room is assigned yet
+  room_fee: { amount: string; day_type: string; tariff_id: number } | null;
+  // What a send can use right now
+  channels: { telegram: boolean; sms: boolean };
+}
+
+export const CONFIRMATION_CHANNELS = ['auto', 'telegram', 'sms'] as const;
+export type ConfirmationChannel = (typeof CONFIRMATION_CHANNELS)[number];
+
+export interface ConfirmationSent {
+  // The channel the message was queued on: "telegram" or "sms"
+  channel: string;
+  queued: boolean;
+}
+
+// The routes are not in the generated spec yet: their paths are borrowed from the booking's own routes (the cast keeps the
+// call typed) and the answers are read as the contract says. Replace by the generated types once the spec has them.
+const CONFIRMATION_PATH = '/v1/pos/bookings/{uuid}/confirmation' as '/v1/pos/bookings/{uuid}';
+const CONFIRMATION_SEND_PATH = '/v1/pos/bookings/{uuid}/confirmation/send' as '/v1/pos/bookings/{uuid}/confirm';
+
+// GET /pos/bookings/{uuid}/confirmation: the text and its lines, built from the same room tariff, day type, minimum spend and
+// service charge the order will use later
+export async function fetchBookingConfirmation(api: StaffApi, uuid: string): Promise<BookingConfirmation> {
+  return unwrap(await api.client.GET(CONFIRMATION_PATH, { params: { path: { uuid } } })).data as unknown as BookingConfirmation;
+}
+
+// POST /pos/bookings/{uuid}/confirmation/send: queues the message ("auto": Telegram when the guest has a chat with the store's
+// bot, else SMS when the branch switched it on, else 422 `no_channel`). Sending again is allowed, each time with a new key.
+export async function sendBookingConfirmation(api: StaffApi, uuid: string, channel: ConfirmationChannel = 'auto', key: string = newIdempotencyKey()): Promise<ConfirmationSent> {
+  const response = await api.client.POST(CONFIRMATION_SEND_PATH, { params: { path: { uuid } }, body: { channel } as never, ...withIdempotency(key) });
+  return unwrap(response).data as unknown as ConfirmationSent;
 }

@@ -197,6 +197,7 @@ class PosSettings {
     this.holidays = const <String>[],
     this.bookingSlotMinutes,
     this.cashierDiscountMaxPercent,
+    this.bookingConfirmation = const PosBookingConfirmationSettings(),
   });
 
   factory PosSettings.fromJson(PosJson j) => PosSettings(
@@ -210,6 +211,9 @@ class PosSettings {
     holidays: j.strings('holidays'),
     bookingSlotMinutes: j.intOrNull('booking_slot_minutes'),
     cashierDiscountMaxPercent: j.strOrNull('cashier_discount_max_percent'),
+    bookingConfirmation: j.has('booking_confirmation')
+        ? PosBookingConfirmationSettings.fromJson(j.obj('booking_confirmation'))
+        : const PosBookingConfirmationSettings(),
   );
 
   final PosMode mode;
@@ -228,6 +232,9 @@ class PosSettings {
   /// tasdig'i bilan.
   final String? cashierDiscountMaxPercent;
 
+  /// P3-38: mehmonga bron tasdig'ini yuborish sozlamasi.
+  final PosBookingConfirmationSettings bookingConfirmation;
+
   /// [cashierDiscountMaxPercent] foizning yuzdan birlarida (`"10.00"` → 1000); yo'q yoki noto'g'ri — 0.
   int get cashierDiscountMaxHundredths {
     final String? raw = cashierDiscountMaxPercent;
@@ -242,6 +249,27 @@ class PosSettings {
   /// Ekran qulfi muddati (0 — `null`: qulflanmaydi).
   Duration? get screenLock =>
       screenLockMinutes <= 0 ? null : Duration(minutes: screenLockMinutes);
+}
+
+/// P3-38: `pos_settings.booking_confirmation` — bron tasdiqlanganda mehmonga xabar avtomatik ketadimi, SMS ishlatiladimi
+/// (pullik), bekor qilish qoidasi matni.
+class PosBookingConfirmationSettings {
+  const PosBookingConfirmationSettings({
+    this.autoSend = true,
+    this.sms = false,
+    this.cancelPolicy,
+  });
+
+  factory PosBookingConfirmationSettings.fromJson(PosJson j) =>
+      PosBookingConfirmationSettings(
+        autoSend: j.boolean('auto_send', fallback: true),
+        sms: j.boolean('sms'),
+        cancelPolicy: j.strOrNull('cancel_policy'),
+      );
+
+  final bool autoSend;
+  final bool sms;
+  final String? cancelPolicy;
 }
 
 class PosAlerts {

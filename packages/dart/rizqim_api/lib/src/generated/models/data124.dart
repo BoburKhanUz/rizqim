@@ -12,7 +12,7 @@ part 'data124.g.dart';
 @JsonSerializable()
 class Data124 {
   const Data124({
-    required this.uuid,
+    required this.sourceLabel,
     required this.branchId,
     required this.diningTableId,
     required this.tableIds,
@@ -24,7 +24,7 @@ class Data124 {
     required this.contactName,
     required this.contactPhone,
     required this.source,
-    required this.sourceLabel,
+    required this.uuid,
     required this.status,
     required this.statusLabel,
     required this.minSpend,
@@ -34,17 +34,19 @@ class Data124 {
     required this.depositAvailable,
     required this.depositUnsettled,
     required this.itemsCount,
-    required this.cancelReason,
+    required this.payments,
     required this.version,
     required this.createdBy,
     required this.confirmedAt,
     required this.arrivedAt,
     required this.completedAt,
     required this.canceledAt,
+    required this.confirmationSentAt,
+    required this.confirmationChannel,
     required this.createdAt,
     required this.updatedAt,
     required this.items,
-    required this.payments,
+    required this.cancelReason,
   });
 
   factory Data124.fromJson(Map<String, Object?> json) =>
@@ -103,6 +105,10 @@ class Data124 {
   final String? completedAt;
   @JsonKey(name: 'canceled_at')
   final String? canceledAt;
+  @JsonKey(name: 'confirmation_sent_at')
+  final String? confirmationSentAt;
+  @JsonKey(name: 'confirmation_channel')
+  final String? confirmationChannel;
   @JsonKey(name: 'created_at')
   final String? createdAt;
   @JsonKey(name: 'updated_at')

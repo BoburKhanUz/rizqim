@@ -6,10 +6,10 @@ import 'package:json_annotation/json_annotation.dart';
 
 @JsonEnum()
 enum Channel4 {
-  @JsonValue('pos_hall')
-  posHall('pos_hall'),
-  @JsonValue('pos_takeaway')
-  posTakeaway('pos_takeaway'),
+  @JsonValue('telegram')
+  telegram('telegram'),
+  @JsonValue('sms')
+  sms('sms'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

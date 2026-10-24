@@ -19,6 +19,11 @@ PosSettings3 _$PosSettings3FromJson(Map<String, dynamic> json) => PosSettings3(
   holidays: (json['holidays'] as List<dynamic>?)
       ?.map((e) => DateTime.parse(e as String))
       .toList(),
+  bookingConfirmation: json['booking_confirmation'] == null
+      ? null
+      : BookingConfirmation3.fromJson(
+          json['booking_confirmation'] as Map<String, dynamic>,
+        ),
 );
 
 Map<String, dynamic> _$PosSettings3ToJson(PosSettings3 instance) =>
@@ -31,4 +36,5 @@ Map<String, dynamic> _$PosSettings3ToJson(PosSettings3 instance) =>
       'alerts': instance.alerts,
       'booking_slot_minutes': instance.bookingSlotMinutes,
       'holidays': instance.holidays?.map((e) => e.toIso8601String()).toList(),
+      'booking_confirmation': instance.bookingConfirmation,
     };

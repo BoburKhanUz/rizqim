@@ -12,17 +12,17 @@ Data174 _$Data174FromJson(Map<String, dynamic> json) => Data174(
   branchId: (json['branch_id'] as num).toInt(),
   device: json['device'] == null
       ? null
-      : Device17.fromJson(json['device'] as Map<String, dynamic>),
+      : Device15.fromJson(json['device'] as Map<String, dynamic>),
   businessDate: json['business_date'] as String,
   openedAt: json['opened_at'] as String,
   openedBy: json['opened_by'] == null
       ? null
-      : OpenedBy7.fromJson(json['opened_by'] as Map<String, dynamic>),
+      : OpenedBy5.fromJson(json['opened_by'] as Map<String, dynamic>),
   openingCash: json['opening_cash'] as String,
   closedAt: json['closed_at'] as String?,
   closedBy: json['closed_by'] == null
       ? null
-      : ClosedBy7.fromJson(json['closed_by'] as Map<String, dynamic>),
+      : ClosedBy5.fromJson(json['closed_by'] as Map<String, dynamic>),
   expectedCash: json['expected_cash'] as String?,
   countedCash: json['counted_cash'] as String?,
   countedBreakdown: (json['counted_breakdown'] as Map<String, dynamic>?)?.map(
@@ -34,7 +34,7 @@ Data174 _$Data174FromJson(Map<String, dynamic> json) => Data174(
   closeNote: json['close_note'] as String?,
   summary: json['summary'] == null
       ? null
-      : Summary4.fromJson(json['summary'] as Map<String, dynamic>),
+      : Summary3.fromJson(json['summary'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data174ToJson(Data174 instance) => <String, dynamic>{

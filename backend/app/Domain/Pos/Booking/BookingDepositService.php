@@ -67,7 +67,8 @@ class BookingDepositService
         // Built before the money is recorded: a fiscal setup problem (no MXIK for deposits) refuses the deposit
         $line = app(FiscalLineBuilder::class)->forCharge($store, 'deposit', $amount);
 
-        $payment = DB::transaction(function () use ($booking, $amount, $tender, $cardType, $transactionId, $key, $actor, $deviceId) {
+        $confirmed = false;
+        $payment = DB::transaction(function () use ($booking, $amount, $tender, $cardType, $transactionId, $key, $actor, $deviceId, &$confirmed) {
             $booking = $this->bookings->lockFresh($booking, null);
 
             if ($key !== null && ($existing = BookingPayment::where('booking_id', $booking->id)->where('idempotency_key', $key)->first())) {
@@ -96,6 +97,7 @@ class BookingDepositService
             if ($booking->status === BookingStatus::REQUESTED) {
                 $booking->status = BookingStatus::CONFIRMED;
                 $booking->confirmed_at = now();
+                $confirmed = true;
             }
             $booking->version = $booking->version + 1;
             $booking->save();
@@ -126,6 +128,11 @@ class BookingDepositService
         }
 
         $this->bookings->changed($booking->refresh());
+
+        // P3-38: the first deposit confirmed it: the confirmation (with the deposit in it) goes out by itself
+        if ($confirmed) {
+            $this->bookings->confirmedNow($booking, $actor);
+        }
 
         return $payment->refresh();
     }

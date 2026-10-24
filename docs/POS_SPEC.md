@@ -203,13 +203,27 @@ birida kanal belgisi, turi (zal, olib ketish, yetkazish), holati va vaqti.
   bayram). Nol bo'lishi mumkin; kishi boshiga model ham qoladi (mavjud `per_person`). Xona hisobi ochilganda **avtomatik
   qator** bo'lib qo'shiladi (`orders.room_fee_amount`). Soatbay xona tarifi va taymer — keyin (R5).
 - **Minimal summa** ("obyazalovka") — xona uchun yoki kishi boshiga (`dining_tables.min_spend`, `min_spend_mode`).
-  Taomlar yetmasa, schyotda **farq qatori** chiqadi (`orders.min_spend_topup_amount`). Uni olib tashlash faqat menejer
+  Brondan ochilgan buyurtmada (`orders.booking_id`, birlashtirishdan keyin ham) bronda mehmon bilan kelishilgan
+  `bookings.min_spend` amal qiladi (butun bron uchun; xonanikidan katta yoki kichik bo'lsa ham), bronda yo'q bo'lsa —
+  xonaniki. Bron tasdig'idagi "Minimal buyurtma" bilan bitta qoida (`DiningFeeCalculator::minimumSpend`). Taomlar
+  yetmasa, schyotda **farq qatori** chiqadi (`orders.min_spend_topup_amount`). Uni olib tashlash faqat menejer
   PIN'i bilan.
 - **Choy-non kishi boshiga.** Filial sozlasa, mehmon soniga qarab avtomatik qator (`auto_guest_items`): masalan, har
   mehmonga choy va non. Mehmon soni o'zgarsa qator ham o'zgaradi.
 - **Oldindan e'lon qilinadi.** Xizmat haqi, xona puli va minimal summa menyuda, e'londa va **bron tasdig'i matnida**
   aniq summasi yoki foizi bilan aytiladi (Raqobat qo'mitasi talabi: oldindan e'lon qilish, majburlamaslik, ko'rsatilmagan
   xizmat uchun pul olmaslik).
+- **Bron tasdig'i (P3-38).** Mehmonga bitta matn boradi: joy va manzil, sana va vaqt, xona va mehmonlar soni,
+  **xona puli** (xona tarifi bron kunining turi bo'yicha — hafta ichi, dam olish, bayram; bayramlar filial
+  sozlamasidan; buyurtma keyin xuddi shu qoida bilan hisoblaydi), minimal buyurtma (bronniki, bo'lmasa xonaniki;
+  buyurtma ham shu summani oladi),
+  xizmat haqi foizi va joy narxi (xona zalining sozlamasi), oldindan buyurtma, olingan bo'nak (qaytarilgani ayirilib),
+  filialning bekor qilish qoidasi, filial telefoni va bron raqami. Xona hali belgilanmagan bo'lsa "Xona: keyin
+  belgilanadi", xona puli aytilmaydi. Yuborish: mehmon do'kon botida bo'lsa Telegram, bo'lmasa filial yoqqan bo'lsa SMS
+  (pulli, standart o'chiq), aks holda kassir matnni nusxalab o'zi yuboradi yoki chop etadi. Bron tasdiqlanganda o'zi
+  ketadi (filial sozlamasi `booking_confirmation.auto_send`, standart yoqilgan); keyin bron o'zgarsa qayta o'zi
+  ketmaydi — kassir qo'lda qayta yuboradi. Bronda oxirgi yuborilgan vaqt va yo'l ko'rinadi. API: docs/API.md
+  "Bron tasdig'i".
 - Schyotda va chekda har biri **alohida qator**, chekda o'z MXIK kodi bilan (4.3); schyot pastida "Xizmat haqi X%"
   yozuvi.
 - Mehmon e'tiroz bildirsa, xizmat haqi yoki xona puli sabab bilan olib tashlanadi (`orders.discount`, jurnalga

@@ -17,6 +17,9 @@ PosSettings4 _$PosSettings4FromJson(Map<String, dynamic> json) => PosSettings4(
       .map((e) => e as String)
       .toList(),
   bookingSlotMinutes: (json['booking_slot_minutes'] as num?)?.toInt(),
+  bookingConfirmation: BookingConfirmation4.fromJson(
+    json['booking_confirmation'] as Map<String, dynamic>,
+  ),
 );
 
 Map<String, dynamic> _$PosSettings4ToJson(PosSettings4 instance) =>
@@ -29,4 +32,5 @@ Map<String, dynamic> _$PosSettings4ToJson(PosSettings4 instance) =>
       'alerts': instance.alerts,
       'holidays': instance.holidays,
       'booking_slot_minutes': instance.bookingSlotMinutes,
+      'booking_confirmation': instance.bookingConfirmation,
     };

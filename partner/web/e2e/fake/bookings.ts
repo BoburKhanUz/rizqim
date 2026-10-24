@@ -37,6 +37,9 @@ export interface FakeBooking {
   canceled_at: string | null
   created_at: string | null
   updated_at: string | null
+  // P3-38: when and how the guest was last sent the confirmation
+  confirmation_sent_at?: string | null
+  confirmation_channel?: string | null
 }
 
 const LABELS: Record<string, string> = { requested: "So'rov", confirmed: 'Tasdiqlangan', canceled: 'Bekor qilindi' }
@@ -51,6 +54,10 @@ const instant = (value: unknown): string => {
 
 export class FakeBookings {
   bookings: FakeBooking[] = []
+  // P3-38: what a confirmation send can use now (a test switches them to reach `no_channel`)
+  channels = { telegram: true, sms: false }
+  // The messages queued by a send, newest last
+  sent: { uuid: string; channel: string }[] = []
   private counter = 0
 
   constructor(private readonly backend: FakeBackend) {}
@@ -144,6 +151,24 @@ export class FakeBookings {
       return ok({ branch_id: Number(req.query.branch_id ?? 1), from, to, timezone: 'Asia/Tashkent', rooms, unassigned: shown.filter((booking) => booking.table_ids.length === 0) })
     }
     if (req.method === 'POST' && path === '/v1/pos/bookings') return this.create(input)
+    if ((match = /^\/v1\/pos\/bookings\/([\w-]+)\/confirmation(\/send)?$/.exec(path))) {
+      const booking = this.bookings.find((candidate) => candidate.uuid === match![1])
+      if (!booking) return fail(404, 'Bron topilmadi.')
+      if (req.method === 'GET' && !match[2]) {
+        const room = this.backend.floor.tables.find((table) => table.id === booking.dining_table_id)
+        const text = ['Bron tasdiqlandi ✅', `Xona: "${room?.name ?? 'keyin belgilanadi'}" · ${booking.guests_planned} kishi`, "💵 Xona puli: 300 000 so'm (dam olish kuni narxi)"].join('\n')
+        return ok({ text, lines: [], room_fee: room ? { amount: '300000.00', day_type: 'weekend', tariff_id: 1 } : null, channels: this.channels })
+      }
+      if (req.method === 'POST' && match[2]) {
+        const wanted = String(input.channel ?? 'auto')
+        const channel = wanted !== 'auto' ? wanted : this.channels.telegram ? 'telegram' : this.channels.sms ? 'sms' : null
+        if (channel === null) return fail(422, "Mehmonga yuborish uchun kanal yo'q.", undefined, { reason: 'no_channel' })
+        booking.confirmation_sent_at = new Date().toISOString()
+        booking.confirmation_channel = channel
+        this.sent.push({ uuid: booking.uuid, channel })
+        return ok({ channel, queued: true })
+      }
+    }
     if ((match = /^\/v1\/pos\/bookings\/([\w-]+)(\/(confirm|cancel))?$/.exec(path))) {
       const booking = this.bookings.find((candidate) => candidate.uuid === match![1])
       if (!booking) return fail(404, 'Bron topilmadi.')

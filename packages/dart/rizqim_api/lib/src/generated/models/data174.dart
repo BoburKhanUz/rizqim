@@ -4,10 +4,10 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'device17.dart';
-import 'opened_by7.dart';
-import 'closed_by7.dart';
-import 'summary4.dart';
+import 'device15.dart';
+import 'opened_by5.dart';
+import 'closed_by5.dart';
+import 'summary3.dart';
 
 part 'data174.g.dart';
 
@@ -41,19 +41,19 @@ class Data174 {
   final String status;
   @JsonKey(name: 'branch_id')
   final int branchId;
-  final Device17? device;
+  final Device15? device;
   @JsonKey(name: 'business_date')
   final String businessDate;
   @JsonKey(name: 'opened_at')
   final String openedAt;
   @JsonKey(name: 'opened_by')
-  final OpenedBy7? openedBy;
+  final OpenedBy5? openedBy;
   @JsonKey(name: 'opening_cash')
   final String openingCash;
   @JsonKey(name: 'closed_at')
   final String? closedAt;
   @JsonKey(name: 'closed_by')
-  final ClosedBy7? closedBy;
+  final ClosedBy5? closedBy;
   @JsonKey(name: 'expected_cash')
   final String? expectedCash;
   @JsonKey(name: 'counted_cash')
@@ -67,7 +67,7 @@ class Data174 {
   final bool forceClosed;
   @JsonKey(name: 'close_note')
   final String? closeNote;
-  final Summary4? summary;
+  final Summary3? summary;
 
   Map<String, Object?> toJson() => _$Data174ToJson(this);
 }

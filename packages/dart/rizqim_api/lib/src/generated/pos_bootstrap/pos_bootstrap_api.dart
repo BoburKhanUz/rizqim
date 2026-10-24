@@ -5,7 +5,7 @@
 import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
-import '../models/channel4.dart';
+import '../models/channel6.dart';
 import '../models/get_v1_pos_bootstrap_response.dart';
 import '../models/get_v1_pos_catalog_response.dart';
 
@@ -27,7 +27,8 @@ abstract class PosBootstrapApi {
   /// "chop etuvchi" kassa or null), `screen_lock_minutes` (0: never), `queue_numbers`, `cashier_discount_max_percent`.
   /// (P3-37: the discount percent a cashier gives without a manager; null or "0.00": always a manager), `alerts`.
   /// (`open_room_hours`, `void_amount`, `discount_percent`, `unaccepted_online_minutes`, `cash_out_amount`; null: off),.
-  /// `holidays` (dates), `booking_slot_minutes` (default length of a booking, null: the server's)); `device` (the.
+  /// `holidays` (dates), `booking_slot_minutes` (default length of a booking, null: the server's),.
+  /// `booking_confirmation` (P3-38: `auto_send`, `sms`, `cancel_policy`)); `device` (the.
   /// terminal: uuid, type, name, `is_printing_device`; null outside a terminal session); `user` (id, name, role,.
   /// permissions); `stations` (active kitchen stations); `station_routes` (dish to station: by product and by.
   /// category; a product route beats its category's); `printers` (active ones this terminal can use: LAN and.
@@ -63,7 +64,7 @@ abstract class PosBootstrapApi {
   @GET('/v1/pos/catalog')
   Future<GetV1PosCatalogResponse> posCatalogIndex({
     @Query('store_id') String? storeId,
-    @Query('channel') Channel4? channel,
+    @Query('channel') Channel6? channel,
     @Query('branch_id') int? branchId,
   });
 }

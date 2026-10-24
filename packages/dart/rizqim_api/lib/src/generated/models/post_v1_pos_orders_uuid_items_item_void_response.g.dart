@@ -11,7 +11,7 @@ _$PostV1PosOrdersUuidItemsItemVoidResponseFromJson(Map<String, dynamic> json) =>
     PostV1PosOrdersUuidItemsItemVoidResponse(
       success: json['success'] as bool,
       message: json['message'] as String,
-      data: Data161.fromJson(json['data'] as Map<String, dynamic>),
+      data: Data163.fromJson(json['data'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$PostV1PosOrdersUuidItemsItemVoidResponseToJson(

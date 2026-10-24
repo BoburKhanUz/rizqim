@@ -64,3 +64,42 @@ test('a booking is made, collides with another, and is canceled', async ({ page,
   await page.getByRole('checkbox', { name: 'Bekor qilinganlar ham' }).check()
   await expect(room.getByRole('button', { name: /Aziz Karimov, 19:00–23:00, Bekor qilindi/ })).toBeVisible()
 })
+
+test('the confirmation is previewed and sent to the guest; with no channel the cashier is told so', async ({ page, api, signIn, reverb }) => {
+  void reverb
+  await openSignedIn(page, signIn, '/bookings')
+  await page.getByLabel('Sana').fill(DAY)
+  await page.getByRole('button', { name: "Xona 1: bron qo'shish" }).click()
+  const dialog = page.getByRole('dialog')
+  await dialog.getByLabel('Ismi (yoki guruh nomi)').fill('Aziz Karimov')
+  await dialog.getByLabel('Telefon').fill('90 123 45 67')
+  await dialog.getByLabel('Mehmonlar soni').fill('12')
+  await dialog.getByLabel('Boshlanishi').fill('19:00')
+  await dialog.getByLabel('Tugashi').fill('23:00')
+  await dialog.getByRole('checkbox', { name: /Darhol tasdiqlash/ }).check()
+  await dialog.getByRole('button', { name: 'Saqlash', exact: true }).click()
+  await page.getByRole('group', { name: 'Xona 1' }).getByRole('button', { name: /Aziz Karimov, 19:00–23:00/ }).click()
+
+  // The text the guest gets, with the room fee line
+  const detail = page.getByRole('dialog')
+  const section = detail.getByRole('region', { name: 'Tasdiq' })
+  await section.getByRole('button', { name: "Tasdiqni ko'rish" }).click()
+  await expect(section.getByText("Xona puli: 300 000 so'm (dam olish kuni narxi)")).toBeVisible()
+  await expect(section.getByText('Yuborish mumkin: Telegram')).toBeVisible()
+
+  // Sent by itself over Telegram, and the booking remembers when
+  await section.getByRole('button', { name: 'Yuborish' }).click()
+  await expect(section.getByText("Telegram'ga yuborildi.")).toBeVisible()
+  await expect(section.getByText(/Tasdiq yuborilgan: \d{2}:\d{2}, Telegram/)).toBeVisible()
+  expect(api.bookings.sent).toHaveLength(1)
+  expect(api.callsTo('POST', '/v1/pos/bookings/' + api.bookings.bookings[0]!.uuid + '/confirmation/send')[0].body).toEqual({ channel: 'auto' })
+
+  // Neither Telegram nor SMS: a clear message, nothing queued
+  api.bookings.channels = { telegram: false, sms: false }
+  await section.getByRole('button', { name: 'Tasdiqni yopish' }).click()
+  await section.getByRole('button', { name: "Tasdiqni ko'rish" }).click()
+  await expect(section.getByText(/Yuborish mumkin: yo'q/)).toBeVisible()
+  await section.getByRole('button', { name: 'Yuborish' }).click()
+  await expect(section.getByRole('alert')).toContainText("mehmon Telegram'da yo'q")
+  expect(api.bookings.sent).toHaveLength(1)
+})

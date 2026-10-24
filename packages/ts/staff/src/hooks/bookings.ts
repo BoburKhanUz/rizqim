@@ -5,15 +5,20 @@ import {
   createBooking,
   fetchBooking,
   fetchBookingCalendar,
+  fetchBookingConfirmation,
   fetchBookings,
   markBookingNoShow,
+  sendBookingConfirmation,
   updateBooking,
   type BookingCalendar,
   type BookingCalendarQuery,
+  type BookingConfirmation,
   type BookingDetail,
   type BookingInput,
   type BookingListQuery,
   type BookingPatch,
+  type ConfirmationChannel,
+  type ConfirmationSent,
   type Booking,
 } from '../api/bookings';
 import { useStaffApi } from './context';
@@ -25,6 +30,7 @@ export const bookingKeys = {
   calendar: (query: BookingCalendarQuery) => ['pos', 'bookings', 'calendar', query] as const,
   list: (query: BookingListQuery) => ['pos', 'bookings', 'list', query] as const,
   detail: (uuid: string) => ['pos', 'bookings', 'detail', uuid] as const,
+  confirmation: (uuid: string) => ['pos', 'bookings', 'confirmation', uuid] as const,
 };
 
 export function useBookingCalendar(query: BookingCalendarQuery | null, options: QueryExtras<BookingCalendar> = {}) {
@@ -88,4 +94,25 @@ export function useCancelBooking(options: MutationExtras<BookingDetail, { uuid: 
 export function useMarkBookingNoShow(options: MutationExtras<BookingDetail, string> = {}) {
   const api = useStaffApi();
   return useBookingMutation((uuid: string) => markBookingNoShow(api, uuid), options);
+}
+
+// P3-38: the confirmation text the guest gets. It is built by the server from the booking and the room's tariff, so it is read
+// again whenever the booking changes (every booking mutation invalidates `bookingKeys.all`).
+export function useBookingConfirmation(uuid: string | null, options: QueryExtras<BookingConfirmation> = {}) {
+  const api = useStaffApi();
+  return useQuery({
+    // Always read again when shown: the tariff, the channels and the branch settings can change under a cached text
+    staleTime: 0,
+    ...options,
+    enabled: uuid !== null && options.enabled !== false,
+    queryKey: bookingKeys.confirmation(uuid ?? ''),
+    queryFn: () => fetchBookingConfirmation(api, uuid as string),
+  });
+}
+
+// Sends the confirmation (a new idempotency key per send, so sending again is a new message). 422 `no_channel` is the caller's to
+// show: the guest has no Telegram chat with the bot and the branch has not switched SMS on.
+export function useSendBookingConfirmation(options: MutationExtras<ConfirmationSent, { uuid: string; channel?: ConfirmationChannel }> = {}) {
+  const api = useStaffApi();
+  return useBookingMutation(({ uuid, channel }: { uuid: string; channel?: ConfirmationChannel }) => sendBookingConfirmation(api, uuid, channel), options);
 }

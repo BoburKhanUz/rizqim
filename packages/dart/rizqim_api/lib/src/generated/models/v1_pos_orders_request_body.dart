@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'channel4.dart';
+import 'channel6.dart';
 import 'items21.dart';
 
 part 'v1_pos_orders_request_body.g.dart';
@@ -28,7 +28,7 @@ class V1PosOrdersRequestBody {
 
   @JsonKey(name: 'branch_id')
   final int? branchId;
-  final Channel4 channel;
+  final Channel6 channel;
   @JsonKey(name: 'table_id')
   final int? tableId;
   @JsonKey(name: 'guests_count')

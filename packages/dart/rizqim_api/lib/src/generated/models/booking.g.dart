@@ -7,7 +7,7 @@ part of 'booking.dart';
 // **************************************************************************
 
 Booking _$BookingFromJson(Map<String, dynamic> json) => Booking(
-  uuid: json['uuid'] as String,
+  sourceLabel: json['source_label'] as String,
   branchId: (json['branch_id'] as num).toInt(),
   diningTableId: (json['dining_table_id'] as num?)?.toInt(),
   tableIds: (json['table_ids'] as List<dynamic>)
@@ -21,7 +21,7 @@ Booking _$BookingFromJson(Map<String, dynamic> json) => Booking(
   contactName: json['contact_name'] as String,
   contactPhone: json['contact_phone'] as String?,
   source: json['source'] as String,
-  sourceLabel: json['source_label'] as String,
+  uuid: json['uuid'] as String,
   status: json['status'] as String,
   statusLabel: json['status_label'] as String,
   minSpend: json['min_spend'] as String?,
@@ -31,21 +31,23 @@ Booking _$BookingFromJson(Map<String, dynamic> json) => Booking(
   depositAvailable: json['deposit_available'] as String,
   depositUnsettled: json['deposit_unsettled'] as bool,
   itemsCount: (json['items_count'] as num).toInt(),
-  cancelReason: json['cancel_reason'] as String?,
+  payments: (json['payments'] as List<dynamic>)
+      .map((e) => Payments13.fromJson(e as Map<String, dynamic>))
+      .toList(),
   version: (json['version'] as num).toInt(),
   createdBy: (json['created_by'] as num?)?.toInt(),
   confirmedAt: json['confirmed_at'] as String?,
   arrivedAt: json['arrived_at'] as String?,
   completedAt: json['completed_at'] as String?,
   canceledAt: json['canceled_at'] as String?,
+  confirmationSentAt: json['confirmation_sent_at'] as String?,
+  confirmationChannel: json['confirmation_channel'] as String?,
   createdAt: json['created_at'] as String?,
   updatedAt: json['updated_at'] as String?,
   items: (json['items'] as List<dynamic>)
       .map((e) => Items9.fromJson(e as Map<String, dynamic>))
       .toList(),
-  payments: (json['payments'] as List<dynamic>)
-      .map((e) => Payments13.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  cancelReason: json['cancel_reason'] as String?,
 );
 
 Map<String, dynamic> _$BookingToJson(Booking instance) => <String, dynamic>{
@@ -78,6 +80,8 @@ Map<String, dynamic> _$BookingToJson(Booking instance) => <String, dynamic>{
   'arrived_at': instance.arrivedAt,
   'completed_at': instance.completedAt,
   'canceled_at': instance.canceledAt,
+  'confirmation_sent_at': instance.confirmationSentAt,
+  'confirmation_channel': instance.confirmationChannel,
   'created_at': instance.createdAt,
   'updated_at': instance.updatedAt,
   'items': instance.items,

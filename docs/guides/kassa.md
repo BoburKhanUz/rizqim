@@ -562,6 +562,49 @@ Xona shu vaqtda band bo'lsa, ilova "Band: 18:00–23:00" deb ko'rsatadi: boshqa 
 marta band qilinmaydi.
 
 Bron tasdig'ida mijozga xona puli, minimal summa va xizmat haqi aytilgan bo'lishi kerak (egasi oldindan e'lon qilish majburiyati).
+Buni ilova o'zi yozadi — pastda: [Mehmonga bron tasdig'i](#mehmonga-bron-tasdigi).
+
+### Mehmonga bron tasdig'i
+
+Bron sahifasida (bron **So'rov** yoki **Tasdiqlangan** bo'lsa) **Tasdiq** bo'limi bor. Unda mehmonga boradigan matn ko'rinadi:
+
+```
+Bron tasdiqlandi ✅
+Rohat choyxonasi, Chilonzor
+📅 Juma, 31-oktabr, 19:00–23:00
+🚪 Xona: "Katta xona" (20 kishilik) · 12 kishi
+💵 Xona puli: 300 000 so'm (dam olish kuni narxi)
+💵 Xizmat haqi: 10%
+🍽 Oldindan buyurtma: Osh 3 kg, Qozon kabob 2 kg
+💳 Bo'nak olindi: 500 000 so'm
+📞 +998 71 200 00 00 · Bron raqami: 4F2A9C
+```
+
+Matnni server tuzadi, kassir yozmaydi. **Xona puli** — o'sha kun uchun xona tarifi: hafta ichi, dam olish kuni yoki bayram
+(bayram kunlarini ega sozlaydi). Kechqurun schyotga ham aynan shu narx tushadi. Xona hali tanlanmagan bo'lsa, "Xona: keyin
+belgilanadi" deb yoziladi va xona puli qatori bo'lmaydi. Minimal summa, xizmat haqi yoki joy narxi bo'lsa — ular ham yoziladi.
+Filial bekor qilish qoidasini kiritgan bo'lsa, u ham matnda ("ℹ️" qatori).
+
+Tugmalar:
+
+- **Yuborish** — matn mehmonga ketadi. Mehmon shu telefon bilan do'kon Telegram botiga kirgan bo'lsa — Telegram'ga, aks holda
+  filial SMS'ni yoqqan bo'lsa — SMS bilan. Natija bo'limda yoziladi: **Telegram'ga yuborildi** yoki **SMS yuborildi**.
+  Ikkalasi ham bo'lmasa (mehmon botga kirmagan, SMS o'chirilgan yoki bronda telefon yo'q), bo'limda sababi yoziladi — unda
+  matnni nusxa oling yoki chop eting.
+- **Nusxa olish** — matn buferga olinadi. O'z Telegram yoki WhatsApp'ingizda mehmon bilan yozishmani oching va qo'ying.
+- **Chop etish** — matn chek printerida varaqcha bo'lib chiqadi ("BRON TASDIG'I", fiskal chek emas). Mehmon bronni joyida
+  qilgan bo'lsa, qo'liga bering.
+
+Yuborilgandan keyin bo'lim tepasida **Tasdiq yuborilgan: 19:42, Telegram** turadi. Qayta yuborish mumkin: har bosish — yangi
+xabar.
+
+Filial sozlamasida "avtomatik yuborish" yoqilgan bo'lsa (odatda yoqilgan), bron tasdiqlanganda tasdiq o'zi ketadi — Telegram yoki
+SMS bo'lsa. Keyin bron vaqti, xonasi yoki mehmonlar soni o'zgarsa, tasdiq **o'zi qayta ketmaydi**: mehmonga yangi matnni
+**Yuborish** bilan o'zingiz yuboring. SMS pullik, shuning uchun uni ega yoqadi ([ega qo'llanmasi](ega-pos-sozlash.md)).
+
+**Internet uzilsa:** matn serverdan olinadi, shuning uchun bo'limda "Internet kerak" chiqadi — aloqa tiklangach **Qayta
+urinish**. **Yuborish** paytida aloqa uzilsa, "Aloqa yo'q: tasdiq yuborilgani noma'lum" deb yoziladi. Yana bosing: so'rov
+aynan o'sha bo'lib ketadi, mehmonga ikki marta bormaydi.
 
 ### Oldindan buyurtma
 

@@ -290,6 +290,89 @@ describe('a booking', () => {
   });
 });
 
+describe('the confirmation the guest gets (P3-38)', () => {
+  const TEXT = "Bron tasdiqlandi ✅\nChoyxona, Chilonzor\n📅 Payshanba, 22-oktabr, 18:00–22:00\n💵 Xona puli: 300 000 so'm (dam olish kuni narxi)";
+  const confirmation = (over: Record<string, unknown> = {}) => ({
+    text: TEXT,
+    lines: [{ kind: 'room_fee', label: 'Xona puli', value: "300 000 so'm" }],
+    room_fee: { amount: '300000.00', day_type: 'weekend', tariff_id: 4 },
+    channels: { telegram: true, sms: false },
+    ...over,
+  });
+  const CONF = `GET /api/v1/pos/bookings/${UUID}/confirmation`;
+  const SEND = `POST /api/v1/pos/bookings/${UUID}/confirmation/send`;
+  const openBooking = async (over: Parameters<typeof mockFetch>[0] = {}) => {
+    const mocked = await open(over);
+    await mocked.typing.click(screen.getByRole('button', { name: /Aziz Karimov, 18:00–22:00/ }));
+    const dialog = await screen.findByRole('dialog');
+    await within(dialog).findByRole('heading', { name: 'Avanslar' });
+    return { ...mocked, dialog };
+  };
+  const section = (dialog: HTMLElement) => within(dialog).getByRole('region', { name: 'Tasdiq' });
+
+  it('reads the text only when asked, and shows it with the room fee and the channels', async () => {
+    const { calls, typing, dialog } = await openBooking({ [CONF]: () => ok(confirmation()) });
+    expect(calls.some((call) => new URL(call.url).pathname.endsWith('/confirmation'))).toBe(false);
+    await typing.click(within(section(dialog)).getByRole('button', { name: "Tasdiqni ko'rish" }));
+    expect(await within(dialog).findByText(/Xona puli: 300 000 so'm \(dam olish kuni narxi\)/)).toBeInTheDocument();
+    expect(within(dialog).getByText('Xona puli: 300 000 so\'m')).toBeInTheDocument();
+    expect(within(dialog).getByText('Yuborish mumkin: Telegram')).toBeInTheDocument();
+  });
+
+  it('is offered for a confirmed booking only', async () => {
+    const { dialog } = await openBooking({ [`GET /api/v1/pos/bookings/${UUID}`]: () => ok(detail({ status: 'requested', status_label: "So'rov" })) });
+    expect(within(dialog).queryByRole('region', { name: 'Tasdiq' })).not.toBeInTheDocument();
+  });
+
+  it('sends with "auto" and says where it went, then shows when it was sent', async () => {
+    let sent = false;
+    const { calls, typing, dialog } = await openBooking({
+      [CONF]: () => ok(confirmation()),
+      [`GET /api/v1/pos/bookings/${UUID}`]: () => ok(detail(sent ? { confirmation_sent_at: '2026-10-22T14:42:00+00:00', confirmation_channel: 'telegram' } : {})),
+      [SEND]: () => {
+        sent = true;
+        return ok({ channel: 'telegram', queued: true });
+      },
+    });
+    await typing.click(within(section(dialog)).getByRole('button', { name: "Tasdiqni ko'rish" }));
+    await typing.click(await within(dialog).findByRole('button', { name: 'Yuborish' }));
+    expect(await within(dialog).findByText("Telegram'ga yuborildi.")).toBeInTheDocument();
+    const post = calls.find((call) => call.method === 'POST' && call.url.endsWith('/confirmation/send'))!;
+    expect(await post.json()).toEqual({ channel: 'auto' });
+    expect(post.headers.get('Idempotency-Key')).toBeTruthy();
+    // 14:42 UTC is 19:42 in Tashkent
+    expect(await within(dialog).findByText('Tasdiq yuborilgan: 19:42, Telegram')).toBeInTheDocument();
+  });
+
+  it('shows no_channel as a clear message that says what to do', async () => {
+    const { typing, dialog } = await openBooking({
+      [CONF]: () => ok(confirmation({ channels: { telegram: false, sms: false } })),
+      [SEND]: () => json({ success: false, message: "Kanal yo'q.", data: { reason: 'no_channel' } }, 422),
+    });
+    await typing.click(within(section(dialog)).getByRole('button', { name: "Tasdiqni ko'rish" }));
+    expect(await within(dialog).findByText("Yuborish mumkin: yo'q (mehmon Telegram'da emas, SMS yoqilmagan)")).toBeInTheDocument();
+    await typing.click(within(dialog).getByRole('button', { name: 'Yuborish' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(/Yuborib bo'lmadi: mehmon Telegram'da yo'q, SMS esa filial sozlamalarida yoqilmagan/);
+  });
+
+  it("shows the server's own words for any other refusal", async () => {
+    const { typing, dialog } = await openBooking({ [CONF]: () => ok(confirmation()), [SEND]: () => json({ success: false, message: 'Bron bekor qilingan.' }, 422) });
+    await typing.click(within(section(dialog)).getByRole('button', { name: "Tasdiqni ko'rish" }));
+    await typing.click(await within(dialog).findByRole('button', { name: 'Yuborish' }));
+    expect(await within(dialog).findByText('Bron bekor qilingan.')).toBeInTheDocument();
+  });
+
+  it('can copy the text for a messenger of the cashier\'s own', async () => {
+    const { typing, dialog } = await openBooking({ [CONF]: () => ok(confirmation()) });
+    // user-event puts its own clipboard in place when it is set up
+    const writeText = vi.spyOn(navigator.clipboard, 'writeText');
+    await typing.click(within(section(dialog)).getByRole('button', { name: "Tasdiqni ko'rish" }));
+    await typing.click(await within(dialog).findByRole('button', { name: 'Nusxa olish' }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(TEXT));
+    expect(await within(dialog).findByText('Matn nusxalandi.')).toBeInTheDocument();
+  });
+});
+
 describe('access', () => {
   it('says so to someone without bookings.manage', async () => {
     base({}, ['orders.view']);

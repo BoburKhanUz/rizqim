@@ -56,6 +56,21 @@ class FakeCashierBackend {
   /// Onlayn buyurtmalar (`/staff/orders`).
   final List<Map<String, Object?>> onlineOrders = <Map<String, Object?>>[];
 
+  /// P3-38: do'kon Telegram botiga ulangan mijoz telefonlari (`+998...`): tasdiq Telegram'ga ketadi.
+  final Set<String> telegramPhones = <String>{};
+
+  /// P3-38: xona puli kun turi bo'yicha (`weekday`, `weekend`, `holiday`; soxta tarif — faqat `room` turidagi joylar).
+  final Map<String, String> roomFees = <String, String>{
+    'weekday': '300000.00',
+    'weekend': '300000.00',
+    'holiday': '300000.00',
+  };
+
+  /// P3-38: yuborilgan tasdiqlar (`booking_uuid`, `channel`, `text`, `auto`).
+  final List<Map<String, Object?>> sentConfirmations = <Map<String, Object?>>[];
+
+  final Map<String, Map<String, Object?>> _confirmationByKey =
+      <String, Map<String, Object?>>{};
   final Map<String, Map<String, Object?>> _depositByKey =
       <String, Map<String, Object?>>{};
   final Map<String, Map<String, Object?>> _repayByKey =
@@ -2016,6 +2031,11 @@ class FakeCashierBackend {
       case ('POST', <String>['confirm']):
         if (b['status'] != 'requested') return _transition();
         b['status'] = 'confirmed';
+        _autoSendConfirmation(b);
+      case ('GET', <String>['confirmation']):
+        return _ok(_confirmation(b));
+      case ('POST', <String>['confirmation', 'send']):
+        return _sendConfirmation(b, r);
       case ('POST', <String>['cancel']):
         if (b['status'] != 'requested' && b['status'] != 'confirmed') {
           return _transition();
@@ -2057,6 +2077,269 @@ class FakeCashierBackend {
     }
     _touchBooking(b);
     return _ok(b);
+  }
+
+  // --- P3-38: bron tasdig'i ------------------------------------------------------------------------------------------
+
+  static const List<String> _weekdays = <String>[
+    'Dushanba',
+    'Seshanba',
+    'Chorshanba',
+    'Payshanba',
+    'Juma',
+    'Shanba',
+    'Yakshanba',
+  ];
+
+  static const List<String> _months = <String>[
+    'yanvar',
+    'fevral',
+    'mart',
+    'aprel',
+    'may',
+    'iyun',
+    'iyul',
+    'avgust',
+    'sentabr',
+    'oktabr',
+    'noyabr',
+    'dekabr',
+  ];
+
+  static const Map<String, String> _dayTypePrice = <String, String>{
+    'weekday': 'hafta ichi narxi',
+    'weekend': 'dam olish kuni narxi',
+    'holiday': 'bayram kuni narxi',
+  };
+
+  /// "300 000 so'm".
+  static String _som(int tiyin) {
+    final String digits = '${tiyin.abs() ~/ 100}';
+    final StringBuffer out = StringBuffer(tiyin < 0 ? '-' : '');
+    for (var i = 0; i < digits.length; i++) {
+      if (i > 0 && (digits.length - i) % 3 == 0) out.write(' ');
+      out.write(digits[i]);
+    }
+    return "$out so'm";
+  }
+
+  static String _hm(DateTime local) =>
+      '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+
+  /// The fake's rules, as the order will price the place later: rooms (`kind: room`) pay the day type's room fee
+  /// ([roomFees]: holidays from pos_settings, Saturday and Sunday are weekends), the hall takes 10% service charge.
+  Map<String, Object?> _confirmation(Map<String, Object?> b) {
+    final DateTime starts = DateTime.parse('${b['starts_at']}')
+        .toUtc()
+        .add(const Duration(hours: 5));
+    final DateTime ends = DateTime.parse('${b['ends_at']}')
+        .toUtc()
+        .add(const Duration(hours: 5));
+    final String date = _date(starts);
+    final String dayType = state.holidays.contains(date)
+        ? 'holiday'
+        : (starts.weekday >= DateTime.saturday ? 'weekend' : 'weekday');
+    final List<Map<String, Object?>> rooms = <Map<String, Object?>>[
+      for (final Object? id in b['table_ids']! as List<Object?>)
+        state.tables.firstWhere((Map<String, Object?> t) => t['id'] == id),
+    ];
+    final int guests = math.max(
+      1,
+      ((b['guests_planned'] as num?) ?? 1).toInt(),
+    );
+    final String headline = switch (b['status']) {
+      'requested' => 'Bron qabul qilindi',
+      'canceled' || 'no_show' => 'Bron bekor qilindi',
+      _ => 'Bron tasdiqlandi',
+    };
+    final List<(String, String, String, String)>
+    lines = <(String, String, String, String)>[
+      (
+        'header',
+        '',
+        headline,
+        headline.contains('tasdiqlandi')
+            ? '✅'
+            : (headline.contains('bekor') ? '❌' : '📝'),
+      ),
+      ('place', '', 'Rohat choyxonasi, Chilonzor', ''),
+      (
+        'time',
+        '',
+        '${_weekdays[starts.weekday - 1]}, ${starts.day}-${_months[starts.month - 1]}, ${_hm(starts)}–${_hm(ends)}',
+        '📅',
+      ),
+      (
+        'room',
+        rooms.length > 1 ? 'Xonalar' : 'Xona',
+        rooms.isEmpty
+            ? 'keyin belgilanadi · $guests kishi'
+            : '${rooms.map((Map<String, Object?> t) => '"${t['name']}"').join(', ')}'
+                  '${rooms.length == 1 ? ' (${rooms.single['seats']} kishilik)' : ''} · $guests kishi',
+        '🚪',
+      ),
+    ];
+    Map<String, Object?>? roomFee;
+    final int fee = rooms.any((Map<String, Object?> t) => t['kind'] == 'room')
+        ? _t(roomFees[dayType])
+        : 0;
+    if (fee > 0) {
+      roomFee = <String, Object?>{
+        'amount': _m(fee),
+        'day_type': dayType,
+        'tariff_id':
+            const <String>['weekday', 'weekend', 'holiday'].indexOf(dayType) +
+            1,
+      };
+      lines.add((
+        'room_fee',
+        'Xona puli',
+        '${_som(fee)} (${_dayTypePrice[dayType]})',
+        '💵',
+      ));
+    }
+    final int minSpend = _t(
+      b['min_spend'] ?? (rooms.isEmpty ? null : rooms.first['min_spend']),
+    );
+    if (minSpend > 0) {
+      lines.add(('min_spend', 'Minimal buyurtma', _som(minSpend), '💵'));
+    }
+    if (rooms.isNotEmpty) {
+      lines.add(('service_charge', 'Xizmat haqi', '10%', '💵'));
+    }
+    final List<Object?> items = b['items']! as List<Object?>;
+    if (items.isNotEmpty) {
+      lines.add((
+        'pre_order',
+        'Oldindan buyurtma',
+        <String>[
+          for (final Object? raw in items)
+            () {
+              final Map<String, Object?> i = raw! as Map<String, Object?>;
+              final int milli = _milli(i['quantity']);
+              final String q = milli % 1000 == 0
+                  ? '${milli ~/ 1000}'
+                  : (milli / 1000).toString();
+              return '${i['product_name']} $q ${i['unit'] == 'kg' ? 'kg' : 'ta'}';
+            }(),
+        ].join(', '),
+        '🍽',
+      ));
+    }
+    final int deposits = _paymentsOf(b).fold(
+      0,
+      (int s, Map<String, Object?> p) =>
+          s + _t(p['amount']) - _t(p['refunded_amount']),
+    );
+    if (deposits > 0) {
+      lines.add(('deposit', "Bo'nak olindi", _som(deposits), '💳'));
+    }
+    final Object? policy = state.bookingConfirmation['cancel_policy'];
+    if (policy != null && '$policy'.trim().isNotEmpty) {
+      lines.add(('cancel_policy', '', '$policy', 'ℹ️'));
+    }
+    final String code = shortCodeOf('${b['uuid']}');
+    lines.add(('contact', '', 'Bron raqami: $code', '📞'));
+    final String? phone = b['contact_phone'] as String?;
+    return <String, Object?>{
+      'text': <String>[
+        for (final (String kind, String label, String value, String icon)
+            in lines)
+          <String>[
+            if (kind != 'header' && icon.isNotEmpty) icon,
+            label.isEmpty ? value : '$label: $value',
+            if (kind == 'header') icon,
+          ].join(' '),
+      ].join('\n'),
+      'lines': <Object?>[
+        for (final (String kind, String label, String value, String _) in lines)
+          <String, Object?>{'kind': kind, 'label': label, 'value': value},
+      ],
+      'room_fee': roomFee,
+      'channels': <String, Object?>{
+        'telegram': phone != null && telegramPhones.contains(phone),
+        'sms': phone != null && state.bookingConfirmation['sms'] == true,
+      },
+    };
+  }
+
+  /// `auto`: Telegram if the guest's phone is linked to the bot, else SMS when the branch turned it on; `null` — no
+  /// channel.
+  String? _channelFor(Map<String, Object?> b, String wanted) {
+    final Map<String, Object?> channels =
+        _confirmation(b)['channels']! as Map<String, Object?>;
+    return switch (wanted) {
+      'telegram' => channels['telegram'] == true ? 'telegram' : null,
+      'sms' => channels['sms'] == true ? 'sms' : null,
+      _ =>
+        channels['telegram'] == true
+            ? 'telegram'
+            : (channels['sms'] == true ? 'sms' : null),
+    };
+  }
+
+  void _recordSend(
+    Map<String, Object?> b,
+    String channel, {
+    bool auto = false,
+  }) {
+    b
+      ..['confirmation_sent_at'] = _iso(state.now())
+      ..['confirmation_channel'] = channel;
+    sentConfirmations.add(<String, Object?>{
+      'booking_uuid': b['uuid'],
+      'channel': channel,
+      'text': _confirmation(b)['text'],
+      'auto': auto,
+    });
+  }
+
+  /// The short number the guest quotes: the last six characters of the uuid, upper case.
+  static String shortCodeOf(String uuid) {
+    final String hex = uuid.replaceAll('-', '');
+    return hex.substring(hex.length - 6).toUpperCase();
+  }
+
+  FakeResponse _sendConfirmation(Map<String, Object?> b, FakeRequest r) {
+    final String? key = r.idempotencyKey;
+    final Map<String, Object?>? replay = key == null
+        ? null
+        : _confirmationByKey[key];
+    if (replay != null) return _ok(replay);
+    if (b['status'] != 'requested' && b['status'] != 'confirmed') {
+      return _fail(
+        422,
+        'booking_not_editable',
+        "Bron \"${b['status_label']}\" holatida: tasdiq yuborilmaydi.",
+      );
+    }
+    final String wanted = '${r.data['channel'] ?? 'auto'}';
+    if (!const <String>['auto', 'telegram', 'sms'].contains(wanted)) {
+      return _validation('channel', "Kanal noto'g'ri.");
+    }
+    final String? channel = _channelFor(b, wanted);
+    if (channel == null) {
+      return _fail(
+        422,
+        'no_channel',
+        "Tasdiqni yuborib bo'lmaydi: mehmon Telegram botga ulanmagan, SMS o'chirilgan.",
+      );
+    }
+    _recordSend(b, channel);
+    final Map<String, Object?> result = <String, Object?>{
+      'channel': channel,
+      'queued': true,
+    };
+    if (key != null) _confirmationByKey[key] = result;
+    return _ok(result, message: 'Tasdiq yuborildi.');
+  }
+
+  /// A booking that became confirmed: the confirmation goes by `auto` when the branch wants it (no channel — nothing,
+  /// the booking is never blocked).
+  void _autoSendConfirmation(Map<String, Object?> b) {
+    if (state.bookingConfirmation['auto_send'] != true) return;
+    final String? channel = _channelFor(b, 'auto');
+    if (channel != null) _recordSend(b, channel, auto: true);
   }
 
   FakeResponse _transition() => _fail(
@@ -2286,6 +2569,8 @@ class FakeCashierBackend {
           'deposit_available': '0.00',
           'deposit_unsettled': false,
           'cancel_reason': null,
+          'confirmation_sent_at': null,
+          'confirmation_channel': null,
           'created_by': r.member['id'],
           'created_at': _iso(state.now()),
           'items': <Object?>[],
@@ -2321,6 +2606,9 @@ class FakeCashierBackend {
       ..['note'] = d.containsKey('note') ? d['note'] : b['note'];
     bookings['${b['uuid']}'] = b;
     _touchBooking(b);
+    if (existing == null && b['status'] == 'confirmed') {
+      _autoSendConfirmation(b);
+    }
     return _ok(
       b,
       status: existing == null ? 201 : 200,
@@ -3083,6 +3371,8 @@ class FakeCashierBackend {
       'deposit_unsettled': false,
       'items_count': 0,
       'cancel_reason': null,
+      'confirmation_sent_at': null,
+      'confirmation_channel': null,
       'version': 1,
       'created_by': 3,
       'created_at': _iso(state.now()),

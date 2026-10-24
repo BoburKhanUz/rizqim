@@ -2,8 +2,8 @@
 
 import { useState, type FormEvent } from 'react';
 import { Save, X } from 'lucide-react';
-import { Button, Card, formatDate } from '@rizqim/ui';
-import { ALERT_KEYS, POS_MODES, useBranchPosSettings, useSaveBranchPosSettings, useStoreDevices, type AlertKey, type BranchPosSettings, type BranchPosSettingsPatch, type PosMode } from '@rizqim/staff';
+import { Button, Card, Field, fieldClass, formatDate } from '@rizqim/ui';
+import { ALERT_KEYS, CANCEL_POLICY_MAX, POS_MODES, useBranchPosSettings, useSaveBranchPosSettings, useStoreDevices, type AlertKey, type BranchPosSettings, type BranchPosSettingsPatch, type PosMode } from '@rizqim/staff';
 import { useI18n } from '../I18nProvider';
 import { Check, NumberField, parseDecimal } from '../management/fields';
 import { FormError, Notice } from '../management/Notice';
@@ -33,6 +33,10 @@ interface Draft {
   alerts: Record<AlertKey, { on: boolean; value: string }>;
   slot: string;
   holidays: string[];
+  // Booking confirmation (P3-38): sent by itself when a booking is confirmed, over SMS too (paid), the cancellation rule shown to the guest
+  confirmAuto: boolean;
+  confirmSms: boolean;
+  confirmPolicy: string;
 }
 
 const textOf = (value: string | number | null | undefined, fallback: string) => (value === null || value === undefined ? fallback : String(Number(value)));
@@ -50,6 +54,10 @@ function draftOf(settings: BranchPosSettings): Draft {
     alerts,
     slot: pos.booking_slot_minutes === null ? '' : String(pos.booking_slot_minutes),
     holidays: [...pos.holidays].sort(),
+    // A server that does not know the block yet: it sends automatically and never by SMS (the defaults)
+    confirmAuto: pos.booking_confirmation?.auto_send ?? true,
+    confirmSms: pos.booking_confirmation?.sms ?? false,
+    confirmPolicy: pos.booking_confirmation?.cancel_policy ?? '',
   };
 }
 
@@ -62,11 +70,15 @@ const SERVER_FIELDS = [
   'pos_settings.cashier_discount_max_percent',
   'pos_settings.booking_slot_minutes',
   'pos_settings.holidays',
+  'pos_settings.booking_confirmation.auto_send',
+  'pos_settings.booking_confirmation.sms',
+  'pos_settings.booking_confirmation.cancel_policy',
   ...ALERT_KEYS.map((key) => `pos_settings.alerts.${key}`),
 ];
 
 // The branch's POS settings: the till's mode, when the business day starts, the printing till, the screen lock, queue numbers,
-// the alerts the owner is told about, the holidays and how long an unfinished booking holds a room. The form is shown from
+// the alerts the owner is told about, the holidays, how long an unfinished booking holds a room and what the guest is sent when
+// a booking is confirmed. The form is shown from
 // the cached settings while they are read again, and the holidays are also edited on the floor's calendar: newer settings move
 // under the edits (useServerDraft) and only what was changed is sent (the server merges the settings key by key).
 export function BranchSettingsPanel({ branchId }: { branchId: number }) {
@@ -115,6 +127,7 @@ function SettingsForm({ branchId, data }: { branchId: number; data: BranchPosSet
       if (value === undefined || value === null || value < rule.min || value > rule.max || (rule.integer && !Number.isInteger(value))) problems[`alert_${key}`] = t('pos_set_alertRange', { min: rule.min, max: rule.max });
       else alerts[key] = value;
     }
+    if (draft.confirmPolicy.trim().length > CANCEL_POLICY_MAX) problems.confirmPolicy = t('pos_set_confirmPolicyRange', { max: CANCEL_POLICY_MAX });
     setLocal(problems);
     setErrors(NO_ERRORS);
     if (Object.keys(problems).length > 0) return;
@@ -128,6 +141,11 @@ function SettingsForm({ branchId, data }: { branchId: number; data: BranchPosSet
     if (changed.has('cashierDiscount')) settings.cashier_discount_max_percent = discount ?? null;
     if (changed.has('slot')) settings.booking_slot_minutes = slot;
     if (changed.has('holidays')) settings.holidays = draft.holidays;
+    const confirmation: NonNullable<typeof settings.booking_confirmation> = {};
+    if (changed.has('confirmAuto')) confirmation.auto_send = draft.confirmAuto;
+    if (changed.has('confirmSms')) confirmation.sms = draft.confirmSms;
+    if (changed.has('confirmPolicy')) confirmation.cancel_policy = draft.confirmPolicy.trim() === '' ? null : draft.confirmPolicy.trim();
+    if (Object.keys(confirmation).length > 0) settings.booking_confirmation = confirmation;
     const alertChanges = Object.fromEntries(changedKeys(draft.alerts, base.alerts).map((key) => [key, alerts[key] ?? null]));
     if (Object.keys(alertChanges).length > 0) settings.alerts = alertChanges;
     const body: BranchPosSettingsPatch = {
@@ -242,6 +260,28 @@ function SettingsForm({ branchId, data }: { branchId: number; data: BranchPosSet
           </ul>
         )}
         {serverError('pos_settings.holidays') && <p role="alert" className="text-footnote font-bold text-danger-soft-fg">{serverError('pos_settings.holidays')}</p>}
+      </Card>
+
+      <Card className="flex flex-col gap-3">
+        <div>
+          <h2 className="text-headline font-bold text-fg">{t('pos_set_confirm')}</h2>
+          <p className="text-footnote text-fg-muted">{t('pos_set_confirmHint')}</p>
+        </div>
+        <Check checked={draft.confirmAuto} onChange={(confirmAuto) => patch({ confirmAuto })} label={t('pos_set_confirmAuto')} hint={serverError('pos_settings.booking_confirmation.auto_send')} />
+        <Check checked={draft.confirmSms} onChange={(confirmSms) => patch({ confirmSms })} label={t('pos_set_confirmSms')} hint={serverError('pos_settings.booking_confirmation.sms') ?? t('pos_set_confirmSmsHint')} />
+        <Field label={t('pos_set_confirmPolicy')} hint={t('pos_set_confirmPolicyHint', { max: CANCEL_POLICY_MAX })} error={local.confirmPolicy ?? serverError('pos_settings.booking_confirmation.cancel_policy')}>
+          {(props) => (
+            <textarea
+              {...props}
+              rows={2}
+              maxLength={CANCEL_POLICY_MAX}
+              value={draft.confirmPolicy}
+              placeholder={t('pos_set_confirmPolicyExample')}
+              onChange={(event) => patch({ confirmPolicy: event.target.value })}
+              className={`${fieldClass} resize-none`}
+            />
+          )}
+        </Field>
       </Card>
 
       <FormError message={errors.form} />

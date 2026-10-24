@@ -213,6 +213,10 @@ abstract final class PosReasons {
   /// P3-35 qaytarish: nasiya to'lovining hisobi topilmadi (409).
   static const String accountUnknown = 'account_unknown';
 
+  /// P3-38: bron tasdig'ini yuboradigan kanal yo'q (422): mehmon telefoni do'kon Telegram botiga ulanmagan, SMS
+  /// filialda o'chirilgan.
+  static const String noChannel = 'no_channel';
+
   /// Rad etilgan amaldan keyin buyurtma (va schyot) serverdan qayta yuklanadi: ekrandagi ko'rinish eskirgan.
   static const Set<String> reloadOrder = <String>{
     versionConflict,
@@ -312,6 +316,9 @@ abstract final class PosReasons {
         "qo'lda hal qilsin.",
     accountUnknown:
         "Nasiya to'lovining hisobi topilmadi: qarzni menejer qo'lda tuzatsin.",
+    noChannel:
+        "Yuborib bo'lmadi: mehmon telefoni do'kon Telegram botiga ulanmagan, SMS esa filial sozlamasida o'chirilgan. "
+        "Matnni nusxa olib o'zingiz yuboring yoki chop etib bering.",
   };
 
   /// [reason] uchun o'zbekcha matn (noma'lum — `null`).

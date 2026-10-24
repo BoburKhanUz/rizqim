@@ -23,14 +23,15 @@ dasturchining `backend/.env` yoki keshiga tegmaydi. Serverlar logi shu yerda (`.
 
 Ma'lumotni `backend/database/seeders/PosStackSeeder.php` yozadi: fiskal rejimdagi (sandbox) choyxona, "Asosiy zal" (Kabinka
 1-10) va "Hovli" (tapchan, stol), xona tariflari (ish kuni/dam olish), minimal summa, zal bo'yicha xizmat haqi, choy-non,
-sexlar, menyu (qozondan osh, shashlik, salatlar, modifikatorli lagmon), xodimlar (PIN bilan), to'rtta ulangan terminal,
-Telegram mijozi va nasiya hisobi.
+sexlar, menyu (qozondan osh, shashlik, salatlar, modifikatorli lagmon), xodimlar (PIN bilan; egasining tokeni ega API'si
+uchun), to'rtta ulangan terminal, Telegram mijozi va nasiya hisobi.
 
 | Fayl | Senariy |
 |---|---|
 | `test/thursday_evening_test.dart` | Payshanba kechqurun: smena → bron, oldindan buyurtma va naqd avans (ADVANCE cheki) → "Keldi" → 10 xona (va hovlida tapchan, stol) ikki ofitsiant va kassir bilan bir vaqtda, har biri 4+ bosqich (yuborish, oshpaz "tayyor", ofitsiant "berildi") → choy-non → ofitsiant schyot so'raydi → schyotlar (bitta, teng 3 ga, taom bo'yicha kg ulushlari bilan) → to'lov (qaytimli naqd, karta, QR, avans, menejer tasdig'i bilan nasiya) → har SOTUV cheki aniq summalar bilan → buyurtmalar yopiladi, xonalar bo'sh → nasiya qaytarish (CREDIT cheki) → qaytarish (REFUND cheki) → X hisobot raqamlari → kupyura sanab Z (farq 0) |
 | `test/telegram_order_test.dart` | Telegram buyurtmasi kassada qabul qilinadi, oshxonaga tushadi, tayyor bo'ladi; ikkinchisi menejer PIN'i bilan rad etiladi |
 | `test/realtime_test.dart` | Har ofitsiant ikkinchisining stol o'zgarishini, kassa va oshxona ekrani ikkalasini 5 soniya ichida eshitadi |
+| `test/booking_confirmation_test.dart` | Bron tasdig'i (P3-38): ish kunidagi xona broni, oldindan buyurtma va avans → tasdiq matnida xona puli (tarifdagi ish kuni narxi), oldindan buyurtma va bo'nak → Telegrami yo'q raqamga, SMS o'chiq — `no_channel` → ega SMS'ni yoqadi (ega API'si) → SMS bilan ketadi (stekda SMS faqat logga yoziladi). Oxirida SMS o'chiriladi, bron bekor qilinib avans qaytariladi |
 | `test/conflicts_test.dart` | Ikki qurilma bir buyurtmani bir vaqtda o'zgartiradi: biri `version_conflict` oladi, qayta yuklab davom etadi |
 
 Fayllar ketma-ket yuradi (`dart_test.yaml`: `concurrency: 1`): bitta baza, bitta kassa. Har fayl o'zi ochgan buyurtmalarni

@@ -24,6 +24,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property \Illuminate\Support\Carbon|null $arrived_at
  * @property \Illuminate\Support\Carbon|null $completed_at
  * @property \Illuminate\Support\Carbon|null $canceled_at
+ * @property \Illuminate\Support\Carbon|null $confirmation_sent_at P3-38: when the guest was last sent the confirmation
+ * @property string|null $confirmation_channel P3-38: telegram or sms
  */
 class Booking extends Model
 {
@@ -54,6 +56,7 @@ class Booking extends Model
             'arrived_at' => 'datetime',
             'completed_at' => 'datetime',
             'canceled_at' => 'datetime',
+            'confirmation_sent_at' => 'datetime',
         ];
     }
 
