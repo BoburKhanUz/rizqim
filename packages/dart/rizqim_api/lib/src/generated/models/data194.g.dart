@@ -7,17 +7,11 @@ part of 'data194.dart';
 // **************************************************************************
 
 Data194 _$Data194FromJson(Map<String, dynamic> json) => Data194(
-  id: (json['id'] as num).toInt(),
-  name: json['name'] as String,
-  role: json['role'] as String,
-  staffCode: json['staff_code'] as String?,
-  photoUrl: json['photo_url'] as String?,
+  storeId: (json['store_id'] as num).toInt(),
+  inviteLink: json['invite_link'] as String,
 );
 
 Map<String, dynamic> _$Data194ToJson(Data194 instance) => <String, dynamic>{
-  'id': instance.id,
-  'name': instance.name,
-  'role': instance.role,
-  'staff_code': instance.staffCode,
-  'photo_url': instance.photoUrl,
+  'store_id': instance.storeId,
+  'invite_link': instance.inviteLink,
 };

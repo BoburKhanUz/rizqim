@@ -29,6 +29,7 @@ const posSettings = (over: Record<string, unknown> = {}) => ({
     alerts: { open_room_hours: 6, void_amount: '200000.00', discount_percent: '10.00', unaccepted_online_minutes: 3, cash_out_amount: '500000.00' },
     holidays: ['2026-12-31'],
     booking_slot_minutes: null,
+    booking_confirmation: { auto_send: true, sms: false, cancel_policy: null },
   },
   ...over,
 });
@@ -309,6 +310,52 @@ describe('Kassa sozlamalari (filial)', () => {
     await typing.click(screen.getByRole('button', { name: 'Saqlash' }));
     await waitFor(() => expect(calls.some((call) => call.method === 'PUT')).toBe(true));
     expect(await last(calls, 'PUT').json()).toEqual({ pos_settings: { screen_lock_minutes: 10 } });
+  });
+
+  it("shows the booking confirmation block as the server keeps it (P3-38): automatic, SMS off with its price note, no rule", async () => {
+    await open('Kassa sozlamalari');
+    expect(await screen.findByRole('heading', { name: "Bron tasdig'i" })).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'Bron tasdiqlanganda mehmonga avtomatik yuborilsin' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: /SMS orqali ham yuborilsin/ })).not.toBeChecked();
+    expect(screen.getByText(/SMS pullik: har bir xabar uchun SMS xizmati haq oladi/)).toBeInTheDocument();
+    expect(screen.getByLabelText('Bekor qilish qoidasi')).toHaveValue('');
+  });
+
+  it('uses the defaults when the server does not send the block yet', async () => {
+    await open('Kassa sozlamalari', { 'GET /api/v1/owner/branches/1/pos-settings': () => ok(posSettings({ pos_settings: { ...posSettings().pos_settings, booking_confirmation: undefined } })) });
+    expect(await screen.findByRole('checkbox', { name: 'Bron tasdiqlanganda mehmonga avtomatik yuborilsin' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: /SMS orqali ham yuborilsin/ })).not.toBeChecked();
+  });
+
+  it('sends only the confirmation keys that changed: SMS on and the cancellation rule trimmed', async () => {
+    const { calls, typing } = await open('Kassa sozlamalari', { 'PUT /api/v1/owner/branches/1/pos-settings': () => ok(posSettings()) });
+    await typing.click(await screen.findByRole('checkbox', { name: /SMS orqali ham yuborilsin/ }));
+    await typing.type(screen.getByLabelText('Bekor qilish qoidasi'), " Bekor qilish bron vaqtidan 24 soat oldin; bo'nak qaytariladi ");
+    await typing.click(screen.getByRole('button', { name: 'Saqlash' }));
+    await waitFor(() => expect(calls.some((call) => call.method === 'PUT')).toBe(true));
+    expect(await last(calls, 'PUT').json()).toEqual({ pos_settings: { booking_confirmation: { sms: true, cancel_policy: "Bekor qilish bron vaqtidan 24 soat oldin; bo'nak qaytariladi" } } });
+  });
+
+  it('switches the automatic send off alone, and clears the rule with null', async () => {
+    const withRule = posSettings({ pos_settings: { ...posSettings().pos_settings, booking_confirmation: { auto_send: true, sms: true, cancel_policy: '24 soat oldin' } } });
+    const { calls, typing } = await open('Kassa sozlamalari', { 'GET /api/v1/owner/branches/1/pos-settings': () => ok(withRule), 'PUT /api/v1/owner/branches/1/pos-settings': () => ok(withRule) });
+    await typing.click(await screen.findByRole('checkbox', { name: 'Bron tasdiqlanganda mehmonga avtomatik yuborilsin' }));
+    await typing.click(screen.getByRole('button', { name: 'Saqlash' }));
+    await waitFor(() => expect(calls.some((call) => call.method === 'PUT')).toBe(true));
+    expect(await last(calls, 'PUT').json()).toEqual({ pos_settings: { booking_confirmation: { auto_send: false } } });
+    await typing.clear(screen.getByLabelText('Bekor qilish qoidasi'));
+    await typing.click(screen.getByRole('button', { name: 'Saqlash' }));
+    await waitFor(() => expect(calls.filter((call) => call.method === 'PUT')).toHaveLength(2));
+    expect(await last(calls, 'PUT').json()).toEqual({ pos_settings: { booking_confirmation: { cancel_policy: null } } });
+  });
+
+  it("shows the server's refusal of the cancellation rule next to its field", async () => {
+    const { typing } = await open('Kassa sozlamalari', {
+      'PUT /api/v1/owner/branches/1/pos-settings': () => json({ success: false, message: 'The given data was invalid.', errors: { 'pos_settings.booking_confirmation.cancel_policy': ['Qoida juda uzun.'] } }, 422),
+    });
+    await typing.type(await screen.findByLabelText('Bekor qilish qoidasi'), 'Qoida');
+    await typing.click(screen.getByRole('button', { name: 'Saqlash' }));
+    expect(await screen.findByText('Qoida juda uzun.')).toBeInTheDocument();
   });
 
   it("shows the cashier's discount limit and the cash-out alert as the server keeps them (P3-37)", async () => {

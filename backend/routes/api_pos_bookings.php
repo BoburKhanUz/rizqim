@@ -24,6 +24,9 @@ Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->prefix('pos'
         Route::post('/bookings/{uuid}/cancel', [BookingController::class, 'cancel'])->whereUuid('uuid')->middleware(EnsureIdempotency::class);
         Route::post('/bookings/{uuid}/no-show', [BookingController::class, 'noShow'])->whereUuid('uuid')->middleware(EnsureIdempotency::class);
         Route::post('/bookings/{uuid}/arrive', [BookingController::class, 'arrive'])->whereUuid('uuid')->middleware(EnsureIdempotency::class);
+        // P3-38: the confirmation the guest receives (the partner web reads bookings here too, with the owner's sign-in)
+        Route::get('/bookings/{uuid}/confirmation', [BookingController::class, 'confirmation'])->whereUuid('uuid');
+        Route::post('/bookings/{uuid}/confirmation/send', [BookingController::class, 'sendConfirmation'])->whereUuid('uuid')->middleware(EnsureIdempotency::class);
 
         Route::post('/bookings/{uuid}/items', [BookingController::class, 'addItem'])->whereUuid('uuid')->middleware(EnsureIdempotency::class);
         Route::patch('/bookings/{uuid}/items/{item}', [BookingController::class, 'updateItem'])->whereUuid('uuid')->where('item', RowId::ROUTE_PATTERN)->middleware(EnsureIdempotency::class);

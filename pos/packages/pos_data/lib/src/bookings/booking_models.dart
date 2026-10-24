@@ -30,6 +30,8 @@ class PosBooking {
     this.depositUnsettled = false,
     this.itemsCount = 0,
     this.cancelReason,
+    this.confirmationSentAt,
+    this.confirmationChannel,
     this.items = const <PosBookingItem>[],
     this.payments = const <PosBookingPayment>[],
     this.raw = const <String, Object?>{},
@@ -59,6 +61,8 @@ class PosBooking {
     depositUnsettled: j.boolean('deposit_unsettled'),
     itemsCount: j.intOrNull('items_count') ?? 0,
     cancelReason: j.strOrNull('cancel_reason'),
+    confirmationSentAt: j.dateOrNull('confirmation_sent_at'),
+    confirmationChannel: j.strOrNull('confirmation_channel'),
     version: j.intOrNull('version') ?? 0,
     items: j.objects('items', PosBookingItem.fromJson),
     payments: j.objects('payments', PosBookingPayment.fromJson),
@@ -92,6 +96,12 @@ class PosBooking {
   final bool depositUnsettled;
   final int itemsCount;
   final String? cancelReason;
+
+  /// P3-38: mehmonga tasdiq oxirgi marta qachon yuborilgan (`null` — yuborilmagan).
+  final DateTime? confirmationSentAt;
+
+  /// P3-38: qaysi kanal bilan (`telegram`, `sms`).
+  final String? confirmationChannel;
 
   /// O'zgartiruvchi so'rovlarda (`stale_version` — boshqa qurilma o'zgartirgan).
   final int version;
@@ -363,4 +373,118 @@ class PosDepositResult {
   /// Shu amalning cheki (P3-26): avans — bo'nak cheki, qaytarish — qaytarish cheki, ushlab qolish — sotuv cheki
   /// (do'kon sozlamasi chek chiqarmasa `receipt` bo'sh).
   final PosFiscalState fiscal;
+}
+
+/// P3-38: mehmonga yuboriladigan bron tasdig'i (`GET /pos/bookings/{uuid}/confirmation`). [text] — tayyor xabar
+/// (Telegram, SMS yoki nusxa uchun), [lines] — o'sha matn qatorlari (ekranda va chekda chiqarish uchun).
+class PosBookingConfirmation {
+  const PosBookingConfirmation({
+    required this.text,
+    this.lines = const <PosConfirmationLine>[],
+    this.roomFee,
+    this.channels = const PosConfirmationChannels(),
+  });
+
+  factory PosBookingConfirmation.fromJson(PosJson j) => PosBookingConfirmation(
+    text: j.str('text'),
+    lines: j.objects('lines', PosConfirmationLine.fromJson),
+    roomFee: j.has('room_fee')
+        ? PosConfirmationRoomFee.fromJson(j.obj('room_fee'))
+        : null,
+    channels: j.has('channels')
+        ? PosConfirmationChannels.fromJson(j.obj('channels'))
+        : const PosConfirmationChannels(),
+  );
+
+  final String text;
+  final List<PosConfirmationLine> lines;
+
+  /// Xona puli (shu kun turining tarifi bo'yicha); xona belgilanmagan yoki narxsiz — `null`.
+  final PosConfirmationRoomFee? roomFee;
+
+  /// Hozir qaysi kanal bilan yuborsa bo'ladi.
+  final PosConfirmationChannels channels;
+}
+
+/// Tasdiq qatori: `kind` — `header`, `place`, `time`, `room`, `room_fee`, `min_spend`, `service_charge`, `place_fee`,
+/// `pre_order`, `deposit`, `cancel_policy`, `contact`.
+class PosConfirmationLine {
+  const PosConfirmationLine({
+    required this.kind,
+    this.label = '',
+    this.value = '',
+  });
+
+  factory PosConfirmationLine.fromJson(PosJson j) => PosConfirmationLine(
+    kind: j.strOrNull('kind') ?? '',
+    label: j.strOrNull('label') ?? '',
+    value: j.strOrNull('value') ?? '',
+  );
+
+  static const String header = 'header';
+  static const String roomFee = 'room_fee';
+
+  final String kind;
+  final String label;
+  final String value;
+}
+
+class PosConfirmationRoomFee {
+  const PosConfirmationRoomFee({
+    required this.amount,
+    required this.dayType,
+    this.tariffId,
+  });
+
+  factory PosConfirmationRoomFee.fromJson(PosJson j) => PosConfirmationRoomFee(
+    amount: j.money('amount'),
+    dayType: j.strOrNull('day_type') ?? 'weekday',
+    tariffId: j.intOrNull('tariff_id'),
+  );
+
+  final PosMoney amount;
+
+  /// `weekday`, `weekend`, `holiday`.
+  final String dayType;
+  final int? tariffId;
+}
+
+class PosConfirmationChannels {
+  const PosConfirmationChannels({this.telegram = false, this.sms = false});
+
+  factory PosConfirmationChannels.fromJson(PosJson j) =>
+      PosConfirmationChannels(
+        telegram: j.boolean('telegram'),
+        sms: j.boolean('sms'),
+      );
+
+  /// Mehmon telefoni do'kon Telegram botiga ulangan.
+  final bool telegram;
+
+  /// Filial SMS yuborishni yoqqan.
+  final bool sms;
+
+  bool get any => telegram || sms;
+}
+
+/// `POST /pos/bookings/{uuid}/confirmation/send` natijasi: xabar navbatga qo'yildi.
+class PosConfirmationSent {
+  const PosConfirmationSent({required this.channel, this.queued = true});
+
+  factory PosConfirmationSent.fromJson(PosJson j) => PosConfirmationSent(
+    channel: j.str('channel'),
+    queued: j.boolean('queued', fallback: true),
+  );
+
+  /// `telegram` yoki `sms`.
+  final String channel;
+  final bool queued;
+
+  /// Kanal nomi ekranda: "Telegram", "SMS".
+  static String label(String? channel) => switch (channel) {
+    'telegram' => 'Telegram',
+    'sms' => 'SMS',
+    null => '',
+    final String other => other,
+  };
 }

@@ -11,7 +11,7 @@ _$PostV1PosBookingsUuidNoShowResponseFromJson(Map<String, dynamic> json) =>
     PostV1PosBookingsUuidNoShowResponse(
       success: json['success'] as bool,
       message: json['message'] as String,
-      data: Data135.fromJson(json['data'] as Map<String, dynamic>),
+      data: Data137.fromJson(json['data'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$PostV1PosBookingsUuidNoShowResponseToJson(

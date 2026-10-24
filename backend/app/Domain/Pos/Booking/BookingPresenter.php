@@ -16,13 +16,13 @@ use App\Support\Quantity;
  */
 class BookingPresenter
 {
-    public const SUMMARY = 'array{uuid: string, branch_id: int, dining_table_id: int|null, table_ids: list<int>, starts_at: string, ends_at: string, guests_planned: int, event_type: string, event_type_label: string, contact_name: string, contact_phone: string|null, source: string, source_label: string, status: string, status_label: string, min_spend: string|null, note: string|null, order_uuid: string|null, deposit_total: string, deposit_available: string, deposit_unsettled: bool, items_count: int, cancel_reason: string|null, version: int, created_by: int|null, confirmed_at: string|null, arrived_at: string|null, completed_at: string|null, canceled_at: string|null, created_at: string|null, updated_at: string|null}';
+    public const SUMMARY = 'array{uuid: string, branch_id: int, dining_table_id: int|null, table_ids: list<int>, starts_at: string, ends_at: string, guests_planned: int, event_type: string, event_type_label: string, contact_name: string, contact_phone: string|null, source: string, source_label: string, status: string, status_label: string, min_spend: string|null, note: string|null, order_uuid: string|null, deposit_total: string, deposit_available: string, deposit_unsettled: bool, items_count: int, cancel_reason: string|null, version: int, created_by: int|null, confirmed_at: string|null, arrived_at: string|null, completed_at: string|null, canceled_at: string|null, confirmation_sent_at: string|null, confirmation_channel: string|null, created_at: string|null, updated_at: string|null}';
 
     public const ITEM = 'array{id: int, product_variant_id: int, product_variant_uuid: string|null, product_name: string, variant_name: string|null, unit: string, quantity: int|float, modifiers: list<array<string, mixed>>, unit_price: string, note: string|null, due_at: string|null}';
 
     public const PAYMENT = 'array{uuid: string, amount: string, tender: string, card_type: string|null, transaction_id: string|null, status: string, status_label: string, remaining: string, applied_amount: string, refunded_amount: string, retained_amount: string, fiscal_receipt_uuid: string|null, fiscal_status: string|null, settle_reason: string|null, settle_receipt_uuid: string|null, settle_fiscal_status: string|null, approved_by: int|null, user_id: int|null, created_at: string|null, settled_at: string|null}';
 
-    public const DETAIL = 'array{uuid: string, branch_id: int, dining_table_id: int|null, table_ids: list<int>, starts_at: string, ends_at: string, guests_planned: int, event_type: string, event_type_label: string, contact_name: string, contact_phone: string|null, source: string, source_label: string, status: string, status_label: string, min_spend: string|null, note: string|null, order_uuid: string|null, deposit_total: string, deposit_available: string, deposit_unsettled: bool, items_count: int, cancel_reason: string|null, version: int, created_by: int|null, confirmed_at: string|null, arrived_at: string|null, completed_at: string|null, canceled_at: string|null, created_at: string|null, updated_at: string|null, items: list<' . self::ITEM . '>, payments: list<' . self::PAYMENT . '>}';
+    public const DETAIL = 'array{uuid: string, branch_id: int, dining_table_id: int|null, table_ids: list<int>, starts_at: string, ends_at: string, guests_planned: int, event_type: string, event_type_label: string, contact_name: string, contact_phone: string|null, source: string, source_label: string, status: string, status_label: string, min_spend: string|null, note: string|null, order_uuid: string|null, deposit_total: string, deposit_available: string, deposit_unsettled: bool, items_count: int, cancel_reason: string|null, version: int, created_by: int|null, confirmed_at: string|null, arrived_at: string|null, completed_at: string|null, canceled_at: string|null, confirmation_sent_at: string|null, confirmation_channel: string|null, created_at: string|null, updated_at: string|null, items: list<' . self::ITEM . '>, payments: list<' . self::PAYMENT . '>}';
 
     /**
      * @return array<string, mixed>
@@ -71,6 +71,9 @@ class BookingPresenter
             'arrived_at' => $booking->arrived_at?->toJSON(),
             'completed_at' => $booking->completed_at?->toJSON(),
             'canceled_at' => $booking->canceled_at?->toJSON(),
+            // P3-38: when and how the guest was last sent the confirmation (null: never)
+            'confirmation_sent_at' => $booking->confirmation_sent_at?->toJSON(),
+            'confirmation_channel' => $booking->confirmation_channel,
             'created_at' => $booking->created_at?->toJSON(),
             'updated_at' => $booking->updated_at?->toJSON(),
         ];

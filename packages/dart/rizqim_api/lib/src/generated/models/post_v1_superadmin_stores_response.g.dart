@@ -11,7 +11,7 @@ PostV1SuperadminStoresResponse _$PostV1SuperadminStoresResponseFromJson(
 ) => PostV1SuperadminStoresResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data192.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data194.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1SuperadminStoresResponseToJson(

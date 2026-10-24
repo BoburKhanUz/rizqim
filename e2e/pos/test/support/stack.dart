@@ -85,6 +85,10 @@ class Seed {
       _map(_map(json['terminals'])[key]);
 
   String get customerToken => _map(json['customer'])['token']! as String;
+
+  /// The owner's sign-in token (the partner web's): the owner API, e.g. the branch's POS settings.
+  String get ownerToken =>
+      _map(_map(json['staff'])['owner'])['token']! as String;
   String get accountUuid => _map(json['account'])['uuid']! as String;
 }
 

@@ -12,7 +12,7 @@ _$PostV1PosOrdersUuidItemsItemServedResponseFromJson(
 ) => PostV1PosOrdersUuidItemsItemServedResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data160.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data162.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1PosOrdersUuidItemsItemServedResponseToJson(

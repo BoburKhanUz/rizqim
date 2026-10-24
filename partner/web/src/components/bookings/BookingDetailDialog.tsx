@@ -11,6 +11,7 @@ import { Pill } from '../management/Pill';
 import { TextField } from '../pos/fields';
 import { labelFor } from '../reports/format';
 import { DataTable, Td, Th } from '../reports/ui';
+import { BookingConfirmationSection } from './BookingConfirmationSection';
 import { isOpenBooking, STATUS_TONE } from './calendarModel';
 
 // One booking with its deposits and pre-ordered lines, and what can be done to it: confirm, edit, mark "did not come" or cancel
@@ -175,6 +176,8 @@ export function BookingDetailDialog({
               </ul>
             </section>
           )}
+
+          {booking.status === 'confirmed' && <BookingConfirmationSection booking={booking} timeZone={timeZone} />}
 
           {canceling && (
             <form

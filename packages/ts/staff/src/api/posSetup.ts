@@ -129,11 +129,25 @@ export async function deletePrinter(api: StaffApi, id: number): Promise<void> {
 // P3-37: `cashier_discount_max_percent` ("0.00"-"100.00" or null: the cashier always asks a manager; default "10.00") and the
 // alert `cash_out_amount` (money string or null; default "500000.00") are written out here until the generated client
 // carries them (the intersections below then say the same thing twice, harmlessly).
+//
+// P3-38: the `booking_confirmation` block (what the guest is sent when a booking is confirmed; docs/API.md "Bron tasdig'i") is
+// written out the same way.
+export interface BookingConfirmationSettings {
+  // Send the confirmation by itself when a booking becomes confirmed (default true)
+  auto_send: boolean;
+  // Allow SMS as a channel; SMS costs money for every message (default false)
+  sms: boolean;
+  // Free text shown to the guest, e.g. "Bekor qilish bron vaqtidan 24 soat oldin"; up to 300 characters
+  cancel_policy: string | null;
+}
+export const CANCEL_POLICY_MAX = 300;
+
 type GeneratedPosSettings = OkData<'branchPosSettings.show'>;
 export type BranchPosSettings = Omit<GeneratedPosSettings, 'pos_settings'> & {
   pos_settings: GeneratedPosSettings['pos_settings'] & {
     cashier_discount_max_percent?: string | null;
     alerts: { cash_out_amount?: string | null };
+    booking_confirmation?: BookingConfirmationSettings;
   };
 };
 type GeneratedPosSettingsPatch = NonNullable<JsonRequest<'branchPosSettings.update'>>;
@@ -142,6 +156,8 @@ export type BranchPosSettingsPatch = Omit<GeneratedPosSettingsPatch, 'pos_settin
     // 0-100 with up to 2 decimals; null (or 0): the cashier always needs a manager's PIN for a discount
     cashier_discount_max_percent?: number | null;
     alerts?: { cash_out_amount?: number | null };
+    // Keys left out keep what the server has
+    booking_confirmation?: Partial<BookingConfirmationSettings>;
   };
 };
 

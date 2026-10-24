@@ -5,8 +5,8 @@ namespace App\Domain\Pos\Orders;
 use App\Domain\Pos\Hall\BusinessCalendar;
 use App\Domain\Pos\Hall\RoomTariffResolver;
 use App\Enums\KitchenItemStatus;
-use App\Enums\MinSpendMode;
 use App\Enums\OrderChannel;
+use App\Models\Booking;
 use App\Models\Branch;
 use App\Models\DiningTable;
 use App\Models\Order;
@@ -27,12 +27,15 @@ use App\Support\Money;
  *   place fee         = the same settings' "joy narxi": per guest (× guests, at least 1) or per table
  *   room fee          = the room tariff of the order's table for the day type of the business date the order was
  *                       opened on (RoomTariffResolver, BusinessCalendar); no tariff: 0
- *   minimum spend     = dining_tables.min_spend (× guests, at least 1, when per_person)
+ *   minimum spend     = the booking's own bookings.min_spend (orders.booking_id; the whole booking's, never × guests)
+ *                       when set, else dining_tables.min_spend (× guests, at least 1, when per_person) — the rule the
+ *                       booking confirmation announces (DiningFeeCalculator::minimumSpend)
  *   min spend top-up  = max(0, minimum spend − after discount), whole so'm
  *   total             = after discount + service charge + place fee + room fee + top-up
  *
- * A waived charge (order_charge_waivers) is 0. Room fee and minimum spend need a table and the hall channel. Only POS
- * channels are charged here: a Telegram or mobile order never gets any of these lines.
+ * A waived charge (order_charge_waivers) is 0. Room fee and the table's minimum spend need a table and the hall channel
+ * (a booking's minimum holds in the hall channel without a table). Only POS channels are charged here: a Telegram or
+ * mobile order never gets any of these lines.
  */
 class PosChargesCalculator
 {
@@ -87,11 +90,17 @@ class PosChargesCalculator
                 $tariffId = (int) $tariff->id;
                 $roomFee = $isWaived(PosCharge::ROOM_FEE) ? Money::zero() : Money::of($tariff->price)->roundTo(0);
             }
+        }
 
-            if ($table->min_spend !== null && Money::of($table->min_spend)->isPositive()) {
-                $minSpend = $table->min_spend_mode === MinSpendMode::PER_PERSON
-                    ? Money::of($table->min_spend)->times(max(1, (int) $guests))
-                    : Money::of($table->min_spend);
+        // The minimum spend: the booking's own (orders.booking_id; agreed with the guest, as the confirmation said), else
+        // the table's — one rule with the booking confirmation (DiningFeeCalculator::minimumSpend). The hall channel only;
+        // the table's needs the table, the booking's holds without one.
+        if ($order->channel === OrderChannel::POS_HALL) {
+            $bookingId = $order->getAttribute('booking_id');
+            $agreed = $bookingId !== null ? Booking::whereKey((int) $bookingId)->value('min_spend') : null;
+            $minimum = $this->fees->minimumSpend($agreed !== null ? (string) $agreed : null, $table, $guests);
+            if ($minimum !== null) {
+                $minSpend = $minimum['amount'];
                 $topup = $isWaived(PosCharge::MIN_SPEND_TOPUP)
                     ? Money::zero()
                     : Money::max(Money::zero(), $minSpend->minus($after))->roundTo(0);

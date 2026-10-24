@@ -9,7 +9,7 @@ part of 'data156.dart';
 Data156 _$Data156FromJson(Map<String, dynamic> json) => Data156(
   waiter: json['waiter'] == null
       ? null
-      : Waiter9.fromJson(json['waiter'] as Map<String, dynamic>),
+      : Waiter7.fromJson(json['waiter'] as Map<String, dynamic>),
   shortCode: json['short_code'] as String?,
   status: json['status'] as String,
   channel: json['channel'] as String,
@@ -19,10 +19,10 @@ Data156 _$Data156FromJson(Map<String, dynamic> json) => Data156(
   version: (json['version'] as num).toInt(),
   hall: json['hall'] == null
       ? null
-      : Hall7.fromJson(json['hall'] as Map<String, dynamic>),
+      : Hall5.fromJson(json['hall'] as Map<String, dynamic>),
   table: json['table'] == null
       ? null
-      : Table7.fromJson(json['table'] as Map<String, dynamic>),
+      : Table5.fromJson(json['table'] as Map<String, dynamic>),
   hallRef: json['hall_ref'] as String?,
   tableRef: json['table_ref'] as String?,
   guestsCount: (json['guests_count'] as num?)?.toInt(),
@@ -39,7 +39,7 @@ Data156 _$Data156FromJson(Map<String, dynamic> json) => Data156(
   updatedAt: json['updated_at'] as String?,
   subtotal: json['subtotal'] as String,
   items: (json['items'] as List<dynamic>)
-      .map((e) => Items29.fromJson(e as Map<String, dynamic>))
+      .map((e) => Items27.fromJson(e as Map<String, dynamic>))
       .toList(),
   discountKind: json['discount_kind'] == null
       ? null
@@ -52,10 +52,10 @@ Data156 _$Data156FromJson(Map<String, dynamic> json) => Data156(
   roomFeeAmount: json['room_fee_amount'] as String,
   minSpendTopupAmount: json['min_spend_topup_amount'] as String,
   totalPrice: json['total_price'] as String,
-  charges: Charges10.fromJson(json['charges'] as Map<String, dynamic>),
+  charges: Charges8.fromJson(json['charges'] as Map<String, dynamic>),
   offline: json['offline'] == null
       ? null
-      : Offline6.fromJson(json['offline'] as Map<String, dynamic>),
+      : Offline4.fromJson(json['offline'] as Map<String, dynamic>),
   rounds: (json['rounds'] as num).toInt(),
   discount: json['discount'] as String,
 );

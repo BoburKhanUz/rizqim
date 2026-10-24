@@ -14,6 +14,7 @@ import '../billing/cashier_ui.dart';
 import '../billing/receipts.dart';
 import '../billing/tender_form.dart';
 import '../order/order_dialogs.dart';
+import 'booking_confirmation.dart';
 import 'booking_form_page.dart';
 import 'preorder_picker.dart';
 
@@ -35,7 +36,8 @@ import 'preorder_picker.dart';
 };
 
 /// Bron sahifasi: ma'lumot, holat amallari (tasdiqlash, "Keldi" → buyurtma, kelmadi, bekor qilish), oldindan buyurtma
-/// (qo'shish, miqdor, olib tashlash) va avans (olish — bo'nak cheki; qaytarish yoki ushlab qolish — menejer tasdig'i).
+/// (qo'shish, miqdor, olib tashlash), avans (olish — bo'nak cheki; qaytarish yoki ushlab qolish — menejer tasdig'i) va
+/// so'rov yoki tasdiqlangan bronda mehmonga tasdiq (P3-38: ko'rish, yuborish, nusxa olish, chop etish).
 class BookingDetailPage extends StatefulWidget {
   const BookingDetailPage({
     super.key,
@@ -422,6 +424,11 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
               ],
             ),
           ),
+          // P3-38: the server sends a confirmation only for a requested or confirmed booking
+          if (active) ...<Widget>[
+            const SizedBox(height: 16),
+            BookingConfirmationCard(booking: _b, onSent: _reload),
+          ],
           const SizedBox(height: 16),
           LayoutBuilder(
             builder: (BuildContext context, BoxConstraints box) {

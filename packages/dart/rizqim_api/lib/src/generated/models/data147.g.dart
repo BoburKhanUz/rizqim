@@ -7,21 +7,27 @@ part of 'data147.dart';
 // **************************************************************************
 
 Data147 _$Data147FromJson(Map<String, dynamic> json) => Data147(
-  branchId: (json['branch_id'] as num).toInt(),
-  generatedAt: json['generated_at'] as String,
-  overdueAfterHours: (json['overdue_after_hours'] as num).toInt(),
-  halls: (json['halls'] as List<dynamic>)
-      .map((e) => Halls2.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  untabledOrders: (json['untabled_orders'] as List<dynamic>)
-      .map((e) => UntabledOrders.fromJson(e as Map<String, dynamic>))
+  account: Account4.fromJson(json['account'] as Map<String, dynamic>),
+  from: json['from'] as String,
+  to: json['to'] as String,
+  openingBalance: json['opening_balance'] as String,
+  closingBalance: json['closing_balance'] as String,
+  chargesTotal: json['charges_total'] as String,
+  repaymentsTotal: json['repayments_total'] as String,
+  adjustmentsTotal: json['adjustments_total'] as String,
+  entries: (json['entries'] as List<dynamic>)
+      .map((e) => Entries3.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 
 Map<String, dynamic> _$Data147ToJson(Data147 instance) => <String, dynamic>{
-  'branch_id': instance.branchId,
-  'generated_at': instance.generatedAt,
-  'overdue_after_hours': instance.overdueAfterHours,
-  'halls': instance.halls,
-  'untabled_orders': instance.untabledOrders,
+  'account': instance.account,
+  'from': instance.from,
+  'to': instance.to,
+  'opening_balance': instance.openingBalance,
+  'closing_balance': instance.closingBalance,
+  'charges_total': instance.chargesTotal,
+  'repayments_total': instance.repaymentsTotal,
+  'adjustments_total': instance.adjustmentsTotal,
+  'entries': instance.entries,
 };

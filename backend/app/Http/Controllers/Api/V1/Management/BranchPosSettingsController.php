@@ -24,7 +24,7 @@ use Illuminate\Validation\ValidationException;
 #[Group('Owner: POS settings', "Filialning POS sozlamalari: rejim, biznes kun boshlanishi, chop etuvchi kassa, ekran qulfi, ogohlantirish chegaralari (P3-13).")]
 class BranchPosSettingsController extends ManagementController
 {
-    private const SETTINGS = 'array{branch_id: int, timezone: string, business_day_starts_at: string, pos_settings: array{mode: string, printing_device_id: string|null, screen_lock_minutes: int, queue_numbers: bool, cashier_discount_max_percent: string|null, alerts: array{open_room_hours: int|null, void_amount: string|null, discount_percent: string|null, unaccepted_online_minutes: int|null, cash_out_amount: string|null}, holidays: list<string>, booking_slot_minutes: int|null}}';
+    private const SETTINGS = 'array{branch_id: int, timezone: string, business_day_starts_at: string, pos_settings: array{mode: string, printing_device_id: string|null, screen_lock_minutes: int, queue_numbers: bool, cashier_discount_max_percent: string|null, alerts: array{open_room_hours: int|null, void_amount: string|null, discount_percent: string|null, unaccepted_online_minutes: int|null, cash_out_amount: string|null}, holidays: list<string>, booking_slot_minutes: int|null, booking_confirmation: array{auto_send: bool, sms: bool, cancel_policy: string|null}}}';
 
     /**
      * The branch's POS settings
@@ -35,7 +35,9 @@ class BranchPosSettingsController extends ManagementController
      * `cashier_discount_max_percent` (P3-37: the discount percent a cashier gives alone, "10.00" by default; null or
      * "0.00": always a manager's PIN), `alerts` (`open_room_hours`, `void_amount`, `discount_percent`,
      * `unaccepted_online_minutes`, `cash_out_amount` — one cash out of the drawer of at least this, "500000.00" by
-     * default; null: off), `holidays` (YYYY-MM-DD), `booking_slot_minutes` (null: the server default).
+     * default; null: off), `holidays` (YYYY-MM-DD), `booking_slot_minutes` (null: the server default),
+     * `booking_confirmation` (P3-38: `auto_send` true by default — the guest is sent the confirmation when a booking is
+     * confirmed; `sms` false by default — SMS costs money; `cancel_policy` the cancellation rule in it, or null).
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . self::SETTINGS . '}')]
     public function show(Request $request, int $id): JsonResponse
@@ -53,7 +55,8 @@ class BranchPosSettingsController extends ManagementController
      * `screen_lock_minutes` 0-240; `queue_numbers`; `cashier_discount_max_percent` 0-100 (2 decimals) or null;
      * `alerts` merges key by key (`open_room_hours` 1-72, `void_amount` 0-100000000, `discount_percent` 0-100,
      * `unaccepted_online_minutes` 1-120, `cash_out_amount` 0-100000000; null switches that alert off); `holidays` replaces the whole list (up to 400 dates); `booking_slot_minutes` 30-1440 (how long a booking without an end
-     * time holds its room; null: the server default). An unknown key is 422.
+     * time holds its room; null: the server default); `booking_confirmation` merges key by key (`auto_send`, `sms`
+     * booleans, `cancel_policy` text up to 300 characters or null). An unknown key is 422.
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . self::SETTINGS . '}')]
     public function update(Request $request, int $id, AuditLogger $audit): JsonResponse
@@ -77,6 +80,10 @@ class BranchPosSettingsController extends ManagementController
             'pos_settings.booking_slot_minutes' => ['sometimes', 'nullable', 'integer', 'min:30', 'max:1440'],
             'pos_settings.holidays' => ['sometimes', 'array', 'max:' . PosSettings::MAX_HOLIDAYS],
             'pos_settings.holidays.*' => ['date_format:Y-m-d'],
+            'pos_settings.booking_confirmation' => ['sometimes', 'array'],
+            'pos_settings.booking_confirmation.auto_send' => ['sometimes', 'boolean'],
+            'pos_settings.booking_confirmation.sms' => ['sometimes', 'boolean'],
+            'pos_settings.booking_confirmation.cancel_policy' => ['sometimes', 'nullable', 'string', 'max:' . PosSettings::CANCEL_POLICY_MAX],
         ], UzValidation::messages([
             'business_day_starts_at.regex' => "Biznes kun boshlanishi SS:DD ko'rinishida, 00:00 dan 11:59 gacha bo'lishi kerak (masalan 05:00).",
             'pos_settings.mode.in' => "Rejim counter, table yoki hybrid bo'lishi kerak.",
@@ -95,6 +102,9 @@ class BranchPosSettingsController extends ManagementController
             'pos_settings.alerts.cash_out_amount' => 'Kassadan chiqim summasi',
             'pos_settings.booking_slot_minutes' => 'Bron muddati (daqiqa)',
             'pos_settings.holidays' => 'Bayram kunlari',
+            'pos_settings.booking_confirmation.auto_send' => 'Bron tasdig\'ini avtomatik yuborish',
+            'pos_settings.booking_confirmation.sms' => 'Bron tasdig\'ini SMS bilan yuborish',
+            'pos_settings.booking_confirmation.cancel_policy' => 'Bekor qilish qoidasi',
         ]);
 
         $changes = $data['pos_settings'] ?? [];
@@ -161,6 +171,12 @@ class BranchPosSettingsController extends ManagementController
         if (is_array($input['alerts'] ?? null)) {
             foreach (array_diff(array_keys($input['alerts']), PosSettings::ALERT_KEYS) as $key) {
                 $errors['pos_settings.alerts.' . $key] = "Noma'lum ogohlantirish: {$key}.";
+            }
+        }
+
+        if (is_array($input['booking_confirmation'] ?? null)) {
+            foreach (array_diff(array_keys($input['booking_confirmation']), PosSettings::BOOKING_CONFIRMATION_KEYS) as $key) {
+                $errors['pos_settings.booking_confirmation.' . $key] = "Noma'lum sozlama: {$key}.";
             }
         }
 

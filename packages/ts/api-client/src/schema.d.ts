@@ -994,7 +994,9 @@ export interface paths {
          *     `cashier_discount_max_percent` (P3-37: the discount percent a cashier gives alone, "10.00" by default; null or
          *     "0.00": always a manager's PIN), `alerts` (`open_room_hours`, `void_amount`, `discount_percent`,
          *     `unaccepted_online_minutes`, `cash_out_amount` — one cash out of the drawer of at least this, "500000.00" by
-         *     default; null: off), `holidays` (YYYY-MM-DD), `booking_slot_minutes` (null: the server default).
+         *     default; null: off), `holidays` (YYYY-MM-DD), `booking_slot_minutes` (null: the server default),
+         *     `booking_confirmation` (P3-38: `auto_send` true by default — the guest is sent the confirmation when a booking is
+         *     confirmed; `sms` false by default — SMS costs money; `cancel_policy` the cancellation rule in it, or null).
          */
         get: operations["branchPosSettings.show"];
         /**
@@ -1004,7 +1006,8 @@ export interface paths {
          *     `screen_lock_minutes` 0-240; `queue_numbers`; `cashier_discount_max_percent` 0-100 (2 decimals) or null;
          *     `alerts` merges key by key (`open_room_hours` 1-72, `void_amount` 0-100000000, `discount_percent` 0-100,
          *     `unaccepted_online_minutes` 1-120, `cash_out_amount` 0-100000000; null switches that alert off); `holidays` replaces the whole list (up to 400 dates); `booking_slot_minutes` 30-1440 (how long a booking without an end
-         *     time holds its room; null: the server default). An unknown key is 422.
+         *     time holds its room; null: the server default); `booking_confirmation` merges key by key (`auto_send`, `sms`
+         *     booleans, `cancel_policy` text up to 300 characters or null). An unknown key is 422.
          */
         put: operations["branchPosSettings.update"];
         post?: never;
@@ -2685,6 +2688,56 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/pos/bookings/{uuid}/confirmation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The booking confirmation for the guest
+         * @description P3-38. `text`: the ready message (Uzbek, with icons) as Telegram sends it; `lines`: the same, line by line
+         *     (`kind`, `label` — may be empty —, `value`; the text line is "label: value"), for the apps to show, copy and
+         *     print. The charges follow the rules the order will use: `room_fee` the booked room's tariff for the day type of
+         *     the business date (weekday, weekend, holiday from the branch's holidays; null when there is no room or no
+         *     tariff), the minimum spend (the booking's own, else the room's), the service charge and place fee of the room's
+         *     hall. `channels`: what "send" can use now (`telegram`: the contact phone is a customer with the store's bot;
+         *     `sms`: the branch allowed SMS and there is a phone).
+         */
+        get: operations["booking.confirmation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/bookings/{uuid}/confirmation/send": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send the confirmation to the guest
+         * @description P3-38. `channel`: auto (default: Telegram when the guest has it, else SMS when the branch allows it), telegram or
+         *     sms. 422 `no_channel` when it cannot go that way (copy the text and send it by hand); 422 `booking_not_editable`
+         *     unless the booking is requested or confirmed. Queued; the booking's `confirmation_sent_at` and
+         *     `confirmation_channel` are set and `booking.confirmation_sent` is audited. Sending again is allowed (a new
+         *     Idempotency-Key each time; the same key replays the answer and sends nothing).
+         */
+        post: operations["booking.sendConfirmation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/pos/bookings/{uuid}/deposits": {
         parameters: {
             query?: never;
@@ -2831,7 +2884,8 @@ export interface paths {
          *     "chop etuvchi" kassa or null), `screen_lock_minutes` (0: never), `queue_numbers`, `cashier_discount_max_percent`
          *     (P3-37: the discount percent a cashier gives without a manager; null or "0.00": always a manager), `alerts`
          *     (`open_room_hours`, `void_amount`, `discount_percent`, `unaccepted_online_minutes`, `cash_out_amount`; null: off),
-         *     `holidays` (dates), `booking_slot_minutes` (default length of a booking, null: the server's)); `device` (the
+         *     `holidays` (dates), `booking_slot_minutes` (default length of a booking, null: the server's),
+         *     `booking_confirmation` (P3-38: `auto_send`, `sms`, `cancel_policy`)); `device` (the
          *     terminal: uuid, type, name, `is_printing_device`; null outside a terminal session); `user` (id, name, role,
          *     permissions); `stations` (active kitchen stations); `station_routes` (dish to station: by product and by
          *     category; a product route beats its category's); `printers` (active ones this terminal can use: LAN and
@@ -4326,6 +4380,9 @@ export interface components {
             created_at: string | null;
             /** Format: date-time */
             updated_at: string | null;
+            /** Format: date-time */
+            confirmation_sent_at: string | null;
+            confirmation_channel: string | null;
             store?: components["schemas"]["Store"];
             branch?: components["schemas"]["Branch"];
             tables?: components["schemas"]["BookingTable"][];
@@ -8682,6 +8739,11 @@ export interface operations {
                                 };
                                 holidays: string[];
                                 booking_slot_minutes: number | null;
+                                booking_confirmation: {
+                                    auto_send: boolean;
+                                    sms: boolean;
+                                    cancel_policy: string | null;
+                                };
                             };
                         };
                     };
@@ -8720,6 +8782,11 @@ export interface operations {
                         };
                         booking_slot_minutes?: number | null;
                         holidays?: string[];
+                        booking_confirmation?: {
+                            auto_send?: boolean;
+                            sms?: boolean;
+                            cancel_policy?: string | null;
+                        };
                     };
                 };
             };
@@ -8752,6 +8819,11 @@ export interface operations {
                                 };
                                 holidays: string[];
                                 booking_slot_minutes: number | null;
+                                booking_confirmation: {
+                                    auto_send: boolean;
+                                    sms: boolean;
+                                    cancel_policy: string | null;
+                                };
                             };
                         };
                     };
@@ -14531,6 +14603,8 @@ export interface operations {
                                 arrived_at: string | null;
                                 completed_at: string | null;
                                 canceled_at: string | null;
+                                confirmation_sent_at: string | null;
+                                confirmation_channel: string | null;
                                 created_at: string | null;
                                 updated_at: string | null;
                             }[];
@@ -14615,6 +14689,8 @@ export interface operations {
                             arrived_at: string | null;
                             completed_at: string | null;
                             canceled_at: string | null;
+                            confirmation_sent_at: string | null;
+                            confirmation_channel: string | null;
                             created_at: string | null;
                             updated_at: string | null;
                             items: {
@@ -14741,6 +14817,8 @@ export interface operations {
                                     arrived_at: string | null;
                                     completed_at: string | null;
                                     canceled_at: string | null;
+                                    confirmation_sent_at: string | null;
+                                    confirmation_channel: string | null;
                                     created_at: string | null;
                                     updated_at: string | null;
                                 }[];
@@ -14775,6 +14853,8 @@ export interface operations {
                                 arrived_at: string | null;
                                 completed_at: string | null;
                                 canceled_at: string | null;
+                                confirmation_sent_at: string | null;
+                                confirmation_channel: string | null;
                                 created_at: string | null;
                                 updated_at: string | null;
                             }[];
@@ -14835,6 +14915,8 @@ export interface operations {
                             arrived_at: string | null;
                             completed_at: string | null;
                             canceled_at: string | null;
+                            confirmation_sent_at: string | null;
+                            confirmation_channel: string | null;
                             created_at: string | null;
                             updated_at: string | null;
                             items: {
@@ -14954,6 +15036,8 @@ export interface operations {
                             arrived_at: string | null;
                             completed_at: string | null;
                             canceled_at: string | null;
+                            confirmation_sent_at: string | null;
+                            confirmation_channel: string | null;
                             created_at: string | null;
                             updated_at: string | null;
                             items: {
@@ -15062,6 +15146,8 @@ export interface operations {
                                 arrived_at: string | null;
                                 completed_at: string | null;
                                 canceled_at: string | null;
+                                confirmation_sent_at: string | null;
+                                confirmation_channel: string | null;
                                 created_at: string | null;
                                 updated_at: string | null;
                                 items: {
@@ -15173,6 +15259,8 @@ export interface operations {
                             arrived_at: string | null;
                             completed_at: string | null;
                             canceled_at: string | null;
+                            confirmation_sent_at: string | null;
+                            confirmation_channel: string | null;
                             created_at: string | null;
                             updated_at: string | null;
                             items: {
@@ -15278,6 +15366,8 @@ export interface operations {
                             arrived_at: string | null;
                             completed_at: string | null;
                             canceled_at: string | null;
+                            confirmation_sent_at: string | null;
+                            confirmation_channel: string | null;
                             created_at: string | null;
                             updated_at: string | null;
                             items: {
@@ -15323,6 +15413,99 @@ export interface operations {
             };
             401: components["responses"]["AuthenticationException"];
             422: components["responses"]["ValidationException"];
+        };
+    };
+    "booking.confirmation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            text: string;
+                            lines: {
+                                /** @enum {string} */
+                                kind: "header" | "place" | "time" | "room" | "room_fee" | "min_spend" | "service_charge" | "place_fee" | "pre_order" | "deposit" | "cancel_policy" | "contact";
+                                label: string;
+                                value: string;
+                            }[];
+                            room_fee: {
+                                amount: string;
+                                /** @enum {string} */
+                                day_type: "weekday" | "weekend" | "holiday";
+                                tariff_id: number;
+                            } | null;
+                            channels: {
+                                telegram: boolean;
+                                sms: boolean;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "booking.sendConfirmation": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @enum {string|null} */
+                    channel?: "auto" | "telegram" | "sms" | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            /** @enum {string} */
+                            channel: "telegram" | "sms";
+                            queued: boolean;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description No way to send it, or the booking is over */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     "booking.takeDeposit": {
@@ -15388,6 +15571,8 @@ export interface operations {
                                 arrived_at: string | null;
                                 completed_at: string | null;
                                 canceled_at: string | null;
+                                confirmation_sent_at: string | null;
+                                confirmation_channel: string | null;
                                 created_at: string | null;
                                 updated_at: string | null;
                                 items: {
@@ -15568,6 +15753,8 @@ export interface operations {
                                 arrived_at: string | null;
                                 completed_at: string | null;
                                 canceled_at: string | null;
+                                confirmation_sent_at: string | null;
+                                confirmation_channel: string | null;
                                 created_at: string | null;
                                 updated_at: string | null;
                                 items: {
@@ -15748,6 +15935,8 @@ export interface operations {
                                 arrived_at: string | null;
                                 completed_at: string | null;
                                 canceled_at: string | null;
+                                confirmation_sent_at: string | null;
+                                confirmation_channel: string | null;
                                 created_at: string | null;
                                 updated_at: string | null;
                                 items: {
@@ -15939,6 +16128,8 @@ export interface operations {
                             arrived_at: string | null;
                             completed_at: string | null;
                             canceled_at: string | null;
+                            confirmation_sent_at: string | null;
+                            confirmation_channel: string | null;
                             created_at: string | null;
                             updated_at: string | null;
                             items: {
@@ -16039,6 +16230,8 @@ export interface operations {
                             arrived_at: string | null;
                             completed_at: string | null;
                             canceled_at: string | null;
+                            confirmation_sent_at: string | null;
+                            confirmation_channel: string | null;
                             created_at: string | null;
                             updated_at: string | null;
                             items: {
@@ -16156,6 +16349,8 @@ export interface operations {
                             arrived_at: string | null;
                             completed_at: string | null;
                             canceled_at: string | null;
+                            confirmation_sent_at: string | null;
+                            confirmation_channel: string | null;
                             created_at: string | null;
                             updated_at: string | null;
                             items: {
@@ -16261,6 +16456,8 @@ export interface operations {
                             arrived_at: string | null;
                             completed_at: string | null;
                             canceled_at: string | null;
+                            confirmation_sent_at: string | null;
+                            confirmation_channel: string | null;
                             created_at: string | null;
                             updated_at: string | null;
                             items: {
@@ -16359,6 +16556,11 @@ export interface operations {
                                     };
                                     holidays: string[];
                                     booking_slot_minutes: number | null;
+                                    booking_confirmation: {
+                                        auto_send: boolean;
+                                        sms: boolean;
+                                        cancel_policy: string | null;
+                                    };
                                 };
                             };
                             device: {

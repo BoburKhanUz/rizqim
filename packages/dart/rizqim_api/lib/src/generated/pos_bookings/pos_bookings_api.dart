@@ -8,6 +8,7 @@ import 'package:retrofit/retrofit.dart';
 import '../models/delete_v1_pos_bookings_uuid_items_item_response.dart';
 import '../models/get_v1_pos_bookings_calendar_response.dart';
 import '../models/get_v1_pos_bookings_response.dart';
+import '../models/get_v1_pos_bookings_uuid_confirmation_response.dart';
 import '../models/get_v1_pos_bookings_uuid_response.dart';
 import '../models/patch_v1_pos_bookings_uuid_items_item_response.dart';
 import '../models/patch_v1_pos_bookings_uuid_response.dart';
@@ -15,6 +16,7 @@ import '../models/post_v1_pos_bookings_response.dart';
 import '../models/post_v1_pos_bookings_uuid_arrive_response.dart';
 import '../models/post_v1_pos_bookings_uuid_cancel_response.dart';
 import '../models/post_v1_pos_bookings_uuid_confirm_response.dart';
+import '../models/post_v1_pos_bookings_uuid_confirmation_send_response.dart';
 import '../models/post_v1_pos_bookings_uuid_deposits_payment_refund_response.dart';
 import '../models/post_v1_pos_bookings_uuid_deposits_payment_retain_response.dart';
 import '../models/post_v1_pos_bookings_uuid_deposits_response.dart';
@@ -24,6 +26,7 @@ import '../models/v1_pos_bookings_request_body.dart';
 import '../models/v1_pos_bookings_uuid_arrive_request_body.dart';
 import '../models/v1_pos_bookings_uuid_cancel_request_body.dart';
 import '../models/v1_pos_bookings_uuid_confirm_request_body.dart';
+import '../models/v1_pos_bookings_uuid_confirmation_send_request_body.dart';
 import '../models/v1_pos_bookings_uuid_deposits_payment_refund_request_body.dart';
 import '../models/v1_pos_bookings_uuid_deposits_payment_retain_request_body.dart';
 import '../models/v1_pos_bookings_uuid_deposits_request_body.dart';
@@ -153,6 +156,37 @@ abstract class PosBookingsApi {
     @Path('uuid') required String uuid,
     @Header('Idempotency-Key') String? idempotencyKey,
     @Body() V1PosBookingsUuidConfirmRequestBody? body,
+  });
+
+  /// The booking confirmation for the guest.
+  ///
+  /// P3-38. `text`: the ready message (Uzbek, with icons) as Telegram sends it; `lines`: the same, line by line.
+  /// (`kind`, `label` — may be empty —, `value`; the text line is "label: value"), for the apps to show, copy and.
+  /// print. The charges follow the rules the order will use: `room_fee` the booked room's tariff for the day type of.
+  /// the business date (weekday, weekend, holiday from the branch's holidays; null when there is no room or no.
+  /// tariff), the minimum spend (the booking's own, else the room's), the service charge and place fee of the room's.
+  /// hall. `channels`: what "send" can use now (`telegram`: the contact phone is a customer with the store's bot;.
+  /// `sms`: the branch allowed SMS and there is a phone).
+  @GET('/v1/pos/bookings/{uuid}/confirmation')
+  Future<GetV1PosBookingsUuidConfirmationResponse> bookingConfirmation({
+    @Path('uuid') required String uuid,
+  });
+
+  /// Send the confirmation to the guest.
+  ///
+  /// P3-38. `channel`: auto (default: Telegram when the guest has it, else SMS when the branch allows it), telegram or.
+  /// sms. 422 `no_channel` when it cannot go that way (copy the text and send it by hand); 422 `booking_not_editable`.
+  /// unless the booking is requested or confirmed. Queued; the booking's `confirmation_sent_at` and.
+  /// `confirmation_channel` are set and `booking.confirmation_sent` is audited. Sending again is allowed (a new.
+  /// Idempotency-Key each time; the same key replays the answer and sends nothing).
+  ///
+  /// [idempotencyKey] - Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer.
+  @POST('/v1/pos/bookings/{uuid}/confirmation/send')
+  Future<PostV1PosBookingsUuidConfirmationSendResponse>
+  bookingSendConfirmation({
+    @Path('uuid') required String uuid,
+    @Header('Idempotency-Key') String? idempotencyKey,
+    @Body() V1PosBookingsUuidConfirmationSendRequestBody? body,
   });
 
   /// Take a deposit.

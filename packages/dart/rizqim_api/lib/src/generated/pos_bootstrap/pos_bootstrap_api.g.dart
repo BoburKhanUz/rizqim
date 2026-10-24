@@ -51,7 +51,7 @@ class _PosBootstrapApi implements PosBootstrapApi {
   @override
   Future<GetV1PosCatalogResponse> posCatalogIndex({
     String? storeId,
-    Channel4? channel,
+    Channel6? channel,
     int? branchId,
   }) async {
     final _extra = <String, dynamic>{};

@@ -4,10 +4,11 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'hall.dart';
-import 'table.dart';
-import 'waiter3.dart';
-import 'online.dart';
+import 'type6.dart';
+import 'status5.dart';
+import 'payment_form.dart';
+import 'lines14.dart';
+import 'payments27.dart';
 
 part 'data148.g.dart';
 
@@ -15,78 +16,57 @@ part 'data148.g.dart';
 class Data148 {
   const Data148({
     required this.uuid,
-    required this.shortCode,
-    required this.status,
-    required this.channel,
     required this.type,
+    required this.status,
+    required this.paymentForm,
+    required this.nonFiscal,
+    required this.total,
+    required this.vatTotal,
+    required this.fiscalSign,
+    required this.receiptNumber,
+    required this.qrUrl,
+    required this.terminalId,
+    required this.error,
+    required this.issuedAt,
+    required this.createdAt,
     required this.branchId,
-    required this.version,
-    required this.hall,
-    required this.table,
-    required this.hallRef,
-    required this.tableRef,
-    required this.guestsCount,
-    required this.waiter,
-    required this.itemsCount,
-    required this.subtotal,
-    required this.totalPrice,
-    required this.paymentStatus,
-    required this.billLocked,
-    required this.billRequested,
-    required this.fiscalPending,
-    required this.bookingId,
-    required this.businessDate,
-    required this.openedAt,
-    required this.closedAt,
-    required this.updatedAt,
-    required this.online,
+    required this.originalReceiptUuid,
+    required this.lines,
+    required this.payments,
   });
 
   factory Data148.fromJson(Map<String, Object?> json) =>
       _$Data148FromJson(json);
 
   final String uuid;
-  @JsonKey(name: 'short_code')
-  final String? shortCode;
-  final String status;
-  final String channel;
-  final String type;
+  final Type6 type;
+  final Status5 status;
+  @JsonKey(name: 'payment_form')
+  final PaymentForm paymentForm;
+  @JsonKey(name: 'non_fiscal')
+  final bool nonFiscal;
+  final String total;
+  @JsonKey(name: 'vat_total')
+  final String vatTotal;
+  @JsonKey(name: 'fiscal_sign')
+  final String? fiscalSign;
+  @JsonKey(name: 'receipt_number')
+  final String? receiptNumber;
+  @JsonKey(name: 'qr_url')
+  final String? qrUrl;
+  @JsonKey(name: 'terminal_id')
+  final String? terminalId;
+  final String? error;
+  @JsonKey(name: 'issued_at')
+  final String? issuedAt;
+  @JsonKey(name: 'created_at')
+  final String? createdAt;
   @JsonKey(name: 'branch_id')
-  final int branchId;
-  final int version;
-  final Hall? hall;
-  final Table? table;
-  @JsonKey(name: 'hall_ref')
-  final String? hallRef;
-  @JsonKey(name: 'table_ref')
-  final String? tableRef;
-  @JsonKey(name: 'guests_count')
-  final int? guestsCount;
-  final Waiter3? waiter;
-  @JsonKey(name: 'items_count')
-  final int itemsCount;
-  final String subtotal;
-  @JsonKey(name: 'total_price')
-  final String totalPrice;
-  @JsonKey(name: 'payment_status')
-  final String paymentStatus;
-  @JsonKey(name: 'bill_locked')
-  final bool billLocked;
-  @JsonKey(name: 'bill_requested')
-  final bool billRequested;
-  @JsonKey(name: 'fiscal_pending')
-  final bool fiscalPending;
-  @JsonKey(name: 'booking_id')
-  final int? bookingId;
-  @JsonKey(name: 'business_date')
-  final String? businessDate;
-  @JsonKey(name: 'opened_at')
-  final String? openedAt;
-  @JsonKey(name: 'closed_at')
-  final String? closedAt;
-  @JsonKey(name: 'updated_at')
-  final String? updatedAt;
-  final Online? online;
+  final int? branchId;
+  @JsonKey(name: 'original_receipt_uuid')
+  final String? originalReceiptUuid;
+  final List<Lines14> lines;
+  final List<Payments27> payments;
 
   Map<String, Object?> toJson() => _$Data148ToJson(this);
 }

@@ -4,15 +4,15 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'items18.dart';
-import 'payments25.dart';
+import 'items16.dart';
+import 'payments23.dart';
 
 part 'data135.g.dart';
 
 @JsonSerializable()
 class Data135 {
   const Data135({
-    required this.uuid,
+    required this.sourceLabel,
     required this.branchId,
     required this.diningTableId,
     required this.tableIds,
@@ -24,7 +24,7 @@ class Data135 {
     required this.contactName,
     required this.contactPhone,
     required this.source,
-    required this.sourceLabel,
+    required this.uuid,
     required this.status,
     required this.statusLabel,
     required this.minSpend,
@@ -34,17 +34,19 @@ class Data135 {
     required this.depositAvailable,
     required this.depositUnsettled,
     required this.itemsCount,
-    required this.cancelReason,
+    required this.payments,
     required this.version,
     required this.createdBy,
     required this.confirmedAt,
     required this.arrivedAt,
     required this.completedAt,
     required this.canceledAt,
+    required this.confirmationSentAt,
+    required this.confirmationChannel,
     required this.createdAt,
     required this.updatedAt,
     required this.items,
-    required this.payments,
+    required this.cancelReason,
   });
 
   factory Data135.fromJson(Map<String, Object?> json) =>
@@ -103,12 +105,16 @@ class Data135 {
   final String? completedAt;
   @JsonKey(name: 'canceled_at')
   final String? canceledAt;
+  @JsonKey(name: 'confirmation_sent_at')
+  final String? confirmationSentAt;
+  @JsonKey(name: 'confirmation_channel')
+  final String? confirmationChannel;
   @JsonKey(name: 'created_at')
   final String? createdAt;
   @JsonKey(name: 'updated_at')
   final String? updatedAt;
-  final List<Items18> items;
-  final List<Payments25> payments;
+  final List<Items16> items;
+  final List<Payments23> payments;
 
   Map<String, Object?> toJson() => _$Data135ToJson(this);
 }

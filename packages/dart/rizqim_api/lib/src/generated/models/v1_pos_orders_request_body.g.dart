@@ -9,7 +9,7 @@ part of 'v1_pos_orders_request_body.dart';
 V1PosOrdersRequestBody _$V1PosOrdersRequestBodyFromJson(
   Map<String, dynamic> json,
 ) => V1PosOrdersRequestBody(
-  channel: Channel4.fromJson(json['channel'] as String),
+  channel: Channel6.fromJson(json['channel'] as String),
   branchId: (json['branch_id'] as num?)?.toInt(),
   tableId: (json['table_id'] as num?)?.toInt(),
   guestsCount: (json['guests_count'] as num?)?.toInt(),

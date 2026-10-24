@@ -297,6 +297,75 @@ class _PosBookingsApi implements PosBookingsApi {
   }
 
   @override
+  Future<GetV1PosBookingsUuidConfirmationResponse> bookingConfirmation({
+    required String uuid,
+  }) async {
+    final _extra = <String, dynamic>{};
+    final queryParameters = <String, dynamic>{};
+    final _headers = <String, dynamic>{};
+    const Map<String, dynamic>? _data = null;
+    final _options = _setStreamType<GetV1PosBookingsUuidConfirmationResponse>(
+      Options(method: 'GET', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/v1/pos/bookings/${uuid}/confirmation',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late GetV1PosBookingsUuidConfirmationResponse _value;
+    try {
+      _value = GetV1PosBookingsUuidConfirmationResponse.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
+  Future<PostV1PosBookingsUuidConfirmationSendResponse>
+  bookingSendConfirmation({
+    required String uuid,
+    String? idempotencyKey,
+    V1PosBookingsUuidConfirmationSendRequestBody? body,
+  }) async {
+    final _extra = <String, dynamic>{};
+    final queryParameters = <String, dynamic>{};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{r'Idempotency-Key': idempotencyKey};
+    _headers.removeWhere((k, v) => v == null);
+    final _data = <String, dynamic>{};
+    _data.addAll(body?.toJson() ?? <String, dynamic>{});
+    final _options =
+        _setStreamType<PostV1PosBookingsUuidConfirmationSendResponse>(
+          Options(method: 'POST', headers: _headers, extra: _extra)
+              .compose(
+                _dio.options,
+                '/v1/pos/bookings/${uuid}/confirmation/send',
+                queryParameters: queryParameters,
+                data: _data,
+              )
+              .copyWith(
+                baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl),
+              ),
+        );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late PostV1PosBookingsUuidConfirmationSendResponse _value;
+    try {
+      _value = PostV1PosBookingsUuidConfirmationSendResponse.fromJson(
+        _result.data!,
+      );
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
   Future<PostV1PosBookingsUuidDepositsResponse> bookingTakeDeposit({
     required String uuid,
     required String idempotencyKey,

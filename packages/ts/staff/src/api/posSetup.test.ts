@@ -97,4 +97,17 @@ describe('branch POS settings', () => {
     await saveBranchPosSettings(api, 3, { pos_settings: { cashier_discount_max_percent: null, alerts: { cash_out_amount: null } } });
     expect(await calls[1]!.json()).toEqual({ pos_settings: { cashier_discount_max_percent: null, alerts: { cash_out_amount: null } } });
   });
+
+  it('reads and saves the booking confirmation block key by key (P3-38)', async () => {
+    const block = { auto_send: true, sms: false, cancel_policy: null };
+    const { calls } = mockFetch({
+      'GET /api/v1/owner/branches/3/pos-settings': () => ok({ branch_id: 3, timezone: 'Asia/Tashkent', business_day_starts_at: '05:00', pos_settings: { mode: 'hybrid', alerts: {}, holidays: [], booking_confirmation: block } }),
+      'PUT /api/v1/owner/branches/3/pos-settings': () => ok({ branch_id: 3, timezone: 'Asia/Tashkent', business_day_starts_at: '05:00', pos_settings: { alerts: {}, booking_confirmation: { ...block, sms: true, cancel_policy: '24 soat oldin' } } }),
+    });
+    const api = testApi();
+    expect((await fetchBranchPosSettings(api, 3)).pos_settings.booking_confirmation).toEqual(block);
+    const saved = await saveBranchPosSettings(api, 3, { pos_settings: { booking_confirmation: { sms: true, cancel_policy: '24 soat oldin' } } });
+    expect(saved.pos_settings.booking_confirmation?.sms).toBe(true);
+    expect(await calls[1]!.json()).toEqual({ pos_settings: { booking_confirmation: { sms: true, cancel_policy: '24 soat oldin' } } });
+  });
 });

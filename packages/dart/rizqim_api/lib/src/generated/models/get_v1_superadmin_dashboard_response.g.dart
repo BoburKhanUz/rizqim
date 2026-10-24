@@ -10,7 +10,7 @@ GetV1SuperadminDashboardResponse _$GetV1SuperadminDashboardResponseFromJson(
   Map<String, dynamic> json,
 ) => GetV1SuperadminDashboardResponse(
   success: json['success'] as bool,
-  data: Data189.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data191.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1SuperadminDashboardResponseToJson(

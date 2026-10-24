@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Pos;
 
 use App\Domain\Pos\Billing\PosFiscalReceipt;
+use App\Domain\Pos\Booking\BookingConfirmationService;
 use App\Domain\Pos\Booking\BookingDepositService;
 use App\Domain\Pos\Booking\BookingEventType;
 use App\Domain\Pos\Booking\BookingItemService;
@@ -327,6 +328,45 @@ class BookingController extends MenuStaffController
             'booking' => $this->presenter->detail($booking->refresh()),
             'order' => ['uuid' => (string) $order->uuid, 'status' => $order->status->value],
         ], 'Mehmonlar keldi: buyurtma ochildi.');
+    }
+
+    /**
+     * The booking confirmation for the guest
+     *
+     * P3-38. `text`: the ready message (Uzbek, with icons) as Telegram sends it; `lines`: the same, line by line
+     * (`kind`, `label` — may be empty —, `value`; the text line is "label: value"), for the apps to show, copy and
+     * print. The charges follow the rules the order will use: `room_fee` the booked room's tariff for the day type of
+     * the business date (weekday, weekend, holiday from the branch's holidays; null when there is no room or no
+     * tariff), the minimum spend (the booking's own, else the room's), the service charge and place fee of the room's
+     * hall. `channels`: what "send" can use now (`telegram`: the contact phone is a customer with the store's bot;
+     * `sms`: the branch allowed SMS and there is a phone).
+     */
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . BookingConfirmationService::CONFIRMATION . '}')]
+    public function confirmation(Request $request, string $uuid, BookingConfirmationService $confirmations): JsonResponse
+    {
+        return $this->success($confirmations->build($this->booking($request, $uuid)));
+    }
+
+    /**
+     * Send the confirmation to the guest
+     *
+     * P3-38. `channel`: auto (default: Telegram when the guest has it, else SMS when the branch allows it), telegram or
+     * sms. 422 `no_channel` when it cannot go that way (copy the text and send it by hand); 422 `booking_not_editable`
+     * unless the booking is requested or confirmed. Queued; the booking's `confirmation_sent_at` and
+     * `confirmation_channel` are set and `booking.confirmation_sent` is audited. Sending again is allowed (a new
+     * Idempotency-Key each time; the same key replays the answer and sends nothing).
+     */
+    #[ApiDocResponse(200, type: "array{success: true, message: string, data: array{channel: 'telegram'|'sms', queued: true}}")]
+    #[ApiDocResponse(422, 'No way to send it, or the booking is over', type: 'array{success: false, message: string, data: array{reason: string}}')]
+    public function sendConfirmation(Request $request, string $uuid, BookingConfirmationService $confirmations): JsonResponse
+    {
+        $data = $request->validate([
+            'channel' => ['nullable', 'string', Rule::in(BookingConfirmationService::CHANNELS)],
+        ], UzValidation::messages());
+
+        $channel = $confirmations->send($this->booking($request, $uuid), (string) ($data['channel'] ?? 'auto'), $request->user());
+
+        return $this->success(['channel' => $channel, 'queued' => true], $channel === 'telegram' ? "Tasdiq Telegram'ga yuborildi." : 'Tasdiq SMS bilan yuborildi.');
     }
 
     /**

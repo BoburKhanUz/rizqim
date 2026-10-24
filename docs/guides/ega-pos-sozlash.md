@@ -273,7 +273,8 @@ Qo'llanishi:
 >
 > - Xizmat haqi, xona puli va minimal summani **menyuda** va **zal e'londa** (eshik yoki stol yonida) **aniq summa yoki foiz bilan** yozing.
 > - **Bron qilganda** telefonda yoki Telegram'da shuni mehmonga **aytib, bron tasdig'i matniga kiriting**: "Xona puli 300 000 so'm, minimal
->   summa 1 500 000 so'm, xizmat haqi 10%". Kassirlarga ham shuni tushuntiring.
+>   summa 1 500 000 so'm, xizmat haqi 10%". Rizqim'ning bron tasdig'i xabari xona pulini **o'zi yozadi** — [12-bo'lim](#bron-tasdigi-mehmon-nima-oladi).
+>   Kassirlarga ham shuni tushuntiring.
 > - Mehmon e'tiroz bildirsa, ko'rsatilmagan xizmat uchun pul olmang: kassada xizmat qatorini olib tashlang.
 > - Narx yoki foiz o'zgarsa, menyu va e'lonni ham yangilang.
 
@@ -347,6 +348,7 @@ LAN printerga marka chiqadi.
 | **Bron ushlab turish vaqti** | Tugash vaqti yozilmagan bron xonani necha daqiqa ushlaydi (30–1440; standart 300, ya'ni 5 soat) |
 | **Navbat raqamlari** | Har biznes kunda buyurtmalarga 1 dan boshlab raqam beriladi |
 | **Kassir menejersiz beradigan eng katta chegirma, %** | Kassir shu foizgacha chegirmani **o'zi** beradi (standart 10). Undan katta chegirma uchun menejer o'z PIN'ini kiritadi. Maydonni **bo'sh** qoldirsangiz (yoki 0 yozsangiz), kassir **har safar** menejerdan so'raydi. Ko'proq: [Chegirma](#chegirma-kim-qancha-beradi) |
+| **Bron tasdig'i** | Bron tasdiqlanganda mehmonga qanday xabar boradi: avtomatik yuborish, SMS va bekor qilish qoidasi. Pastda: [Bron tasdig'i](#bron-tasdigi-mehmon-nima-oladi) |
 | **Egaga xabar chegaralari** | Pastda |
 | **Bayram kunlari** | Xona narxi kalendaridagi ro'yxat bilan bitta |
 
@@ -525,6 +527,53 @@ Avans qanday ishlaydi:
    buxgalter bilan kelishiladi.
 
 Hal qilinmagan avans (qaytarilmagan va ushlab qolinmagan) **Avans hal qilinmagan** deb ko'rinib turadi.
+
+### Bron tasdig'i: mehmon nima oladi
+
+Bron tasdiqlanganda mehmonga **bitta xabar** boradi. Unda mehmon o'zi to'laydigan narxlar oldindan yozilgan bo'ladi — shu sabab
+[«Oldindan e'lon qilish»](#6-xizmat-haqi-va-oldindan-elon-qilish) talabi o'z-o'zidan bajariladi:
+
+```
+Bron tasdiqlandi ✅
+Choyxona nomi, filial manzili
+📅 Juma, 31-oktabr, 19:00–23:00
+🚪 Xona: "Katta xona" (20 kishilik) · 12 kishi
+💵 Xona puli: 300 000 so'm (dam olish kuni narxi)
+🍽 Oldindan buyurtma: Osh 3 kg, Qozon kabob 2 kg
+💳 Bo'nak olindi: 500 000 so'm
+ℹ️ Bekor qilish bron vaqtidan 24 soat oldin; bo'nak qaytariladi
+📞 Filial telefoni · Bron raqami: ABC123
+```
+
+- **Xona puli** — xonaning shu sanadagi narxi: oddiy kun, dam olish kuni yoki bayram kuni ([4-bo'lim](#4-xona-tariflari-va-bayramlar)).
+  Buyurtma ochilganda ham aynan shu narx qo'llanadi, shuning uchun mehmonga aytilgan narx va schyotdagi narx bir xil.
+- Xonada **minimal buyurtma** bo'lsa, xona puli o'rniga «Minimal buyurtma: 1 500 000 so'm» yoziladi. Zalda **xizmat haqi** bo'lsa,
+  «Xizmat haqi: 10%» qatori qo'shiladi.
+- **Oldindan buyurtma** va **bo'nak** qatorlari bronda bo'lsa chiqadi. Bo'nak — qaytarilgan qismi ayirilgan summa.
+- Xona hali tanlanmagan bo'lsa, «Xona: keyin belgilanadi» yoziladi va xona puli qatori chiqmaydi.
+- «Bekor qilish» qatori — siz yozgan qoida (pastda). Yozmasangiz, qator chiqmaydi.
+
+**Sozlash.** **Kassa sozlamalari** → **Kassa sozlamalari** yorlig'i → **Bron tasdig'i** bloki (har filial uchun alohida):
+
+| Sozlama | Nima |
+|---|---|
+| **Bron tasdiqlanganda mehmonga avtomatik yuborilsin** | Yoqilgan bo'lsa (standart), bron tasdiqlanishi bilan xabar o'zi ketadi. O'chirsangiz, kassir xabarni qo'lda yuboradi |
+| **SMS orqali ham yuborilsin** | Standart — o'chiq. **SMS pullik: har bir xabar uchun SMS xizmati haq oladi.** Faqat Telegram yetmasa yoqing |
+| **Bekor qilish qoidasi** | Ixtiyoriy, ko'pi bilan 300 belgi. Masalan: «Bekor qilish bron vaqtidan 24 soat oldin; bo'nak qaytariladi» |
+
+**Xabar qaerga boradi.** «Yuborish» (yoki avtomatik yuborish) shunday tanlaydi:
+
+1. Mehmonning telefon raqami Rizqim'da ro'yxatdan o'tgan va u do'koningiz botiga Telegram'da yozgan bo'lsa — **Telegram'ga** (bepul).
+2. Bo'lmasa va SMS yoqilgan bo'lsa — **SMS** bilan (pullik).
+3. Ikkalasi ham bo'lmasa — xabar ketmaydi, ekranda «kanal yo'q» deb yoziladi. Bunda matndan **nusxa olib**, o'zingiz Telegram yoki
+   WhatsApp orqali yuboring.
+
+**Bronlar** bo'limida bronni oching: **Tasdiq** bo'limida **Tasdiqni ko'rish** matnni ko'rsatadi (qaysi kanal ishlashi ham yoziladi),
+**Yuborish** xabarni jo'natadi, **Nusxa olish** matnni nusxalaydi. Yuborilgan bo'lsa, «Tasdiq yuborilgan: 19:42, Telegram» deb yoziladi.
+Kerak bo'lsa, qayta yuborish mumkin.
+
+> **Esda tuting.** Bron vaqti, xonasi yoki mehmonlar soni o'zgarsa, xabar **o'zi qayta ketmaydi**: o'zgarishdan keyin **Yuborish** ni o'zingiz bosing.
+> Avtomatik yuborish xato bersa ham bron saqlanadi — kassir xabarni qo'lda yuboradi.
 
 ## 13. Nasiya va qarzdorlar
 

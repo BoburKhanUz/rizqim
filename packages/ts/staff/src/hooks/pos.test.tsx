@@ -2,7 +2,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { json, makeQueryClient, mockFetch, ok, wrapperFor } from '../test/helpers';
 import { accountKeys, useCreateCustomerAccount, useCustomerAccounts, useDebtors, useUpdateCustomerAccount } from './accounts';
-import { bookingKeys, useBookingCalendar, useCancelBooking, useCreateBooking, useUpdateBooking } from './bookings';
+import { bookingKeys, useBookingCalendar, useBookingConfirmation, useCancelBooking, useCreateBooking, useSendBookingConfirmation, useUpdateBooking } from './bookings';
 import { floorKeys, useCreateDiningTable, useCreateHall, useCreateRoomTariff, useDeleteHall, useHalls, useRoomTariffs, useSaveFloorLayout, useSaveTariffCalendar } from './floor';
 import { posSetupKeys, useAssignStationRoutes, useBranchPosSettings, useCreateKitchenStation, useDeleteKitchenStation, useKitchenStations, useSaveBranchPosSettings } from './posSetup';
 import { shiftKeys, useBranchShiftSummary, useShift, useShifts } from './shifts';
@@ -159,6 +159,40 @@ describe('booking hooks', () => {
       await result.current.mutateAsync({ starts_at: '2026-10-25T18:00:00', contact_name: 'Aziz' }).catch(() => undefined);
     });
     expect((onError.mock.calls[0]![0] as { reason?: string }).reason).toBe('booking_conflict');
+  });
+});
+
+describe('booking confirmation hooks (P3-38)', () => {
+  it('loads the confirmation of a booking under its own key, and waits while there is no booking', async () => {
+    const { calls } = mockFetch({ 'GET /api/v1/pos/bookings/b1/confirmation': () => ok({ text: 'Bron tasdiqlandi', lines: [], room_fee: null, channels: { telegram: false, sms: true } }) });
+    const queryClient = makeQueryClient();
+    const waiting = renderHook(() => useBookingConfirmation(null), { wrapper: wrapperFor(queryClient) });
+    expect(waiting.result.current.fetchStatus).toBe('idle');
+    const { result } = renderHook(() => useBookingConfirmation('b1'), { wrapper: wrapperFor(queryClient) });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(calls).toHaveLength(1);
+    expect(queryClient.getQueryData(bookingKeys.confirmation('b1'))).toMatchObject({ channels: { sms: true } });
+  });
+
+  it('reads the book again after a send (the booking now says when it was sent) and hands no_channel to the caller', async () => {
+    let refuse = false;
+    mockFetch({
+      'POST /api/v1/pos/bookings/b1/confirmation/send': () => (refuse ? json({ success: false, message: "Kanal yo'q.", data: { reason: 'no_channel' } }, 422) : ok({ channel: 'sms', queued: true })),
+    });
+    const queryClient = makeQueryClient();
+    const invalidate = invalidations(queryClient);
+    const onError = vi.fn();
+    const { result } = renderHook(() => useSendBookingConfirmation({ onError }), { wrapper: wrapperFor(queryClient) });
+    await act(async () => {
+      expect(await result.current.mutateAsync({ uuid: 'b1' })).toEqual({ channel: 'sms', queued: true });
+    });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: bookingKeys.all });
+    refuse = true;
+    await act(async () => {
+      await result.current.mutateAsync({ uuid: 'b1' }).catch(() => undefined);
+    });
+    expect((onError.mock.calls[0]![0] as { reason?: string }).reason).toBe('no_channel');
+    expect(invalidate).toHaveBeenCalledTimes(1);
   });
 });
 

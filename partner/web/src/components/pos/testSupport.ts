@@ -101,6 +101,8 @@ export const booking = (over: Partial<Booking> = {}): Booking => ({
   arrived_at: null,
   completed_at: null,
   canceled_at: null,
+  confirmation_sent_at: null,
+  confirmation_channel: null,
   created_at: '2026-10-20T09:00:00+00:00',
   updated_at: null,
   ...over,

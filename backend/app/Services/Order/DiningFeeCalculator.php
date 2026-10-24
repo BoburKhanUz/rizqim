@@ -2,8 +2,10 @@
 
 namespace App\Services\Order;
 
+use App\Enums\MinSpendMode;
 use App\Enums\OrderChannel;
 use App\Enums\PlaceFeeMode;
+use App\Models\DiningTable;
 use App\Models\ServiceFeeSetting;
 use App\Support\Money;
 
@@ -88,6 +90,49 @@ class DiningFeeCalculator
             'place_fee' => $placeFee,
             'service_charge_percent' => $serviceCharge->isPositive() ? $percent : '0.00',
         ];
+    }
+
+    /**
+     * P3-38: what a guest is told ahead (the booking confirmation): the service charge percent that will apply on
+     * `$channel` ("0.00": none) and the place fee for `$guests`, each only where these settings apply it to the channel.
+     *
+     * @return array{service_charge_percent: string, place_fee: Money}
+     */
+    public function announced(ServiceFeeSetting $settings, OrderChannel $channel, ?int $guests): array
+    {
+        $percent = (string) $settings->service_charge_percent;
+        $charged = $this->appliesTo($settings->service_charge_channels, $channel) && Money::of($percent)->isPositive();
+
+        return [
+            'service_charge_percent' => $charged ? Money::of($percent)->toString() : '0.00',
+            'place_fee' => $this->apply($settings, $channel, Money::zero(), $guests)['place_fee'],
+        ];
+    }
+
+    /**
+     * The minimum spend ("obyazalovka", R4) in force: the booking's own amount agreed with the guest
+     * (bookings.min_spend) when it is set and above 0 — for the whole booking, never × guests — else the room's
+     * (dining_tables.min_spend, × `$guests` (at least 1) when per_person); null when neither has one. The one rule for
+     * what the booking confirmation tells the guest (P3-38) and what the order charges (PosChargesCalculator), so the two
+     * cannot drift. `per_person` is the room's amount for one guest when the room's per-person minimum applies.
+     *
+     * @return array{amount: Money, source: 'booking'|'room', per_person: Money|null}|null
+     */
+    public function minimumSpend(?string $bookingMinSpend, ?DiningTable $room, ?int $guests): ?array
+    {
+        if ($bookingMinSpend !== null && Money::of($bookingMinSpend)->isPositive()) {
+            return ['amount' => Money::of($bookingMinSpend), 'source' => 'booking', 'per_person' => null];
+        }
+
+        if ($room === null || $room->min_spend === null || !Money::of($room->min_spend)->isPositive()) {
+            return null;
+        }
+
+        $amount = Money::of($room->min_spend);
+
+        return $room->min_spend_mode === MinSpendMode::PER_PERSON
+            ? ['amount' => $amount->times(max(1, (int) $guests)), 'source' => 'room', 'per_person' => $amount]
+            : ['amount' => $amount, 'source' => 'room', 'per_person' => null];
     }
 
     /**

@@ -38,6 +38,8 @@ class Unassigned {
     required this.arrivedAt,
     required this.completedAt,
     required this.canceledAt,
+    required this.confirmationSentAt,
+    required this.confirmationChannel,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -98,6 +100,10 @@ class Unassigned {
   final String? completedAt;
   @JsonKey(name: 'canceled_at')
   final String? canceledAt;
+  @JsonKey(name: 'confirmation_sent_at')
+  final String? confirmationSentAt;
+  @JsonKey(name: 'confirmation_channel')
+  final String? confirmationChannel;
   @JsonKey(name: 'created_at')
   final String? createdAt;
   @JsonKey(name: 'updated_at')

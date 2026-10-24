@@ -10,7 +10,7 @@ V1PosOrdersUuidDiscountRequestBody _$V1PosOrdersUuidDiscountRequestBodyFromJson(
   Map<String, dynamic> json,
 ) => V1PosOrdersUuidDiscountRequestBody(
   version: (json['version'] as num).toInt(),
-  kind: Kind5.fromJson(json['kind'] as String),
+  kind: Kind6.fromJson(json['kind'] as String),
   value: json['value'] as num,
   reason: json['reason'] as String?,
   approvalToken: json['approval_token'] as String?,

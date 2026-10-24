@@ -39,7 +39,7 @@ use RuntimeException;
  *
  * Test-only: it refuses to run in any environment but local, testing and e2e, so it can never put known PINs and
  * tokens into a staging or production database. Everything the test needs (ids, PINs, the terminals as
- * `POST /devices/pair` answers them, the customer's token) is written as JSON to E2E_POS_SEED_FILE (default
+ * `POST /devices/pair` answers them, the customer's and the owner's tokens) is written as JSON to E2E_POS_SEED_FILE (default
  * storage/app/pos-e2e-seed.json).
  *
  *   APP_ENV=e2e php artisan migrate:fresh --force && APP_ENV=e2e php artisan db:seed --class=PosStackSeeder --force
@@ -161,7 +161,8 @@ class PosStackSeeder extends Seeder
             'store' => ['id' => $this->store->id, 'name' => $this->store->name, 'tin' => self::TIN],
             'branch' => ['id' => $this->branch->id, 'name' => $this->branch->name],
             'staff' => [
-                'owner' => ['id' => $owner->id, 'name' => $owner->name, 'pin' => null],
+                // The partner web's sign-in (no PIN): the owner settings API, e.g. the booking confirmation's SMS switch
+                'owner' => ['id' => $owner->id, 'name' => $owner->name, 'pin' => null, 'token' => $owner->createToken('pos-e2e-owner')->plainTextToken],
                 'manager' => ['id' => $manager->id, 'name' => $manager->name, 'pin' => self::MANAGER_PIN],
                 'cashier' => ['id' => $cashier->id, 'name' => $cashier->name, 'pin' => self::CASHIER_PIN],
                 'waiter1' => ['id' => $waiter1->id, 'name' => $waiter1->name, 'pin' => self::WAITER_1_PIN],
