@@ -1,6 +1,6 @@
 # 4-bosqich rejasi: RIZQIM boshqaruv markazi va yangi billing
 
-Holat: **taklif (2-tahrir), egasining tasdig'ini kutmoqda** (24.10.2026).
+Holat: **taklif (3-tahrir: integratsiyalar va shaxsiy ma'lumotlar tuzatildi), egasining tasdig'ini kutmoqda** (25.10.2026).
 
 ## 1. Nima uchun
 
@@ -115,6 +115,17 @@ filtr va Excel'ga eksport, har bir amal sabab bilan jurnalga yoziladi.
 - **Jamoa:** RIZQIM xodimlari, rollar, 2FA holati, oxirgi kirish.
 - **Harakatlar jurnali:** kim, qachon, qaysi ovqatxona yoki buyurtmada nima qildi; o'zgartirib bo'lmaydi.
 
+### 4.10. Integratsiyalar
+- **Ulanishlar:** ovqatxona yoki filial bo'yicha tashqi tizim (iiko, Alipos, Yandex Eats, Uzum Tezkor, Partner API),
+  yo'nalish, holat va sog'liq (oxirgi so'rov, oxirgi webhook, xatolar soni).
+- **Hodisalar jurnali:** so'rov va javoblar, urinishlar, "qayta yuborish" tugmasi.
+- **Menyu xaritasi:** tashqi taom ↔ RIZQIM taomi, bog'lanmagan taomlar, mos kelmay qolganlar haqida ogohlantirish.
+- **Qotib qolgan buyurtmalar:** yuborilgan, lekin tashqi tizim qabul qilmagan — "Bugun → Diqqat talab qiladi"ga ham tushadi.
+- **Hamkor ilovalar:** Partner API klientlari, sinov yoki ishchi kalitlar, tasdiqlash holati (kalitlar to'liq ko'rsatilmaydi).
+- **Agregator solishtirishi:** Yandex va Uzum buyurtmalari va komissiyasini hisobotlar bilan solishtirish.
+
+Bu bo'limning to'liq ishlashi 5-bosqichdagi ulagichlar bilan keladi; 4-bosqichda ekran joyi va ma'lumot modeli tayyorlanadi.
+
 ## 5. Jamoa rollari
 
 | Rol | Ruxsat |
@@ -157,8 +168,15 @@ jurnalga yoziladi.
 - **Tezkor ko'rsatkichlar:** bosh sahifa raqamlari xotirada hisoblanmaydi — kunlik va soatlik yig'ma jadvallar
   fon vazifasida yangilanadi.
 - **Real vaqt:** `platform.ops` yopiq kanali (Reverb) orqali yangi buyurtma, muammo va ogohlantirishlar.
-- **Ma'lumot joylashuvi:** O'zbekiston fuqarolarining shaxsiy ma'lumotlari qonunga ko'ra O'zbekistondagi serverda
-  saqlanishi kerak — production va staging server tanlovida hisobga olinadi.
+- **Ma'lumot joylashuvi:** 27.03.2026 dan (ORQ-1125) faqat biometrik, genetik va aloqa abonentlari ma'lumotlarini
+  O'zbekistonda saqlash majburiy; ism, telefon, manzil va buyurtmalar chet elda ham saqlanishi mumkin, lekin buning
+  uchun kerakli ro'yxatlar hali qabul qilinmagan va chetga uzatish rozilik talab qiladi. Rizqim soliq API'sidan
+  foydalansa yoki "Marketpleys" sifatida ro'yxatdan o'tsa, server va IP O'zbekistonda bo'lishi shart. Shuning uchun
+  production va staging'ni O'zbekistondagi serverda joylashtirish tavsiya qilinadi.
+- **Integratsiyalar uchun asos hozirdan:** `integration_connections`, `integration_events`, `external_refs`
+  jadvallari va buyurtmada `fiscalized_by` maydoni (chekni kim chiqargan: joy kassasi, to'lov tizimi yoki agregator)
+  shu bosqichda loyihalanadi, keyingi bosqichdagi ulagichlar ularga quriladi
+  (`docs/research/reports/POS va agregator integratsiyalari.md`).
 
 ## 8. Eski paneldan o'tish
 
@@ -218,14 +236,19 @@ To'lqin 3  "To'liq almashtirish"
 ## 11. Bu bosqichga kirmaydi (keyin)
 
 - RIZQIM kuryerlari tarmog'i va dispetcherlik (15% stavka shundan keyin ishlaydi).
-- Yandex Eats va Uzum Tezkor buyurtmalarini kassaga ulash, banket moduli.
+- **5-bosqich: integratsiyalar** (tadqiqot: `docs/research/reports/POS va agregator integratsiyalari.md`).
+  Tartib: poydevor (umumiy model, jurnal, sog'liq) → Yandex protokoli paketi (bir marta yoziladi, ikki tomonga ishlaydi)
+  → RIZQIM buyurtmalari Alipos'ga, keyin iiko'ga → Yandex Eats va Uzum Tezkor buyurtmalari Rizqim POS'ga → boshqa
+  "Yandex rejimidagi" POS'lar (Mison, REGOS) → ochiq RIZQIM Partner API → R-Keeper (BUSOFT orqali), Clopos, Poster.
+  Muzokaralar (Alipos, Uzum, Yandex, iiko dasturchi portali, BUSOFT) hozirdan parallel boshlanadi.
+- Banket moduli.
 - Ombor va taom tannarxi.
 - Didox orqali elektron hisob-faktura (egasi kerak desa, 2-to'lqinga qo'shiladi).
 - Rus va ingliz tarjimasi.
 
 ## 12. Egasidan kerak
 
-1. Admin manzili (masalan `admin.rizqim.uz`) va server: shaxsiy ma'lumotlar uchun O'zbekistondagi server.
+1. Admin manzili (masalan `admin.rizqim.uz`) va server (O'zbekistondagi server tavsiya: soliq API va Marketpleys talabi).
 2. 2FA usuli: telefon ilovasi (Google Authenticator) — tavsiya; yoki Telegram kodi.
 3. Jamoa rollari (5-bo'lim) to'g'rimi?
 4. Egasi nomidan kirish: faqat ko'rish (tavsiya) yoki o'zgartirish ham (jurnal bilan).
@@ -233,3 +256,7 @@ To'lqin 3  "To'liq almashtirish"
 6. Qo'lda tuzatishda ikkinchi xodim tasdig'i qaysi summadan boshlanadi (taklif: 1 mln so'm)?
 7. Ovqatxonalar uchun Didox elektron hisob-faktura kerakmi?
 8. Yangi markaz tayyor bo'lgach, ikkala eski Filament panelni (`/superadmin` va `/admin`) o'chirishga rozilik.
+9. Integratsiyalar uchun muzokaralarni boshlash: Alipos (API kaliti, narxi), Uzum Tezkor (spetsifikatsiya, chekni kim
+   chiqaradi), Yandex Eats (O'zbekistonda uchinchi tomon POS ulanishi, chek), iiko dasturchi portalida ro'yxatdan
+   o'tish, BUSOFT (R-Keeper hub'i); soliq maslahatchisi bilan fiskal jadvalni tekshirish va Rizqim'ni "Marketpleys"
+   sifatida ro'yxatdan o'tkazish qarori.
