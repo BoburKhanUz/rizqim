@@ -7,17 +7,13 @@ part of 'data154.dart';
 // **************************************************************************
 
 Data154 _$Data154FromJson(Map<String, dynamic> json) => Data154(
-  order: Order8.fromJson(json['order'] as Map<String, dynamic>),
-  bills: (json['bills'] as List<dynamic>)
-      .map((e) => Bills.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  refunds: (json['refunds'] as List<dynamic>)
-      .map((e) => Refunds.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  booking: Booking4.fromJson(json['booking'] as Map<String, dynamic>),
+  payment: Payment3.fromJson(json['payment'] as Map<String, dynamic>),
+  fiscal: Fiscal7.fromJson(json['fiscal'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data154ToJson(Data154 instance) => <String, dynamic>{
-  'order': instance.order,
-  'bills': instance.bills,
-  'refunds': instance.refunds,
+  'booking': instance.booking,
+  'payment': instance.payment,
+  'fiscal': instance.fiscal,
 };

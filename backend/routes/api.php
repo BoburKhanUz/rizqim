@@ -192,4 +192,8 @@ Route::prefix('v1')->group(function () {
 
     // P3-31: offline limited mode: POST /pos/sync, sync status and errors (docs/API.md "Internetsiz rejim")
     require __DIR__ . '/api_pos_sync.php';
+
+    // P4-11: the Boshqaruv markazi's admin API (/admin/*: own admin token with 2FA, team permissions, audit;
+    // docs/API.md "Admin API")
+    require __DIR__ . '/api_admin.php';
 });

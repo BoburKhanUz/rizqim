@@ -41,6 +41,7 @@ Hammasi `Authorization: Bearer <token>`. Tafsilotlar va barcha muddatlar: [AUTH.
 | Tokenni yangilash | refresh token | `POST /auth/refresh {refresh_token, device_uuid}` | yangi juftlik; eskisi sarflanadi |
 | POS/KDS terminal | 8 belgili ulash kodi (egasi panelda oladi) | `POST /devices/pair {code, name?, platform?, app_version?}` | terminal tokeni (365 kun yoki o'chirilguncha) |
 | Terminaldagi xodim | PIN yoki `staff_code` + PIN, terminal tokeni bilan | `POST /devices/{uuid}/staff-session {user_id \| staff_code, pin}` | xodim sessiyasi (12 soat), terminalga bog'langan |
+| RIZQIM jamoasi (P4-11, Boshqaruv markazi) | email + parol, keyin TOTP kod (2FA) | `POST /admin/auth/login` → `POST /admin/auth/2fa/verify` (birinchi marta `2fa/setup` → `2fa/confirm`) | admin sessiyasi: 12 soat, 60 daqiqa harakatsizlikda tugaydi; faqat `/admin/*` uchun ("Admin API" bo'limi) |
 
 Muhim qoidalar:
 
@@ -233,6 +234,7 @@ terminal faqat `private-pos-branch.{branchId}` kanaliga qo'shila oladi (boshqa k
 | `private-courier.{userId}` | kuryerning o'zi (o'rnini bosgan ega/menejer ham) | `order.status_changed`, `order.assigned` |
 | `private-user.{userId}` | mijozning o'zi | `order.status_changed` |
 | `menu.{storeId}` | ochiq, obunasiz | `menu.availability_changed` |
+| `private-platform.ops` (P4-11) | RIZQIM jamoasi: `admin.today.view` ruxsati bor a'zo, faqat **admin tokeni** bilan | `ops.ping` (sinov); 2-bosqichda yangi buyurtmalar, muammolar, ogohlantirishlar |
 
 Hodisa tanalari:
 
@@ -1769,3 +1771,140 @@ Migratsiya (qo'shimcha, qaytariladigan): `2026_10_30_100000_add_discount_details
 Testlar: `tests/Feature/PosDiscountTest.php`, `tests/Feature/PosDiscountEndToEndTest.php` (chegirma → ikki schyot →
 to'lov → cheklar → X/Z), `tests/Feature/PosBilling/PosCashierPermissionsTest.php` (katta chiqim xabari, to'liq
 qaytarilgan buyurtmani bekor qilish), `PosBranchSettingsApiTest`, `PermissionMatrixTest`.
+
+## Admin API (P4-11)
+
+Boshqaruv markazi (`platform/admin`) uchun: RIZQIM jamoasining kirishi, 2FA, jamoa, rollar, harakatlar jurnali,
+qidiruv. Hammasi `/api/v1/admin` ostida, OpenAPI'da **Admin** guruhi. Kod: `routes/api_admin.php`,
+`app/Http/Controllers/Api/V1/Admin`, `app/Services/Admin`.
+
+### Kim kiradi
+
+- Jamoa a'zosi — `users.platform_role` to'ldirilgan foydalanuvchi: `superadmin`, `operator`, `support` (Yordam),
+  `finance` (Moliya), `sales` (Savdo va ulash), `viewer` (Faqat ko'rish).
+- Eski `super_admin` lar avtomatik `superadmin` bo'ldi; ular do'kon API'si va eski Filament panellarida avvalgidek
+  ishlaydi, faqat keyingi kirishda 2FA o'rnatadi.
+- Boshqa rollar uchun yangi `users.role = platform`: do'kon huquqi ham, mijoz imkoniyati ham yo'q; hamkor paneli,
+  Mini App, POS va eski panellarga kira olmaydi.
+
+### Token: alohida `admin` turi
+
+- Sessiya — Sanctum token qatori, nomi va yagona huquqi `admin` (`App\Auth\AdminTokenGuard`, guard `auth:admin`).
+  Har kirish — bitta qator; "Sessiyalarim"da ko'rinadi va bekor qilinadi.
+- Muddat: kirishdan 12 soat (`ADMIN_SESSION_LIFETIME`), so'rovsiz 60 daqiqa (`ADMIN_SESSION_IDLE`) o'tsa tugaydi —
+  keyin 401.
+- **Ikki tomonlama devor:** admin tokeni do'kon, mijoz va terminal endpointlarida 401 oladi (superadmin'niki ham);
+  do'kon, mijoz, xodim va terminal tokenlari `/admin/*` da 401 oladi. `platform` rolidagi a'zoning boshqa tokenlari
+  umuman ishlamaydi; o'chirilgan a'zoniki ham.
+
+### Kirish ketma-ketligi (`/admin/auth`, cheklangan)
+
+1. `POST /admin/auth/login {email, password}` → `data: {status: "otp_required" | "setup_required", challenge_token,
+   expires_at}`. Challenge 5 daqiqa, bir marta ishlatiladi. Noma'lum email va noto'g'ri parol — bir xil 422
+   `invalid_credentials`. O'chirilgan a'zo (faqat to'g'ri paroldan keyin) — 403 `member_disabled`.
+2. `POST /admin/auth/2fa/setup {challenge_token}` (faqat `setup_required`) → `{secret, otpauth_uri, qr_svg}` (issuer
+   `RIZQIM`, label — email; QR serverda chiziladi, SVG matn). Shu challenge bilan qayta so'ralsa — o'sha kalit.
+   2FA yoqilgan bo'lsa — 409 `two_factor_already_enabled`.
+3. `POST /admin/auth/2fa/confirm {challenge_token, code}` → sessiya `{token, expires_at, member}` va
+   `recovery_codes` (10 ta, faqat shu javobda; bazada xeshlangan).
+4. `POST /admin/auth/2fa/verify {challenge_token, code | recovery_code}` → sessiya `{token, expires_at, member}`.
+   Zaxira kodi bir marta ishlaydi. Qabul qilingan kod (yoki undan eskisi) qayta ishlamaydi — 30 soniyalik oyna
+   ichida ham.
+5. `POST /admin/auth/invite/accept {token, password}` (taklif havolasidan; parol kamida 12 belgi, email emas) →
+   `setup_required` challenge (keyin 2- va 3-qadam). Eskirgan, ishlatilgan yoki qayta berilgan havola — 422
+   `invite_invalid`.
+
+Qulflash: bitta hisob + bitta IP manzildan 5 ta noto'g'ri parol yoki 5 ta noto'g'ri kod (2FA, zaxira, step-up) —
+15 daqiqaga 429 `locked` (`data.retry_after`, `Retry-After` sarlavhasi). Kodlar uchun hisob bo'yicha barcha
+manzillardan jami 15 ta. Har bir urinish jurnalga yoziladi (parol, kod, tokenlarsiz).
+
+### Sessiya bilan
+
+| Endpoint | Nima |
+|---|---|
+| `GET /admin/me` (yoki `GET /admin/auth/me`) | `{member, platform_role, permissions, two_factor_enabled, recovery_codes_left, last_login_at, session}` |
+| `POST /admin/auth/logout` | joriy sessiyani yopadi |
+| `GET /admin/auth/sessions` | mening jonli sessiyalarim (`current` — shu sessiya) |
+| `DELETE /admin/auth/sessions/{id}` | sessiyani yopadi; boshqasini yopish uchun step-up kerak |
+| `POST /admin/auth/confirm {code}` | **step-up**: joriy sessiya 10 daqiqa "tasdiqlangan" bo'ladi |
+| `POST /admin/auth/2fa/recovery-codes` | yangi 10 ta zaxira kodi (step-up) |
+
+**Step-up (`admin.recent`):** muhim amal oldidan yangi TOTP kod so'raladi. Tasdiqsiz bo'lsa javob 403
+`{code: "reauth_required"}` — ilova kodni so'raydi, `POST /admin/auth/confirm` qiladi va so'rovni bir marta qayta
+yuboradi. Hozir: jamoa va rollar o'zgarishi, 2FA tiklash, zaxira kodlari, boshqa sessiyani yopish; 2-bosqichda pul
+va buyurtmaga aralashish amallari.
+
+### Jamoa va rollar (`admin.team.manage`)
+
+| Endpoint | Nima |
+|---|---|
+| `GET /admin/team`, `GET /admin/team/{id}` | a'zolar: rol, `status` (`invited`, `active`, `disabled`), 2FA, oxirgi kirish, jonli sessiyalar |
+| `POST /admin/team {name, email, platform_role}` | taklif (step-up): a'zo yaratiladi, `invite_url` (72 soat) faqat shu javobda |
+| `POST /admin/team/{id}/invite` | taklifni qayta berish (step-up); eski havola ishlamay qoladi |
+| `PATCH /admin/team/{id} {platform_role?, disabled?}` | rolni o'zgartirish, o'chirish/yoqish (step-up); o'chirish barcha sessiyalarni yopadi |
+| `POST /admin/team/{id}/reset-2fa` | 2FA ni o'chirish (step-up): a'zo keyingi kirishda qayta o'rnatadi |
+| `GET /admin/roles` | `{roles: [{key, label, editable}], permissions: [{key, label, group}], grants: {rol: [ruxsat…]}, defaults: {rol: [ruxsat…]}}` — `defaults` o'zgartirishlarsiz standart jadval ("O'zgartirilgan" belgisi uchun) |
+| `PUT /admin/roles {role, permission, allowed}` | `allowed`: `true`, `false`, `null` (standartga qaytarish) (step-up) |
+
+Qoidalar: o'zingizning rolingizni o'zgartira, o'zingizni o'chira yoki 2FA'ingizni tiklay olmaysiz
+(`cannot_change_self`); oxirgi faol superadmin qoladi (`last_superadmin`); superadmin hisobiga va superadmin rolini
+berishga faqat superadmin tegadi (`superadmin_only`). Superadmin roli o'zgarmaydi (`role_not_editable`).
+
+Ruxsatlar (`App\Enums\AdminPermission`, `admin.*`): `today.view`, `orders.view`, `orders.intervene`,
+`orders.refund_request`, `orders.refund_approve`, `stores.view`, `stores.manage`, `stores.impersonate`,
+`finance.view`, `finance.manage`, `payouts.approve`, `subscriptions.manage`, `devices.view`, `monitoring.view`,
+`monitoring.manage`, `support.view`, `support.manage`, `users.view`, `marketing.manage`, `integrations.view`,
+`integrations.manage`, `system.manage`, `team.manage`, `audit.view`, `pii.view`, `export`, `marketing.view`. Standart jadval:
+`App\Services\Admin\PlatformRolePermissions` (Faqat ko'rish — hamma `*.view`, `pii.view` va `export` siz).
+
+### Harakatlar jurnali (`admin.audit.view`)
+
+`GET /admin/audit-logs` — butun platforma (jamoa va hamma do'konlar yozuvlari), eng yangisi birinchi, kursor bilan
+(`cursor` ← `next_cursor`, `per_page` 1–100). Filtrlar: `actor_id`, `action` (prefiks: `admin.team` yoki
+`admin.team.*`), `store_id`, `subject_type` + `subject_id`, `from`/`to`, `q`. Har yozuvda `actor`, `store`,
+`subject_type/id`, `before`, `after`, `meta`, `reason`, `ip`, `user_agent`.
+
+- Har bir admin o'zgartirishi avtomatik yoziladi (`App\Http\Middleware\RecordAdminAudit`): amal nomi — route nomi
+  (`admin.team.updated`, `admin.roles.updated`...), aktyor, obyekt, oldin/keyin, sabab, IP, brauzer.
+- Jurnal **o'zgarmaydi**: model ham, PostgreSQL trigger ham yozuvni yangilash va o'chirishni rad etadi.
+- IP va brauzer so'rovdan olinadi: admin ilovasining server proksisi (ichki tarmoq manzili) yuborgan
+  `X-Forwarded-For` ning oxirgi bo'g'ini va brauzer `User-Agent` i (ishonchli proksilar: `bootstrap/app.php`
+  `trustProxies`, faqat xususiy tarmoqlar). Taklif havolalari `ADMIN_APP_URL` ga olib boradi.
+- Sabab talab qiladigan amallar (2-bosqich) `reason` (3–500 belgi) oladi: `App\Http\Requests\Admin\AdminRules::reason()`.
+
+### Qidiruv
+
+`GET /admin/search?q=` (kamida 2 belgi) → `[{type, id, title, subtitle, href}]`: `store` (nomi, STIR, telefon;
+`stores.view`), `order` (kod yoki uuid boshi; `orders.view`), `user` (telefon, ism; `users.view`), `member` (jamoa;
+`team.manage`), har turdan ko'pi bilan 5 ta. `href` — admin ilovadagi yo'l (`/stores/{id}`, `/orders/{uuid}`,
+`/users/{id}`, `/team/{id}`).
+
+**Shaxsiy ma'lumot:** telefon `+998 90 *** ** 67`, karta `8600 **** **** 1234` ko'rinishida (`App\Support\PiiMask`,
+`App\Services\Admin\AdminPii`). `admin.pii.view` bor a'zoga to'liq ko'rsatiladi va har ochilish jurnalga
+`admin.pii.revealed` bo'lib yoziladi.
+
+### Xato formati
+
+`{success: false, message, code, data: {reason, ...}}` — `code` va `data.reason` bir xil: `invalid_credentials`,
+`member_disabled`, `locked`, `challenge_invalid`, `invalid_code`, `invalid_recovery_code`, `setup_required`,
+`setup_not_started`, `two_factor_already_enabled`, `invite_invalid`, `invite_already_accepted`, `email_taken`,
+`reauth_required`, `forbidden`, `superadmin_only`, `cannot_change_self`, `last_superadmin`, `role_not_editable`,
+`not_found`. Validatsiya — odatdagidek 422 `errors`.
+
+### Eski panellar
+
+`/superadmin` (Filament) endi xuddi shu 2FA ni talab qiladi: bir xil kalit, zaxira kodlari va qayta ishlatishni
+taqiqlash qoidasi (`App\Filament\Auth\PlatformAppAuthentication`). 2FA siz superadmin avval uni o'rnatadi.
+`/admin` (do'kon paneli) sessiyasi bilan bir xil, shuning uchun superadmin u yerga ham faqat 2FA bilan kiradi; egalar
+va menejerlar avvalgidek.
+
+### 2-bosqich uchun ulash joylari
+
+- Bo'lim route fayllari: `routes/api_admin_today.php`, `api_admin_orders.php`, `api_admin_monitoring.php` —
+  `routes/api_admin.php` oxiridagi izoh joyiga `require` qilinadi (imzolangan guruh ichida, jurnal avtomatik).
+- Real-time: `App\Events\Broadcast\PlatformOpsBroadcast` dan meros oling (kanal `platform.ops`).
+- Migratsiyalar (qaytariladigan): `2026_11_01_100100` … `2026_11_01_100600` (users jamoa ustunlari,
+  `platform_role_permissions`, `admin_login_challenges`, `platform_invites`, token sessiya ustunlari, jurnal triggeri).
+
+Testlar: `tests/Feature/AdminAuthLoginTest.php`, `AdminSessionTest.php`, `AdminTeamTest.php`, `AdminAuditTest.php`,
+`AdminSearchTest.php`, `AdminChannelAndPanelTest.php`.

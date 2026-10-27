@@ -11,7 +11,7 @@ GetV1DeliveryQuoteResponse _$GetV1DeliveryQuoteResponseFromJson(
 ) => GetV1DeliveryQuoteResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data8.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data29.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1DeliveryQuoteResponseToJson(

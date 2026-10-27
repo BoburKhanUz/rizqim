@@ -12,7 +12,9 @@ final class AuditRedactor
 
     // Matched against a key's parts (split on _ - . and camelCase): pin_hash, card_number, initData, code, ...
     private const SECRET_PARTS = ['pin', 'password', 'passwd', 'secret', 'token', 'otp', 'pan', 'cvv', 'cvc', 'hash',
-        'card', 'remember', 'credential', 'credentials', 'initdata', 'init', 'apikey', 'key', 'code', 'signature'];
+        'card', 'remember', 'credential', 'credentials', 'initdata', 'init', 'apikey', 'key', 'code', 'signature',
+        // P4-11: 2FA (app_authentication_recovery_codes, totp...), challenge and invite tokens
+        'codes', 'recovery', 'totp', 'challenge'];
 
     // ... except these, which only name or number a record (an order's short code, a terminal staff code)
     private const NOT_SECRET = ['short_code', 'staff_code'];

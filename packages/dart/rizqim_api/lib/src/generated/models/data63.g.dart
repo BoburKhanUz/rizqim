@@ -7,21 +7,39 @@ part of 'data63.dart';
 // **************************************************************************
 
 Data63 _$Data63FromJson(Map<String, dynamic> json) => Data63(
-  enabled: json['enabled'] as bool,
-  tinSet: json['tin_set'] as bool,
-  taxRegime: json['tax_regime'] as String?,
-  productsMissingMxik: (json['products_missing_mxik'] as List<dynamic>)
-      .map((e) => ProductsMissingMxik.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  chargesMissingMxik: (json['charges_missing_mxik'] as List<dynamic>)
-      .map((e) => e as String)
-      .toList(),
+  id: (json['id'] as num).toInt(),
+  name: json['name'] as String,
+  branchId: (json['branch_id'] as num?)?.toInt(),
+  branch: json['branch'] == null
+      ? null
+      : Branch3.fromJson(json['branch'] as Map<String, dynamic>),
+  polygon: Polygon.fromJson(json['polygon'] as Map<String, dynamic>),
+  bbox: Bbox.fromJson(json['bbox'] as Map<String, dynamic>),
+  areaKm2: json['area_km2'] as String,
+  deliveryPrice: json['delivery_price'] as String,
+  minOrderAmount: json['min_order_amount'] as String,
+  freeDeliveryFrom: json['free_delivery_from'] as String?,
+  etaMinutes: (json['eta_minutes'] as num?)?.toInt(),
+  priority: (json['priority'] as num).toInt(),
+  active: json['active'] as bool,
+  createdAt: json['created_at'] as String?,
+  updatedAt: json['updated_at'] as String?,
 );
 
 Map<String, dynamic> _$Data63ToJson(Data63 instance) => <String, dynamic>{
-  'enabled': instance.enabled,
-  'tin_set': instance.tinSet,
-  'tax_regime': instance.taxRegime,
-  'products_missing_mxik': instance.productsMissingMxik,
-  'charges_missing_mxik': instance.chargesMissingMxik,
+  'id': instance.id,
+  'name': instance.name,
+  'branch_id': instance.branchId,
+  'branch': instance.branch,
+  'polygon': instance.polygon,
+  'bbox': instance.bbox,
+  'area_km2': instance.areaKm2,
+  'delivery_price': instance.deliveryPrice,
+  'min_order_amount': instance.minOrderAmount,
+  'free_delivery_from': instance.freeDeliveryFrom,
+  'eta_minutes': instance.etaMinutes,
+  'priority': instance.priority,
+  'active': instance.active,
+  'created_at': instance.createdAt,
+  'updated_at': instance.updatedAt,
 };

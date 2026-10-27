@@ -13,6 +13,10 @@ enum UserRole: string
     case CASHIER = 'cashier';
     case WAITER = 'waiter';
     case COOK = 'cook';
+    // P4-11: a RIZQIM team member other than the superadmin (users.platform_role: operator, support, finance, sales,
+    // viewer). No store-level permission, no customer features, no partner web / Mini App / POS sign-in: only the
+    // admin API with its own token (App\Auth\AdminTokenGuard)
+    case PLATFORM = 'platform';
 
     public function label(): string
     {
@@ -25,6 +29,7 @@ enum UserRole: string
             self::CASHIER => 'Cashier',
             self::WAITER => 'Waiter',
             self::COOK => 'Cook',
+            self::PLATFORM => 'Platform team',
         };
     }
 
@@ -42,6 +47,7 @@ enum UserRole: string
             self::CASHIER => 'Kassir',
             self::WAITER => 'Ofitsiant',
             self::COOK => 'Oshpaz',
+            self::PLATFORM => 'RIZQIM jamoasi',
         };
     }
 
@@ -90,7 +96,7 @@ enum UserRole: string
             self::OWNER => 50,
             self::MANAGER => 40,
             self::CASHIER, self::WAITER, self::COOK, self::COURIER => 10,
-            self::CUSTOMER => 0,
+            self::CUSTOMER, self::PLATFORM => 0,
         };
     }
 }

@@ -4,28 +4,20 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'movement.dart';
+import 'shift4.dart';
+
 part 'data196.g.dart';
 
 @JsonSerializable()
 class Data196 {
-  const Data196({
-    required this.id,
-    required this.name,
-    required this.role,
-    required this.staffCode,
-    required this.photoUrl,
-  });
+  const Data196({required this.movement, required this.shift});
 
   factory Data196.fromJson(Map<String, Object?> json) =>
       _$Data196FromJson(json);
 
-  final int id;
-  final String name;
-  final String role;
-  @JsonKey(name: 'staff_code')
-  final String? staffCode;
-  @JsonKey(name: 'photo_url')
-  final String? photoUrl;
+  final Movement movement;
+  final Shift4 shift;
 
   Map<String, Object?> toJson() => _$Data196ToJson(this);
 }

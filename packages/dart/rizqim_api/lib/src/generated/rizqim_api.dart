@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 
 import 'broadcast/broadcast_api.dart';
 import 'addresses/addresses_api.dart';
+import 'admin/admin_api.dart';
 import 'auth/auth_api.dart';
 import 'catalog/catalog_api.dart';
 import 'complaints/complaints_api.dart';
@@ -80,6 +81,7 @@ class RizqimApi {
 
   BroadcastApi? _broadcast;
   AddressesApi? _addresses;
+  AdminApi? _admin;
   AuthApi? _auth;
   CatalogApi? _catalog;
   ComplaintsApi? _complaints;
@@ -139,6 +141,8 @@ class RizqimApi {
 
   AddressesApi get addresses =>
       _addresses ??= AddressesApi(_dio, baseUrl: _baseUrl);
+
+  AdminApi get admin => _admin ??= AdminApi(_dio, baseUrl: _baseUrl);
 
   AuthApi get auth => _auth ??= AuthApi(_dio, baseUrl: _baseUrl);
 

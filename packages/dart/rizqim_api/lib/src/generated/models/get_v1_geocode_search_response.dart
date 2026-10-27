@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data17.dart';
+import 'data38.dart';
 
 part 'get_v1_geocode_search_response.g.dart';
 
@@ -21,7 +21,7 @@ class GetV1GeocodeSearchResponse {
 
   final bool success;
   final String message;
-  final List<Data17> data;
+  final List<Data38> data;
 
   Map<String, Object?> toJson() => _$GetV1GeocodeSearchResponseToJson(this);
 }

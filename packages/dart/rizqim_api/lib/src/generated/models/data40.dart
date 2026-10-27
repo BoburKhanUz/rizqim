@@ -4,28 +4,17 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'pos_settings.dart';
+import 'preferences.dart';
 
 part 'data40.g.dart';
 
 @JsonSerializable()
 class Data40 {
-  const Data40({
-    required this.branchId,
-    required this.timezone,
-    required this.businessDayStartsAt,
-    required this.posSettings,
-  });
+  const Data40({required this.preferences});
 
   factory Data40.fromJson(Map<String, Object?> json) => _$Data40FromJson(json);
 
-  @JsonKey(name: 'branch_id')
-  final int branchId;
-  final String timezone;
-  @JsonKey(name: 'business_day_starts_at')
-  final String businessDayStartsAt;
-  @JsonKey(name: 'pos_settings')
-  final PosSettings posSettings;
+  final List<Preferences> preferences;
 
   Map<String, Object?> toJson() => _$Data40ToJson(this);
 }

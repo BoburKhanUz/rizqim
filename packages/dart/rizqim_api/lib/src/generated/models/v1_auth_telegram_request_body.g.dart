@@ -14,7 +14,7 @@ V1AuthTelegramRequestBody _$V1AuthTelegramRequestBodyFromJson(
   startParam: json['start_param'] as String?,
   device: json['device'] == null
       ? null
-      : Device7.fromJson(json['device'] as Map<String, dynamic>),
+      : Device8.fromJson(json['device'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$V1AuthTelegramRequestBodyToJson(

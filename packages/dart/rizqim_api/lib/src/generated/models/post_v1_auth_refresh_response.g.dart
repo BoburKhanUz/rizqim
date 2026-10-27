@@ -11,7 +11,7 @@ PostV1AuthRefreshResponse _$PostV1AuthRefreshResponseFromJson(
 ) => PostV1AuthRefreshResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data4.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data25.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1AuthRefreshResponseToJson(

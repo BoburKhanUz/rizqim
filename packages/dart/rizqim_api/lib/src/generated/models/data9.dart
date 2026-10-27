@@ -4,48 +4,23 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'user5.dart';
-
 part 'data9.g.dart';
 
 @JsonSerializable()
 class Data9 {
   const Data9({
-    required this.uuid,
-    required this.type,
-    required this.name,
-    required this.platform,
-    required this.appVersion,
-    required this.storeId,
-    required this.branchId,
-    required this.user,
-    required this.hasPushToken,
-    required this.lastSeenAt,
-    required this.revokedAt,
-    required this.createdAt,
+    required this.status,
+    required this.challengeToken,
+    required this.expiresAt,
   });
 
   factory Data9.fromJson(Map<String, Object?> json) => _$Data9FromJson(json);
 
-  final String uuid;
-  final String type;
-  final String name;
-  final String? platform;
-  @JsonKey(name: 'app_version')
-  final String? appVersion;
-  @JsonKey(name: 'store_id')
-  final int? storeId;
-  @JsonKey(name: 'branch_id')
-  final int? branchId;
-  final User5? user;
-  @JsonKey(name: 'has_push_token')
-  final bool hasPushToken;
-  @JsonKey(name: 'last_seen_at')
-  final String? lastSeenAt;
-  @JsonKey(name: 'revoked_at')
-  final String? revokedAt;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
+  final String status;
+  @JsonKey(name: 'challenge_token')
+  final String challengeToken;
+  @JsonKey(name: 'expires_at')
+  final String expiresAt;
 
   Map<String, Object?> toJson() => _$Data9ToJson(this);
 }

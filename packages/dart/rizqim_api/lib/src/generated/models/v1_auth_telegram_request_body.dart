@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'device7.dart';
+import 'device8.dart';
 
 part 'v1_auth_telegram_request_body.g.dart';
 
@@ -25,7 +25,7 @@ class V1AuthTelegramRequestBody {
   final String botUsername;
   @JsonKey(name: 'start_param')
   final String? startParam;
-  final Device7? device;
+  final Device8? device;
 
   Map<String, Object?> toJson() => _$V1AuthTelegramRequestBodyToJson(this);
 }

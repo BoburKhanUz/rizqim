@@ -24,6 +24,7 @@ class MenuConcurrencyTest extends TestCase
 {
     use OrderLifecycleFixtures;
     use MenuFixtures;
+    use AuditLogCleanup;
 
     private string $dir;
 
@@ -52,7 +53,7 @@ class MenuConcurrencyTest extends TestCase
             $orderIds = Order::withTrashed()->where('store_id', $this->store->id)->pluck('id')->all();
 
             NotificationLog::whereIn('order_id', $orderIds)->orWhereIn('user_id', $userIds)->delete();
-            AuditLog::where('store_id', $this->store->id)->orWhereIn('user_id', $userIds)->delete();
+            $this->withoutAuditLogGuard(fn () => AuditLog::where('store_id', $this->store->id)->orWhereIn('user_id', $userIds)->delete());
             IdempotencyKey::where('actor_type', 'user')->whereIn('actor_id', $userIds)->delete();
             Order::withTrashed()->whereIn('id', $orderIds)->forceDelete();
             $categoryId = $this->product->category_id;

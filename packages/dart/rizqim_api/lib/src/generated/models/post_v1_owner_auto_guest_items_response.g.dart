@@ -11,7 +11,7 @@ PostV1OwnerAutoGuestItemsResponse _$PostV1OwnerAutoGuestItemsResponseFromJson(
 ) => PostV1OwnerAutoGuestItemsResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data28.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data49.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1OwnerAutoGuestItemsResponseToJson(

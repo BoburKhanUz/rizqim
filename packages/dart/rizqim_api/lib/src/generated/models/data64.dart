@@ -4,89 +4,57 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'type6.dart';
-import 'status5.dart';
-import 'payment_form.dart';
-import 'lines.dart';
-import 'payments.dart';
+import 'branch4.dart';
+import 'polygon2.dart';
+import 'bbox2.dart';
 
 part 'data64.g.dart';
 
 @JsonSerializable()
 class Data64 {
   const Data64({
-    required this.uuid,
-    required this.type,
-    required this.status,
-    required this.paymentForm,
-    required this.driver,
-    required this.provider,
-    required this.nonFiscal,
-    required this.taxRegime,
-    required this.total,
-    required this.vatTotal,
-    required this.fiscalSign,
-    required this.receiptNumber,
-    required this.qrUrl,
-    required this.terminalId,
-    required this.error,
-    required this.attempts,
-    required this.nextAttemptAt,
-    required this.issuedAt,
-    required this.createdAt,
+    required this.id,
+    required this.name,
     required this.branchId,
-    required this.deviceId,
-    required this.subjectType,
-    required this.subjectId,
-    required this.originalReceiptUuid,
-    required this.lines,
-    required this.payments,
+    required this.branch,
+    required this.polygon,
+    required this.bbox,
+    required this.areaKm2,
+    required this.deliveryPrice,
+    required this.minOrderAmount,
+    required this.freeDeliveryFrom,
+    required this.etaMinutes,
+    required this.priority,
+    required this.active,
+    required this.createdAt,
+    required this.updatedAt,
   });
 
   factory Data64.fromJson(Map<String, Object?> json) => _$Data64FromJson(json);
 
-  final String uuid;
-  final Type6 type;
-  final Status5 status;
-  @JsonKey(name: 'payment_form')
-  final PaymentForm paymentForm;
-  final String driver;
-  final String? provider;
-  @JsonKey(name: 'non_fiscal')
-  final bool nonFiscal;
-  @JsonKey(name: 'tax_regime')
-  final String? taxRegime;
-  final String total;
-  @JsonKey(name: 'vat_total')
-  final String vatTotal;
-  @JsonKey(name: 'fiscal_sign')
-  final String? fiscalSign;
-  @JsonKey(name: 'receipt_number')
-  final String? receiptNumber;
-  @JsonKey(name: 'qr_url')
-  final String? qrUrl;
-  @JsonKey(name: 'terminal_id')
-  final String? terminalId;
-  final String? error;
-  final int attempts;
-  @JsonKey(name: 'next_attempt_at')
-  final String? nextAttemptAt;
-  @JsonKey(name: 'issued_at')
-  final String? issuedAt;
-  @JsonKey(name: 'created_at')
-  final String createdAt;
+  final int id;
+  final String name;
   @JsonKey(name: 'branch_id')
   final int? branchId;
-  @JsonKey(name: 'device_id')
-  final int? deviceId;
-  @JsonKey(name: 'subject_type')
-  final String? subjectType;
-  @JsonKey(name: 'subject_id')
-  final int? subjectId;
-  @JsonKey(name: 'original_receipt_uuid')
-  final String? originalReceiptUuid;
-  final List<Lines> lines;
-  final List<Payments> payments;
+  final Branch4? branch;
+  final Polygon2 polygon;
+  final Bbox2 bbox;
+  @JsonKey(name: 'area_km2')
+  final String areaKm2;
+  @JsonKey(name: 'delivery_price')
+  final String deliveryPrice;
+  @JsonKey(name: 'min_order_amount')
+  final String minOrderAmount;
+  @JsonKey(name: 'free_delivery_from')
+  final String? freeDeliveryFrom;
+  @JsonKey(name: 'eta_minutes')
+  final int? etaMinutes;
+  final int priority;
+  final bool active;
+  @JsonKey(name: 'created_at')
+  final String? createdAt;
+  @JsonKey(name: 'updated_at')
+  final String? updatedAt;
 
   Map<String, Object?> toJson() => _$Data64ToJson(this);
 }

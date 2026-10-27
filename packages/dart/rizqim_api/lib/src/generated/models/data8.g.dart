@@ -7,23 +7,13 @@ part of 'data8.dart';
 // **************************************************************************
 
 Data8 _$Data8FromJson(Map<String, dynamic> json) => Data8(
-  zone: Zone.fromJson(json['zone'] as Map<String, dynamic>),
-  branch: Branch.fromJson(json['branch'] as Map<String, dynamic>),
-  deliveryPrice: json['delivery_price'] as String,
-  minOrderAmount: json['min_order_amount'] as String,
-  freeDeliveryApplies: json['free_delivery_applies'] as bool,
-  meetsMinOrder: json['meets_min_order'] as bool?,
-  eta: json['eta'] == null
-      ? null
-      : Eta.fromJson(json['eta'] as Map<String, dynamic>),
+  status: json['status'] as String,
+  challengeToken: json['challenge_token'] as String,
+  expiresAt: json['expires_at'] as String,
 );
 
 Map<String, dynamic> _$Data8ToJson(Data8 instance) => <String, dynamic>{
-  'zone': instance.zone,
-  'branch': instance.branch,
-  'delivery_price': instance.deliveryPrice,
-  'min_order_amount': instance.minOrderAmount,
-  'free_delivery_applies': instance.freeDeliveryApplies,
-  'meets_min_order': instance.meetsMinOrder,
-  'eta': instance.eta,
+  'status': instance.status,
+  'challenge_token': instance.challengeToken,
+  'expires_at': instance.expiresAt,
 };

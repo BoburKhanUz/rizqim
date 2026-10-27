@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'device2.dart';
+import 'device3.dart';
 
 part 'v1_auth_phone_select_account_request_body.g.dart';
 
@@ -20,7 +20,7 @@ class V1AuthPhoneSelectAccountRequestBody {
     Map<String, Object?> json,
   ) => _$V1AuthPhoneSelectAccountRequestBodyFromJson(json);
 
-  final Device2 device;
+  final Device3 device;
   @JsonKey(name: 'selection_token')
   final String selectionToken;
   @JsonKey(name: 'user_id')

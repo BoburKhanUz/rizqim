@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data28.dart';
+import 'data49.dart';
 
 part 'post_v1_owner_auto_guest_items_response.g.dart';
 
@@ -22,7 +22,7 @@ class PostV1OwnerAutoGuestItemsResponse {
 
   final bool success;
   final String message;
-  final Data28 data;
+  final Data49 data;
 
   Map<String, Object?> toJson() =>
       _$PostV1OwnerAutoGuestItemsResponseToJson(this);

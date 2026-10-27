@@ -11,7 +11,7 @@ GetV1PosSyncStatusResponse _$GetV1PosSyncStatusResponseFromJson(
 ) => GetV1PosSyncStatusResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data181.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data202.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1PosSyncStatusResponseToJson(

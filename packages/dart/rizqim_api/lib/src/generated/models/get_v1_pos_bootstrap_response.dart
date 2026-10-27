@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data138.dart';
+import 'data159.dart';
 
 part 'get_v1_pos_bootstrap_response.g.dart';
 
@@ -21,7 +21,7 @@ class GetV1PosBootstrapResponse {
 
   final bool success;
   final String message;
-  final Data138 data;
+  final Data159 data;
 
   Map<String, Object?> toJson() => _$GetV1PosBootstrapResponseToJson(this);
 }

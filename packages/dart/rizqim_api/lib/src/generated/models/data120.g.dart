@@ -7,13 +7,13 @@ part of 'data120.dart';
 // **************************************************************************
 
 Data120 _$Data120FromJson(Map<String, dynamic> json) => Data120(
-  bill: Bill3.fromJson(json['bill'] as Map<String, dynamic>),
-  copy: json['copy'] as bool,
-  order: Order6.fromJson(json['order'] as Map<String, dynamic>),
+  calendar: Calendar.fromJson(json['calendar'] as Map<String, dynamic>),
+  tariffs: (json['tariffs'] as List<dynamic>)
+      .map((e) => Tariffs.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data120ToJson(Data120 instance) => <String, dynamic>{
-  'bill': instance.bill,
-  'copy': instance.copy,
-  'order': instance.order,
+  'calendar': instance.calendar,
+  'tariffs': instance.tariffs,
 };

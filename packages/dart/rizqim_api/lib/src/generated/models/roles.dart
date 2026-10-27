@@ -4,21 +4,15 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'role2.dart';
-
 part 'roles.g.dart';
 
 @JsonSerializable()
 class Roles {
-  const Roles({
-    required this.role,
-    required this.label,
-    required this.editable,
-  });
+  const Roles({required this.key, required this.label, required this.editable});
 
   factory Roles.fromJson(Map<String, Object?> json) => _$RolesFromJson(json);
 
-  final Role2 role;
+  final String key;
   final String label;
   final bool editable;
 

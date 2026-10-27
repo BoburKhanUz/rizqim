@@ -11,7 +11,7 @@ GetV1GeocodeReverseResponse _$GetV1GeocodeReverseResponseFromJson(
 ) => GetV1GeocodeReverseResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data16.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data37.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1GeocodeReverseResponseToJson(

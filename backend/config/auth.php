@@ -54,6 +54,12 @@ return [
             'driver' => 'device-token',
             'provider' => 'devices',
         ],
+
+        // P4-11: the RIZQIM team's admin API sessions (App\Auth\AdminTokenGuard, docs/API.md "Admin API")
+        'admin' => [
+            'driver' => 'admin-token',
+            'provider' => 'users',
+        ],
     ],
 
     /*

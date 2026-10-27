@@ -7,23 +7,39 @@ part of 'data65.dart';
 // **************************************************************************
 
 Data65 _$Data65FromJson(Map<String, dynamic> json) => Data65(
-  data: (json['data'] as List<dynamic>)
-      .map((e) => Data64.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  currentPage: (json['current_page'] as num).toInt(),
-  lastPage: (json['last_page'] as num).toInt(),
-  perPage: (json['per_page'] as num).toInt(),
-  total: (json['total'] as num).toInt(),
-  from: (json['from'] as num?)?.toInt(),
-  to: (json['to'] as num?)?.toInt(),
+  id: (json['id'] as num).toInt(),
+  name: json['name'] as String,
+  branchId: (json['branch_id'] as num?)?.toInt(),
+  branch: json['branch'] == null
+      ? null
+      : Branch5.fromJson(json['branch'] as Map<String, dynamic>),
+  polygon: Polygon3.fromJson(json['polygon'] as Map<String, dynamic>),
+  bbox: Bbox3.fromJson(json['bbox'] as Map<String, dynamic>),
+  areaKm2: json['area_km2'] as String,
+  deliveryPrice: json['delivery_price'] as String,
+  minOrderAmount: json['min_order_amount'] as String,
+  freeDeliveryFrom: json['free_delivery_from'] as String?,
+  etaMinutes: (json['eta_minutes'] as num?)?.toInt(),
+  priority: (json['priority'] as num).toInt(),
+  active: json['active'] as bool,
+  createdAt: json['created_at'] as String?,
+  updatedAt: json['updated_at'] as String?,
 );
 
 Map<String, dynamic> _$Data65ToJson(Data65 instance) => <String, dynamic>{
-  'data': instance.data,
-  'current_page': instance.currentPage,
-  'last_page': instance.lastPage,
-  'per_page': instance.perPage,
-  'total': instance.total,
-  'from': instance.from,
-  'to': instance.to,
+  'id': instance.id,
+  'name': instance.name,
+  'branch_id': instance.branchId,
+  'branch': instance.branch,
+  'polygon': instance.polygon,
+  'bbox': instance.bbox,
+  'area_km2': instance.areaKm2,
+  'delivery_price': instance.deliveryPrice,
+  'min_order_amount': instance.minOrderAmount,
+  'free_delivery_from': instance.freeDeliveryFrom,
+  'eta_minutes': instance.etaMinutes,
+  'priority': instance.priority,
+  'active': instance.active,
+  'created_at': instance.createdAt,
+  'updated_at': instance.updatedAt,
 };

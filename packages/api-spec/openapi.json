@@ -221,6 +221,10 @@
             "description": "Internetsiz cheklangan rejim: kassaning offlayn navbati, sinxronlash holati va xatolari (P3-31)."
         },
         {
+            "name": "Admin",
+            "description": "Boshqaruv markazi (RIZQIM jamoasi): kirish, 2FA, jamoa, rollar, jurnal, qidiruv. Alohida `admin` token."
+        },
+        {
             "name": "Health"
         }
     ],
@@ -645,6 +649,2984 @@
                         "$ref": "#/components/responses/AuthenticationException"
                     }
                 }
+            }
+        },
+        "/v1/admin/audit-logs": {
+            "get": {
+                "operationId": "admin.audit_logs",
+                "description": "Newest first, cursor pages (`cursor` from `next_cursor`, `per_page` 1–100, default 50). Filters: `actor_id`,\n`action` (a prefix: `admin.team` or `admin.team.*`; an exact action matches itself), `store_id`,\n`subject_type` (Order, User, Store...) + `subject_id`, `from` / `to` (dates, inclusive), `q` (text in the action\nand its details, at least 2 characters).",
+                "summary": "Audit log (whole platform)",
+                "tags": [
+                    "Admin"
+                ],
+                "parameters": [
+                    {
+                        "name": "actor_id",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "integer",
+                                "null"
+                            ],
+                            "minimum": 1,
+                            "maximum": 1.0e+18
+                        }
+                    },
+                    {
+                        "name": "action",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "maxLength": 64
+                        }
+                    },
+                    {
+                        "name": "store_id",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "integer",
+                                "null"
+                            ],
+                            "minimum": 1,
+                            "maximum": 1.0e+18
+                        }
+                    },
+                    {
+                        "name": "subject_type",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "pattern": "^[A-Za-z]+$",
+                            "maxLength": 64
+                        }
+                    },
+                    {
+                        "name": "subject_id",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "integer",
+                                "null"
+                            ],
+                            "minimum": 1,
+                            "maximum": 1.0e+18
+                        }
+                    },
+                    {
+                        "name": "from",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "format": "date-time"
+                        }
+                    },
+                    {
+                        "name": "to",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "format": "date-time"
+                        }
+                    },
+                    {
+                        "name": "q",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "minLength": 2,
+                            "maxLength": 100
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "integer",
+                                "null"
+                            ],
+                            "minimum": 1,
+                            "maximum": 100
+                        }
+                    },
+                    {
+                        "name": "cursor",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "maxLength": 500
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "id": {
+                                                                "type": "integer"
+                                                            },
+                                                            "action": {
+                                                                "type": "string"
+                                                            },
+                                                            "actor": {
+                                                                "type": [
+                                                                    "object",
+                                                                    "null"
+                                                                ],
+                                                                "properties": {
+                                                                    "id": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "name": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "role": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "platform_role": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "id",
+                                                                    "name",
+                                                                    "role",
+                                                                    "platform_role"
+                                                                ]
+                                                            },
+                                                            "store": {
+                                                                "type": [
+                                                                    "object",
+                                                                    "null"
+                                                                ],
+                                                                "properties": {
+                                                                    "id": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "name": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "id",
+                                                                    "name"
+                                                                ]
+                                                            },
+                                                            "branch_id": {
+                                                                "type": [
+                                                                    "integer",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "device": {
+                                                                "type": [
+                                                                    "object",
+                                                                    "null"
+                                                                ],
+                                                                "properties": {
+                                                                    "uuid": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "name": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "type": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "uuid",
+                                                                    "name",
+                                                                    "type"
+                                                                ]
+                                                            },
+                                                            "subject_type": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "subject_id": {
+                                                                "type": [
+                                                                    "integer",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "before": {
+                                                                "type": [
+                                                                    "object",
+                                                                    "null"
+                                                                ],
+                                                                "additionalProperties": {}
+                                                            },
+                                                            "after": {
+                                                                "type": [
+                                                                    "object",
+                                                                    "null"
+                                                                ],
+                                                                "additionalProperties": {}
+                                                            },
+                                                            "meta": {
+                                                                "type": [
+                                                                    "object",
+                                                                    "null"
+                                                                ],
+                                                                "additionalProperties": {}
+                                                            },
+                                                            "reason": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "ip": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "user_agent": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "created_at": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "id",
+                                                            "action",
+                                                            "actor",
+                                                            "store",
+                                                            "branch_id",
+                                                            "device",
+                                                            "subject_type",
+                                                            "subject_id",
+                                                            "before",
+                                                            "after",
+                                                            "meta",
+                                                            "reason",
+                                                            "ip",
+                                                            "user_agent",
+                                                            "created_at"
+                                                        ]
+                                                    }
+                                                },
+                                                "next_cursor": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "prev_cursor": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "per_page": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "required": [
+                                                "data",
+                                                "next_cursor",
+                                                "prev_cursor",
+                                                "per_page"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                },
+                "security": [
+                    {
+                        "admin": []
+                    }
+                ]
+            }
+        },
+        "/v1/admin/auth/2fa/confirm": {
+            "post": {
+                "operationId": "admin.auth.2fa_confirm",
+                "description": "The first code from the authenticator app turns 2FA on and opens the session. `recovery_codes` (10) are shown\nonly here, once: each one signs in once when the phone is lost; only their hashes are kept.",
+                "summary": "Confirm the 2FA set-up",
+                "tags": [
+                    "Admin"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "challenge_token": {
+                                        "type": "string",
+                                        "maxLength": 200
+                                    },
+                                    "code": {
+                                        "type": "string",
+                                        "pattern": "^\\d{6}$"
+                                    }
+                                },
+                                "required": [
+                                    "challenge_token",
+                                    "code"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "token": {
+                                                    "type": "string"
+                                                },
+                                                "expires_at": {
+                                                    "type": "string"
+                                                },
+                                                "member": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "id": {
+                                                            "type": "integer"
+                                                        },
+                                                        "name": {
+                                                            "type": "string"
+                                                        },
+                                                        "email": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "platform_role": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "platform_role_label": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "permissions": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "two_factor_enabled": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "recovery_codes_left": {
+                                                            "type": "integer"
+                                                        },
+                                                        "last_login_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "id",
+                                                        "name",
+                                                        "email",
+                                                        "platform_role",
+                                                        "platform_role_label",
+                                                        "permissions",
+                                                        "two_factor_enabled",
+                                                        "recovery_codes_left",
+                                                        "last_login_at"
+                                                    ]
+                                                },
+                                                "recovery_codes": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "string"
+                                                    }
+                                                }
+                                            },
+                                            "required": [
+                                                "token",
+                                                "expires_at",
+                                                "member",
+                                                "recovery_codes"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Wrong code (invalid_code) or challenge (challenge_invalid)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Set-up not started or 2FA already on",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Locked for 15 minutes (locked)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
+            }
+        },
+        "/v1/admin/auth/2fa/recovery-codes": {
+            "post": {
+                "operationId": "admin.auth.recovery_codes_regenerated",
+                "description": "Replaces every recovery code with 10 new ones, shown only in this answer. Needs a step-up confirmation.",
+                "summary": "New recovery codes",
+                "tags": [
+                    "Admin"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "recovery_codes": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "string"
+                                                    }
+                                                }
+                                            },
+                                            "required": [
+                                                "recovery_codes"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "403": {
+                        "description": "Step-up needed (reauth_required)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "admin": []
+                    }
+                ]
+            }
+        },
+        "/v1/admin/auth/2fa/setup": {
+            "post": {
+                "operationId": "admin.auth.2fa_setup",
+                "description": "Only for a `setup_required` challenge. Returns the new secret (for manual entry), the `otpauth://` URI and the\nQR code as inline SVG. The same challenge gives the same secret again; it is saved only when `2fa/confirm`\naccepts a code from it, and never shown again afterwards. 409 `two_factor_already_enabled` once 2FA is on.",
+                "summary": "Start the 2FA set-up",
+                "tags": [
+                    "Admin"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "challenge_token": {
+                                        "type": "string",
+                                        "maxLength": 200
+                                    }
+                                },
+                                "required": [
+                                    "challenge_token"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "secret": {
+                                                    "type": "string"
+                                                },
+                                                "otpauth_uri": {
+                                                    "type": "string"
+                                                },
+                                                "qr_svg": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "secret",
+                                                "otpauth_uri",
+                                                "qr_svg"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Unknown, used or expired challenge (challenge_invalid)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "2FA is already on (two_factor_already_enabled)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
+            }
+        },
+        "/v1/admin/auth/2fa/verify": {
+            "post": {
+                "operationId": "admin.auth.2fa_verify",
+                "description": "Send `code` (6 digits from the app) or `recovery_code` (one of the saved recovery codes: it is burnt). A code\nalready used, or one older than the last used, is refused (replay). Opens the session: `token` (Bearer, the\nadmin API only), absolute `expires_at` (12 hours); 60 minutes without a request also end it.",
+                "summary": "Second step: the 2FA code",
+                "tags": [
+                    "Admin"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "challenge_token": {
+                                        "type": "string",
+                                        "maxLength": 200
+                                    },
+                                    "code": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "pattern": "^\\d{6}$"
+                                    },
+                                    "recovery_code": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "maxLength": 32
+                                    }
+                                },
+                                "required": [
+                                    "challenge_token"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "token": {
+                                                    "type": "string"
+                                                },
+                                                "expires_at": {
+                                                    "type": "string"
+                                                },
+                                                "member": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "id": {
+                                                            "type": "integer"
+                                                        },
+                                                        "name": {
+                                                            "type": "string"
+                                                        },
+                                                        "email": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "platform_role": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "platform_role_label": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "permissions": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "two_factor_enabled": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "recovery_codes_left": {
+                                                            "type": "integer"
+                                                        },
+                                                        "last_login_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "id",
+                                                        "name",
+                                                        "email",
+                                                        "platform_role",
+                                                        "platform_role_label",
+                                                        "permissions",
+                                                        "two_factor_enabled",
+                                                        "recovery_codes_left",
+                                                        "last_login_at"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "token",
+                                                "expires_at",
+                                                "member"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Wrong code (invalid_code, invalid_recovery_code) or challenge (challenge_invalid)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "The account must set 2FA up first (setup_required)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Locked for 15 minutes (locked)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
+            }
+        },
+        "/v1/admin/auth/confirm": {
+            "post": {
+                "operationId": "admin.auth.reauthenticated",
+                "description": "A current TOTP code marks this session confirmed for 10 minutes. Actions behind it (team and role changes,\n2FA resets, new recovery codes, revoking another session; later money and order interventions) answer 403\n`reauth_required` without it: ask for the code, call this, retry once.",
+                "summary": "Step-up: confirm with a fresh code",
+                "tags": [
+                    "Admin"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "code": {
+                                        "type": "string",
+                                        "pattern": "^\\d{6}$"
+                                    }
+                                },
+                                "required": [
+                                    "code"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "reauthenticated_until": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "reauthenticated_until"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Wrong code (invalid_code)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "429": {
+                        "description": "Locked for 15 minutes (locked)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "admin": []
+                    }
+                ]
+            }
+        },
+        "/v1/admin/auth/invite/accept": {
+            "post": {
+                "operationId": "admin.auth.invite_accept",
+                "description": "The invite link's token and the new password (at least 12 characters, not the email). Answers with a\n`setup_required` challenge: the member goes straight on to the 2FA set-up. 422 `invite_invalid` for an\nunknown, used, re-issued or expired (72 hours) link.",
+                "summary": "Accept an invite",
+                "tags": [
+                    "Admin"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "token": {
+                                        "type": "string",
+                                        "maxLength": 200
+                                    },
+                                    "password": {
+                                        "type": "string",
+                                        "minLength": 12,
+                                        "maxLength": 200
+                                    }
+                                },
+                                "required": [
+                                    "token",
+                                    "password"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "status": {
+                                                    "type": "string"
+                                                },
+                                                "challenge_token": {
+                                                    "type": "string"
+                                                },
+                                                "expires_at": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "status",
+                                                "challenge_token",
+                                                "expires_at"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Invalid invite (invite_invalid) or password",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
+            }
+        },
+        "/v1/admin/auth/login": {
+            "post": {
+                "operationId": "admin.auth.login",
+                "description": "Returns a challenge for the second step (5 minutes, single use): `otp_required` (send the app's code to\n`2fa/verify`) or `setup_required` (2FA not set up yet: `2fa/setup`, then `2fa/confirm`). An unknown email and a\nwrong password get the same 422 `invalid_credentials`; a disabled member 403 `member_disabled`; too many bad\ntries 429 `locked`.",
+                "summary": "Admin sign-in: email and password",
+                "tags": [
+                    "Admin"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "email": {
+                                        "type": "string",
+                                        "format": "email",
+                                        "maxLength": 255
+                                    },
+                                    "password": {
+                                        "type": "string",
+                                        "maxLength": 200
+                                    }
+                                },
+                                "required": [
+                                    "email",
+                                    "password"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "status": {
+                                                    "type": "string"
+                                                },
+                                                "challenge_token": {
+                                                    "type": "string"
+                                                },
+                                                "expires_at": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "status",
+                                                "challenge_token",
+                                                "expires_at"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Wrong email or password (invalid_credentials)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Disabled member (member_disabled)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Locked for 15 minutes (locked)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
+            }
+        },
+        "/v1/admin/auth/logout": {
+            "post": {
+                "operationId": "admin.auth.logged_out",
+                "summary": "Log out (this session)",
+                "tags": [
+                    "Admin"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "object"
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                },
+                "security": [
+                    {
+                        "admin": []
+                    }
+                ]
+            }
+        },
+        "/v1/admin/auth/me": {
+            "get": {
+                "operationId": "admin.auth.me",
+                "description": "Who is signed in, their platform role and effective admin permissions (the admin app shows only the sections\nthese allow), 2FA state and the current session (`reauthenticated_until`: the step-up confirmation, if any).",
+                "summary": "The signed-in member",
+                "tags": [
+                    "Admin"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "member": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "id": {
+                                                            "type": "integer"
+                                                        },
+                                                        "name": {
+                                                            "type": "string"
+                                                        },
+                                                        "email": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "platform_role": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "platform_role_label": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "permissions": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "two_factor_enabled": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "recovery_codes_left": {
+                                                            "type": "integer"
+                                                        },
+                                                        "last_login_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "id",
+                                                        "name",
+                                                        "email",
+                                                        "platform_role",
+                                                        "platform_role_label",
+                                                        "permissions",
+                                                        "two_factor_enabled",
+                                                        "recovery_codes_left",
+                                                        "last_login_at"
+                                                    ]
+                                                },
+                                                "platform_role": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "permissions": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "two_factor_enabled": {
+                                                    "type": "boolean"
+                                                },
+                                                "recovery_codes_left": {
+                                                    "type": "integer"
+                                                },
+                                                "last_login_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "session": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "properties": {
+                                                        "id": {
+                                                            "type": "integer"
+                                                        },
+                                                        "ip": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "user_agent": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "created_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "last_used_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "expires_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "reauthenticated_until": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "current": {
+                                                            "type": "boolean"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "id",
+                                                        "ip",
+                                                        "user_agent",
+                                                        "created_at",
+                                                        "last_used_at",
+                                                        "expires_at",
+                                                        "reauthenticated_until",
+                                                        "current"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "member",
+                                                "platform_role",
+                                                "permissions",
+                                                "two_factor_enabled",
+                                                "recovery_codes_left",
+                                                "last_login_at",
+                                                "session"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                },
+                "security": [
+                    {
+                        "admin": []
+                    }
+                ]
+            }
+        },
+        "/v1/admin/auth/sessions": {
+            "get": {
+                "operationId": "admin.auth.sessions",
+                "description": "Live sessions only (not past their 12 hours, used in the last 60 minutes), newest first; `current` is this one.",
+                "summary": "My admin sessions",
+                "tags": [
+                    "Admin"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "id": {
+                                                        "type": "integer"
+                                                    },
+                                                    "ip": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "user_agent": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "created_at": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "last_used_at": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "expires_at": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "reauthenticated_until": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "current": {
+                                                        "type": "boolean"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "id",
+                                                    "ip",
+                                                    "user_agent",
+                                                    "created_at",
+                                                    "last_used_at",
+                                                    "expires_at",
+                                                    "reauthenticated_until",
+                                                    "current"
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                },
+                "security": [
+                    {
+                        "admin": []
+                    }
+                ]
+            }
+        },
+        "/v1/admin/auth/sessions/{id}": {
+            "delete": {
+                "operationId": "admin.auth.session_revoked",
+                "description": "Ending this session is a log-out; ending another one needs a step-up confirmation (403 `reauth_required`).",
+                "summary": "End one of my sessions",
+                "tags": [
+                    "Admin"
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "object"
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Step-up needed for another session (reauth_required)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No such live session of mine",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                },
+                "security": [
+                    {
+                        "admin": []
+                    }
+                ]
+            }
+        },
+        "/v1/admin/me": {
+            "get": {
+                "operationId": "admin.me",
+                "summary": "The signed-in member (alias of GET /admin/auth/me)",
+                "tags": [
+                    "Admin"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "member": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "id": {
+                                                            "type": "integer"
+                                                        },
+                                                        "name": {
+                                                            "type": "string"
+                                                        },
+                                                        "email": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "platform_role": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "platform_role_label": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "permissions": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "two_factor_enabled": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "recovery_codes_left": {
+                                                            "type": "integer"
+                                                        },
+                                                        "last_login_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "id",
+                                                        "name",
+                                                        "email",
+                                                        "platform_role",
+                                                        "platform_role_label",
+                                                        "permissions",
+                                                        "two_factor_enabled",
+                                                        "recovery_codes_left",
+                                                        "last_login_at"
+                                                    ]
+                                                },
+                                                "platform_role": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "permissions": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "two_factor_enabled": {
+                                                    "type": "boolean"
+                                                },
+                                                "recovery_codes_left": {
+                                                    "type": "integer"
+                                                },
+                                                "last_login_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "session": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "properties": {
+                                                        "id": {
+                                                            "type": "integer"
+                                                        },
+                                                        "ip": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "user_agent": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "created_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "last_used_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "expires_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "reauthenticated_until": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "current": {
+                                                            "type": "boolean"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "id",
+                                                        "ip",
+                                                        "user_agent",
+                                                        "created_at",
+                                                        "last_used_at",
+                                                        "expires_at",
+                                                        "reauthenticated_until",
+                                                        "current"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "member",
+                                                "platform_role",
+                                                "permissions",
+                                                "two_factor_enabled",
+                                                "recovery_codes_left",
+                                                "last_login_at",
+                                                "session"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                },
+                "security": [
+                    {
+                        "admin": []
+                    }
+                ]
+            }
+        },
+        "/v1/admin/roles": {
+            "get": {
+                "operationId": "admin.roles",
+                "description": "`roles` in display order (`editable`: false for superadmin), `permissions` with their section (`group`),\n`grants`: role => the permissions it holds now, and `defaults`: role => the built-in set before the\nsuperadmin's changes (a cell differing from it is \"O'zgartirilgan\"; PUT with `allowed: null` resets it).",
+                "summary": "Roles and permissions",
+                "tags": [
+                    "Admin"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "roles": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "key": {
+                                                                "type": "string"
+                                                            },
+                                                            "label": {
+                                                                "type": "string"
+                                                            },
+                                                            "editable": {
+                                                                "type": "boolean"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "key",
+                                                            "label",
+                                                            "editable"
+                                                        ]
+                                                    }
+                                                },
+                                                "permissions": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "key": {
+                                                                "type": "string"
+                                                            },
+                                                            "label": {
+                                                                "type": "string"
+                                                            },
+                                                            "group": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "key",
+                                                            "label",
+                                                            "group"
+                                                        ]
+                                                    }
+                                                },
+                                                "grants": {
+                                                    "type": "object",
+                                                    "additionalProperties": {
+                                                        "type": "array",
+                                                        "items": {
+                                                            "type": "string"
+                                                        }
+                                                    }
+                                                },
+                                                "defaults": {
+                                                    "type": "object",
+                                                    "additionalProperties": {
+                                                        "type": "array",
+                                                        "items": {
+                                                            "type": "string"
+                                                        }
+                                                    }
+                                                }
+                                            },
+                                            "required": [
+                                                "roles",
+                                                "permissions",
+                                                "grants",
+                                                "defaults"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                },
+                "security": [
+                    {
+                        "admin": []
+                    }
+                ]
+            },
+            "put": {
+                "operationId": "admin.roles.updated",
+                "description": "`allowed`: true grants, false takes away, null resets to the role's default. The superadmin role cannot be\nchanged (422 `role_not_editable`). Needs step-up. Answers with the whole matrix.",
+                "summary": "Change a role's permission",
+                "tags": [
+                    "Admin"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "role": {
+                                        "$ref": "#/components/schemas/PlatformRole"
+                                    },
+                                    "permission": {
+                                        "$ref": "#/components/schemas/AdminPermission"
+                                    },
+                                    "allowed": {
+                                        "type": [
+                                            "boolean",
+                                            "null"
+                                        ]
+                                    }
+                                },
+                                "required": [
+                                    "role",
+                                    "permission",
+                                    "allowed"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "roles": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "key": {
+                                                                "type": "string"
+                                                            },
+                                                            "label": {
+                                                                "type": "string"
+                                                            },
+                                                            "editable": {
+                                                                "type": "boolean"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "key",
+                                                            "label",
+                                                            "editable"
+                                                        ]
+                                                    }
+                                                },
+                                                "permissions": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "key": {
+                                                                "type": "string"
+                                                            },
+                                                            "label": {
+                                                                "type": "string"
+                                                            },
+                                                            "group": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "key",
+                                                            "label",
+                                                            "group"
+                                                        ]
+                                                    }
+                                                },
+                                                "grants": {
+                                                    "type": "object",
+                                                    "additionalProperties": {
+                                                        "type": "array",
+                                                        "items": {
+                                                            "type": "string"
+                                                        }
+                                                    }
+                                                },
+                                                "defaults": {
+                                                    "type": "object",
+                                                    "additionalProperties": {
+                                                        "type": "array",
+                                                        "items": {
+                                                            "type": "string"
+                                                        }
+                                                    }
+                                                }
+                                            },
+                                            "required": [
+                                                "roles",
+                                                "permissions",
+                                                "grants",
+                                                "defaults"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Superadmin is fixed (role_not_editable) or invalid input",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                },
+                "security": [
+                    {
+                        "admin": []
+                    }
+                ]
+            }
+        },
+        "/v1/admin/search": {
+            "get": {
+                "operationId": "admin.search",
+                "description": "`q` at least 2 characters. Each hit: `type` (store, order, user, member), `id`, `title`, `subtitle` and `href`,\nthe admin app path to open (`/stores/{id}`, `/orders/{uuid}`, `/users/{id}`, `/team/{id}`). Types the member\nhas no permission for (stores.view, orders.view, users.view, team.manage) are left out.",
+                "summary": "Search everything",
+                "tags": [
+                    "Admin"
+                ],
+                "parameters": [
+                    {
+                        "name": "q",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "minLength": 2,
+                            "maxLength": 100
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "type": {
+                                                        "type": "string"
+                                                    },
+                                                    "id": {
+                                                        "type": [
+                                                            "integer",
+                                                            "string"
+                                                        ]
+                                                    },
+                                                    "title": {
+                                                        "type": "string"
+                                                    },
+                                                    "subtitle": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "href": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "type",
+                                                    "id",
+                                                    "title",
+                                                    "subtitle",
+                                                    "href"
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                },
+                "security": [
+                    {
+                        "admin": []
+                    }
+                ]
+            }
+        },
+        "/v1/admin/team": {
+            "get": {
+                "operationId": "admin.team",
+                "description": "Every team member: role, `status` (`invited`: has not accepted the invite yet, `active`, `disabled`), 2FA, last\nsign-in and live sessions.",
+                "summary": "The team",
+                "tags": [
+                    "Admin"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "id": {
+                                                        "type": "integer"
+                                                    },
+                                                    "name": {
+                                                        "type": "string"
+                                                    },
+                                                    "email": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "platform_role": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "platform_role_label": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "status": {
+                                                        "type": "string"
+                                                    },
+                                                    "disabled": {
+                                                        "type": "boolean"
+                                                    },
+                                                    "two_factor_enabled": {
+                                                        "type": "boolean"
+                                                    },
+                                                    "last_login_at": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "active_sessions": {
+                                                        "type": "integer"
+                                                    },
+                                                    "invite_expires_at": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "created_at": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    }
+                                                },
+                                                "required": [
+                                                    "id",
+                                                    "name",
+                                                    "email",
+                                                    "platform_role",
+                                                    "platform_role_label",
+                                                    "status",
+                                                    "disabled",
+                                                    "two_factor_enabled",
+                                                    "last_login_at",
+                                                    "active_sessions",
+                                                    "invite_expires_at",
+                                                    "created_at"
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                },
+                "security": [
+                    {
+                        "admin": []
+                    }
+                ]
+            },
+            "post": {
+                "operationId": "admin.team.invited",
+                "description": "Creates the member (they cannot sign in until they accept) and a one-time invite link valid 72 hours:\n`invite_url` is shown only in this answer. Only a superadmin may invite a superadmin. Needs step-up.",
+                "summary": "Invite a team member",
+                "tags": [
+                    "Admin"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "minLength": 2,
+                                        "maxLength": 255
+                                    },
+                                    "email": {
+                                        "type": "string",
+                                        "format": "email",
+                                        "maxLength": 255
+                                    },
+                                    "platform_role": {
+                                        "$ref": "#/components/schemas/PlatformRole"
+                                    }
+                                },
+                                "required": [
+                                    "name",
+                                    "email",
+                                    "platform_role"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "member": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "id": {
+                                                            "type": "integer"
+                                                        },
+                                                        "name": {
+                                                            "type": "string"
+                                                        },
+                                                        "email": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "platform_role": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "platform_role_label": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "status": {
+                                                            "type": "string"
+                                                        },
+                                                        "disabled": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "two_factor_enabled": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "last_login_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "active_sessions": {
+                                                            "type": "integer"
+                                                        },
+                                                        "invite_expires_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "created_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "id",
+                                                        "name",
+                                                        "email",
+                                                        "platform_role",
+                                                        "platform_role_label",
+                                                        "status",
+                                                        "disabled",
+                                                        "two_factor_enabled",
+                                                        "last_login_at",
+                                                        "active_sessions",
+                                                        "invite_expires_at",
+                                                        "created_at"
+                                                    ]
+                                                },
+                                                "invite_url": {
+                                                    "type": "string"
+                                                },
+                                                "invite_token": {
+                                                    "type": "string"
+                                                },
+                                                "invite_expires_at": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "member",
+                                                "invite_url",
+                                                "invite_token",
+                                                "invite_expires_at"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Email taken (email_taken) or invalid input",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "403": {
+                        "description": "Step-up needed (reauth_required) or superadmin only (superadmin_only)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "admin": []
+                    }
+                ]
+            }
+        },
+        "/v1/admin/team/{id}": {
+            "get": {
+                "operationId": "admin.team_member",
+                "summary": "One team member",
+                "tags": [
+                    "Admin"
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "id": {
+                                                    "type": "integer"
+                                                },
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "email": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "platform_role": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "platform_role_label": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "status": {
+                                                    "type": "string"
+                                                },
+                                                "disabled": {
+                                                    "type": "boolean"
+                                                },
+                                                "two_factor_enabled": {
+                                                    "type": "boolean"
+                                                },
+                                                "last_login_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "active_sessions": {
+                                                    "type": "integer"
+                                                },
+                                                "invite_expires_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "created_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "id",
+                                                "name",
+                                                "email",
+                                                "platform_role",
+                                                "platform_role_label",
+                                                "status",
+                                                "disabled",
+                                                "two_factor_enabled",
+                                                "last_login_at",
+                                                "active_sessions",
+                                                "invite_expires_at",
+                                                "created_at"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not a team member",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                },
+                "security": [
+                    {
+                        "admin": []
+                    }
+                ]
+            },
+            "patch": {
+                "operationId": "admin.team.updated",
+                "description": "`platform_role` and/or `disabled`. Disabling ends all of the member's sessions. Nobody changes their own role or\ndisables themselves (`cannot_change_self`), the last active superadmin stays (`last_superadmin`), and only a\nsuperadmin changes a superadmin or makes one (`superadmin_only`). Needs step-up.",
+                "summary": "Change a member's role or disable / enable them",
+                "tags": [
+                    "Admin"
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "platform_role": {
+                                        "$ref": "#/components/schemas/PlatformRole"
+                                    },
+                                    "disabled": {
+                                        "type": "boolean"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "id": {
+                                                    "type": "integer"
+                                                },
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "email": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "platform_role": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "platform_role_label": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "status": {
+                                                    "type": "string"
+                                                },
+                                                "disabled": {
+                                                    "type": "boolean"
+                                                },
+                                                "two_factor_enabled": {
+                                                    "type": "boolean"
+                                                },
+                                                "last_login_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "active_sessions": {
+                                                    "type": "integer"
+                                                },
+                                                "invite_expires_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "created_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "id",
+                                                "name",
+                                                "email",
+                                                "platform_role",
+                                                "platform_role_label",
+                                                "status",
+                                                "disabled",
+                                                "two_factor_enabled",
+                                                "last_login_at",
+                                                "active_sessions",
+                                                "invite_expires_at",
+                                                "created_at"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "cannot_change_self, last_superadmin or invalid input",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "403": {
+                        "description": "Step-up needed (reauth_required) or superadmin only (superadmin_only)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "admin": []
+                    }
+                ]
+            }
+        },
+        "/v1/admin/team/{id}/invite": {
+            "post": {
+                "operationId": "admin.team.invite_reissued",
+                "description": "A new link for a member who has not accepted yet (409 `invite_already_accepted` otherwise); the older links stop\nworking. Needs step-up.",
+                "summary": "Re-issue the invite",
+                "tags": [
+                    "Admin"
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "invite_url": {
+                                                    "type": "string"
+                                                },
+                                                "invite_token": {
+                                                    "type": "string"
+                                                },
+                                                "invite_expires_at": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "invite_url",
+                                                "invite_token",
+                                                "invite_expires_at"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "409": {
+                        "description": "Already accepted (invite_already_accepted)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "admin": []
+                    }
+                ]
+            }
+        },
+        "/v1/admin/team/{id}/reset-2fa": {
+            "post": {
+                "operationId": "admin.team.2fa_reset",
+                "description": "For a lost phone: 2FA and the recovery codes are removed and every session of the member ends; they set 2FA up\nagain at their next sign-in. Not for yourself. Needs step-up.",
+                "summary": "Reset a member's 2FA",
+                "tags": [
+                    "Admin"
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "id": {
+                                                    "type": "integer"
+                                                },
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "email": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "platform_role": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "platform_role_label": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "status": {
+                                                    "type": "string"
+                                                },
+                                                "disabled": {
+                                                    "type": "boolean"
+                                                },
+                                                "two_factor_enabled": {
+                                                    "type": "boolean"
+                                                },
+                                                "last_login_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "active_sessions": {
+                                                    "type": "integer"
+                                                },
+                                                "invite_expires_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "created_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "id",
+                                                "name",
+                                                "email",
+                                                "platform_role",
+                                                "platform_role_label",
+                                                "status",
+                                                "disabled",
+                                                "two_factor_enabled",
+                                                "last_login_at",
+                                                "active_sessions",
+                                                "invite_expires_at",
+                                                "created_at"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                },
+                "security": [
+                    {
+                        "admin": []
+                    }
+                ]
             }
         },
         "/v1/auth/logout": {
@@ -66747,6 +69729,11 @@
     },
     "components": {
         "securitySchemes": {
+            "admin": {
+                "type": "http",
+                "description": "Boshqaruv markazi sessiyasi (email + parol + 2FA, `POST /admin/auth/2fa/verify`): `Authorization: Bearer <token>`. Faqat `/admin/*` uchun.",
+                "scheme": "bearer"
+            },
             "sanctum": {
                 "type": "http",
                 "description": "Laravel Sanctum shaxsiy kirish tokeni: `Authorization: Bearer <token>`.",
@@ -66883,6 +69870,40 @@
                     "district_id"
                 ],
                 "title": "Address"
+            },
+            "AdminPermission": {
+                "type": "string",
+                "description": "P4-11: what a RIZQIM team member may do in the Boshqaruv markazi (admin API /api/v1/admin, `admin.can:` middleware). Separate from the store-level App\\Enums\\Permission: an admin permission never lets anyone act inside a store as its staff. Defaults per platform role: App\\Services\\Admin\\PlatformRolePermissions; the superadmin may change them. Stage B sections (Bugun, Buyurtmalar, Monitoring...) use the entries that are already here.\n",
+                "enum": [
+                    "admin.today.view",
+                    "admin.orders.view",
+                    "admin.orders.intervene",
+                    "admin.orders.refund_request",
+                    "admin.orders.refund_approve",
+                    "admin.stores.view",
+                    "admin.stores.manage",
+                    "admin.stores.impersonate",
+                    "admin.finance.view",
+                    "admin.finance.manage",
+                    "admin.payouts.approve",
+                    "admin.subscriptions.manage",
+                    "admin.devices.view",
+                    "admin.monitoring.view",
+                    "admin.monitoring.manage",
+                    "admin.support.view",
+                    "admin.support.manage",
+                    "admin.users.view",
+                    "admin.marketing.view",
+                    "admin.marketing.manage",
+                    "admin.integrations.view",
+                    "admin.integrations.manage",
+                    "admin.system.manage",
+                    "admin.team.manage",
+                    "admin.audit.view",
+                    "admin.pii.view",
+                    "admin.export"
+                ],
+                "title": "AdminPermission"
             },
             "BillStatus": {
                 "type": "string",
@@ -70949,6 +73970,19 @@
                 ],
                 "title": "Permission"
             },
+            "PlatformRole": {
+                "type": "string",
+                "description": "P4-11: the RIZQIM team's roles in the Boshqaruv markazi (platform/admin, docs/PHASE4_PLAN.md §5). A user is platform staff when users.platform_role is set. What each role may do is App\\Services\\Admin\\PlatformRolePermissions (defaults) with the superadmin's overrides (platform_role_permissions); `superadmin` is fixed: everything. Only `superadmin` is also users.role = super_admin (the old store-level super admin, the old Filament panels); the other roles are users.role = platform, which holds no store-level permission at all.\n",
+                "enum": [
+                    "superadmin",
+                    "operator",
+                    "support",
+                    "finance",
+                    "sales",
+                    "viewer"
+                ],
+                "title": "PlatformRole"
+            },
             "PosShift": {
                 "type": "object",
                 "properties": {
@@ -72945,7 +75979,8 @@
                     "courier",
                     "cashier",
                     "waiter",
-                    "cook"
+                    "cook",
+                    "platform"
                 ],
                 "title": "UserRole"
             }

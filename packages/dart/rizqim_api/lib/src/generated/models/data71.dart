@@ -4,8 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'service_fee2.dart';
-import 'tables3.dart';
+import 'layout.dart';
 
 part 'data71.g.dart';
 
@@ -14,11 +13,15 @@ class Data71 {
   const Data71({
     required this.id,
     required this.branchId,
+    required this.hallId,
     required this.name,
+    required this.kind,
+    required this.seats,
+    required this.layout,
     required this.sortOrder,
     required this.isActive,
-    required this.serviceFee,
-    required this.tables,
+    required this.minSpend,
+    required this.minSpendMode,
   });
 
   factory Data71.fromJson(Map<String, Object?> json) => _$Data71FromJson(json);
@@ -26,14 +29,20 @@ class Data71 {
   final int id;
   @JsonKey(name: 'branch_id')
   final int branchId;
+  @JsonKey(name: 'hall_id')
+  final int hallId;
   final String name;
+  final String kind;
+  final int? seats;
+  final Layout layout;
   @JsonKey(name: 'sort_order')
   final int sortOrder;
   @JsonKey(name: 'is_active')
   final bool isActive;
-  @JsonKey(name: 'service_fee')
-  final ServiceFee2? serviceFee;
-  final List<Tables3> tables;
+  @JsonKey(name: 'min_spend')
+  final String? minSpend;
+  @JsonKey(name: 'min_spend_mode')
+  final String minSpendMode;
 
   Map<String, Object?> toJson() => _$Data71ToJson(this);
 }

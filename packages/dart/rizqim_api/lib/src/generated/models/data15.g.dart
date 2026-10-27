@@ -6,9 +6,18 @@ part of 'data15.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-Data15 _$Data15FromJson(Map<String, dynamic> json) =>
-    Data15(features: Map<String, bool>.from(json['features'] as Map));
+Data15 _$Data15FromJson(Map<String, dynamic> json) => Data15(
+  type: json['type'] as String,
+  id: json['id'],
+  title: json['title'] as String,
+  subtitle: json['subtitle'] as String?,
+  href: json['href'] as String,
+);
 
 Map<String, dynamic> _$Data15ToJson(Data15 instance) => <String, dynamic>{
-  'features': instance.features,
+  'type': instance.type,
+  'id': instance.id,
+  'title': instance.title,
+  'subtitle': instance.subtitle,
+  'href': instance.href,
 };

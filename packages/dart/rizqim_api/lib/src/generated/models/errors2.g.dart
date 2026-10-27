@@ -19,7 +19,7 @@ Errors2 _$Errors2FromJson(Map<String, dynamic> json) => Errors2(
       : Staff5.fromJson(json['staff'] as Map<String, dynamic>),
   device: json['device'] == null
       ? null
-      : Device23.fromJson(json['device'] as Map<String, dynamic>),
+      : Device24.fromJson(json['device'] as Map<String, dynamic>),
   occurredAt: json['occurred_at'] as String?,
   receivedAt: json['received_at'] as String?,
   appliedAt: json['applied_at'] as String?,

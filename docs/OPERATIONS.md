@@ -204,3 +204,36 @@ Yangi imkoniyatni hamma restoranga birdan emas, avval bitta restoranda yoqish uc
 ## 9. Tokenlarni tozalash
 
 Eski tokenlarni scheduler `auth:prune-tokens` buyrug'i bilan o'zi tozalaydi (u POS/KDS terminal tokenlarini o'chirmaydi). **`php artisan sanctum:prune-expired` ni qo'lda ishga tushirmang:** u `SANCTUM_TOKEN_EXPIRATION` dan eski barcha tokenlarni, shu jumladan terminal tokenlarini o'chiradi va har bir POS/KDS terminal ulanishdan chiqib, qayta ulash kodini talab qiladi. Token muddatlari (`AUTH_*`) `backend/.env.example` va `docs/AUTH.md` da.
+
+## 10. Boshqaruv markazi: birinchi superadmin va yo'qolgan 2FA (P4-11)
+
+**Birinchi superadmin** (yoki boshqa jamoa a'zosi) serverda yaratiladi:
+
+```bash
+cd backend
+php artisan rizqim:admin:create boss@rizqim.uz "Bosh admin"            # superadmin
+php artisan rizqim:admin:create op@rizqim.uz "Navbatchi" --role=operator
+```
+
+Buyruq bir martalik taklif havolasini chiqaradi (`{ADMIN_APP_URL}/invite/...`, 72 soat). Uni egasiga xavfsiz
+yo'l bilan bering: havolani ochgan odam parol (kamida 12 belgi) qo'yadi va Google Authenticator'da 2FA ni yoqadi.
+Havola faqat bir marta ko'rsatiladi; yo'qolsa, boshqa superadmin Tizim → Jamoa'da "Taklifni qayta berish" qiladi.
+Keyingi a'zolarni superadmin markazning o'zidan taklif qiladi. Yaratish jurnalga `admin.cli.member_created` bo'lib
+yoziladi. `ADMIN_APP_URL` `.env` da admin ilova manzili bo'lishi kerak.
+
+Mavjud superadmin'lar (eski `super_admin`) avtomatik jamoaga o'tgan: ular markazga o'z email va paroli bilan kiradi
+va birinchi kirishda 2FA o'rnatadi. Eski `/superadmin` panel ham endi shu 2FA ni so'raydi.
+
+**Telefon va zaxira kodlari yo'qolgan bo'lsa:** avval boshqa superadmin Tizim → Jamoa → "2FA ni tiklash" qiladi.
+Hech kim qolmagan bo'lsa (yagona superadmin), serverda:
+
+```bash
+php artisan rizqim:admin:reset-2fa boss@rizqim.uz --reason="Telefon yo'qoldi"
+```
+
+Bu 2FA kaliti va zaxira kodlarini o'chiradi, a'zoning barcha sessiyalarini yopadi va jurnalga
+`admin.cli.2fa_reset` (sabab bilan) yozadi. A'zo keyingi kirishda 2FA ni qaytadan o'rnatadi. Buni faqat egasining
+shaxsini boshqa yo'l bilan (qo'ng'iroq, uchrashuv) tekshirgandan keyin qiling.
+
+Jurnal (`audit_logs`) o'zgarmaydi: PostgreSQL trigger yozuvni yangilash va o'chirishni rad etadi. Zaxiradan
+tiklash (`pg_restore`) bunga ta'sir qilmaydi.

@@ -10,7 +10,7 @@ GetV1SuperadminLocationsResponse _$GetV1SuperadminLocationsResponseFromJson(
   Map<String, dynamic> json,
 ) => GetV1SuperadminLocationsResponse(
   success: json['success'] as bool,
-  data: Data192.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data213.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1SuperadminLocationsResponseToJson(

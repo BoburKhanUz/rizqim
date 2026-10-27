@@ -9,23 +9,27 @@ part of 'data71.dart';
 Data71 _$Data71FromJson(Map<String, dynamic> json) => Data71(
   id: (json['id'] as num).toInt(),
   branchId: (json['branch_id'] as num).toInt(),
+  hallId: (json['hall_id'] as num).toInt(),
   name: json['name'] as String,
+  kind: json['kind'] as String,
+  seats: (json['seats'] as num?)?.toInt(),
+  layout: Layout.fromJson(json['layout'] as Map<String, dynamic>),
   sortOrder: (json['sort_order'] as num).toInt(),
   isActive: json['is_active'] as bool,
-  serviceFee: json['service_fee'] == null
-      ? null
-      : ServiceFee2.fromJson(json['service_fee'] as Map<String, dynamic>),
-  tables: (json['tables'] as List<dynamic>)
-      .map((e) => Tables3.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  minSpend: json['min_spend'] as String?,
+  minSpendMode: json['min_spend_mode'] as String,
 );
 
 Map<String, dynamic> _$Data71ToJson(Data71 instance) => <String, dynamic>{
   'id': instance.id,
   'branch_id': instance.branchId,
+  'hall_id': instance.hallId,
   'name': instance.name,
+  'kind': instance.kind,
+  'seats': instance.seats,
+  'layout': instance.layout,
   'sort_order': instance.sortOrder,
   'is_active': instance.isActive,
-  'service_fee': instance.serviceFee,
-  'tables': instance.tables,
+  'min_spend': instance.minSpend,
+  'min_spend_mode': instance.minSpendMode,
 };

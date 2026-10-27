@@ -7,11 +7,19 @@ part of 'data96.dart';
 // **************************************************************************
 
 Data96 _$Data96FromJson(Map<String, dynamic> json) => Data96(
-  productId: (json['product_id'] as num).toInt(),
-  modifierGroups: json['modifier_groups'] as String,
+  currentPage: (json['current_page'] as num).toInt(),
+  data: (json['data'] as List<dynamic>)
+      .map((e) => Data95.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  perPage: (json['per_page'] as num).toInt(),
+  total: (json['total'] as num).toInt(),
+  lastPage: (json['last_page'] as num).toInt(),
 );
 
 Map<String, dynamic> _$Data96ToJson(Data96 instance) => <String, dynamic>{
-  'product_id': instance.productId,
-  'modifier_groups': instance.modifierGroups,
+  'current_page': instance.currentPage,
+  'data': instance.data,
+  'per_page': instance.perPage,
+  'total': instance.total,
+  'last_page': instance.lastPage,
 };

@@ -4,18 +4,44 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'bookings.dart';
-
 part 'data121.g.dart';
 
 @JsonSerializable()
 class Data121 {
-  const Data121({required this.bookings});
+  const Data121({
+    required this.id,
+    required this.branchId,
+    required this.diningTableId,
+    required this.diningTableName,
+    required this.hallId,
+    required this.tableKind,
+    required this.dayType,
+    required this.price,
+    required this.validFrom,
+    required this.validTo,
+  });
 
   factory Data121.fromJson(Map<String, Object?> json) =>
       _$Data121FromJson(json);
 
-  final List<Bookings> bookings;
+  final int id;
+  @JsonKey(name: 'branch_id')
+  final int branchId;
+  @JsonKey(name: 'dining_table_id')
+  final int? diningTableId;
+  @JsonKey(name: 'dining_table_name')
+  final String? diningTableName;
+  @JsonKey(name: 'hall_id')
+  final int? hallId;
+  @JsonKey(name: 'table_kind')
+  final String? tableKind;
+  @JsonKey(name: 'day_type')
+  final String dayType;
+  final String price;
+  @JsonKey(name: 'valid_from')
+  final String? validFrom;
+  @JsonKey(name: 'valid_to')
+  final String? validTo;
 
   Map<String, Object?> toJson() => _$Data121ToJson(this);
 }

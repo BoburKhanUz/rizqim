@@ -7,27 +7,21 @@ part of 'data170.dart';
 // **************************************************************************
 
 Data170 _$Data170FromJson(Map<String, dynamic> json) => Data170(
-  uuid: json['uuid'] as String,
-  orderUuid: json['order_uuid'] as String?,
-  billUuid: json['bill_uuid'] as String?,
-  paymentUuid: json['payment_uuid'] as String?,
-  amount: json['amount'] as String,
-  method: json['method'] as String,
-  reason: json['reason'] as String,
-  approvedBy: (json['approved_by'] as num?)?.toInt(),
-  fiscal: Fiscal15.fromJson(json['fiscal'] as Map<String, dynamic>),
-  createdAt: json['created_at'] as String?,
+  branchId: (json['branch_id'] as num).toInt(),
+  generatedAt: json['generated_at'] as String,
+  overdueAfterHours: (json['overdue_after_hours'] as num).toInt(),
+  halls: (json['halls'] as List<dynamic>)
+      .map((e) => Halls2.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  untabledOrders: (json['untabled_orders'] as List<dynamic>)
+      .map((e) => UntabledOrders.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data170ToJson(Data170 instance) => <String, dynamic>{
-  'uuid': instance.uuid,
-  'order_uuid': instance.orderUuid,
-  'bill_uuid': instance.billUuid,
-  'payment_uuid': instance.paymentUuid,
-  'amount': instance.amount,
-  'method': instance.method,
-  'reason': instance.reason,
-  'approved_by': instance.approvedBy,
-  'fiscal': instance.fiscal,
-  'created_at': instance.createdAt,
+  'branch_id': instance.branchId,
+  'generated_at': instance.generatedAt,
+  'overdue_after_hours': instance.overdueAfterHours,
+  'halls': instance.halls,
+  'untabled_orders': instance.untabledOrders,
 };

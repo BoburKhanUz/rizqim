@@ -11,7 +11,7 @@ GetV1NotificationsResponse _$GetV1NotificationsResponseFromJson(
 ) => GetV1NotificationsResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data22.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data43.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1NotificationsResponseToJson(

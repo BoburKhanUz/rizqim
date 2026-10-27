@@ -11,7 +11,7 @@ PatchV1OwnerDevicesUuidResponse _$PatchV1OwnerDevicesUuidResponseFromJson(
 ) => PatchV1OwnerDevicesUuidResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data48.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data69.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PatchV1OwnerDevicesUuidResponseToJson(

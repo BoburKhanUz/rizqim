@@ -11,7 +11,7 @@ GetV1OwnerDeliveryZonesIdResponse _$GetV1OwnerDeliveryZonesIdResponseFromJson(
 ) => GetV1OwnerDeliveryZonesIdResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data44.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data65.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1OwnerDeliveryZonesIdResponseToJson(

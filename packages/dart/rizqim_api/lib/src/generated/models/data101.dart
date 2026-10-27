@@ -9,19 +9,32 @@ part 'data101.g.dart';
 @JsonSerializable()
 class Data101 {
   const Data101({
+    required this.id,
     required this.branchId,
-    required this.weekendDays,
-    required this.holidays,
+    required this.name,
+    required this.kind,
+    required this.kindLabel,
+    required this.sortOrder,
+    required this.isActive,
+    required this.showOnKds,
   });
 
   factory Data101.fromJson(Map<String, Object?> json) =>
       _$Data101FromJson(json);
 
+  final int id;
   @JsonKey(name: 'branch_id')
   final int branchId;
-  @JsonKey(name: 'weekend_days')
-  final List<int> weekendDays;
-  final List<String> holidays;
+  final String name;
+  final String kind;
+  @JsonKey(name: 'kind_label')
+  final String kindLabel;
+  @JsonKey(name: 'sort_order')
+  final int sortOrder;
+  @JsonKey(name: 'is_active')
+  final bool isActive;
+  @JsonKey(name: 'show_on_kds')
+  final bool showOnKds;
 
   Map<String, Object?> toJson() => _$Data101ToJson(this);
 }

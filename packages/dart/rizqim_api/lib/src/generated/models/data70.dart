@@ -4,36 +4,48 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'service_fee.dart';
-import 'tables2.dart';
+import 'user13.dart';
 
 part 'data70.g.dart';
 
 @JsonSerializable()
 class Data70 {
   const Data70({
-    required this.id,
-    required this.branchId,
+    required this.uuid,
+    required this.type,
     required this.name,
-    required this.sortOrder,
-    required this.isActive,
-    required this.serviceFee,
-    required this.tables,
+    required this.platform,
+    required this.appVersion,
+    required this.storeId,
+    required this.branchId,
+    required this.user,
+    required this.hasPushToken,
+    required this.lastSeenAt,
+    required this.revokedAt,
+    required this.createdAt,
   });
 
   factory Data70.fromJson(Map<String, Object?> json) => _$Data70FromJson(json);
 
-  final int id;
-  @JsonKey(name: 'branch_id')
-  final int branchId;
+  final String uuid;
+  final String type;
   final String name;
-  @JsonKey(name: 'sort_order')
-  final int sortOrder;
-  @JsonKey(name: 'is_active')
-  final bool isActive;
-  @JsonKey(name: 'service_fee')
-  final ServiceFee? serviceFee;
-  final List<Tables2> tables;
+  final String? platform;
+  @JsonKey(name: 'app_version')
+  final String? appVersion;
+  @JsonKey(name: 'store_id')
+  final int? storeId;
+  @JsonKey(name: 'branch_id')
+  final int? branchId;
+  final User13? user;
+  @JsonKey(name: 'has_push_token')
+  final bool hasPushToken;
+  @JsonKey(name: 'last_seen_at')
+  final String? lastSeenAt;
+  @JsonKey(name: 'revoked_at')
+  final String? revokedAt;
+  @JsonKey(name: 'created_at')
+  final String? createdAt;
 
   Map<String, Object?> toJson() => _$Data70ToJson(this);
 }

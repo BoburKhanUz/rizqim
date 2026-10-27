@@ -11,7 +11,7 @@ _$GetV1OwnerBranchesIdPosSettingsResponseFromJson(Map<String, dynamic> json) =>
     GetV1OwnerBranchesIdPosSettingsResponse(
       success: json['success'] as bool,
       message: json['message'] as String,
-      data: Data40.fromJson(json['data'] as Map<String, dynamic>),
+      data: Data61.fromJson(json['data'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$GetV1OwnerBranchesIdPosSettingsResponseToJson(

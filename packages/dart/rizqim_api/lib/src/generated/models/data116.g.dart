@@ -7,19 +7,13 @@ part of 'data116.dart';
 // **************************************************************************
 
 Data116 _$Data116FromJson(Map<String, dynamic> json) => Data116(
-  subscription: json['subscription'] == null
-      ? null
-      : Subscription.fromJson(json['subscription'] as Map<String, dynamic>),
-  commissionRate: json['commission_rate'] as num,
-  terminals: Terminals.fromJson(json['terminals'] as Map<String, dynamic>),
-  nextInvoice: json['next_invoice'] == null
-      ? null
-      : NextInvoice.fromJson(json['next_invoice'] as Map<String, dynamic>),
+  productId: (json['product_id'] as num).toInt(),
+  prices: (json['prices'] as List<dynamic>)
+      .map((e) => Prices2.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data116ToJson(Data116 instance) => <String, dynamic>{
-  'subscription': instance.subscription,
-  'commission_rate': instance.commissionRate,
-  'terminals': instance.terminals,
-  'next_invoice': instance.nextInvoice,
+  'product_id': instance.productId,
+  'prices': instance.prices,
 };

@@ -7,21 +7,33 @@ part of 'data35.dart';
 // **************************************************************************
 
 Data35 _$Data35FromJson(Map<String, dynamic> json) => Data35(
-  productId: (json['product_id'] as num).toInt(),
+  uuid: json['uuid'] as String,
+  type: json['type'] as String,
   name: json['name'] as String,
-  description: json['description'] as String?,
-  imageUrl: json['image_url'] as String?,
-  batchTracked: json['batch_tracked'] as bool,
-  variants: (json['variants'] as List<dynamic>)
-      .map((e) => Variants.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  platform: json['platform'] as String?,
+  appVersion: json['app_version'] as String?,
+  storeId: (json['store_id'] as num?)?.toInt(),
+  branchId: (json['branch_id'] as num?)?.toInt(),
+  user: json['user'] == null
+      ? null
+      : User10.fromJson(json['user'] as Map<String, dynamic>),
+  hasPushToken: json['has_push_token'] as bool,
+  lastSeenAt: json['last_seen_at'] as String?,
+  revokedAt: json['revoked_at'] as String?,
+  createdAt: json['created_at'] as String?,
 );
 
 Map<String, dynamic> _$Data35ToJson(Data35 instance) => <String, dynamic>{
-  'product_id': instance.productId,
+  'uuid': instance.uuid,
+  'type': instance.type,
   'name': instance.name,
-  'description': instance.description,
-  'image_url': instance.imageUrl,
-  'batch_tracked': instance.batchTracked,
-  'variants': instance.variants,
+  'platform': instance.platform,
+  'app_version': instance.appVersion,
+  'store_id': instance.storeId,
+  'branch_id': instance.branchId,
+  'user': instance.user,
+  'has_push_token': instance.hasPushToken,
+  'last_seen_at': instance.lastSeenAt,
+  'revoked_at': instance.revokedAt,
+  'created_at': instance.createdAt,
 };

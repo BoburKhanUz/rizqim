@@ -173,12 +173,15 @@ class AccessControlTest extends TestCase
         $adminPanel = Filament::getPanel('admin');
         $superadminPanel = Filament::getPanel('superadmin');
 
+        // P4-11: a super admin enters the store panel only with 2FA set up (the superadmin panel itself sends them to
+        // its 2FA set-up); a non-superadmin team member (platform) enters neither
         $expected = [
-            'super_admin' => [true, true],
+            'super_admin' => [false, true],
             'owner' => [true, false],
             'manager' => [true, false],
             'courier' => [false, false],
             'customer' => [false, false],
+            'platform' => [false, false],
         ];
 
         foreach ($expected as $role => [$admin, $superadmin]) {
@@ -186,6 +189,10 @@ class AccessControlTest extends TestCase
             $this->assertSame($admin, $user->canAccessPanel($adminPanel), "{$role} admin panel");
             $this->assertSame($superadmin, $user->canAccessPanel($superadminPanel), "{$role} superadmin panel");
         }
+
+        $superAdmin = $this->member(UserRole::SUPER_ADMIN);
+        $superAdmin->saveAppAuthenticationSecret(app(\App\Services\Admin\TwoFactorService::class)->generateSecret());
+        $this->assertTrue($superAdmin->canAccessPanel($adminPanel), 'super_admin with 2FA admin panel');
     }
 
     public function test_only_super_admin_can_create_global_categories(): void

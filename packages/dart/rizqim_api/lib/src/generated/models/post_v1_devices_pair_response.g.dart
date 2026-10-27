@@ -11,7 +11,7 @@ PostV1DevicesPairResponse _$PostV1DevicesPairResponseFromJson(
 ) => PostV1DevicesPairResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data11.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data32.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1DevicesPairResponseToJson(

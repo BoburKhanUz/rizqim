@@ -4,30 +4,16 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'device5.dart';
-
 part 'data4.g.dart';
 
 @JsonSerializable()
 class Data4 {
-  const Data4({
-    required this.token,
-    required this.tokenExpiresAt,
-    required this.refreshToken,
-    required this.refreshTokenExpiresAt,
-    required this.device,
-  });
+  const Data4({required this.recoveryCodes});
 
   factory Data4.fromJson(Map<String, Object?> json) => _$Data4FromJson(json);
 
-  final String token;
-  @JsonKey(name: 'token_expires_at')
-  final String tokenExpiresAt;
-  @JsonKey(name: 'refresh_token')
-  final String refreshToken;
-  @JsonKey(name: 'refresh_token_expires_at')
-  final String refreshTokenExpiresAt;
-  final Device5 device;
+  @JsonKey(name: 'recovery_codes')
+  final List<String> recoveryCodes;
 
   Map<String, Object?> toJson() => _$Data4ToJson(this);
 }

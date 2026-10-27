@@ -8,13 +8,42 @@ part 'data16.g.dart';
 
 @JsonSerializable()
 class Data16 {
-  const Data16({required this.address, required this.lat, required this.lng});
+  const Data16({
+    required this.id,
+    required this.name,
+    required this.email,
+    required this.platformRole,
+    required this.platformRoleLabel,
+    required this.status,
+    required this.disabled,
+    required this.twoFactorEnabled,
+    required this.lastLoginAt,
+    required this.activeSessions,
+    required this.inviteExpiresAt,
+    required this.createdAt,
+  });
 
   factory Data16.fromJson(Map<String, Object?> json) => _$Data16FromJson(json);
 
-  final String address;
-  final num lat;
-  final num lng;
+  final int id;
+  final String name;
+  final String? email;
+  @JsonKey(name: 'platform_role')
+  final String? platformRole;
+  @JsonKey(name: 'platform_role_label')
+  final String? platformRoleLabel;
+  final String status;
+  final bool disabled;
+  @JsonKey(name: 'two_factor_enabled')
+  final bool twoFactorEnabled;
+  @JsonKey(name: 'last_login_at')
+  final String? lastLoginAt;
+  @JsonKey(name: 'active_sessions')
+  final int activeSessions;
+  @JsonKey(name: 'invite_expires_at')
+  final String? inviteExpiresAt;
+  @JsonKey(name: 'created_at')
+  final String? createdAt;
 
   Map<String, Object?> toJson() => _$Data16ToJson(this);
 }

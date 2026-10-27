@@ -7,15 +7,11 @@ part of 'data117.dart';
 // **************************************************************************
 
 Data117 _$Data117FromJson(Map<String, dynamic> json) => Data117(
-  token: json['token'] as String,
-  permission: json['permission'] as String,
-  expiresAt: json['expires_at'] as String,
-  approvedBy: ApprovedBy.fromJson(json['approved_by'] as Map<String, dynamic>),
+  productId: (json['product_id'] as num).toInt(),
+  modifierGroups: json['modifier_groups'] as String,
 );
 
 Map<String, dynamic> _$Data117ToJson(Data117 instance) => <String, dynamic>{
-  'token': instance.token,
-  'permission': instance.permission,
-  'expires_at': instance.expiresAt,
-  'approved_by': instance.approvedBy,
+  'product_id': instance.productId,
+  'modifier_groups': instance.modifierGroups,
 };

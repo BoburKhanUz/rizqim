@@ -7,29 +7,21 @@ part of 'data84.dart';
 // **************************************************************************
 
 Data84 _$Data84FromJson(Map<String, dynamic> json) => Data84(
-  uuid: json['uuid'] as String,
-  provider: json['provider'] as String,
-  providerTransactionId: json['provider_transaction_id'] as String?,
-  status: json['status'] as String,
-  amount: json['amount'] as String,
-  paidAt: json['paid_at'] as String?,
-  cancelledAt: json['cancelled_at'] as String?,
-  createdAt: json['created_at'] as String,
-  order: Order3.fromJson(json['order'] as Map<String, dynamic>),
-  fiscal: json['fiscal'] == null
-      ? null
-      : Fiscal.fromJson(json['fiscal'] as Map<String, dynamic>),
+  enabled: json['enabled'] as bool,
+  tinSet: json['tin_set'] as bool,
+  taxRegime: json['tax_regime'] as String?,
+  productsMissingMxik: (json['products_missing_mxik'] as List<dynamic>)
+      .map((e) => ProductsMissingMxik.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  chargesMissingMxik: (json['charges_missing_mxik'] as List<dynamic>)
+      .map((e) => e as String)
+      .toList(),
 );
 
 Map<String, dynamic> _$Data84ToJson(Data84 instance) => <String, dynamic>{
-  'uuid': instance.uuid,
-  'provider': instance.provider,
-  'provider_transaction_id': instance.providerTransactionId,
-  'status': instance.status,
-  'amount': instance.amount,
-  'paid_at': instance.paidAt,
-  'cancelled_at': instance.cancelledAt,
-  'created_at': instance.createdAt,
-  'order': instance.order,
-  'fiscal': instance.fiscal,
+  'enabled': instance.enabled,
+  'tin_set': instance.tinSet,
+  'tax_regime': instance.taxRegime,
+  'products_missing_mxik': instance.productsMissingMxik,
+  'charges_missing_mxik': instance.chargesMissingMxik,
 };

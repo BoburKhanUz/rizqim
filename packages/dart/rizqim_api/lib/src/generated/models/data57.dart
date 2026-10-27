@@ -4,52 +4,55 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'store_status.dart';
-import 'store_transaction.dart';
-import 'store_wallet_transaction.dart';
-import 'payout_requests.dart';
+import 'working_hours.dart';
 
 part 'data57.g.dart';
 
 @JsonSerializable()
 class Data57 {
   const Data57({
-    required this.debtBalance,
-    required this.walletBalance,
-    required this.creditLimit,
-    required this.minPayoutReserve,
-    required this.paymentAccountType,
-    required this.commissionRate,
+    required this.id,
+    required this.name,
+    required this.phone,
+    required this.address,
+    required this.regionId,
+    required this.districtId,
+    required this.latitude,
+    required this.longitude,
+    required this.radiusKm,
     required this.status,
-    required this.isOrderLocked,
-    required this.ledgerTransactions,
-    required this.walletTransactions,
-    required this.payoutRequests,
+    required this.isActive,
+    required this.workingHours,
+    required this.isOpenNow,
+    required this.createdAt,
+    required this.updatedAt,
   });
 
   factory Data57.fromJson(Map<String, Object?> json) => _$Data57FromJson(json);
 
-  @JsonKey(name: 'debt_balance')
-  final num debtBalance;
-  @JsonKey(name: 'wallet_balance')
-  final num walletBalance;
-  @JsonKey(name: 'credit_limit')
-  final num creditLimit;
-  @JsonKey(name: 'min_payout_reserve')
-  final num minPayoutReserve;
-  @JsonKey(name: 'payment_account_type')
-  final String paymentAccountType;
-  @JsonKey(name: 'commission_rate')
-  final num commissionRate;
-  final StoreStatus status;
-  @JsonKey(name: 'is_order_locked')
-  final bool isOrderLocked;
-  @JsonKey(name: 'ledger_transactions')
-  final List<StoreTransaction> ledgerTransactions;
-  @JsonKey(name: 'wallet_transactions')
-  final List<StoreWalletTransaction> walletTransactions;
-  @JsonKey(name: 'payout_requests')
-  final List<PayoutRequests> payoutRequests;
+  final int id;
+  final String name;
+  final String? phone;
+  final String? address;
+  @JsonKey(name: 'region_id')
+  final int? regionId;
+  @JsonKey(name: 'district_id')
+  final int? districtId;
+  final num? latitude;
+  final num? longitude;
+  @JsonKey(name: 'radius_km')
+  final num radiusKm;
+  final String status;
+  @JsonKey(name: 'is_active')
+  final bool isActive;
+  @JsonKey(name: 'working_hours')
+  final WorkingHours workingHours;
+  @JsonKey(name: 'is_open_now')
+  final bool isOpenNow;
+  @JsonKey(name: 'created_at')
+  final String? createdAt;
+  @JsonKey(name: 'updated_at')
+  final String? updatedAt;
 
   Map<String, Object?> toJson() => _$Data57ToJson(this);
 }

@@ -4,20 +4,20 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'accounts.dart';
-import 'meta.dart';
+import 'bill2.dart';
+import 'order5.dart';
 
 part 'data140.g.dart';
 
 @JsonSerializable()
 class Data140 {
-  const Data140({required this.accounts, required this.meta});
+  const Data140({required this.bill, required this.order});
 
   factory Data140.fromJson(Map<String, Object?> json) =>
       _$Data140FromJson(json);
 
-  final List<Accounts> accounts;
-  final Meta meta;
+  final Bill2 bill;
+  final Order5 order;
 
   Map<String, Object?> toJson() => _$Data140ToJson(this);
 }

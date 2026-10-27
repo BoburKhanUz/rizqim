@@ -4,46 +4,30 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'actor.dart';
-import 'device9.dart';
+import 'device6.dart';
 
 part 'data25.g.dart';
 
 @JsonSerializable()
 class Data25 {
   const Data25({
-    required this.id,
-    required this.action,
-    required this.actor,
+    required this.token,
+    required this.tokenExpiresAt,
+    required this.refreshToken,
+    required this.refreshTokenExpiresAt,
     required this.device,
-    required this.subjectType,
-    required this.subjectId,
-    required this.branchId,
-    required this.before,
-    required this.after,
-    required this.meta,
-    required this.ip,
-    required this.createdAt,
   });
 
   factory Data25.fromJson(Map<String, Object?> json) => _$Data25FromJson(json);
 
-  final int id;
-  final String action;
-  final Actor? actor;
-  final Device9? device;
-  @JsonKey(name: 'subject_type')
-  final String? subjectType;
-  @JsonKey(name: 'subject_id')
-  final int? subjectId;
-  @JsonKey(name: 'branch_id')
-  final int? branchId;
-  final Map<String, dynamic>? before;
-  final Map<String, dynamic>? after;
-  final Map<String, dynamic>? meta;
-  final String? ip;
-  @JsonKey(name: 'created_at')
-  final String createdAt;
+  final String token;
+  @JsonKey(name: 'token_expires_at')
+  final String tokenExpiresAt;
+  @JsonKey(name: 'refresh_token')
+  final String refreshToken;
+  @JsonKey(name: 'refresh_token_expires_at')
+  final String refreshTokenExpiresAt;
+  final Device6 device;
 
   Map<String, Object?> toJson() => _$Data25ToJson(this);
 }

@@ -11,7 +11,7 @@ GetV1OwnerFiscalSettingsResponse _$GetV1OwnerFiscalSettingsResponseFromJson(
 ) => GetV1OwnerFiscalSettingsResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data68.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data89.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1OwnerFiscalSettingsResponseToJson(

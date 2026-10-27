@@ -4,57 +4,53 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'branch6.dart';
-import 'polygon4.dart';
-import 'bbox4.dart';
+import 'period.dart';
+import 'summary.dart';
+import 'by_payment_method.dart';
+import 'by_order_type.dart';
+import 'by_channel.dart';
+import 'top_products.dart';
+import 'couriers.dart';
+import 'times.dart';
+import 'daily.dart';
 
 part 'data45.g.dart';
 
 @JsonSerializable()
 class Data45 {
   const Data45({
-    required this.id,
-    required this.name,
-    required this.branchId,
-    required this.branch,
-    required this.polygon,
-    required this.bbox,
-    required this.areaKm2,
-    required this.deliveryPrice,
-    required this.minOrderAmount,
-    required this.freeDeliveryFrom,
-    required this.etaMinutes,
-    required this.priority,
-    required this.active,
-    required this.createdAt,
-    required this.updatedAt,
+    required this.period,
+    required this.summary,
+    required this.byStatus,
+    required this.byPaymentMethod,
+    required this.byOrderType,
+    required this.byChannel,
+    required this.topProducts,
+    required this.couriers,
+    required this.times,
+    required this.daily,
+    required this.generatedAt,
   });
 
   factory Data45.fromJson(Map<String, Object?> json) => _$Data45FromJson(json);
 
-  final int id;
-  final String name;
-  @JsonKey(name: 'branch_id')
-  final int? branchId;
-  final Branch6? branch;
-  final Polygon4 polygon;
-  final Bbox4 bbox;
-  @JsonKey(name: 'area_km2')
-  final String areaKm2;
-  @JsonKey(name: 'delivery_price')
-  final String deliveryPrice;
-  @JsonKey(name: 'min_order_amount')
-  final String minOrderAmount;
-  @JsonKey(name: 'free_delivery_from')
-  final String? freeDeliveryFrom;
-  @JsonKey(name: 'eta_minutes')
-  final int? etaMinutes;
-  final int priority;
-  final bool active;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
-  @JsonKey(name: 'updated_at')
-  final String? updatedAt;
+  final Period period;
+  final Summary summary;
+  @JsonKey(name: 'by_status')
+  final Map<String, int> byStatus;
+  @JsonKey(name: 'by_payment_method')
+  final List<ByPaymentMethod> byPaymentMethod;
+  @JsonKey(name: 'by_order_type')
+  final List<ByOrderType> byOrderType;
+  @JsonKey(name: 'by_channel')
+  final List<ByChannel> byChannel;
+  @JsonKey(name: 'top_products')
+  final List<TopProducts> topProducts;
+  final List<Couriers> couriers;
+  final Times times;
+  final List<Daily> daily;
+  @JsonKey(name: 'generated_at')
+  final String generatedAt;
 
   Map<String, Object?> toJson() => _$Data45ToJson(this);
 }

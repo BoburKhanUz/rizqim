@@ -4,23 +4,32 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'role.dart';
+import 'tax_regime.dart';
+import 'fiscal_settings2.dart';
+import 'tax_regimes2.dart';
 
 part 'data90.g.dart';
 
 @JsonSerializable()
 class Data90 {
   const Data90({
-    required this.role,
-    required this.permission,
-    required this.allowed,
+    required this.tin,
+    required this.taxRegime,
+    required this.fiscalSettings,
+    required this.drivers,
+    required this.taxRegimes,
   });
 
   factory Data90.fromJson(Map<String, Object?> json) => _$Data90FromJson(json);
 
-  final Role role;
-  final String permission;
-  final bool allowed;
+  final String? tin;
+  @JsonKey(name: 'tax_regime')
+  final TaxRegime? taxRegime;
+  @JsonKey(name: 'fiscal_settings')
+  final FiscalSettings2 fiscalSettings;
+  final List<String> drivers;
+  @JsonKey(name: 'tax_regimes')
+  final List<TaxRegimes2> taxRegimes;
 
   Map<String, Object?> toJson() => _$Data90ToJson(this);
 }

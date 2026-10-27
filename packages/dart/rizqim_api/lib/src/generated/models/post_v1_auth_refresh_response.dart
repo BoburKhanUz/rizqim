@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data4.dart';
+import 'data25.dart';
 
 part 'post_v1_auth_refresh_response.g.dart';
 
@@ -21,7 +21,7 @@ class PostV1AuthRefreshResponse {
 
   final bool success;
   final String message;
-  final Data4 data;
+  final Data25 data;
 
   Map<String, Object?> toJson() => _$PostV1AuthRefreshResponseToJson(this);
 }

@@ -4,46 +4,25 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'prices.dart';
+
 part 'data115.g.dart';
 
 @JsonSerializable()
 class Data115 {
   const Data115({
-    required this.id,
-    required this.branchId,
-    required this.type,
-    required this.subjectId,
-    required this.subjectUuid,
-    required this.name,
-    required this.reason,
-    required this.until,
-    required this.createdBy,
-    required this.createdByName,
-    required this.createdAt,
+    required this.productId,
+    required this.channels,
+    required this.prices,
   });
 
   factory Data115.fromJson(Map<String, Object?> json) =>
       _$Data115FromJson(json);
 
-  final int id;
-  @JsonKey(name: 'branch_id')
-  final int branchId;
-  final String type;
-  @JsonKey(name: 'subject_id')
-  final int subjectId;
-  @JsonKey(name: 'subject_uuid')
-  final dynamic subjectUuid;
-  final dynamic name;
-  final String? reason;
-  final String? until;
-  @JsonKey(name: 'created_by')
-  final int? createdBy;
-
-  /// The store's own staff only (a super admin's entry shows no name)
-  @JsonKey(name: 'created_by_name')
-  final String? createdByName;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
+  @JsonKey(name: 'product_id')
+  final int productId;
+  final List<dynamic> channels;
+  final List<Prices> prices;
 
   Map<String, Object?> toJson() => _$Data115ToJson(this);
 }

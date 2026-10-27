@@ -7,11 +7,13 @@ part of 'data20.dart';
 // **************************************************************************
 
 Data20 _$Data20FromJson(Map<String, dynamic> json) => Data20(
-  preferences: (json['preferences'] as List<dynamic>)
-      .map((e) => Preferences2.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  inviteUrl: json['invite_url'] as String,
+  inviteToken: json['invite_token'] as String,
+  inviteExpiresAt: json['invite_expires_at'] as String,
 );
 
 Map<String, dynamic> _$Data20ToJson(Data20 instance) => <String, dynamic>{
-  'preferences': instance.preferences,
+  'invite_url': instance.inviteUrl,
+  'invite_token': instance.inviteToken,
+  'invite_expires_at': instance.inviteExpiresAt,
 };

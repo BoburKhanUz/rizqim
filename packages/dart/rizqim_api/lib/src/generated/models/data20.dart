@@ -4,17 +4,24 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'preferences2.dart';
-
 part 'data20.g.dart';
 
 @JsonSerializable()
 class Data20 {
-  const Data20({required this.preferences});
+  const Data20({
+    required this.inviteUrl,
+    required this.inviteToken,
+    required this.inviteExpiresAt,
+  });
 
   factory Data20.fromJson(Map<String, Object?> json) => _$Data20FromJson(json);
 
-  final List<Preferences2> preferences;
+  @JsonKey(name: 'invite_url')
+  final String inviteUrl;
+  @JsonKey(name: 'invite_token')
+  final String inviteToken;
+  @JsonKey(name: 'invite_expires_at')
+  final String inviteExpiresAt;
 
   Map<String, Object?> toJson() => _$Data20ToJson(this);
 }

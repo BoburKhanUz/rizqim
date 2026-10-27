@@ -4,32 +4,48 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'tax_regime.dart';
-import 'fiscal_settings2.dart';
-import 'tax_regimes2.dart';
+import 'user12.dart';
 
 part 'data69.g.dart';
 
 @JsonSerializable()
 class Data69 {
   const Data69({
-    required this.tin,
-    required this.taxRegime,
-    required this.fiscalSettings,
-    required this.drivers,
-    required this.taxRegimes,
+    required this.uuid,
+    required this.type,
+    required this.name,
+    required this.platform,
+    required this.appVersion,
+    required this.storeId,
+    required this.branchId,
+    required this.user,
+    required this.hasPushToken,
+    required this.lastSeenAt,
+    required this.revokedAt,
+    required this.createdAt,
   });
 
   factory Data69.fromJson(Map<String, Object?> json) => _$Data69FromJson(json);
 
-  final String? tin;
-  @JsonKey(name: 'tax_regime')
-  final TaxRegime? taxRegime;
-  @JsonKey(name: 'fiscal_settings')
-  final FiscalSettings2 fiscalSettings;
-  final List<String> drivers;
-  @JsonKey(name: 'tax_regimes')
-  final List<TaxRegimes2> taxRegimes;
+  final String uuid;
+  final String type;
+  final String name;
+  final String? platform;
+  @JsonKey(name: 'app_version')
+  final String? appVersion;
+  @JsonKey(name: 'store_id')
+  final int? storeId;
+  @JsonKey(name: 'branch_id')
+  final int? branchId;
+  final User12? user;
+  @JsonKey(name: 'has_push_token')
+  final bool hasPushToken;
+  @JsonKey(name: 'last_seen_at')
+  final String? lastSeenAt;
+  @JsonKey(name: 'revoked_at')
+  final String? revokedAt;
+  @JsonKey(name: 'created_at')
+  final String? createdAt;
 
   Map<String, Object?> toJson() => _$Data69ToJson(this);
 }

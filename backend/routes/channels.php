@@ -87,3 +87,13 @@ Broadcast::channel('pos-branch.{branchId}', function (User|Device $actor, string
 
     return app(StaffOrderScope::class)->allowsBranch($actor, Permission::ORDERS_VIEW, $branch);
 }, ['guards' => ['sanctum', 'device']]);
+
+/*
+| P4-11: the RIZQIM team's live channel (Boshqaruv markazi): new orders, problems and alerts (stage B), for team
+| members with admin.today.view. Only the admin session token signs it (the `admin` guard); a store or customer token
+| never does.
+*/
+Broadcast::channel(\App\Events\Broadcast\PlatformOpsBroadcast::CHANNEL, function (User $member) {
+    return $member->isActivePlatformStaff()
+        && app(\App\Services\Admin\AdminPermissionService::class)->has($member, \App\Enums\AdminPermission::TODAY_VIEW);
+}, ['guards' => ['admin']]);

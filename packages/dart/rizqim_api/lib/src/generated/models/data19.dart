@@ -4,17 +4,46 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'preferences.dart';
-
 part 'data19.g.dart';
 
 @JsonSerializable()
 class Data19 {
-  const Data19({required this.preferences});
+  const Data19({
+    required this.id,
+    required this.name,
+    required this.email,
+    required this.platformRole,
+    required this.platformRoleLabel,
+    required this.status,
+    required this.disabled,
+    required this.twoFactorEnabled,
+    required this.lastLoginAt,
+    required this.activeSessions,
+    required this.inviteExpiresAt,
+    required this.createdAt,
+  });
 
   factory Data19.fromJson(Map<String, Object?> json) => _$Data19FromJson(json);
 
-  final List<Preferences> preferences;
+  final int id;
+  final String name;
+  final String? email;
+  @JsonKey(name: 'platform_role')
+  final String? platformRole;
+  @JsonKey(name: 'platform_role_label')
+  final String? platformRoleLabel;
+  final String status;
+  final bool disabled;
+  @JsonKey(name: 'two_factor_enabled')
+  final bool twoFactorEnabled;
+  @JsonKey(name: 'last_login_at')
+  final String? lastLoginAt;
+  @JsonKey(name: 'active_sessions')
+  final int activeSessions;
+  @JsonKey(name: 'invite_expires_at')
+  final String? inviteExpiresAt;
+  @JsonKey(name: 'created_at')
+  final String? createdAt;
 
   Map<String, Object?> toJson() => _$Data19ToJson(this);
 }

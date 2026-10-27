@@ -47,6 +47,8 @@ class FilamentPagesRenderTest extends TestCase
             'password' => bcrypt('password'),
             'role' => UserRole::SUPER_ADMIN->value,
         ]);
+        // P4-11: the superadmin panel requires 2FA (without it every page redirects to its set-up)
+        $this->superAdmin->saveAppAuthenticationSecret(app(\App\Services\Admin\TwoFactorService::class)->generateSecret());
     }
 
     public function test_superadmin_districts_list_renders(): void
@@ -82,7 +84,8 @@ class FilamentPagesRenderTest extends TestCase
             $rendered[] = $url;
 
             // The tenant panel's root only redirects to the store's dashboard
-            $redirectsInside = $response->isRedirect() && !str_contains((string) $response->headers->get('Location'), '/login');
+            $redirectsInside = $response->isRedirect() && !str_contains((string) $response->headers->get('Location'), '/login')
+                && !str_contains((string) $response->headers->get('Location'), 'multi-factor-authentication');
             if ($response->getStatusCode() !== 200 && !$redirectsInside) {
                 $failures[] = "{$url} => {$response->getStatusCode()} " . ($response->exception?->getMessage() ?? '');
             }

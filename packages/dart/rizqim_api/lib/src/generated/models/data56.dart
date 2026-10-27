@@ -4,19 +4,34 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'user.dart';
+import 'variants.dart';
 
 part 'data56.g.dart';
 
 @JsonSerializable()
 class Data56 {
-  const Data56({required this.employee, required this.inviteLink});
+  const Data56({
+    required this.productId,
+    required this.name,
+    required this.description,
+    required this.imageUrl,
+    required this.batchTracked,
+    required this.variants,
+  });
 
   factory Data56.fromJson(Map<String, Object?> json) => _$Data56FromJson(json);
 
-  final User employee;
-  @JsonKey(name: 'invite_link')
-  final String inviteLink;
+  @JsonKey(name: 'product_id')
+  final int productId;
+  final String name;
+  final String? description;
+  @JsonKey(name: 'image_url')
+  final String? imageUrl;
+
+  /// P2-30: sold from a batch (kazan): without an open batch on the branch it is sold out (docs/MENU.md §4)
+  @JsonKey(name: 'batch_tracked')
+  final bool batchTracked;
+  final List<Variants> variants;
 
   Map<String, Object?> toJson() => _$Data56ToJson(this);
 }

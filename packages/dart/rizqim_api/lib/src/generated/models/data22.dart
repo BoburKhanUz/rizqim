@@ -4,25 +4,42 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'items.dart';
-import 'pagination.dart';
+import 'user.dart';
+import 'store.dart';
+import 'device2.dart';
 
 part 'data22.g.dart';
 
 @JsonSerializable()
 class Data22 {
   const Data22({
-    required this.items,
-    required this.unreadCount,
-    required this.pagination,
+    required this.token,
+    required this.user,
+    required this.store,
+    required this.smsVerificationRequired,
+    required this.isNewUser,
+    required this.tokenExpiresAt,
+    required this.refreshToken,
+    required this.refreshTokenExpiresAt,
+    required this.device,
   });
 
   factory Data22.fromJson(Map<String, Object?> json) => _$Data22FromJson(json);
 
-  final List<Items> items;
-  @JsonKey(name: 'unread_count')
-  final int unreadCount;
-  final Pagination pagination;
+  final String token;
+  final User user;
+  final Store? store;
+  @JsonKey(name: 'sms_verification_required')
+  final bool smsVerificationRequired;
+  @JsonKey(name: 'is_new_user')
+  final bool isNewUser;
+  @JsonKey(name: 'token_expires_at')
+  final String tokenExpiresAt;
+  @JsonKey(name: 'refresh_token')
+  final String refreshToken;
+  @JsonKey(name: 'refresh_token_expires_at')
+  final String refreshTokenExpiresAt;
+  final Device2 device;
 
   Map<String, Object?> toJson() => _$Data22ToJson(this);
 }

@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data196.dart';
+import 'data217.dart';
 
 part 'get_v1_terminal_staff_response.g.dart';
 
@@ -21,7 +21,7 @@ class GetV1TerminalStaffResponse {
 
   final bool success;
   final String message;
-  final List<Data196> data;
+  final List<Data217> data;
 
   Map<String, Object?> toJson() => _$GetV1TerminalStaffResponseToJson(this);
 }

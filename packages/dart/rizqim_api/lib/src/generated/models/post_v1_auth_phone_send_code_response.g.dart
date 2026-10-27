@@ -11,7 +11,7 @@ PostV1AuthPhoneSendCodeResponse _$PostV1AuthPhoneSendCodeResponseFromJson(
 ) => PostV1AuthPhoneSendCodeResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data2.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data23.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1AuthPhoneSendCodeResponseToJson(

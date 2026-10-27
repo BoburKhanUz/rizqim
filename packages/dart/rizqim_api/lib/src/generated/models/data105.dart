@@ -4,39 +4,43 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'order3.dart';
+import 'fiscal.dart';
+
 part 'data105.g.dart';
 
 @JsonSerializable()
 class Data105 {
   const Data105({
-    required this.branchId,
-    required this.hallId,
-    required this.serviceChargePercent,
-    required this.serviceChargeChannels,
-    required this.placeFeeAmount,
-    required this.placeFeeMode,
-    required this.placeFeeChannels,
+    required this.uuid,
+    required this.provider,
+    required this.providerTransactionId,
+    required this.status,
+    required this.amount,
+    required this.paidAt,
+    required this.cancelledAt,
+    required this.createdAt,
+    required this.order,
+    required this.fiscal,
   });
 
   factory Data105.fromJson(Map<String, Object?> json) =>
       _$Data105FromJson(json);
 
-  @JsonKey(name: 'branch_id')
-  final int? branchId;
-
-  /// P3-12: a hall's own row (null: the branch's or the store's)
-  @JsonKey(name: 'hall_id')
-  final int? hallId;
-  @JsonKey(name: 'service_charge_percent')
-  final String serviceChargePercent;
-  @JsonKey(name: 'service_charge_channels')
-  final List<String>? serviceChargeChannels;
-  @JsonKey(name: 'place_fee_amount')
-  final String placeFeeAmount;
-  @JsonKey(name: 'place_fee_mode')
-  final String placeFeeMode;
-  @JsonKey(name: 'place_fee_channels')
-  final List<String>? placeFeeChannels;
+  final String uuid;
+  final String provider;
+  @JsonKey(name: 'provider_transaction_id')
+  final String? providerTransactionId;
+  final String status;
+  final String amount;
+  @JsonKey(name: 'paid_at')
+  final String? paidAt;
+  @JsonKey(name: 'cancelled_at')
+  final String? cancelledAt;
+  @JsonKey(name: 'created_at')
+  final String createdAt;
+  final Order3 order;
+  final Fiscal? fiscal;
 
   Map<String, Object?> toJson() => _$Data105ToJson(this);
 }

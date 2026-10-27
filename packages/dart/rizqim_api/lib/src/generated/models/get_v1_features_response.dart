@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data15.dart';
+import 'data36.dart';
 
 part 'get_v1_features_response.g.dart';
 
@@ -16,7 +16,7 @@ class GetV1FeaturesResponse {
       _$GetV1FeaturesResponseFromJson(json);
 
   final bool success;
-  final Data15 data;
+  final Data36 data;
 
   Map<String, Object?> toJson() => _$GetV1FeaturesResponseToJson(this);
 }

@@ -4,117 +4,75 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'items11.dart';
-import 'payments15.dart';
+import 'payment_settings.dart';
+import 'payment_account_type.dart';
+import 'store_status.dart';
+import 'tax_regime.dart';
+import 'fiscal_settings4.dart';
 
 part 'data128.g.dart';
 
 @JsonSerializable()
 class Data128 {
   const Data128({
-    required this.sourceLabel,
-    required this.branchId,
-    required this.diningTableId,
-    required this.tableIds,
-    required this.startsAt,
-    required this.endsAt,
-    required this.guestsPlanned,
-    required this.eventType,
-    required this.eventTypeLabel,
-    required this.contactName,
-    required this.contactPhone,
-    required this.source,
-    required this.uuid,
+    required this.id,
+    required this.name,
+    required this.timezone,
+    required this.logo,
+    required this.logoUrl,
+    required this.banner,
+    required this.bannerUrl,
+    required this.description,
+    required this.phone,
+    required this.address,
+    required this.locationUrl,
+    required this.isOpen,
+    required this.minOrderAmount,
+    required this.paymentSettings,
+    required this.paymentAccountType,
     required this.status,
-    required this.statusLabel,
-    required this.minSpend,
-    required this.note,
-    required this.orderUuid,
-    required this.depositTotal,
-    required this.depositAvailable,
-    required this.depositUnsettled,
-    required this.itemsCount,
-    required this.payments,
-    required this.version,
-    required this.createdBy,
-    required this.confirmedAt,
-    required this.arrivedAt,
-    required this.completedAt,
-    required this.canceledAt,
-    required this.confirmationSentAt,
-    required this.confirmationChannel,
-    required this.createdAt,
-    required this.updatedAt,
-    required this.items,
-    required this.cancelReason,
+    required this.isOrderLocked,
+    required this.allowedMethods,
+    required this.tin,
+    required this.taxRegime,
+    required this.fiscalSettings,
   });
 
   factory Data128.fromJson(Map<String, Object?> json) =>
       _$Data128FromJson(json);
 
-  final String uuid;
-  @JsonKey(name: 'branch_id')
-  final int branchId;
-  @JsonKey(name: 'dining_table_id')
-  final int? diningTableId;
-  @JsonKey(name: 'table_ids')
-  final List<int> tableIds;
-  @JsonKey(name: 'starts_at')
-  final String startsAt;
-  @JsonKey(name: 'ends_at')
-  final String endsAt;
-  @JsonKey(name: 'guests_planned')
-  final int guestsPlanned;
-  @JsonKey(name: 'event_type')
-  final String eventType;
-  @JsonKey(name: 'event_type_label')
-  final String eventTypeLabel;
-  @JsonKey(name: 'contact_name')
-  final String contactName;
-  @JsonKey(name: 'contact_phone')
-  final String? contactPhone;
-  final String source;
-  @JsonKey(name: 'source_label')
-  final String sourceLabel;
-  final String status;
-  @JsonKey(name: 'status_label')
-  final String statusLabel;
-  @JsonKey(name: 'min_spend')
-  final String? minSpend;
-  final String? note;
-  @JsonKey(name: 'order_uuid')
-  final String? orderUuid;
-  @JsonKey(name: 'deposit_total')
-  final String depositTotal;
-  @JsonKey(name: 'deposit_available')
-  final String depositAvailable;
-  @JsonKey(name: 'deposit_unsettled')
-  final bool depositUnsettled;
-  @JsonKey(name: 'items_count')
-  final int itemsCount;
-  @JsonKey(name: 'cancel_reason')
-  final String? cancelReason;
-  final int version;
-  @JsonKey(name: 'created_by')
-  final int? createdBy;
-  @JsonKey(name: 'confirmed_at')
-  final String? confirmedAt;
-  @JsonKey(name: 'arrived_at')
-  final String? arrivedAt;
-  @JsonKey(name: 'completed_at')
-  final String? completedAt;
-  @JsonKey(name: 'canceled_at')
-  final String? canceledAt;
-  @JsonKey(name: 'confirmation_sent_at')
-  final String? confirmationSentAt;
-  @JsonKey(name: 'confirmation_channel')
-  final String? confirmationChannel;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
-  @JsonKey(name: 'updated_at')
-  final String? updatedAt;
-  final List<Items11> items;
-  final List<Payments15> payments;
+  final int id;
+  final String name;
+  final String timezone;
+  final String? logo;
+  @JsonKey(name: 'logo_url')
+  final String? logoUrl;
+  final String? banner;
+  @JsonKey(name: 'banner_url')
+  final String? bannerUrl;
+  final String? description;
+  final String? phone;
+  final String? address;
+  @JsonKey(name: 'location_url')
+  final String? locationUrl;
+  @JsonKey(name: 'is_open')
+  final bool isOpen;
+  @JsonKey(name: 'min_order_amount')
+  final num minOrderAmount;
+  @JsonKey(name: 'payment_settings')
+  final PaymentSettings paymentSettings;
+  @JsonKey(name: 'payment_account_type')
+  final PaymentAccountType paymentAccountType;
+  final StoreStatus status;
+  @JsonKey(name: 'is_order_locked')
+  final bool isOrderLocked;
+  @JsonKey(name: 'allowed_methods')
+  final List<String> allowedMethods;
+  final String? tin;
+  @JsonKey(name: 'tax_regime')
+  final TaxRegime? taxRegime;
+  @JsonKey(name: 'fiscal_settings')
+  final FiscalSettings4 fiscalSettings;
 
   Map<String, Object?> toJson() => _$Data128ToJson(this);
 }

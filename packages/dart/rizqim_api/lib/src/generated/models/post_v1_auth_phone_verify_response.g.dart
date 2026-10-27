@@ -11,7 +11,7 @@ PostV1AuthPhoneVerifyResponse _$PostV1AuthPhoneVerifyResponseFromJson(
 ) => PostV1AuthPhoneVerifyResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data3.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data24.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1AuthPhoneVerifyResponseToJson(

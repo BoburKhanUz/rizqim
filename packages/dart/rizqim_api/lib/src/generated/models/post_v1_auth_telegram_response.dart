@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data5.dart';
+import 'data26.dart';
 
 part 'post_v1_auth_telegram_response.g.dart';
 
@@ -21,7 +21,7 @@ class PostV1AuthTelegramResponse {
 
   final bool success;
   final String message;
-  final Data5 data;
+  final Data26 data;
 
   Map<String, Object?> toJson() => _$PostV1AuthTelegramResponseToJson(this);
 }

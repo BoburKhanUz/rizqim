@@ -12,7 +12,7 @@ GetV1OwnerBranchVariantsResponse _$GetV1OwnerBranchVariantsResponseFromJson(
   success: json['success'] as bool,
   message: json['message'] as String,
   data: (json['data'] as List<dynamic>)
-      .map((e) => Data35.fromJson(e as Map<String, dynamic>))
+      .map((e) => Data56.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 

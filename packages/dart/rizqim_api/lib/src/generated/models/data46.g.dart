@@ -7,33 +7,35 @@ part of 'data46.dart';
 // **************************************************************************
 
 Data46 _$Data46FromJson(Map<String, dynamic> json) => Data46(
-  uuid: json['uuid'] as String,
-  type: json['type'] as String,
-  name: json['name'] as String,
-  platform: json['platform'] as String?,
-  appVersion: json['app_version'] as String?,
-  storeId: (json['store_id'] as num?)?.toInt(),
-  branchId: (json['branch_id'] as num?)?.toInt(),
-  user: json['user'] == null
+  id: (json['id'] as num).toInt(),
+  action: json['action'] as String,
+  actor: json['actor'] == null
       ? null
-      : User11.fromJson(json['user'] as Map<String, dynamic>),
-  hasPushToken: json['has_push_token'] as bool,
-  lastSeenAt: json['last_seen_at'] as String?,
-  revokedAt: json['revoked_at'] as String?,
-  createdAt: json['created_at'] as String?,
+      : Actor2.fromJson(json['actor'] as Map<String, dynamic>),
+  device: json['device'] == null
+      ? null
+      : Device10.fromJson(json['device'] as Map<String, dynamic>),
+  subjectType: json['subject_type'] as String?,
+  subjectId: (json['subject_id'] as num?)?.toInt(),
+  branchId: (json['branch_id'] as num?)?.toInt(),
+  before: json['before'] as Map<String, dynamic>?,
+  after: json['after'] as Map<String, dynamic>?,
+  meta: json['meta'] as Map<String, dynamic>?,
+  ip: json['ip'] as String?,
+  createdAt: json['created_at'] as String,
 );
 
 Map<String, dynamic> _$Data46ToJson(Data46 instance) => <String, dynamic>{
-  'uuid': instance.uuid,
-  'type': instance.type,
-  'name': instance.name,
-  'platform': instance.platform,
-  'app_version': instance.appVersion,
-  'store_id': instance.storeId,
+  'id': instance.id,
+  'action': instance.action,
+  'actor': instance.actor,
+  'device': instance.device,
+  'subject_type': instance.subjectType,
+  'subject_id': instance.subjectId,
   'branch_id': instance.branchId,
-  'user': instance.user,
-  'has_push_token': instance.hasPushToken,
-  'last_seen_at': instance.lastSeenAt,
-  'revoked_at': instance.revokedAt,
+  'before': instance.before,
+  'after': instance.after,
+  'meta': instance.meta,
+  'ip': instance.ip,
   'created_at': instance.createdAt,
 };

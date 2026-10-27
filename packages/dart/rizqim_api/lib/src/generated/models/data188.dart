@@ -4,54 +4,58 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'customer6.dart';
-import 'delivery9.dart';
-import 'courier6.dart';
-import 'items47.dart';
-import 'status_history2.dart';
+import 'hall15.dart';
+import 'table15.dart';
+import 'waiter17.dart';
+import 'discount_kind.dart';
+import 'charges17.dart';
+import 'offline13.dart';
+import 'items38.dart';
 
 part 'data188.g.dart';
 
 @JsonSerializable()
 class Data188 {
   const Data188({
-    required this.discount,
+    required this.waiter,
     required this.shortCode,
     required this.status,
-    required this.statusLabel,
-    required this.type,
     required this.channel,
+    required this.type,
     required this.storeId,
     required this.branchId,
-    required this.branchName,
-    required this.paymentMethod,
-    required this.paymentStatus,
-    required this.subtotal,
-    required this.uuid,
-    required this.deliveryPrice,
-    required this.serviceChargeAmount,
-    required this.placeFeeAmount,
-    required this.totalPrice,
-    required this.notes,
-    required this.guestsCount,
+    required this.version,
+    required this.hall,
+    required this.table,
     required this.hallRef,
     required this.tableRef,
-    required this.cancelReason,
-    required this.cancelNote,
-    required this.customer,
-    required this.statusHistory,
-    required this.courier,
-    required this.itemsTotal,
-    required this.itemsReady,
-    required this.items,
-    required this.createdAt,
+    required this.guestsCount,
+    required this.uuid,
+    required this.openedBy,
+    required this.deviceId,
+    required this.bookingId,
+    required this.bookingUuid,
+    required this.depositAvailable,
+    required this.billLocked,
+    required this.billRequestedAt,
+    required this.notes,
+    required this.openedAt,
     required this.updatedAt,
-    required this.acceptedAt,
-    required this.preparingAt,
-    required this.readyAt,
-    required this.closedAt,
-    required this.waitingSeconds,
-    required this.delivery,
+    required this.subtotal,
+    required this.items,
+    required this.discountKind,
+    required this.discountValue,
+    required this.discountReason,
+    required this.discountBy,
+    required this.serviceChargeAmount,
+    required this.placeFeeAmount,
+    required this.roomFeeAmount,
+    required this.minSpendTopupAmount,
+    required this.totalPrice,
+    required this.charges,
+    required this.offline,
+    required this.rounds,
+    required this.discount,
   });
 
   factory Data188.fromJson(Map<String, Object?> json) =>
@@ -61,65 +65,65 @@ class Data188 {
   @JsonKey(name: 'short_code')
   final String? shortCode;
   final String status;
-  @JsonKey(name: 'status_label')
-  final String statusLabel;
-  final String type;
   final String channel;
+  final String type;
   @JsonKey(name: 'store_id')
   final int storeId;
   @JsonKey(name: 'branch_id')
   final int? branchId;
-  @JsonKey(name: 'branch_name')
-  final String? branchName;
-  @JsonKey(name: 'payment_method')
-  final String paymentMethod;
-  @JsonKey(name: 'payment_status')
-  final String paymentStatus;
-  final String subtotal;
-  final String discount;
-  @JsonKey(name: 'delivery_price')
-  final String deliveryPrice;
-  @JsonKey(name: 'service_charge_amount')
-  final String serviceChargeAmount;
-  @JsonKey(name: 'place_fee_amount')
-  final String placeFeeAmount;
-  @JsonKey(name: 'total_price')
-  final String totalPrice;
-  final String? notes;
-  @JsonKey(name: 'guests_count')
-  final int? guestsCount;
+  final int version;
+  final Hall15? hall;
+  final Table15? table;
   @JsonKey(name: 'hall_ref')
   final String? hallRef;
   @JsonKey(name: 'table_ref')
   final String? tableRef;
-  @JsonKey(name: 'cancel_reason')
-  final String? cancelReason;
-  @JsonKey(name: 'cancel_note')
-  final String? cancelNote;
-  final Customer6? customer;
-  final Delivery9? delivery;
-  final Courier6? courier;
-  @JsonKey(name: 'items_total')
-  final int itemsTotal;
-  @JsonKey(name: 'items_ready')
-  final int itemsReady;
-  final List<Items47> items;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
+  @JsonKey(name: 'guests_count')
+  final int? guestsCount;
+  final Waiter17? waiter;
+  @JsonKey(name: 'opened_by')
+  final int openedBy;
+  @JsonKey(name: 'device_id')
+  final int? deviceId;
+  @JsonKey(name: 'booking_id')
+  final int? bookingId;
+  @JsonKey(name: 'booking_uuid')
+  final String? bookingUuid;
+  @JsonKey(name: 'deposit_available')
+  final String depositAvailable;
+  @JsonKey(name: 'bill_locked')
+  final bool billLocked;
+  @JsonKey(name: 'bill_requested_at')
+  final String? billRequestedAt;
+  final String? notes;
+  @JsonKey(name: 'opened_at')
+  final String? openedAt;
   @JsonKey(name: 'updated_at')
   final String? updatedAt;
-  @JsonKey(name: 'accepted_at')
-  final String? acceptedAt;
-  @JsonKey(name: 'preparing_at')
-  final String? preparingAt;
-  @JsonKey(name: 'ready_at')
-  final String? readyAt;
-  @JsonKey(name: 'closed_at')
-  final String? closedAt;
-  @JsonKey(name: 'waiting_seconds')
-  final int waitingSeconds;
-  @JsonKey(name: 'status_history')
-  final List<StatusHistory2> statusHistory;
+  final String subtotal;
+  final String discount;
+  @JsonKey(name: 'discount_kind')
+  final DiscountKind? discountKind;
+  @JsonKey(name: 'discount_value')
+  final String? discountValue;
+  @JsonKey(name: 'discount_reason')
+  final String? discountReason;
+  @JsonKey(name: 'discount_by')
+  final int? discountBy;
+  @JsonKey(name: 'service_charge_amount')
+  final String serviceChargeAmount;
+  @JsonKey(name: 'place_fee_amount')
+  final String placeFeeAmount;
+  @JsonKey(name: 'room_fee_amount')
+  final String roomFeeAmount;
+  @JsonKey(name: 'min_spend_topup_amount')
+  final String minSpendTopupAmount;
+  @JsonKey(name: 'total_price')
+  final String totalPrice;
+  final Charges17 charges;
+  final Offline13? offline;
+  final int rounds;
+  final List<Items38> items;
 
   Map<String, Object?> toJson() => _$Data188ToJson(this);
 }

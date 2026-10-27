@@ -13,7 +13,7 @@ V1AuthPhoneVerifyRequestBody _$V1AuthPhoneVerifyRequestBodyFromJson(
   code: json['code'] as String,
   device: json['device'] == null
       ? null
-      : Device4.fromJson(json['device'] as Map<String, dynamic>),
+      : Device5.fromJson(json['device'] as Map<String, dynamic>),
   account: json['account'] == null
       ? null
       : Account.fromJson(json['account'] as String),

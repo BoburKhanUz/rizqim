@@ -4,42 +4,31 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'order3.dart';
-import 'fiscal.dart';
+import 'products_missing_mxik.dart';
 
 part 'data84.g.dart';
 
 @JsonSerializable()
 class Data84 {
   const Data84({
-    required this.uuid,
-    required this.provider,
-    required this.providerTransactionId,
-    required this.status,
-    required this.amount,
-    required this.paidAt,
-    required this.cancelledAt,
-    required this.createdAt,
-    required this.order,
-    required this.fiscal,
+    required this.enabled,
+    required this.tinSet,
+    required this.taxRegime,
+    required this.productsMissingMxik,
+    required this.chargesMissingMxik,
   });
 
   factory Data84.fromJson(Map<String, Object?> json) => _$Data84FromJson(json);
 
-  final String uuid;
-  final String provider;
-  @JsonKey(name: 'provider_transaction_id')
-  final String? providerTransactionId;
-  final String status;
-  final String amount;
-  @JsonKey(name: 'paid_at')
-  final String? paidAt;
-  @JsonKey(name: 'cancelled_at')
-  final String? cancelledAt;
-  @JsonKey(name: 'created_at')
-  final String createdAt;
-  final Order3 order;
-  final Fiscal? fiscal;
+  final bool enabled;
+  @JsonKey(name: 'tin_set')
+  final bool tinSet;
+  @JsonKey(name: 'tax_regime')
+  final String? taxRegime;
+  @JsonKey(name: 'products_missing_mxik')
+  final List<ProductsMissingMxik> productsMissingMxik;
+  @JsonKey(name: 'charges_missing_mxik')
+  final List<String> chargesMissingMxik;
 
   Map<String, Object?> toJson() => _$Data84ToJson(this);
 }

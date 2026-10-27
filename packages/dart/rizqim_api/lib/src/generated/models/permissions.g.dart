@@ -9,12 +9,12 @@ part of 'permissions.dart';
 Permissions _$PermissionsFromJson(Map<String, dynamic> json) => Permissions(
   key: json['key'] as String,
   label: json['label'] as String,
-  grantable: json['grantable'] as bool,
+  group: json['group'] as String,
 );
 
 Map<String, dynamic> _$PermissionsToJson(Permissions instance) =>
     <String, dynamic>{
       'key': instance.key,
       'label': instance.label,
-      'grantable': instance.grantable,
+      'group': instance.group,
     };

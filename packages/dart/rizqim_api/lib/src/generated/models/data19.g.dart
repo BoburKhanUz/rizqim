@@ -7,11 +7,31 @@ part of 'data19.dart';
 // **************************************************************************
 
 Data19 _$Data19FromJson(Map<String, dynamic> json) => Data19(
-  preferences: (json['preferences'] as List<dynamic>)
-      .map((e) => Preferences.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  id: (json['id'] as num).toInt(),
+  name: json['name'] as String,
+  email: json['email'] as String?,
+  platformRole: json['platform_role'] as String?,
+  platformRoleLabel: json['platform_role_label'] as String?,
+  status: json['status'] as String,
+  disabled: json['disabled'] as bool,
+  twoFactorEnabled: json['two_factor_enabled'] as bool,
+  lastLoginAt: json['last_login_at'] as String?,
+  activeSessions: (json['active_sessions'] as num).toInt(),
+  inviteExpiresAt: json['invite_expires_at'] as String?,
+  createdAt: json['created_at'] as String?,
 );
 
 Map<String, dynamic> _$Data19ToJson(Data19 instance) => <String, dynamic>{
-  'preferences': instance.preferences,
+  'id': instance.id,
+  'name': instance.name,
+  'email': instance.email,
+  'platform_role': instance.platformRole,
+  'platform_role_label': instance.platformRoleLabel,
+  'status': instance.status,
+  'disabled': instance.disabled,
+  'two_factor_enabled': instance.twoFactorEnabled,
+  'last_login_at': instance.lastLoginAt,
+  'active_sessions': instance.activeSessions,
+  'invite_expires_at': instance.inviteExpiresAt,
+  'created_at': instance.createdAt,
 };

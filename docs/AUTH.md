@@ -12,6 +12,7 @@ yozilishini tushuntiradi (P1-12). Barcha endpointlar `/api/v1` ostida.
 | Hamkor veb-panel (`partner/web`) | `POST /auth/phone/verify`, `account = staff`, `device.type = web`; so'rovni brauzer emas, panelning Next serveri yuboradi | Access token faqat brauzer xotirasida; refresh token httpOnly cookie'da (Next route handler), `localStorage` yo'q. [partner/web/README.md](../partner/web/README.md) |
 | POS/KDS terminal | `POST /devices/pair` (8 belgili kod, `ABCD-EFGH`) | Terminalning o'z tokeni (365 kun yoki o'chirilguncha) |
 | Terminaldagi xodim | `POST /devices/{device}/staff-session` (PIN) | Qisqa xodim sessiyasi (12 soat), terminalga bog'langan |
+| RIZQIM jamoasi (P4-11, Boshqaruv markazi) | `POST /admin/auth/login` (email + parol) → TOTP kod (2FA) | Alohida `admin` tokeni: 12 soat, 60 daqiqa harakatsizlikda tugaydi; faqat `/admin/*` da ishlaydi, boshqa tokenlar u yerda ishlamaydi. [API.md](API.md) "Admin API" |
 
 ## 1. Telegram va SMS kod bilan kirish
 
@@ -363,6 +364,10 @@ Xodim PIN sessiyasi orqali qilingan har bir amalda terminal ham yoziladi. Jurnal
 kod, karta ma'lumoti yozilmaydi; telefon raqamlari niqoblanadi (`+99890*****67`), erkin matn ichida ham
 (`App\Services\Audit\AuditRedactor`).
 
+P4-11: jurnal **o'zgarmaydi** — yozuvni yangilash yoki o'chirishni model ham, PostgreSQL trigger ham rad etadi
+(faqat bog'langan foydalanuvchi, do'kon, filial yoki qurilma o'chirilganda havola `null` bo'ladi). Jamoaning har bir
+admin harakati `admin.*` nomi bilan yoziladi (IP va brauzer bilan); butun platforma jurnali — `GET /admin/audit-logs`.
+
 Ega jurnalni `GET /owner/audit-logs` (`audit.view`; filtrlar: `action` yoki `order.*`, `user_id`,
 `device_uuid`, `branch_id`, `subject_type`, `subject_id`, `from`, `to`, `per_page`) va panelda "Harakatlar
 jurnali" orqali ko'radi. Superadmin panelida butun platforma jurnali va barcha qurilmalar bor.
@@ -376,6 +381,10 @@ Do'kon panelida "Xodimlar va ruxsatlar" bo'limi:
 - **Harakatlar jurnali** — faqat ega.
 
 Hammasi joriy do'kon (tenant) bilan cheklangan, filial menejeri — o'z filiali bilan.
+
+P4-11: `/superadmin` panel Boshqaruv markazi bilan **bir xil 2FA** ni talab qiladi (o'sha TOTP kaliti, zaxira
+kodlari, qayta ishlatishni taqiqlash). 2FA siz superadmin avval uni o'rnatadi. `/admin` panel sessiyasi umumiy,
+shuning uchun superadmin u yerga ham faqat 2FA bilan kiradi; egalar va menejerlar avvalgidek kiradi.
 
 ## 9. Sozlamalar (.env)
 

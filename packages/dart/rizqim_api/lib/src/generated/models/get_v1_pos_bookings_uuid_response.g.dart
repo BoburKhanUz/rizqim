@@ -11,7 +11,7 @@ GetV1PosBookingsUuidResponse _$GetV1PosBookingsUuidResponseFromJson(
 ) => GetV1PosBookingsUuidResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data124.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data145.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1PosBookingsUuidResponseToJson(

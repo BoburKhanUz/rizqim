@@ -11,7 +11,7 @@ _$DeleteV1OwnerAutoGuestItemsIdResponseFromJson(Map<String, dynamic> json) =>
     DeleteV1OwnerAutoGuestItemsIdResponse(
       success: json['success'] as bool,
       message: json['message'] as String,
-      data: Data29.fromJson(json['data'] as Map<String, dynamic>),
+      data: Data50.fromJson(json['data'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$DeleteV1OwnerAutoGuestItemsIdResponseToJson(

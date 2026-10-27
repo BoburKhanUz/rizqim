@@ -7,33 +7,19 @@ part of 'device8.dart';
 // **************************************************************************
 
 Device8 _$Device8FromJson(Map<String, dynamic> json) => Device8(
-  uuid: json['uuid'] as String,
-  type: json['type'] as String,
-  name: json['name'] as String,
+  type: json['type'] == null ? null : Type2.fromJson(json['type'] as String),
+  uuid: json['uuid'] as String?,
+  name: json['name'] as String?,
   platform: json['platform'] as String?,
   appVersion: json['app_version'] as String?,
-  storeId: (json['store_id'] as num?)?.toInt(),
-  branchId: (json['branch_id'] as num?)?.toInt(),
-  user: json['user'] == null
-      ? null
-      : User7.fromJson(json['user'] as Map<String, dynamic>),
-  hasPushToken: json['has_push_token'] as bool,
-  lastSeenAt: json['last_seen_at'] as String?,
-  revokedAt: json['revoked_at'] as String?,
-  createdAt: json['created_at'] as String?,
+  pushToken: json['push_token'] as String?,
 );
 
 Map<String, dynamic> _$Device8ToJson(Device8 instance) => <String, dynamic>{
-  'uuid': instance.uuid,
   'type': instance.type,
+  'uuid': instance.uuid,
   'name': instance.name,
   'platform': instance.platform,
   'app_version': instance.appVersion,
-  'store_id': instance.storeId,
-  'branch_id': instance.branchId,
-  'user': instance.user,
-  'has_push_token': instance.hasPushToken,
-  'last_seen_at': instance.lastSeenAt,
-  'revoked_at': instance.revokedAt,
-  'created_at': instance.createdAt,
+  'push_token': instance.pushToken,
 };

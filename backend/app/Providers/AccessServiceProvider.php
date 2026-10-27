@@ -2,7 +2,9 @@
 
 namespace App\Providers;
 
+use App\Auth\AdminTokenGuard;
 use App\Auth\DeviceTokenGuard;
+use App\Enums\UserRole;
 use App\Enums\Permission;
 use App\Models\Device;
 use App\Models\ProductVariant;
@@ -16,6 +18,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
+use Laravel\Sanctum\PersonalAccessToken;
 use Laravel\Sanctum\Sanctum;
 use Symfony\Component\HttpFoundation\IpUtils;
 
@@ -39,6 +42,11 @@ class AccessServiceProvider extends ServiceProvider
 
         $this->app['router']->aliasMiddleware('permission', \App\Http\Middleware\EnsureUserHasPermission::class);
         $this->app['router']->aliasMiddleware('not-staff-session', \App\Http\Middleware\RejectStaffSession::class);
+
+        // P4-11: the admin API (routes/api_admin.php)
+        $this->app['router']->aliasMiddleware('admin.can', \App\Http\Middleware\EnsureAdminPermission::class);
+        $this->app['router']->aliasMiddleware('admin.recent', \App\Http\Middleware\RequireAdminReauth::class);
+        $this->app['router']->aliasMiddleware('admin.audit', \App\Http\Middleware\RecordAdminAudit::class);
     }
 
     protected function configureGuards(): void
@@ -57,11 +65,36 @@ class AccessServiceProvider extends ServiceProvider
             });
         });
 
-        // A token bound to a device (staff PIN session, refreshable app session, terminal) dies with the device
+        // P4-11: auth:admin — an admin session token only (AdminTokenGuard does every check itself)
+        Auth::resolved(function ($auth) {
+            $auth->extend('admin-token', function ($app, $name, array $config) use ($auth) {
+                $guard = new RequestGuard(
+                    new AdminTokenGuard($auth, null, $config['provider'] ?? null),
+                    $app['request'],
+                    $auth->createUserProvider($config['provider'] ?? null),
+                );
+                $app->refresh('request', $guard, 'setRequest');
+
+                return $guard;
+            });
+        });
+
+        // A token bound to a device (staff PIN session, refreshable app session, terminal) dies with the device.
+        // P4-11: the `sanctum` and `device` guards never accept an admin session token, nor any token of a team member
+        // other than the superadmin (users.role = platform holds no store-level or customer powers), nor a disabled one's
         Sanctum::authenticateAccessTokensUsing(function ($accessToken, bool $isValid) {
+            if (!$isValid || ($accessToken instanceof PersonalAccessToken && AdminTokenGuard::isAdminToken($accessToken))) {
+                return false;
+            }
+
+            $tokenable = $accessToken->tokenable;
+            if ($tokenable instanceof User && ($tokenable->role === UserRole::PLATFORM || $tokenable->platform_disabled_at !== null)) {
+                return false;
+            }
+
             $deviceId = $accessToken->getAttribute('device_id');
 
-            return $isValid && ($deviceId === null || Device::whereKey($deviceId)->whereNull('revoked_at')->exists());
+            return $deviceId === null || Device::whereKey($deviceId)->whereNull('revoked_at')->exists();
         });
     }
 
@@ -154,5 +187,11 @@ class AccessServiceProvider extends ServiceProvider
         RateLimiter::for('audit-logs', fn (Request $request) => Limit::perMinute(60)->by($byUser($request)));
 
         RateLimiter::for('auth-logout', fn (Request $request) => Limit::perMinute(30)->by($byUser($request)));
+
+        // P4-11: admin sign-in steps per address (the per-account lockout is AdminLoginLockout's), the admin API per
+        // member, the search palette (debounced in the app)
+        RateLimiter::for('admin-auth', fn (Request $request) => Limit::perMinute(20)->by('ip:' . $request->ip()));
+        RateLimiter::for('admin-api', fn (Request $request) => Limit::perMinute(240)->by($byUser($request)));
+        RateLimiter::for('admin-search', fn (Request $request) => Limit::perMinute(90)->by($byUser($request)));
     }
 }

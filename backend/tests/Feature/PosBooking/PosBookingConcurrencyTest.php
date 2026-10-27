@@ -24,6 +24,7 @@ use Tests\TestCase;
 class PosBookingConcurrencyTest extends TestCase
 {
     use PosBookingFixtures;
+    use \Tests\Feature\AuditLogCleanup;
 
     private string $dir;
 
@@ -47,7 +48,7 @@ class PosBookingConcurrencyTest extends TestCase
             $storeIds = [$this->store->id, $this->foreignStore->id];
             $userIds = User::whereIn('store_id', $storeIds)->pluck('id')->push($this->customer->id)->all();
 
-            AuditLog::whereIn('store_id', $storeIds)->orWhereIn('user_id', $userIds)->delete();
+            $this->withoutAuditLogGuard(fn () => AuditLog::whereIn('store_id', $storeIds)->orWhereIn('user_id', $userIds)->delete());
             IdempotencyKey::where('actor_type', 'user')->whereIn('actor_id', $userIds)->delete();
             Booking::whereIn('store_id', $storeIds)->delete();
             Order::withTrashed()->whereIn('store_id', $storeIds)->forceDelete();

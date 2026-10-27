@@ -7,23 +7,31 @@ part of 'data21.dart';
 // **************************************************************************
 
 Data21 _$Data21FromJson(Map<String, dynamic> json) => Data21(
-  role: json['role'] as String,
-  storeId: (json['store_id'] as num?)?.toInt(),
-  branchId: (json['branch_id'] as num?)?.toInt(),
-  branchScoped: json['branch_scoped'] as bool,
-  permissions: (json['permissions'] as List<dynamic>)
-      .map((e) => e as String)
-      .toList(),
-  deviceUuid: json['device_uuid'] as String?,
-  timezone: json['timezone'] as String?,
+  id: (json['id'] as num).toInt(),
+  name: json['name'] as String,
+  email: json['email'] as String?,
+  platformRole: json['platform_role'] as String?,
+  platformRoleLabel: json['platform_role_label'] as String?,
+  status: json['status'] as String,
+  disabled: json['disabled'] as bool,
+  twoFactorEnabled: json['two_factor_enabled'] as bool,
+  lastLoginAt: json['last_login_at'] as String?,
+  activeSessions: (json['active_sessions'] as num).toInt(),
+  inviteExpiresAt: json['invite_expires_at'] as String?,
+  createdAt: json['created_at'] as String?,
 );
 
 Map<String, dynamic> _$Data21ToJson(Data21 instance) => <String, dynamic>{
-  'role': instance.role,
-  'store_id': instance.storeId,
-  'branch_id': instance.branchId,
-  'branch_scoped': instance.branchScoped,
-  'permissions': instance.permissions,
-  'device_uuid': instance.deviceUuid,
-  'timezone': instance.timezone,
+  'id': instance.id,
+  'name': instance.name,
+  'email': instance.email,
+  'platform_role': instance.platformRole,
+  'platform_role_label': instance.platformRoleLabel,
+  'status': instance.status,
+  'disabled': instance.disabled,
+  'two_factor_enabled': instance.twoFactorEnabled,
+  'last_login_at': instance.lastLoginAt,
+  'active_sessions': instance.activeSessions,
+  'invite_expires_at': instance.inviteExpiresAt,
+  'created_at': instance.createdAt,
 };

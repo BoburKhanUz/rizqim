@@ -7,11 +7,97 @@ part of 'data189.dart';
 // **************************************************************************
 
 Data189 _$Data189FromJson(Map<String, dynamic> json) => Data189(
-  rating: json['rating'] as String,
-  reviewCount: (json['review_count'] as num).toInt(),
+  waiter: json['waiter'] == null
+      ? null
+      : Waiter18.fromJson(json['waiter'] as Map<String, dynamic>),
+  shortCode: json['short_code'] as String?,
+  status: json['status'] as String,
+  channel: json['channel'] as String,
+  type: json['type'] as String,
+  storeId: (json['store_id'] as num).toInt(),
+  branchId: (json['branch_id'] as num?)?.toInt(),
+  version: (json['version'] as num).toInt(),
+  hall: json['hall'] == null
+      ? null
+      : Hall16.fromJson(json['hall'] as Map<String, dynamic>),
+  table: json['table'] == null
+      ? null
+      : Table16.fromJson(json['table'] as Map<String, dynamic>),
+  hallRef: json['hall_ref'] as String?,
+  tableRef: json['table_ref'] as String?,
+  guestsCount: (json['guests_count'] as num?)?.toInt(),
+  uuid: json['uuid'] as String,
+  openedBy: (json['opened_by'] as num).toInt(),
+  deviceId: (json['device_id'] as num?)?.toInt(),
+  bookingId: (json['booking_id'] as num?)?.toInt(),
+  bookingUuid: json['booking_uuid'] as String?,
+  depositAvailable: json['deposit_available'] as String,
+  billLocked: json['bill_locked'] as bool,
+  billRequestedAt: json['bill_requested_at'] as String?,
+  notes: json['notes'] as String?,
+  openedAt: json['opened_at'] as String?,
+  updatedAt: json['updated_at'] as String?,
+  subtotal: json['subtotal'] as String,
+  items: (json['items'] as List<dynamic>)
+      .map((e) => Items39.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  discountKind: json['discount_kind'] == null
+      ? null
+      : DiscountKind.fromJson(json['discount_kind'] as String?),
+  discountValue: json['discount_value'] as String?,
+  discountReason: json['discount_reason'] as String?,
+  discountBy: (json['discount_by'] as num?)?.toInt(),
+  serviceChargeAmount: json['service_charge_amount'] as String,
+  placeFeeAmount: json['place_fee_amount'] as String,
+  roomFeeAmount: json['room_fee_amount'] as String,
+  minSpendTopupAmount: json['min_spend_topup_amount'] as String,
+  totalPrice: json['total_price'] as String,
+  charges: Charges18.fromJson(json['charges'] as Map<String, dynamic>),
+  offline: json['offline'] == null
+      ? null
+      : Offline14.fromJson(json['offline'] as Map<String, dynamic>),
+  rounds: (json['rounds'] as num).toInt(),
+  discount: json['discount'] as String,
 );
 
 Map<String, dynamic> _$Data189ToJson(Data189 instance) => <String, dynamic>{
-  'rating': instance.rating,
-  'review_count': instance.reviewCount,
+  'uuid': instance.uuid,
+  'short_code': instance.shortCode,
+  'status': instance.status,
+  'channel': instance.channel,
+  'type': instance.type,
+  'store_id': instance.storeId,
+  'branch_id': instance.branchId,
+  'version': instance.version,
+  'hall': instance.hall,
+  'table': instance.table,
+  'hall_ref': instance.hallRef,
+  'table_ref': instance.tableRef,
+  'guests_count': instance.guestsCount,
+  'waiter': instance.waiter,
+  'opened_by': instance.openedBy,
+  'device_id': instance.deviceId,
+  'booking_id': instance.bookingId,
+  'booking_uuid': instance.bookingUuid,
+  'deposit_available': instance.depositAvailable,
+  'bill_locked': instance.billLocked,
+  'bill_requested_at': instance.billRequestedAt,
+  'notes': instance.notes,
+  'opened_at': instance.openedAt,
+  'updated_at': instance.updatedAt,
+  'subtotal': instance.subtotal,
+  'discount': instance.discount,
+  'discount_kind': instance.discountKind,
+  'discount_value': instance.discountValue,
+  'discount_reason': instance.discountReason,
+  'discount_by': instance.discountBy,
+  'service_charge_amount': instance.serviceChargeAmount,
+  'place_fee_amount': instance.placeFeeAmount,
+  'room_fee_amount': instance.roomFeeAmount,
+  'min_spend_topup_amount': instance.minSpendTopupAmount,
+  'total_price': instance.totalPrice,
+  'charges': instance.charges,
+  'offline': instance.offline,
+  'rounds': instance.rounds,
+  'items': instance.items,
 };

@@ -7,31 +7,49 @@ part of 'data193.dart';
 // **************************************************************************
 
 Data193 _$Data193FromJson(Map<String, dynamic> json) => Data193(
-  id: (json['id'] as num).toInt(),
   uuid: json['uuid'] as String,
-  name: json['name'] as String,
-  phone: json['phone'] as String?,
-  slug: json['slug'] as String,
-  isActive: json['is_active'] as bool,
-  commissionRate: json['commission_rate'] as String,
-  branchesCount: (json['branches_count'] as num?)?.toInt(),
-  createdAt: json['created_at'] == null
+  status: json['status'] as String,
+  branchId: (json['branch_id'] as num).toInt(),
+  device: json['device'] == null
       ? null
-      : DateTime.parse(json['created_at'] as String),
-  owner: json['owner'] == null
+      : Device13.fromJson(json['device'] as Map<String, dynamic>),
+  businessDate: json['business_date'] as String,
+  openedAt: json['opened_at'] as String,
+  openedBy: json['opened_by'] == null
       ? null
-      : Owner.fromJson(json['owner'] as Map<String, dynamic>),
+      : OpenedBy2.fromJson(json['opened_by'] as Map<String, dynamic>),
+  openingCash: json['opening_cash'] as String,
+  closedAt: json['closed_at'] as String?,
+  closedBy: json['closed_by'] == null
+      ? null
+      : ClosedBy2.fromJson(json['closed_by'] as Map<String, dynamic>),
+  expectedCash: json['expected_cash'] as String?,
+  countedCash: json['counted_cash'] as String?,
+  countedBreakdown: (json['counted_breakdown'] as Map<String, dynamic>?)?.map(
+    (k, e) => MapEntry(k, (e as num).toInt()),
+  ),
+  difference: json['difference'] as String?,
+  zNumber: (json['z_number'] as num?)?.toInt(),
+  forceClosed: json['force_closed'] as bool,
+  closeNote: json['close_note'] as String?,
 );
 
 Map<String, dynamic> _$Data193ToJson(Data193 instance) => <String, dynamic>{
-  'id': instance.id,
   'uuid': instance.uuid,
-  'name': instance.name,
-  'phone': instance.phone,
-  'slug': instance.slug,
-  'is_active': instance.isActive,
-  'commission_rate': instance.commissionRate,
-  'branches_count': instance.branchesCount,
-  'created_at': instance.createdAt?.toIso8601String(),
-  'owner': instance.owner,
+  'status': instance.status,
+  'branch_id': instance.branchId,
+  'device': instance.device,
+  'business_date': instance.businessDate,
+  'opened_at': instance.openedAt,
+  'opened_by': instance.openedBy,
+  'opening_cash': instance.openingCash,
+  'closed_at': instance.closedAt,
+  'closed_by': instance.closedBy,
+  'expected_cash': instance.expectedCash,
+  'counted_cash': instance.countedCash,
+  'counted_breakdown': instance.countedBreakdown,
+  'difference': instance.difference,
+  'z_number': instance.zNumber,
+  'force_closed': instance.forceClosed,
+  'close_note': instance.closeNote,
 };

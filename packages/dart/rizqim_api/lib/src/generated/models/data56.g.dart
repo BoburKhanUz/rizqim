@@ -7,11 +7,21 @@ part of 'data56.dart';
 // **************************************************************************
 
 Data56 _$Data56FromJson(Map<String, dynamic> json) => Data56(
-  employee: User.fromJson(json['employee'] as Map<String, dynamic>),
-  inviteLink: json['invite_link'] as String,
+  productId: (json['product_id'] as num).toInt(),
+  name: json['name'] as String,
+  description: json['description'] as String?,
+  imageUrl: json['image_url'] as String?,
+  batchTracked: json['batch_tracked'] as bool,
+  variants: (json['variants'] as List<dynamic>)
+      .map((e) => Variants.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data56ToJson(Data56 instance) => <String, dynamic>{
-  'employee': instance.employee,
-  'invite_link': instance.inviteLink,
+  'product_id': instance.productId,
+  'name': instance.name,
+  'description': instance.description,
+  'image_url': instance.imageUrl,
+  'batch_tracked': instance.batchTracked,
+  'variants': instance.variants,
 };

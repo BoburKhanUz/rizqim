@@ -30,6 +30,10 @@ class AdminPanelProvider extends PanelProvider
             ->path('admin')
             ->brandName('RIZQIM')
             ->login(\App\Filament\Pages\Auth\CustomLogin::class)
+            // P4-11: it shares the sign-in session with /superadmin, so an account with 2FA (a superadmin) is asked for
+            // the code here too; a superadmin without 2FA cannot enter (User::canAccessPanel). Owners and managers
+            // without 2FA sign in as before
+            ->multiFactorAuthentication([\App\Filament\Auth\PlatformAppAuthentication::make()])
             ->tenant(\App\Models\Store::class, slugAttribute: 'uuid')
             ->tenantProfile(\App\Filament\Pages\Tenancy\EditStoreProfile::class)
             ->colors([

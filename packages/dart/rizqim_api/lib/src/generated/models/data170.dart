@@ -4,43 +4,33 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'fiscal15.dart';
+import 'halls2.dart';
+import 'untabled_orders.dart';
 
 part 'data170.g.dart';
 
 @JsonSerializable()
 class Data170 {
   const Data170({
-    required this.uuid,
-    required this.orderUuid,
-    required this.billUuid,
-    required this.paymentUuid,
-    required this.amount,
-    required this.method,
-    required this.reason,
-    required this.approvedBy,
-    required this.fiscal,
-    required this.createdAt,
+    required this.branchId,
+    required this.generatedAt,
+    required this.overdueAfterHours,
+    required this.halls,
+    required this.untabledOrders,
   });
 
   factory Data170.fromJson(Map<String, Object?> json) =>
       _$Data170FromJson(json);
 
-  final String uuid;
-  @JsonKey(name: 'order_uuid')
-  final String? orderUuid;
-  @JsonKey(name: 'bill_uuid')
-  final String? billUuid;
-  @JsonKey(name: 'payment_uuid')
-  final String? paymentUuid;
-  final String amount;
-  final String method;
-  final String reason;
-  @JsonKey(name: 'approved_by')
-  final int? approvedBy;
-  final Fiscal15 fiscal;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
+  @JsonKey(name: 'branch_id')
+  final int branchId;
+  @JsonKey(name: 'generated_at')
+  final String generatedAt;
+  @JsonKey(name: 'overdue_after_hours')
+  final int overdueAfterHours;
+  final List<Halls2> halls;
+  @JsonKey(name: 'untabled_orders')
+  final List<UntabledOrders> untabledOrders;
 
   Map<String, Object?> toJson() => _$Data170ToJson(this);
 }

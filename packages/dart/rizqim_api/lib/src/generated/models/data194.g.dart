@@ -7,11 +7,19 @@ part of 'data194.dart';
 // **************************************************************************
 
 Data194 _$Data194FromJson(Map<String, dynamic> json) => Data194(
-  storeId: (json['store_id'] as num).toInt(),
-  inviteLink: json['invite_link'] as String,
+  shift: json['shift'] == null
+      ? null
+      : Shift2.fromJson(json['shift'] as Map<String, dynamic>),
+  report: json['report'] == null
+      ? null
+      : Report.fromJson(json['report'] as Map<String, dynamic>),
+  shifts: (json['shifts'] as List<dynamic>)
+      .map((e) => Shifts.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data194ToJson(Data194 instance) => <String, dynamic>{
-  'store_id': instance.storeId,
-  'invite_link': instance.inviteLink,
+  'shift': instance.shift,
+  'report': instance.report,
+  'shifts': instance.shifts,
 };

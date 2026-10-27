@@ -63,6 +63,416 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/audit-logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Audit log (whole platform)
+         * @description Newest first, cursor pages (`cursor` from `next_cursor`, `per_page` 1–100, default 50). Filters: `actor_id`,
+         *     `action` (a prefix: `admin.team` or `admin.team.*`; an exact action matches itself), `store_id`,
+         *     `subject_type` (Order, User, Store...) + `subject_id`, `from` / `to` (dates, inclusive), `q` (text in the action
+         *     and its details, at least 2 characters).
+         */
+        get: operations["admin.audit_logs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/auth/2fa/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm the 2FA set-up
+         * @description The first code from the authenticator app turns 2FA on and opens the session. `recovery_codes` (10) are shown
+         *     only here, once: each one signs in once when the phone is lost; only their hashes are kept.
+         */
+        post: operations["admin.auth.2fa_confirm"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/auth/2fa/recovery-codes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * New recovery codes
+         * @description Replaces every recovery code with 10 new ones, shown only in this answer. Needs a step-up confirmation.
+         */
+        post: operations["admin.auth.recovery_codes_regenerated"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/auth/2fa/setup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start the 2FA set-up
+         * @description Only for a `setup_required` challenge. Returns the new secret (for manual entry), the `otpauth://` URI and the
+         *     QR code as inline SVG. The same challenge gives the same secret again; it is saved only when `2fa/confirm`
+         *     accepts a code from it, and never shown again afterwards. 409 `two_factor_already_enabled` once 2FA is on.
+         */
+        post: operations["admin.auth.2fa_setup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/auth/2fa/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Second step: the 2FA code
+         * @description Send `code` (6 digits from the app) or `recovery_code` (one of the saved recovery codes: it is burnt). A code
+         *     already used, or one older than the last used, is refused (replay). Opens the session: `token` (Bearer, the
+         *     admin API only), absolute `expires_at` (12 hours); 60 minutes without a request also end it.
+         */
+        post: operations["admin.auth.2fa_verify"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/auth/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Step-up: confirm with a fresh code
+         * @description A current TOTP code marks this session confirmed for 10 minutes. Actions behind it (team and role changes,
+         *     2FA resets, new recovery codes, revoking another session; later money and order interventions) answer 403
+         *     `reauth_required` without it: ask for the code, call this, retry once.
+         */
+        post: operations["admin.auth.reauthenticated"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/auth/invite/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Accept an invite
+         * @description The invite link's token and the new password (at least 12 characters, not the email). Answers with a
+         *     `setup_required` challenge: the member goes straight on to the 2FA set-up. 422 `invite_invalid` for an
+         *     unknown, used, re-issued or expired (72 hours) link.
+         */
+        post: operations["admin.auth.invite_accept"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Admin sign-in: email and password
+         * @description Returns a challenge for the second step (5 minutes, single use): `otp_required` (send the app's code to
+         *     `2fa/verify`) or `setup_required` (2FA not set up yet: `2fa/setup`, then `2fa/confirm`). An unknown email and a
+         *     wrong password get the same 422 `invalid_credentials`; a disabled member 403 `member_disabled`; too many bad
+         *     tries 429 `locked`.
+         */
+        post: operations["admin.auth.login"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Log out (this session) */
+        post: operations["admin.auth.logged_out"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/auth/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The signed-in member
+         * @description Who is signed in, their platform role and effective admin permissions (the admin app shows only the sections
+         *     these allow), 2FA state and the current session (`reauthenticated_until`: the step-up confirmation, if any).
+         */
+        get: operations["admin.auth.me"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/auth/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My admin sessions
+         * @description Live sessions only (not past their 12 hours, used in the last 60 minutes), newest first; `current` is this one.
+         */
+        get: operations["admin.auth.sessions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/auth/sessions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * End one of my sessions
+         * @description Ending this session is a log-out; ending another one needs a step-up confirmation (403 `reauth_required`).
+         */
+        delete: operations["admin.auth.session_revoked"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The signed-in member (alias of GET /admin/auth/me) */
+        get: operations["admin.me"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/roles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Roles and permissions
+         * @description `roles` in display order (`editable`: false for superadmin), `permissions` with their section (`group`),
+         *     `grants`: role => the permissions it holds now, and `defaults`: role => the built-in set before the
+         *     superadmin's changes (a cell differing from it is "O'zgartirilgan"; PUT with `allowed: null` resets it).
+         */
+        get: operations["admin.roles"];
+        /**
+         * Change a role's permission
+         * @description `allowed`: true grants, false takes away, null resets to the role's default. The superadmin role cannot be
+         *     changed (422 `role_not_editable`). Needs step-up. Answers with the whole matrix.
+         */
+        put: operations["admin.roles.updated"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search everything
+         * @description `q` at least 2 characters. Each hit: `type` (store, order, user, member), `id`, `title`, `subtitle` and `href`,
+         *     the admin app path to open (`/stores/{id}`, `/orders/{uuid}`, `/users/{id}`, `/team/{id}`). Types the member
+         *     has no permission for (stores.view, orders.view, users.view, team.manage) are left out.
+         */
+        get: operations["admin.search"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/team": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The team
+         * @description Every team member: role, `status` (`invited`: has not accepted the invite yet, `active`, `disabled`), 2FA, last
+         *     sign-in and live sessions.
+         */
+        get: operations["admin.team"];
+        put?: never;
+        /**
+         * Invite a team member
+         * @description Creates the member (they cannot sign in until they accept) and a one-time invite link valid 72 hours:
+         *     `invite_url` is shown only in this answer. Only a superadmin may invite a superadmin. Needs step-up.
+         */
+        post: operations["admin.team.invited"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/team/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One team member */
+        get: operations["admin.team_member"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change a member's role or disable / enable them
+         * @description `platform_role` and/or `disabled`. Disabling ends all of the member's sessions. Nobody changes their own role or
+         *     disables themselves (`cannot_change_self`), the last active superadmin stays (`last_superadmin`), and only a
+         *     superadmin changes a superadmin or makes one (`superadmin_only`). Needs step-up.
+         */
+        patch: operations["admin.team.updated"];
+        trace?: never;
+    };
+    "/v1/admin/team/{id}/invite": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Re-issue the invite
+         * @description A new link for a member who has not accepted yet (409 `invite_already_accepted` otherwise); the older links stop
+         *     working. Needs step-up.
+         */
+        post: operations["admin.team.invite_reissued"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/team/{id}/reset-2fa": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reset a member's 2FA
+         * @description For a lost phone: 2FA and the recovery codes are removed and every session of the member ends; they set 2FA up
+         *     again at their next sign-in. Not for yourself. Needs step-up.
+         */
+        post: operations["admin.team.2fa_reset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/auth/logout": {
         parameters: {
             query?: never;
@@ -4340,6 +4750,12 @@ export interface components {
             district?: components["schemas"]["District"] | null;
         };
         /**
+         * AdminPermission
+         * @description P4-11: what a RIZQIM team member may do in the Boshqaruv markazi (admin API /api/v1/admin, `admin.can:` middleware). Separate from the store-level App\Enums\Permission: an admin permission never lets anyone act inside a store as its staff. Defaults per platform role: App\Services\Admin\PlatformRolePermissions; the superadmin may change them. Stage B sections (Bugun, Buyurtmalar, Monitoring...) use the entries that are already here.
+         * @enum {string}
+         */
+        AdminPermission: "admin.today.view" | "admin.orders.view" | "admin.orders.intervene" | "admin.orders.refund_request" | "admin.orders.refund_approve" | "admin.stores.view" | "admin.stores.manage" | "admin.stores.impersonate" | "admin.finance.view" | "admin.finance.manage" | "admin.payouts.approve" | "admin.subscriptions.manage" | "admin.devices.view" | "admin.monitoring.view" | "admin.monitoring.manage" | "admin.support.view" | "admin.support.manage" | "admin.users.view" | "admin.marketing.view" | "admin.marketing.manage" | "admin.integrations.view" | "admin.integrations.manage" | "admin.system.manage" | "admin.team.manage" | "admin.audit.view" | "admin.pii.view" | "admin.export";
+        /**
          * BillStatus
          * @description order_bills.status: `open` when made, `printed` once handed to the guest (the order is locked from then on), `paid` when its payments cover it AND its sale receipt is issued, `void` when the order was billed again or cancelled.
          * @enum {string}
@@ -5257,6 +5673,12 @@ export interface components {
          * @enum {string}
          */
         Permission: "orders.view" | "orders.manage" | "orders.cancel" | "orders.discount" | "orders.void_item" | "orders.assign_courier" | "orders.refund" | "kitchen.manage" | "deliveries.manage" | "tables.manage" | "menu.view" | "menu.manage" | "stoplist.manage" | "batches.manage" | "staff.view" | "staff.manage" | "staff.pin" | "devices.view" | "devices.manage" | "reports.view" | "finance.view" | "finance.manage" | "settings.manage" | "zones.manage" | "audit.view" | "permissions.manage" | "pos.open_shift" | "pos.close_shift" | "pos.cash_in_out" | "pos.take_payment" | "pos.reprint_bill" | "branches.manage" | "bookings.manage" | "customer_accounts.manage" | "pos.refund";
+        /**
+         * PlatformRole
+         * @description P4-11: the RIZQIM team's roles in the Boshqaruv markazi (platform/admin, docs/PHASE4_PLAN.md §5). A user is platform staff when users.platform_role is set. What each role may do is App\Services\Admin\PlatformRolePermissions (defaults) with the superadmin's overrides (platform_role_permissions); `superadmin` is fixed: everything. Only `superadmin` is also users.role = super_admin (the old store-level super admin, the old Filament panels); the other roles are users.role = platform, which holds no store-level permission at all.
+         * @enum {string}
+         */
+        PlatformRole: "superadmin" | "operator" | "support" | "finance" | "sales" | "viewer";
         /** PosShift */
         PosShift: {
             id: number;
@@ -5702,7 +6124,7 @@ export interface components {
          * UserRole
          * @enum {string}
          */
-        UserRole: "super_admin" | "owner" | "manager" | "customer" | "courier" | "cashier" | "waiter" | "cook";
+        UserRole: "super_admin" | "owner" | "manager" | "customer" | "courier" | "cashier" | "waiter" | "cook" | "platform";
     };
     responses: {
         /** @description Unauthenticated */
@@ -5918,6 +6340,1125 @@ export interface operations {
                 };
             };
             401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "admin.audit_logs": {
+        parameters: {
+            query?: {
+                actor_id?: number | null;
+                action?: string | null;
+                store_id?: number | null;
+                subject_type?: string | null;
+                subject_id?: number | null;
+                from?: string | null;
+                to?: string | null;
+                q?: string | null;
+                per_page?: number | null;
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            data: {
+                                id: number;
+                                action: string;
+                                actor: {
+                                    id: number;
+                                    name: string;
+                                    role: string;
+                                    platform_role: string | null;
+                                } | null;
+                                store: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                branch_id: number | null;
+                                device: {
+                                    uuid: string;
+                                    name: string | null;
+                                    type: string;
+                                } | null;
+                                subject_type: string | null;
+                                subject_id: number | null;
+                                before: {
+                                    [key: string]: unknown;
+                                } | null;
+                                after: {
+                                    [key: string]: unknown;
+                                } | null;
+                                meta: {
+                                    [key: string]: unknown;
+                                } | null;
+                                reason: string | null;
+                                ip: string | null;
+                                user_agent: string | null;
+                                created_at: string;
+                            }[];
+                            next_cursor: string | null;
+                            prev_cursor: string | null;
+                            per_page: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.auth.2fa_confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    challenge_token: string;
+                    code: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            token: string;
+                            expires_at: string;
+                            member: {
+                                id: number;
+                                name: string;
+                                email: string | null;
+                                platform_role: string | null;
+                                platform_role_label: string | null;
+                                permissions: string[];
+                                two_factor_enabled: boolean;
+                                recovery_codes_left: number;
+                                last_login_at: string | null;
+                            };
+                            recovery_codes: string[];
+                        };
+                    };
+                };
+            };
+            /** @description Set-up not started or 2FA already on */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Wrong code (invalid_code) or challenge (challenge_invalid) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Locked for 15 minutes (locked) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.auth.recovery_codes_regenerated": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            recovery_codes: string[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description Step-up needed (reauth_required) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.auth.2fa_setup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    challenge_token: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            secret: string;
+                            otpauth_uri: string;
+                            qr_svg: string;
+                        };
+                    };
+                };
+            };
+            /** @description 2FA is already on (two_factor_already_enabled) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unknown, used or expired challenge (challenge_invalid) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.auth.2fa_verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    challenge_token: string;
+                    code?: string | null;
+                    recovery_code?: string | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            token: string;
+                            expires_at: string;
+                            member: {
+                                id: number;
+                                name: string;
+                                email: string | null;
+                                platform_role: string | null;
+                                platform_role_label: string | null;
+                                permissions: string[];
+                                two_factor_enabled: boolean;
+                                recovery_codes_left: number;
+                                last_login_at: string | null;
+                            };
+                        };
+                    };
+                };
+            };
+            /** @description The account must set 2FA up first (setup_required) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Wrong code (invalid_code, invalid_recovery_code) or challenge (challenge_invalid) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Locked for 15 minutes (locked) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.auth.reauthenticated": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    code: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            reauthenticated_until: string;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description Wrong code (invalid_code) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Locked for 15 minutes (locked) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.auth.invite_accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    token: string;
+                    password: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            status: string;
+                            challenge_token: string;
+                            expires_at: string;
+                        };
+                    };
+                };
+            };
+            /** @description Invalid invite (invite_invalid) or password */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.auth.login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: email */
+                    email: string;
+                    password: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            status: string;
+                            challenge_token: string;
+                            expires_at: string;
+                        };
+                    };
+                };
+            };
+            /** @description Disabled member (member_disabled) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Wrong email or password (invalid_credentials) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Locked for 15 minutes (locked) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.auth.logged_out": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            [key: string]: Record<string, never>;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "admin.auth.me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            member: {
+                                id: number;
+                                name: string;
+                                email: string | null;
+                                platform_role: string | null;
+                                platform_role_label: string | null;
+                                permissions: string[];
+                                two_factor_enabled: boolean;
+                                recovery_codes_left: number;
+                                last_login_at: string | null;
+                            };
+                            platform_role: string | null;
+                            permissions: string[];
+                            two_factor_enabled: boolean;
+                            recovery_codes_left: number;
+                            last_login_at: string | null;
+                            session: {
+                                id: number;
+                                ip: string | null;
+                                user_agent: string | null;
+                                created_at: string | null;
+                                last_used_at: string | null;
+                                expires_at: string | null;
+                                reauthenticated_until: string | null;
+                                current: boolean;
+                            } | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "admin.auth.sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            ip: string | null;
+                            user_agent: string | null;
+                            created_at: string | null;
+                            last_used_at: string | null;
+                            expires_at: string | null;
+                            reauthenticated_until: string | null;
+                            current: boolean;
+                        }[];
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "admin.auth.session_revoked": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            [key: string]: Record<string, never>;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description Step-up needed for another session (reauth_required) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such live session of mine */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            member: {
+                                id: number;
+                                name: string;
+                                email: string | null;
+                                platform_role: string | null;
+                                platform_role_label: string | null;
+                                permissions: string[];
+                                two_factor_enabled: boolean;
+                                recovery_codes_left: number;
+                                last_login_at: string | null;
+                            };
+                            platform_role: string | null;
+                            permissions: string[];
+                            two_factor_enabled: boolean;
+                            recovery_codes_left: number;
+                            last_login_at: string | null;
+                            session: {
+                                id: number;
+                                ip: string | null;
+                                user_agent: string | null;
+                                created_at: string | null;
+                                last_used_at: string | null;
+                                expires_at: string | null;
+                                reauthenticated_until: string | null;
+                                current: boolean;
+                            } | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "admin.roles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            roles: {
+                                key: string;
+                                label: string;
+                                editable: boolean;
+                            }[];
+                            permissions: {
+                                key: string;
+                                label: string;
+                                group: string;
+                            }[];
+                            grants: {
+                                [key: string]: string[];
+                            };
+                            defaults: {
+                                [key: string]: string[];
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "admin.roles.updated": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    role: components["schemas"]["PlatformRole"];
+                    permission: components["schemas"]["AdminPermission"];
+                    allowed: boolean | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            roles: {
+                                key: string;
+                                label: string;
+                                editable: boolean;
+                            }[];
+                            permissions: {
+                                key: string;
+                                label: string;
+                                group: string;
+                            }[];
+                            grants: {
+                                [key: string]: string[];
+                            };
+                            defaults: {
+                                [key: string]: string[];
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description Superadmin is fixed (role_not_editable) or invalid input */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.search": {
+        parameters: {
+            query: {
+                q: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            type: string;
+                            id: number | string;
+                            title: string;
+                            subtitle: string | null;
+                            href: string;
+                        }[];
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.team": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            name: string;
+                            email: string | null;
+                            platform_role: string | null;
+                            platform_role_label: string | null;
+                            status: string;
+                            disabled: boolean;
+                            two_factor_enabled: boolean;
+                            last_login_at: string | null;
+                            active_sessions: number;
+                            invite_expires_at: string | null;
+                            created_at: string | null;
+                        }[];
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "admin.team.invited": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name: string;
+                    /** Format: email */
+                    email: string;
+                    platform_role: components["schemas"]["PlatformRole"];
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            member: {
+                                id: number;
+                                name: string;
+                                email: string | null;
+                                platform_role: string | null;
+                                platform_role_label: string | null;
+                                status: string;
+                                disabled: boolean;
+                                two_factor_enabled: boolean;
+                                last_login_at: string | null;
+                                active_sessions: number;
+                                invite_expires_at: string | null;
+                                created_at: string | null;
+                            };
+                            invite_url: string;
+                            invite_token: string;
+                            invite_expires_at: string;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description Step-up needed (reauth_required) or superadmin only (superadmin_only) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Email taken (email_taken) or invalid input */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.team_member": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            name: string;
+                            email: string | null;
+                            platform_role: string | null;
+                            platform_role_label: string | null;
+                            status: string;
+                            disabled: boolean;
+                            two_factor_enabled: boolean;
+                            last_login_at: string | null;
+                            active_sessions: number;
+                            invite_expires_at: string | null;
+                            created_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description Not a team member */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.team.updated": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    platform_role?: components["schemas"]["PlatformRole"];
+                    disabled?: boolean;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            name: string;
+                            email: string | null;
+                            platform_role: string | null;
+                            platform_role_label: string | null;
+                            status: string;
+                            disabled: boolean;
+                            two_factor_enabled: boolean;
+                            last_login_at: string | null;
+                            active_sessions: number;
+                            invite_expires_at: string | null;
+                            created_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description Step-up needed (reauth_required) or superadmin only (superadmin_only) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description cannot_change_self, last_superadmin or invalid input */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.team.invite_reissued": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            invite_url: string;
+                            invite_token: string;
+                            invite_expires_at: string;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Already accepted (invite_already_accepted) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.team.2fa_reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            name: string;
+                            email: string | null;
+                            platform_role: string | null;
+                            platform_role_label: string | null;
+                            status: string;
+                            disabled: boolean;
+                            two_factor_enabled: boolean;
+                            last_login_at: string | null;
+                            active_sessions: number;
+                            invite_expires_at: string | null;
+                            created_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     "token.logout": {

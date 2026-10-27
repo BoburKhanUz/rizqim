@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data66.dart';
+import 'data87.dart';
 
 part 'get_v1_owner_fiscal_receipts_uuid_response.g.dart';
 
@@ -22,7 +22,7 @@ class GetV1OwnerFiscalReceiptsUuidResponse {
 
   final bool success;
   final String message;
-  final Data66 data;
+  final Data87 data;
 
   Map<String, Object?> toJson() =>
       _$GetV1OwnerFiscalReceiptsUuidResponseToJson(this);

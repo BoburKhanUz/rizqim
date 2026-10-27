@@ -11,7 +11,7 @@ _$PatchV1OwnerAutoGuestItemsIdResponseFromJson(Map<String, dynamic> json) =>
     PatchV1OwnerAutoGuestItemsIdResponse(
       success: json['success'] as bool,
       message: json['message'] as String,
-      data: Data30.fromJson(json['data'] as Map<String, dynamic>),
+      data: Data51.fromJson(json['data'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$PatchV1OwnerAutoGuestItemsIdResponseToJson(

@@ -4,34 +4,55 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data58.dart';
+import 'working_hours3.dart';
 
 part 'data59.g.dart';
 
 @JsonSerializable()
 class Data59 {
   const Data59({
-    required this.data,
-    required this.currentPage,
-    required this.lastPage,
-    required this.perPage,
-    required this.total,
-    required this.from,
-    required this.to,
+    required this.id,
+    required this.name,
+    required this.phone,
+    required this.address,
+    required this.regionId,
+    required this.districtId,
+    required this.latitude,
+    required this.longitude,
+    required this.radiusKm,
+    required this.status,
+    required this.isActive,
+    required this.workingHours,
+    required this.isOpenNow,
+    required this.createdAt,
+    required this.updatedAt,
   });
 
   factory Data59.fromJson(Map<String, Object?> json) => _$Data59FromJson(json);
 
-  final List<Data58> data;
-  @JsonKey(name: 'current_page')
-  final int currentPage;
-  @JsonKey(name: 'last_page')
-  final int lastPage;
-  @JsonKey(name: 'per_page')
-  final int perPage;
-  final int total;
-  final int? from;
-  final int? to;
+  final int id;
+  final String name;
+  final String? phone;
+  final String? address;
+  @JsonKey(name: 'region_id')
+  final int? regionId;
+  @JsonKey(name: 'district_id')
+  final int? districtId;
+  final num? latitude;
+  final num? longitude;
+  @JsonKey(name: 'radius_km')
+  final num radiusKm;
+  final String status;
+  @JsonKey(name: 'is_active')
+  final bool isActive;
+  @JsonKey(name: 'working_hours')
+  final WorkingHours3 workingHours;
+  @JsonKey(name: 'is_open_now')
+  final bool isOpenNow;
+  @JsonKey(name: 'created_at')
+  final String? createdAt;
+  @JsonKey(name: 'updated_at')
+  final String? updatedAt;
 
   Map<String, Object?> toJson() => _$Data59ToJson(this);
 }

@@ -7,39 +7,23 @@ part of 'data42.dart';
 // **************************************************************************
 
 Data42 _$Data42FromJson(Map<String, dynamic> json) => Data42(
-  id: (json['id'] as num).toInt(),
-  name: json['name'] as String,
+  role: json['role'] as String,
+  storeId: (json['store_id'] as num?)?.toInt(),
   branchId: (json['branch_id'] as num?)?.toInt(),
-  branch: json['branch'] == null
-      ? null
-      : Branch3.fromJson(json['branch'] as Map<String, dynamic>),
-  polygon: Polygon.fromJson(json['polygon'] as Map<String, dynamic>),
-  bbox: Bbox.fromJson(json['bbox'] as Map<String, dynamic>),
-  areaKm2: json['area_km2'] as String,
-  deliveryPrice: json['delivery_price'] as String,
-  minOrderAmount: json['min_order_amount'] as String,
-  freeDeliveryFrom: json['free_delivery_from'] as String?,
-  etaMinutes: (json['eta_minutes'] as num?)?.toInt(),
-  priority: (json['priority'] as num).toInt(),
-  active: json['active'] as bool,
-  createdAt: json['created_at'] as String?,
-  updatedAt: json['updated_at'] as String?,
+  branchScoped: json['branch_scoped'] as bool,
+  permissions: (json['permissions'] as List<dynamic>)
+      .map((e) => e as String)
+      .toList(),
+  deviceUuid: json['device_uuid'] as String?,
+  timezone: json['timezone'] as String?,
 );
 
 Map<String, dynamic> _$Data42ToJson(Data42 instance) => <String, dynamic>{
-  'id': instance.id,
-  'name': instance.name,
+  'role': instance.role,
+  'store_id': instance.storeId,
   'branch_id': instance.branchId,
-  'branch': instance.branch,
-  'polygon': instance.polygon,
-  'bbox': instance.bbox,
-  'area_km2': instance.areaKm2,
-  'delivery_price': instance.deliveryPrice,
-  'min_order_amount': instance.minOrderAmount,
-  'free_delivery_from': instance.freeDeliveryFrom,
-  'eta_minutes': instance.etaMinutes,
-  'priority': instance.priority,
-  'active': instance.active,
-  'created_at': instance.createdAt,
-  'updated_at': instance.updatedAt,
+  'branch_scoped': instance.branchScoped,
+  'permissions': instance.permissions,
+  'device_uuid': instance.deviceUuid,
+  'timezone': instance.timezone,
 };

@@ -4,32 +4,49 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'type2.dart';
+import 'user2.dart';
 
 part 'device4.g.dart';
 
 @JsonSerializable()
 class Device4 {
   const Device4({
-    this.type,
-    this.uuid,
-    this.name,
-    this.platform,
-    this.appVersion,
-    this.pushToken,
+    required this.uuid,
+    required this.type,
+    required this.name,
+    required this.platform,
+    required this.appVersion,
+    required this.storeId,
+    required this.branchId,
+    required this.user,
+    required this.hasPushToken,
+    required this.lastSeenAt,
+    required this.revokedAt,
+    required this.createdAt,
   });
 
   factory Device4.fromJson(Map<String, Object?> json) =>
       _$Device4FromJson(json);
 
-  final Type2? type;
-  final String? uuid;
-  final String? name;
+  final String uuid;
+  final String type;
+  final String name;
   final String? platform;
   @JsonKey(name: 'app_version')
   final String? appVersion;
-  @JsonKey(name: 'push_token')
-  final String? pushToken;
+  @JsonKey(name: 'store_id')
+  final int? storeId;
+  @JsonKey(name: 'branch_id')
+  final int? branchId;
+  final User2? user;
+  @JsonKey(name: 'has_push_token')
+  final bool hasPushToken;
+  @JsonKey(name: 'last_seen_at')
+  final String? lastSeenAt;
+  @JsonKey(name: 'revoked_at')
+  final String? revokedAt;
+  @JsonKey(name: 'created_at')
+  final String? createdAt;
 
   Map<String, Object?> toJson() => _$Device4ToJson(this);
 }

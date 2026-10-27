@@ -4,19 +4,52 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'kinds.dart';
-import 'stations.dart';
+import 'store_status.dart';
+import 'store_transaction.dart';
+import 'store_wallet_transaction.dart';
+import 'payout_requests.dart';
 
 part 'data78.g.dart';
 
 @JsonSerializable()
 class Data78 {
-  const Data78({required this.kinds, required this.stations});
+  const Data78({
+    required this.debtBalance,
+    required this.walletBalance,
+    required this.creditLimit,
+    required this.minPayoutReserve,
+    required this.paymentAccountType,
+    required this.commissionRate,
+    required this.status,
+    required this.isOrderLocked,
+    required this.ledgerTransactions,
+    required this.walletTransactions,
+    required this.payoutRequests,
+  });
 
   factory Data78.fromJson(Map<String, Object?> json) => _$Data78FromJson(json);
 
-  final List<Kinds> kinds;
-  final List<Stations> stations;
+  @JsonKey(name: 'debt_balance')
+  final num debtBalance;
+  @JsonKey(name: 'wallet_balance')
+  final num walletBalance;
+  @JsonKey(name: 'credit_limit')
+  final num creditLimit;
+  @JsonKey(name: 'min_payout_reserve')
+  final num minPayoutReserve;
+  @JsonKey(name: 'payment_account_type')
+  final String paymentAccountType;
+  @JsonKey(name: 'commission_rate')
+  final num commissionRate;
+  final StoreStatus status;
+  @JsonKey(name: 'is_order_locked')
+  final bool isOrderLocked;
+  @JsonKey(name: 'ledger_transactions')
+  final List<StoreTransaction> ledgerTransactions;
+  @JsonKey(name: 'wallet_transactions')
+  final List<StoreWalletTransaction> walletTransactions;
+  @JsonKey(name: 'payout_requests')
+  final List<PayoutRequests> payoutRequests;
 
   Map<String, Object?> toJson() => _$Data78ToJson(this);
 }

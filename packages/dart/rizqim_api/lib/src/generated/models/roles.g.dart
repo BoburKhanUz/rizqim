@@ -7,13 +7,13 @@ part of 'roles.dart';
 // **************************************************************************
 
 Roles _$RolesFromJson(Map<String, dynamic> json) => Roles(
-  role: Role2.fromJson(json['role'] as String),
+  key: json['key'] as String,
   label: json['label'] as String,
   editable: json['editable'] as bool,
 );
 
 Map<String, dynamic> _$RolesToJson(Roles instance) => <String, dynamic>{
-  'role': instance.role,
+  'key': instance.key,
   'label': instance.label,
   'editable': instance.editable,
 };

@@ -4,8 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'branch8.dart';
-import 'login_phone_proof.dart';
+import 'status4.dart';
 
 part 'data109.g.dart';
 
@@ -13,50 +12,41 @@ part 'data109.g.dart';
 class Data109 {
   const Data109({
     required this.id,
-    required this.name,
-    required this.role,
-    required this.roleLabel,
-    required this.branch,
-    required this.courierType,
-    required this.phone,
-    required this.loginPhoneEnabled,
-    required this.loginPhoneProof,
-    required this.hasPin,
-    required this.staffCode,
-    required this.telegramLinked,
-    required this.invitePending,
-    required this.canEdit,
+    required this.amount,
+    required this.card,
+    required this.status,
+    required this.notes,
+    required this.resolutionNotes,
+    required this.processedAt,
     required this.createdAt,
+    required this.storeId,
+    required this.cardNumber,
+    required this.processedBy,
+    required this.updatedAt,
   });
 
   factory Data109.fromJson(Map<String, Object?> json) =>
       _$Data109FromJson(json);
 
   final int id;
-  final String name;
-  final String role;
-  @JsonKey(name: 'role_label')
-  final String roleLabel;
-  final Branch8? branch;
-  @JsonKey(name: 'courier_type')
-  final String? courierType;
-  final String? phone;
-  @JsonKey(name: 'login_phone_enabled')
-  final bool loginPhoneEnabled;
-  @JsonKey(name: 'login_phone_proof')
-  final LoginPhoneProof? loginPhoneProof;
-  @JsonKey(name: 'has_pin')
-  final bool hasPin;
-  @JsonKey(name: 'staff_code')
-  final String? staffCode;
-  @JsonKey(name: 'telegram_linked')
-  final bool telegramLinked;
-  @JsonKey(name: 'invite_pending')
-  final bool invitePending;
-  @JsonKey(name: 'can_edit')
-  final bool canEdit;
+  final String amount;
+  final String card;
+  final Status4 status;
+  final String? notes;
+  @JsonKey(name: 'resolution_notes')
+  final String? resolutionNotes;
+  @JsonKey(name: 'processed_at')
+  final String? processedAt;
   @JsonKey(name: 'created_at')
-  final String? createdAt;
+  final String createdAt;
+  @JsonKey(name: 'store_id')
+  final int storeId;
+  @JsonKey(name: 'card_number')
+  final String cardNumber;
+  @JsonKey(name: 'processed_by')
+  final int? processedBy;
+  @JsonKey(name: 'updated_at')
+  final String? updatedAt;
 
   Map<String, Object?> toJson() => _$Data109ToJson(this);
 }
