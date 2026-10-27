@@ -67,9 +67,9 @@ Route::prefix('admin')->name('admin.')->middleware('admin.audit')->group(functio
             });
         });
 
-        // Stage B (P4-13..P4-15) plugs in here, one file per section, e.g.:
-        //   require __DIR__ . '/api_admin_today.php';       // Bugun (admin.can:today.view)
-        //   require __DIR__ . '/api_admin_orders.php';      // Buyurtmalar (orders.*; interventions: admin.recent + reason)
-        //   require __DIR__ . '/api_admin_monitoring.php';  // Monitoring (monitoring.*)
+        // Stage B (P4-13..P4-15): one file per section, inside the auth:admin group above
+        require __DIR__ . '/api_admin_today.php';       // Bugun (admin.can:today.view)
+        require __DIR__ . '/api_admin_orders.php';      // Buyurtmalar (orders.*; interventions: admin.recent + reason)
+        require __DIR__ . '/api_admin_monitoring.php';  // Monitoring (monitoring.*)
     });
 });
