@@ -1779,7 +1779,7 @@
                         }
                     },
                     "403": {
-                        "description": "Disabled member (member_disabled)",
+                        "description": "Disabled member (member_disabled), or no 2FA and the set-up window (24 h after an invite or a 2FA reset) closed (setup_not_allowed)",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -3417,7 +3417,7 @@
         "/v1/admin/monitoring/failed-jobs/{uuid}": {
             "get": {
                 "operationId": "admin.monitoring.failed_job",
-                "description": "The full exception text with the stack trace and the job's payload as plain data, both redacted: keys that hold\nsecrets (tokens, passwords, codes, keys, card data) show `[redacted]`, tokens and phone numbers inside text are\nmasked. The job is read without running any of its code.",
+                "description": "The full exception text with the stack trace and the job's payload as plain data, both redacted: keys that hold\nsecrets (tokens, passwords, codes, keys, card data) show `[redacted]`, tokens and phone numbers inside text are\nmasked. The job is read without running any of its code. The exception beyond its first line and the payload's\ndata (the serialized job: texts, names, addresses) are returned only to members with `admin.monitoring.manage`\nor `admin.pii.view`; everyone else gets `details_hidden: true`, the job class, queue and the first line.",
                 "summary": "One failed job",
                 "tags": [
                     "Admin"
@@ -3498,6 +3498,9 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "details_hidden": {
+                                                    "type": "boolean"
+                                                },
                                                 "exception": {
                                                     "type": "string"
                                                 },
@@ -3517,6 +3520,7 @@
                                                 "failed_at",
                                                 "attempts",
                                                 "max_tries",
+                                                "details_hidden",
                                                 "exception",
                                                 "payload"
                                             ]
@@ -4417,7 +4421,7 @@
         "/v1/admin/orders": {
             "get": {
                 "operationId": "admin.orders",
-                "description": "Newest first, cursor pages (`cursor` from `next_cursor`, `per_page` 1–100, default 30). Filters: `status` — a\nstatus group: `active` (not finished), `new`, `kitchen` (accepted, preparing, ready), `en_route` (courier\nassigned, on the way), `done` (delivered, refunded), `canceled` (canceled, rejected); `channel` (telegram,\nmobile); `region_id` (the branch's region); `store_id`; `sla` — `late` or `warning` (the running\nstage at 80–100% of its limit); `from` / `to` (dates in Asia/Tashkent, inclusive); `q` — the short code (with or\nwithout #), the start of the uuid, or 4+ digits of the customer's phone. `counts` has every group under the\nsame filters (done and canceled count today only when no from/to is given). `sla` on each row: null when no\nstage runs (waiting for an online payment, ready, with a courier not yet on the way, finished).",
+                "description": "Newest first, cursor pages (`cursor` from `next_cursor`, `per_page` 1–100, default 30). Filters: `status` — a\nstatus group: `active` (not finished), `new`, `kitchen` (accepted, preparing, ready), `en_route` (courier\nassigned, on the way), `done` (delivered, refunded), `canceled` (canceled, rejected); `channel` (telegram,\nmobile); `region_id` (the branch's region); `store_id`; `sla` — `late` or `warning` (the running\nstage at 80–100% of its limit); `from` / `to` (dates in Asia/Tashkent, inclusive); `q` — the short code (with or\nwithout #), the start of the uuid, or the customer's phone: 4+ of its digits with admin.pii.view, otherwise only\nthe whole number (+998 and nine digits, or the nine digits). `counts` has every group under the same filters\n(done and canceled count today only when no from/to is given). `sla` on each row: null when no stage runs\n(waiting for an online payment, ready, with a courier not yet on the way, finished). `manual_refund_required`:\na cancelled, rejected or refunded order with money still to give back (`refunds.refundable` > 0 on the card).",
                 "summary": "Orders (all stores)",
                 "tags": [
                     "Admin"
@@ -6076,7 +6080,7 @@
         "/v1/admin/refund-requests/{id}/approve": {
             "post": {
                 "operationId": "admin.refund_requests.approved",
-                "description": "By a member other than the one who asked (403 `four_eyes`). Runs the refund: a delivered order refunded in full\nbecomes `refunded` (commission and settlement reversed, keshbek back to the balance); otherwise (a cancelled\norder, a partial amount) it is recorded as a manual refund. `execution.manual_amount` is what the approver\nreturns by hand in the provider's cabinet or in cash (no provider refund API is called). `reason` required.\nIdempotent: a repeat (or the same Idempotency-Key) answers the same result; a request already decided otherwise\nis 409 `refund_request_decided`.",
+                "description": "By a member other than the one who asked (403 `four_eyes`). Runs the refund: a delivered order refunded in full\nwith nothing of it given back before becomes `refunded` (commission and settlement reversed, keshbek back to the\nbalance; mode `order_refunded`); otherwise (a part, the rest after a part, a cancelled order) the amount is\nspread over the payments still paid (`execution.allocations`): a keshbek share goes back to the customer's\nbalance at once, exactly that amount (mode `balance` when all of it did), any other share is a manual refund\n(mode `manual`). `execution.manual_amount` is what the approver returns by hand in the provider's cabinet or in\ncash (no provider refund API is called). The amount is checked again against what is refundable now (a payment\nthe provider refunded since counts in full): 422 `amount_exceeds_refundable`. `reason` required.\nIdempotent: a repeat (or the same Idempotency-Key) answers the same result; a request already decided otherwise\nis 409 `refund_request_decided`.",
                 "summary": "Approve a refund request",
                 "tags": [
                     "Admin"
@@ -6564,7 +6568,7 @@
             },
             "put": {
                 "operationId": "admin.roles.updated",
-                "description": "`allowed`: true grants, false takes away, null resets to the role's default. The superadmin role cannot be\nchanged (422 `role_not_editable`). Needs step-up. Answers with the whole matrix.",
+                "description": "`allowed`: true grants, false takes away, null resets to the role's default. Only a superadmin changes the\nmatrix (403 `superadmin_only` for any other team.manage holder). The superadmin role cannot be changed (422\n`role_not_editable`). Needs step-up. Answers with the whole matrix.",
                 "summary": "Change a role's permission",
                 "tags": [
                     "Admin"
@@ -6705,6 +6709,16 @@
                             }
                         }
                     },
+                    "403": {
+                        "description": "Step-up needed (reauth_required) or superadmin only (superadmin_only)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
                     "401": {
                         "$ref": "#/components/responses/AuthenticationException"
                     }
@@ -6719,7 +6733,7 @@
         "/v1/admin/search": {
             "get": {
                 "operationId": "admin.search",
-                "description": "`q` at least 2 characters. Each hit: `type` (store, order, user, member), `id`, `title`, `subtitle` and `href`,\nthe admin app path to open (`/stores/{id}`, `/orders/{uuid}`, `/users/{id}`, `/team/{id}`). Types the member\nhas no permission for (stores.view, orders.view, users.view, team.manage) are left out.",
+                "description": "`q` at least 2 characters. Each hit: `type` (store, order, user, member), `id`, `title`, `subtitle` and `href`,\nthe admin app path to open (`/stores/{id}`, `/orders/{uuid}`, `/users/{id}`, `/team/{id}`). Types the member\nhas no permission for (stores.view, orders.view, users.view, team.manage) are left out. By phone: with\nadmin.pii.view any 4+ digits of the number (each number shown is an audited reveal); without it only the whole\nnumber (`+998901234567`, `90 123 45 67`...).",
                 "summary": "Search everything",
                 "tags": [
                     "Admin"
@@ -6930,7 +6944,7 @@
             },
             "post": {
                 "operationId": "admin.team.invited",
-                "description": "Creates the member (they cannot sign in until they accept) and a one-time invite link valid 72 hours:\n`invite_url` is shown only in this answer. Only a superadmin may invite a superadmin. Needs step-up.",
+                "description": "Creates the member (they cannot sign in until they accept) and a one-time invite link valid 72 hours:\n`invite_url` is shown only in this answer. Only a superadmin may invite a superadmin, or into a role that holds\nteam.manage, pii.view, system.manage, orders.refund_approve or payouts.approve (403 `superadmin_only`). Accepting\nopens a 24 hour window for the 2FA set-up. Needs step-up.",
                 "summary": "Invite a team member",
                 "tags": [
                     "Admin"
@@ -7249,7 +7263,7 @@
             },
             "patch": {
                 "operationId": "admin.team.updated",
-                "description": "`platform_role` and/or `disabled`. Disabling ends all of the member's sessions. Nobody changes their own role or\ndisables themselves (`cannot_change_self`), the last active superadmin stays (`last_superadmin`), and only a\nsuperadmin changes a superadmin or makes one (`superadmin_only`). Needs step-up.",
+                "description": "`platform_role` and/or `disabled`. Disabling ends all of the member's sessions. Nobody changes their own role or\ndisables themselves (`cannot_change_self`), the last superadmin somebody can sign in as (active, password, 2FA\non) stays (`last_superadmin`), and only a superadmin changes a superadmin or a member in a privileged role\n(team.manage, pii.view, system.manage, refund or payout approval), or gives such a role (`superadmin_only`).\nNeeds step-up.",
                 "summary": "Change a member's role or disable / enable them",
                 "tags": [
                     "Admin"
@@ -7422,7 +7436,7 @@
         "/v1/admin/team/{id}/invite": {
             "post": {
                 "operationId": "admin.team.invite_reissued",
-                "description": "A new link for a member who has not accepted yet (409 `invite_already_accepted` otherwise); the older links stop\nworking. Needs step-up.",
+                "description": "A new link for a member who has not accepted yet (409 `invite_already_accepted` otherwise); the older links stop\nworking. A member in a superadmin or privileged role: superadmin only (403 `superadmin_only`). Needs step-up.",
                 "summary": "Re-issue the invite",
                 "tags": [
                     "Admin"
@@ -7502,6 +7516,16 @@
                                 }
                             }
                         }
+                    },
+                    "403": {
+                        "description": "Step-up needed (reauth_required) or superadmin only (superadmin_only)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
                     }
                 },
                 "security": [
@@ -7514,7 +7538,7 @@
         "/v1/admin/team/{id}/reset-2fa": {
             "post": {
                 "operationId": "admin.team.2fa_reset",
-                "description": "For a lost phone: 2FA and the recovery codes are removed and every session of the member ends; they set 2FA up\nagain at their next sign-in. Not for yourself. Needs step-up.",
+                "description": "For a lost phone: 2FA and the recovery codes are removed and every session of the member ends; they set 2FA up\nagain at a sign-in within 24 hours (after that the set-up is refused, `setup_not_allowed`: reset again). Not for\nyourself; a superadmin or a member in a privileged role: superadmin only. Needs step-up.",
                 "summary": "Reset a member's 2FA",
                 "tags": [
                     "Admin"
@@ -7638,6 +7662,16 @@
                     },
                     "401": {
                         "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "403": {
+                        "description": "Step-up needed (reauth_required) or superadmin only (superadmin_only)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
                     }
                 },
                 "security": [
@@ -80544,6 +80578,12 @@
                     "courier_type": {
                         "$ref": "#/components/schemas/CourierType"
                     },
+                    "two_factor_setup_allowed_until": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
                     "devices": {
                         "type": "array",
                         "items": {
@@ -80605,7 +80645,8 @@
                     "balance",
                     "pin_set_at",
                     "staff_code",
-                    "courier_type"
+                    "courier_type",
+                    "two_factor_setup_allowed_until"
                 ],
                 "title": "User"
             },

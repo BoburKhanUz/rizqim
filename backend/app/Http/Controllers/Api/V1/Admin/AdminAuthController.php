@@ -44,7 +44,7 @@ class AdminAuthController extends AdminController
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{status: string, challenge_token: string, expires_at: string}}')]
     #[ApiDocResponse(422, 'Wrong email or password (invalid_credentials)', type: 'array{success: false, message: string, code: string, data: array{reason: string}}')]
-    #[ApiDocResponse(403, 'Disabled member (member_disabled)', type: 'array{success: false, message: string, code: string, data: array{reason: string}}')]
+    #[ApiDocResponse(403, 'Disabled member (member_disabled), or no 2FA and the set-up window (24 h after an invite or a 2FA reset) closed (setup_not_allowed)', type: 'array{success: false, message: string, code: string, data: array{reason: string}}')]
     #[ApiDocResponse(429, 'Locked for 15 minutes (locked)', type: 'array{success: false, message: string, code: string, data: array{reason: string, retry_after: int}}')]
     public function login(Request $request): JsonResponse
     {

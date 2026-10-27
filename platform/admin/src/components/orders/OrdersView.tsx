@@ -24,7 +24,7 @@ import { OPS_EVENTS, usePlatformOps } from '@/lib/realtime';
 import { useCan } from '../AuthProvider';
 import { useT } from '../I18nProvider';
 import { SlaSettingsDialog } from './OrderDialogs';
-import { clockSkew, GROUP_LABEL, money } from './ordersModel';
+import { clockSkew, exactMoney, GROUP_LABEL, money } from './ordersModel';
 import { SlaBadge } from './SlaBadge';
 import { StoreQualityPanel } from './StoreQualityPanel';
 import { useNow } from './useNow';
@@ -32,6 +32,9 @@ import { useNow } from './useNow';
 // Buyurtmalar (P4-14, docs/PHASE4_PLAN.md 4.2): the marketplace orders of every store, newest first. Live: an
 // ops.order.* event on platform.ops refetches at once, and the list polls anyway (every 15 s while real-time is not up,
 // every minute while it is). The SLA of each order is the server's; the words keep counting between refetches.
+
+// Real-time refetches of the list: the first event at once, the rest of a burst once at the end of this window
+export const ORDERS_EVENT_COALESCE_MS = 1_000;
 
 const CHIP = 'inline-flex min-h-10 items-center gap-1.5 rounded-full border px-3 text-footnote font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand';
 const chipTone = (on: boolean) => (on ? 'border-brand bg-brand text-on-brand' : 'border-line bg-surface text-fg hover:bg-surface-2');
@@ -53,16 +56,31 @@ export function OrdersView() {
     return () => clearTimeout(timer);
   }, [search]);
 
-  // An event says "something changed": refetch, at most once a second
+  // An event says "something changed": refetch at once, then at most once per ORDERS_EVENT_COALESCE_MS. Events inside
+  // that window are coalesced into one refetch at its end (trailing edge), so the last change of a burst is never lost.
   const lastRefetch = useRef(0);
+  const trailing = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (trailing.current) clearTimeout(trailing.current);
+  }, []);
   const { live, status } = usePlatformOps(
     [OPS_EVENTS.orderCreated, OPS_EVENTS.orderUpdated],
     (payload) => {
       if (payload === null) return; // the list polls by itself (refetchInterval)
-      const at = Date.now();
-      if (at - lastRefetch.current < 1000) return;
-      lastRefetch.current = at;
-      void queryClient.invalidateQueries({ queryKey: ORDER_KEYS.all });
+      const refetch = () => {
+        lastRefetch.current = Date.now();
+        void queryClient.invalidateQueries({ queryKey: ORDER_KEYS.all });
+      };
+      const wait = ORDERS_EVENT_COALESCE_MS - (Date.now() - lastRefetch.current);
+      if (wait <= 0 && !trailing.current) {
+        refetch();
+        return;
+      }
+      if (trailing.current) return; // already coming
+      trailing.current = setTimeout(() => {
+        trailing.current = null;
+        refetch();
+      }, Math.max(wait, 0));
     },
     { enabled: allowed, pollMs: 0 },
   );
@@ -144,7 +162,7 @@ export function OrdersView() {
                       {t('orders_refundQueueItem', {
                         code: request.order ? formatOrderCode(request.order) : `#${request.id}`,
                         store: request.store?.name ?? '—',
-                        amount: money(request.amount),
+                        amount: exactMoney(request.amount),
                         name: request.requested_by?.name ?? '—',
                       })}
                     </span>

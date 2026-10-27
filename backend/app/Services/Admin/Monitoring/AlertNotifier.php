@@ -62,6 +62,12 @@ class AlertNotifier
             return false;
         }
 
+        // Claim the announcement in the database first: whoever resolves the alert, it is announced once
+        $claimed = Alert::query()->whereKey($alert->getKey())->whereNull('telegram_resolved_at')->update(['telegram_resolved_at' => now()]);
+        if ($claimed !== 1) {
+            return false;
+        }
+
         $minutes = max(0, (int) floor($alert->first_seen_at->diffInMinutes($alert->resolved_at ?? now(), true)));
         $this->telegram->sendMessage($chatId, implode("\n", array_filter([
             '[HAL QILINDI] ' . $alert->title,
@@ -69,7 +75,7 @@ class AlertNotifier
             $by !== null ? "Hal qildi: {$by}" : 'Muammo o\'z-o\'zidan tugadi',
             $this->link(),
         ])));
-        $alert->forceFill(['telegram_resolved_at' => now()])->save();
+        $alert->forceFill(['telegram_resolved_at' => now()])->syncOriginal();
 
         return true;
     }

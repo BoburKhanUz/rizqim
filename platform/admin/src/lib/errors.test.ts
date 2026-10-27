@@ -11,7 +11,7 @@ describe('error codes of the admin API', () => {
   it('knows every code of docs/API.md "Xato formati"', () => {
     expect([...KNOWN_ERROR_CODES].sort()).toEqual(
       [
-        'invalid_credentials', 'member_disabled', 'locked', 'challenge_invalid', 'invalid_code', 'invalid_recovery_code', 'setup_required', 'setup_not_started',
+        'invalid_credentials', 'member_disabled', 'locked', 'challenge_invalid', 'invalid_code', 'invalid_recovery_code', 'setup_required', 'setup_not_started', 'setup_not_allowed',
         'two_factor_already_enabled', 'invite_invalid', 'invite_already_accepted', 'email_taken', 'reauth_required', 'forbidden', 'superadmin_only',
         'cannot_change_self', 'last_superadmin', 'role_not_editable', 'not_found',
       ].sort(),

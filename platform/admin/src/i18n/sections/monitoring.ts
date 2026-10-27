@@ -195,6 +195,7 @@ export const monitoring = defineSection({
     monitoring_jobs_exception: 'Xato matni',
     monitoring_jobs_payload: "Vazifa ma'lumotlari",
     monitoring_jobs_redacted: 'Kalitlar, tokenlar va telefon raqamlari yashirilgan.',
+    monitoring_jobs_hidden: "Vazifa ma'lumotlari va xatoning davomi faqat Monitoring boshqaruvchilariga ko'rinadi.",
     monitoring_jobs_retry: 'Qayta urinish',
     monitoring_jobs_delete: "O'chirish",
     monitoring_jobs_retryDone: 'Vazifa navbatga qaytarildi.',

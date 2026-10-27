@@ -2,19 +2,25 @@
 
 namespace App\Services\Admin\Monitoring\Checks;
 
-use App\Enums\DeviceType;
-use App\Enums\StoreStatus;
+use App\Models\Alert;
 use App\Models\AlertRule;
 use App\Models\Device;
 use App\Services\Admin\Monitoring\AlertFinding;
-use App\Support\StoreTimezone;
+use App\Services\Admin\Monitoring\TerminalBusinessHours;
 use Carbon\CarbonImmutable;
 
 /**
- * A paired POS or KDS terminal of an active store has not been heard from for `threshold` minutes of the store's
+ * A paired POS or KDS terminal of an active store has not been heard from for `threshold` minutes of its branch's
  * business hours. Time outside the working hours does not count: a till switched on at opening time is not "offline
- * since last night". Hours are the store's open_time / close_time in its time zone (none set = open all day, like
- * Store::is_open). Terminals unseen for a week are taken as retired, not as an outage. One subject per device.
+ * since last night". "Open now" is TerminalBusinessHours, the same answer Bugun gives (branch hours, else the store's;
+ * a store switched to "closed" is skipped); a round-the-clock branch or store is measured from the terminal's own
+ * last_seen_at, so the local midnight changes nothing. Terminals unseen for a week are taken as retired, not as an
+ * outage.
+ *
+ * One subject per device. Every silent terminal of an open branch is evaluated (the candidates are not cut off before
+ * the opening hours are applied). MAX_FINDINGS bounds the alerts, not the evaluation: devices that already have an
+ * unresolved alert always keep their finding (so a long outage never resolves the alerts it already raised), and NEW
+ * alerts are opened only while there is room; the rest are covered by one aggregate finding (subject `many`).
  */
 class PosDeviceOfflineCheck implements AlertCheck
 {
@@ -22,100 +28,103 @@ class PosDeviceOfflineCheck implements AlertCheck
 
     public const MAX_FINDINGS = 100;
 
+    public const AGGREGATE = 'many';
+
+    private const CHUNK = 500;
+
+    public function __construct(
+        private readonly TerminalBusinessHours $hours,
+    ) {}
+
     public function findings(AlertRule $rule): ?array
     {
         $now = CarbonImmutable::now();
 
-        $devices = Device::query()
-            ->active()
-            ->whereNull('user_id')
-            ->whereIn('type', array_map(fn (DeviceType $type) => $type->value, DeviceType::terminals()))
+        $existing = Alert::query()->where('alert_rule_id', $rule->id)->unresolved()
+            ->where('subject_key', '<>', self::AGGREGATE)->pluck('subject_key')->flip();
+
+        /** @var list<array{finding: AlertFinding, last_seen: CarbonImmutable, known: bool}> $silent */
+        $silent = [];
+        $this->hours->constrain(Device::query()->whereNull('user_id'))
             ->whereNotNull('last_seen_at')
             ->where('last_seen_at', '<', $now->subMinutes($rule->threshold))
             ->where('last_seen_at', '>=', $now->subDays(self::RETIRED_AFTER_DAYS))
-            ->whereHas('store', fn ($query) => $query->where('status', StoreStatus::ACTIVE->value))
-            ->with(['store:id,name,timezone,open_time,close_time', 'branch:id,name'])
-            ->orderBy('last_seen_at')
-            ->limit(self::MAX_FINDINGS * 3)
-            ->get();
+            ->select(['id', 'uuid', 'store_id', 'branch_id', 'type', 'name', 'last_seen_at'])
+            ->chunkById(self::CHUNK, function ($devices) use (&$silent, $rule, $now, $existing) {
+                foreach ($devices as $device) {
+                    $window = $this->hours->window($device, $now);
+                    if ($window === null) {
+                        continue; // closed right now
+                    }
 
+                    $lastSeen = CarbonImmutable::instance($device->last_seen_at);
+                    // Only the time since the branch opened counts; round the clock: since the last sign of life
+                    $silentSince = $window->since !== null && $window->since->gt($lastSeen) ? $window->since : $lastSeen;
+                    $minutes = (int) floor($silentSince->diffInMinutes($now, true));
+                    if ($minutes < $rule->threshold) {
+                        continue;
+                    }
+
+                    $silent[] = [
+                        'finding' => $this->finding($device, $lastSeen, $minutes, $rule->threshold),
+                        'last_seen' => $lastSeen,
+                        'known' => isset($existing[$device->uuid]),
+                    ];
+                }
+            });
+
+        // Alerts that already exist first (their problem is still there), then the longest silent
+        usort($silent, fn (array $a, array $b) => [$b['known'], $a['last_seen']] <=> [$a['known'], $b['last_seen']]);
+
+        $room = max(0, self::MAX_FINDINGS - count($existing));
         $findings = [];
-        foreach ($devices as $device) {
-            $store = $device->store;
-            $lastSeen = CarbonImmutable::instance($device->last_seen_at);
-            $openedAt = $this->openSince($store->open_time, $store->close_time, StoreTimezone::of($store), $now);
-            if ($openedAt === null) {
-                continue; // closed right now
+        $withheld = 0;
+        foreach ($silent as $row) {
+            if ($row['known'] || $room > 0) {
+                $findings[] = $row['finding'];
+                $room -= $row['known'] ? 0 : 1;
+            } else {
+                $withheld++;
             }
+        }
 
-            // Only the time since the store opened counts
-            $silentSince = $lastSeen->gt($openedAt) ? $lastSeen : $openedAt;
-            $minutes = (int) floor($silentSince->diffInMinutes($now, true));
-            if ($minutes < $rule->threshold) {
-                continue;
-            }
-
-            $label = $device->type === DeviceType::KDS ? 'Oshxona ekrani' : 'Kassa';
-            $name = $device->name ?: $label;
+        if ($withheld > 0) {
+            $total = count($silent);
             $findings[] = new AlertFinding(
-                $device->uuid,
-                "{$store->name}: {$name} {$minutes} daqiqadan beri aloqada emas",
+                self::AGGREGATE,
+                "{$total} ta kassa yoki oshxona ekrani aloqada emas",
                 [
-                    'device_uuid' => $device->uuid,
-                    'device_name' => $device->name,
-                    'device_type' => $device->type->value,
-                    'branch' => $device->branch?->name,
-                    'store' => $store->name,
-                    'last_seen_at' => $lastSeen->toIso8601String(),
-                    'offline_minutes' => $minutes,
+                    'offline_total' => $total,
+                    'individual_alerts' => $total - $withheld,
+                    'withheld' => $withheld,
                     'threshold_minutes' => $rule->threshold,
                 ],
-                (int) $store->id,
             );
-
-            if (count($findings) >= self::MAX_FINDINGS) {
-                break;
-            }
         }
 
         return $findings;
     }
 
-    /**
-     * When the current business period began (in absolute time), or null if the store is closed at $now.
-     */
-    private function openSince(?string $open, ?string $close, string $timezone, CarbonImmutable $now): ?CarbonImmutable
+    private function finding(Device $device, CarbonImmutable $lastSeen, int $minutes, int $threshold): AlertFinding
     {
-        $local = $now->setTimezone($timezone);
-        $start = $this->time($open);
-        $end = $this->time($close);
+        $store = $device->store;
+        $label = $device->type === \App\Enums\DeviceType::KDS ? 'Oshxona ekrani' : 'Kassa';
+        $name = $device->name ?: $label;
 
-        // No hours, or open = close (24/7): open all the time; the start of the local day is as far back as the
-        // check needs to look
-        if ($start === null || $end === null || $start === $end) {
-            return $local->startOfDay();
-        }
-
-        $time = $local->format('H:i:s');
-        if ($end > $start) {
-            return $time >= $start && $time <= $end ? $local->setTimeFromTimeString($start) : null;
-        }
-
-        // Overnight (18:00 - 02:00): in the evening part it opened today, in the small hours yesterday
-        if ($time >= $start) {
-            return $local->setTimeFromTimeString($start);
-        }
-
-        return $time <= $end ? $local->subDay()->setTimeFromTimeString($start) : null;
-    }
-
-    private function time(?string $value): ?string
-    {
-        if ($value === null || trim($value) === '') {
-            return null;
-        }
-        $value = trim($value);
-
-        return strlen($value) === 5 ? $value . ':00' : substr($value, 0, 8);
+        return new AlertFinding(
+            $device->uuid,
+            "{$store->name}: {$name} {$minutes} daqiqadan beri aloqada emas",
+            [
+                'device_uuid' => $device->uuid,
+                'device_name' => $device->name,
+                'device_type' => $device->type->value,
+                'branch' => $device->branch?->name,
+                'store' => $store->name,
+                'last_seen_at' => $lastSeen->toIso8601String(),
+                'offline_minutes' => $minutes,
+                'threshold_minutes' => $threshold,
+            ],
+            (int) $store->id,
+        );
     }
 }

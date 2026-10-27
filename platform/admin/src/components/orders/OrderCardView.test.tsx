@@ -5,6 +5,7 @@ import { createPlatformOps, setPlatformOps } from '@/lib/realtime/platformOps';
 import { json, meBody, mockFetch, ok, refusal, renderPage } from '@/test/helpers';
 import { card, NOW, refundRequest } from './fixtures';
 import { OrderCardView } from './OrderCardView';
+import { exactMoney } from './ordersModel';
 
 const UUID = '01a17dcb-0000-7000-8000-000000000001';
 const PERMS = ['orders.view', 'orders.intervene', 'orders.refund_request', 'orders.refund_approve'].map((name) => `admin.${name}`);
@@ -129,6 +130,27 @@ describe('OrderCardView', () => {
     expect(await screen.findByText('Tasdiqlandi.')).toBeInTheDocument();
   });
 
+  it('shows refund money to the tiyin and keeps a partly approved payment flagged', async () => {
+    const partly = card({
+      status: 'canceled',
+      status_label: 'Bekor qilindi',
+      status_group: 'canceled',
+      manual_refund_required: true,
+      payments: [{ uuid: 'p1', provider: 'payme', amount: '50000.50', status: 'paid', paid_at: null, manual_refund_required: true, manual_refund_approved: [{ refund_request_id: 7, amount: '10000.25', approved_at: null }], created_at: null }],
+      refunds: { paid: '50000.50', refunded: '10000.25', refundable: '40000.25', requests: [refundRequest({ amount: '10000.25', can_decide: false, status: 'approved', status_label: 'Tasdiqlandi' }), refundRequest({ id: 8, amount: '40000.25' })] },
+    });
+    const { user } = setup({ [`GET /orders/${UUID}`]: () => ok(partly) });
+    expect(await screen.findByText("Qo'lda qaytarilishi kerak")).toBeInTheDocument();
+    expect(screen.getByText(/10.000,25.so'm qo'lda qaytarish tasdiqlangan/)).toBeInTheDocument();
+    expect(screen.getAllByText(/^40.000,25.so'm$/).length).toBeGreaterThanOrEqual(2); // refundable and the pending request
+    expect(screen.getAllByText(/^50.000,50.so'm$/).length).toBeGreaterThanOrEqual(2); // paid and the payment
+
+    await user.click(within(screen.getByTestId('refund-8')).getByRole('button', { name: 'Tasdiqlash' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Qaytarishni tasdiqlash' });
+    expect(within(dialog).getByText(/^40.000,25.so'm\./)).toBeInTheDocument();
+    expect(within(dialog).getByText(/darhol mijozning keshbek balansiga qaytadi/)).toBeInTheDocument();
+  });
+
   it('is calm about an order that is not there and about a view-only member', async () => {
     setup({ [`GET /orders/${UUID}`]: () => refusal(404, 'Buyurtma topilmadi.', { reason: 'not_found' }, { code: 'not_found' }) });
     expect(await screen.findByText('Buyurtma topilmadi')).toBeInTheDocument();
@@ -138,5 +160,16 @@ describe('OrderCardView', () => {
     setup({ [`GET /orders/${UUID}`]: () => ok(card({ actions: { can_intervene: false, can_cancel: false, cancel_reasons: [], transitions: [], message_store: false, message_customer: false, can_request_refund: false, can_approve_refund: false } })) }, ['admin.orders.view']);
     expect(await screen.findByText("Sizda faqat ko'rish ruxsati bor.")).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Ovqatxonaga yozish' })).not.toBeInTheDocument();
+  });
+});
+
+describe('exactMoney', () => {
+  it('keeps the tiyin and leaves whole amounts as they are', () => {
+    expect(exactMoney('50000.50')).toBe('50\u00a0000,50\u00a0so\'m');
+    expect(exactMoney('0.05')).toBe('0,05\u00a0so\'m');
+    expect(exactMoney('50000.00')).toBe('50\u00a0000\u00a0so\'m');
+    expect(exactMoney('1234567.8')).toBe('1\u00a0234\u00a0567,80\u00a0so\'m');
+    expect(exactMoney(12.5)).toBe('12,50\u00a0so\'m');
+    expect(exactMoney(null)).toBe('0\u00a0so\'m');
   });
 });

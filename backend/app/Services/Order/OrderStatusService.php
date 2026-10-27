@@ -15,6 +15,7 @@ use App\Models\OrderAssignment;
 use App\Models\OrderStatusHistory;
 use App\Models\ProductVariant;
 use App\Models\User;
+use App\Services\Admin\Orders\RefundRequestService;
 use App\Services\Finance\LedgerService;
 use App\Services\Finance\SettlementRecoveryService;
 use App\Support\Money;
@@ -443,34 +444,55 @@ class OrderStatusService
         }
     }
 
+    /**
+     * Gives the keshbek still on the order back to the customer's balance: each paid keshbek payment minus what
+     * approved refund requests already returned from it (the Boshqaruv markazi's partial refunds, as
+     * RefundRequestService::balanceOf counts them), nothing when nothing is left. An old order without a payment
+     * row (no request can have refunded any of it) gives back its total.
+     */
     protected function refundKeshbek(Order $order): void
     {
         if ($order->payment_method !== 'keshbek' || $order->payment_status !== PaymentStatus::PAID) {
             return;
         }
 
-        $payment = $order->payments()
+        $payments = $order->payments()
             ->where('provider', 'keshbek')
             ->where('status', PaymentStatus::PAID->value)
+            ->orderBy('id')
             ->lockForUpdate()
-            ->first();
-        $amount = Money::of($payment->amount ?? $order->total_price);
+            ->get();
 
+        if ($payments->isEmpty()) {
+            $this->creditBalance($order, Money::of($order->total_price));
+        } else {
+            $returned = RefundRequestService::balanceOf($payments, RefundRequestService::approvedRequests([(int) $order->id])->get())['allocated'];
+            foreach ($payments as $payment) {
+                $before = Money::min(Money::of($payment->amount), $returned[(int) $payment->id] ?? Money::zero());
+                $left = Money::of($payment->amount)->minus($before);
+                $this->creditBalance($order, $left);
+
+                $payment->update([
+                    'status' => PaymentStatus::REFUNDED,
+                    'cancelled_at' => now(),
+                    'payload' => array_merge($payment->payload ?? [], array_filter([
+                        'refunded_to_balance' => $left->toFloat(),
+                        'refunded_to_balance_by_requests' => $before->isPositive() ? $before->toFloat() : null,
+                        'refunded_at' => now()->toIso8601String(),
+                    ], fn ($value) => $value !== null)),
+                ]);
+            }
+        }
+
+        $order->update(['payment_status' => PaymentStatus::REFUNDED->value]);
+    }
+
+    private function creditBalance(Order $order, Money $amount): void
+    {
         if ($amount->isPositive()) {
             // A numeric string keeps the amount exact; Laravel accepts it although the stub says float|int
             User::whereKey($order->user_id)->increment('balance', $amount->toString()); // @phpstan-ignore argument.type
         }
-
-        $payment?->update([
-            'status' => PaymentStatus::REFUNDED,
-            'cancelled_at' => now(),
-            'payload' => array_merge($payment->payload ?? [], [
-                'refunded_to_balance' => $amount->toFloat(),
-                'refunded_at' => now()->toIso8601String(),
-            ]),
-        ]);
-
-        $order->update(['payment_status' => PaymentStatus::REFUNDED->value]);
     }
 
     /**

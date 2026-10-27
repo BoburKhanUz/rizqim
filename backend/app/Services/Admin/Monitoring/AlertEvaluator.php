@@ -53,23 +53,37 @@ class AlertEvaluator
 
     /**
      * A team member resolves an alert by hand. Still open for a moment later if the problem persists: the
-     * evaluator then opens a new alert.
+     * evaluator then opens a new alert. False when the alert was already resolved (by the evaluator or another
+     * member) in the meantime: nothing is changed, announced or broadcast then.
      */
-    public function resolveByMember(Alert $alert, User $member, ?string $note): void
+    public function resolveByMember(Alert $alert, User $member, ?string $note): bool
     {
-        $this->resolve($alert, 'manual', $member, $note);
+        return $this->resolve($alert, 'manual', $member, $note);
     }
 
-    public function acknowledge(Alert $alert, User $member, ?string $note): void
+    /**
+     * Only an `open` alert can be acknowledged, decided by the database row (UPDATE ... WHERE state = 'open'), not by
+     * the copy in memory: an alert the evaluator resolved a moment ago is never brought back (that would also collide
+     * with the new alert the evaluator may have opened for the same subject). False when it was not open any more.
+     */
+    public function acknowledge(Alert $alert, User $member, ?string $note): bool
     {
-        $alert->forceFill([
+        $values = [
             'state' => AlertState::ACKNOWLEDGED->value,
             'acknowledged_by' => $member->id,
             'acknowledged_at' => now(),
             'acknowledge_note' => $note,
-        ])->save();
+            'updated_at' => now(),
+        ];
 
+        if (Alert::query()->whereKey($alert->getKey())->where('state', AlertState::OPEN->value)->update($values) !== 1) {
+            return false;
+        }
+
+        $alert->forceFill($values)->syncOriginal();
         event(new PlatformAlertBroadcast($alert, PlatformAlertBroadcast::ACKNOWLEDGED));
+
+        return true;
     }
 
     // ------------------------------------------------------------------------------------------------------------
@@ -96,13 +110,15 @@ class AlertEvaluator
             $existing = $unresolved[$finding->subjectKey] ?? null;
 
             if ($existing !== null) {
-                $existing->forceFill([
-                    'title' => $finding->title,
-                    'details' => $finding->details,
+                // Not when a member resolved it since the list was read: a resolved alert stays as it was closed
+                $touched = Alert::query()->whereKey($existing->getKey())->where('state', '<>', AlertState::RESOLVED->value)->update([
+                    'title' => mb_substr($finding->title, 0, 200),
+                    'details' => json_encode($finding->details),
                     'last_seen_at' => now(),
-                    'count' => $existing->count + 1,
-                ])->save();
-                $result['updated']++;
+                    'count' => DB::raw('"count" + 1'),
+                    'updated_at' => now(),
+                ]);
+                $result['updated'] += $touched;
 
                 continue;
             }
@@ -132,8 +148,7 @@ class AlertEvaluator
         }
 
         foreach ($unresolved as $subject => $alert) {
-            if (!isset($seen[$subject])) {
-                $this->resolve($alert, 'auto');
+            if (!isset($seen[$subject]) && $this->resolve($alert, 'auto')) {
                 $result['resolved']++;
             }
         }
@@ -148,30 +163,50 @@ class AlertEvaluator
     {
         $resolved = 0;
         foreach (Alert::query()->where('alert_rule_id', $rule->id)->unresolved()->get() as $alert) {
-            $this->resolve($alert, 'rule_disabled', null, "Qoida o'chirildi");
-            $resolved++;
+            if ($this->resolve($alert, 'rule_disabled', null, "Qoida o'chirildi")) {
+                $resolved++;
+            }
         }
 
         return ['opened' => 0, 'updated' => 0, 'resolved' => $resolved];
     }
 
-    private function resolve(Alert $alert, string $resolution, ?User $member = null, ?string $note = null): void
+    /**
+     * Resolves the alert if it is still unresolved in the database (UPDATE ... WHERE state <> 'resolved' and a check of
+     * the affected rows): of a member and the evaluator racing, exactly one wins, and only the winner broadcasts and
+     * tells the ops group.
+     */
+    private function resolve(Alert $alert, string $resolution, ?User $member = null, ?string $note = null): bool
     {
-        DB::transaction(function () use ($alert, $resolution, $member, $note) {
-            $alert->forceFill([
-                'state' => AlertState::RESOLVED->value,
-                'resolved_at' => now(),
-                'resolved_by' => $member?->id,
-                'resolve_note' => $note,
-                'resolution' => $resolution,
-            ])->save();
+        $values = [
+            'state' => AlertState::RESOLVED->value,
+            'resolved_at' => now(),
+            'resolved_by' => $member?->id,
+            'resolve_note' => $note,
+            'resolution' => $resolution,
+            'updated_at' => now(),
+        ];
 
+        $won = DB::transaction(function () use ($alert, $values) {
+            $affected = Alert::query()->whereKey($alert->getKey())->where('state', '<>', AlertState::RESOLVED->value)->update($values);
+            if ($affected !== 1) {
+                return false;
+            }
+
+            $alert->forceFill($values)->syncOriginal();
             event(new PlatformAlertBroadcast($alert, PlatformAlertBroadcast::RESOLVED));
+
+            return true;
         });
+        if (!$won) {
+            return false;
+        }
 
         // A rule that was just switched off is not announced: the people who switched it off know
         if ($resolution !== 'rule_disabled') {
             $this->notifier->resolved($alert, $member?->name);
         }
+
+        return true;
     }
 }

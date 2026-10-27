@@ -185,7 +185,7 @@ export const orders = defineSection({
     orders_refundSent: "So'rov yuborildi. Tasdiq kutilmoqda.",
     orders_refundAmountInvalid: "Summa 0 dan katta va {{amount}} dan oshmasligi kerak.",
     orders_approveTitle: 'Qaytarishni tasdiqlash',
-    orders_approveText: "{{amount}}. Yetkazilgan buyurtma to'liq qaytarilsa, holati «Qaytarildi» bo'ladi, komissiya va ovqatxonaga o'tkazilgan pul qaytariladi. Click, Payme va naqd pulni siz to'lov tizimi kabinetida yoki naqd qaytarasiz.",
+    orders_approveText: "{{amount}}. Yetkazilgan buyurtma birinchi marta to'liq qaytarilsa, holati «Qaytarildi» bo'ladi, komissiya va ovqatxonaga o'tkazilgan pul qaytariladi. Keshbek bilan to'langan qism (bir qismi ham) darhol mijozning keshbek balansiga qaytadi. Click, Payme va naqd pulni siz to'lov tizimi kabinetida yoki naqd qaytarasiz.",
     orders_rejectTitle: 'Qaytarishni rad etish',
     orders_rejectText: "{{amount}}. So'ragan xodim sababini ko'radi.",
     orders_approved: "Tasdiqlandi.",

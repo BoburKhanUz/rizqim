@@ -105,6 +105,29 @@ class AdminOrderSlaTest extends TestCase
         $this->assertSame(['accept:warning', 'accept:late', 'prepare:warning'], array_map(fn ($e) => "{$e['stage']}:{$e['state']}", $card['sla_events']));
     }
 
+    public function test_orders_already_recorded_in_their_band_never_push_a_new_crossing_out_of_the_batch(): void
+    {
+        Event::fake([OpsOrderUpdated::class]);
+        $this->travelTo(now()->startOfMinute());
+        // Three older orders in the accept warning band (4 of 5 minutes), recorded by a first run
+        $waiting = [$this->orderWithHistory(4), $this->orderWithHistory(4), $this->orderWithHistory(4)];
+        app(OrderSlaWatcher::class)->run();
+        $this->assertSame(3, OrderSlaEvent::where('state', 'warning')->count());
+
+        // A newer order crosses into warning while the three still wait in the band: a batch of 2 still reaches it
+        $order = $this->orderWithHistory(4);
+        $this->assertSame(1, app(OrderSlaWatcher::class)->run(2));
+        $this->assertSame(1, OrderSlaEvent::where('order_id', $order->id)->where('state', 'warning')->count());
+        $this->assertSame(0, app(OrderSlaWatcher::class)->run(2));
+
+        // Late crossings of the waiting ones are still found (their late row is what is missing)
+        $this->travel(2)->minutes();
+        $this->assertSame(2, app(OrderSlaWatcher::class)->run(2));
+        $this->assertSame(2, app(OrderSlaWatcher::class)->run(2));
+        $this->assertSame(4, OrderSlaEvent::where('state', 'late')->count());
+        $this->assertSame([], array_diff(array_map(fn ($o) => (int) $o->id, $waiting), OrderSlaEvent::where('state', 'late')->pluck('order_id')->map(fn ($id) => (int) $id)->all()));
+    }
+
     public function test_an_order_straight_to_late_records_both_and_broadcasts_once(): void
     {
         Event::fake([OpsOrderUpdated::class]);

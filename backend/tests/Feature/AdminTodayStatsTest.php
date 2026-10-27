@@ -95,6 +95,32 @@ class AdminTodayStatsTest extends TestCase
         $this->assertSame(2, $kpis['canceled_orders']['value']);
     }
 
+    public function test_online_orders_still_waiting_for_their_payment_are_not_counted(): void
+    {
+        $this->at('2026-11-10 20:30');
+        $this->orderAt('2026-11-10 09:00', OrderStatus::NEW, ['payment_method' => 'payme', 'payment_status' => 'pending', 'total_price' => '90000.00', 'commission_amount' => '9000.00']);
+        $paidLater = $this->orderAt('2026-11-10 09:10', OrderStatus::NEW, ['payment_method' => 'click', 'payment_status' => 'pending', 'total_price' => '80000.00', 'commission_amount' => '8000.00']);
+        $this->orderAt('2026-11-10 09:20', OrderStatus::NEW, ['payment_method' => 'payme', 'payment_status' => 'paid', 'total_price' => '50000.00', 'commission_amount' => '5000.00']);
+        $this->orderAt('2026-11-10 09:30', OrderStatus::NEW, ['payment_method' => 'cash', 'payment_status' => 'pending', 'total_price' => '20000.00', 'commission_amount' => '2000.00']);
+        // The current hour, counted live: the same rule
+        $this->orderAt('2026-11-10 20:10', OrderStatus::NEW, ['payment_method' => 'uzum', 'payment_status' => 'pending', 'total_price' => '70000.00', 'commission_amount' => '7000.00']);
+        $this->orderAt('2026-11-10 20:20', OrderStatus::NEW, ['payment_method' => 'keshbek', 'payment_status' => 'paid', 'total_price' => '10000.00', 'commission_amount' => '1000.00']);
+
+        $this->refresher()->refreshDay('2026-11-10');
+        $kpis = $this->summary()['kpis'];
+        $this->assertSame(3, $kpis['orders']['value']);
+        $this->assertSame('80000.00', $kpis['gmv']['value']);
+        $this->assertSame('8000.00', $kpis['commission']['value']);
+        $this->assertSame(0, $kpis['canceled_orders']['value']);
+
+        // Paid later: a finished hour shows it from the next refresh on (at most 5 minutes)
+        $paidLater->forceFill(['payment_status' => 'paid'])->saveQuietly();
+        $this->assertSame(3, $this->summary()['kpis']['orders']['value']);
+        $this->refresher()->refreshDay('2026-11-10');
+        $this->assertSame(4, $this->summary()['kpis']['orders']['value']);
+        $this->assertSame('160000.00', $this->summary()['kpis']['gmv']['value']);
+    }
+
     public function test_only_marketplace_channels_make_the_headline_and_every_channel_is_split(): void
     {
         $this->at('2026-11-10 20:00');

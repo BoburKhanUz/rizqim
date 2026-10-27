@@ -1,4 +1,4 @@
-import { formatMoney } from '@rizqim/ui';
+import { formatMoney, formatNumber, NBSP } from '@rizqim/ui';
 import type { PillTone } from '@rizqim/ui';
 import type { Translate } from '@/i18n';
 import type { OrderSla, SlaStage, StatusGroup } from '@/lib/api/orders';
@@ -6,6 +6,18 @@ import type { OrderSla, SlaStage, StatusGroup } from '@/lib/api/orders';
 // Words and tones of the Buyurtmalar screens: the SLA said in plain Uzbek ("12 daqiqa kechikdi"), never by colour alone.
 
 export const money = (value: string | number | null | undefined) => formatMoney(value ?? 0, 'uz');
+
+// An amount someone gives back by hand (refund dialogs and the card's money part): never rounded to whole so'm, the
+// tiyin shown when there are any ("50 000,50 so'm"; a whole amount stays "50 000 so'm"). The API sends decimal strings.
+export function exactMoney(value: string | number | null | undefined): string {
+  const text = typeof value === 'number' ? value.toFixed(2) : String(value ?? '0').trim();
+  const match = /^(-?)(\d+)(?:\.(\d{1,2}))?$/.exec(text);
+  if (!match) return money(value);
+  const [, sign, whole, fraction = ''] = match;
+  const tiyin = fraction.padEnd(2, '0');
+  if (tiyin === '00') return money(`${sign}${whole}`);
+  return `${sign}${formatNumber(whole, 'uz')},${tiyin}${NBSP}so'm`;
+}
 
 export const GROUP_LABEL: Record<StatusGroup, Parameters<Translate>[0]> = {
   active: 'orders_group_active',

@@ -119,9 +119,13 @@ class AdminRefundRequestController extends AdminController
      * Approve a refund request
      *
      * By a member other than the one who asked (403 `four_eyes`). Runs the refund: a delivered order refunded in full
-     * becomes `refunded` (commission and settlement reversed, keshbek back to the balance); otherwise (a cancelled
-     * order, a partial amount) it is recorded as a manual refund. `execution.manual_amount` is what the approver
-     * returns by hand in the provider's cabinet or in cash (no provider refund API is called). `reason` required.
+     * with nothing of it given back before becomes `refunded` (commission and settlement reversed, keshbek back to the
+     * balance; mode `order_refunded`); otherwise (a part, the rest after a part, a cancelled order) the amount is
+     * spread over the payments still paid (`execution.allocations`): a keshbek share goes back to the customer's
+     * balance at once, exactly that amount (mode `balance` when all of it did), any other share is a manual refund
+     * (mode `manual`). `execution.manual_amount` is what the approver returns by hand in the provider's cabinet or in
+     * cash (no provider refund API is called). The amount is checked again against what is refundable now (a payment
+     * the provider refunded since counts in full): 422 `amount_exceeds_refundable`. `reason` required.
      * Idempotent: a repeat (or the same Idempotency-Key) answers the same result; a request already decided otherwise
      * is 409 `refund_request_decided`.
      */

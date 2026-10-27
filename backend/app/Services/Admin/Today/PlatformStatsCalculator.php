@@ -2,6 +2,8 @@
 
 namespace App\Services\Admin\Today;
 
+use App\Enums\OrderStatus;
+use App\Enums\PaymentStatus;
 use App\Enums\SubscriptionInvoiceStatus;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
@@ -36,6 +38,12 @@ class PlatformStatsCalculator
         $uncounted = $this->list(PlatformStats::uncountedStatuses());
         $canceled = $this->list(PlatformStats::canceledStatuses());
         $counted = "o.status NOT IN ({$uncounted})";
+        $online = PlatformStats::onlineMethods();
+        if ($online !== []) {
+            // An online order nobody has paid yet is not an order of the day (yet)
+            $counted .= " AND NOT (o.status = '" . OrderStatus::NEW->value . "' AND o.payment_method IN ({$this->list($online)})"
+                . " AND o.payment_status IS DISTINCT FROM '" . PaymentStatus::PAID->value . "')";
+        }
 
         $rows = DB::table('orders as o')
             ->leftJoin('branches as b', 'b.id', '=', 'o.branch_id')

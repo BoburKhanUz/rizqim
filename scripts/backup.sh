@@ -14,7 +14,8 @@
 #   BACKUP_RUN_ON_START    --daemon ishga tushganda darhol bir marta (standart 1)
 #   BACKUP_OFFSITE_CMD     ixtiyoriy: zaxiradan keyin `sh -c` bilan bajariladi, fayl yo'li $BACKUP_FILE da.
 #                          Masalan: rclone copy "$BACKUP_FILE" remote:rizqim-backups
-#                          Xato bersa zaxira baribir saqlanadi, skript 2 kod bilan tugaydi.
+#                          Xato bersa zaxira baribir saqlanadi, skript 2 kod bilan tugaydi va Boshqaruv markaziga "zaxira olindi" belgisi
+#                          YOZILMAYDI (belgi faqat tashqi nusxalar ham bajarilgach yoziladi).
 #   BACKUP_S3_ENDPOINT, BACKUP_S3_BUCKET, BACKUP_S3_ACCESS_KEY, BACKUP_S3_SECRET   ixtiyoriy: to'rttasi ham berilsa har bir muvaffaqiyatli
 #                          dump (va .sha256) S3-mos xotiraga (AWS S3, Cloudflare R2, Backblaze B2, MinIO, ...) yuklanadi (rclone).
 #                          Bittasi ham berilmasa hech narsa qilinmaydi. Yuklash xato bersa mahalliy zaxira saqlanadi, kod 2.
@@ -150,14 +151,16 @@ validate() {
 }
 
 # P4-15: oxirgi tekshirilgan dump vaqtini bazadagi monitoring_markers jadvaliga yozadi: Boshqaruv markazi (Monitoring > Holat)
-# va "zaxira eskirgan" ogohlantirishi shundan o'qiydi. Zaxiraning o'zi muvaffaqiyatli, shuning uchun xato bo'lsa faqat
-# ogohlantirish chiqadi (jadval yo'q: migratsiya bajarilmagan; psql yo'q).
-record_marker() { # record_marker <fayl-nomi> <hajm-bayt>
+# va "zaxira eskirgan" ogohlantirishi shundan o'qiydi. Belgi FAQAT dump tekshiruvdan o'tgach VA sozlangan tashqi nusxa
+# (BACKUP_OFFSITE_CMD, S3) muvaffaqiyatli bajarilgach yoziladi: faqat mahalliy qolgan zaxira "tayyor" hisoblanmaydi, belgi
+# eskirib, "zaxira eskirgan" ogohlantirishi chiqadi. Belgini yozib bo'lmasa faqat ogohlantirish chiqadi (jadval yo'q:
+# migratsiya bajarilmagan; psql yo'q); zaxiraning o'zi baribir saqlangan.
+record_marker() { # record_marker <fayl-nomi> <hajm-bayt> <tashqi-nusxa: none|ok>
     if ! command -v psql >/dev/null 2>&1; then
         log "OGOHLANTIRISH: psql topilmadi, zaxira vaqti markazga yozilmadi"
         return 0
     fi
-    if ! psql -X -q -v ON_ERROR_STOP=1 -c "INSERT INTO monitoring_markers (key, recorded_at, meta) VALUES ('backup', now() AT TIME ZONE 'UTC', json_build_object('file', '$1', 'size', $2)) ON CONFLICT (key) DO UPDATE SET recorded_at = EXCLUDED.recorded_at, meta = EXCLUDED.meta" >/dev/null 2>&1; then
+    if ! psql -X -q -v ON_ERROR_STOP=1 -c "INSERT INTO monitoring_markers (key, recorded_at, meta) VALUES ('backup', now() AT TIME ZONE 'UTC', json_build_object('file', '$1', 'size', $2, 'offsite', '$3')) ON CONFLICT (key) DO UPDATE SET recorded_at = EXCLUDED.recorded_at, meta = EXCLUDED.meta" >/dev/null 2>&1; then
         log "OGOHLANTIRISH: zaxira vaqtini markazga yozib bo'lmadi (monitoring_markers jadvali yo'qmi? migratsiyani bajaring)"
     fi
     return 0
@@ -186,10 +189,11 @@ run_backup() {
     (cd "$BACKUP_DIR" && sha256sum "$name" >"$name.sha256")
     size=$(wc -c <"$final" | tr -d ' ')
     log "tayyor: $name ($size bayt)"
-    record_marker "$name" "$size"
 
     status=0
+    offsite=none
     if [ -n "$BACKUP_OFFSITE_CMD" ]; then
+        offsite=ok
         log "tashqi nusxa: BACKUP_OFFSITE_CMD bajarilmoqda"
         if ! BACKUP_FILE="$final" sh -c "$BACKUP_OFFSITE_CMD"; then
             log "XATO: BACKUP_OFFSITE_CMD xato bilan tugadi (mahalliy zaxira saqlandi)"
@@ -197,8 +201,18 @@ run_backup() {
         fi
     fi
 
+    if s3_any; then
+        offsite=ok
+    fi
     if ! s3_upload "$name"; then
         status=2
+    fi
+
+    # Boshqaruv markaziga "tekshirilgan zaxira bor" faqat tashqi nusxa ham bajarilgandan keyin aytiladi
+    if [ "$status" -eq 0 ]; then
+        record_marker "$name" "$size" "$offsite"
+    else
+        log "OGOHLANTIRISH: tashqi nusxa bajarilmadi, zaxira vaqti markazga yozilmadi (Monitoring'dagi 'zaxira eskirgan' qoidasi ogohlantiradi)"
     fi
 
     # Eskilarini o'chirish; yangi zaxira allaqachon yozilgan, shuning uchun bo'sh qolib ketmaydi

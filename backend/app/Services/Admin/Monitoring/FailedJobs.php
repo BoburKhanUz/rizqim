@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 use Throwable;
 
 /**
@@ -99,9 +100,14 @@ class FailedJobs
     }
 
     /**
+     * The card of one failed job. `$withDetails` (monitoring.manage or pii.view) adds the full exception with its stack
+     * trace and the serialized job as data (a Telegram text, customer names and addresses, order ids...). Without it
+     * only what identifies the failure is returned: job class, queue, connection, attempts, when, and the first line
+     * of the exception; `details_hidden` says so.
+     *
      * @return array<string, mixed>|null
      */
-    public function show(string $uuid): ?array
+    public function show(string $uuid, bool $withDetails = true): ?array
     {
         $row = DB::table('failed_jobs')->where('uuid', $uuid)->first();
         if ($row === null) {
@@ -124,25 +130,49 @@ class FailedJobs
             'failed_at' => $row->failed_at !== null ? Carbon::parse($row->failed_at)->toIso8601String() : null,
             'attempts' => isset($payload['attempts']) ? (int) $payload['attempts'] : null,
             'max_tries' => isset($payload['maxTries']) ? (int) $payload['maxTries'] : null,
-            'exception' => $this->text($exception, self::MAX_TEXT),
-            'payload' => $this->redactedPayload($payload),
+            'details_hidden' => !$withDetails,
+            'exception' => $withDetails ? $this->text($exception, self::MAX_TEXT) : $this->text(strtok($exception, "\n") ?: '', 300),
+            'payload' => $withDetails ? $this->redactedPayload($payload) : $this->payloadSummary($payload),
         ];
     }
 
     /**
      * Pushes the job back onto its queue and removes the row (php artisan queue:retry). False if it is not there
      * any more (retried or deleted by someone else meanwhile).
+     *
+     * The row is CLAIMED first, atomically: its uuid is swapped for a private one (UPDATE ... WHERE uuid = ?, affected
+     * rows checked), and only the request that changed the row goes on to queue:retry, which reads, pushes and deletes
+     * the row under the private uuid. A second retry of the same job finds nothing and gets false, so a double click or
+     * two members never push the job twice. If the push fails the row gets its uuid back and stays in the list.
      */
     public function retry(string $uuid): bool
     {
-        if (!$this->exists($uuid)) {
+        $claim = (string) Str::uuid();
+        if (DB::table('failed_jobs')->where('uuid', $uuid)->update(['uuid' => $claim]) !== 1) {
             return false;
         }
 
-        Artisan::call('queue:retry', ['id' => [$uuid]]);
+        try {
+            Artisan::call('queue:retry', ['id' => [$claim]]);
+        } catch (Throwable $e) {
+            $this->release($claim, $uuid);
+
+            throw $e;
+        }
 
         // A row that is still there means the push did not happen
-        return DB::table('failed_jobs')->where('uuid', $uuid)->doesntExist();
+        if (DB::table('failed_jobs')->where('uuid', $claim)->exists()) {
+            $this->release($claim, $uuid);
+
+            return false;
+        }
+
+        return true;
+    }
+
+    private function release(string $claim, string $uuid): void
+    {
+        DB::table('failed_jobs')->where('uuid', $claim)->update(['uuid' => $uuid]);
     }
 
     public function delete(string $uuid): bool
@@ -226,6 +256,24 @@ class FailedJobs
         $text = mb_substr($text, 0, $limit);
 
         return (string) AuditRedactor::clean(['text' => SentryScrubber::scrubString($text)])['text'];
+    }
+
+    /**
+     * The payload without its data: the job's name and retry settings only (no serialized command, no tags).
+     *
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    private function payloadSummary(array $payload): array
+    {
+        $summary = [];
+        foreach (['displayName', 'maxTries', 'maxExceptions', 'failOnTimeout', 'backoff', 'timeout', 'attempts'] as $key) {
+            if (isset($payload[$key]) && is_scalar($payload[$key])) {
+                $summary[$key] = $payload[$key];
+            }
+        }
+
+        return $this->clean($summary);
     }
 
     /**

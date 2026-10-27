@@ -7,7 +7,12 @@ import { apiBaseUrl, secureCookies } from '../config';
 // its own origin (no CORS), the proxy adds `Authorization: Bearer <cookie>` and forwards the call to the backend.
 // The token is taken off the two answers that carry it (2fa/verify, 2fa/confirm) and put into the cookie.
 
-export const SESSION_COOKIE = 'rz_admin';
+// The session cookie's name. `__Host-` (review F8): the browser takes it only with Secure, Path=/ and no Domain, so neither
+// a sibling subdomain nor a plain-HTTP page can plant or overwrite it. The prefix needs Secure, so a plain-HTTP trial
+// (SESSION_COOKIE_SECURE=false) uses the bare name.
+export const SESSION_COOKIE_NAME = 'rz_admin';
+export const SECURE_SESSION_COOKIE_NAME = `__Host-${SESSION_COOKIE_NAME}`;
+export const sessionCookieName = (): string => (secureCookies() ? SECURE_SESSION_COOKIE_NAME : SESSION_COOKIE_NAME);
 const BACKEND_TIMEOUT_MS = 20_000;
 const MAX_BODY_BYTES = 256 * 1024;
 // Cookie lifetime when the backend sends no expiry: the absolute session limit
@@ -44,26 +49,34 @@ export function isSameOrigin(request: NextRequest): boolean {
   }
 }
 
+// Host-only (no Domain) and Path=/ always, as __Host- requires
 const cookieBase = () => ({ httpOnly: true, secure: secureCookies(), sameSite: 'strict' as const, path: '/' });
 
 export function setSessionCookie(response: NextResponse, token: string, expiresAt: unknown): void {
   const expires = typeof expiresAt === 'string' ? new Date(expiresAt) : null;
-  response.cookies.set(SESSION_COOKIE, token, {
+  response.cookies.set(sessionCookieName(), token, {
     ...cookieBase(),
     ...(expires && !Number.isNaN(expires.getTime()) ? { expires } : { maxAge: FALLBACK_MAX_AGE_S }),
   });
 }
 
 export function clearSessionCookie(response: NextResponse): void {
-  response.cookies.set(SESSION_COOKIE, '', { ...cookieBase(), maxAge: 0 });
+  response.cookies.set(sessionCookieName(), '', { ...cookieBase(), maxAge: 0 });
 }
 
 function jsonError(status: number, message: string, code: string): NextResponse {
   return NextResponse.json({ success: false, message, data: { reason: code } }, { status });
 }
 
-// Forwards one call. `segments` are the path parts after /api/backend.
+// Forwards one call. `segments` are the path parts after /api/backend. A session cookie under the old bare name (from
+// before the __Host- prefix) is never read and is cleared on the way back.
 export async function forward(request: NextRequest, segments: string[]): Promise<NextResponse> {
+  const response = await forwardCall(request, segments);
+  if (secureCookies() && request.cookies.has(SESSION_COOKIE_NAME)) response.cookies.set(SESSION_COOKIE_NAME, '', { ...cookieBase(), maxAge: 0 });
+  return response;
+}
+
+async function forwardCall(request: NextRequest, segments: string[]): Promise<NextResponse> {
   const path = segments.join('/');
   if (!ALLOWED.test(path) || path.includes('..')) return jsonError(404, 'Topilmadi.', 'not_found');
 
@@ -76,7 +89,7 @@ export async function forward(request: NextRequest, segments: string[]): Promise
     if (body.length > MAX_BODY_BYTES) return jsonError(413, 'So\'rov juda katta.', 'too_large');
   }
 
-  const token = request.cookies.get(SESSION_COOKIE)?.value;
+  const token = request.cookies.get(sessionCookieName())?.value;
   const ip = clientIp(request);
   // P4-14: a money action's Idempotency-Key (1-255 visible characters, docs/API.md section 5) reaches the backend
   const idempotencyKey = request.headers.get('idempotency-key');

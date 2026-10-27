@@ -5,6 +5,27 @@ import type { NextConfig } from 'next';
 // and the standalone output tracing must be allowed to read outside this folder.
 const repoRoot = path.join(__dirname, '../..');
 
+// Content-Security-Policy (review hardening). Everything the page loads comes from its own origin: the backend only
+// through the proxy (/api/backend), the Reverb socket from REVERB_HOST, known only at runtime (ws:/wss:). Scripts and
+// styles allow 'unsafe-inline': the App Router writes its bootstrap and RSC payload as inline <script> tags, and a nonce
+// would need per-request rendering of every page; the rest of the policy still shuts out other origins, plugins,
+// <base> rewrites, form posts elsewhere and framing. `next dev` also needs eval (React's dev tooling).
+const isDev = process.env.NODE_ENV === 'development';
+const contentSecurityPolicy = [
+  "default-src 'self'",
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''}`,
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob:",
+  "font-src 'self' data:",
+  "connect-src 'self' ws: wss:",
+  "worker-src 'self' blob:",
+  "manifest-src 'self'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+].join('; ');
+
 const config: NextConfig = {
   // A self-contained server for the Docker image (Dockerfile): .next/standalone/platform/admin/server.js
   output: 'standalone',
@@ -31,9 +52,15 @@ const config: NextConfig = {
       {
         source: '/:path*',
         headers: [
+          { key: 'Content-Security-Policy', value: contentSecurityPolicy },
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'X-Frame-Options', value: 'DENY' },
           { key: 'Referrer-Policy', value: 'same-origin' },
+          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), payment=(), usb=()' },
+          { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
+          { key: 'Cross-Origin-Resource-Policy', value: 'same-origin' },
+          // Ignored over plain HTTP (trials); over HTTPS the browser keeps to HTTPS for a year
+          { key: 'Strict-Transport-Security', value: 'max-age=31536000' },
           // The control center is never indexed
           { key: 'X-Robots-Tag', value: 'noindex, nofollow' },
         ],

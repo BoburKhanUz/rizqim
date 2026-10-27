@@ -13,7 +13,7 @@ import { OPS_EVENTS, usePlatformOps } from '@/lib/realtime';
 import { useCan } from '../AuthProvider';
 import { useT } from '../I18nProvider';
 import { CancelDialog, DecideRefundDialog, MessageDialog, RefundRequestDialog, StatusDialog } from './OrderDialogs';
-import { money, STAGE_LABEL } from './ordersModel';
+import { exactMoney, money, STAGE_LABEL } from './ordersModel';
 import { SlaBadge } from './SlaBadge';
 import { useNow } from './useNow';
 
@@ -256,12 +256,12 @@ function ItemsSection({ order }: { order: OrderCard }) {
             .map(([label, value]) => (
               <div key={label} className="flex justify-between gap-3">
                 <dt className="text-fg-muted">{label}</dt>
-                <dd className="text-fg">{money(value)}</dd>
+                <dd className="text-fg">{exactMoney(value)}</dd>
               </div>
             ))}
           <div className="flex justify-between gap-3 font-bold">
             <dt className="text-fg">{t('orders_total')}</dt>
-            <dd className="text-fg">{money(order.totals.total)}</dd>
+            <dd className="text-fg">{exactMoney(order.totals.total)}</dd>
           </div>
           <div className="flex justify-between gap-3">
             <dt className="text-fg-muted">{t('orders_commission')}</dt>
@@ -288,7 +288,7 @@ function MoneySection({ order, onDecide }: { order: OrderCard; onDecide: (reques
           ).map(([label, value]) => (
             <div key={label}>
               <dt className="text-fg-muted">{label}</dt>
-              <dd className="font-bold text-fg">{money(value)}</dd>
+              <dd className="font-bold text-fg">{exactMoney(value)}</dd>
             </div>
           ))}
         </dl>
@@ -300,13 +300,13 @@ function MoneySection({ order, onDecide }: { order: OrderCard; onDecide: (reques
               <li key={payment.uuid} className="flex flex-col gap-1 text-footnote">
                 <span className="flex flex-wrap items-center gap-2">
                   <span className="font-bold text-fg">{payment.provider}</span>
-                  <span className="text-fg">{money(payment.amount)}</span>
+                  <span className="text-fg">{exactMoney(payment.amount)}</span>
                   <Pill tone={payment.status === 'paid' ? 'success' : payment.status === 'refunded' ? 'neutral' : 'warning'}>{payment.status}</Pill>
-                  {payment.manual_refund_required && payment.manual_refund_approved.length === 0 && <Pill tone="danger">{t('orders_paymentManual')}</Pill>}
+                  {payment.manual_refund_required && <Pill tone="danger">{t('orders_paymentManual')}</Pill>}
                 </span>
                 {payment.manual_refund_approved.map((row) => (
                   <span key={row.refund_request_id} className="text-caption text-fg-muted">
-                    {t('orders_paymentManualDone', { amount: money(row.amount) })} · {when(row.approved_at)}
+                    {t('orders_paymentManualDone', { amount: exactMoney(row.amount) })} · {when(row.approved_at)}
                   </span>
                 ))}
               </li>
@@ -320,7 +320,7 @@ function MoneySection({ order, onDecide }: { order: OrderCard; onDecide: (reques
               {order.refunds.requests.map((request) => (
                 <li key={request.id} className="flex flex-col gap-1.5 text-footnote" data-testid={`refund-${request.id}`}>
                   <span className="flex flex-wrap items-center gap-2">
-                    <span className="font-bold text-fg">{money(request.amount)}</span>
+                    <span className="font-bold text-fg">{exactMoney(request.amount)}</span>
                     <Pill tone={request.status === 'approved' ? 'success' : request.status === 'rejected' ? 'danger' : 'warning'}>{request.status_label}</Pill>
                   </span>
                   <span className="break-words text-fg">{request.reason}</span>
@@ -331,8 +331,8 @@ function MoneySection({ order, onDecide }: { order: OrderCard; onDecide: (reques
                       {request.decision_note ? ` — ${request.decision_note}` : ''}
                     </span>
                   )}
-                  {request.execution && Number(request.execution.manual_amount) > 0 && <span className="text-caption font-bold text-warning-soft-fg">{t('orders_refundManualLeft', { amount: money(request.execution.manual_amount) })}</span>}
-                  {request.execution && Number(request.execution.automatic_amount) > 0 && <span className="text-caption text-fg-muted">{t('orders_refundAutomatic', { amount: money(request.execution.automatic_amount) })}</span>}
+                  {request.execution && Number(request.execution.manual_amount) > 0 && <span className="text-caption font-bold text-warning-soft-fg">{t('orders_refundManualLeft', { amount: exactMoney(request.execution.manual_amount) })}</span>}
+                  {request.execution && Number(request.execution.automatic_amount) > 0 && <span className="text-caption text-fg-muted">{t('orders_refundAutomatic', { amount: exactMoney(request.execution.automatic_amount) })}</span>}
                   {request.status === 'pending' && request.mine && <span className="text-caption text-fg-muted">{t('orders_refundAwaiting')}</span>}
                   {request.can_decide && (
                     <span className="flex flex-wrap gap-2">

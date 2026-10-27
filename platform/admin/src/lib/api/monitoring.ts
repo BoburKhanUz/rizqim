@@ -102,6 +102,8 @@ export const EMPTY_JOB_FILTERS: FailedJobFilters = { queue: '', q: '' };
 export interface FailedJobDetail extends FailedJobRow {
   attempts: number | null;
   max_tries: number | null;
+  // True for a member without monitoring.manage / pii.view: `exception` is then its first line and `payload` the job name only
+  details_hidden?: boolean;
   // The whole exception with its stack trace, redacted
   exception: string;
   // The job as plain data, secrets shown as [redacted]

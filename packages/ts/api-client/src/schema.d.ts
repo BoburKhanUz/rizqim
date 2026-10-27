@@ -448,7 +448,9 @@ export interface paths {
          * One failed job
          * @description The full exception text with the stack trace and the job's payload as plain data, both redacted: keys that hold
          *     secrets (tokens, passwords, codes, keys, card data) show `[redacted]`, tokens and phone numbers inside text are
-         *     masked. The job is read without running any of its code.
+         *     masked. The job is read without running any of its code. The exception beyond its first line and the payload's
+         *     data (the serialized job: texts, names, addresses) are returned only to members with `admin.monitoring.manage`
+         *     or `admin.pii.view`; everyone else gets `details_hidden: true`, the job class, queue and the first line.
          */
         get: operations["admin.monitoring.failed_job"];
         put?: never;
@@ -570,9 +572,11 @@ export interface paths {
          *     assigned, on the way), `done` (delivered, refunded), `canceled` (canceled, rejected); `channel` (telegram,
          *     mobile); `region_id` (the branch's region); `store_id`; `sla` — `late` or `warning` (the running
          *     stage at 80–100% of its limit); `from` / `to` (dates in Asia/Tashkent, inclusive); `q` — the short code (with or
-         *     without #), the start of the uuid, or 4+ digits of the customer's phone. `counts` has every group under the
-         *     same filters (done and canceled count today only when no from/to is given). `sla` on each row: null when no
-         *     stage runs (waiting for an online payment, ready, with a courier not yet on the way, finished).
+         *     without #), the start of the uuid, or the customer's phone: 4+ of its digits with admin.pii.view, otherwise only
+         *     the whole number (+998 and nine digits, or the nine digits). `counts` has every group under the same filters
+         *     (done and canceled count today only when no from/to is given). `sla` on each row: null when no stage runs
+         *     (waiting for an online payment, ready, with a courier not yet on the way, finished). `manual_refund_required`:
+         *     a cancelled, rejected or refunded order with money still to give back (`refunds.refundable` > 0 on the card).
          */
         get: operations["admin.orders"];
         put?: never;
@@ -780,9 +784,13 @@ export interface paths {
         /**
          * Approve a refund request
          * @description By a member other than the one who asked (403 `four_eyes`). Runs the refund: a delivered order refunded in full
-         *     becomes `refunded` (commission and settlement reversed, keshbek back to the balance); otherwise (a cancelled
-         *     order, a partial amount) it is recorded as a manual refund. `execution.manual_amount` is what the approver
-         *     returns by hand in the provider's cabinet or in cash (no provider refund API is called). `reason` required.
+         *     with nothing of it given back before becomes `refunded` (commission and settlement reversed, keshbek back to the
+         *     balance; mode `order_refunded`); otherwise (a part, the rest after a part, a cancelled order) the amount is
+         *     spread over the payments still paid (`execution.allocations`): a keshbek share goes back to the customer's
+         *     balance at once, exactly that amount (mode `balance` when all of it did), any other share is a manual refund
+         *     (mode `manual`). `execution.manual_amount` is what the approver returns by hand in the provider's cabinet or in
+         *     cash (no provider refund API is called). The amount is checked again against what is refundable now (a payment
+         *     the provider refunded since counts in full): 422 `amount_exceeds_refundable`. `reason` required.
          *     Idempotent: a repeat (or the same Idempotency-Key) answers the same result; a request already decided otherwise
          *     is 409 `refund_request_decided`.
          */
@@ -830,8 +838,9 @@ export interface paths {
         get: operations["admin.roles"];
         /**
          * Change a role's permission
-         * @description `allowed`: true grants, false takes away, null resets to the role's default. The superadmin role cannot be
-         *     changed (422 `role_not_editable`). Needs step-up. Answers with the whole matrix.
+         * @description `allowed`: true grants, false takes away, null resets to the role's default. Only a superadmin changes the
+         *     matrix (403 `superadmin_only` for any other team.manage holder). The superadmin role cannot be changed (422
+         *     `role_not_editable`). Needs step-up. Answers with the whole matrix.
          */
         put: operations["admin.roles.updated"];
         post?: never;
@@ -852,7 +861,9 @@ export interface paths {
          * Search everything
          * @description `q` at least 2 characters. Each hit: `type` (store, order, user, member), `id`, `title`, `subtitle` and `href`,
          *     the admin app path to open (`/stores/{id}`, `/orders/{uuid}`, `/users/{id}`, `/team/{id}`). Types the member
-         *     has no permission for (stores.view, orders.view, users.view, team.manage) are left out.
+         *     has no permission for (stores.view, orders.view, users.view, team.manage) are left out. By phone: with
+         *     admin.pii.view any 4+ digits of the number (each number shown is an audited reveal); without it only the whole
+         *     number (`+998901234567`, `90 123 45 67`...).
          */
         get: operations["admin.search"];
         put?: never;
@@ -880,7 +891,9 @@ export interface paths {
         /**
          * Invite a team member
          * @description Creates the member (they cannot sign in until they accept) and a one-time invite link valid 72 hours:
-         *     `invite_url` is shown only in this answer. Only a superadmin may invite a superadmin. Needs step-up.
+         *     `invite_url` is shown only in this answer. Only a superadmin may invite a superadmin, or into a role that holds
+         *     team.manage, pii.view, system.manage, orders.refund_approve or payouts.approve (403 `superadmin_only`). Accepting
+         *     opens a 24 hour window for the 2FA set-up. Needs step-up.
          */
         post: operations["admin.team.invited"];
         delete?: never;
@@ -906,8 +919,10 @@ export interface paths {
         /**
          * Change a member's role or disable / enable them
          * @description `platform_role` and/or `disabled`. Disabling ends all of the member's sessions. Nobody changes their own role or
-         *     disables themselves (`cannot_change_self`), the last active superadmin stays (`last_superadmin`), and only a
-         *     superadmin changes a superadmin or makes one (`superadmin_only`). Needs step-up.
+         *     disables themselves (`cannot_change_self`), the last superadmin somebody can sign in as (active, password, 2FA
+         *     on) stays (`last_superadmin`), and only a superadmin changes a superadmin or a member in a privileged role
+         *     (team.manage, pii.view, system.manage, refund or payout approval), or gives such a role (`superadmin_only`).
+         *     Needs step-up.
          */
         patch: operations["admin.team.updated"];
         trace?: never;
@@ -924,7 +939,7 @@ export interface paths {
         /**
          * Re-issue the invite
          * @description A new link for a member who has not accepted yet (409 `invite_already_accepted` otherwise); the older links stop
-         *     working. Needs step-up.
+         *     working. A member in a superadmin or privileged role: superadmin only (403 `superadmin_only`). Needs step-up.
          */
         post: operations["admin.team.invite_reissued"];
         delete?: never;
@@ -945,7 +960,8 @@ export interface paths {
         /**
          * Reset a member's 2FA
          * @description For a lost phone: 2FA and the recovery codes are removed and every session of the member ends; they set 2FA up
-         *     again at their next sign-in. Not for yourself. Needs step-up.
+         *     again at a sign-in within 24 hours (after that the set-up is refused, `setup_not_allowed`: reset again). Not for
+         *     yourself; a superadmin or a member in a privileged role: superadmin only. Needs step-up.
          */
         post: operations["admin.team.2fa_reset"];
         delete?: never;
@@ -6647,6 +6663,7 @@ export interface components {
             pin_set_at: string | null;
             staff_code: string | null;
             courier_type: components["schemas"]["CourierType"];
+            two_factor_setup_allowed_until: string | null;
             devices?: components["schemas"]["Device"][];
             store?: components["schemas"]["Store"] | null;
             branch?: components["schemas"]["Branch"] | null;
@@ -7306,7 +7323,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Disabled member (member_disabled) */
+            /** @description Disabled member (member_disabled), or no 2FA and the set-up window (24 h after an invite or a 2FA reset) closed (setup_not_allowed) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -7872,6 +7889,7 @@ export interface operations {
                             failed_at: string | null;
                             attempts: number | null;
                             max_tries: number | null;
+                            details_hidden: boolean;
                             exception: string;
                             payload: {
                                 [key: string]: unknown;
@@ -8997,6 +9015,15 @@ export interface operations {
                 };
             };
             401: components["responses"]["AuthenticationException"];
+            /** @description Step-up needed (reauth_required) or superadmin only (superadmin_only) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Superadmin is fixed (role_not_editable) or invalid input */
             422: {
                 headers: {
@@ -9295,6 +9322,15 @@ export interface operations {
                 };
             };
             401: components["responses"]["AuthenticationException"];
+            /** @description Step-up needed (reauth_required) or superadmin only (superadmin_only) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -9351,6 +9387,15 @@ export interface operations {
                 };
             };
             401: components["responses"]["AuthenticationException"];
+            /** @description Step-up needed (reauth_required) or superadmin only (superadmin_only) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             404: {
                 headers: {
                     [name: string]: unknown;

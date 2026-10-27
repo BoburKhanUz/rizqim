@@ -49,7 +49,7 @@ Hammasi **runtime**'da o'qiladi (build'ga yozilmaydi): bitta image barcha muhitl
 
 ## Kirish va sessiya
 
-Admin token hamkor panelidagidan farq qiladi: u **httpOnly cookie**da (`rz_admin`, `SameSite=Strict`) turadi va sahifa JavaScript'i uni
+Admin token hamkor panelidagidan farq qiladi: u **httpOnly cookie**da (`__Host-rz_admin`, `Secure`, `SameSite=Strict`; faqat `ADMIN_SESSION_COOKIE_SECURE=false` bilan http:// sinovda `rz_admin`) turadi va sahifa JavaScript'i uni
 hech qachon ko'rmaydi. Brauzer backend'ga to'g'ridan-to'g'ri murojaat qilmaydi: hamma so'rov ilovaning o'z manzilidan
 `/api/backend/v1/admin/...` o'tadi ([src/lib/server/proxy.ts](src/lib/server/proxy.ts), [route](src/app/api/backend/[...path]/route.ts)).
 Proksi: faqat `/v1/admin/*` va `/broadcasting/auth` yo'llarini uzatadi; yozuvchi so'rovlarda `Origin` ni tekshiradi; cookie'ni

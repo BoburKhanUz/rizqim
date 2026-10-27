@@ -14,8 +14,11 @@ use SensitiveParameter;
 
 /**
  * P4-11: the RIZQIM team (Tizim → Jamoa): invites, role changes, disabling, 2FA resets. Guards: nobody disables or
- * demotes themselves, the last active superadmin stays, and only a superadmin touches a superadmin (or makes one),
- * even when the superadmin gave team.manage to another role. Disabling or resetting 2FA ends every session.
+ * demotes themselves, the last superadmin who can sign in stays, and only a superadmin touches a superadmin (or makes
+ * one), even when the superadmin gave team.manage to another role. Review F1: likewise only a superadmin gives a role
+ * carrying a privileged permission (AdminPermissionService::PRIVILEGED: team.manage, pii.view, system.manage, refund
+ * and payout approval) or changes a member holding one, so a team.manage holder cannot build a second account with
+ * more rights. Disabling or resetting 2FA ends every session.
  */
 class PlatformTeamService
 {
@@ -23,6 +26,7 @@ class PlatformTeamService
         private readonly AdminSessionService $sessions,
         private readonly TwoFactorService $twoFactor,
         private readonly TokenService $tokens,
+        private readonly AdminPermissionService $permissions,
     ) {}
 
     /**
@@ -65,6 +69,10 @@ class PlatformTeamService
     public function reissueInvite(User $member, ?User $actor): array
     {
         $this->assertMayManage($actor, $member);
+        if ($member->platform_role !== null) {
+            // Whoever holds the link becomes this member: the same rule as inviting into the role
+            $this->assertMayGrant($actor, $member->platform_role);
+        }
 
         if (!self::isInvited($member)) {
             throw new AdminAuthException("A'zo taklifni allaqachon qabul qilgan.", 'invite_already_accepted', 409);
@@ -74,8 +82,31 @@ class PlatformTeamService
     }
 
     /**
+     * `rizqim:admin:invite`: a new invite link for a member who already has an account (an old super_admin without 2FA,
+     * a forgotten password). Accepting it sets a new password, ends the member's sessions and, without 2FA, opens the
+     * set-up window. Server shell only: there is no API for it.
+     *
+     * @return array{token: string, expires_at: Carbon}
+     *
+     * @throws AdminAuthException
+     */
+    public function inviteExisting(User $member): array
+    {
+        if (!$member->isPlatformStaff()) {
+            throw new AdminAuthException("Bu hisob jamoa a'zosi emas.", 'not_found', 404);
+        }
+        if ($member->platform_disabled_at !== null) {
+            throw new AdminAuthException("A'zo o'chirilgan: avval uni Tizim → Jamoa'da yoqing.", 'member_disabled', 409);
+        }
+
+        return $this->issueInvite($member, null);
+    }
+
+    /**
      * POST /admin/auth/invite/accept: the invite is spent and the password set (at least 12 characters, not the
-     * email); the member goes on to the 2FA set-up. A refused password leaves the invite usable.
+     * email); the member goes on to the 2FA set-up (its window opens for 24 hours, review F2). A member who already
+     * had a password (re-invited from the command line) loses every session. A refused password leaves the invite
+     * usable.
      *
      * @throws AdminAuthException
      * @throws ValidationException
@@ -96,8 +127,16 @@ class PlatformTeamService
                 throw ValidationException::withMessages(['password' => "Parol email bilan bir xil bo'lmasligi kerak."]);
             }
 
+            $hadPassword = filled($member->password);
             $invite->forceFill(['accepted_at' => now()])->save();
             $member->forceFill(['password' => $password])->save();
+
+            if (!$member->hasTwoFactorEnabled()) {
+                $this->twoFactor->openSetupWindow($member);
+            }
+            if ($hadPassword) {
+                $this->endSessions($member);
+            }
 
             return $member;
         });
@@ -129,12 +168,14 @@ class PlatformTeamService
 
         DB::transaction(function () use ($member, $role, $disabled, $leavesSuperadmins) {
             if ($leavesSuperadmins) {
-                // Serialised: two superadmins demoting each other at the same moment cannot leave none
+                // Serialised: two superadmins demoting each other at the same moment cannot leave none. Review F7: only
+                // one somebody can sign in as counts (active, a password, 2FA on): not an invite never accepted, nor
+                // an old super_admin who never set 2FA up
                 $others = User::query()
                     ->where('platform_role', PlatformRole::SUPERADMIN->value)
                     ->lockForUpdate()
-                    ->get(['id', 'platform_disabled_at'])
-                    ->filter(fn (User $superadmin) => $superadmin->platform_disabled_at === null && (int) $superadmin->id !== (int) $member->id)
+                    ->get()
+                    ->filter(fn (User $superadmin) => (int) $superadmin->id !== (int) $member->id && self::canSignIn($superadmin))
                     ->count();
 
                 if ($others === 0) {
@@ -186,6 +227,14 @@ class PlatformTeamService
     {
         $this->sessions->revokeAll($member);
         $this->tokens->revokeAllForUser($member);
+    }
+
+    /**
+     * Somebody can sign in as this member now: active, with a password and 2FA on.
+     */
+    public static function canSignIn(User $member): bool
+    {
+        return $member->isActivePlatformStaff() && filled($member->password) && $member->hasTwoFactorEnabled();
     }
 
     public static function isInvited(User $member): bool
@@ -255,8 +304,18 @@ class PlatformTeamService
      */
     private function assertMayGrant(?User $actor, PlatformRole $role): void
     {
-        if ($actor !== null && $role === PlatformRole::SUPERADMIN && !$actor->isPlatformSuperadmin()) {
+        if ($actor === null || $actor->isPlatformSuperadmin()) {
+            return;
+        }
+        if ($role === PlatformRole::SUPERADMIN) {
             throw new AdminAuthException("Superadmin rolini faqat superadmin bera oladi.", 'superadmin_only', 403);
+        }
+        if ($this->permissions->privilegedOf($role) !== []) {
+            throw new AdminAuthException(
+                "Bu rolda jamoa, shaxsiy ma'lumot, tizim yoki pulni tasdiqlash ruxsati bor: uni faqat superadmin bera oladi.",
+                'superadmin_only',
+                403,
+            );
         }
     }
 
@@ -265,8 +324,18 @@ class PlatformTeamService
      */
     private function assertMayManage(?User $actor, User $member): void
     {
-        if ($actor !== null && $member->isPlatformSuperadmin() && !$actor->isPlatformSuperadmin()) {
+        if ($actor === null || $actor->isPlatformSuperadmin()) {
+            return;
+        }
+        if ($member->isPlatformSuperadmin()) {
             throw new AdminAuthException("Superadmin hisobini faqat superadmin o'zgartira oladi.", 'superadmin_only', 403);
+        }
+        if ($member->platform_role !== null && $this->permissions->privilegedOf($member->platform_role) !== []) {
+            throw new AdminAuthException(
+                "Bu a'zoning rolida jamoa, shaxsiy ma'lumot, tizim yoki pulni tasdiqlash ruxsati bor: uni faqat superadmin o'zgartira oladi.",
+                'superadmin_only',
+                403,
+            );
         }
     }
 }

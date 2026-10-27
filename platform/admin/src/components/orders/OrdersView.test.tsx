@@ -5,7 +5,7 @@ import { createPlatformOps, setPlatformOps } from '@/lib/realtime/platformOps';
 import { FakeEcho } from '@/test/fakeEcho';
 import { json, meBody, mockFetch, ok, refusal, renderPage } from '@/test/helpers';
 import { NOW, page, refundRequest, row } from './fixtures';
-import { OrdersView } from './OrdersView';
+import { ORDERS_EVENT_COALESCE_MS, OrdersView } from './OrdersView';
 
 const PERMS = ['orders.view', 'orders.intervene', 'orders.refund_request', 'orders.refund_approve', 'system.manage'].map((name) => `admin.${name}`);
 const SLA = { limits: { accept: 5, prepare: 30, deliver: 45 }, defaults: { accept: 5, prepare: 30, deliver: 45 }, bounds: { accept: [1, 120], prepare: [5, 300], deliver: [5, 300] }, warning_ratio: 0.8 };
@@ -33,6 +33,9 @@ function setup(routes: Parameters<typeof mockFetch>[0] = {}, { permissions = PER
   renderPage(<OrdersView />);
   return { ...mocks, user: userEvent.setup() };
 }
+
+// List requests only (not /orders/sla)
+const orderCalls = (callsTo: ReturnType<typeof setup>['callsTo']) => callsTo('GET', '/orders').length;
 
 describe('OrdersView', () => {
   it('lists the orders of every store with the SLA in words, counts on the chips and links to the card', async () => {
@@ -104,6 +107,26 @@ describe('OrdersView', () => {
     const before = callsTo('GET', '/orders').length;
     echo.channel('platform.ops').emit('ops.order.created', { order: { uuid: 'u-3' } });
     await vi.waitFor(() => expect(callsTo('GET', '/orders').length).toBeGreaterThan(before));
+  });
+
+  it('refetches at once on an event and once more at the end of a burst, never dropping its last change', async () => {
+    const { callsTo } = setup({}, { realtime: true });
+    await screen.findByRole('list', { name: "Buyurtmalar ro'yxati" });
+    await vi.waitFor(() => expect(echo.channels).toHaveLength(1));
+    echo.connectAll();
+    await screen.findByText('Jonli: yangi buyurtmalar darhol chiqadi');
+    await vi.waitFor(() => expect(orderCalls(callsTo)).toBeGreaterThan(0));
+    const before = orderCalls(callsTo);
+
+    echo.channel('platform.ops').emit('ops.order.created', { order: { uuid: 'u-3' } });
+    await vi.waitFor(() => expect(orderCalls(callsTo)).toBe(before + 1));
+    // The rest of the burst inside the window: one more refetch at its end, not one each, and not none
+    echo.channel('platform.ops').emit('ops.order.updated', { order: { uuid: 'u-3' } });
+    echo.channel('platform.ops').emit('ops.order.updated', { order: { uuid: 'u-1' } });
+    expect(orderCalls(callsTo)).toBe(before + 1);
+    await vi.waitFor(() => expect(orderCalls(callsTo)).toBe(before + 2), { timeout: ORDERS_EVENT_COALESCE_MS + 1500 });
+    await new Promise((resolve) => setTimeout(resolve, ORDERS_EVENT_COALESCE_MS + 200));
+    expect(orderCalls(callsTo)).toBe(before + 2);
   });
 
   it('says when the list cannot be loaded and retries', async () => {

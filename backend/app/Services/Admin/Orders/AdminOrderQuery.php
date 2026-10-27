@@ -2,6 +2,7 @@
 
 namespace App\Services\Admin\Orders;
 
+use App\Domain\Pos\Booking\UzPhone;
 use App\Enums\OrderChannel;
 use App\Models\Branch;
 use App\Models\Order;
@@ -105,13 +106,15 @@ final class AdminOrderQuery
 
     /**
      * Filters of GET /admin/orders (already validated): status (group), channel, region_id, store_id, sla, from, to, q.
+     * `$phoneFragments`: whether `q` may match a part of the customer's phone (a member with admin.pii.view); without
+     * it only the whole number matches, so a masked phone cannot be guessed digit by digit.
      *
      * @param  Builder<Order>  $query
      * @param  array<string, mixed>  $filters
      * @param  array{accept: int, prepare: int, deliver: int}  $limits
      * @return Builder<Order>
      */
-    public function filter(Builder $query, array $filters, array $limits, bool $withGroup = true): Builder
+    public function filter(Builder $query, array $filters, array $limits, bool $withGroup = true, bool $phoneFragments = false): Builder
     {
         if ($withGroup && !empty($filters['status'])) {
             $query->whereIn('orders.status', self::GROUPS[(string) $filters['status']]);
@@ -135,7 +138,7 @@ final class AdminOrderQuery
             $this->whereSla($query, (string) $filters['sla'], $limits);
         }
         if (!empty($filters['q'])) {
-            $this->search($query, (string) $filters['q']);
+            $this->search($query, (string) $filters['q'], $phoneFragments);
         }
 
         return $query;
@@ -228,25 +231,30 @@ final class AdminOrderQuery
     }
 
     /**
-     * `q`: the short code (with or without #), the start of the uuid, or digits of the customer's phone (4+).
+     * `q`: the short code (with or without #), the start of the uuid, or the customer's phone: with $phoneFragments any
+     * 4+ of its digits, otherwise only the whole number (+998 and nine digits, or the nine digits; spaces and dashes
+     * ignored).
      *
      * @param  Builder<Order>  $query
      * @return Builder<Order>
      */
-    public function search(Builder $query, string $q): Builder
+    public function search(Builder $query, string $q, bool $phoneFragments = false): Builder
     {
         $code = ltrim(trim($q), '#');
         $like = str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], mb_strtolower($code));
         $uuidPrefix = preg_match('/^[0-9a-fA-F-]{4,36}$/', $code) === 1 ? strtolower($code) : null;
         $digits = preg_replace('/\D+/', '', $code) ?? '';
+        $phone = $phoneFragments ? null : UzPhone::normalize($code);
 
-        return $query->where(function (Builder $query) use ($like, $uuidPrefix, $digits) {
+        return $query->where(function (Builder $query) use ($like, $uuidPrefix, $digits, $phoneFragments, $phone) {
             $query->whereRaw('lower(orders.short_code) like ?', [$like . '%']);
             if ($uuidPrefix !== null) {
                 $query->orWhereRaw('cast(orders.uuid as text) like ?', [$uuidPrefix . '%']);
             }
-            if (strlen($digits) >= 4) {
+            if ($phoneFragments && strlen($digits) >= 4) {
                 $query->orWhereIn('orders.user_id', User::query()->select('id')->where('phone', 'like', '%' . $digits . '%'));
+            } elseif ($phone !== null) {
+                $query->orWhereIn('orders.user_id', User::query()->select('id')->whereIn('phone', [$phone, ltrim($phone, '+')]));
             }
         });
     }
@@ -259,7 +267,7 @@ final class AdminOrderQuery
      * @param  array{accept: int, prepare: int, deliver: int}  $limits
      * @return array<string, int>
      */
-    public function counts(array $filters, array $limits): array
+    public function counts(array $filters, array $limits, bool $phoneFragments = false): array
     {
         $today = self::dayStart(now(self::TIMEZONE)->toDateString());
         $bounded = !empty($filters['from']) || !empty($filters['to']);
@@ -277,7 +285,7 @@ final class AdminOrderQuery
             $selects[] = "count(*) filter (where {$condition}) as \"{$group}\"";
         }
 
-        $query = $this->filter($this->base(), $filters, $limits, false);
+        $query = $this->filter($this->base(), $filters, $limits, false, $phoneFragments);
         $row = $query->toBase()->selectRaw(implode(', ', $selects), $bindings)->first();
 
         $counts = [];

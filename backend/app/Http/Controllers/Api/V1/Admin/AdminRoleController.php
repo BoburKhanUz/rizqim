@@ -15,7 +15,8 @@ use Illuminate\Validation\Rule;
 
 /**
  * P4-11: Tizim → Rollar (admin.team.manage): which admin permissions each team role holds. The superadmin column is
- * fixed (everything); every other role's set can be changed (like the partner web's "Huquqlar" page).
+ * fixed (everything); every other role's set can be changed (like the partner web's "Huquqlar" page), by a superadmin
+ * only (review F1: a team.manage holder could otherwise give their own role pii.view or system.manage).
  */
 #[Group('Admin')]
 class AdminRoleController extends AdminController
@@ -40,13 +41,19 @@ class AdminRoleController extends AdminController
     /**
      * Change a role's permission
      *
-     * `allowed`: true grants, false takes away, null resets to the role's default. The superadmin role cannot be
-     * changed (422 `role_not_editable`). Needs step-up. Answers with the whole matrix.
+     * `allowed`: true grants, false takes away, null resets to the role's default. Only a superadmin changes the
+     * matrix (403 `superadmin_only` for any other team.manage holder). The superadmin role cannot be changed (422
+     * `role_not_editable`). Needs step-up. Answers with the whole matrix.
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{roles: list<array{key: string, label: string, editable: bool}>, permissions: list<array{key: string, label: string, group: string}>, grants: array<string, list<string>>, defaults: array<string, list<string>>}}')]
     #[ApiDocResponse(422, 'Superadmin is fixed (role_not_editable) or invalid input', type: 'array{success: false, message: string, code: string, data: array{reason: string}}')]
+    #[ApiDocResponse(403, 'Step-up needed (reauth_required) or superadmin only (superadmin_only)', type: 'array{success: false, message: string, code: string, data: array{reason: string}}')]
     public function update(Request $request): JsonResponse
     {
+        if (!$this->member($request)->isPlatformSuperadmin()) {
+            return $this->refuse("Rollar jadvalini faqat superadmin o'zgartira oladi.", 'superadmin_only', 403);
+        }
+
         $data = $request->validate([
             'role' => ['required', Rule::enum(PlatformRole::class)],
             'permission' => ['required', Rule::enum(AdminPermission::class)],

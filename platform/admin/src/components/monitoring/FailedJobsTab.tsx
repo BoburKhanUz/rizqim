@@ -191,11 +191,18 @@ function JobDetail({ uuid, onClose, onDone }: { uuid: string; onClose: () => voi
               <h3 className="text-footnote font-bold text-fg-muted">{t('monitoring_jobs_exception')}</h3>
               <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-all rounded-control bg-surface-2 p-3 font-mono text-caption text-fg">{data.exception}</pre>
             </section>
-            <section aria-label={t('monitoring_jobs_payload')} className="flex flex-col gap-1">
-              <h3 className="text-footnote font-bold text-fg-muted">{t('monitoring_jobs_payload')}</h3>
-              <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-all rounded-control bg-surface-2 p-3 font-mono text-caption text-fg">{JSON.stringify(data.payload, null, 2)}</pre>
-              <p className="text-caption text-fg-muted">{t('monitoring_jobs_redacted')}</p>
-            </section>
+            {data.details_hidden ? (
+              // Read-only roles get the job, queue and the first line of the error only (the server withholds the rest)
+              <p role="note" className="rounded-control bg-surface-2 px-3 py-2.5 text-footnote text-fg-muted">
+                {t('monitoring_jobs_hidden')}
+              </p>
+            ) : (
+              <section aria-label={t('monitoring_jobs_payload')} className="flex flex-col gap-1">
+                <h3 className="text-footnote font-bold text-fg-muted">{t('monitoring_jobs_payload')}</h3>
+                <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-all rounded-control bg-surface-2 p-3 font-mono text-caption text-fg">{JSON.stringify(data.payload, null, 2)}</pre>
+                <p className="text-caption text-fg-muted">{t('monitoring_jobs_redacted')}</p>
+              </section>
+            )}
             {error && !confirmDelete && (
               <p role="alert" className="rounded-control bg-danger-soft px-3 py-2.5 text-footnote font-bold text-danger-soft-fg">
                 {error}

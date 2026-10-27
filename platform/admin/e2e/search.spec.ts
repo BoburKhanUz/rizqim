@@ -6,9 +6,12 @@ test('Ctrl+K opens the search; results come grouped by type, masked, and Enter o
   await openSignedIn(page, signIn, '/today')
   await expect(page.getByRole('heading', { name: 'Bugun', level: 1 })).toBeVisible()
 
-  await page.keyboard.press('Control+k')
   const palette = page.getByRole('dialog', { name: 'Qidirish' })
-  await expect(palette).toBeVisible()
+  // The heading is server-rendered: the shortcut listener exists only once the page has hydrated, so press until it opens
+  await expect(async () => {
+    await page.keyboard.press('Control+k')
+    await expect(palette).toBeVisible({ timeout: 500 })
+  }).toPass()
   const box = palette.getByRole('combobox')
   await expect(box).toBeFocused()
   await expect(palette.getByText('Kamida 2 ta belgi yozing')).toBeVisible()

@@ -56,7 +56,9 @@ class AdminTeamController extends AdminController
      * Invite a team member
      *
      * Creates the member (they cannot sign in until they accept) and a one-time invite link valid 72 hours:
-     * `invite_url` is shown only in this answer. Only a superadmin may invite a superadmin. Needs step-up.
+     * `invite_url` is shown only in this answer. Only a superadmin may invite a superadmin, or into a role that holds
+     * team.manage, pii.view, system.manage, orders.refund_approve or payouts.approve (403 `superadmin_only`). Accepting
+     * opens a 24 hour window for the 2FA set-up. Needs step-up.
      */
     #[ApiDocResponse(201, type: 'array{success: true, message: string, data: array{member: array{id: int, name: string, email: string|null, platform_role: string|null, platform_role_label: string|null, status: string, disabled: bool, two_factor_enabled: bool, last_login_at: string|null, active_sessions: int, invite_expires_at: string|null, created_at: string|null}, invite_url: string, invite_token: string, invite_expires_at: string}}')]
     #[ApiDocResponse(422, 'Email taken (email_taken) or invalid input', type: 'array{success: false, message: string, code: string, data: array{reason: string}}')]
@@ -90,10 +92,11 @@ class AdminTeamController extends AdminController
      * Re-issue the invite
      *
      * A new link for a member who has not accepted yet (409 `invite_already_accepted` otherwise); the older links stop
-     * working. Needs step-up.
+     * working. A member in a superadmin or privileged role: superadmin only (403 `superadmin_only`). Needs step-up.
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{invite_url: string, invite_token: string, invite_expires_at: string}}')]
     #[ApiDocResponse(409, 'Already accepted (invite_already_accepted)', type: 'array{success: false, message: string, code: string, data: array{reason: string}}')]
+    #[ApiDocResponse(403, 'Step-up needed (reauth_required) or superadmin only (superadmin_only)', type: 'array{success: false, message: string, code: string, data: array{reason: string}}')]
     public function reissueInvite(Request $request, int $id): JsonResponse
     {
         $member = $this->find($id);
@@ -115,8 +118,10 @@ class AdminTeamController extends AdminController
      * Change a member's role or disable / enable them
      *
      * `platform_role` and/or `disabled`. Disabling ends all of the member's sessions. Nobody changes their own role or
-     * disables themselves (`cannot_change_self`), the last active superadmin stays (`last_superadmin`), and only a
-     * superadmin changes a superadmin or makes one (`superadmin_only`). Needs step-up.
+     * disables themselves (`cannot_change_self`), the last superadmin somebody can sign in as (active, password, 2FA
+     * on) stays (`last_superadmin`), and only a superadmin changes a superadmin or a member in a privileged role
+     * (team.manage, pii.view, system.manage, refund or payout approval), or gives such a role (`superadmin_only`).
+     * Needs step-up.
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{id: int, name: string, email: string|null, platform_role: string|null, platform_role_label: string|null, status: string, disabled: bool, two_factor_enabled: bool, last_login_at: string|null, active_sessions: int, invite_expires_at: string|null, created_at: string|null}}')]
     #[ApiDocResponse(422, 'cannot_change_self, last_superadmin or invalid input', type: 'array{success: false, message: string, code: string, data: array{reason: string}}')]
@@ -152,9 +157,11 @@ class AdminTeamController extends AdminController
      * Reset a member's 2FA
      *
      * For a lost phone: 2FA and the recovery codes are removed and every session of the member ends; they set 2FA up
-     * again at their next sign-in. Not for yourself. Needs step-up.
+     * again at a sign-in within 24 hours (after that the set-up is refused, `setup_not_allowed`: reset again). Not for
+     * yourself; a superadmin or a member in a privileged role: superadmin only. Needs step-up.
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{id: int, name: string, email: string|null, platform_role: string|null, platform_role_label: string|null, status: string, disabled: bool, two_factor_enabled: bool, last_login_at: string|null, active_sessions: int, invite_expires_at: string|null, created_at: string|null}}')]
+    #[ApiDocResponse(403, 'Step-up needed (reauth_required) or superadmin only (superadmin_only)', type: 'array{success: false, message: string, code: string, data: array{reason: string}}')]
     public function resetTwoFactor(Request $request, int $id): JsonResponse
     {
         $member = $this->find($id);

@@ -2,19 +2,15 @@
 
 namespace App\Services\Admin\Today\Attention;
 
-use App\Domain\Delivery\ZoneResolver;
 use App\Enums\AdminPermission;
-use App\Enums\DeviceType;
-use App\Enums\StoreStatus;
 use App\Models\Device;
-use App\Models\Store;
 use App\Services\Admin\Attention\AttentionItem;
-use App\Support\StoreTimezone;
+use App\Services\Admin\Monitoring\TerminalBusinessHours;
 use Carbon\CarbonImmutable;
 
 /**
  * Paired POS and KDS terminals of active stores that have not reached the server for OFFLINE_MINUTES while their
- * branch is open (its opening hours, ZoneResolver::isBranchOpen; a terminal without a branch: the store's hours; a
+ * branch is open (TerminalBusinessHours, the same answer as the POS offline alert: the branch's hours, else the store's; a
  * store switched to "closed" is skipped). A terminal reports at least once a minute while it works
  * (DeviceTokenGuard), so silence means it is off, without internet or in offline mode. Terminals silent for more than
  * WITHIN_DAYS are left to the POS section's device list (most likely put away, not revoked).
@@ -29,7 +25,7 @@ class OfflineTerminalsSource extends TodayAttentionSource
     private const CANDIDATES = 500;
 
     public function __construct(
-        private readonly ZoneResolver $zones,
+        private readonly TerminalBusinessHours $hours,
     ) {}
 
     public function permission(): AdminPermission
@@ -56,22 +52,14 @@ class OfflineTerminalsSource extends TodayAttentionSource
     {
         $now = CarbonImmutable::now();
 
-        $offline = Device::query()
-            ->whereNull('revoked_at')
-            ->whereNotNull('store_id')
-            ->whereIn('type', array_map(fn (DeviceType $type) => $type->value, DeviceType::terminals()))
+        $offline = $this->hours->constrain(Device::query())
             ->where('last_seen_at', '<', $now->subMinutes(self::OFFLINE_MINUTES))
             ->where('last_seen_at', '>=', $now->subDays(self::WITHIN_DAYS))
-            ->whereHas('store', fn ($store) => $store->where('status', StoreStatus::ACTIVE->value)->where('is_open', true))
-            ->with([
-                'store:id,name,timezone,is_open,open_time,close_time,status',
-                'branch:id,store_id,name,status,is_active,open_time,close_time',
-            ])
             ->orderBy('last_seen_at')
             ->orderBy('id')
             ->limit(self::CANDIDATES)
             ->get(['id', 'uuid', 'store_id', 'branch_id', 'type', 'name', 'last_seen_at'])
-            ->filter(fn (Device $device) => $device->store !== null && $this->isOpen($device, $now))
+            ->filter(fn (Device $device) => $this->hours->isOpen($device, $now))
             ->values();
 
         $items = $offline->take($limit)->map(fn (Device $device) => new AttentionItem(
@@ -89,35 +77,5 @@ class OfflineTerminalsSource extends TodayAttentionSource
         ))->values()->all();
 
         return ['count' => $offline->count(), 'items' => $items];
-    }
-
-    private function isOpen(Device $device, CarbonImmutable $now): bool
-    {
-        /** @var Store $store */
-        $store = $device->store;
-
-        if ($device->branch !== null) {
-            return $this->zones->isBranchOpen($device->branch, $now, $store);
-        }
-
-        // No branch: the store's own hours, read like a branch's (no hours or equal ones: round the clock)
-        $open = $this->clock($store->getRawOriginal('open_time'));
-        $close = $this->clock($store->getRawOriginal('close_time'));
-        if ($open === null || $close === null || $open === $close) {
-            return true;
-        }
-        $local = $now->setTimezone(StoreTimezone::of($store))->format('H:i:s');
-
-        return $open < $close ? ($local >= $open && $local < $close) : ($local >= $open || $local < $close);
-    }
-
-    private function clock(mixed $value): ?string
-    {
-        if ($value === null || $value === '') {
-            return null;
-        }
-        $value = (string) $value;
-
-        return strlen($value) === 5 ? $value . ':00' : substr($value, 0, 8);
     }
 }

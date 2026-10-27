@@ -119,7 +119,10 @@ class AdminMonitoringAlertController extends AdminController
         }
 
         $before = $alert->state;
-        $this->evaluator->acknowledge($alert, $this->member($request), $data['note'] ?? null);
+        // The database decides: the evaluator may have resolved the alert since it was read
+        if (!$this->evaluator->acknowledge($alert, $this->member($request), $data['note'] ?? null)) {
+            return $this->refuse('Bu ogohlantirish allaqachon qabul qilingan yoki hal bo\'lgan.', 'alert_not_open', 409);
+        }
 
         AdminAudit::for($request)->subject($alert)->store($alert->store_id)
             ->changes(['state' => $before], ['state' => $alert->state])
@@ -148,7 +151,9 @@ class AdminMonitoringAlertController extends AdminController
         }
 
         $before = $alert->state;
-        $this->evaluator->resolveByMember($alert, $this->member($request), $data['note'] ?? null);
+        if (!$this->evaluator->resolveByMember($alert, $this->member($request), $data['note'] ?? null)) {
+            return $this->refuse('Bu ogohlantirish allaqachon hal bo\'lgan.', 'alert_resolved', 409);
+        }
 
         AdminAudit::for($request)->subject($alert)->store($alert->store_id)
             ->changes(['state' => $before], ['state' => $alert->state])

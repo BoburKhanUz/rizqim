@@ -20,17 +20,21 @@ use Illuminate\Support\Facades\DB;
  * what was paid and not given back yet) of a finished order (delivered, canceled, rejected or refunded: an order still
  * in progress is cancelled first); a different member with admin.orders.refund_approve approves or rejects it.
  *
- * Approval runs the existing refund path, never writing statuses itself:
- *  - a delivered order refunded in full goes delivered → refunded through OrderStatusService::refund (the store's
- *    commission and settlement are reversed, keshbek goes back to the customer's balance, a card or cash payment is
- *    flagged for a manual refund) — mode `order_refunded`;
- *  - anything else (a cancelled order whose money was flagged for a manual refund, a part of a delivered order) is
- *    recorded as a manual refund the approver makes in the provider's cabinet or in cash — mode `manual`. No provider
- *    refund API is called: the code base has none (Payme's refunds arrive as its CancelTransaction webhook, Click and
- *    Uzum have no refund call here), see docs/API.md "Buyurtmalar".
- * What is refundable: paid = payments paid or refunded; refunded = approved requests + payments refunded outside any
- * request (keshbek returned on cancel, a Payme cancel). Payments an approval covered carry its id in
- * payload.refund_request_ids, so a later provider refund of the same money is not counted twice.
+ * Approval runs the existing refund path, never writing order statuses itself:
+ *  - a delivered order refunded in full while nothing of it was given back yet goes delivered → refunded through
+ *    OrderStatusService::refund (the store's commission and settlement are reversed, keshbek goes back to the
+ *    customer's balance, a card or cash payment is flagged for a manual refund) — mode `order_refunded`;
+ *  - anything else (a part of a delivered order, the rest after an earlier part, a cancelled order whose money was
+ *    flagged for a manual refund) is spread over the payments still paid, oldest first: a keshbek payment's share goes
+ *    back to the customer's balance at once (as OrderStatusService::refundKeshbek does it; once a keshbek payment is
+ *    given back in full it is `refunded`), any other share is a manual refund the approver makes in the provider's
+ *    cabinet or in cash — mode `balance` when all of it went to the balance, `manual` otherwise. No provider refund API
+ *    is called: the code base has none (Payme's refunds arrive as its CancelTransaction webhook, Click and Uzum have
+ *    no refund call here), see docs/API.md "Buyurtmalar".
+ * Each approval records how it was spread (`execution.allocations`: payment, amount, kind). What is refundable
+ * (balanceOf): paid = payments paid or refunded; refunded = the full amount of every refunded payment (keshbek
+ * returned on cancel, a Payme cancel — whether or not an approval covered a part of it before) + the approved shares
+ * on payments that are still paid. So a provider refund after a partial approval never leaves money to refund twice.
  *
  * Approving twice is a no-op (the same answer), under a row lock; the HTTP layer also honours Idempotency-Key.
  */
@@ -39,37 +43,122 @@ class RefundRequestService
     /** Order statuses a refund can be asked for. */
     public const REFUNDABLE_STATUSES = [OrderStatus::DELIVERED, OrderStatus::CANCELED, OrderStatus::REJECTED, OrderStatus::REFUNDED];
 
+    /** A share of an approval that went back to the customer's keshbek balance. */
+    public const KIND_BALANCE = 'balance';
+
+    /** A share the approver returns by hand (provider's cabinet or cash). */
+    public const KIND_MANUAL = 'manual';
+
     public function __construct(
         private readonly OrderStatusService $orders,
         private readonly AdminPermissionService $permissions,
     ) {}
 
     /**
-     * @return array{paid: Money, refunded: Money, refundable: Money}
+     * @return array{paid: Money, refunded: Money, refundable: Money, allocated: array<int, Money>}
      */
     public function balance(Order $order): array
     {
-        $payments = Payment::query()
-            ->where('order_id', $order->id)
-            ->whereIn('status', [PaymentStatus::PAID->value, PaymentStatus::REFUNDED->value])
-            ->get(['id', 'amount', 'status', 'payload']);
+        return self::balanceOf(
+            Payment::query()->where('order_id', $order->id)->get(['id', 'provider', 'amount', 'status', 'payload']),
+            self::approvedRequests([(int) $order->id])->get(),
+        );
+    }
 
-        $paid = Money::sum(...$payments->pluck('amount')->all());
-        $outside = Money::sum(...$payments
-            ->filter(fn (Payment $payment) => $payment->status === PaymentStatus::REFUNDED && empty($payment->payload['refund_request_ids'] ?? null))
-            ->pluck('amount')->all());
-        $approved = Money::sum(...OrderRefundRequest::query()
-            ->where('order_id', $order->id)
+    /**
+     * Approved requests of these orders, with what balanceOf reads.
+     *
+     * @param  list<int>  $orderIds
+     * @return \Illuminate\Database\Eloquent\Builder<OrderRefundRequest>
+     */
+    public static function approvedRequests(array $orderIds): \Illuminate\Database\Eloquent\Builder
+    {
+        return OrderRefundRequest::query()
+            ->whereIn('order_id', $orderIds)
             ->where('status', OrderRefundRequest::APPROVED)
-            ->pluck('amount')->all());
+            ->orderBy('id')
+            ->select(['id', 'order_id', 'amount', 'status', 'execution']);
+    }
 
-        $refunded = $outside->plus($approved);
+    /**
+     * What was paid, given back and is left of one order: paid = payments paid or refunded; refunded = the full amount
+     * of every refunded payment + the approved shares (execution.allocations) on payments still paid. A share on a
+     * payment refunded since is covered by that payment's refund and not counted again. An approval without
+     * allocations (written before they were recorded) counts in full, and so does a share on a payment that is neither
+     * paid nor refunded: never less than what really went back. `allocated` — the approved shares per payment still
+     * paid.
+     *
+     * @param  iterable<Payment>  $payments  the order's payments (any status)
+     * @param  iterable<OrderRefundRequest>  $approved  the order's approved requests
+     * @return array{paid: Money, refunded: Money, refundable: Money, allocated: array<int, Money>}
+     */
+    public static function balanceOf(iterable $payments, iterable $approved): array
+    {
+        $counted = [];
+        foreach ($payments as $payment) {
+            if (in_array($payment->status, [PaymentStatus::PAID, PaymentStatus::REFUNDED], true)) {
+                $counted[(int) $payment->id] = $payment;
+            }
+        }
+
+        $paid = Money::zero();
+        $refunded = Money::zero();
+        foreach ($counted as $payment) {
+            $paid = $paid->plus($payment->amount);
+            if ($payment->status === PaymentStatus::REFUNDED) {
+                $refunded = $refunded->plus($payment->amount);
+            }
+        }
+
+        $allocated = [];
+        foreach ($approved as $request) {
+            $shares = self::allocations($request);
+            if ($shares === null) {
+                $refunded = $refunded->plus($request->amount);
+
+                continue;
+            }
+            foreach ($shares as $share) {
+                $payment = $counted[$share['payment_id']] ?? null;
+                if ($payment?->status === PaymentStatus::REFUNDED) {
+                    continue;
+                }
+                $refunded = $refunded->plus($share['amount']);
+                if ($payment !== null) {
+                    $allocated[$share['payment_id']] = ($allocated[$share['payment_id']] ?? Money::zero())->plus($share['amount']);
+                }
+            }
+        }
 
         return [
             'paid' => $paid,
             'refunded' => $refunded,
             'refundable' => Money::max(Money::zero(), $paid->minus($refunded)),
+            'allocated' => $allocated,
         ];
+    }
+
+    /**
+     * How an approval was spread over the payments, or null when it was not recorded.
+     *
+     * @return list<array{payment_id: int, amount: Money}>|null
+     */
+    private static function allocations(OrderRefundRequest $request): ?array
+    {
+        $rows = $request->execution['allocations'] ?? null;
+        if (!is_array($rows) || $rows === []) {
+            return null;
+        }
+
+        $shares = [];
+        foreach ($rows as $row) {
+            if (!is_array($row) || !isset($row['payment_id'], $row['amount'])) {
+                return null;
+            }
+            $shares[] = ['payment_id' => (int) $row['payment_id'], 'amount' => Money::of((string) $row['amount'])];
+        }
+
+        return $shares;
     }
 
     public function canRequest(Order $order): bool
@@ -135,7 +224,8 @@ class RefundRequestService
 
             $order = Order::whereKey($refund->order_id)->lockForUpdate()->firstOrFail();
             $amount = Money::of($refund->amount);
-            $balance = $this->balance($order);
+            $payments = Payment::where('order_id', $order->id)->orderBy('id')->lockForUpdate()->get();
+            $balance = self::balanceOf($payments, self::approvedRequests([(int) $order->id])->get());
             if ($amount->isGreaterThan($balance['refundable'])) {
                 throw new AdminOrderException(
                     "So'ralgan summa endi qaytariladigan puldan (" . self::uzs($balance['refundable']) . ') ko\'p: so\'rovni rad eting va yangisini yarating.',
@@ -146,50 +236,56 @@ class RefundRequestService
             }
 
             $statusBefore = $order->status;
-            $paymentsBefore = Payment::where('order_id', $order->id)->pluck('status', 'id')->map(fn ($status) => $status instanceof PaymentStatus ? $status->value : (string) $status);
-            $full = $amount->equals($balance['refundable']);
-            $mode = 'manual';
+            $now = now();
 
-            if ($order->status === OrderStatus::DELIVERED && $full) {
+            // The whole order and nothing of it given back yet: the order's own refund path (ledger reversal included)
+            if ($order->status === OrderStatus::DELIVERED && $balance['refunded']->isZero() && $amount->equals($balance['paid'])) {
+                $paidBefore = $payments->filter(fn (Payment $payment) => $payment->status === PaymentStatus::PAID)->keyBy('id');
                 try {
                     $this->orders->refund($order, $approver, "Boshqaruv markazi, qaytarish so'rovi #{$refund->id}: {$refund->reason}");
                 } catch (OrderTransitionException $e) {
                     throw new AdminOrderException($e->getMessage(), 'refund_failed', $e->status === 403 ? 403 : 422);
                 }
                 $mode = 'order_refunded';
+
+                // Every payment was paid (nothing refunded): keshbek went back to the balance by itself, the rest is manual
+                $shares = [];
+                foreach (Payment::whereKey($paidBefore->keys()->all())->orderBy('id')->lockForUpdate()->get() as $payment) {
+                    $shares[] = [
+                        'payment' => $payment,
+                        'amount' => Money::of($payment->amount),
+                        'kind' => $payment->status === PaymentStatus::REFUNDED ? self::KIND_BALANCE : self::KIND_MANUAL,
+                    ];
+                }
+            } else {
+                $shares = $this->spread($order, $payments, $balance['allocated'], $amount, $refund, $now);
+                $mode = collect($shares)->every(fn (array $share) => $share['kind'] === self::KIND_BALANCE) ? 'balance' : 'manual';
             }
 
-            $order->refresh();
-
-            // What went back by itself (keshbek to the balance) during this approval, and what is left to return by hand
-            $payments = Payment::where('order_id', $order->id)
-                ->whereIn('status', [PaymentStatus::PAID->value, PaymentStatus::REFUNDED->value])
-                ->lockForUpdate()
-                ->get();
-            $automatic = Money::sum(...$payments
-                ->filter(fn (Payment $payment) => $payment->status === PaymentStatus::REFUNDED && ($paymentsBefore[$payment->id] ?? null) !== PaymentStatus::REFUNDED->value)
-                ->pluck('amount')->all());
-            $automatic = Money::min($automatic, $amount);
+            $automatic = Money::sum(...array_map(fn (array $share) => $share['amount'], array_filter($shares, fn (array $share) => $share['kind'] === self::KIND_BALANCE)));
             $manual = $amount->minus($automatic);
 
-            foreach ($payments as $payment) {
+            // Only the payments this approval touched carry it (never one refunded before it)
+            foreach ($shares as $share) {
+                $payment = $share['payment'];
                 $payload = $payment->payload ?? [];
                 $payload['refund_request_ids'] = array_values(array_unique([...($payload['refund_request_ids'] ?? []), (int) $refund->id]));
-                if ($manual->isPositive() && $payment->status === PaymentStatus::PAID) {
+                if ($share['kind'] === self::KIND_MANUAL) {
                     $payload['manual_refund_approved'] = [...($payload['manual_refund_approved'] ?? []), [
                         'refund_request_id' => (int) $refund->id,
-                        'amount' => $manual->toString(),
+                        'amount' => $share['amount']->toString(),
                         'approved_by' => (int) $approver->id,
-                        'approved_at' => now()->toIso8601String(),
+                        'approved_at' => $now->toIso8601String(),
                     ]];
                 }
                 $payment->update(['payload' => $payload]);
             }
 
+            $order->refresh();
             $refund->update([
                 'status' => OrderRefundRequest::APPROVED,
                 'decided_by' => $approver->id,
-                'decided_at' => now(),
+                'decided_at' => $now,
                 'decision_note' => $note !== null && trim($note) !== '' ? mb_substr(trim($note), 0, 500) : null,
                 'execution' => [
                     'mode' => $mode,
@@ -200,11 +296,86 @@ class RefundRequestService
                     'manual_amount' => $manual->toString(),
                     // Provider refunds are not automated in this code base: the money is returned by hand
                     'provider_refund' => $manual->isPositive() ? 'manual' : 'none',
+                    'allocations' => array_map(fn (array $share) => [
+                        'payment_id' => (int) $share['payment']->id,
+                        'provider' => (string) $share['payment']->provider,
+                        'amount' => $share['amount']->toString(),
+                        'kind' => $share['kind'],
+                    ], $shares),
                 ],
             ]);
 
             return ['request' => $refund->refresh(), 'replayed' => false];
         });
+    }
+
+    /**
+     * Spreads an amount over the payments still paid, oldest first, each up to what of it is not approved yet. A keshbek
+     * share goes back to the customer's balance now, exactly that amount, as OrderStatusService::refundKeshbek does it
+     * (the balance, then the payment: `refunded` once nothing of it is left, and the order's payment status with it
+     * when no payment is paid any more, so no later refund path returns it again); any other share is for the approver
+     * to return by hand.
+     *
+     * @param  \Illuminate\Support\Collection<int, Payment>  $payments  the order's payments, locked
+     * @param  array<int, Money>  $allocated  approved shares per payment still paid (balanceOf)
+     * @return list<array{payment: Payment, amount: Money, kind: string}>
+     *
+     * @throws AdminOrderException
+     */
+    private function spread(Order $order, \Illuminate\Support\Collection $payments, array $allocated, Money $amount, OrderRefundRequest $refund, \Carbon\CarbonInterface $now): array
+    {
+        $shares = [];
+        $left = $amount;
+        foreach ($payments as $payment) {
+            if (!$left->isPositive()) {
+                break;
+            }
+            if ($payment->status !== PaymentStatus::PAID) {
+                continue;
+            }
+            $room = Money::of($payment->amount)->minus($allocated[(int) $payment->id] ?? Money::zero());
+            if (!$room->isPositive()) {
+                continue;
+            }
+            $share = Money::min($room, $left);
+            $left = $left->minus($share);
+
+            $toBalance = $payment->provider === 'keshbek';
+            if ($toBalance) {
+                // A numeric string keeps the amount exact; Laravel accepts it although the stub says float|int
+                User::whereKey($order->user_id)->increment('balance', $share->toString()); // @phpstan-ignore argument.type
+
+                $payload = $payment->payload ?? [];
+                $payload['refunded_to_balance_parts'] = [...($payload['refunded_to_balance_parts'] ?? []), [
+                    'refund_request_id' => (int) $refund->id,
+                    'amount' => $share->toString(),
+                    'refunded_at' => $now->toIso8601String(),
+                ]];
+                $update = ['payload' => $payload];
+                if ($share->equals($room)) {
+                    $update['status'] = PaymentStatus::REFUNDED;
+                    $update['cancelled_at'] = $now;
+                    $update['payload'] += [
+                        'refunded_to_balance' => Money::of($payment->amount)->toFloat(),
+                        'refunded_at' => $now->toIso8601String(),
+                    ];
+                }
+                $payment->update($update);
+            }
+
+            $shares[] = ['payment' => $payment, 'amount' => $share, 'kind' => $toBalance ? self::KIND_BALANCE : self::KIND_MANUAL];
+        }
+
+        if ($left->isPositive()) {
+            // Not reachable while amount <= refundable; never approve money no payment holds
+            throw new AdminOrderException("So'ralgan summani to'lovlar qoplamaydi: so'rovni rad eting va yangisini yarating.", 'amount_exceeds_refundable', 422);
+        }
+
+        if ($order->payment_status === PaymentStatus::PAID && $payments->every(fn (Payment $payment) => $payment->status !== PaymentStatus::PAID)) {
+            $order->update(['payment_status' => PaymentStatus::REFUNDED->value]);
+        }
+
+        return $shares;
     }
 
     /**
@@ -251,9 +422,14 @@ class RefundRequestService
         };
     }
 
+    /**
+     * "50 000 so'm"; with the tiyin when there are any ("50 000,50 so'm"), so a sum someone returns by hand is exact.
+     */
     public static function uzs(Money $amount): string
     {
-        return number_format($amount->toFloat(), 0, '.', ' ') . " so'm";
+        $decimals = str_ends_with($amount->toString(), '.00') ? 0 : 2;
+
+        return number_format($amount->toFloat(), $decimals, ',', ' ') . " so'm";
     }
 
     /**

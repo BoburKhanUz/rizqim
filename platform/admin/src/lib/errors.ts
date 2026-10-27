@@ -13,6 +13,7 @@ const CODE_TEXT: Record<string, MessageKey> = {
   setup_required: 'err_setup_required',
   setup_not_started: 'err_setup_not_started',
   two_factor_already_enabled: 'err_two_factor_already_enabled',
+  setup_not_allowed: 'err_setup_not_allowed',
   invite_invalid: 'err_invite_invalid',
   invite_already_accepted: 'err_invite_already_accepted',
   email_taken: 'err_email_taken',

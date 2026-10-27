@@ -6,6 +6,7 @@ use App\Models\User;
 use chillerlan\QRCode\Output\QROutputInterface;
 use chillerlan\QRCode\QRCode;
 use chillerlan\QRCode\QROptions;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use PragmaRX\Google2FA\Google2FA;
@@ -18,10 +19,17 @@ use SensitiveParameter;
  * a code is accepted once, and never one from the same or an earlier 30 s step than the last accepted code.
  *
  * Recovery codes are kept as bcrypt hashes (the format Filament reads); a used one is burnt.
+ *
+ * Review F2: a member without 2FA may set it up only inside a set-up window (users.two_factor_setup_allowed_until,
+ * 24 hours), opened by accepting an invite or by a 2FA reset and closed when 2FA is turned on. Outside it the right
+ * password alone enrolls nothing (admin API: `setup_not_allowed`; the Filament set-up is refused the same way).
  */
 class TwoFactorService
 {
     private const RECOVERY_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+    /** users column: until when the member may set 2FA up (null: not allowed) */
+    public const SETUP_WINDOW = 'two_factor_setup_allowed_until';
 
     public function __construct(
         private readonly Google2FA $google2fa,
@@ -100,17 +108,51 @@ class TwoFactorService
     public function enable(User $user, #[SensitiveParameter] string $secret, int $confirmedStep): void
     {
         $user->saveAppAuthenticationSecret($secret);
-        $user->forceFill(['two_factor_last_timestep' => $confirmedStep])->save();
+        $user->forceFill(['two_factor_last_timestep' => $confirmedStep, self::SETUP_WINDOW => null])->save();
     }
 
     /**
      * Turn 2FA off (a lost phone: `rizqim:admin:reset-2fa`, POST /admin/team/{id}/reset-2fa). The member sets it up
-     * again on their next sign-in.
+     * again at a sign-in within the set-up window this opens.
      */
     public function disable(User $user): void
     {
         $user->app_authentication_recovery_codes = null;
         $user->saveAppAuthenticationSecret(null);
+        $this->openSetupWindow($user);
+    }
+
+    /**
+     * Whether the member may set 2FA up now (after the right password): inside the window an invite or a reset opened.
+     */
+    public function setupAllowed(User $user): bool
+    {
+        $until = self::setupAllowedUntil($user);
+
+        return $until !== null && $until->isFuture();
+    }
+
+    public static function setupAllowedUntil(User $user): ?Carbon
+    {
+        $value = $user->getAttribute(self::SETUP_WINDOW);
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return $value instanceof \DateTimeInterface ? Carbon::instance($value) : Carbon::parse((string) $value);
+    }
+
+    public function openSetupWindow(User $user): void
+    {
+        $hours = max(1, (int) config('admin.two_factor.setup_window_hours', 24));
+        $user->forceFill([self::SETUP_WINDOW => now()->addHours($hours)])->save();
+    }
+
+    public function closeSetupWindow(User $user): void
+    {
+        if ($user->getAttribute(self::SETUP_WINDOW) !== null) {
+            $user->forceFill([self::SETUP_WINDOW => null])->save();
+        }
     }
 
     /**

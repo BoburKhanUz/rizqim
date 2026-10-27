@@ -55,6 +55,7 @@ export const uz = {
   err_setup_required: 'Avval ilovada 2 bosqichli tasdiqlashni yoqing. Qaytadan boshlang.',
   err_setup_not_started: "2FA sozlash boshlanmagan. Qaytadan boshlang.",
   err_two_factor_already_enabled: 'Bu hisobda 2FA allaqachon yoqilgan. Ilovadagi kod bilan kiring.',
+  err_setup_not_allowed: "Bu hisobda 2FA o'rnatilmagan, uni faqat taklif havolasi orqali yoki 2FA tiklangandan keyin 24 soat ichida o'rnatish mumkin. Superadministratordan yangi taklif havolasini so'rang.",
   err_invite_invalid: "Taklif havolasi eskirgan yoki ishlatilgan. Superadministratordan yangi havola so'rang.",
   err_invite_already_accepted: 'Bu xodim taklifni allaqachon qabul qilgan.',
   err_email_taken: 'Bu email allaqachon jamoada.',

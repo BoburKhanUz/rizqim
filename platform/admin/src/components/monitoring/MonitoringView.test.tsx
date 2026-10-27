@@ -393,6 +393,26 @@ describe('Monitoring: Yiqilgan vazifalar', () => {
     expect(dialog.textContent).not.toMatch(/bot\d+:/);
   });
 
+  it('shows a read-only member only the job, the first error line and a note that the rest is withheld', async () => {
+    const hidden = () =>
+      ok({
+        ...job(),
+        attempts: 5,
+        max_tries: 5,
+        details_hidden: true,
+        exception: 'ConnectionException: cURL error 28 for https://api.telegram.org/bot[Filtered]/sendMessage',
+        payload: { displayName: 'App\\Jobs\\SendTelegramRequest', maxTries: 5 },
+      });
+    const { user } = setup({ [`GET /monitoring/failed-jobs/${JOB_UUID}`]: hidden }, VIEW, { initialTab: 'jobs' });
+    await user.click(await screen.findByRole('button', { name: /^Ochish: SendTelegramRequest/ }));
+
+    const dialog = await screen.findByRole('dialog', { name: 'Yiqilgan vazifa' });
+    expect(await within(dialog).findByText(/cURL error 28/)).toBeInTheDocument();
+    expect(within(dialog).getByText("Vazifa ma'lumotlari va xatoning davomi faqat Monitoring boshqaruvchilariga ko'rinadi.")).toBeInTheDocument();
+    expect(within(dialog).queryByRole('region', { name: "Vazifa ma'lumotlari" })).toBeNull();
+    expect(within(dialog).queryByText(/"command"/)).toBeNull();
+  });
+
   it('retries a job and says so', async () => {
     const { user, callsTo } = setup({ [`GET /monitoring/failed-jobs/${JOB_UUID}`]: detail, [`POST /monitoring/failed-jobs/${JOB_UUID}/retry`]: () => ok({ uuid: JOB_UUID, job: 'SendTelegramRequest', queue: 'default' }) }, MANAGE, { initialTab: 'jobs' });
     await user.click(await screen.findByRole('button', { name: /^Ochish: SendTelegramRequest/ }));

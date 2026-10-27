@@ -9,6 +9,7 @@ use App\Models\AuditLog;
 use App\Models\User;
 use App\Services\Admin\TwoFactorService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
@@ -23,7 +24,8 @@ class AdminAuthLoginTest extends TestCase
 
     public function test_first_sign_in_sets_up_2fa_then_opens_a_session_with_recovery_codes(): void
     {
-        $member = $this->makeMember(PlatformRole::OPERATOR, twoFactor: false);
+        // As after accepting an invite: the 2FA set-up window is open
+        $member = $this->makeMember(PlatformRole::OPERATOR, twoFactor: false, attributes: ['two_factor_setup_allowed_until' => now()->addDay()]);
 
         $login = $this->adminJson('POST', '/auth/login', null, ['email' => strtoupper($member->email), 'password' => $this->adminPassword])
             ->assertOk()
@@ -56,6 +58,8 @@ class AdminAuthLoginTest extends TestCase
         $member->refresh();
         $this->assertTrue($member->hasTwoFactorEnabled());
         $this->assertSame($secret, $member->getAppAuthenticationSecret());
+        // Turning 2FA on closes the set-up window
+        $this->assertNull($member->getAttribute('two_factor_setup_allowed_until'));
         // At rest: encrypted secret, hashed recovery codes
         $raw = \DB::table('users')->where('id', $member->id)->first();
         $this->assertStringNotContainsString($secret, (string) $raw->app_authentication_secret);
@@ -118,9 +122,10 @@ class AdminAuthLoginTest extends TestCase
         $this->adminJson('POST', '/auth/login', null, ['email' => $customer->email, 'password' => $this->adminPassword])
             ->assertStatus(422)->assertJsonPath('code', 'invalid_credentials');
 
-        // Every attempt is audited, never with the password
+        // Every attempt on a team account is audited, never with the password; an email that is no team member's
+        // (made up, or a customer's) goes to the app log instead (review F5: no flooding the append-only log)
         $failed = AuditLog::where('action', 'admin.auth.login_failed')->get();
-        $this->assertCount(3, $failed);
+        $this->assertCount(1, $failed);
         $this->assertSame($member->id, $failed->first()->user_id);
         $this->assertNotNull($failed->first()->ip);
         foreach ($failed as $entry) {
@@ -259,7 +264,7 @@ class AdminAuthLoginTest extends TestCase
             ->assertStatus(403)->assertJsonPath('code', 'member_disabled');
     }
 
-    public function test_an_existing_super_admin_becomes_a_platform_superadmin_and_sets_up_2fa_at_next_sign_in(): void
+    public function test_an_existing_super_admin_becomes_a_platform_superadmin_and_is_re_enrolled_by_an_invite(): void
     {
         $legacy = User::create([
             'name' => 'Super Admin',
@@ -269,7 +274,26 @@ class AdminAuthLoginTest extends TestCase
         ]);
 
         $this->assertSame(PlatformRole::SUPERADMIN, $legacy->refresh()->platform_role);
+
+        // Review F2: the right password alone no longer sets 2FA up (whoever guessed it would enroll their own app)
         $this->adminJson('POST', '/auth/login', null, ['email' => $legacy->email, 'password' => $this->adminPassword])
-            ->assertOk()->assertJsonPath('data.status', 'setup_required');
+            ->assertStatus(403)->assertJsonPath('code', 'setup_not_allowed');
+        $this->assertSame(0, AdminLoginChallenge::count());
+
+        // The documented way back (docs/OPERATIONS.md §10): the server shell lists them and prints an invite link
+        $this->assertSame(0, Artisan::call('rizqim:admin:invite', ['--without-2fa' => true]));
+        $this->assertStringContainsString('admin@rizqim.test', Artisan::output());
+        $this->assertSame(0, Artisan::call('rizqim:admin:invite', ['email' => 'Admin@Rizqim.test']));
+        preg_match('#/invite/(pi_[A-Za-z0-9]{48})#', Artisan::output(), $match);
+
+        $challenge = $this->adminJson('POST', '/auth/invite/accept', null, ['token' => $match[1], 'password' => 'Yangi-uzun-parol-2026'])
+            ->assertOk()->assertJsonPath('data.status', 'setup_required')->json('data.challenge_token');
+        $secret = $this->adminJson('POST', '/auth/2fa/setup', null, ['challenge_token' => $challenge])->assertOk()->json('data.secret');
+        $this->adminJson('POST', '/auth/2fa/confirm', null, ['challenge_token' => $challenge, 'code' => $this->codeFor($secret)])->assertOk();
+        $this->assertTrue($legacy->refresh()->hasTwoFactorEnabled());
+        $this->assertSame(1, AuditLog::where('action', 'admin.cli.member_reinvited')->where('model_id', $legacy->id)->count());
+
+        // The old password is gone with the invite
+        $this->adminJson('POST', '/auth/login', null, ['email' => $legacy->email, 'password' => $this->adminPassword])->assertStatus(422);
     }
 }

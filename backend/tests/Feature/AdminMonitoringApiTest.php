@@ -229,7 +229,8 @@ class AdminMonitoringApiTest extends TestCase
     public function test_the_list_and_the_card_never_show_secrets_or_phone_numbers(): void
     {
         $uuid = $this->failedJob();
-        $token = $this->signIn($this->makeMember(PlatformRole::VIEWER));
+        // The whole card is for monitoring managers and pii.view holders (a read-only viewer: test_a_read_only_member_...)
+        $token = $this->signIn($this->makeMember(PlatformRole::OPERATOR));
 
         $list = $this->adminJson('GET', '/monitoring/failed-jobs', $token)->assertOk()->getContent();
         $card = $this->adminJson('GET', "/monitoring/failed-jobs/{$uuid}", $token)->assertOk();
@@ -266,7 +267,7 @@ class AdminMonitoringApiTest extends TestCase
             'payload' => json_encode(['displayName' => 'App\\Jobs\\Secretive', 'data' => ['command' => 'eyJpdiI6Imh1c2gifQ==']]),
             'exception' => 'RuntimeException: boom',
         ]);
-        $token = $this->signIn($this->makeMember(PlatformRole::VIEWER));
+        $token = $this->signIn($this->makeMember(PlatformRole::OPERATOR));
 
         $data = $this->adminJson('GET', "/monitoring/failed-jobs/{$uuid}", $token)->assertOk()->json('data');
 

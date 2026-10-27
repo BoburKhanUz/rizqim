@@ -28,6 +28,10 @@ return [
         'lockout_minutes' => 15,
         // Bad codes of one account from every address together (a guessed password tried from many IPs)
         'max_code_attempts_per_account' => 15,
+        // Bad passwords of one account from every address together; per-IP counters key IPv6 by /64
+        'max_password_attempts_per_account' => 15,
+        // Sign-in attempts on emails that are no team member go to the app log (not audit_logs), at most this many lines a minute
+        'unknown_email_log_per_minute' => 30,
     ],
 
     'invite' => [
@@ -39,5 +43,7 @@ return [
         // Accepted clock drift either side, in 30 s steps
         'window' => 1,
         'recovery_codes' => 10,
+        // 2FA can be set up only this long after an accepted invite or a 2FA reset (rizqim:admin:invite re-opens it)
+        'setup_window_hours' => 24,
     ],
 ];

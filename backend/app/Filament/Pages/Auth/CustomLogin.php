@@ -8,6 +8,8 @@ use Filament\Schemas\Components\Component;
 
 class CustomLogin extends BaseLogin
 {
+    public function authenticate(): ?\Filament\Auth\Http\Responses\Contracts\LoginResponse { return \App\Filament\Auth\PlatformAppAuthentication::guardPasswordSignIn(is_string($this->data['email'] ?? null) ? $this->data['email'] : null, fn () => parent::authenticate()); }
+
     protected function getEmailFormComponent(): Component
     {
         return TextInput::make('email')

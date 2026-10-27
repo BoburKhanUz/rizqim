@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Models\Order;
 use App\Services\Admin\AdminAudit;
+use App\Services\Admin\AdminPii;
 use App\Services\Admin\Orders\AdminOrderPresenter;
 use App\Services\Admin\Orders\AdminOrderQuery;
 use App\Services\Admin\Orders\OrderSlaSettings;
@@ -30,6 +31,7 @@ class AdminOrderController extends AdminController
         private readonly AdminOrderQuery $orders,
         private readonly AdminOrderPresenter $presenter,
         private readonly OrderSlaSettings $sla,
+        private readonly AdminPii $pii,
     ) {}
 
     /**
@@ -40,9 +42,11 @@ class AdminOrderController extends AdminController
      * assigned, on the way), `done` (delivered, refunded), `canceled` (canceled, rejected); `channel` (telegram,
      * mobile); `region_id` (the branch's region); `store_id`; `sla` — `late` or `warning` (the running
      * stage at 80–100% of its limit); `from` / `to` (dates in Asia/Tashkent, inclusive); `q` — the short code (with or
-     * without #), the start of the uuid, or 4+ digits of the customer's phone. `counts` has every group under the
-     * same filters (done and canceled count today only when no from/to is given). `sla` on each row: null when no
-     * stage runs (waiting for an online payment, ready, with a courier not yet on the way, finished).
+     * without #), the start of the uuid, or the customer's phone: 4+ of its digits with admin.pii.view, otherwise only
+     * the whole number (+998 and nine digits, or the nine digits). `counts` has every group under the same filters
+     * (done and canceled count today only when no from/to is given). `sla` on each row: null when no stage runs
+     * (waiting for an online payment, ready, with a courier not yet on the way, finished). `manual_refund_required`:
+     * a cancelled, rejected or refunded order with money still to give back (`refunds.refundable` > 0 on the card).
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{data: list<' . self::ROW . '>, next_cursor: string|null, per_page: int, counts: array{active: int, new: int, kitchen: int, en_route: int, done: int, canceled: int}, sla_limits: array{accept: int, prepare: int, deliver: int}, server_time: string}}')]
     public function index(Request $request): JsonResponse
@@ -61,8 +65,10 @@ class AdminOrderController extends AdminController
             'cursor' => 'nullable|string|max:500',
         ], UzValidation::messages());
         $limits = $this->sla->limits();
+        // A part of a phone only for those who may see phones; everyone else finds an order by the whole number
+        $phoneFragments = $this->pii->canReveal($this->member($request));
 
-        $query = $this->orders->filter($this->orders->base(), $filters, $limits);
+        $query = $this->orders->filter($this->orders->base(), $filters, $limits, true, $phoneFragments);
         $this->orders->withStageTimes($query);
         AdminOrderPresenter::withRefundPending($query);
 
@@ -76,10 +82,10 @@ class AdminOrderController extends AdminController
         $now = now();
 
         return $this->success([
-            'data' => collect($page->items())->map(fn (Order $order) => $this->presenter->row($order, $limits, $now))->values()->all(),
+            'data' => $this->presenter->rows($page->items(), $limits, $now),
             'next_cursor' => $page->nextCursor()?->encode(),
             'per_page' => $page->perPage(),
-            'counts' => $this->orders->counts($filters, $limits),
+            'counts' => $this->orders->counts($filters, $limits, $phoneFragments),
             'sla_limits' => $limits,
             'server_time' => $now->toIso8601String(),
         ]);

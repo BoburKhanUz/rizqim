@@ -106,7 +106,7 @@ class AdminAuditTest extends TestCase
         // A public address cannot pass itself off as another
         $this->withServerVariables(['REMOTE_ADDR' => '198.51.100.9'])
             ->withHeaders(['X-Forwarded-For' => '203.0.113.7'])
-            ->postJson('/api/v1/admin/auth/login', ['email' => 'nobody@rizqim.test', 'password' => 'wrong-password-1']);
+            ->postJson('/api/v1/admin/auth/login', ['email' => $operator->email, 'password' => 'wrong-password-1']);
         $this->assertSame('198.51.100.9', AuditLog::where('action', 'admin.auth.login_failed')->latest('id')->first()->ip);
     }
 

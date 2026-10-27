@@ -175,7 +175,10 @@ class AdminTeamTest extends TestCase
             ->assertForbidden()->assertJsonPath('code', 'superadmin_only');
         $this->adminJson('POST', '/team', $viewerToken, ['name' => 'Yulduz', 'email' => 'y@rizqim.test', 'platform_role' => 'superadmin'])
             ->assertForbidden()->assertJsonPath('code', 'superadmin_only');
-        $this->adminJson('POST', '/team', $viewerToken, ['name' => 'Yulduz', 'email' => 'y@rizqim.test', 'platform_role' => 'viewer'])->assertCreated();
+        // Viewers hold team.manage now, so a viewer invites only into roles without privileged permissions (review F1)
+        $this->adminJson('POST', '/team', $viewerToken, ['name' => 'Yulduz', 'email' => 'y@rizqim.test', 'platform_role' => 'viewer'])
+            ->assertForbidden()->assertJsonPath('code', 'superadmin_only');
+        $this->adminJson('POST', '/team', $viewerToken, ['name' => 'Yulduz', 'email' => 'y@rizqim.test', 'platform_role' => 'support'])->assertCreated();
 
         // Another superadmin (here a disabled one acting through the service) still cannot leave none
         try {

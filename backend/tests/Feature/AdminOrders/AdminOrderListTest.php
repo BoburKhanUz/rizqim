@@ -104,7 +104,18 @@ class AdminOrderListTest extends TestCase
 
         $this->assertSame([(string) $order->uuid], $list('#ord-abc'));
         $this->assertSame([(string) $other->uuid], $list(substr((string) $other->uuid, 0, 28)));
-        $this->assertSame([(string) $order->uuid], $list('5551122'));
+        // Without admin.pii.view a part of a phone finds nothing (no guessing a masked number digit by digit) ...
+        $this->assertSame([], $list('5551122'));
+        $this->assertSame([], $list('99893555112'));
+        $this->assertSame(0, $this->adminJson('GET', '/orders?q=5551122', $token)->json('data.counts.new'));
+        // ... the whole number does, however it is typed
+        $this->assertSame([(string) $order->uuid], $list('+998 93 555-11-22'));
+        $this->assertSame([(string) $order->uuid], $list('935551122'));
+
+        // With it, any 4+ digits, as before
+        $pii = $this->signIn($this->makeMember());
+        $this->assertSame([(string) $order->uuid], collect($this->adminJson('GET', '/orders?q=5551122', $pii)->assertOk()->json('data.data'))->pluck('uuid')->all());
+        $this->assertSame(1, $this->adminJson('GET', '/orders?q=5551122', $pii)->json('data.counts.new'));
     }
 
     public function test_from_and_to_are_tashkent_days(): void
@@ -206,10 +217,29 @@ class AdminOrderListTest extends TestCase
         $this->assertFalse($card['actions']['can_approve_refund']);
         $this->assertSame(0, AuditLog::where('action', 'admin.pii.revealed')->count());
 
+        // The card's store, courier and branch are the detailed ones (phones, address), not the list row's
+        $this->store->forceFill(['phone' => '+998712345566'])->save();
+        $this->branch->forceFill(['address' => 'Chilonzor 7'])->save();
+        $card = $this->adminJson('GET', '/orders/' . $order->uuid, $operator)->assertOk()->json('data');
+        $this->assertSame('+998 71 *** ** 66', $card['store']['phone']);
+        $this->assertSame((int) $this->courier->id, $card['courier']['id']);
+        $this->assertNotNull($card['courier']['phone']);
+        $this->assertStringContainsString('***', $card['courier']['phone']);
+        $this->assertSame('Chilonzor 7', $card['branch']['address']);
+        $this->assertSame(0, AuditLog::where('action', 'admin.pii.revealed')->count());
+
         $superadmin = $this->signIn($this->makeMember());
         $full = $this->adminJson('GET', '/orders/' . $order->uuid, $superadmin)->assertOk()->json('data');
         $this->assertSame('+998 93 555 66 77', $full['customer']['phone']);
+        $this->assertSame('+998 71 234 55 66', $full['store']['phone']);
+        $this->assertStringNotContainsString('***', $full['courier']['phone']);
+        // One entry for the request, naming exactly the phones the answer carries
         $this->assertSame(1, AuditLog::where('action', 'admin.pii.revealed')->count());
+        $revealed = AuditLog::where('action', 'admin.pii.revealed')->sole()->payload_json['revealed'];
+        $this->assertEqualsCanonicalizing(
+            [['type' => 'user', 'id' => (int) $this->customer->id, 'field' => 'phone'], ['type' => 'user', 'id' => (int) $this->courier->id, 'field' => 'phone'], ['type' => 'store', 'id' => (int) $this->store->id, 'field' => 'phone']],
+            $revealed,
+        );
 
         $viewer = $this->signIn($this->makeMember(PlatformRole::VIEWER));
         $card = $this->adminJson('GET', '/orders/' . $order->uuid, $viewer)->assertOk()->json('data');

@@ -1,7 +1,10 @@
 // @vitest-environment node
 import { NextRequest } from 'next/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { SESSION_COOKIE, forward } from './proxy';
+import { SECURE_SESSION_COOKIE_NAME, SESSION_COOKIE_NAME, forward, sessionCookieName } from './proxy';
+
+// Tests run with NODE_ENV=test: no Secure, so the bare name (the __Host- name is tested on its own below)
+const SESSION_COOKIE = SESSION_COOKIE_NAME;
 
 const reply = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', ...headers } });
@@ -46,7 +49,10 @@ function request(method: string, path: string, init: { body?: unknown; cookie?: 
   });
 }
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
+});
 
 describe('admin proxy', () => {
   it('puts the token of 2fa/verify into an httpOnly cookie and takes it out of the body', async () => {
@@ -128,6 +134,26 @@ describe('admin proxy', () => {
     const locked = await forward(request('POST', 'v1/admin/auth/login', { body: {} }), ['v1', 'admin', 'auth', 'login']);
     expect(locked.status).toBe(429);
     expect(locked.headers.get('Retry-After')).toBe('900');
+  });
+
+  it('over HTTPS names the cookie __Host-rz_admin: Secure, Path=/, no Domain; the bare name is neither read nor kept', async () => {
+    vi.stubEnv('SESSION_COOKIE_SECURE', 'true');
+    expect(sessionCookieName()).toBe('__Host-rz_admin');
+
+    stubBackend(() => reply({ success: true, data: { token: 'secret-token', expires_at: null } }));
+    const signedIn = await forward(request('POST', 'v1/admin/auth/2fa/verify', { body: {} }), ['v1', 'admin', 'auth', '2fa', 'verify']);
+    const cookie = signedIn.cookies.get(SECURE_SESSION_COOKIE_NAME);
+    expect(cookie).toMatchObject({ value: 'secret-token', secure: true, path: '/', httpOnly: true, sameSite: 'strict' });
+    expect(cookie?.domain).toBeUndefined();
+    expect(signedIn.cookies.get(SESSION_COOKIE_NAME)).toBeUndefined();
+    expect(signedIn.headers.get('set-cookie')).toMatch(/^__Host-rz_admin=secret-token; Path=\/;.*Secure/);
+
+    const calls = stubBackend(() => reply({ success: true, data: {} }));
+    await forward(request('GET', 'v1/admin/me', { headers: { Cookie: `${SECURE_SESSION_COOKIE_NAME}=host-tok` } }), ['v1', 'admin', 'me']);
+    // A cookie planted under the bare name (a sibling subdomain, plain HTTP) is ignored, and cleared
+    const planted = await forward(request('GET', 'v1/admin/me', { headers: { Cookie: `${SESSION_COOKIE_NAME}=planted` } }), ['v1', 'admin', 'me']);
+    expect(calls.map((call) => call.authorization)).toEqual(['Bearer host-tok', null]);
+    expect(planted.cookies.get(SESSION_COOKIE_NAME)?.value).toBe('');
   });
 
   it('answers 502 for an unreachable backend and never passes a gateway page on', async () => {

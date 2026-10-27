@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers\Api\V1\Admin;
 
+use App\Enums\AdminPermission;
 use App\Http\Requests\Admin\AdminRules;
 use App\Services\Admin\AdminAudit;
+use App\Services\Admin\AdminPermissionService;
 use App\Services\Admin\Monitoring\FailedJobs;
 use App\Support\UzValidation;
 use Dedoc\Scramble\Attributes\Group;
@@ -21,6 +23,7 @@ class AdminMonitoringFailedJobController extends AdminController
 {
     public function __construct(
         private readonly FailedJobs $failedJobs,
+        private readonly AdminPermissionService $permissions,
     ) {}
 
     /**
@@ -60,13 +63,15 @@ class AdminMonitoringFailedJobController extends AdminController
      *
      * The full exception text with the stack trace and the job's payload as plain data, both redacted: keys that hold
      * secrets (tokens, passwords, codes, keys, card data) show `[redacted]`, tokens and phone numbers inside text are
-     * masked. The job is read without running any of its code.
+     * masked. The job is read without running any of its code. The exception beyond its first line and the payload's
+     * data (the serialized job: texts, names, addresses) are returned only to members with `admin.monitoring.manage`
+     * or `admin.pii.view`; everyone else gets `details_hidden: true`, the job class, queue and the first line.
      */
-    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{id: int, uuid: string, job: string, job_class: string, queue: string, connection: string, exception_line: string, failed_at: string|null, attempts: int|null, max_tries: int|null, exception: string, payload: array<string, mixed>}}')]
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{id: int, uuid: string, job: string, job_class: string, queue: string, connection: string, exception_line: string, failed_at: string|null, attempts: int|null, max_tries: int|null, details_hidden: bool, exception: string, payload: array<string, mixed>}}')]
     #[ApiDocResponse(404, 'No such failed job', type: 'array{success: false, message: string, code: string, data: array{reason: string}}')]
-    public function show(string $uuid): JsonResponse
+    public function show(Request $request, string $uuid): JsonResponse
     {
-        $job = $this->failedJobs->show($uuid);
+        $job = $this->failedJobs->show($uuid, $this->mayReadDetails($request));
 
         return $job === null ? $this->notFound() : $this->success($job);
     }
@@ -130,6 +135,13 @@ class AdminMonitoringFailedJobController extends AdminController
             // The first line of the exception only (already redacted)
             'exception' => $job['exception_line'],
         ];
+    }
+
+    private function mayReadDetails(Request $request): bool
+    {
+        $member = $this->member($request);
+
+        return $this->permissions->has($member, AdminPermission::MONITORING_MANAGE) || $this->permissions->has($member, AdminPermission::PII_VIEW);
     }
 
     private function notFound(): JsonResponse

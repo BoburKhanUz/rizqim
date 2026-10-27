@@ -272,10 +272,10 @@ yopgani) va **Hammasi**; "Qoida turi" bilan bitta turni ajratish mumkin.
 |---|---|
 | Yiqilgan vazifalar ko'payishi | "Yiqilgan vazifalar" bo'limida bir xil xatoni toping (ko'pincha Telegram yoki fiskal xizmat javob bermayapti). Sabab tuzalgach "Qayta urinish" |
 | Navbat to'planishi | Ishchi to'xtagan yoki sekin. Texnik jamoaga: `docker compose ps`, `docker compose logs queue` |
-| Ish vaqtida oflayn kassa | Ovqatxonaga qo'ng'iroq qiling: internet, quvvat, ilova ochiqmi. Ovqatxonaning ismi va kassa nomi ogohlantirishda yozilgan |
+| Ish vaqtida oflayn kassa | Ovqatxonaga qo'ng'iroq qiling: internet, quvvat, ilova ochiqmi. Ovqatxonaning ismi va kassa nomi ogohlantirishda yozilgan. Kun bo'yi ochiq ovqatxonada yarim tundan keyin ham ogohlantirish o'zi yopilmaydi. Juda ko'p kassa uzilsa (100 dan ortiq) har biriga alohida emas, "N ta kassa aloqada emas" degan bitta umumiy ogohlantirish chiqadi |
 | Fiskal cheklar yiqilishi | Ovqatxona soliq sozlamalari (MXIK, STIR) yoki soliq xizmati. Ovqatxona kartasidan tekshiring |
 | Hisob-kitob xatolari | Yetkazilgan buyurtma puli hisobga yozilmadi. Tizim o'zi qayta urinadi; to'xtab qolsa texnik jamoaga `php artisan orders:retry-settlements` kerak |
-| Zaxira nusxa eskirgan | Zaxira xizmatini tekshiring; kerak bo'lsa darhol qo'lda oling (`docs/OPERATIONS.md`, 4-bo'lim) |
+| Zaxira nusxa eskirgan | Zaxira xizmatini tekshiring (`docker compose logs backup`); tashqi nusxa (S3) xato bersa ham shu ogohlantirish chiqadi. Kerak bo'lsa darhol qo'lda oling (`docs/OPERATIONS.md`, 4-bo'lim) |
 | Scheduler to'xtagan | Texnik jamoaga darhol: `docker compose up -d scheduler` |
 
 ### Yiqilgan vazifalar
@@ -283,6 +283,9 @@ yopgani) va **Hammasi**; "Qoida turi" bilan bitta turni ajratish mumkin.
 Fon vazifalari (Telegram xabari, hisobot, fiskal yuborish...) xato bilan to'xtagan bo'lsa, shu yerda ko'rinadi: vazifa nomi,
 navbat, qachon yiqilgani va xatoning birinchi qatori. Qatorni bossangiz **to'liq xato matni** va **vazifa ma'lumotlari** ochiladi.
 Parollar, tokenlar, kodlar va telefon raqamlari yashirilgan (`[redacted]`, `[Filtered]`): ularni bu yerda hech kim ko'rmaydi.
+Vazifa ma'lumotlari (masalan Telegram xabarining matni, mijoz ismi va manzili) va xatoning to'liq matni faqat **Monitoring:
+fon vazifalari va ogohlantirishlar** ruxsati yoki **to'liq telefon raqamlarini ko'rish** ruxsati borlarga ochiladi. "Faqat
+ko'rish" roli vazifa nomini, navbatini, vaqtini va xatoning birinchi qatorini ko'radi, qolgani yashirin deb yoziladi.
 
 - **Qayta urinish** — sababi tuzalgan bo'lsa. Vazifa navbatga qaytadi va ro'yxatdan chiqadi; yana yiqilsa qaytib keladi.
 - **O'chirish** — vazifa kerak emas (masalan, o'chirilgan chatga xabar). Bu amal 2FA kodini va **sababni** so'raydi,

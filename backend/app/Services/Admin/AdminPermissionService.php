@@ -20,6 +20,20 @@ class AdminPermissionService
     private const CACHE_TTL = 600;
 
     /**
+     * Review F1: what makes a role's holder able to widen access or move money on their own (manage the team, see
+     * personal data in full, change the system, approve refunds or payouts). Only a superadmin gives a member a role
+     * carrying any of these, or changes such a member (PlatformTeamService), and only a superadmin edits the role
+     * matrix at all (AdminRoleController).
+     */
+    public const PRIVILEGED = [
+        AdminPermission::TEAM_MANAGE,
+        AdminPermission::PII_VIEW,
+        AdminPermission::SYSTEM_MANAGE,
+        AdminPermission::ORDERS_REFUND_APPROVE,
+        AdminPermission::PAYOUTS_APPROVE,
+    ];
+
+    /**
      * @return list<AdminPermission> in AdminPermission::cases() order
      */
     public function permissionsFor(User $user): array
@@ -48,6 +62,16 @@ class AdminPermissionService
             AdminPermission::cases(),
             fn (AdminPermission $permission) => in_array($permission->value, $granted, true),
         ));
+    }
+
+    /**
+     * The PRIVILEGED permissions the role holds now (with the overrides).
+     *
+     * @return list<AdminPermission>
+     */
+    public function privilegedOf(PlatformRole $role): array
+    {
+        return array_values(array_filter($this->forRole($role), fn (AdminPermission $permission) => in_array($permission, self::PRIVILEGED, true)));
     }
 
     public function has(User $user, AdminPermission $permission): bool

@@ -11,7 +11,8 @@ use Illuminate\Support\Facades\Validator;
 
 /**
  * P4-11: the first superadmin of the Boshqaruv markazi (docs/OPERATIONS.md): creates the member and prints a one-time
- * invite link (72 hours). Opening it, they set a password and the 2FA. Audited.
+ * invite link (72 hours). Opening it, they set a password and the 2FA. Audited. An existing member gets a new link from
+ * `rizqim:admin:invite` instead.
  */
 class CreatePlatformAdminCommand extends Command
 {
@@ -43,7 +44,7 @@ class CreatePlatformAdminCommand extends Command
         try {
             $result = $team->invite($name, $email, $role, null);
         } catch (AdminAuthException $e) {
-            $this->error($e->getMessage() . ' Mavjud superadmin keyingi kirishda 2FA o\'rnatadi; parol unutilgan bo\'lsa, hisobni boshqa superadmin qayta taklif qiladi.');
+            $this->error($e->getMessage() . ' Mavjud a\'zoga (2FA siz eski superadmin, unutilgan parol) yangi havola: php artisan rizqim:admin:invite ' . $email);
 
             return self::FAILURE;
         }

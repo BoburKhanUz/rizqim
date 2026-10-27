@@ -16,6 +16,7 @@ use App\Models\Payment;
 use App\Models\User;
 use App\Services\Admin\AdminPermissionService;
 use App\Services\Admin\AdminPii;
+use App\Support\Money;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -55,6 +56,34 @@ class AdminOrderPresenter
         }
 
         return $query->selectRaw("exists(select 1 from order_refund_requests r where r.order_id = orders.id and r.status = 'pending') as refund_pending");
+    }
+
+    /** @var array<int, list<OrderRefundRequest>> approved refund requests by order id, read once per list page */
+    private array $approved = [];
+
+    /**
+     * The list rows of a page: the approved refund requests of its finished orders are read in one query.
+     *
+     * @param  iterable<Order>  $orders
+     * @param  array{accept: int, prepare: int, deliver: int}  $limits
+     * @return list<array<string, mixed>>
+     */
+    public function rows(iterable $orders, array $limits, ?CarbonInterface $now = null): array
+    {
+        $orders = collect($orders)->values();
+        $ids = $orders->filter(fn (Order $order) => self::mayOweRefund($order))->map(fn (Order $order) => (int) $order->id)->values()->all();
+        $this->approved = array_fill_keys($ids, []);
+        if ($ids !== []) {
+            foreach (RefundRequestService::approvedRequests($ids)->get() as $request) {
+                $this->approved[(int) $request->order_id][] = $request;
+            }
+        }
+
+        try {
+            return $orders->map(fn (Order $order) => $this->row($order, $limits, $now))->all();
+        } finally {
+            $this->approved = [];
+        }
     }
 
     /**
@@ -106,27 +135,34 @@ class AdminOrderPresenter
             'user:id,name,phone,telegram_id',
             'courier:id,name,phone',
             'items',
-            'payments',
             'statusHistories.user:id,name,role,platform_role',
         ]);
+        $order->load('payments'); // fresh: the money part must not come from a relation read before a change
         $now = now();
         $histories = $order->statusHistories->sortBy([['created_at', 'asc'], ['id', 'asc']])->values();
         $acceptedAt = $histories->first(fn (OrderStatusHistory $row) => $row->status->value === 'accepted')?->created_at;
         $enRouteAt = $histories->first(fn (OrderStatusHistory $row) => in_array($row->status->value, ['on_the_way', 'delivery'], true))?->created_at;
 
-        $balance = $this->refunds->balance($order);
         $requests = OrderRefundRequest::query()
             ->where('order_id', $order->id)
             ->with(['requester:id,name', 'decider:id,name'])
             ->orderByDesc('id')
             ->get();
+        $approved = $requests->filter(fn (OrderRefundRequest $request) => $request->status === OrderRefundRequest::APPROVED)->sortBy('id')->values()->all();
+        $balance = RefundRequestService::balanceOf($order->payments, $approved);
         $can = fn (AdminPermission $permission) => $this->permissions->has($viewer, $permission);
 
-        $base = $this->row($order, $limits, $now);
+        $this->approved = [(int) $order->id => $approved];
+        try {
+            $base = $this->row($order, $limits, $now);
+        } finally {
+            $this->approved = [];
+        }
         $base['sla'] = $this->sla->current($order, $acceptedAt, $enRouteAt, $limits, $now);
         $base['refund_pending'] = $requests->contains(fn (OrderRefundRequest $request) => $request->isPending());
 
-        return $base + [
+        // The card's own store, courier and branch (with phones and the address) replace the row's short ones
+        return array_replace($base, [
             'notes' => $order->notes,
             'delivery_address' => $order->order_type->value === 'delivery' ? $order->delivery_address : null,
             'customer' => $order->user ? [
@@ -181,7 +217,9 @@ class AdminOrderPresenter
                 'amount' => $payment->amount,
                 'status' => $payment->status->value,
                 'paid_at' => $payment->paid_at?->toIso8601String(),
-                'manual_refund_required' => !empty($payment->payload['manual_refund_required']) && $payment->status === PaymentStatus::PAID,
+                // Flagged and not all of it approved for a manual refund yet
+                'manual_refund_required' => !empty($payment->payload['manual_refund_required']) && $payment->status === PaymentStatus::PAID
+                    && Money::of($payment->amount)->isGreaterThan($balance['allocated'][(int) $payment->id] ?? Money::zero()),
                 'manual_refund_approved' => array_values(array_map(fn (array $row) => [
                     'refund_request_id' => (int) ($row['refund_request_id'] ?? 0),
                     'amount' => (string) ($row['amount'] ?? '0.00'),
@@ -238,7 +276,7 @@ class AdminOrderPresenter
                     && $balance['refundable']->isPositive() && !$base['refund_pending'],
                 'can_approve_refund' => $can(AdminPermission::ORDERS_REFUND_APPROVE),
             ],
-        ];
+        ]);
     }
 
     /**
@@ -283,15 +321,24 @@ class AdminOrderPresenter
         ];
     }
 
+    /**
+     * A cancelled, rejected or refunded order with money still to give back (RefundRequestService::balanceOf:
+     * refundable > 0), whatever was approved of it before.
+     */
     public function manualRefundRequired(Order $order): bool
     {
-        if (!$order->status->isCancellation() && $order->status->value !== 'refunded') {
+        if (!self::mayOweRefund($order)) {
             return false;
         }
 
-        return $order->payments->contains(fn (Payment $payment) => $payment->status === PaymentStatus::PAID
-            && !empty($payment->payload['manual_refund_required'])
-            && empty($payment->payload['manual_refund_approved']));
+        $approved = $this->approved[(int) $order->id] ?? RefundRequestService::approvedRequests([(int) $order->id])->get()->all();
+
+        return RefundRequestService::balanceOf($order->payments, $approved)['refundable']->isPositive();
+    }
+
+    private static function mayOweRefund(Order $order): bool
+    {
+        return $order->status->isCancellation() || $order->status->value === 'refunded';
     }
 
     /**

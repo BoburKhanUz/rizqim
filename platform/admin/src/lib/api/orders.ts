@@ -95,7 +95,7 @@ export interface Actor {
 }
 
 export interface RefundExecution {
-  mode: 'order_refunded' | 'manual';
+  mode: 'order_refunded' | 'manual' | 'balance';
   order_status_before: string;
   order_status_after: string;
   payment_method: string;

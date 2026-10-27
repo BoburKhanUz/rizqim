@@ -13,8 +13,11 @@ use Carbon\CarbonImmutable;
  *   a subscription invoice to the day it was paid (`paid_at`).
  * - Marketplace orders: channels `telegram` and `mobile` (the RIZQIM bot, Mini App and app). POS sales (`pos_hall`,
  *   `pos_takeaway`) and outside aggregators are kept per channel for the channel split, never in GMV.
- * - Counted order: not soft-deleted and not `canceled`, `rejected` or `refunded`. Orders still in progress count;
- *   one cancelled or refunded later drops out at the next refresh (the job recomputes the recent days).
+ * - Counted order: not soft-deleted, not `canceled`, `rejected` or `refunded`, and not an online order still waiting
+ *   for its payment (status `new`, payment method one of orders.online_payment_methods, payment status not `paid`:
+ *   the customer has not paid and the store has not seen it; CancelUnpaidOnlineOrdersJob cancels it after its TTL).
+ *   Orders in progress count; one paid, cancelled or refunded later moves in or out at the next refresh (the job
+ *   recomputes the recent days; a finished hour is the last refresh's snapshot, so at most 5 minutes late).
  * - GMV: the counted orders' `total_price` (what the customer pays: food after discount + delivery + service
  *   charge and place fee). Commission: the same orders' `commission_amount`, the snapshot taken at checkout that the
  *   ledger books on delivery; so it is the commission these orders bring, not yet the money booked (the monthly
@@ -52,6 +55,20 @@ final class PlatformStats
     public static function uncountedStatuses(): array
     {
         return [OrderStatus::CANCELED->value, OrderStatus::REJECTED->value, OrderStatus::REFUNDED->value];
+    }
+
+    /**
+     * Online payment methods (orders.online_payment_methods) whose `new` unpaid orders are not counted yet; only plain
+     * method names, so they can stand in SQL as literals.
+     *
+     * @return list<string>
+     */
+    public static function onlineMethods(): array
+    {
+        return array_values(array_filter(
+            array_map('strval', (array) config('orders.online_payment_methods', [])),
+            fn (string $method) => preg_match('/^[a-z0-9_]+$/', $method) === 1,
+        ));
     }
 
     /**

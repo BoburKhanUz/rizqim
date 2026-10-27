@@ -383,8 +383,15 @@ Do'kon panelida "Xodimlar va ruxsatlar" bo'limi:
 Hammasi joriy do'kon (tenant) bilan cheklangan, filial menejeri — o'z filiali bilan.
 
 P4-11: `/superadmin` panel Boshqaruv markazi bilan **bir xil 2FA** ni talab qiladi (o'sha TOTP kaliti, zaxira
-kodlari, qayta ishlatishni taqiqlash). 2FA siz superadmin avval uni o'rnatadi. `/admin` panel sessiyasi umumiy,
-shuning uchun superadmin u yerga ham faqat 2FA bilan kiradi; egalar va menejerlar avvalgidek kiradi.
+kodlari, qayta ishlatishni taqiqlash). `/admin` panel sessiyasi umumiy, shuning uchun superadmin u yerga ham faqat 2FA
+bilan kiradi; egalar va menejerlar avvalgidek kiradi.
+
+Xavfsizlik tekshiruvidan keyin (P4 review): panelning parol bosqichi va 2FA kodlari markaz bilan **bitta bloklash
+hisoblagichida** (`App\Services\Admin\AdminLoginLockout`: hisob + manzil (IPv6 da `/64`) bo'yicha 5 ta, hisob bo'yicha
+barcha manzillardan jami 15 ta noto'g'ri urinish — 15 daqiqa). Paneldagi har bir 2FA tekshiruvi jurnalga yoziladi
+(`admin.auth.2fa_failed` / `admin.auth.2fa_succeeded`, `channel: filament`). 2FA siz superadmin uni panelda ham faqat
+24 soatlik o'rnatish oynasi ichida (taklifni qabul qilgach yoki 2FA tiklangach) o'rnatadi; oynadan tashqarida panel
+`php artisan rizqim:admin:invite <email>` yo'rig'ini ko'rsatadi ([OPERATIONS.md](OPERATIONS.md), 10-bo'lim).
 
 ## 9. Sozlamalar (.env)
 

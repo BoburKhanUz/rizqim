@@ -4,6 +4,7 @@ namespace App\Services\Admin\Orders;
 
 use App\Events\Broadcast\OpsOrderUpdated;
 use App\Models\Order;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -11,7 +12,8 @@ use Illuminate\Support\Facades\DB;
  * P4-14: every minute (WatchOrderSlaJob) finds the marketplace orders whose running SLA stage is at warning or late and
  * records each crossing once (order_sla_events, unique per order, stage and state); a new crossing is broadcast as
  * ops.order.updated (change `sla`). An order that went from ok straight to late between two runs gets its warning row
- * too, but only the late one is broadcast. Bounded per run; the rest follows on the next run.
+ * too, but only the late one is broadcast. Bounded per run; the rest follows on the next run. Only orders with a
+ * crossing still to record are read, so orders waiting in a band already recorded never starve new crossings.
  */
 class OrderSlaWatcher
 {
@@ -23,23 +25,32 @@ class OrderSlaWatcher
         private readonly OrderSlaSettings $settings,
     ) {}
 
+    /** The running stage of an order row, as OrderSla::runningStage names it (only rows whereSla matched). */
+    private const STAGE = "case when orders.status = 'new' then 'accept' when orders.status in ('accepted', 'preparing') then 'prepare' else 'deliver' end";
+
     /**
+     * @param  int|null  $batch  at most this many orders (BATCH)
      * @return int the transitions broadcast
      */
-    public function run(): int
+    public function run(?int $batch = null): int
     {
         $limits = $this->settings->limits();
         $now = now();
 
-        $query = $this->orders->withStageTimes(
-            $this->orders->whereSla($this->orders->base(), 'attention', $limits, $now)
-        );
-        // A stage already recorded late has nothing left to cross (the inserts below decide the rest)
-        $query->whereNotExists(fn ($events) => $events->selectRaw('1')->from('order_sla_events as e')
+        // Only rows with a crossing still to record: late without its late row, or in the warning band without its
+        // warning row. A stage already recorded for the band it is in has nothing to cross, so however many orders
+        // wait there, they never fill the batch and push a new crossing out to a later run.
+        $notRecorded = fn (string $state) => fn (Builder $query) => $query->whereNotExists(fn ($events) => $events->selectRaw('1')
+            ->from('order_sla_events as e')
             ->whereColumn('e.order_id', 'orders.id')
-            ->where('e.state', OrderSla::LATE)
-            ->whereRaw("e.stage = case when orders.status = 'new' then 'accept' when orders.status in ('accepted', 'preparing') then 'prepare' else 'deliver' end"));
-        $rows = $query->orderBy('orders.id')->limit(self::BATCH)->get();
+            ->where('e.state', $state)
+            ->whereRaw('e.stage = ' . self::STAGE));
+
+        $query = $this->orders->withStageTimes($this->orders->base()->where(function (Builder $query) use ($limits, $now, $notRecorded) {
+            $query->where(fn (Builder $query) => $notRecorded(OrderSla::LATE)($this->orders->whereSla($query, OrderSla::LATE, $limits, $now)))
+                ->orWhere(fn (Builder $query) => $notRecorded(OrderSla::WARNING)($this->orders->whereSla($query, OrderSla::WARNING, $limits, $now)));
+        }));
+        $rows = $query->orderBy('orders.id')->limit($batch ?? self::BATCH)->get();
 
         $broadcast = 0;
         foreach ($rows as $order) {

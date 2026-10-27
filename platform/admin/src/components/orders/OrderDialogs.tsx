@@ -16,7 +16,7 @@ import {
 } from '@/lib/api/orders';
 import { errorText, fieldError } from '@/lib/errors';
 import { useT } from '../I18nProvider';
-import { money, parseAmountInput } from './ordersModel';
+import { exactMoney, parseAmountInput } from './ordersModel';
 
 // The action dialogs of Buyurtmalar. Each asks for a reason (3–500 characters, it goes into the audit log); the step-up
 // (a fresh 2FA code) is asked by the shell when the backend wants it. Money dialogs send one Idempotency-Key per dialog.
@@ -178,11 +178,11 @@ export function RefundRequestDialog({ order, onDone, onClose }: { order: OrderCa
   const [amount, setAmount] = useState(String(Number(order.refunds.refundable)));
   const parsed = parseAmountInput(amount);
   const tooMuch = parsed !== null && Number(parsed) > Number(order.refunds.refundable);
-  const amountError = amount !== '' && (parsed === null || tooMuch) ? t('orders_refundAmountInvalid', { amount: money(order.refunds.refundable) }) : fieldError(request.error, 'amount');
+  const amountError = amount !== '' && (parsed === null || tooMuch) ? t('orders_refundAmountInvalid', { amount: exactMoney(order.refunds.refundable) }) : fieldError(request.error, 'amount');
   return (
     <ReasonForm
       title={t('orders_refundTitle')}
-      text={t('orders_refundText', { amount: money(order.refunds.refundable) })}
+      text={t('orders_refundText', { amount: exactMoney(order.refunds.refundable) })}
       submitLabel={t('orders_refundSend')}
       busy={request.isPending}
       error={request.error ? errorText(request.error, t) : null}
@@ -214,7 +214,7 @@ export function DecideRefundDialog({
   const t = useT();
   const decide = useDecideRefund();
   const [key] = useState(idempotencyKey);
-  const amount = money(request.amount);
+  const amount = exactMoney(request.amount);
   return (
     <ReasonForm
       title={decision === 'approve' ? t('orders_approveTitle') : t('orders_rejectTitle')}
