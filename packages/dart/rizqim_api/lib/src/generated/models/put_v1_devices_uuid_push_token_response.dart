@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data34.dart';
+import 'data13.dart';
 
 part 'put_v1_devices_uuid_push_token_response.g.dart';
 
@@ -22,7 +22,7 @@ class PutV1DevicesUuidPushTokenResponse {
 
   final bool success;
   final String message;
-  final Data34 data;
+  final Data13 data;
 
   Map<String, Object?> toJson() =>
       _$PutV1DevicesUuidPushTokenResponseToJson(this);

@@ -12,7 +12,7 @@ GetV1OwnerBranchesResponse _$GetV1OwnerBranchesResponseFromJson(
   success: json['success'] as bool,
   message: json['message'] as String,
   data: (json['data'] as List<dynamic>)
-      .map((e) => Data57.fromJson(e as Map<String, dynamic>))
+      .map((e) => Data36.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 

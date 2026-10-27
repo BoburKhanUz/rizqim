@@ -4,32 +4,47 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'rooms.dart';
-import 'unassigned.dart';
-
 part 'data144.g.dart';
 
 @JsonSerializable()
 class Data144 {
   const Data144({
+    required this.uuid,
+    required this.name,
+    required this.phone,
+    required this.groupName,
     required this.branchId,
-    required this.from,
-    required this.to,
-    required this.timezone,
-    required this.rooms,
-    required this.unassigned,
+    required this.creditLimit,
+    required this.balance,
+    required this.availableCredit,
+    required this.isBlocked,
+    required this.note,
+    required this.createdAt,
+    required this.updatedAt,
   });
 
   factory Data144.fromJson(Map<String, Object?> json) =>
       _$Data144FromJson(json);
 
+  final String uuid;
+  final String name;
+  final String? phone;
+  @JsonKey(name: 'group_name')
+  final String? groupName;
   @JsonKey(name: 'branch_id')
-  final int branchId;
-  final String from;
-  final String to;
-  final String timezone;
-  final List<Rooms> rooms;
-  final List<Unassigned> unassigned;
+  final int? branchId;
+  @JsonKey(name: 'credit_limit')
+  final String? creditLimit;
+  final String balance;
+  @JsonKey(name: 'available_credit')
+  final String? availableCredit;
+  @JsonKey(name: 'is_blocked')
+  final bool isBlocked;
+  final String? note;
+  @JsonKey(name: 'created_at')
+  final String? createdAt;
+  @JsonKey(name: 'updated_at')
+  final String? updatedAt;
 
   Map<String, Object?> toJson() => _$Data144ToJson(this);
 }

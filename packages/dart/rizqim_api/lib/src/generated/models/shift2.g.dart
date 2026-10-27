@@ -12,7 +12,7 @@ Shift2 _$Shift2FromJson(Map<String, dynamic> json) => Shift2(
   branchId: (json['branch_id'] as num).toInt(),
   device: json['device'] == null
       ? null
-      : Device14.fromJson(json['device'] as Map<String, dynamic>),
+      : Device13.fromJson(json['device'] as Map<String, dynamic>),
   businessDate: json['business_date'] as String,
   openedAt: json['opened_at'] as String,
   openedBy: json['opened_by'] == null

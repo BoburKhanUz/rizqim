@@ -4,25 +4,57 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'items.dart';
-import 'pagination.dart';
+import 'branch4.dart';
+import 'polygon2.dart';
+import 'bbox2.dart';
 
 part 'data43.g.dart';
 
 @JsonSerializable()
 class Data43 {
   const Data43({
-    required this.items,
-    required this.unreadCount,
-    required this.pagination,
+    required this.id,
+    required this.name,
+    required this.branchId,
+    required this.branch,
+    required this.polygon,
+    required this.bbox,
+    required this.areaKm2,
+    required this.deliveryPrice,
+    required this.minOrderAmount,
+    required this.freeDeliveryFrom,
+    required this.etaMinutes,
+    required this.priority,
+    required this.active,
+    required this.createdAt,
+    required this.updatedAt,
   });
 
   factory Data43.fromJson(Map<String, Object?> json) => _$Data43FromJson(json);
 
-  final List<Items> items;
-  @JsonKey(name: 'unread_count')
-  final int unreadCount;
-  final Pagination pagination;
+  final int id;
+  final String name;
+  @JsonKey(name: 'branch_id')
+  final int? branchId;
+  final Branch4? branch;
+  final Polygon2 polygon;
+  final Bbox2 bbox;
+  @JsonKey(name: 'area_km2')
+  final String areaKm2;
+  @JsonKey(name: 'delivery_price')
+  final String deliveryPrice;
+  @JsonKey(name: 'min_order_amount')
+  final String minOrderAmount;
+  @JsonKey(name: 'free_delivery_from')
+  final String? freeDeliveryFrom;
+  @JsonKey(name: 'eta_minutes')
+  final int? etaMinutes;
+  final int priority;
+  final bool active;
+  @JsonKey(name: 'created_at')
+  final String? createdAt;
+  @JsonKey(name: 'updated_at')
+  final String? updatedAt;
 
   Map<String, Object?> toJson() => _$Data43ToJson(this);
 }

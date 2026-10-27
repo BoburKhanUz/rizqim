@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'device14.dart';
+import 'device13.dart';
 import 'opened_by3.dart';
 import 'closed_by3.dart';
 
@@ -38,7 +38,7 @@ class Shift2 {
   final String status;
   @JsonKey(name: 'branch_id')
   final int branchId;
-  final Device14? device;
+  final Device13? device;
   @JsonKey(name: 'business_date')
   final String businessDate;
   @JsonKey(name: 'opened_at')

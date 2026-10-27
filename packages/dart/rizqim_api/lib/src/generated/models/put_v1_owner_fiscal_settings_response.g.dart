@@ -11,7 +11,7 @@ PutV1OwnerFiscalSettingsResponse _$PutV1OwnerFiscalSettingsResponseFromJson(
 ) => PutV1OwnerFiscalSettingsResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data90.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data69.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PutV1OwnerFiscalSettingsResponseToJson(

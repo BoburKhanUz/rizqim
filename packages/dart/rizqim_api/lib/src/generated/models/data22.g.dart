@@ -7,27 +7,15 @@ part of 'data22.dart';
 // **************************************************************************
 
 Data22 _$Data22FromJson(Map<String, dynamic> json) => Data22(
-  token: json['token'] as String,
-  user: User.fromJson(json['user'] as Map<String, dynamic>),
-  store: json['store'] == null
-      ? null
-      : Store.fromJson(json['store'] as Map<String, dynamic>),
-  smsVerificationRequired: json['sms_verification_required'] as bool,
-  isNewUser: json['is_new_user'] as bool,
-  tokenExpiresAt: json['token_expires_at'] as String,
-  refreshToken: json['refresh_token'] as String,
-  refreshTokenExpiresAt: json['refresh_token_expires_at'] as String,
-  device: Device2.fromJson(json['device'] as Map<String, dynamic>),
+  items: (json['items'] as List<dynamic>)
+      .map((e) => Items.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  unreadCount: (json['unread_count'] as num).toInt(),
+  pagination: Pagination.fromJson(json['pagination'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data22ToJson(Data22 instance) => <String, dynamic>{
-  'token': instance.token,
-  'user': instance.user,
-  'store': instance.store,
-  'sms_verification_required': instance.smsVerificationRequired,
-  'is_new_user': instance.isNewUser,
-  'token_expires_at': instance.tokenExpiresAt,
-  'refresh_token': instance.refreshToken,
-  'refresh_token_expires_at': instance.refreshTokenExpiresAt,
-  'device': instance.device,
+  'items': instance.items,
+  'unread_count': instance.unreadCount,
+  'pagination': instance.pagination,
 };

@@ -4,51 +4,44 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'modifiers2.dart';
-import 'product_rules2.dart';
-
 part 'data103.g.dart';
 
 @JsonSerializable()
 class Data103 {
   const Data103({
     required this.id,
-    required this.uuid,
-    required this.name,
-    required this.nameI18n,
-    required this.minSelect,
-    required this.maxSelect,
-    required this.isRequired,
-    required this.sortOrder,
-    required this.isActive,
-    required this.modifiers,
-    required this.productIds,
-    required this.productRules,
+    required this.branchId,
+    required this.diningTableId,
+    required this.diningTableName,
+    required this.hallId,
+    required this.tableKind,
+    required this.dayType,
+    required this.price,
+    required this.validFrom,
+    required this.validTo,
   });
 
   factory Data103.fromJson(Map<String, Object?> json) =>
       _$Data103FromJson(json);
 
   final int id;
-  final String uuid;
-  final String name;
-  @JsonKey(name: 'name_i18n')
-  final Map<String, String>? nameI18n;
-  @JsonKey(name: 'min_select')
-  final int minSelect;
-  @JsonKey(name: 'max_select')
-  final int? maxSelect;
-  @JsonKey(name: 'is_required')
-  final bool isRequired;
-  @JsonKey(name: 'sort_order')
-  final int sortOrder;
-  @JsonKey(name: 'is_active')
-  final bool isActive;
-  final List<Modifiers2> modifiers;
-  @JsonKey(name: 'product_ids')
-  final List<int> productIds;
-  @JsonKey(name: 'product_rules')
-  final ProductRules2 productRules;
+  @JsonKey(name: 'branch_id')
+  final int branchId;
+  @JsonKey(name: 'dining_table_id')
+  final int? diningTableId;
+  @JsonKey(name: 'dining_table_name')
+  final String? diningTableName;
+  @JsonKey(name: 'hall_id')
+  final int? hallId;
+  @JsonKey(name: 'table_kind')
+  final String? tableKind;
+  @JsonKey(name: 'day_type')
+  final String dayType;
+  final String price;
+  @JsonKey(name: 'valid_from')
+  final String? validFrom;
+  @JsonKey(name: 'valid_to')
+  final String? validTo;
 
   Map<String, Object?> toJson() => _$Data103ToJson(this);
 }

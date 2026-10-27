@@ -7,11 +7,21 @@ part of 'data77.dart';
 // **************************************************************************
 
 Data77 _$Data77FromJson(Map<String, dynamic> json) => Data77(
-  employee: User.fromJson(json['employee'] as Map<String, dynamic>),
-  inviteLink: json['invite_link'] as String,
+  id: (json['id'] as num).toInt(),
+  branchId: (json['branch_id'] as num).toInt(),
+  stationId: (json['station_id'] as num).toInt(),
+  categoryId: (json['category_id'] as num?)?.toInt(),
+  categoryName: json['category_name'] as String?,
+  productId: (json['product_id'] as num?)?.toInt(),
+  productName: json['product_name'] as String?,
 );
 
 Map<String, dynamic> _$Data77ToJson(Data77 instance) => <String, dynamic>{
-  'employee': instance.employee,
-  'invite_link': instance.inviteLink,
+  'id': instance.id,
+  'branch_id': instance.branchId,
+  'station_id': instance.stationId,
+  'category_id': instance.categoryId,
+  'category_name': instance.categoryName,
+  'product_id': instance.productId,
+  'product_name': instance.productName,
 };

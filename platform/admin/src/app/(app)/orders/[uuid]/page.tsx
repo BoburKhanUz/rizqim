@@ -1,9 +1,10 @@
 import type { Metadata } from 'next';
-import { Placeholder } from '@/components/Placeholder';
+import { OrderCardView } from '@/components/orders/OrderCardView';
 
 export const metadata: Metadata = { title: 'Buyurtma' };
 
-// Stage B and later waves replace the placeholder with the real screen (docs/PHASE4_PLAN.md, section 9).
-export default function Page() {
-  return <Placeholder title="nav_orders" />;
+// P4-14: one marketplace order: history, SLA, money, interventions
+export default async function Page({ params }: { params: Promise<{ uuid: string }> }) {
+  const { uuid } = await params;
+  return <OrderCardView uuid={decodeURIComponent(uuid)} />;
 }

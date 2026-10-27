@@ -4,26 +4,26 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'booking4.dart';
-import 'payment3.dart';
-import 'fiscal7.dart';
+import 'order8.dart';
+import 'bills.dart';
+import 'refunds.dart';
 
 part 'data154.g.dart';
 
 @JsonSerializable()
 class Data154 {
   const Data154({
-    required this.booking,
-    required this.payment,
-    required this.fiscal,
+    required this.order,
+    required this.bills,
+    required this.refunds,
   });
 
   factory Data154.fromJson(Map<String, Object?> json) =>
       _$Data154FromJson(json);
 
-  final Booking4 booking;
-  final Payment3 payment;
-  final Fiscal7 fiscal;
+  final Order8 order;
+  final List<Bills> bills;
+  final List<Refunds> refunds;
 
   Map<String, Object?> toJson() => _$Data154ToJson(this);
 }

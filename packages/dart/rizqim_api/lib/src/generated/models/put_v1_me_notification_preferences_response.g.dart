@@ -11,7 +11,7 @@ _$PutV1MeNotificationPreferencesResponseFromJson(Map<String, dynamic> json) =>
     PutV1MeNotificationPreferencesResponse(
       success: json['success'] as bool,
       message: json['message'] as String,
-      data: Data41.fromJson(json['data'] as Map<String, dynamic>),
+      data: Data20.fromJson(json['data'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$PutV1MeNotificationPreferencesResponseToJson(

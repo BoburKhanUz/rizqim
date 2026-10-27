@@ -7,23 +7,39 @@ part of 'data83.dart';
 // **************************************************************************
 
 Data83 _$Data83FromJson(Map<String, dynamic> json) => Data83(
-  data: (json['data'] as List<dynamic>)
-      .map((e) => Data82.fromJson(e as Map<String, dynamic>))
+  id: (json['id'] as num).toInt(),
+  uuid: json['uuid'] as String,
+  name: json['name'] as String,
+  nameI18n: (json['name_i18n'] as Map<String, dynamic>?)?.map(
+    (k, e) => MapEntry(k, e as String),
+  ),
+  minSelect: (json['min_select'] as num).toInt(),
+  maxSelect: (json['max_select'] as num?)?.toInt(),
+  isRequired: json['is_required'] as bool,
+  sortOrder: (json['sort_order'] as num).toInt(),
+  isActive: json['is_active'] as bool,
+  modifiers: (json['modifiers'] as List<dynamic>)
+      .map((e) => Modifiers3.fromJson(e as Map<String, dynamic>))
       .toList(),
-  currentPage: (json['current_page'] as num).toInt(),
-  lastPage: (json['last_page'] as num).toInt(),
-  perPage: (json['per_page'] as num).toInt(),
-  total: (json['total'] as num).toInt(),
-  from: (json['from'] as num?)?.toInt(),
-  to: (json['to'] as num?)?.toInt(),
+  productIds: (json['product_ids'] as List<dynamic>)
+      .map((e) => (e as num).toInt())
+      .toList(),
+  productRules: ProductRules3.fromJson(
+    json['product_rules'] as Map<String, dynamic>,
+  ),
 );
 
 Map<String, dynamic> _$Data83ToJson(Data83 instance) => <String, dynamic>{
-  'data': instance.data,
-  'current_page': instance.currentPage,
-  'last_page': instance.lastPage,
-  'per_page': instance.perPage,
-  'total': instance.total,
-  'from': instance.from,
-  'to': instance.to,
+  'id': instance.id,
+  'uuid': instance.uuid,
+  'name': instance.name,
+  'name_i18n': instance.nameI18n,
+  'min_select': instance.minSelect,
+  'max_select': instance.maxSelect,
+  'is_required': instance.isRequired,
+  'sort_order': instance.sortOrder,
+  'is_active': instance.isActive,
+  'modifiers': instance.modifiers,
+  'product_ids': instance.productIds,
+  'product_rules': instance.productRules,
 };

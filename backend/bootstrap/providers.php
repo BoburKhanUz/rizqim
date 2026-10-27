@@ -20,4 +20,10 @@ return [
     App\Domain\Pos\Billing\PosBillingServiceProvider::class,
     // P3-31: offline limited mode: POST /pos/sync, the bootstrap's offline section
     App\Domain\Pos\Sync\PosSyncServiceProvider::class,
+    // P4-15: Monitoring: open-alerts attention source, alert evaluator schedule
+    App\Providers\AdminMonitoringServiceProvider::class,
+    // P4-13: Bugun: attention sources (settlements, payouts, top-ups, invoices, terminals, fiscal), stats refresh
+    App\Providers\AdminTodayServiceProvider::class,
+    // P4-14: Buyurtmalar: order attention sources (unaccepted, late, no courier), platform.ops order events
+    App\Providers\AdminOrdersServiceProvider::class,
 ];

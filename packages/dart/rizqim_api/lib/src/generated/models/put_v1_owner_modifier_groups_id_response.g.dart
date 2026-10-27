@@ -11,7 +11,7 @@ PutV1OwnerModifierGroupsIdResponse _$PutV1OwnerModifierGroupsIdResponseFromJson(
 ) => PutV1OwnerModifierGroupsIdResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data104.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data83.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PutV1OwnerModifierGroupsIdResponseToJson(

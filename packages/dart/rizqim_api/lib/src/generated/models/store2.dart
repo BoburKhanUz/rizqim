@@ -8,12 +8,13 @@ part 'store2.g.dart';
 
 @JsonSerializable()
 class Store2 {
-  const Store2({required this.id, required this.name});
+  const Store2({required this.id, required this.name, required this.timezone});
 
   factory Store2.fromJson(Map<String, Object?> json) => _$Store2FromJson(json);
 
   final int id;
   final String name;
+  final String timezone;
 
   Map<String, Object?> toJson() => _$Store2ToJson(this);
 }

@@ -21,7 +21,8 @@ test('a member signs in with the password and the code from the phone app', asyn
   // In: the first section the member has, with the whole menu
   await expect(page).toHaveURL(/\/today$/)
   await expect(page.getByRole('heading', { name: 'Bugun', level: 1 })).toBeVisible()
-  await expect(page.getByText("Bu bo'lim keyingi to'lqinda qo'shiladi")).toBeVisible()
+  // P4-13: Bugun is the home page (e2e/today.spec.ts)
+  await expect(page.getByRole('list', { name: "Bugungi ko'rsatkichlar" })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Jamoa' })).toBeVisible()
 
   // The token is an httpOnly cookie of the app: not in the page's storage, not in what the page can read

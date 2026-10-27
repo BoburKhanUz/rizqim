@@ -4,35 +4,47 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'period2.dart';
+import 'summary2.dart';
+import 'series.dart';
+import 'by_channel2.dart';
+import 'by_branch.dart';
+import 'by_payment_method2.dart';
+import 'by_order_type2.dart';
+
 part 'data97.g.dart';
 
 @JsonSerializable()
 class Data97 {
   const Data97({
-    required this.id,
+    required this.period,
     required this.branchId,
-    required this.stationId,
-    required this.categoryId,
-    required this.categoryName,
-    required this.productId,
-    required this.productName,
+    required this.summary,
+    required this.byStatus,
+    required this.series,
+    required this.byChannel,
+    required this.byBranch,
+    required this.byPaymentMethod,
+    required this.byOrderType,
   });
 
   factory Data97.fromJson(Map<String, Object?> json) => _$Data97FromJson(json);
 
-  final int id;
+  final Period2 period;
   @JsonKey(name: 'branch_id')
-  final int branchId;
-  @JsonKey(name: 'station_id')
-  final int stationId;
-  @JsonKey(name: 'category_id')
-  final int? categoryId;
-  @JsonKey(name: 'category_name')
-  final String? categoryName;
-  @JsonKey(name: 'product_id')
-  final int? productId;
-  @JsonKey(name: 'product_name')
-  final String? productName;
+  final int? branchId;
+  final Summary2 summary;
+  @JsonKey(name: 'by_status')
+  final Map<String, int> byStatus;
+  final List<Series> series;
+  @JsonKey(name: 'by_channel')
+  final List<ByChannel2> byChannel;
+  @JsonKey(name: 'by_branch')
+  final List<ByBranch> byBranch;
+  @JsonKey(name: 'by_payment_method')
+  final List<ByPaymentMethod2> byPaymentMethod;
+  @JsonKey(name: 'by_order_type')
+  final List<ByOrderType2> byOrderType;
 
   Map<String, Object?> toJson() => _$Data97ToJson(this);
 }

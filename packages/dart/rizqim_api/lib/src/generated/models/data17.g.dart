@@ -7,15 +7,13 @@ part of 'data17.dart';
 // **************************************************************************
 
 Data17 _$Data17FromJson(Map<String, dynamic> json) => Data17(
-  member: Member5.fromJson(json['member'] as Map<String, dynamic>),
-  inviteUrl: json['invite_url'] as String,
-  inviteToken: json['invite_token'] as String,
-  inviteExpiresAt: json['invite_expires_at'] as String,
+  address: json['address'] as String,
+  lat: json['lat'] as num,
+  lng: json['lng'] as num,
 );
 
 Map<String, dynamic> _$Data17ToJson(Data17 instance) => <String, dynamic>{
-  'member': instance.member,
-  'invite_url': instance.inviteUrl,
-  'invite_token': instance.inviteToken,
-  'invite_expires_at': instance.inviteExpiresAt,
+  'address': instance.address,
+  'lat': instance.lat,
+  'lng': instance.lng,
 };

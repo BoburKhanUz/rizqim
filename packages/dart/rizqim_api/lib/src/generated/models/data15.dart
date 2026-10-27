@@ -8,21 +8,11 @@ part 'data15.g.dart';
 
 @JsonSerializable()
 class Data15 {
-  const Data15({
-    required this.type,
-    required this.id,
-    required this.title,
-    required this.subtitle,
-    required this.href,
-  });
+  const Data15({required this.features});
 
   factory Data15.fromJson(Map<String, Object?> json) => _$Data15FromJson(json);
 
-  final String type;
-  final dynamic id;
-  final String title;
-  final String? subtitle;
-  final String href;
+  final Map<String, bool> features;
 
   Map<String, Object?> toJson() => _$Data15ToJson(this);
 }

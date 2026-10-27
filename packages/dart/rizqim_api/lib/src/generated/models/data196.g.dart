@@ -7,11 +7,17 @@ part of 'data196.dart';
 // **************************************************************************
 
 Data196 _$Data196FromJson(Map<String, dynamic> json) => Data196(
-  movement: Movement.fromJson(json['movement'] as Map<String, dynamic>),
-  shift: Shift4.fromJson(json['shift'] as Map<String, dynamic>),
+  id: (json['id'] as num).toInt(),
+  name: json['name'] as String,
+  role: json['role'] as String,
+  staffCode: json['staff_code'] as String?,
+  photoUrl: json['photo_url'] as String?,
 );
 
 Map<String, dynamic> _$Data196ToJson(Data196 instance) => <String, dynamic>{
-  'movement': instance.movement,
-  'shift': instance.shift,
+  'id': instance.id,
+  'name': instance.name,
+  'role': instance.role,
+  'staff_code': instance.staffCode,
+  'photo_url': instance.photoUrl,
 };

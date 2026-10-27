@@ -8,20 +8,13 @@ part 'actor.g.dart';
 
 @JsonSerializable()
 class Actor {
-  const Actor({
-    required this.id,
-    required this.name,
-    required this.role,
-    required this.platformRole,
-  });
+  const Actor({required this.id, required this.name, required this.role});
 
   factory Actor.fromJson(Map<String, Object?> json) => _$ActorFromJson(json);
 
   final int id;
   final String name;
   final String role;
-  @JsonKey(name: 'platform_role')
-  final String? platformRole;
 
   Map<String, Object?> toJson() => _$ActorToJson(this);
 }

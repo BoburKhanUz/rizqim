@@ -12,7 +12,7 @@ GetV1OwnerAutoGuestItemsResponse _$GetV1OwnerAutoGuestItemsResponseFromJson(
   success: json['success'] as bool,
   message: json['message'] as String,
   data: (json['data'] as List<dynamic>)
-      .map((e) => Data48.fromJson(e as Map<String, dynamic>))
+      .map((e) => Data27.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 

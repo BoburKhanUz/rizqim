@@ -4,26 +4,48 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'roles.dart';
-import 'permissions.dart';
+import 'user9.dart';
 
 part 'data13.g.dart';
 
 @JsonSerializable()
 class Data13 {
   const Data13({
-    required this.roles,
-    required this.permissions,
-    required this.grants,
-    required this.defaults,
+    required this.uuid,
+    required this.type,
+    required this.name,
+    required this.platform,
+    required this.appVersion,
+    required this.storeId,
+    required this.branchId,
+    required this.user,
+    required this.hasPushToken,
+    required this.lastSeenAt,
+    required this.revokedAt,
+    required this.createdAt,
   });
 
   factory Data13.fromJson(Map<String, Object?> json) => _$Data13FromJson(json);
 
-  final List<Roles> roles;
-  final List<Permissions> permissions;
-  final Map<String, List<String>> grants;
-  final Map<String, List<String>> defaults;
+  final String uuid;
+  final String type;
+  final String name;
+  final String? platform;
+  @JsonKey(name: 'app_version')
+  final String? appVersion;
+  @JsonKey(name: 'store_id')
+  final int? storeId;
+  @JsonKey(name: 'branch_id')
+  final int? branchId;
+  final User9? user;
+  @JsonKey(name: 'has_push_token')
+  final bool hasPushToken;
+  @JsonKey(name: 'last_seen_at')
+  final String? lastSeenAt;
+  @JsonKey(name: 'revoked_at')
+  final String? revokedAt;
+  @JsonKey(name: 'created_at')
+  final String? createdAt;
 
   Map<String, Object?> toJson() => _$Data13ToJson(this);
 }

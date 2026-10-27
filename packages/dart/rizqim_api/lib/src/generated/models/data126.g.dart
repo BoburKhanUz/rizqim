@@ -7,25 +7,11 @@ part of 'data126.dart';
 // **************************************************************************
 
 Data126 _$Data126FromJson(Map<String, dynamic> json) => Data126(
-  branchId: (json['branch_id'] as num?)?.toInt(),
-  hallId: (json['hall_id'] as num?)?.toInt(),
-  serviceChargePercent: json['service_charge_percent'] as String,
-  serviceChargeChannels: (json['service_charge_channels'] as List<dynamic>?)
-      ?.map((e) => e as String)
-      .toList(),
-  placeFeeAmount: json['place_fee_amount'] as String,
-  placeFeeMode: json['place_fee_mode'] as String,
-  placeFeeChannels: (json['place_fee_channels'] as List<dynamic>?)
-      ?.map((e) => e as String)
-      .toList(),
+  booking: Booking.fromJson(json['booking'] as Map<String, dynamic>),
+  order: Order7.fromJson(json['order'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data126ToJson(Data126 instance) => <String, dynamic>{
-  'branch_id': instance.branchId,
-  'hall_id': instance.hallId,
-  'service_charge_percent': instance.serviceChargePercent,
-  'service_charge_channels': instance.serviceChargeChannels,
-  'place_fee_amount': instance.placeFeeAmount,
-  'place_fee_mode': instance.placeFeeMode,
-  'place_fee_channels': instance.placeFeeChannels,
+  'booking': instance.booking,
+  'order': instance.order,
 };

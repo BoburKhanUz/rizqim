@@ -8,66 +8,48 @@ part of 'data171.dart';
 
 Data171 _$Data171FromJson(Map<String, dynamic> json) => Data171(
   uuid: json['uuid'] as String,
-  shortCode: json['short_code'] as String?,
   status: json['status'] as String,
-  channel: json['channel'] as String,
-  type: json['type'] as String,
   branchId: (json['branch_id'] as num).toInt(),
-  version: (json['version'] as num).toInt(),
-  hall: json['hall'] == null
+  device: json['device'] == null
       ? null
-      : Hall.fromJson(json['hall'] as Map<String, dynamic>),
-  table: json['table'] == null
+      : Device11.fromJson(json['device'] as Map<String, dynamic>),
+  businessDate: json['business_date'] as String,
+  openedAt: json['opened_at'] as String,
+  openedBy: json['opened_by'] == null
       ? null
-      : Table.fromJson(json['table'] as Map<String, dynamic>),
-  hallRef: json['hall_ref'] as String?,
-  tableRef: json['table_ref'] as String?,
-  guestsCount: (json['guests_count'] as num?)?.toInt(),
-  waiter: json['waiter'] == null
-      ? null
-      : Waiter3.fromJson(json['waiter'] as Map<String, dynamic>),
-  itemsCount: (json['items_count'] as num).toInt(),
-  subtotal: json['subtotal'] as String,
-  totalPrice: json['total_price'] as String,
-  paymentStatus: json['payment_status'] as String,
-  billLocked: json['bill_locked'] as bool,
-  billRequested: json['bill_requested'] as bool,
-  fiscalPending: json['fiscal_pending'] as bool,
-  bookingId: (json['booking_id'] as num?)?.toInt(),
-  businessDate: json['business_date'] as String?,
-  openedAt: json['opened_at'] as String?,
+      : OpenedBy.fromJson(json['opened_by'] as Map<String, dynamic>),
+  openingCash: json['opening_cash'] as String,
   closedAt: json['closed_at'] as String?,
-  updatedAt: json['updated_at'] as String?,
-  online: json['online'] == null
+  closedBy: json['closed_by'] == null
       ? null
-      : Online.fromJson(json['online'] as Map<String, dynamic>),
+      : ClosedBy.fromJson(json['closed_by'] as Map<String, dynamic>),
+  expectedCash: json['expected_cash'] as String?,
+  countedCash: json['counted_cash'] as String?,
+  countedBreakdown: (json['counted_breakdown'] as Map<String, dynamic>?)?.map(
+    (k, e) => MapEntry(k, (e as num).toInt()),
+  ),
+  difference: json['difference'] as String?,
+  zNumber: (json['z_number'] as num?)?.toInt(),
+  forceClosed: json['force_closed'] as bool,
+  closeNote: json['close_note'] as String?,
 );
 
 Map<String, dynamic> _$Data171ToJson(Data171 instance) => <String, dynamic>{
   'uuid': instance.uuid,
-  'short_code': instance.shortCode,
   'status': instance.status,
-  'channel': instance.channel,
-  'type': instance.type,
   'branch_id': instance.branchId,
-  'version': instance.version,
-  'hall': instance.hall,
-  'table': instance.table,
-  'hall_ref': instance.hallRef,
-  'table_ref': instance.tableRef,
-  'guests_count': instance.guestsCount,
-  'waiter': instance.waiter,
-  'items_count': instance.itemsCount,
-  'subtotal': instance.subtotal,
-  'total_price': instance.totalPrice,
-  'payment_status': instance.paymentStatus,
-  'bill_locked': instance.billLocked,
-  'bill_requested': instance.billRequested,
-  'fiscal_pending': instance.fiscalPending,
-  'booking_id': instance.bookingId,
+  'device': instance.device,
   'business_date': instance.businessDate,
   'opened_at': instance.openedAt,
+  'opened_by': instance.openedBy,
+  'opening_cash': instance.openingCash,
   'closed_at': instance.closedAt,
-  'updated_at': instance.updatedAt,
-  'online': instance.online,
+  'closed_by': instance.closedBy,
+  'expected_cash': instance.expectedCash,
+  'counted_cash': instance.countedCash,
+  'counted_breakdown': instance.countedBreakdown,
+  'difference': instance.difference,
+  'z_number': instance.zNumber,
+  'force_closed': instance.forceClosed,
+  'close_note': instance.closeNote,
 };

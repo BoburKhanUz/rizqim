@@ -11,7 +11,7 @@ class Permissions {
   const Permissions({
     required this.key,
     required this.label,
-    required this.group,
+    required this.grantable,
   });
 
   factory Permissions.fromJson(Map<String, Object?> json) =>
@@ -19,7 +19,7 @@ class Permissions {
 
   final String key;
   final String label;
-  final String group;
+  final bool grantable;
 
   Map<String, Object?> toJson() => _$PermissionsToJson(this);
 }

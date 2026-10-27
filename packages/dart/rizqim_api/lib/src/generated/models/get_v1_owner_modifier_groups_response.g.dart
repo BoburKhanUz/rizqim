@@ -12,7 +12,7 @@ GetV1OwnerModifierGroupsResponse _$GetV1OwnerModifierGroupsResponseFromJson(
   success: json['success'] as bool,
   message: json['message'] as String,
   data: (json['data'] as List<dynamic>)
-      .map((e) => Data102.fromJson(e as Map<String, dynamic>))
+      .map((e) => Data81.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 

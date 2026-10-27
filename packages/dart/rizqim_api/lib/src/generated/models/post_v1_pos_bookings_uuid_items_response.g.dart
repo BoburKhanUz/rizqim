@@ -11,7 +11,7 @@ PostV1PosBookingsUuidItemsResponse _$PostV1PosBookingsUuidItemsResponseFromJson(
 ) => PostV1PosBookingsUuidItemsResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data155.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data134.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1PosBookingsUuidItemsResponseToJson(

@@ -7,39 +7,23 @@ part of 'data59.dart';
 // **************************************************************************
 
 Data59 _$Data59FromJson(Map<String, dynamic> json) => Data59(
-  id: (json['id'] as num).toInt(),
-  name: json['name'] as String,
-  phone: json['phone'] as String?,
-  address: json['address'] as String?,
-  regionId: (json['region_id'] as num?)?.toInt(),
-  districtId: (json['district_id'] as num?)?.toInt(),
-  latitude: json['latitude'] as num?,
-  longitude: json['longitude'] as num?,
-  radiusKm: json['radius_km'] as num,
-  status: json['status'] as String,
-  isActive: json['is_active'] as bool,
-  workingHours: WorkingHours3.fromJson(
-    json['working_hours'] as Map<String, dynamic>,
-  ),
-  isOpenNow: json['is_open_now'] as bool,
-  createdAt: json['created_at'] as String?,
-  updatedAt: json['updated_at'] as String?,
+  data: (json['data'] as List<dynamic>)
+      .map((e) => Data58.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  currentPage: (json['current_page'] as num).toInt(),
+  lastPage: (json['last_page'] as num).toInt(),
+  perPage: (json['per_page'] as num).toInt(),
+  total: (json['total'] as num).toInt(),
+  from: (json['from'] as num?)?.toInt(),
+  to: (json['to'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$Data59ToJson(Data59 instance) => <String, dynamic>{
-  'id': instance.id,
-  'name': instance.name,
-  'phone': instance.phone,
-  'address': instance.address,
-  'region_id': instance.regionId,
-  'district_id': instance.districtId,
-  'latitude': instance.latitude,
-  'longitude': instance.longitude,
-  'radius_km': instance.radiusKm,
-  'status': instance.status,
-  'is_active': instance.isActive,
-  'working_hours': instance.workingHours,
-  'is_open_now': instance.isOpenNow,
-  'created_at': instance.createdAt,
-  'updated_at': instance.updatedAt,
+  'data': instance.data,
+  'current_page': instance.currentPage,
+  'last_page': instance.lastPage,
+  'per_page': instance.perPage,
+  'total': instance.total,
+  'from': instance.from,
+  'to': instance.to,
 };

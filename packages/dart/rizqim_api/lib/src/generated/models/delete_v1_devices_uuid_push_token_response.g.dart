@@ -11,7 +11,7 @@ _$DeleteV1DevicesUuidPushTokenResponseFromJson(Map<String, dynamic> json) =>
     DeleteV1DevicesUuidPushTokenResponse(
       success: json['success'] as bool,
       message: json['message'] as String,
-      data: Data35.fromJson(json['data'] as Map<String, dynamic>),
+      data: Data14.fromJson(json['data'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$DeleteV1DevicesUuidPushTokenResponseToJson(

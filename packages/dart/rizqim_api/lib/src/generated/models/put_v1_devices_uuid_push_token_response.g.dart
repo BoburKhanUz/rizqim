@@ -11,7 +11,7 @@ PutV1DevicesUuidPushTokenResponse _$PutV1DevicesUuidPushTokenResponseFromJson(
 ) => PutV1DevicesUuidPushTokenResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data34.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data13.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PutV1DevicesUuidPushTokenResponseToJson(

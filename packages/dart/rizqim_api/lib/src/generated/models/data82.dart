@@ -4,7 +4,8 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'order2.dart';
+import 'modifiers2.dart';
+import 'product_rules2.dart';
 
 part 'data82.g.dart';
 
@@ -12,31 +13,41 @@ part 'data82.g.dart';
 class Data82 {
   const Data82({
     required this.id,
-    required this.type,
-    required this.amount,
-    required this.balanceBefore,
-    required this.balanceAfter,
-    required this.order,
-    required this.referenceId,
-    required this.notes,
-    required this.createdAt,
+    required this.uuid,
+    required this.name,
+    required this.nameI18n,
+    required this.minSelect,
+    required this.maxSelect,
+    required this.isRequired,
+    required this.sortOrder,
+    required this.isActive,
+    required this.modifiers,
+    required this.productIds,
+    required this.productRules,
   });
 
   factory Data82.fromJson(Map<String, Object?> json) => _$Data82FromJson(json);
 
   final int id;
-  final String type;
-  final String amount;
-  @JsonKey(name: 'balance_before')
-  final String balanceBefore;
-  @JsonKey(name: 'balance_after')
-  final String balanceAfter;
-  final Order2? order;
-  @JsonKey(name: 'reference_id')
-  final String? referenceId;
-  final String? notes;
-  @JsonKey(name: 'created_at')
-  final String createdAt;
+  final String uuid;
+  final String name;
+  @JsonKey(name: 'name_i18n')
+  final Map<String, String>? nameI18n;
+  @JsonKey(name: 'min_select')
+  final int minSelect;
+  @JsonKey(name: 'max_select')
+  final int? maxSelect;
+  @JsonKey(name: 'is_required')
+  final bool isRequired;
+  @JsonKey(name: 'sort_order')
+  final int sortOrder;
+  @JsonKey(name: 'is_active')
+  final bool isActive;
+  final List<Modifiers2> modifiers;
+  @JsonKey(name: 'product_ids')
+  final List<int> productIds;
+  @JsonKey(name: 'product_rules')
+  final ProductRules2 productRules;
 
   Map<String, Object?> toJson() => _$Data82ToJson(this);
 }

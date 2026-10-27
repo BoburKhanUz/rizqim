@@ -7,21 +7,17 @@ part of 'data98.dart';
 // **************************************************************************
 
 Data98 _$Data98FromJson(Map<String, dynamic> json) => Data98(
-  id: (json['id'] as num).toInt(),
-  branchId: (json['branch_id'] as num).toInt(),
-  stationId: (json['station_id'] as num).toInt(),
-  categoryId: (json['category_id'] as num?)?.toInt(),
-  categoryName: json['category_name'] as String?,
-  productId: (json['product_id'] as num?)?.toInt(),
-  productName: json['product_name'] as String?,
+  period: Period3.fromJson(json['period'] as Map<String, dynamic>),
+  branchId: (json['branch_id'] as num?)?.toInt(),
+  sort: json['sort'] as String,
+  products: (json['products'] as List<dynamic>)
+      .map((e) => Products.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data98ToJson(Data98 instance) => <String, dynamic>{
-  'id': instance.id,
+  'period': instance.period,
   'branch_id': instance.branchId,
-  'station_id': instance.stationId,
-  'category_id': instance.categoryId,
-  'category_name': instance.categoryName,
-  'product_id': instance.productId,
-  'product_name': instance.productName,
+  'sort': instance.sort,
+  'products': instance.products,
 };

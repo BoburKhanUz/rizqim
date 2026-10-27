@@ -34,7 +34,10 @@ class RecordAdminAudit
         $isWrite = !in_array($request->getMethod(), self::READ_METHODS, true);
         $succeeded = $response->getStatusCode() < 400;
 
-        if ($isWrite && !$context->skip && ($succeeded || $context->always)) {
+        // P4-14: a repeat answered from the Idempotency-Key store ran nothing again, so it records nothing again
+        $replayed = $response->headers->get(\App\Services\Idempotency\IdempotencyService::REPLAYED_HEADER) === 'true';
+
+        if ($isWrite && !$context->skip && !$replayed && ($succeeded || $context->always)) {
             $this->write($request, $context, $context->action ?? $this->routeAction($request), $response->getStatusCode(), $succeeded);
         }
 

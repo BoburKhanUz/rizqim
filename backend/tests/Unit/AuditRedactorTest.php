@@ -66,4 +66,16 @@ class AuditRedactorTest extends TestCase
         $this->assertStringNotContainsString('901234567', $clean['note']);
         $this->assertStringContainsString("qo'ng'iroq qildi", $clean['note']);
     }
+
+    public function test_digit_runs_inside_ids_are_not_taken_for_phone_numbers(): void
+    {
+        $clean = AuditRedactor::clean([
+            'failed_job_uuid' => '82e324be-e99c-4e72-88ac-b8e989345737',
+            'note' => 'Vazifa 82e324be-e99c-4e72-88ac-998901234567 yiqildi, mijoz (901234567) kutmoqda',
+        ]);
+
+        $this->assertSame('82e324be-e99c-4e72-88ac-b8e989345737', $clean['failed_job_uuid']);
+        $this->assertStringContainsString('82e324be-e99c-4e72-88ac-998901234567', $clean['note']);
+        $this->assertStringNotContainsString('(901234567)', $clean['note']);
+    }
 }

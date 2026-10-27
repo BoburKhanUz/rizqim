@@ -11,7 +11,7 @@ _$PostV1OwnerDevicesPairingCodesResponseFromJson(Map<String, dynamic> json) =>
     PostV1OwnerDevicesPairingCodesResponse(
       success: json['success'] as bool,
       message: json['message'] as String,
-      data: Data68.fromJson(json['data'] as Map<String, dynamic>),
+      data: Data47.fromJson(json['data'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$PostV1OwnerDevicesPairingCodesResponseToJson(

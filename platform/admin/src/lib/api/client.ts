@@ -92,6 +92,8 @@ export interface CallOptions {
   signal?: AbortSignal;
   // A call made without a session (sign-in steps): a 401 is a wrong credential, not an ended session
   anonymous?: boolean;
+  // Extra request headers (P4-14: Idempotency-Key on money actions)
+  headers?: Record<string, string>;
 }
 
 export interface Envelope<T> {
@@ -115,7 +117,7 @@ async function send(method: string, path: string, options: CallOptions, retried:
       method,
       credentials: 'same-origin',
       cache: 'no-store',
-      headers: { Accept: 'application/json', ...(options.body !== undefined ? { 'Content-Type': 'application/json' } : {}) },
+      headers: { Accept: 'application/json', ...(options.body !== undefined ? { 'Content-Type': 'application/json' } : {}), ...options.headers },
       body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
       signal: options.signal,
     });

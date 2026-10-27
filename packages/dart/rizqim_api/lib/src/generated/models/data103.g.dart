@@ -8,38 +8,26 @@ part of 'data103.dart';
 
 Data103 _$Data103FromJson(Map<String, dynamic> json) => Data103(
   id: (json['id'] as num).toInt(),
-  uuid: json['uuid'] as String,
-  name: json['name'] as String,
-  nameI18n: (json['name_i18n'] as Map<String, dynamic>?)?.map(
-    (k, e) => MapEntry(k, e as String),
-  ),
-  minSelect: (json['min_select'] as num).toInt(),
-  maxSelect: (json['max_select'] as num?)?.toInt(),
-  isRequired: json['is_required'] as bool,
-  sortOrder: (json['sort_order'] as num).toInt(),
-  isActive: json['is_active'] as bool,
-  modifiers: (json['modifiers'] as List<dynamic>)
-      .map((e) => Modifiers2.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  productIds: (json['product_ids'] as List<dynamic>)
-      .map((e) => (e as num).toInt())
-      .toList(),
-  productRules: ProductRules2.fromJson(
-    json['product_rules'] as Map<String, dynamic>,
-  ),
+  branchId: (json['branch_id'] as num).toInt(),
+  diningTableId: (json['dining_table_id'] as num?)?.toInt(),
+  diningTableName: json['dining_table_name'] as String?,
+  hallId: (json['hall_id'] as num?)?.toInt(),
+  tableKind: json['table_kind'] as String?,
+  dayType: json['day_type'] as String,
+  price: json['price'] as String,
+  validFrom: json['valid_from'] as String?,
+  validTo: json['valid_to'] as String?,
 );
 
 Map<String, dynamic> _$Data103ToJson(Data103 instance) => <String, dynamic>{
   'id': instance.id,
-  'uuid': instance.uuid,
-  'name': instance.name,
-  'name_i18n': instance.nameI18n,
-  'min_select': instance.minSelect,
-  'max_select': instance.maxSelect,
-  'is_required': instance.isRequired,
-  'sort_order': instance.sortOrder,
-  'is_active': instance.isActive,
-  'modifiers': instance.modifiers,
-  'product_ids': instance.productIds,
-  'product_rules': instance.productRules,
+  'branch_id': instance.branchId,
+  'dining_table_id': instance.diningTableId,
+  'dining_table_name': instance.diningTableName,
+  'hall_id': instance.hallId,
+  'table_kind': instance.tableKind,
+  'day_type': instance.dayType,
+  'price': instance.price,
+  'valid_from': instance.validFrom,
+  'valid_to': instance.validTo,
 };

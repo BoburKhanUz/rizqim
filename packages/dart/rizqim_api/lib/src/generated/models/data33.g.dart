@@ -7,17 +7,37 @@ part of 'data33.dart';
 // **************************************************************************
 
 Data33 _$Data33FromJson(Map<String, dynamic> json) => Data33(
-  token: json['token'] as String,
-  expiresAt: json['expires_at'] as String,
-  user: User8.fromJson(json['user'] as Map<String, dynamic>),
-  permissions: (json['permissions'] as List<dynamic>)
-      .map((e) => e as String)
-      .toList(),
+  id: (json['id'] as num).toInt(),
+  uuid: json['uuid'] as String,
+  branchId: (json['branch_id'] as num).toInt(),
+  productId: (json['product_id'] as num).toInt(),
+  productName: json['product_name'] as String,
+  productVariantId: (json['product_variant_id'] as num?)?.toInt(),
+  variantName: json['variant_name'] as String?,
+  unit: json['unit'] as String?,
+  label: json['label'] as String?,
+  quantityProduced: json['quantity_produced'] as num?,
+  quantityLeft: json['quantity_left'] as num?,
+  isOpen: json['is_open'] as bool,
+  startedAt: json['started_at'] as String?,
+  soldOutAt: json['sold_out_at'] as String?,
+  closedAt: json['closed_at'] as String?,
 );
 
 Map<String, dynamic> _$Data33ToJson(Data33 instance) => <String, dynamic>{
-  'token': instance.token,
-  'expires_at': instance.expiresAt,
-  'user': instance.user,
-  'permissions': instance.permissions,
+  'id': instance.id,
+  'uuid': instance.uuid,
+  'branch_id': instance.branchId,
+  'product_id': instance.productId,
+  'product_name': instance.productName,
+  'product_variant_id': instance.productVariantId,
+  'variant_name': instance.variantName,
+  'unit': instance.unit,
+  'label': instance.label,
+  'quantity_produced': instance.quantityProduced,
+  'quantity_left': instance.quantityLeft,
+  'is_open': instance.isOpen,
+  'started_at': instance.startedAt,
+  'sold_out_at': instance.soldOutAt,
+  'closed_at': instance.closedAt,
 };

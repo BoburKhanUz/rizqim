@@ -11,7 +11,7 @@ _$PostV1PosBookingsUuidDepositsResponseFromJson(Map<String, dynamic> json) =>
     PostV1PosBookingsUuidDepositsResponse(
       success: json['success'] as bool,
       message: json['message'] as String,
-      data: Data152.fromJson(json['data'] as Map<String, dynamic>),
+      data: Data131.fromJson(json['data'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$PostV1PosBookingsUuidDepositsResponseToJson(

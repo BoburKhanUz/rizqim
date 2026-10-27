@@ -22,10 +22,32 @@ class OrderPolicy
         protected PermissionService $permissions,
     ) {}
 
-    public function before(User $user, string $ability): ?bool
+    public function before(User $user, string $ability, mixed ...$arguments): ?bool
     {
         if ($user->role === UserRole::SUPER_ADMIN) return true;
+        // P4-14: a RIZQIM team member (their admin token works on /api/v1/admin only) acts on any store's order from the
+        // Boshqaruv markazi with their admin permissions: see with orders.view, move and cancel with orders.intervene,
+        // refund with orders.refund_approve (App\Services\Admin\Orders). Nothing else
+        if ($user->role === UserRole::PLATFORM) return $this->platformMemberMay($user, $ability, $arguments);
         return null;
+    }
+
+    /**
+     * @param  array<int, mixed>  $arguments  the policy method's arguments after the user (the order, then the status)
+     */
+    protected function platformMemberMay(User $user, string $ability, array $arguments): bool
+    {
+        $admin = app(\App\Services\Admin\AdminPermissionService::class);
+        $to = $arguments[1] ?? null;
+
+        return match ($ability) {
+            'view', 'viewAny' => $admin->has($user, \App\Enums\AdminPermission::ORDERS_VIEW),
+            'changeStatus' => $to === OrderStatus::REFUNDED
+                ? $admin->has($user, \App\Enums\AdminPermission::ORDERS_REFUND_APPROVE)
+                : $admin->has($user, \App\Enums\AdminPermission::ORDERS_INTERVENE),
+            'assignCourier' => $admin->has($user, \App\Enums\AdminPermission::ORDERS_INTERVENE),
+            default => false,
+        };
     }
 
     public function viewAny(User $user): bool

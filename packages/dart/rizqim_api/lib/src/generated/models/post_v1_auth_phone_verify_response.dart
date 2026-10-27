@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data24.dart';
+import 'data3.dart';
 
 part 'post_v1_auth_phone_verify_response.g.dart';
 
@@ -21,7 +21,7 @@ class PostV1AuthPhoneVerifyResponse {
 
   final bool success;
   final String message;
-  final Data24 data;
+  final Data3 data;
 
   Map<String, Object?> toJson() => _$PostV1AuthPhoneVerifyResponseToJson(this);
 }

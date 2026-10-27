@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data76.dart';
+import 'data55.dart';
 
 part 'get_v1_owner_employees_response.g.dart';
 
@@ -21,7 +21,7 @@ class GetV1OwnerEmployeesResponse {
 
   final bool success;
   final String message;
-  final List<Data76> data;
+  final List<Data55> data;
 
   Map<String, Object?> toJson() => _$GetV1OwnerEmployeesResponseToJson(this);
 }

@@ -149,6 +149,20 @@ validate() {
     command -v pg_dump >/dev/null 2>&1 || die "pg_dump topilmadi (postgresql-client o'rnating yoki backup konteynerida ishga tushiring)"
 }
 
+# P4-15: oxirgi tekshirilgan dump vaqtini bazadagi monitoring_markers jadvaliga yozadi: Boshqaruv markazi (Monitoring > Holat)
+# va "zaxira eskirgan" ogohlantirishi shundan o'qiydi. Zaxiraning o'zi muvaffaqiyatli, shuning uchun xato bo'lsa faqat
+# ogohlantirish chiqadi (jadval yo'q: migratsiya bajarilmagan; psql yo'q).
+record_marker() { # record_marker <fayl-nomi> <hajm-bayt>
+    if ! command -v psql >/dev/null 2>&1; then
+        log "OGOHLANTIRISH: psql topilmadi, zaxira vaqti markazga yozilmadi"
+        return 0
+    fi
+    if ! psql -X -q -v ON_ERROR_STOP=1 -c "INSERT INTO monitoring_markers (key, recorded_at, meta) VALUES ('backup', now() AT TIME ZONE 'UTC', json_build_object('file', '$1', 'size', $2)) ON CONFLICT (key) DO UPDATE SET recorded_at = EXCLUDED.recorded_at, meta = EXCLUDED.meta" >/dev/null 2>&1; then
+        log "OGOHLANTIRISH: zaxira vaqtini markazga yozib bo'lmadi (monitoring_markers jadvali yo'qmi? migratsiyani bajaring)"
+    fi
+    return 0
+}
+
 run_backup() {
     mkdir -p "$BACKUP_DIR"
     name="rizqim-${PGDATABASE}-$(date -u +%Y%m%dT%H%M%SZ).dump"
@@ -172,6 +186,7 @@ run_backup() {
     (cd "$BACKUP_DIR" && sha256sum "$name" >"$name.sha256")
     size=$(wc -c <"$final" | tr -d ' ')
     log "tayyor: $name ($size bayt)"
+    record_marker "$name" "$size"
 
     status=0
     if [ -n "$BACKUP_OFFSITE_CMD" ]; then

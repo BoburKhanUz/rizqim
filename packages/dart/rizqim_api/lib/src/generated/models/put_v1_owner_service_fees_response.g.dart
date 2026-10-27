@@ -11,7 +11,7 @@ PutV1OwnerServiceFeesResponse _$PutV1OwnerServiceFeesResponseFromJson(
 ) => PutV1OwnerServiceFeesResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data126.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data105.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PutV1OwnerServiceFeesResponseToJson(

@@ -7,31 +7,15 @@ part of 'data18.dart';
 // **************************************************************************
 
 Data18 _$Data18FromJson(Map<String, dynamic> json) => Data18(
-  id: (json['id'] as num).toInt(),
-  name: json['name'] as String,
-  email: json['email'] as String?,
-  platformRole: json['platform_role'] as String?,
-  platformRoleLabel: json['platform_role_label'] as String?,
-  status: json['status'] as String,
-  disabled: json['disabled'] as bool,
-  twoFactorEnabled: json['two_factor_enabled'] as bool,
-  lastLoginAt: json['last_login_at'] as String?,
-  activeSessions: (json['active_sessions'] as num).toInt(),
-  inviteExpiresAt: json['invite_expires_at'] as String?,
-  createdAt: json['created_at'] as String?,
+  regions: (json['regions'] as List<dynamic>)
+      .map((e) => Regions.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  districts: (json['districts'] as List<dynamic>)
+      .map((e) => Districts.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data18ToJson(Data18 instance) => <String, dynamic>{
-  'id': instance.id,
-  'name': instance.name,
-  'email': instance.email,
-  'platform_role': instance.platformRole,
-  'platform_role_label': instance.platformRoleLabel,
-  'status': instance.status,
-  'disabled': instance.disabled,
-  'two_factor_enabled': instance.twoFactorEnabled,
-  'last_login_at': instance.lastLoginAt,
-  'active_sessions': instance.activeSessions,
-  'invite_expires_at': instance.inviteExpiresAt,
-  'created_at': instance.createdAt,
+  'regions': instance.regions,
+  'districts': instance.districts,
 };

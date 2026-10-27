@@ -4,28 +4,34 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'pos_settings2.dart';
+import 'data61.dart';
 
 part 'data62.g.dart';
 
 @JsonSerializable()
 class Data62 {
   const Data62({
-    required this.branchId,
-    required this.timezone,
-    required this.businessDayStartsAt,
-    required this.posSettings,
+    required this.data,
+    required this.currentPage,
+    required this.lastPage,
+    required this.perPage,
+    required this.total,
+    required this.from,
+    required this.to,
   });
 
   factory Data62.fromJson(Map<String, Object?> json) => _$Data62FromJson(json);
 
-  @JsonKey(name: 'branch_id')
-  final int branchId;
-  final String timezone;
-  @JsonKey(name: 'business_day_starts_at')
-  final String businessDayStartsAt;
-  @JsonKey(name: 'pos_settings')
-  final PosSettings2 posSettings;
+  final List<Data61> data;
+  @JsonKey(name: 'current_page')
+  final int currentPage;
+  @JsonKey(name: 'last_page')
+  final int lastPage;
+  @JsonKey(name: 'per_page')
+  final int perPage;
+  final int total;
+  final int? from;
+  final int? to;
 
   Map<String, Object?> toJson() => _$Data62ToJson(this);
 }

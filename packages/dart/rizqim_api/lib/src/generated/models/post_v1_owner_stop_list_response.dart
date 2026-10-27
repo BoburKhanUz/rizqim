@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data136.dart';
+import 'data115.dart';
 
 part 'post_v1_owner_stop_list_response.g.dart';
 
@@ -21,7 +21,7 @@ class PostV1OwnerStopListResponse {
 
   final bool success;
   final String message;
-  final Data136 data;
+  final Data115 data;
 
   Map<String, Object?> toJson() => _$PostV1OwnerStopListResponseToJson(this);
 }

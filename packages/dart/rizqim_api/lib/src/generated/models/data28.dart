@@ -10,26 +10,37 @@ part 'data28.g.dart';
 class Data28 {
   const Data28({
     required this.id,
-    required this.name,
-    required this.phone,
-    required this.telegramUsername,
     required this.branchId,
-    required this.courierType,
+    required this.hallId,
+    required this.productVariantId,
+    required this.productName,
+    required this.variantName,
+    required this.unit,
+    required this.quantityPerGuest,
+    required this.isActive,
+    required this.sortOrder,
   });
 
   factory Data28.fromJson(Map<String, Object?> json) => _$Data28FromJson(json);
 
   final int id;
-  final String name;
-  final String? phone;
-  @JsonKey(name: 'telegram_username')
-  final String? telegramUsername;
   @JsonKey(name: 'branch_id')
-  final int? branchId;
-
-  /// P1-24: the restaurant's own courier or the Rizqim fleet
-  @JsonKey(name: 'courier_type')
-  final String courierType;
+  final int branchId;
+  @JsonKey(name: 'hall_id')
+  final int? hallId;
+  @JsonKey(name: 'product_variant_id')
+  final int productVariantId;
+  @JsonKey(name: 'product_name')
+  final String? productName;
+  @JsonKey(name: 'variant_name')
+  final String? variantName;
+  final String? unit;
+  @JsonKey(name: 'quantity_per_guest')
+  final num quantityPerGuest;
+  @JsonKey(name: 'is_active')
+  final bool isActive;
+  @JsonKey(name: 'sort_order')
+  final int sortOrder;
 
   Map<String, Object?> toJson() => _$Data28ToJson(this);
 }

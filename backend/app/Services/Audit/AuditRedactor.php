@@ -22,7 +22,8 @@ final class AuditRedactor
     private const PHONE_PARTS = ['phone', 'mobile', 'tel', 'telephone'];
 
     // +998 90 123 45 67 in any spacing, or a bare 9-12 digit run (a local number)
-    private const PHONE_TEXT = '/(\+?998[\s\-]?\d{2}[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2})|(?<!\d)\d{9,12}(?!\d)/';
+    // Not inside a longer token: a UUID or hex id ("…-b8e989345737") holds digit runs that are no phone numbers
+    private const PHONE_TEXT = '/(?<![\w\-])(?:\+?998[\s\-]?\d{2}[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}|\d{9,12})(?![\w\-])/';
 
     /**
      * @param  array<array-key, mixed>  $data

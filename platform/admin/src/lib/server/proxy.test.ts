@@ -12,6 +12,7 @@ interface Seen {
   authorization: string | null;
   forwardedFor: string | null;
   userAgent: string | null;
+  idempotencyKey: string | null;
   body: string;
 }
 
@@ -27,6 +28,7 @@ function stubBackend(handler: (seen: Seen) => Response) {
         authorization: headers.get('Authorization'),
         forwardedFor: headers.get('X-Forwarded-For'),
         userAgent: headers.get('User-Agent'),
+        idempotencyKey: headers.get('Idempotency-Key'),
         body: String(init.body ?? ''),
       };
       calls.push(seen);
@@ -89,6 +91,13 @@ describe('admin proxy', () => {
     expect(calls).toHaveLength(0);
     await forward(request('POST', 'broadcasting/auth', { cookie: 'tok', body: {} }), ['broadcasting', 'auth']);
     expect(calls).toHaveLength(1);
+  });
+
+  it("passes a money action's Idempotency-Key on, and drops a malformed one", async () => {
+    const calls = stubBackend(() => reply({ success: true, data: {} }));
+    await forward(request('POST', 'v1/admin/refund-requests/4/approve', { cookie: 'tok', body: { reason: 'Tasdiq' }, headers: { 'Idempotency-Key': 'approve-4-abc' } }), ['v1', 'admin', 'refund-requests', '4', 'approve']);
+    await forward(request('POST', 'v1/admin/refund-requests/4/approve', { cookie: 'tok', body: {}, headers: { 'Idempotency-Key': 'has space' } }), ['v1', 'admin', 'refund-requests', '4', 'approve']);
+    expect(calls.map((call) => call.idempotencyKey)).toEqual(['approve-4-abc', null]);
   });
 
   it('refuses a write that comes from another site', async () => {

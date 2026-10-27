@@ -11,7 +11,7 @@ GetV1PosFiscalReceiptsUuidResponse _$GetV1PosFiscalReceiptsUuidResponseFromJson(
 ) => GetV1PosFiscalReceiptsUuidResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data169.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data148.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1PosFiscalReceiptsUuidResponseToJson(

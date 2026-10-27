@@ -8,12 +8,28 @@ part 'data7.g.dart';
 
 @JsonSerializable()
 class Data7 {
-  const Data7({required this.reauthenticatedUntil});
+  const Data7({
+    required this.id,
+    required this.name,
+    required this.phone,
+    required this.telegramUsername,
+    required this.branchId,
+    required this.courierType,
+  });
 
   factory Data7.fromJson(Map<String, Object?> json) => _$Data7FromJson(json);
 
-  @JsonKey(name: 'reauthenticated_until')
-  final String reauthenticatedUntil;
+  final int id;
+  final String name;
+  final String? phone;
+  @JsonKey(name: 'telegram_username')
+  final String? telegramUsername;
+  @JsonKey(name: 'branch_id')
+  final int? branchId;
+
+  /// P1-24: the restaurant's own courier or the Rizqim fleet
+  @JsonKey(name: 'courier_type')
+  final String courierType;
 
   Map<String, Object?> toJson() => _$Data7ToJson(this);
 }

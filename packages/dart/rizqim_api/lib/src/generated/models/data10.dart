@@ -4,36 +4,48 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'member3.dart';
-import 'session.dart';
+import 'user6.dart';
 
 part 'data10.g.dart';
 
 @JsonSerializable()
 class Data10 {
   const Data10({
-    required this.member,
-    required this.platformRole,
-    required this.permissions,
-    required this.twoFactorEnabled,
-    required this.recoveryCodesLeft,
-    required this.lastLoginAt,
-    required this.session,
+    required this.uuid,
+    required this.type,
+    required this.name,
+    required this.platform,
+    required this.appVersion,
+    required this.storeId,
+    required this.branchId,
+    required this.user,
+    required this.hasPushToken,
+    required this.lastSeenAt,
+    required this.revokedAt,
+    required this.createdAt,
   });
 
   factory Data10.fromJson(Map<String, Object?> json) => _$Data10FromJson(json);
 
-  final Member3 member;
-  @JsonKey(name: 'platform_role')
-  final String? platformRole;
-  final List<String> permissions;
-  @JsonKey(name: 'two_factor_enabled')
-  final bool twoFactorEnabled;
-  @JsonKey(name: 'recovery_codes_left')
-  final int recoveryCodesLeft;
-  @JsonKey(name: 'last_login_at')
-  final String? lastLoginAt;
-  final Session? session;
+  final String uuid;
+  final String type;
+  final String name;
+  final String? platform;
+  @JsonKey(name: 'app_version')
+  final String? appVersion;
+  @JsonKey(name: 'store_id')
+  final int? storeId;
+  @JsonKey(name: 'branch_id')
+  final int? branchId;
+  final User6? user;
+  @JsonKey(name: 'has_push_token')
+  final bool hasPushToken;
+  @JsonKey(name: 'last_seen_at')
+  final String? lastSeenAt;
+  @JsonKey(name: 'revoked_at')
+  final String? revokedAt;
+  @JsonKey(name: 'created_at')
+  final String? createdAt;
 
   Map<String, Object?> toJson() => _$Data10ToJson(this);
 }

@@ -4,43 +4,48 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'user13.dart';
+
 part 'data49.g.dart';
 
 @JsonSerializable()
 class Data49 {
   const Data49({
-    required this.id,
+    required this.uuid,
+    required this.type,
+    required this.name,
+    required this.platform,
+    required this.appVersion,
+    required this.storeId,
     required this.branchId,
-    required this.hallId,
-    required this.productVariantId,
-    required this.productName,
-    required this.variantName,
-    required this.unit,
-    required this.quantityPerGuest,
-    required this.isActive,
-    required this.sortOrder,
+    required this.user,
+    required this.hasPushToken,
+    required this.lastSeenAt,
+    required this.revokedAt,
+    required this.createdAt,
   });
 
   factory Data49.fromJson(Map<String, Object?> json) => _$Data49FromJson(json);
 
-  final int id;
+  final String uuid;
+  final String type;
+  final String name;
+  final String? platform;
+  @JsonKey(name: 'app_version')
+  final String? appVersion;
+  @JsonKey(name: 'store_id')
+  final int? storeId;
   @JsonKey(name: 'branch_id')
-  final int branchId;
-  @JsonKey(name: 'hall_id')
-  final int? hallId;
-  @JsonKey(name: 'product_variant_id')
-  final int productVariantId;
-  @JsonKey(name: 'product_name')
-  final String? productName;
-  @JsonKey(name: 'variant_name')
-  final String? variantName;
-  final String? unit;
-  @JsonKey(name: 'quantity_per_guest')
-  final num quantityPerGuest;
-  @JsonKey(name: 'is_active')
-  final bool isActive;
-  @JsonKey(name: 'sort_order')
-  final int sortOrder;
+  final int? branchId;
+  final User13? user;
+  @JsonKey(name: 'has_push_token')
+  final bool hasPushToken;
+  @JsonKey(name: 'last_seen_at')
+  final String? lastSeenAt;
+  @JsonKey(name: 'revoked_at')
+  final String? revokedAt;
+  @JsonKey(name: 'created_at')
+  final String? createdAt;
 
   Map<String, Object?> toJson() => _$Data49ToJson(this);
 }

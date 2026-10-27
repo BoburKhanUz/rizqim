@@ -11,7 +11,7 @@ GetV1OwnerPermissionsResponse _$GetV1OwnerPermissionsResponseFromJson(
 ) => GetV1OwnerPermissionsResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data110.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data89.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1OwnerPermissionsResponseToJson(

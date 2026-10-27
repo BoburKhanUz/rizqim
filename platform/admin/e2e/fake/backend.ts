@@ -3,6 +3,9 @@
 // email + password, TOTP (any member's code is VALID_CODE), recovery codes, lockout, challenge expiry and reuse, step-up
 // (`admin.recent`), team, roles, audit log, search, sessions.
 import { fail, ok, validation, type FakeRequest, type RecordedCall, type Reply } from './types'
+import { FakeMonitoring } from './monitoring'
+import { FakeOrders } from './orders'
+import { FakeToday } from './today'
 
 export const VALID_CODE = '123456'
 /** The code of the next 30 s window: a good code too, so a test can "wait for the next one" */
@@ -20,12 +23,15 @@ export const PERMISSIONS: Array<{ key: string; label: string; group: string }> =
   { key: 'admin.today.view', label: "Bugun sahifasini ko'rish", group: 'Kundalik ish' },
   { key: 'admin.orders.view', label: "Buyurtmalarni ko'rish", group: 'Kundalik ish' },
   { key: 'admin.orders.intervene', label: 'Buyurtmaga aralashish', group: 'Kundalik ish' },
+  { key: 'admin.orders.refund_request', label: "Pulni qaytarishni so'rash", group: 'Kundalik ish' },
+  { key: 'admin.orders.refund_approve', label: 'Pulni qaytarishni tasdiqlash', group: 'Moliya' },
   { key: 'admin.stores.view', label: "Ovqatxonalarni ko'rish", group: 'Ovqatxonalar' },
   { key: 'admin.stores.manage', label: 'Ovqatxonalarni boshqarish', group: 'Ovqatxonalar' },
   { key: 'admin.finance.view', label: "Moliyani ko'rish", group: 'Moliya' },
   { key: 'admin.payouts.approve', label: 'Payoutni tasdiqlash', group: 'Moliya' },
   { key: 'admin.devices.view', label: "Qurilmalarni ko'rish", group: 'POS va obunalar' },
   { key: 'admin.monitoring.view', label: "Monitoringni ko'rish", group: 'Tizim' },
+  { key: 'admin.monitoring.manage', label: 'Monitoringni boshqarish', group: 'Tizim' },
   { key: 'admin.users.view', label: "Foydalanuvchilarni ko'rish", group: 'Mijozlar' },
   { key: 'admin.support.view', label: "Shikoyatlarni ko'rish", group: 'Mijozlar' },
   { key: 'admin.subscriptions.manage', label: 'Obunalarni boshqarish', group: 'POS va obunalar' },
@@ -34,15 +40,16 @@ export const PERMISSIONS: Array<{ key: string; label: string; group: string }> =
   { key: 'admin.integrations.view', label: "Integratsiyalarni ko'rish", group: 'Integratsiyalar' },
   { key: 'admin.audit.view', label: "Jurnalni ko'rish", group: 'Tizim' },
   { key: 'admin.team.manage', label: 'Jamoani boshqarish', group: 'Tizim' },
+  { key: 'admin.system.manage', label: 'Tizim sozlamalari', group: 'Tizim' },
 ]
 
 const ALL = PERMISSIONS.map((p) => p.key)
 const VIEWS = ALL.filter((key) => key.endsWith('.view'))
 const DEFAULT_GRANTS: Record<PlatformRole, string[]> = {
   superadmin: ALL,
-  operator: ['admin.today.view', 'admin.orders.view', 'admin.orders.intervene', 'admin.stores.view', 'admin.monitoring.view', 'admin.devices.view'],
-  support: ['admin.orders.view', 'admin.users.view', 'admin.stores.view'],
-  finance: ['admin.finance.view', 'admin.payouts.approve', 'admin.stores.view'],
+  operator: ['admin.today.view', 'admin.orders.view', 'admin.orders.intervene', 'admin.orders.refund_request', 'admin.stores.view', 'admin.monitoring.view', 'admin.monitoring.manage', 'admin.devices.view'],
+  support: ['admin.orders.view', 'admin.orders.refund_request', 'admin.users.view', 'admin.stores.view'],
+  finance: ['admin.finance.view', 'admin.payouts.approve', 'admin.orders.view', 'admin.orders.refund_approve', 'admin.stores.view'],
   sales: ['admin.stores.view', 'admin.stores.manage'],
   viewer: VIEWS,
 }
@@ -118,6 +125,12 @@ export class FakeBackend {
   audit: AuditRow[] = []
   calls: RecordedCall[] = []
   unhandled: string[] = []
+  /** Bugun (P4-13): e2e/fake/today.ts */
+  today = new FakeToday()
+  /** Monitoring (P4-15): e2e/fake/monitoring.ts */
+  monitoring = new FakeMonitoring()
+  /** Buyurtmalar (P4-14): e2e/fake/orders.ts */
+  orders = new FakeOrders()
   /** The code a challenge accepts as the TOTP (any 6 digits equal to this) */
   readonly code = VALID_CODE
   /** Milliseconds a challenge lives; tests shorten it to see it expire */
@@ -380,6 +393,18 @@ export class FakeBackend {
       if (!can('admin.team.manage')) return fail(403, "Ruxsat yo'q.")
       return this.team(req, path, body, member, session, needsRecent)
     }
+
+    // --- Monitoring (monitoring.view / monitoring.manage; deleting a job and changing a rule need the step-up)
+    const monitoring = this.monitoring.route(req, path, body, can, needsRecent, { id: member.id, name: member.name })
+    if (monitoring) return monitoring
+
+    // --- Buyurtmalar (orders.*; every action needs the step-up and a reason)
+    const orders = this.orders.route(req, path, body, can, needsRecent, { id: member.id, name: member.name })
+    if (orders) return orders
+
+    // --- Bugun (today.view)
+    const today = this.today.route(req, path, can)
+    if (today) return today
 
     this.unhandled.push(`${req.method} ${req.path}`)
     return fail(404, 'Topilmadi.')

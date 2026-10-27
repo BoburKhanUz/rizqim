@@ -7,11 +7,25 @@ part of 'data139.dart';
 // **************************************************************************
 
 Data139 _$Data139FromJson(Map<String, dynamic> json) => Data139(
-  bill: Bill.fromJson(json['bill'] as Map<String, dynamic>),
-  order: Order4.fromJson(json['order'] as Map<String, dynamic>),
+  channel: Channel6.fromJson(json['channel'] as String),
+  menuVersion: json['menu_version'] as String,
+  branch: Branch12.fromJson(json['branch'] as Map<String, dynamic>),
+  categories: (json['categories'] as List<dynamic>)
+      .map((e) => Category.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  products: (json['products'] as List<dynamic>)
+      .map((e) => Products.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  availability: Availability.fromJson(
+    json['availability'] as Map<String, dynamic>,
+  ),
 );
 
 Map<String, dynamic> _$Data139ToJson(Data139 instance) => <String, dynamic>{
-  'bill': instance.bill,
-  'order': instance.order,
+  'channel': instance.channel,
+  'menu_version': instance.menuVersion,
+  'branch': instance.branch,
+  'categories': instance.categories,
+  'products': instance.products,
+  'availability': instance.availability,
 };

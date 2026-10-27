@@ -4,32 +4,26 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'tax_regime.dart';
-import 'fiscal_settings.dart';
-import 'tax_regimes.dart';
+import 'roles.dart';
+import 'permissions.dart';
 
 part 'data89.g.dart';
 
 @JsonSerializable()
 class Data89 {
   const Data89({
-    required this.tin,
-    required this.taxRegime,
-    required this.fiscalSettings,
-    required this.drivers,
-    required this.taxRegimes,
+    required this.roles,
+    required this.permissions,
+    required this.matrix,
+    required this.defaults,
   });
 
   factory Data89.fromJson(Map<String, Object?> json) => _$Data89FromJson(json);
 
-  final String? tin;
-  @JsonKey(name: 'tax_regime')
-  final TaxRegime? taxRegime;
-  @JsonKey(name: 'fiscal_settings')
-  final FiscalSettings fiscalSettings;
-  final List<String> drivers;
-  @JsonKey(name: 'tax_regimes')
-  final List<TaxRegimes> taxRegimes;
+  final List<Roles> roles;
+  final List<Permissions> permissions;
+  final Map<String, Map<String, bool>> matrix;
+  final Map<String, Map<String, bool>> defaults;
 
   Map<String, Object?> toJson() => _$Data89ToJson(this);
 }

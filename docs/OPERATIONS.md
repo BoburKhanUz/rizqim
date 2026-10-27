@@ -237,3 +237,24 @@ shaxsini boshqa yo'l bilan (qo'ng'iroq, uchrashuv) tekshirgandan keyin qiling.
 
 Jurnal (`audit_logs`) o'zgarmaydi: PostgreSQL trigger yozuvni yangilash va o'chirishni rad etadi. Zaxiradan
 tiklash (`pg_restore`) bunga ta'sir qilmaydi.
+
+## 11. Boshqaruv markazi: monitoring va ogohlantirishlar (P4-15)
+
+Boshqaruv markazining **Monitoring** bo'limi (`docs/guides/boshqaruv-markazi.md`, "Monitoring") bu hujjatdagi tekshiruvlarni
+bitta joyga yig'adi va ularga ogohlantirish qoidalarini qo'shadi.
+
+- **Ops guruhi.** `backend/.env` da `TELEGRAM_OPS_CHAT_ID` (bo'sh bo'lsa `TELEGRAM_SUPERADMIN_CHAT_ID`) — ogohlantirishlar
+  ochilganda va hal bo'lganda xabar boradigan guruh. Botni guruhga qo'shing. Bir xil muammo `MONITORING_TELEGRAM_COOLDOWN`
+  (15) daqiqada bir martadan ko'p, jami soatiga `MONITORING_TELEGRAM_HOURLY_LIMIT` (20) tadan ortiq yuborilmaydi.
+- **Qoidalar har daqiqada tekshiriladi** (`EvaluateAlertsJob`, scheduler). Chegaralarni markazdan o'zgartirasiz (Monitoring →
+  Qoidalar), env kerak emas. Scheduler butunlay to'xtasa qoidalar ham to'xtaydi: shuning uchun 5-bo'limdagi tashqi uptime
+  monitor (`/health`) baribir kerak.
+- **Zaxira vaqti.** `scripts/backup.sh` har tekshirilgan dump'dan keyin `monitoring_markers` jadvaliga (`key = backup`)
+  vaqt yozadi (`psql` orqali, `backup` konteynerida bor). Yozib bo'lmasa zaxira baribir saqlanadi, logda "OGOHLANTIRISH"
+  chiqadi. Yangilangandan keyin `docker compose up -d --build backup` qiling; migratsiya bajarilgan bo'lishi kerak. Shundan
+  keyin Holat → "Zaxira nusxa" va "Zaxira nusxa eskirgan" qoidasi (26 soat) ishlaydi.
+- **Versiya va Sentry havolasi.** Build vaqtida `APP_VERSION` va `APP_COMMIT` (masalan `git rev-parse --short HEAD`), Sentry
+  loyihasi manzili `SENTRY_PROJECT_URL`. Bo'sh bo'lsa versiya o'rniga `SENTRY_RELEASE` ko'rsatiladi.
+- **Yiqilgan vazifalar** shu yerdan ham ko'riladi, qayta uriladi va o'chiriladi (`php artisan queue:failed` o'rniga); har amal
+  harakatlar jurnaliga yoziladi. Maxfiy qiymatlar yashiriladi.
+- **Real-time.** Ogohlantirishlar `platform.ops` kanalida (`ops.alert.*`). Reverb ishlamasa sahifa 30 soniyada yangilanadi.

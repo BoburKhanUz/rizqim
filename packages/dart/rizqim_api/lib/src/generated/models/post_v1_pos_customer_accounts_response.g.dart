@@ -11,7 +11,7 @@ PostV1PosCustomerAccountsResponse _$PostV1PosCustomerAccountsResponseFromJson(
 ) => PostV1PosCustomerAccountsResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data162.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data141.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1PosCustomerAccountsResponseToJson(

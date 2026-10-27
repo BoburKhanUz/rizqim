@@ -4,36 +4,26 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'member4.dart';
-import 'session2.dart';
+import 'user8.dart';
 
 part 'data12.g.dart';
 
 @JsonSerializable()
 class Data12 {
   const Data12({
-    required this.member,
-    required this.platformRole,
+    required this.token,
+    required this.expiresAt,
+    required this.user,
     required this.permissions,
-    required this.twoFactorEnabled,
-    required this.recoveryCodesLeft,
-    required this.lastLoginAt,
-    required this.session,
   });
 
   factory Data12.fromJson(Map<String, Object?> json) => _$Data12FromJson(json);
 
-  final Member4 member;
-  @JsonKey(name: 'platform_role')
-  final String? platformRole;
+  final String token;
+  @JsonKey(name: 'expires_at')
+  final String expiresAt;
+  final User8 user;
   final List<String> permissions;
-  @JsonKey(name: 'two_factor_enabled')
-  final bool twoFactorEnabled;
-  @JsonKey(name: 'recovery_codes_left')
-  final int recoveryCodesLeft;
-  @JsonKey(name: 'last_login_at')
-  final String? lastLoginAt;
-  final Session2? session;
 
   Map<String, Object?> toJson() => _$Data12ToJson(this);
 }

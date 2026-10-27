@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
-import { Placeholder } from '@/components/Placeholder';
+import { OrdersView } from '@/components/orders/OrdersView';
 
 export const metadata: Metadata = { title: 'Buyurtmalar' };
 
-// Stage B and later waves replace the placeholder with the real screen (docs/PHASE4_PLAN.md, section 9).
+// P4-14: the marketplace orders of every store, live
 export default function Page() {
-  return <Placeholder title="nav_orders" />;
+  return <OrdersView />;
 }

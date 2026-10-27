@@ -4,117 +4,126 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'items16.dart';
-import 'payments23.dart';
+import 'hall5.dart';
+import 'table5.dart';
+import 'waiter7.dart';
+import 'discount_kind.dart';
+import 'charges8.dart';
+import 'offline4.dart';
+import 'items27.dart';
 
 part 'data156.g.dart';
 
 @JsonSerializable()
 class Data156 {
   const Data156({
-    required this.sourceLabel,
-    required this.branchId,
-    required this.diningTableId,
-    required this.tableIds,
-    required this.startsAt,
-    required this.endsAt,
-    required this.guestsPlanned,
-    required this.eventType,
-    required this.eventTypeLabel,
-    required this.contactName,
-    required this.contactPhone,
-    required this.source,
-    required this.uuid,
+    required this.waiter,
+    required this.shortCode,
     required this.status,
-    required this.statusLabel,
-    required this.minSpend,
-    required this.note,
-    required this.orderUuid,
-    required this.depositTotal,
-    required this.depositAvailable,
-    required this.depositUnsettled,
-    required this.itemsCount,
-    required this.payments,
+    required this.channel,
+    required this.type,
+    required this.storeId,
+    required this.branchId,
     required this.version,
-    required this.createdBy,
-    required this.confirmedAt,
-    required this.arrivedAt,
-    required this.completedAt,
-    required this.canceledAt,
-    required this.confirmationSentAt,
-    required this.confirmationChannel,
-    required this.createdAt,
+    required this.hall,
+    required this.table,
+    required this.hallRef,
+    required this.tableRef,
+    required this.guestsCount,
+    required this.uuid,
+    required this.openedBy,
+    required this.deviceId,
+    required this.bookingId,
+    required this.bookingUuid,
+    required this.depositAvailable,
+    required this.billLocked,
+    required this.billRequestedAt,
+    required this.notes,
+    required this.openedAt,
     required this.updatedAt,
+    required this.subtotal,
     required this.items,
-    required this.cancelReason,
+    required this.discountKind,
+    required this.discountValue,
+    required this.discountReason,
+    required this.discountBy,
+    required this.serviceChargeAmount,
+    required this.placeFeeAmount,
+    required this.roomFeeAmount,
+    required this.minSpendTopupAmount,
+    required this.totalPrice,
+    required this.charges,
+    required this.offline,
+    required this.rounds,
+    required this.discount,
   });
 
   factory Data156.fromJson(Map<String, Object?> json) =>
       _$Data156FromJson(json);
 
   final String uuid;
-  @JsonKey(name: 'branch_id')
-  final int branchId;
-  @JsonKey(name: 'dining_table_id')
-  final int? diningTableId;
-  @JsonKey(name: 'table_ids')
-  final List<int> tableIds;
-  @JsonKey(name: 'starts_at')
-  final String startsAt;
-  @JsonKey(name: 'ends_at')
-  final String endsAt;
-  @JsonKey(name: 'guests_planned')
-  final int guestsPlanned;
-  @JsonKey(name: 'event_type')
-  final String eventType;
-  @JsonKey(name: 'event_type_label')
-  final String eventTypeLabel;
-  @JsonKey(name: 'contact_name')
-  final String contactName;
-  @JsonKey(name: 'contact_phone')
-  final String? contactPhone;
-  final String source;
-  @JsonKey(name: 'source_label')
-  final String sourceLabel;
+  @JsonKey(name: 'short_code')
+  final String? shortCode;
   final String status;
-  @JsonKey(name: 'status_label')
-  final String statusLabel;
-  @JsonKey(name: 'min_spend')
-  final String? minSpend;
-  final String? note;
-  @JsonKey(name: 'order_uuid')
-  final String? orderUuid;
-  @JsonKey(name: 'deposit_total')
-  final String depositTotal;
+  final String channel;
+  final String type;
+  @JsonKey(name: 'store_id')
+  final int storeId;
+  @JsonKey(name: 'branch_id')
+  final int? branchId;
+  final int version;
+  final Hall5? hall;
+  final Table5? table;
+  @JsonKey(name: 'hall_ref')
+  final String? hallRef;
+  @JsonKey(name: 'table_ref')
+  final String? tableRef;
+  @JsonKey(name: 'guests_count')
+  final int? guestsCount;
+  final Waiter7? waiter;
+  @JsonKey(name: 'opened_by')
+  final int openedBy;
+  @JsonKey(name: 'device_id')
+  final int? deviceId;
+  @JsonKey(name: 'booking_id')
+  final int? bookingId;
+  @JsonKey(name: 'booking_uuid')
+  final String? bookingUuid;
   @JsonKey(name: 'deposit_available')
   final String depositAvailable;
-  @JsonKey(name: 'deposit_unsettled')
-  final bool depositUnsettled;
-  @JsonKey(name: 'items_count')
-  final int itemsCount;
-  @JsonKey(name: 'cancel_reason')
-  final String? cancelReason;
-  final int version;
-  @JsonKey(name: 'created_by')
-  final int? createdBy;
-  @JsonKey(name: 'confirmed_at')
-  final String? confirmedAt;
-  @JsonKey(name: 'arrived_at')
-  final String? arrivedAt;
-  @JsonKey(name: 'completed_at')
-  final String? completedAt;
-  @JsonKey(name: 'canceled_at')
-  final String? canceledAt;
-  @JsonKey(name: 'confirmation_sent_at')
-  final String? confirmationSentAt;
-  @JsonKey(name: 'confirmation_channel')
-  final String? confirmationChannel;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
+  @JsonKey(name: 'bill_locked')
+  final bool billLocked;
+  @JsonKey(name: 'bill_requested_at')
+  final String? billRequestedAt;
+  final String? notes;
+  @JsonKey(name: 'opened_at')
+  final String? openedAt;
   @JsonKey(name: 'updated_at')
   final String? updatedAt;
-  final List<Items16> items;
-  final List<Payments23> payments;
+  final String subtotal;
+  final String discount;
+  @JsonKey(name: 'discount_kind')
+  final DiscountKind? discountKind;
+  @JsonKey(name: 'discount_value')
+  final String? discountValue;
+  @JsonKey(name: 'discount_reason')
+  final String? discountReason;
+  @JsonKey(name: 'discount_by')
+  final int? discountBy;
+  @JsonKey(name: 'service_charge_amount')
+  final String serviceChargeAmount;
+  @JsonKey(name: 'place_fee_amount')
+  final String placeFeeAmount;
+  @JsonKey(name: 'room_fee_amount')
+  final String roomFeeAmount;
+  @JsonKey(name: 'min_spend_topup_amount')
+  final String minSpendTopupAmount;
+  @JsonKey(name: 'total_price')
+  final String totalPrice;
+  final Charges8 charges;
+  final Offline4? offline;
+  final int rounds;
+  final List<Items27> items;
 
   Map<String, Object?> toJson() => _$Data156ToJson(this);
 }

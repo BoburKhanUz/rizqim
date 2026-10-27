@@ -7,25 +7,33 @@ part of 'data10.dart';
 // **************************************************************************
 
 Data10 _$Data10FromJson(Map<String, dynamic> json) => Data10(
-  member: Member3.fromJson(json['member'] as Map<String, dynamic>),
-  platformRole: json['platform_role'] as String?,
-  permissions: (json['permissions'] as List<dynamic>)
-      .map((e) => e as String)
-      .toList(),
-  twoFactorEnabled: json['two_factor_enabled'] as bool,
-  recoveryCodesLeft: (json['recovery_codes_left'] as num).toInt(),
-  lastLoginAt: json['last_login_at'] as String?,
-  session: json['session'] == null
+  uuid: json['uuid'] as String,
+  type: json['type'] as String,
+  name: json['name'] as String,
+  platform: json['platform'] as String?,
+  appVersion: json['app_version'] as String?,
+  storeId: (json['store_id'] as num?)?.toInt(),
+  branchId: (json['branch_id'] as num?)?.toInt(),
+  user: json['user'] == null
       ? null
-      : Session.fromJson(json['session'] as Map<String, dynamic>),
+      : User6.fromJson(json['user'] as Map<String, dynamic>),
+  hasPushToken: json['has_push_token'] as bool,
+  lastSeenAt: json['last_seen_at'] as String?,
+  revokedAt: json['revoked_at'] as String?,
+  createdAt: json['created_at'] as String?,
 );
 
 Map<String, dynamic> _$Data10ToJson(Data10 instance) => <String, dynamic>{
-  'member': instance.member,
-  'platform_role': instance.platformRole,
-  'permissions': instance.permissions,
-  'two_factor_enabled': instance.twoFactorEnabled,
-  'recovery_codes_left': instance.recoveryCodesLeft,
-  'last_login_at': instance.lastLoginAt,
-  'session': instance.session,
+  'uuid': instance.uuid,
+  'type': instance.type,
+  'name': instance.name,
+  'platform': instance.platform,
+  'app_version': instance.appVersion,
+  'store_id': instance.storeId,
+  'branch_id': instance.branchId,
+  'user': instance.user,
+  'has_push_token': instance.hasPushToken,
+  'last_seen_at': instance.lastSeenAt,
+  'revoked_at': instance.revokedAt,
+  'created_at': instance.createdAt,
 };

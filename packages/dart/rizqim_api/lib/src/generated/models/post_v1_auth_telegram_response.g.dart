@@ -11,7 +11,7 @@ PostV1AuthTelegramResponse _$PostV1AuthTelegramResponseFromJson(
 ) => PostV1AuthTelegramResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data26.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data5.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1AuthTelegramResponseToJson(

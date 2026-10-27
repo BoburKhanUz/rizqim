@@ -7,33 +7,13 @@ part of 'data112.dart';
 // **************************************************************************
 
 Data112 _$Data112FromJson(Map<String, dynamic> json) => Data112(
-  id: (json['id'] as num).toInt(),
-  branchId: (json['branch_id'] as num).toInt(),
-  name: json['name'] as String,
-  purpose: json['purpose'] as String,
-  connection: json['connection'] as String,
-  address: json['address'] as String?,
-  port: (json['port'] as num?)?.toInt(),
-  paperWidth: (json['paper_width'] as num).toInt(),
-  stationId: (json['station_id'] as num?)?.toInt(),
-  deviceId: json['device_id'] as String?,
-  isActive: json['is_active'] as bool,
-  encoding: json['encoding'] as String?,
-  printAsImage: json['print_as_image'] as bool,
+  userId: (json['user_id'] as num).toInt(),
+  staffCode: json['staff_code'] as String?,
+  pinSetAt: json['pin_set_at'] as String?,
 );
 
 Map<String, dynamic> _$Data112ToJson(Data112 instance) => <String, dynamic>{
-  'id': instance.id,
-  'branch_id': instance.branchId,
-  'name': instance.name,
-  'purpose': instance.purpose,
-  'connection': instance.connection,
-  'address': instance.address,
-  'port': instance.port,
-  'paper_width': instance.paperWidth,
-  'station_id': instance.stationId,
-  'device_id': instance.deviceId,
-  'is_active': instance.isActive,
-  'encoding': instance.encoding,
-  'print_as_image': instance.printAsImage,
+  'user_id': instance.userId,
+  'staff_code': instance.staffCode,
+  'pin_set_at': instance.pinSetAt,
 };

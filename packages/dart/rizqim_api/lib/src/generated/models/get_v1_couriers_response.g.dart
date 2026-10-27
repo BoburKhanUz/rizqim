@@ -12,7 +12,7 @@ GetV1CouriersResponse _$GetV1CouriersResponseFromJson(
   success: json['success'] as bool,
   message: json['message'] as String,
   data: (json['data'] as List<dynamic>)
-      .map((e) => Data28.fromJson(e as Map<String, dynamic>))
+      .map((e) => Data7.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 

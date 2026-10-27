@@ -78,6 +78,8 @@ export async function forward(request: NextRequest, segments: string[]): Promise
 
   const token = request.cookies.get(SESSION_COOKIE)?.value;
   const ip = clientIp(request);
+  // P4-14: a money action's Idempotency-Key (1-255 visible characters, docs/API.md section 5) reaches the backend
+  const idempotencyKey = request.headers.get('idempotency-key');
   const userAgent = request.headers.get('user-agent');
   let upstream: Response;
   try {
@@ -90,6 +92,7 @@ export async function forward(request: NextRequest, segments: string[]): Promise
         ...(ip ? { 'X-Forwarded-For': ip } : {}),
         // The audit log records the browser, not this server
         ...(userAgent ? { 'User-Agent': userAgent } : {}),
+        ...(idempotencyKey && /^[\x21-\x7E]{1,255}$/.test(idempotencyKey) ? { 'Idempotency-Key': idempotencyKey } : {}),
       },
       body,
       cache: 'no-store',

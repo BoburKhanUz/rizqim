@@ -51,14 +51,14 @@ export interface NavItem {
 }
 
 export const NAV_ITEMS: readonly NavItem[] = [
-  { key: 'today', href: '/today', label: 'nav_today', anyOf: ['today.view'], icon: LayoutDashboard, built: false },
-  { key: 'orders', href: '/orders', label: 'nav_orders', anyOf: ['orders.view'], icon: ClipboardList, built: false },
+  { key: 'today', href: '/today', label: 'nav_today', anyOf: ['today.view'], icon: LayoutDashboard, built: true },
+  { key: 'orders', href: '/orders', label: 'nav_orders', anyOf: ['orders.view'], icon: ClipboardList, built: true },
   { key: 'stores', href: '/stores', label: 'nav_stores', anyOf: ['stores.view'], icon: Store, built: false },
   { key: 'pos', href: '/pos', label: 'nav_pos', anyOf: ['subscriptions.manage', 'devices.view'], icon: MonitorSmartphone, built: false },
   { key: 'finance', href: '/finance', label: 'nav_finance', anyOf: ['finance.view'], icon: HandCoins, built: false },
   { key: 'customers', href: '/customers', label: 'nav_customers', anyOf: ['users.view', 'support.view'], icon: UsersRound, alsoPaths: ['/users'], built: false },
   { key: 'marketing', href: '/marketing', label: 'nav_marketing', anyOf: ['marketing.view'], icon: Megaphone, built: false },
-  { key: 'monitoring', href: '/monitoring', label: 'nav_monitoring', anyOf: ['monitoring.view'], icon: Activity, built: false },
+  { key: 'monitoring', href: '/monitoring', label: 'nav_monitoring', anyOf: ['monitoring.view'], icon: Activity, built: true },
   { key: 'integrations', href: '/integrations', label: 'nav_integrations', anyOf: ['integrations.view'], icon: Plug, built: false },
   // Tizim
   { key: 'team', href: '/team', label: 'nav_team', anyOf: ['team.manage'], icon: Users, built: true },

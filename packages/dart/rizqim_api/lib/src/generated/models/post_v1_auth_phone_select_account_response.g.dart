@@ -11,7 +11,7 @@ _$PostV1AuthPhoneSelectAccountResponseFromJson(Map<String, dynamic> json) =>
     PostV1AuthPhoneSelectAccountResponse(
       success: json['success'] as bool,
       message: json['message'] as String,
-      data: Data22.fromJson(json['data'] as Map<String, dynamic>),
+      data: Data.fromJson(json['data'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$PostV1AuthPhoneSelectAccountResponseToJson(

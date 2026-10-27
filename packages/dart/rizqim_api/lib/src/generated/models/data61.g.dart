@@ -7,17 +7,27 @@ part of 'data61.dart';
 // **************************************************************************
 
 Data61 _$Data61FromJson(Map<String, dynamic> json) => Data61(
-  branchId: (json['branch_id'] as num).toInt(),
-  timezone: json['timezone'] as String,
-  businessDayStartsAt: json['business_day_starts_at'] as String,
-  posSettings: PosSettings.fromJson(
-    json['pos_settings'] as Map<String, dynamic>,
-  ),
+  id: (json['id'] as num).toInt(),
+  type: json['type'] as String,
+  amount: json['amount'] as String,
+  balanceBefore: json['balance_before'] as String,
+  balanceAfter: json['balance_after'] as String,
+  order: json['order'] == null
+      ? null
+      : Order2.fromJson(json['order'] as Map<String, dynamic>),
+  referenceId: json['reference_id'] as String?,
+  notes: json['notes'] as String?,
+  createdAt: json['created_at'] as String,
 );
 
 Map<String, dynamic> _$Data61ToJson(Data61 instance) => <String, dynamic>{
-  'branch_id': instance.branchId,
-  'timezone': instance.timezone,
-  'business_day_starts_at': instance.businessDayStartsAt,
-  'pos_settings': instance.posSettings,
+  'id': instance.id,
+  'type': instance.type,
+  'amount': instance.amount,
+  'balance_before': instance.balanceBefore,
+  'balance_after': instance.balanceAfter,
+  'order': instance.order,
+  'reference_id': instance.referenceId,
+  'notes': instance.notes,
+  'created_at': instance.createdAt,
 };

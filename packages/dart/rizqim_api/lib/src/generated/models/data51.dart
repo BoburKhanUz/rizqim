@@ -4,6 +4,8 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'layout2.dart';
+
 part 'data51.g.dart';
 
 @JsonSerializable()
@@ -12,13 +14,14 @@ class Data51 {
     required this.id,
     required this.branchId,
     required this.hallId,
-    required this.productVariantId,
-    required this.productName,
-    required this.variantName,
-    required this.unit,
-    required this.quantityPerGuest,
-    required this.isActive,
+    required this.name,
+    required this.kind,
+    required this.seats,
+    required this.layout,
     required this.sortOrder,
+    required this.isActive,
+    required this.minSpend,
+    required this.minSpendMode,
   });
 
   factory Data51.fromJson(Map<String, Object?> json) => _$Data51FromJson(json);
@@ -27,20 +30,19 @@ class Data51 {
   @JsonKey(name: 'branch_id')
   final int branchId;
   @JsonKey(name: 'hall_id')
-  final int? hallId;
-  @JsonKey(name: 'product_variant_id')
-  final int productVariantId;
-  @JsonKey(name: 'product_name')
-  final String? productName;
-  @JsonKey(name: 'variant_name')
-  final String? variantName;
-  final String? unit;
-  @JsonKey(name: 'quantity_per_guest')
-  final num quantityPerGuest;
-  @JsonKey(name: 'is_active')
-  final bool isActive;
+  final int hallId;
+  final String name;
+  final String kind;
+  final int? seats;
+  final Layout2 layout;
   @JsonKey(name: 'sort_order')
   final int sortOrder;
+  @JsonKey(name: 'is_active')
+  final bool isActive;
+  @JsonKey(name: 'min_spend')
+  final String? minSpend;
+  @JsonKey(name: 'min_spend_mode')
+  final String minSpendMode;
 
   Map<String, Object?> toJson() => _$Data51ToJson(this);
 }

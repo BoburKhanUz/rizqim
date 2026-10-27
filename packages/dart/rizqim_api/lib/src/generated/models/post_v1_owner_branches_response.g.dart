@@ -11,7 +11,7 @@ PostV1OwnerBranchesResponse _$PostV1OwnerBranchesResponseFromJson(
 ) => PostV1OwnerBranchesResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data58.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data37.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1OwnerBranchesResponseToJson(

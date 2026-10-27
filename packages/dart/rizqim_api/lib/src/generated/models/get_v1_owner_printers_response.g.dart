@@ -12,7 +12,7 @@ GetV1OwnerPrintersResponse _$GetV1OwnerPrintersResponseFromJson(
   success: json['success'] as bool,
   message: json['message'] as String,
   data: (json['data'] as List<dynamic>)
-      .map((e) => Data112.fromJson(e as Map<String, dynamic>))
+      .map((e) => Data91.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 

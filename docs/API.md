@@ -1908,3 +1908,422 @@ va menejerlar avvalgidek.
 
 Testlar: `tests/Feature/AdminAuthLoginTest.php`, `AdminSessionTest.php`, `AdminTeamTest.php`, `AdminAuditTest.php`,
 `AdminSearchTest.php`, `AdminChannelAndPanelTest.php`.
+
+## Bugun (P4-13)
+
+Boshqaruv markazining bosh sahifasi: bugungi raqamlar va "Diqqat talab qiladi". Ikkalasi ham `admin.today.view`
+(superadmin, operator, faqat ko'rish), faqat o'qiladi. Kod: `routes/api_admin_today.php`,
+`App\Http\Controllers\Api\V1\Admin\AdminTodayController`, `App\Services\Admin\Today`,
+`App\Services\Admin\Attention\AttentionCollector`.
+
+### Nima hisoblanadi
+
+| Ko'rsatkich | Ta'rif |
+|---|---|
+| Kun | **Toshkent vaqti** (Asia/Tashkent) bo'yicha kalendar kun, 00:00 dan 24:00 gacha. Buyurtma yaratilgan vaqti (`created_at`) bo'yicha kunga va soatga tushadi |
+| Marketpleys buyurtmasi | kanal `telegram` yoki `mobile` (RIZQIM boti, Mini App, ilova). Kassa (`pos_hall`, `pos_takeaway`) va tashqi agregator (`aggregator`) buyurtmalari GMV ga kirmaydi, faqat kanallar bo'linmasida ko'rinadi |
+| Hisoblanadigan buyurtma | o'chirilmagan va holati `canceled`, `rejected`, `refunded` emas. Jarayondagi (yangi, tayyorlanayotgan, yo'ldagi) buyurtmalar ham kiradi; keyin bekor qilinsa yoki pul qaytarilsa, keyingi yangilanishda chiqib ketadi |
+| **GMV** | hisoblanadigan marketpleys buyurtmalarining `total_price` yig'indisi — mijoz to'laydigan summa (chegirmadan keyingi taom + yetkazish + xizmat haqi va joy puli) |
+| **Buyurtmalar** | shu buyurtmalar soni |
+| **Komissiya** | shu buyurtmalarning `commission_amount` yig'indisi — checkout paytida yozilgan va yetkazilganda ledger aynan shu summani oladigan komissiya. Ya'ni bugungi buyurtmalar olib keladigan komissiya; "Rizqim daromadi" oylik hisoboti esa uni **yetkazilgan kuni** bo'yicha yozadi, shuning uchun kun chegarasida ikkisi biroz farq qilishi mumkin |
+| **Obuna daromadi** | holati `paid` bo'lgan obuna hisob-fakturalarining `amount` yig'indisi, to'langan vaqti (`paid_at`) bo'yicha |
+| Bekor qilinganlar | `canceled` va `rejected` marketpleys buyurtmalari soni (qo'shimcha ko'rsatkich) |
+
+Pul summalari — o'nlik satr (`"120000.00"`), float emas.
+
+### `GET /admin/today`
+
+```
+data: {
+  date: "2026-11-10", timezone: "Asia/Tashkent",
+  generated_at, stats_computed_at, live_from,
+  kpis: { gmv, orders, commission, subscription_revenue, canceled_orders },
+  channels: [{channel, label, marketplace, orders, gmv}],
+  regions:  [{region_id, name, orders, gmv, active_stores}]
+}
+```
+
+- Har bir `kpis.*`: `value` (bugun hozirgacha), `yesterday_same_time` va `last_week_same_time` (kecha va o'tgan haftaning
+  shu kuni, **xuddi shu soat-daqiqagacha**), `yesterday` va `last_week` (butun kun), `vs_yesterday` va `vs_last_week`:
+  `{direction: "up" | "down" | "same", percent}` — `percent` oldingi qiymatga nisbatan, bir xona aniqlikda; oldingi qiymat
+  0 bo'lsa `null`. Solishtirma "shu vaqtgacha" bilan qilinadi: tushdagi bugunni kechaning butun kuni bilan solishtirish
+  noto'g'ri bo'lardi.
+- `channels`: bugun hamma kanallar (marketpleys birinchi, `marketplace: true`).
+- `regions`: buyurtma filialining viloyati bo'yicha bugungi marketpleys buyurtmalari va GMV; `active_stores` — holati
+  `active`, o'chirilmagan, shu viloyatda faol filiali bor ovqatxonalar. Viloyati yo'q filial — `region_id: null`,
+  "Viloyat ko'rsatilmagan". Eng ko'p buyurtmali viloyat birinchi.
+- `stats_computed_at` — yig'ma jadvallar bugun uchun oxirgi marta qachon yangilangani (null: hali yangilanmagan);
+  `live_from` — shu vaqtdan boshlab raqamlar to'g'ridan-to'g'ri buyurtmalardan sanaladi.
+
+### Yig'ma jadvallar va yangilanish
+
+Sahifa hamma buyurtmalarni har so'rovda qayta sanamaydi:
+
+- `platform_hourly_stats` (sana, soat, viloyat, kanal) va `platform_daily_stats` (sana, viloyat, kanal): buyurtmalar
+  soni, GMV, komissiya, bekor qilingan va qaytarilganlar soni; `channel = subscriptions` qatorlarida to'langan
+  hisob-fakturalar soni va obuna daromadi (viloyat 0). Viloyat 0 — filialda viloyat yo'q.
+- `platform_stats_days`: qaysi kun hisoblangan va uning soatlik qatorlari qaysi vaqtgacha yakuniy (`complete_through`):
+  bugun uchun — oxirgi yangilanishdagi joriy soat boshi, o'tgan kun uchun — kun oxiri.
+- `App\Jobs\RefreshPlatformStatsJob`: har **5 daqiqada** bugun va kechani, har kecha **00:20** (Toshkent) oxirgi 8 kunni
+  noldan qayta hisoblaydi (keyin bekor qilingan yoki qaytarilgan buyurtmalar va "o'tgan hafta" solishtirmasi uchun).
+  Qayta ishga tushirish xavfsiz; bir kunni bir vaqtda ikki jarayon yozmaydi (advisory lock).
+- `GET /admin/today` yakuniy soatlarni jadvaldan, qolganini (odatda joriy soat) indeksli tor so'rov bilan jonli sanaydi.
+  Shuning uchun raqamlar har doim shu daqiqagacha to'g'ri; yangilanish to'xtab qolsa, sahifa sekinlashadi, lekin
+  xato ko'rsatmaydi. Yakuniy soatdagi buyurtma keyin bekor qilinsa, u keyingi yangilanishda (5 daqiqa ichida) chiqadi.
+- O'tgan kunlarni to'ldirish (birinchi deploydan keyin yoki qo'lda tuzatish):
+  `php artisan admin:stats-backfill --from=2026-10-01 --to=2026-11-01` (yoki `--days=35`, standart). Hisoblanmagan
+  kun so'ralsa, u jonli sanaladi (to'g'ri, lekin sekinroq).
+
+### `GET /admin/today/attention?limit=`
+
+```
+data: { groups: [{kind, label, count, severity, items: [{kind, severity, title, subtitle, href, since, store_id}]}], generated_at }
+```
+
+- Har bir bo'lim o'z manbalarini (`App\Services\Admin\Attention\AttentionSource`, `admin.attention` tegi) o'z service
+  provider'ida ro'yxatdan o'tkazadi; endpoint a'zo ruxsati yetadigan barcha manbalarni so'raydi.
+- Bitta guruh — bitta muammo turi: `count` — hammasi, `items` — ko'pi bilan `limit` ta (1–20, standart 5), eng
+  muhimi birinchi. Guruhlar: avval `critical`, keyin `warning`, keyin `info`; bir xil darajada soni ko'pi birinchi.
+  Hech narsa bo'lmasa `groups: []` (sahifada "Hammasi joyida").
+- `href` — admin ilovadagi karta yo'li; `since` — muammo qachondan beri (ISO 8601, Toshkent vaqti).
+- Bir manba xato bersa, u Sentry/logga yoziladi va ro'yxatdan tushib qoladi; qolganlari ko'rinadi.
+- Manba guruh nomini o'zi bermasa (`DescribesAttention`), nom `kind` bo'yicha jadvaldan olinadi.
+
+Bugun bo'limining manbalari (`App\Services\Admin\Today\Attention`, `App\Providers\AdminTodayServiceProvider`):
+
+| `kind` | Nima | Ruxsat | Daraja | `href` |
+|---|---|---|---|---|
+| `settlement_failed` | yetkazilgan, lekin ledger yozuvi yiqilgan buyurtmalar (`settlement_failed_at`) | `finance.view` | avtomatik urinishlar tugagan bo'lsa `critical`, aks holda `warning` | `/orders/{uuid}` |
+| `fiscal_failed` | oxirgi 7 kunda yiqilgan fiskal cheklar (`status = failed`) | `devices.view` | `critical` | `/pos?fiscal={uuid}` |
+| `device_offline` | faol ovqatxonaning POS/KDS terminali 10 daqiqadan beri aloqa qilmagan, filial esa hozir ish vaqtida (filial ish soatlari; filialsiz terminal — ovqatxona soatlari; ovqatxona "yopiq" qilingan bo'lsa — yo'q). 3 kundan ko'p ko'rinmagan terminallar bu yerda emas | `devices.view` | `warning` | `/pos?device={uuid}` |
+| `invoice_overdue` | to'lov muddati (Toshkent sanasi) o'tgan, to'lanmagan obuna hisob-fakturalari | `finance.view` | `warning` | `/pos?invoice={uuid}` |
+| `payout_pending` | tasdiq kutayotgan pul yechish so'rovlari (karta raqami ko'rsatilmaydi) | `finance.view` | `warning` | `/finance?payout={id}` |
+| `topup_pending` | 30 daqiqadan beri to'lanmagan balans to'ldirishlari (Click/Payme), oxirgi 3 kun | `finance.view` | `info` | `/finance?topup={uuid}` |
+
+Boshqa bo'limlarniki: buyurtmalar (P4-14 — qabul qilinmagan, kechikkan, kuryersiz), monitoring (P4-15 — ochiq
+ogohlantirishlar). `/pos?…` va `/finance?…` havolalari shu bo'limlar o'z kartalarini qo'shguncha bo'lim sahifasini ochadi.
+
+Indekslar (`2026_11_02_100100`): `orders(created_at)`, `subscription_invoices(paid_at)`, `(status, due_date)`,
+`payout_requests(status, created_at)`, `store_topup_requests(status, created_at)`, `fiscal_receipts(status, created_at)`,
+`devices(last_seen_at)` (faqat ulangan, bekor qilinmagan). Migratsiyalar: `2026_11_02_100000` (jadvallar), `2026_11_02_100100`.
+
+Testlar: `tests/Feature/AdminTodayStatsTest.php`, `AdminTodayApiTest.php`, `AdminTodayAttentionTest.php`.
+
+## Buyurtmalar (P4-14)
+
+Boshqaruv markazining **Buyurtmalar** bo'limi: hamma ovqatxonalarning marketpleys buyurtmalari, kechikish (SLA), buyurtma
+kartasi, aralashish va pulni qaytarish. Kod: `routes/api_admin_orders.php`, `App\Http\Controllers\Api\V1\Admin\AdminOrder*`,
+`AdminRefundRequestController`, `App\Services\Admin\Orders`.
+
+**Qaysi buyurtmalar:** kanal `telegram` yoki `mobile` (RIZQIM boti, Mini App, ilova) — "Bugun"dagi GMV bilan bir xil.
+Kassa (`pos_hall`, `pos_takeaway`) va agregator buyurtmalari bu yerda ko'rinmaydi (karta ham 404).
+
+### Ruxsatlar
+
+| Endpoint | Ruxsat | Step-up | `reason` |
+|---|---|---|---|
+| `GET /admin/orders`, `GET /admin/orders/{uuid}`, `GET /admin/orders/sla`, `GET /admin/orders/store-quality`, `GET /admin/refund-requests` | `orders.view` | — | — |
+| `PUT /admin/orders/sla` | `system.manage` | ha | ha |
+| `POST /admin/orders/{uuid}/cancel`, `/status`, `/message` | `orders.intervene` | ha | ha |
+| `POST /admin/orders/{uuid}/refund-requests` | `orders.refund_request` | ha | ha |
+| `POST /admin/refund-requests/{id}/approve`, `/reject` | `orders.refund_approve` | ha | ha |
+
+Har bir amal jurnalga yoziladi (amal nomi — route nomi: `admin.orders.cancelled`, `admin.orders.status_fixed`,
+`admin.orders.messaged`, `admin.orders.refund_requested`, `admin.refund_requests.approved`, `admin.refund_requests.rejected`,
+`admin.orders.sla.updated`), obyekt — buyurtma, oldin/keyin holati va sabab bilan. Shuning uchun buyurtma kartasining
+"Jurnal" qismida ovqatxonaning o'z yozuvlari ham, jamoa yozuvlari ham bor.
+
+### SLA (kechikish chegaralari)
+
+Uch bosqich, daqiqada (`settings` jadvali: `orders.sla.accept_minutes`, `orders.sla.prepare_minutes`,
+`orders.sla.deliver_minutes`):
+
+| Bosqich | Qachondan | Qachongacha | Standart |
+|---|---|---|---|
+| `accept` (qabul qilish) | buyurtma kelgan vaqt. Faqat ovqatxona qabul qilishi kerak bo'lgan yangi buyurtma: naqd yoki keshbek, onlayn to'lov bo'lsa — to'langan. To'lanmagan onlayn buyurtma mijozni kutadi, unga SLA yo'q | qabul qilindi / rad etildi / bekor qilindi | 5 |
+| `prepare` (tayyorlash) | tarixdagi birinchi `accepted` | `ready` (yoki undan keyingi holat) | 30 |
+| `deliver` (yetkazish) | tarixdagi birinchi `on_the_way` / `delivery` (faqat yetkazib berish) | `delivered` | 45 |
+
+`ready` va `courier_assigned` holatida bosqich yurmaydi (kuryersiz tayyor buyurtma — alohida "Diqqat talab qiladi" qatori).
+Holat: `ok`; chegaraning **80%** idan `warning`; chegaradan `late` va `late_by_minutes` (butun daqiqa). Har bir ro'yxat
+qatori va kartada `sla`:
+
+```
+sla: {stage, stage_label, state: "ok"|"warning"|"late", limit_minutes, started_at, warning_at, due_at,
+      late_by_minutes, minutes_left} | null
+```
+
+`GET /admin/orders/sla` → `{limits: {accept, prepare, deliver}, defaults, bounds, warning_ratio: 0.8}`.
+`PUT /admin/orders/sla {accept?, prepare?, deliver?, reason}` — chegaralar: accept 1–120, prepare 5–300, deliver 5–300.
+O'zgarish darhol ishlaydi (ro'yxat, "Diqqat" qatorlari, kuzatuvchi).
+
+**Kuzatuvchi (har daqiqa, `WatchOrderSlaJob`, scheduler):** bosqichi `warning` yoki `late` bo'lgan buyurtmalarni topadi va
+har bir o'tishni **bir marta** `order_sla_events` ga yozadi (buyurtma + bosqich + holat yagona). Yangi o'tish
+`platform.ops` kanaliga `ops.order.updated` (`change: "sla"`) bo'lib boradi. Ikki ishga tushish orasida to'g'ridan-to'g'ri
+`late` ga o'tgan buyurtmaga `warning` ham yoziladi, lekin faqat `late` e'lon qilinadi. Bir ishda ko'pi bilan 500 ta.
+
+### `GET /admin/orders` — ro'yxat
+
+Eng yangisi birinchi, kursor bilan (`cursor` ← `next_cursor`, `per_page` 1–100, standart 30). Filtrlar:
+
+- `status` — guruh (superadmin panelidagi tablar bilan bir xil): `active` (yakunlanmagan), `new`, `kitchen` (accepted,
+  preparing, ready), `en_route` (courier_assigned, on_the_way, delivery), `done` (delivered, refunded), `canceled`
+  (canceled, rejected);
+- `sla` — `late` yoki `warning`; `channel` — `telegram`, `mobile`; `store_id`; `region_id` (filial viloyati);
+- `from` / `to` — `Y-m-d`, **Toshkent kuni** (ikkala chet kiradi);
+- `q` — qisqa kod (`#` bilan ham), uuid boshi yoki mijoz telefonining 4+ raqami.
+
+Javob: `{data: [qator], next_cursor, per_page, counts: {active, new, kitchen, en_route, done, canceled}, sla_limits,
+server_time}`. `counts` — o'sha filtrlar bilan (guruhdan tashqari); `done` va `canceled` sana berilmasa faqat
+**bugungi** (Toshkent). Qatorda telefon yo'q: `uuid, short_code, status, status_label, status_group, type, channel,
+channel_label, store {id, name}, branch, region, customer_name, total, payment_method, payment_status, courier {id, name},
+sla, refund_pending, manual_refund_required, created_at, updated_at`.
+
+### `GET /admin/orders/{uuid}` — karta
+
+Qator maydonlari va: `customer {id, name, phone, has_telegram}`, `courier {id, name, phone}`, `store {id, name, phone}`
+(telefonlar `pii.view` siz niqoblangan, ochilsa `admin.pii.revealed` yoziladi), `branch {id, name, address}`,
+`delivery_address`, `notes`, `items[]`, `totals` (subtotal, discount, delivery_price, service_charge, place_fee, total,
+commission, payment_owner), `cancel {reason, reason_label, note}`, `payments[]` (provider, amount, status, paid_at,
+`manual_refund_required`, `manual_refund_approved[]`), `refunds {paid, refunded, refundable, requests[]}`, `history[]`
+(holat, vaqt, `actor {id, name, role, team}` — `team: true` RIZQIM jamoasi a'zosi, null — tizim, `notes`),
+`sla_timeline[]` (bosqich, boshlanishi, tugashi, necha daqiqa, kechikdimi), `sla_events[]`, `fiscal_receipts[]`,
+`audit[]` (oxirgi 50) va `actions` — shu a'zo hozir nima qila oladi: `can_cancel`, `cancel_reasons[]`, `transitions[]`,
+`message_store`, `message_customer`, `can_request_refund`, `can_approve_refund`.
+
+### Aralashish
+
+Holatni hech qachon to'g'ridan-to'g'ri yozmaydi: hammasi `OrderStatusService::transition` orqali (holat mashinasi,
+`OrderPolicy`, ombor, keshbek, qaytarish belgisi, hisob-kitob, mijoz xabarlari, ovqatxona real-time hodisalari). A'zo
+o'z nomidan ishlaydi: `OrderPolicy` `platform` rolidagi a'zoga `orders.intervene` bilan buyurtmani o'zgartirishga,
+`orders.refund_approve` bilan qaytarishga ruxsat beradi; tarixda va ovqatxona jurnalida a'zo ko'rinadi.
+
+- `POST .../cancel {cancel_reason, note?, reason}` — ovqatxona sabablari (`customer_request`, `no_show` — faqat qabul
+  qilingan olib ketish, `out_of_stock`, `store_closed`, `courier_unavailable`, `other`); `note` mijozga ko'rinadi,
+  `reason` — jamoaniki (jurnal va tarix). Pul: keshbek balansga qaytadi, Click/Payme yoki yig'ilgan naqd —
+  "qo'lda qaytarilishi kerak" belgisi (keyin qaytarish so'rovi). Ovqatxona chatiga xabar boradi. Javob — karta.
+  Yakunlangan buyurtma: 422 `illegal`.
+- `POST .../status {status, courier_id?, reason}` — faqat hayot siklida joriy holatdan ruxsat etilgan keyingi holat
+  (`actions.transitions`). Bekor qilish (`use_cancel`) va qaytarish (`use_refund_request`) bu yerda emas. **Majburiy
+  o'tkazish ro'yxati yo'q**: boshqasi 422 `illegal`. Kuryerga o'tishda `courier_id` ovqatxona kuryeri bo'lishi kerak
+  (422 `courier`), berilmasa eng bo'sh kuryer tanlanadi. Ovqatxona chatiga xabar boradi.
+- `POST .../message {to: "store"|"customer", text, reason}` — Telegram (navbat orqali, oddiy matn): `store` —
+  ovqatxonaning buyurtma chati va buyurtma kartasi boradigan menejerlar (yangi buyurtma kartasi bilan bir xil
+  qabul qiluvchilar), `customer` — RIZQIM boti. 422 `no_recipient`, bot sozlanmagan — 503 `telegram_not_configured`.
+  Javob `{recipients}`.
+
+### Pulni qaytarish: so'rov va ikki kishilik tasdiq
+
+1. `POST /admin/orders/{uuid}/refund-requests {amount, reason}` (`Idempotency-Key` ixtiyoriy) — faqat yakunlangan
+   buyurtma (`delivered`, `canceled`, `rejected`, `refunded`; aks holda 422 `order_active`), summa 0 dan katta va
+   **to'langan − qaytarilgan** dan oshmaydi (422 `amount_exceeds_refundable`, `data.refundable`), bir buyurtmada bir vaqtda
+   bitta kutilayotgan so'rov (409 `refund_request_pending`). Holat `pending` ("Tasdiq kutilmoqda").
+2. `POST /admin/refund-requests/{id}/approve {reason}` yoki `/reject {reason}` — **so'ragan a'zo emas** (403
+   `four_eyes`, superadmin ham). `Idempotency-Key` yuboring: takror so'rov o'sha javobni qaytaradi va hech narsa ikki marta
+   bajarilmaydi (jurnal ham ikki marta yozilmaydi). Bir xil qaror qayta yuborilsa ham shunday; boshqa qaror — 409
+   `refund_request_decided`.
+3. `GET /admin/refund-requests?status=pending|approved|rejected|all&store_id=` — tasdiq navbati.
+
+**Tasdiq nima qiladi** (`execution`):
+
+| Holat | `mode` | Nima bo'ladi |
+|---|---|---|
+| Yetkazilgan buyurtma, summa = qaytariladigan hammasi | `order_refunded` | `OrderStatusService::refund`: buyurtma `refunded`, ovqatxona komissiyasi va o'tkazilgan pul qaytariladi (`LedgerService::reverseDeliveredOrder`), keshbek mijoz balansiga qaytadi, Click/Payme yoki naqd to'lovga "qo'lda qaytarish" belgisi |
+| Bekor qilingan / rad etilgan / qaytarilgan buyurtma, yoki yetkazilgan buyurtmaning bir qismi | `manual` | buyurtma holati o'zgarmaydi; to'lovga `manual_refund_approved` yoziladi |
+
+`automatic_amount` — o'zi qaytgan qism (keshbek), `manual_amount` — tasdiqlovchi to'lov tizimi kabinetida (Payme, Click)
+yoki naqd qaytaradigan qism, `provider_refund: "manual"`. **To'lov tizimi orqali avtomatik qaytarish yo'q**: kodda
+Payme qaytarishi faqat Payme'ning `CancelTransaction` webhook'i sifatida keladi (kabinetdan qilinganda), Click qaytarish
+API (`payment/reversal`) va Uzum ulanmagan. Qaytariladigan summa: to'langan = `paid`/`refunded` to'lovlar; qaytarilgan =
+tasdiqlangan so'rovlar + so'rovsiz qaytgan to'lovlar (bekor qilishda keshbek, Payme bekor qilishi). Tasdiq qamragan
+to'lovlarda `payload.refund_request_ids` bor, shuning uchun keyin Payme o'sha pulni qaytarsa ikki marta sanalmaydi.
+
+Hali yo'q (keyingi bosqich): yetkazilgan buyurtmaning **qisman** qaytarilishida ovqatxona komissiyasi va hisob-kitobi
+o'zgarmaydi; naqd buyurtmada to'lov "to'langan" deb belgilanmagan bo'lsa qaytarib bo'lmaydi (qaytariladigan 0).
+
+### `GET /admin/orders/store-quality?store_id=` — ovqatxona sifati (30 kun)
+
+`{period: {from, to, days: 30}, stores: [{store, orders, accepted, acceptance_rate, avg_accept_minutes, avg_prep_minutes,
+canceled, cancel_rate, rating, review_count, ratings_in_period, rating_in_period}]}`. `orders` — ovqatxonaga yetib borgan
+buyurtmalar (to'lanmagan onlayn va mijoz o'zi yangi holatda bekor qilganlar kirmaydi); `acceptance_rate` — qabul
+qilingan ulush (0–1); `avg_accept_minutes` — naqd va keshbek buyurtmalar, kelgandan xodim qabul qilguncha;
+`avg_prep_minutes` — qabul qilingandan tayyorgacha; `cancel_rate` — bekor qilingan va rad etilganlar ulushi. `store_id`
+siz — buyurtmasi bor 50 ta ovqatxona, eng zaifi birinchi. 5 daqiqa keshlanadi.
+
+### "Diqqat talab qiladi" manbalari (`orders.view`)
+
+| `kind` | Nima | `severity` |
+|---|---|---|
+| `order_unaccepted` | qabul qilish chegarasidan o'tgan yangi buyurtma | `critical` |
+| `order_late` | tayyorlash yoki yetkazish kechikkan | `warning`, chegaradan yana bir chegara ko'p kechiksa `critical` |
+| `order_no_courier` | tayyor, kuryeri yo'q yetkazib berish buyurtmasi | `warning`, 10 daqiqadan keyin `critical` |
+
+Har qator `href: /orders/{uuid}`.
+
+### Real vaqt (`platform.ops`)
+
+| Hodisa | Qachon | Tana |
+|---|---|---|
+| `ops.order.created` | yangi marketpleys buyurtma (checkout tranzaksiyasidan keyin) | `{order: {uuid, short_code, status, channel, type, store_id, branch_id, updated_at}}` |
+| `ops.order.updated` | har bir holat o'zgarishi va kuryer biriktirish (`change: "status"`), SLA o'tishi (`change: "sla"`, `sla: {stage, state, late_by_minutes}`) | `{order: {...}, change, sla}` |
+
+Shaxsiy ma'lumot va summa yo'q: ilova `GET /admin/orders` yoki kartani qayta so'raydi. Kassa buyurtmalari e'lon
+qilinmaydi.
+
+**Web klient** (`platform/admin/src/lib/realtime`): laravel-echo 2.6.1 + pusher-js 8.6.0, obuna ilovaning proksisi orqali
+imzolanadi (`POST /api/backend/broadcasting/auth`, JSON). Sozlama Next serverining muhitidan: `REVERB_APP_KEY`,
+`REVERB_HOST`, `REVERB_PORT`, `REVERB_SCHEME` (`GET /api/realtime`); kalit yoki host bo'lmasa real vaqt o'chiq.
+`usePlatformOps(event, handler, {pollMs})` hook'i: hodisada `handler(payload)`, qayta ulanganda va real vaqt ishlamayotgan
+paytda har `pollMs` da `handler(null)` — Reverb o'chsa ham sahifa so'rov bilan yangilanadi.
+
+### Migratsiyalar va testlar
+
+Migratsiyalar: `2026_11_02_200100` (`order_refund_requests`, bir buyurtmada bitta `pending` — qisman yagona indeks),
+`2026_11_02_200200` (`order_sla_events`), `2026_11_02_200300` (`orders(status, created_at)`, CONCURRENTLY).
+
+Testlar: `tests/Feature/AdminOrders/AdminOrderListTest.php`, `AdminOrderSlaTest.php`, `AdminOrderInterventionTest.php`,
+`AdminRefundRequestTest.php`.
+
+## Monitoring (P4-15)
+
+Boshqaruv markazining **Monitoring** bo'limi: tizim holati, yiqilgan fon vazifalari, ogohlantirish qoidalari va ogohlantirishlar.
+Hammasi `/api/v1/admin/monitoring` ostida, OpenAPI'da **Admin** guruhi. Kod: `routes/api_admin_monitoring.php`,
+`app/Http/Controllers/Api/V1/Admin/AdminMonitoring*Controller.php`, `app/Services/Admin/Monitoring`.
+
+| Endpoint | Ruxsat | Nima |
+|---|---|---|
+| `GET /admin/monitoring/health` | `monitoring.view` | Tizim holati (pastda) |
+| `GET /admin/monitoring/failed-jobs` | `monitoring.view` | Yiqilgan vazifalar, kursor bilan |
+| `GET /admin/monitoring/failed-jobs/{uuid}` | `monitoring.view` | Bitta vazifa: to'liq xato va ma'lumotlar (yashirilgan) |
+| `POST /admin/monitoring/failed-jobs/{uuid}/retry` | `monitoring.manage` | Navbatga qaytarish |
+| `DELETE /admin/monitoring/failed-jobs/{uuid}` | `monitoring.manage` + step-up | O'chirish, `reason` majburiy |
+| `GET /admin/monitoring/alerts`, `GET .../alerts/{id}` | `monitoring.view` | Ogohlantirishlar |
+| `POST /admin/monitoring/alerts/{id}/acknowledge` | `monitoring.manage` | "Men shug'ullanyapman", ixtiyoriy `note` |
+| `POST /admin/monitoring/alerts/{id}/resolve` | `monitoring.manage` | Hal qilindi, ixtiyoriy `note` |
+| `GET /admin/monitoring/rules` | `monitoring.view` | Qoidalar |
+| `PUT /admin/monitoring/rules/{kind}` | `monitoring.manage` + step-up | Qoidani o'zgartirish, `reason` majburiy |
+
+Rollar: Operator va Superadmin ko'radi va o'zgartiradi; "Faqat ko'rish" hammasini ko'radi, hech narsani o'zgartirmaydi;
+Yordam, Moliya va Savdo monitoringni umuman ko'rmaydi (403 `forbidden`). Har o'zgartirish jurnalga `admin.monitoring.*`
+nomi bilan yoziladi (`failed_job_retried`, `failed_job_deleted`, `alert_acknowledged`, `alert_resolved`, `rule_updated`).
+
+### Tizim holati (`GET /health`)
+
+Ma'lumotlar bazasi, Redis, navbat va scheduler hukmi `GET /health` bilan **bir xil hisobotdan** (`App\Support\HealthReport`)
+olinadi, shuning uchun ikkita alohida tekshiruv yo'q. Qo'shimcha: har navbat bo'yicha o'lcham va eng eski vazifaning kutish vaqti,
+yiqilgan vazifalar soni, Reverb, oxirgi zaxira, versiya va Sentry.
+
+```json
+{"status":"degraded","checked_at":"...",
+ "database":{"status":"ok","latency_ms":1.4}, "redis":{"status":"not_used"},
+ "queue":{"status":"ok","queues":[{"name":"default","size":0,"oldest_age_seconds":null}],
+          "failed_jobs":{"total":3,"last_24h":2,"latest_failed_at":"..."}},
+ "scheduler":{"status":"ok","last_heartbeat_age_seconds":20,"max_age_seconds":180},
+ "reverb":{"status":"ok","latency_ms":4.2},
+ "backup":{"status":"stale","last_backup_at":"...","age_hours":30,"max_age_hours":26},
+ "app":{"version":"1.4.0","commit":"a1b2c3d","environment":"production"},
+ "sentry":{"configured":true,"environment":"production","project_url":"https://sentry.io/..."},
+ "alerts":{"open":2,"acknowledged":1,"critical_unresolved":1}}
+```
+
+- `status`: `ok`, `degraded` (ilova ishlaydi, lekin scheduler yoki navbat, Reverb yoki zaxira muammoli) yoki `fail` (baza yoki Redis).
+- `reverb`: `ok`, `fail` yoki `not_configured` (`BROADCAST_CONNECTION` reverb emas). Reverb serverining `/up` manziliga
+  oddiy so'rov (2 soniya, natija 15 soniya eslab qolinadi); Reverb o'chiq bo'lsa ham javob 200.
+- `backup`: `ok`, `stale` (`backup_stale` qoidasidagi soatdan eski) yoki `missing` (zaxira xizmati hali vaqt yozmagan).
+  Vaqtni `scripts/backup.sh` har tekshirilgan dump'dan keyin `monitoring_markers` jadvaliga yozadi (kalit `backup`).
+- `app.version` va `app.commit`: `APP_VERSION`, `APP_COMMIT` (yo'q bo'lsa `SENTRY_RELEASE`). `sentry.project_url`:
+  `SENTRY_PROJECT_URL`; Sentry API'ga so'rov yuborilmaydi.
+
+### Yiqilgan vazifalar
+
+`GET /failed-jobs?cursor=&per_page=&queue=&q=&from=&to=` — eng yangisi birinchi, kursor bilan (`per_page` 1–100,
+standart 25). Har qatorda: `uuid`, `job` (sinf nomi), `job_class`, `queue`, `connection`, `exception_line` (xatoning birinchi
+qatori) va `failed_at`. `q` — vazifa sinfi nomining bo'lagi. `total` — hamma yiqilgan vazifalar.
+
+`GET /failed-jobs/{uuid}` — qo'shimcha `exception` (stack trace bilan to'liq matn), `attempts`, `max_tries` va `payload`.
+
+**Maxfiy qiymatlar hech qachon chiqmaydi.** Vazifaning ma'lumotlari ketma-ketlashtirilgan obyekt; u **hech bir sinfni
+yaratmasdan** (`unserialize(..., allowed_classes: false)`) oddiy ma'lumotga aylantiriladi, so'ng `AuditRedactor` kalit nomi
+bo'yicha (token, parol, kod, kalit, karta...) `[redacted]` qiladi va telefon raqamlarini yashiradi; matn ichidagi Bearer
+tokenlar, Telegram bot manzillari (`/bot<token>`), telefon va karta raqamlari `SentryScrubber` bilan yashiriladi. Shifrlangan
+yoki buzilgan vazifa `[o'qib bo'lmadi]` deb ko'rinadi. Jurnalga faqat vazifa nomi, navbat, uuid va xatoning birinchi qatori
+(yashirilgan) yoziladi, ma'lumotlar emas.
+
+`POST .../retry` — vazifa qayta navbatga qo'yiladi (urinishlar nolga qaytadi), ro'yxatdan chiqadi (`php artisan queue:retry`).
+`DELETE ...` — butunlay o'chiradi. Vazifa yo'q bo'lsa (allaqachon qayta urinilgan yoki o'chirilgan) — 404 `not_found`.
+
+### Qoidalar va ogohlantirishlar
+
+Yetti ichki qoida (`kind`), har biri `alert_rules` jadvalida bitta qator (yo'q bo'lsa standart qiymat bilan yaratiladi):
+
+| `kind` | Qachon ogohlantirish ochiladi | Standart | Daraja |
+|---|---|---|---|
+| `failed_jobs_spike` | `window_minutes` ichida `threshold` va undan ko'p vazifa yiqildi | 10 ta, 15 daqiqa | diqqat |
+| `queue_backlog` | Navbatda `threshold` dan ko'p vazifa, yoki eng eskisi `threshold_secondary` daqiqadan beri kutmoqda (har navbat alohida) | 500 ta, 10 daqiqa | diqqat |
+| `pos_device_offline` | Faol ovqatxonaning kassasi yoki oshxona ekrani **ish vaqti ichida** `threshold` daqiqadan beri aloqada emas (har qurilma alohida) | 15 daqiqa | diqqat |
+| `fiscal_failures` | `window_minutes` ichida `threshold` va undan ko'p fiskal chek `failed` bo'ldi | 1 ta, 60 daqiqa | kritik |
+| `settlement_failures` | Hisobga yozilmagan (`settlement_failed_at`) buyurtmalar `threshold` va undan ko'p | 1 ta | kritik |
+| `backup_stale` | Oxirgi zaxira `threshold` soatdan eski (yoki hech qachon yozilmagan) | 26 soat | kritik |
+| `scheduler_stale` | Scheduler yurak urishi yo'q yoki `threshold` soniyadan eski | 180 soniya | kritik |
+
+Ish vaqti — ovqatxonaning `open_time`/`close_time` (o'z vaqt mintaqasida; tundan oshadigan ish vaqti ham to'g'ri;
+vaqt belgilanmagan yoki ochilish = yopilish bo'lsa — kun bo'yi ochiq). Kassa ovqatxona ochilgandan beri aloqasiz turgan
+vaqt hisoblanadi: kechqurun o'chirilgan kassa ertalab ochilish soatida darhol "oflayn" bo'lmaydi. Bir haftadan beri
+ko'rinmagan qurilma yopilgan deb hisoblanadi.
+
+`GET /rules` → `{rules: [...], telegram_configured}`. Qoidada: `kind`, `label`, `description`, `severity`, `enabled`, `telegram`,
+`threshold`, `threshold_secondary`, `window_minutes` (qoida ishlatmaydigani `null`), `fields` (har chegara nimani anglatishi:
+`label`, `unit`, `min`, `max`), `defaults`, `unresolved_alerts`, `updated_at`, `updated_by`.
+
+`PUT /rules/{kind}` — `enabled`, `telegram`, `threshold`, `threshold_secondary`, `window_minutes` dan ixtiyoriylari va
+majburiy `reason` (3–500 belgi). Qiymat qoidaning chegarasida bo'lishi shart; qoida ishlatmaydigan chegarani yuborish — 422.
+Javob — hamma qoidalar. **Qoida o'chirilsa, uning ochiq ogohlantirishlari yopiladi** (`resolution: rule_disabled`, Telegram'ga
+yuborilmaydi).
+
+**Baholovchi (evaluator).** `EvaluateAlertsJob` har daqiqada ishlaydi (`withoutOverlapping`); u navbatga qo'yilmaydi, scheduler jarayonining o'zida bajariladi, shuning uchun navbat to'lib qolsa yoki ishchi bo'lmasa ham tekshiruv kechikmaydi. Yoqilgan har qoida uchun muammolar
+ro'yxatini oladi:
+
+- muammo bor, ochiq ogohlantirish yo'q — yangisi ochiladi (`open`), `ops.alert.opened` yuboriladi, Telegram'ga xabar ketadi;
+- muammo bor, ogohlantirish allaqachon bor — u yangilanadi (`last_seen_at`, `count`, `details`), qayta ochilmaydi
+  (bir qoida va obyekt uchun bitta tugallanmagan ogohlantirish: qisman yagona indeks `alerts_one_unresolved_per_subject`);
+- muammo yo'q, ogohlantirish ochiq — o'zi yopiladi (`resolution: auto`), `ops.alert.resolved`, Telegram'ga "hal qilindi";
+- muammo qaytsa — yangi ogohlantirish (yangi `first_seen_at`);
+- tekshiruv xato bersa yoki manbani o'qiy olmasa — ogohlantirishlar o'zgarmaydi (buzuq o'lchov "tuzatib" qo'ymaydi).
+
+> Eslatma: evaluator ham scheduler bilan ishga tushadi, shuning uchun scheduler butunlay to'xtasa `scheduler_stale` ogohlantirishi
+> ochilmaydi (Holat sahifasi va `GET /health` baribir `stale`/`missing` ko'rsatadi). Tashqi uptime monitor (`docs/OPERATIONS.md`, 5-bo'lim) shu
+> holatni ushlaydi.
+
+`GET /alerts?state=&kind=&severity=&store_id=&cursor=&per_page=` — `state`: `active` (standart: ochiq va qabul qilingan),
+`open`, `acknowledged`, `resolved`, `all`. Tugallanmaganlari hammasi birdan (200 tagacha): ochiqlari avval, kritiklari
+avval, yangilari avval. `resolved` va `all` tarix: kursor bilan, eng yangisi birinchi. `counts`: ochiq, qabul qilingan,
+oxirgi 7 kunda hal bo'lgan. Ogohlantirishda: `kind`, `kind_label`, `severity`, `state`, `title`, `details` (faqat sonlar va
+nomlar), `store`, `first_seen_at`, `last_seen_at`, `count`, `acknowledged {by, at, note}`, `resolved {by, at, note,
+resolution}` (`manual`, `auto`, `rule_disabled`). Hal bo'lganlari 90 kundan keyin `model:prune` bilan o'chadi.
+
+`acknowledge` faqat `open` ogohlantirishga (aks holda 409 `alert_not_open`); `resolve` — tugallanmaganiga (aks holda 409
+`alert_resolved`). Qabul qilingan ogohlantirish "Bugun → Diqqat talab qiladi" ro'yxatidan tushadi.
+
+### Telegram
+
+Ogohlantirish ochilganda va hal bo'lganda ops guruhiga oddiy matnli xabar boradi: `TELEGRAM_OPS_CHAT_ID` (bo'sh bo'lsa
+`TELEGRAM_SUPERADMIN_CHAT_ID`), mavjud navbatli yo'l (`TelegramMessenger` → `SendTelegramRequest`). Chat yoki bot tokeni
+bo'lmasa hech narsa yuborilmaydi. Xabarda faqat sarlavha, qoida nomi, vaqt va havola bor (shaxsiy ma'lumot yo'q).
+
+Cheklovlar (guruh to'lib ketmasin): bir qoida va obyekt uchun `MONITORING_TELEGRAM_COOLDOWN` (standart 15) daqiqada bittadan
+ko'p "ochildi" xabari yuborilmaydi; jami soatiga `MONITORING_TELEGRAM_HOURLY_LIMIT` (standart 20) tagacha, undan keyin soatiga
+bitta "ogohlantirishlar ko'p" xabari. "Hal qilindi" xabari faqat "ochildi" xabari ketgan ogohlantirish uchun yuboriladi. Qoidada
+`telegram: false` bo'lsa ikkalasi ham yuborilmaydi.
+
+### Real vaqt va "Bugun"
+
+`platform.ops` kanalida: `ops.alert.opened`, `ops.alert.acknowledged`, `ops.alert.resolved` — `{id, kind, severity, state}`
+(shaxsiy ma'lumotsiz; ilova ro'yxatni API'dan qayta so'raydi). Ochiq (hech kim olmagan) ogohlantirishlar `AttentionSource`
+orqali "Bugun → Diqqat talab qiladi"ga tushadi (`kind: alert`, havola `/monitoring?tab=alerts&alert=<id>`,
+`monitoring.view` ruxsati bilan).
+
+### Migratsiyalar va testlar
+
+`2026_11_02_300100` (`alert_rules`), `300200` (`alerts`, qisman yagona indeks), `300300` (`monitoring_markers`), `300400`
+(`failed_jobs(failed_at)`, CONCURRENTLY). Testlar: `tests/Feature/AdminMonitoringApiTest.php`,
+`AdminMonitoringEvaluatorTest.php`.

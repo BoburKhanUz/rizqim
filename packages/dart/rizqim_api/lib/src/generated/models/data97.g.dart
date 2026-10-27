@@ -7,21 +7,35 @@ part of 'data97.dart';
 // **************************************************************************
 
 Data97 _$Data97FromJson(Map<String, dynamic> json) => Data97(
-  id: (json['id'] as num).toInt(),
-  branchId: (json['branch_id'] as num).toInt(),
-  stationId: (json['station_id'] as num).toInt(),
-  categoryId: (json['category_id'] as num?)?.toInt(),
-  categoryName: json['category_name'] as String?,
-  productId: (json['product_id'] as num?)?.toInt(),
-  productName: json['product_name'] as String?,
+  period: Period2.fromJson(json['period'] as Map<String, dynamic>),
+  branchId: (json['branch_id'] as num?)?.toInt(),
+  summary: Summary2.fromJson(json['summary'] as Map<String, dynamic>),
+  byStatus: Map<String, int>.from(json['by_status'] as Map),
+  series: (json['series'] as List<dynamic>)
+      .map((e) => Series.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  byChannel: (json['by_channel'] as List<dynamic>)
+      .map((e) => ByChannel2.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  byBranch: (json['by_branch'] as List<dynamic>)
+      .map((e) => ByBranch.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  byPaymentMethod: (json['by_payment_method'] as List<dynamic>)
+      .map((e) => ByPaymentMethod2.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  byOrderType: (json['by_order_type'] as List<dynamic>)
+      .map((e) => ByOrderType2.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data97ToJson(Data97 instance) => <String, dynamic>{
-  'id': instance.id,
+  'period': instance.period,
   'branch_id': instance.branchId,
-  'station_id': instance.stationId,
-  'category_id': instance.categoryId,
-  'category_name': instance.categoryName,
-  'product_id': instance.productId,
-  'product_name': instance.productName,
+  'summary': instance.summary,
+  'by_status': instance.byStatus,
+  'series': instance.series,
+  'by_channel': instance.byChannel,
+  'by_branch': instance.byBranch,
+  'by_payment_method': instance.byPaymentMethod,
+  'by_order_type': instance.byOrderType,
 };
