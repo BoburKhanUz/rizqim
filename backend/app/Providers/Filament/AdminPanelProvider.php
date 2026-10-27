@@ -28,6 +28,7 @@ class AdminPanelProvider extends PanelProvider
         return $panel
             ->id('admin')
             ->path('admin')
+            ->brandName('RIZQIM')
             ->login(\App\Filament\Pages\Auth\CustomLogin::class)
             ->tenant(\App\Models\Store::class, slugAttribute: 'uuid')
             ->tenantProfile(\App\Filament\Pages\Tenancy\EditStoreProfile::class)

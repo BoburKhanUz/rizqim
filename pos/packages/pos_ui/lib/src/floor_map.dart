@@ -264,127 +264,139 @@ class FloorTile extends StatelessWidget {
       if (item.amount != null) item.amount!.format(),
     ].join(', ');
 
-    return Semantics(
-      button: onTap != null,
-      selected: selected,
-      label: semantics,
-      excludeSemantics: true,
-      child: Material(
-        color: Color.alphaBlend(bg, c.surface),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(
-            item.kind == FloorTableKind.table
-                ? RzRadius.control
-                : RzRadius.card,
+    // To'liq nom: sichqoncha ustida yoki bosib turganda (tooltip), tor joyda nom qisqarsa ham
+    return Tooltip(
+      message: item.label,
+      child: Semantics(
+        button: onTap != null,
+        selected: selected,
+        label: semantics,
+        excludeSemantics: true,
+        child: Material(
+          color: Color.alphaBlend(bg, c.surface),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(
+              item.kind == FloorTableKind.table
+                  ? RzRadius.control
+                  : RzRadius.card,
+            ),
+            side: BorderSide(
+              color: selected ? c.fg : border,
+              width: selected ? 3 : 1.5,
+            ),
           ),
-          side: BorderSide(
-            color: selected ? c.fg : border,
-            width: selected ? 3 : 1.5,
-          ),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          onLongPress: onLongPress,
-          child: Padding(
-            padding: const EdgeInsets.all(8),
-            child: LayoutBuilder(
-              builder: (BuildContext context, BoxConstraints box) {
-                // Kichik joyda faqat nom va holat ikonkasi (kichraytiriladi); o'rtachada belgilar; kattada hammasi
-                final Widget header = Row(
-                  children: <Widget>[
-                    Icon(
-                      FloorStatusStyle.kindIcon(item.kind),
-                      size: 16,
-                      color: fg,
-                    ),
-                    const SizedBox(width: 4),
-                    Flexible(
-                      child: Text(
-                        item.label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: RzType.headline.copyWith(color: c.fg),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            onLongPress: onLongPress,
+            child: Padding(
+              padding: const EdgeInsets.all(8),
+              child: LayoutBuilder(
+                builder: (BuildContext context, BoxConstraints box) {
+                  // Kichik joyda faqat nom va holat ikonkasi (kichraytiriladi); o'rtachada belgilar; kattada hammasi
+                  // Uzun nom ("Katta xona (oilaviy)") kesilmasin: joy yetsa ikki qator, tor joyda kichikroq matn
+                  final bool roomy = box.maxHeight >= 80;
+                  final TextStyle nameStyle = switch (box.maxWidth) {
+                    >= 140 => RzType.headline,
+                    >= 100 => RzType.body.copyWith(fontWeight: FontWeight.w700),
+                    _ => RzType.footnote.copyWith(fontWeight: FontWeight.w700),
+                  };
+                  final Widget header = Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Icon(
+                        FloorStatusStyle.kindIcon(item.kind),
+                        size: 16,
+                        color: fg,
                       ),
-                    ),
-                    const SizedBox(width: 4),
-                    Icon(
-                      FloorStatusStyle.icon(item.status),
-                      size: 16,
-                      color: fg,
-                    ),
-                  ],
-                );
-                if (box.maxHeight < 60 || box.maxWidth < 64) {
-                  return FittedBox(
-                    fit: BoxFit.scaleDown,
-                    alignment: Alignment.topLeft,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: <Widget>[
-                        Text(
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: Text(
                           item.label,
-                          maxLines: 1,
-                          style: RzType.headline.copyWith(color: c.fg),
+                          maxLines: roomy ? 2 : 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: nameStyle.copyWith(color: c.fg),
                         ),
-                        const SizedBox(width: 4),
-                        Icon(
-                          FloorStatusStyle.icon(item.status),
-                          size: 16,
-                          color: fg,
-                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(
+                        FloorStatusStyle.icon(item.status),
+                        size: 16,
+                        color: fg,
+                      ),
+                    ],
+                  );
+                  if (box.maxHeight < 60 || box.maxWidth < 64) {
+                    return FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.topLeft,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Text(
+                            item.label,
+                            maxLines: 1,
+                            style: RzType.headline.copyWith(color: c.fg),
+                          ),
+                          const SizedBox(width: 4),
+                          Icon(
+                            FloorStatusStyle.icon(item.status),
+                            size: 16,
+                            color: fg,
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+                  final Widget badgeRow = SizedBox(
+                    height: 18,
+                    child: Wrap(
+                      spacing: 6,
+                      clipBehavior: Clip.hardEdge,
+                      children: <Widget>[
+                        for (final _Badge b in badges)
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              Icon(b.icon, size: 13, color: c.fgMuted),
+                              const SizedBox(width: 2),
+                              Text(
+                                b.text,
+                                style: RzType.caption.copyWith(color: c.fg),
+                              ),
+                            ],
+                          ),
                       ],
                     ),
                   );
-                }
-                final Widget badgeRow = SizedBox(
-                  height: 18,
-                  child: Wrap(
-                    spacing: 6,
-                    clipBehavior: Clip.hardEdge,
+                  final bool full = box.maxHeight >= 96;
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
-                      for (final _Badge b in badges)
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: <Widget>[
-                            Icon(b.icon, size: 13, color: c.fgMuted),
-                            const SizedBox(width: 2),
-                            Text(
-                              b.text,
-                              style: RzType.caption.copyWith(color: c.fg),
-                            ),
-                          ],
+                      header,
+                      if (full)
+                        Text(
+                          item.status.label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: RzType.caption.copyWith(color: fg),
                         ),
+                      const Spacer(),
+                      if (full && item.amount != null)
+                        Text(
+                          item.amount!.format(),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: RzType.footnote.copyWith(
+                            color: c.fg,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      if (badges.isNotEmpty) badgeRow,
                     ],
-                  ),
-                );
-                final bool full = box.maxHeight >= 96;
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    header,
-                    if (full)
-                      Text(
-                        item.status.label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: RzType.caption.copyWith(color: fg),
-                      ),
-                    const Spacer(),
-                    if (full && item.amount != null)
-                      Text(
-                        item.amount!.format(),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: RzType.footnote.copyWith(
-                          color: c.fg,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    if (badges.isNotEmpty) badgeRow,
-                  ],
-                );
-              },
+                  );
+                },
+              ),
             ),
           ),
         ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pos_core/pos_core.dart';
 import 'package:pos_data/pos_data.dart';
@@ -60,6 +61,28 @@ void main() {
       await tester.tap(find.text('Hovli · 0/3'));
       await tester.pumpAndSettle();
       expect(place('Tapchan 1', "Bo'sh"), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'a long room name is not cut to "Katta x…": two lines and a tooltip',
+    (WidgetTester tester) async {
+      final CashierHarness h = CashierHarness();
+      // The test font (Ahem) is much wider than a real one, so a short two-word name stands in for the long one.
+      h.state.tables[0]['name'] = 'Katta xona';
+      h.state.seedOrder(tableId: 1, guests: 8);
+      await pumpHome(tester, h);
+
+      final Finder name = find.descendant(
+        of: find.byType(FloorTile),
+        matching: find.text('Katta xona'),
+      );
+      expect(name, findsOneWidget);
+      expect(
+        tester.renderObject<RenderParagraph>(name).didExceedMaxLines,
+        isFalse,
+      );
+      expect(find.byTooltip('Katta xona'), findsOneWidget);
     },
   );
 

@@ -79,13 +79,13 @@ describe('the day line', () => {
     expect(chip.style.width).toBe('25%');
     expect(within(screen.getByRole('group', { name: 'Xona 2' })).queryByRole('button', { name: /Aziz/ })).not.toBeInTheDocument();
     const query = lastCalendar(calls);
-    expect(Object.fromEntries(query)).toEqual({ branch_id: '1', from: '2026-10-22', to: '2026-10-22', include_canceled: 'false' });
+    expect(Object.fromEntries(query)).toEqual({ branch_id: '1', from: '2026-10-22', to: '2026-10-22', include_canceled: '0' });
   });
 
   it('asks for the canceled bookings too when ticked, and for a week in the week view', async () => {
     const { calls, typing } = await open();
     await typing.click(screen.getByRole('checkbox', { name: 'Bekor qilinganlar ham' }));
-    await waitFor(() => expect(lastCalendar(calls).get('include_canceled')).toBe('true'));
+    await waitFor(() => expect(lastCalendar(calls).get('include_canceled')).toBe('1'));
     await typing.click(screen.getByRole('button', { name: 'Hafta' }));
     await waitFor(() => expect(lastCalendar(calls).get('from')).toBe('2026-10-19'));
     expect(lastCalendar(calls).get('to')).toBe('2026-10-25');

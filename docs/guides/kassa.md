@@ -50,6 +50,14 @@ Buni ega yoki menejer bir marta qiladi. Keyin kassa ulangan holda qoladi.
 
 Kod xato yoki eskirgan bo'lsa, panelda **Yangi kod** yarating.
 
+### Linuxda kalitlar ombori
+
+Kassa Linux kompyuterda ishlasa (asosan sinov uchun), ulanish kodi parollar omborida saqlanadi: `gnome-keyring` yoki KWallet
+(`libsecret` orqali). Ombor ishlab turmasa, kassa ulanadi va ishlaydi, lekin yopib-ochilganda ulanishni eslab qola olmaydi va
+yana kod so'raydi. Bunday paytda ekranda sababi yoziladi: ulash ekranida «Saqlangan ulanishni o'qib bo'lmadi», PIN ekranida
+«Terminal tokeni qurilmada saqlanmadi». Yechim: `sudo apt install gnome-keyring libsecret-1-0`, kompyuterga oddiy foydalanuvchi
+sifatida kiring (ombor shu kirishda ochiladi) va kassani qayta ulang. Eski kod 10 daqiqada eskiradi: panelda yangi kod yarating. Android va Windows'da ombor tizimning o'zida bor, qo'shimcha o'rnatish kerak emas.
+
 Kassani uzish (boshqa joyga o'tkazish yoki sotishdan oldin) — faqat menejer yoki ega: tepadagi **Xodim menyusi** →
 **Terminalni uzish** → **Uzish**. Eng ishonchli yo'l — panelda **Sozlamalar** → **Qurilmalar** → qurilma qatoridagi
 **O'chirish**. Kassir buni qila olmaydi.
@@ -872,6 +880,7 @@ qayta bosing** — u ikki marta yozilmaydi va menejer PIN'i qayta so'ralmaydi.
 |---|---|
 | Ulash kodi qabul qilinmayapti | Kod 10 daqiqada eskiradi va bir marta ishlaydi. Panelda **Yangi kod** yarating |
 | Kassa o'zi **Kassani ulash** ekraniga qaytdi | Panelda bu qurilma o'chirilgan. Yangi kod bilan qayta ulang |
+| Kassa (Linux kompyuterda) har ochilganda **Kassani ulash** ekranini so'raydi, ekranda «Saqlangan ulanishni o'qib bo'lmadi» yozuvi bor | Kompyuterda parollar ombori (`gnome-keyring` yoki KWallet) ishlamayapti, ulash kodi saqlanmaydi. Uni o'rnating va tizimga kirib, ishga tushiring (o'rnatish: [IT xodimi uchun](#linuxda-kalitlar-ombori)), keyin kassani qayta ulang. Android va Windows'da bu muammo yo'q |
 | **PIN noto'g'ri** | Qayta tering. Ko'p xato bo'lsa kuting. Unutgan bo'lsangiz, menejer panelda yangi PIN o'rnatadi |
 | Ismim PIN ekranida yo'q | Sizga PIN qo'yilmagan. Menejerdan so'rang, keyin **Yangilash** |
 | Bo'limlardan biri ko'rinmayapti (**Bronlar**, **Nasiya**, **Smena**) | Rolingizda ruxsat yo'q. Egaga ayting |

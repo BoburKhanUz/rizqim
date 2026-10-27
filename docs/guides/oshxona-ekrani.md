@@ -315,6 +315,7 @@ Qozonni panelda yoki Mini App'da ham boshqarish mumkin ([panel qo'llanmasi](hamk
 | PIN ekranida ism yo'q | Panelda oshpazga PIN o'rnatilmagan. **Xodimlar** bo'limida o'rnating, planshetda **Yangilash** ni bosing |
 | **PIN noto'g'ri** | Qayta tering. 5 marta xato qilsangiz, bir daqiqa kutish kerak |
 | Planshet o'zi ulash ekraniga qaytdi | Panelda bu qurilma o'chirilgan. Yangi kod yarating va qayta ulang |
+| Linux kompyuterda ekran har ochilganda ulash kodini so'raydi va «Saqlangan ulanishni o'qib bo'lmadi» deb yozadi | Kompyuterda parollar ombori (`gnome-keyring` yoki KWallet) ishlamayapti. Uni o'rnating, kompyuterga oddiy foydalanuvchi sifatida kiring va yangi kod bilan qayta ulang. Android va Windows'da bu muammo yo'q |
 | Yangi chipta kelmayapti | Tepadagi aloqa belgisini va qizil **Aloqa yo'q** lentasini tekshiring. Wi-Fi'ni tekshiring |
 | "Server javobini o'qib bo'lmadi" yoki "N ta chiptani o'qib bo'lmadi" | Aloqa bor, lekin ilova eski bo'lishi mumkin. Menejerga ayting: ilovani yangilash kerak. Qolgan chiptalar bilan ishlashda davom eting |
 | Ovoz yo'q | Karnay belgisi yoqilganini tekshiring (**Ovozni yoqish**), **Sozlamalar** da **Yangi buyurtma ovozi** yoqilganini ko'ring, planshet ovozini balandlating |

@@ -240,7 +240,9 @@ flutter build linux --release        # build/linux/x64/release/bundle/
 
 Ovoz GStreamer orqali (`audioplayers`): `gstreamer1.0-plugins-base`/`-good` o'rnatilmagan bo'lsa yangi chipta kelganda
 ilova yiqilishi mumkin. Tokenni saqlash uchun kalitlar xizmati (`gnome-keyring` yoki KWallet) ishlab turishi kerak; u bo'lmasa
-ilova ishlaydi, lekin PIN ekranida "Terminal tokeni qurilmada saqlanmadi" ogohlantirishi chiqadi.
+ilova ishlaydi, lekin PIN ekranida "Terminal tokeni qurilmada saqlanmadi" ogohlantirishi chiqadi; qayta ishga tushirilganda
+saqlangan ulanish o'qilmasa, ulash ekranida "Saqlangan ulanishni o'qib bo'lmadi" yoziladi (o'qilmagan yozuv o'chirilmaydi: ombor
+tiklansa, ulanish joyida). Kassa va ofitsiant ilovalari ham shunday.
 
 ## Tuzilishi
 

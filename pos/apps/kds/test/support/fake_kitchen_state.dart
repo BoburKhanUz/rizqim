@@ -719,7 +719,7 @@ class FakeKitchenState {
       return _ok(<String, Object?>{'products': catalogProducts});
     }
     if (method == 'GET' && p == '/v1/owner/batches') {
-      final bool closed = query['include_closed'] == 'true';
+      final bool closed = query['include_closed'] == '1';
       return _ok(<String, Object?>{
         'branch_id': branchId,
         'batches': <Map<String, Object?>>[

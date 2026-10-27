@@ -60,7 +60,7 @@ void main() {
       expect(find.text('Yaqinda yopilgan'), findsOneWidget);
       expect(find.textContaining('Mastava'), findsOneWidget);
       final RequestOptions req = h.backend.to('GET', '/owner/batches').first;
-      expect(req.queryParameters['include_closed'], true);
+      expect(req.queryParameters['include_closed'], 1);
       expect(tester.takeException(), isNull);
     },
   );

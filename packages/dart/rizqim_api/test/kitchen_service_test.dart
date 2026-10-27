@@ -100,10 +100,7 @@ void main() {
       'meta': <String, Object?>{'truncated': false},
     });
     await client.kitchen.tickets(includeReady: true);
-    expect(
-      adapter.requests.single.uri.queryParameters['include_ready'],
-      'true',
-    );
+    expect(adapter.requests.single.uri.queryParameters['include_ready'], '1');
   });
 
   test('a POS line keeps its product and category, and the list carries the server Date', () async {

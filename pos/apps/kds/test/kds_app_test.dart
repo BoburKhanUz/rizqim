@@ -298,6 +298,29 @@ void main() {
     },
   );
 
+  testWidgets('a keyring that cannot be read: the pairing screen says why', (
+    WidgetTester tester,
+  ) async {
+    final KdsHarness h = KdsHarness(realtime: false);
+    final RizqimClient client = RizqimClient(
+      baseUrl: 'https://api.test/api',
+      store: _BrokenStore(),
+      dio: h.client.dio,
+    );
+    await client.auth.restore();
+    setScreen(tester, const Size(1280, 800));
+    await tester.pumpWidget(
+      KdsApp(
+        services: KdsServices(client: client, settings: h.settings),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Terminalni ulash'), findsOneWidget);
+    expect(find.textContaining("o'qib bo'lmadi"), findsOneWidget);
+    expect(find.textContaining('gnome-keyring'), findsOneWidget);
+  });
+
   testWidgets(
     'the PIN screen builds without overflow on a phone, a tablet and a 1080p TV, light and dark',
     (WidgetTester tester) async {

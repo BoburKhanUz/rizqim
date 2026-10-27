@@ -45,69 +45,73 @@ class PlaceCard extends StatelessWidget {
       if (ready) '$readyCount ta taom tayyor',
     ].join(', ');
 
-    return Semantics(
-      button: true,
-      label: semantics,
-      excludeSemantics: true,
-      child: Material(
-        color: c.surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(RzRadius.card),
-          side: BorderSide(
-            color: ready ? c.success : c.line,
-            width: ready ? 2 : 1,
+    return Tooltip(
+      message: entry.title,
+      child: Semantics(
+        button: true,
+        label: semantics,
+        excludeSemantics: true,
+        child: Material(
+          color: c.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(RzRadius.card),
+            side: BorderSide(
+              color: ready ? c.success : c.line,
+              width: ready ? 2 : 1,
+            ),
           ),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: 72),
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  Row(
-                    children: <Widget>[
-                      Icon(
-                        FloorStatusStyle.kindIcon(entry.kind),
-                        color: c.fg,
-                        size: 26,
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            Text(
-                              entry.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: RzType.title.copyWith(color: c.fg),
-                            ),
-                            if (hallName != null)
-                              Text(
-                                hallName,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: RzType.footnote.copyWith(
-                                  color: c.fgMuted,
-                                ),
-                              ),
-                          ],
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 72),
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Row(
+                      children: <Widget>[
+                        Icon(
+                          FloorStatusStyle.kindIcon(entry.kind),
+                          color: c.fg,
+                          size: 26,
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      FloorStatusBadge(status: entry.status),
-                    ],
-                  ),
-                  if (order != null)
-                    ..._orderFacts(context, order, foreign)
-                  else
-                    ..._freeFacts(context),
-                ],
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Text(
+                                entry.title,
+                                // Uzun nom ("Katta xona (oilaviy)") ikki qatorga sig'adi, to'liq nom bosib turganda
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: RzType.title.copyWith(color: c.fg),
+                              ),
+                              if (hallName != null)
+                                Text(
+                                  hallName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: RzType.footnote.copyWith(
+                                    color: c.fgMuted,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        FloorStatusBadge(status: entry.status),
+                      ],
+                    ),
+                    if (order != null)
+                      ..._orderFacts(context, order, foreign)
+                    else
+                      ..._freeFacts(context),
+                  ],
+                ),
               ),
             ),
           ),

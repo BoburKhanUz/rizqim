@@ -4,6 +4,7 @@ import 'auth/auth_interceptor.dart';
 import 'auth/auth_remote.dart';
 import 'auth/auth_session.dart';
 import 'auth/token_storage.dart';
+import 'bool_query_interceptor.dart';
 import 'generated/rizqim_api.dart';
 import 'kitchen/kitchen_service.dart';
 import 'realtime/channel_auth.dart';
@@ -39,7 +40,9 @@ class RizqimClient {
       clock: clock,
       refreshSkew: refreshSkew,
     );
-    http.interceptors.add(AuthInterceptor(http, auth));
+    http.interceptors
+      ..add(const BoolQueryInterceptor())
+      ..add(AuthInterceptor(http, auth));
     return RizqimClient._(http, auth, clock);
   }
 

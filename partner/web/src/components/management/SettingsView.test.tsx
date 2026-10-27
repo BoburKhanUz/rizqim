@@ -242,7 +242,7 @@ describe('SettingsView: devices', () => {
     const { calls } = base({
       'GET /api/v1/owner/devices': (request) =>
         ok(
-          new URL(request.url).searchParams.get('include_revoked') === 'true'
+          new URL(request.url).searchParams.get('include_revoked') === '1'
             ? [makeDevice(), makeDevice({ uuid: 'dev-2', name: 'Eski kassa', revoked_at: '2026-10-01T10:00:00+05:00' })]
             : [makeDevice()],
         ),
@@ -258,7 +258,7 @@ describe('SettingsView: devices', () => {
     const old = within((await screen.findByRole('heading', { name: 'Eski kassa' })).closest('li') as HTMLElement);
     expect(old.getByText("O'chirilgan")).toBeInTheDocument();
     expect(old.queryByRole('button')).not.toBeInTheDocument();
-    expect(calls.filter((call) => call.url.includes('/owner/devices')).map((call) => new URL(call.url).searchParams.get('include_revoked'))).toEqual(['false', 'true']);
+    expect(calls.filter((call) => call.url.includes('/owner/devices')).map((call) => new URL(call.url).searchParams.get('include_revoked'))).toEqual(['0', '1']);
   });
 
   it('renames and revokes a device', async () => {
