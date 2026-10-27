@@ -17,6 +17,8 @@ const MATRIX = {
     { key: 'admin.payouts.approve', label: 'Payoutni tasdiqlash', group: 'Moliya' },
   ],
   grants: { superadmin: ['admin.today.view', 'admin.orders.intervene', 'admin.payouts.approve'], operator: ['admin.today.view', 'admin.orders.intervene'], support: [], viewer: ['admin.today.view'] },
+  // The built-in table: support has Bugun by default (the superadmin took it away), operator has no payouts
+  defaults: { superadmin: ['admin.today.view', 'admin.orders.intervene', 'admin.payouts.approve'], operator: ['admin.today.view', 'admin.orders.intervene'], support: ['admin.today.view'], viewer: ['admin.today.view'] },
 };
 
 function setup(extra: Parameters<typeof mockFetch>[0] = {}) {
@@ -41,8 +43,34 @@ describe('Rollar', () => {
     expect(within(table).getByRole('switch', { name: 'Operator: Bugun\'ni ko\'rish' })).toBeEnabled();
   });
 
+  it('marks a cell that differs from the default "O\'zgartirilgan" and puts it back with one tap (allowed: null)', async () => {
+    const { callsTo, user } = setup({ 'PUT /roles': () => ok(MATRIX) });
+    const table = await screen.findByRole('table', { name: 'Rollar va ruxsatlar jadvali' });
+    // Support: Bugun is a default the superadmin took away
+    const cell = within(table).getByRole('switch', { name: "Yordam: Bugun'ni ko'rish" }).closest('td')!;
+    expect(within(cell).getByText("O'zgartirilgan")).toBeInTheDocument();
+    // Operator: Bugun is as the default says: no marker, no reset button
+    const plain = within(table).getByRole('switch', { name: "Operator: Bugun'ni ko'rish" }).closest('td')!;
+    expect(within(plain).queryByText("O'zgartirilgan")).toBeNull();
+    // Only that one cell differs
+    expect(within(table).getAllByText("O'zgartirilgan")).toHaveLength(1);
+
+    await user.click(within(cell).getByRole('button', { name: "Standartga qaytarish: Yordam, Bugun'ni ko'rish (ruxsat bor)" }));
+    expect(await screen.findByText("«Yordam» roli uchun «Bugun'ni ko'rish» ruxsati standartga qaytarildi.")).toBeInTheDocument();
+    expect(callsTo('PUT', '/roles')[0]?.body).toEqual({ role: 'support', permission: 'admin.today.view', allowed: null });
+  });
+
+  it('shows the whole matrix of the answer without asking again', async () => {
+    const { callsTo, user } = setup({ 'PUT /roles': () => ok({ ...MATRIX, grants: { ...MATRIX.grants, support: ['admin.today.view'] } }) });
+    await user.click(await screen.findByRole('switch', { name: "Yordam: Bugun'ni ko'rish" }));
+    await screen.findByText(/ruxsati berildi/);
+    // Now equal to its default: the marker is gone, and the matrix was not fetched a second time
+    expect(screen.queryByText("O'zgartirilgan")).toBeNull();
+    expect(callsTo('GET', '/roles')).toHaveLength(1);
+  });
+
   it('saves a switch at once and says what changed', async () => {
-    const { callsTo, user } = setup({ 'PUT /roles': () => ok([]) });
+    const { callsTo, user } = setup({ 'PUT /roles': () => ok(MATRIX) });
     await user.click(await screen.findByRole('switch', { name: "Yordam: Bugun'ni ko'rish" }));
     expect(await screen.findByText("«Yordam» roliga «Bugun'ni ko'rish» ruxsati berildi.")).toBeInTheDocument();
     expect(callsTo('PUT', '/roles')[0]?.body).toEqual({ role: 'support', permission: 'admin.today.view', allowed: true });
@@ -53,7 +81,7 @@ describe('Rollar', () => {
   });
 
   it('asks before giving a risky permission, and sends nothing when backing out', async () => {
-    const { callsTo, user } = setup({ 'PUT /roles': () => ok([]) });
+    const { callsTo, user } = setup({ 'PUT /roles': () => ok(MATRIX) });
     await user.click(await screen.findByRole('switch', { name: 'Operator: Payoutni tasdiqlash' }));
     const ask = await screen.findByRole('alertdialog', { name: '«Payoutni tasdiqlash» ruxsatini berasizmi?' });
     await user.click(within(ask).getByRole('button', { name: 'Bekor qilish' }));

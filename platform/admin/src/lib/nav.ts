@@ -57,7 +57,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { key: 'pos', href: '/pos', label: 'nav_pos', anyOf: ['subscriptions.manage', 'devices.view'], icon: MonitorSmartphone, built: false },
   { key: 'finance', href: '/finance', label: 'nav_finance', anyOf: ['finance.view'], icon: HandCoins, built: false },
   { key: 'customers', href: '/customers', label: 'nav_customers', anyOf: ['users.view', 'support.view'], icon: UsersRound, alsoPaths: ['/users'], built: false },
-  { key: 'marketing', href: '/marketing', label: 'nav_marketing', anyOf: ['marketing.manage'], icon: Megaphone, built: false },
+  { key: 'marketing', href: '/marketing', label: 'nav_marketing', anyOf: ['marketing.view'], icon: Megaphone, built: false },
   { key: 'monitoring', href: '/monitoring', label: 'nav_monitoring', anyOf: ['monitoring.view'], icon: Activity, built: false },
   { key: 'integrations', href: '/integrations', label: 'nav_integrations', anyOf: ['integrations.view'], icon: Plug, built: false },
   // Tizim

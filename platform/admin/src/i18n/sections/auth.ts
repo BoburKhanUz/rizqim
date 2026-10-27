@@ -12,7 +12,6 @@ export const auth = defineSection({
     auth_login: 'Kirish',
     auth_invalidInput: 'Email va parolni kiriting.',
     auth_badCredentials: "Email yoki parol noto'g'ri.",
-    auth_disabled: "Hisobingiz o'chirilgan. Superadministratorga murojaat qiling.",
     auth_sessionEnded: 'Seans tugadi. Qaytadan kiring.',
     auth_sessionIdle: "Uzoq vaqt faol bo'lmaganingiz uchun seans tugadi. Qaytadan kiring.",
 
@@ -21,6 +20,7 @@ export const auth = defineSection({
     auth_codeLabel: '6 xonali kod',
     auth_codeInvalid: '6 ta raqam kiriting.',
     auth_codeWrong: "Kod noto'g'ri yoki eskirgan. Ilovadagi yangi kodni kiriting.",
+    auth_codeUsed: "Bu kod hozirgina ishlatilgan — keyingi kodni kiriting. Ilovada kod 30 soniyada almashadi, shuncha kuting.",
     auth_verify: 'Tasdiqlash',
     auth_useRecovery: 'Tiklash kodidan foydalanish',
     auth_useApp: 'Ilovadagi koddan foydalanish',
@@ -59,10 +59,9 @@ export const auth = defineSection({
     auth_passwordShort: "Parol kamida 12 ta belgidan iborat bo'lsin.",
     auth_passwordMismatch: 'Ikkala parol bir xil emas.',
     auth_inviteAccept: 'Parolni saqlash',
-    auth_inviteExpired: "Taklif havolasi eskirgan yoki ishlatilgan. Superadministratordan yangi havola so'rang.",
 
     auth_stepUpTitle: 'Amalni tasdiqlang',
-    auth_stepUpText: "Bu muhim amal. Davom etish uchun ilovadagi 6 xonali kodni kiriting. Tasdiq 10 daqiqa amal qiladi.",
+    auth_stepUpText: "Bu muhim amal. Davom etish uchun ilovadagi 6 xonali kodni kiriting; tasdiq 10 daqiqa amal qiladi. Hozirgina kirgan bo'lsangiz, ilovada yangi kod chiqquncha (30 soniya) kuting: bir kod ikki marta ishlamaydi.",
     auth_stepUpConfirm: 'Tasdiqlash',
 
     auth_idleTitle: 'Seans tugayapti',

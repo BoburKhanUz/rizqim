@@ -53,7 +53,8 @@ export function useSetRolePermission() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: setRolePermission,
-    onSuccess: () => client.invalidateQueries({ queryKey: KEYS.roles }),
+    // The answer is the whole matrix: no second round trip
+    onSuccess: (matrix) => client.setQueryData(KEYS.roles, matrix),
   });
 }
 
@@ -62,7 +63,7 @@ export const useSessions = () => useQuery({ queryKey: KEYS.sessions, queryFn: li
 export function useRevokeSession() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => revokeSession(id),
+    mutationFn: (id: number) => revokeSession(id),
     onSuccess: () => client.invalidateQueries({ queryKey: KEYS.sessions }),
   });
 }
@@ -73,7 +74,7 @@ export function useAuditLog(filters: AuditFilters, enabled = true) {
     queryKey: KEYS.audit(filters),
     queryFn: ({ pageParam, signal }) => listAudit(filters, pageParam, signal),
     initialPageParam: null as string | null,
-    getNextPageParam: (last) => last.nextCursor,
+    getNextPageParam: (last) => last.next_cursor,
     enabled,
   });
 }

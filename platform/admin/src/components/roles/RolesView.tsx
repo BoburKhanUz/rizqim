@@ -1,8 +1,8 @@
 'use client';
 
 import { Fragment, useMemo, useState } from 'react';
-import { Lock, ShieldAlert } from 'lucide-react';
-import { Card, CardSkeletons, ConfirmDialog, EmptyState, FormError, InlineError, Notice, PageHeader, Switch } from '@rizqim/ui';
+import { Lock, ShieldAlert, Undo2 } from 'lucide-react';
+import { Card, CardSkeletons, ConfirmDialog, EmptyState, FormError, IconButton, InlineError, Notice, PageHeader, Pill, Switch } from '@rizqim/ui';
 import { useRoleMatrix, useSetRolePermission } from '@/lib/api/hooks';
 import type { PermissionRow, RoleColumn, RoleMatrix } from '@/lib/api/types';
 import { errorText } from '@/lib/errors';
@@ -75,8 +75,12 @@ function Matrix({ matrix }: { matrix: RoleMatrix }) {
   }, [matrix.permissions]);
 
   const granted = (role: RoleColumn, permission: PermissionRow) => role.key === SUPERADMIN || (matrix.grants[role.key] ?? []).includes(permission.key);
+  // The built-in table before the superadmin's changes: a cell that differs from it is "O'zgartirilgan"
+  const isDefault = (role: RoleColumn, permission: PermissionRow) => (matrix.defaults[role.key] ?? []).includes(permission.key);
+  const isChanged = (role: RoleColumn, permission: PermissionRow) => role.editable && role.key !== SUPERADMIN && granted(role, permission) !== isDefault(role, permission);
 
-  const apply = (role: RoleColumn, permission: PermissionRow, allowedNow: boolean) => {
+  // allowed: true / false, or null = back to the default
+  const apply = (role: RoleColumn, permission: PermissionRow, allowedNow: boolean | null) => {
     setNotice(null);
     setError(null);
     save.mutate(
@@ -84,7 +88,8 @@ function Matrix({ matrix }: { matrix: RoleMatrix }) {
       {
         onSuccess: () => {
           setAsking(null);
-          setNotice(t(allowedNow ? 'roles_granted' : 'roles_revoked', { role: role.label || roleLabel(role.key), permission: permission.label }));
+          const words = { role: role.label || roleLabel(role.key), permission: permission.label };
+          setNotice(allowedNow === null ? t('roles_resetDone', words) : t(allowedNow ? 'roles_granted' : 'roles_revoked', words));
         },
         onError: (failure) => {
           setAsking(null);
@@ -106,6 +111,7 @@ function Matrix({ matrix }: { matrix: RoleMatrix }) {
         <Lock aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
         {t('roles_locked')}
       </p>
+      <p className="text-footnote text-fg-muted">{t('roles_changedHint')}</p>
       <Notice message={notice} />
       <FormError message={error} />
       <Card padded={false} className="overflow-x-auto">
@@ -143,16 +149,34 @@ function Matrix({ matrix }: { matrix: RoleMatrix }) {
                     <th scope="row" className="sticky left-0 z-10 w-44 border-b border-line bg-surface px-3 py-1 text-left text-footnote font-medium text-fg sm:w-64">
                       {permission.label}
                     </th>
-                    {columns.map((role) => (
-                      <td key={role.key} className="border-b border-line px-1 py-0.5 text-center">
-                        <Switch
-                          checked={granted(role, permission)}
-                          disabled={!role.editable || role.key === SUPERADMIN || save.isPending}
-                          label={t('roles_switchLabel', { role: role.label || roleLabel(role.key), permission: permission.label })}
-                          onChange={(wanted) => toggle(role, permission, wanted)}
-                        />
-                      </td>
-                    ))}
+                    {columns.map((role) => {
+                      const changed = isChanged(role, permission);
+                      const roleName = role.label || roleLabel(role.key);
+                      return (
+                        <td key={role.key} className={changed ? 'border-b border-line bg-info-soft px-1 py-0.5 text-center' : 'border-b border-line px-1 py-0.5 text-center'}>
+                          <div className="flex flex-col items-center">
+                            <Switch
+                              checked={granted(role, permission)}
+                              disabled={!role.editable || role.key === SUPERADMIN || save.isPending}
+                              label={t('roles_switchLabel', { role: roleName, permission: permission.label })}
+                              onChange={(wanted) => toggle(role, permission, wanted)}
+                            />
+                            {changed && (
+                              <>
+                                <Pill tone="info">{t('roles_changed')}</Pill>
+                                <IconButton
+                                  icon={Undo2}
+                                  label={t('roles_resetLabel', { role: roleName, permission: permission.label, value: t(isDefault(role, permission) ? 'roles_defaultOn' : 'roles_defaultOff') })}
+                                  title={t('roles_default', { value: t(isDefault(role, permission) ? 'roles_defaultOn' : 'roles_defaultOff') })}
+                                  disabled={save.isPending}
+                                  onClick={() => apply(role, permission, null)}
+                                />
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      );
+                    })}
                   </tr>
                 ))}
               </Fragment>

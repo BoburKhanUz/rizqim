@@ -29,6 +29,12 @@ describe('nav', () => {
     expect(canOpen(customers, ['admin.users.view'])).toBe(true);
   });
 
+  it('gates Marketing by marketing.view', () => {
+    const marketing = NAV_ITEMS.find((item) => item.key === 'marketing')!;
+    expect(canOpen(marketing, ['admin.marketing.view'])).toBe(true);
+    expect(canOpen(marketing, ['admin.marketing.manage'])).toBe(false);
+  });
+
   it('finds the section of a path, including the search targets', () => {
     expect(sectionOf('/orders/9f1c')?.key).toBe('orders');
     expect(sectionOf('/stores/12')?.key).toBe('stores');

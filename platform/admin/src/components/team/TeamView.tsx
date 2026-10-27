@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { KeyRound, Link2, Pause, Play, ShieldAlert, UserPlus, UserCog, Users } from 'lucide-react';
 import { Button, Card, CardSkeletons, ConfirmDialog, EmptyState, InlineError, Notice, PageHeader, Pill } from '@rizqim/ui';
 import { useInviteMember, useReissueInvite, useResetTwoFactor, useTeam, useUpdateMember } from '@/lib/api/hooks';
-import type { InviteLink, PlatformRole, TeamMember } from '@/lib/api/types';
+import { isInvited, type InviteLink, type PlatformRole, type TeamMember } from '@/lib/api/types';
 import { errorText } from '@/lib/errors';
 import { when } from '@/lib/format';
 import { roleLabel } from '@/lib/labels';
@@ -107,7 +107,7 @@ export function TeamView({ focusId = null }: { focusId?: number | null }) {
             invite.mutate(input, {
               onSuccess: (result) => {
                 close();
-                setDialog({ kind: 'link', name: input.name, link: result.invite });
+                setDialog({ kind: 'link', name: input.name, link: result });
               },
             })
           }
@@ -219,7 +219,7 @@ function MemberCard({ member, isSelf, focused, onAction }: { member: TeamMember;
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
             <Pill tone="neutral">{roleLabel(member.platform_role)}</Pill>
-            {member.invite_pending ? <Pill tone="warning">{t('team_invitePending')}</Pill> : member.disabled ? <Pill tone="danger">{t('team_disabledPill')}</Pill> : <Pill tone="success">{t('team_active')}</Pill>}
+            {isInvited(member) ? <Pill tone="warning">{t('team_invitePending')}</Pill> : member.disabled ? <Pill tone="danger">{t('team_disabledPill')}</Pill> : <Pill tone="success">{t('team_active')}</Pill>}
             <Pill tone={member.two_factor_enabled ? 'success' : 'warning'}>{member.two_factor_enabled ? t('team_twoFactorOn') : t('team_twoFactorOff')}</Pill>
           </div>
         </div>
@@ -242,7 +242,7 @@ function MemberCard({ member, isSelf, focused, onAction }: { member: TeamMember;
             <Button variant="secondary" icon={UserCog} aria-label={label(t('team_changeRole'))} onClick={() => onAction('role')}>
               {t('team_changeRole')}
             </Button>
-            {member.invite_pending ? (
+            {isInvited(member) ? (
               <Button variant="secondary" icon={Link2} aria-label={label(t('team_reissue'))} onClick={() => onAction('reissue')}>
                 {t('team_reissue')}
               </Button>

@@ -14,8 +14,9 @@ to'lqinlarda to'ldiriladi. Matnlar o'zbekcha (lotin); `src/i18n/` hamkor paneli 
 
 ## Ishga tushirish (mahalliy)
 
-Node.js 22 va npm kerak. Ilova `file:` orqali ikki paketni ulaydi (`ui` — manba kod; `api-client` — hozircha ishlatilmaydi, yaratilgan
-admin klienti kelganda ulanadi); `@rizqim/api-client` `dist/` ga yig'ilgan bo'lishi kerak.
+Node.js 22 va npm kerak. Ilova `file:` orqali ikki paketni ulaydi: `ui` (manba kod) va `api-client` (admin endpoint'lari **turlari** shu paketdan:
+`src/lib/api/types.ts`; so'rovlarni ilovaning o'z qatlami yuboradi — sessiya cookie'si, qayta tasdiqlash va bo'sh turish uchun). `@rizqim/api-client`
+`dist/` ga yig'ilgan bo'lishi kerak.
 
 ```bash
 cd packages/ts/api-client && npm ci && npm run build      # bir marta (API o'zgarsa qayta)
@@ -76,8 +77,10 @@ src/app/(app)/<bo'lim>/page.tsx    har bir bo'lim uchun bitta fayl: today, order
                                    monitoring, integrations (hozir <Placeholder>), team, roles, audit, sessions (tayyor)
 src/app/(app)/{orders/[uuid], stores/[id], users/[id], team/[id]}   qidiruv natijalari olib boradigan manzillar
 src/lib/nav.ts                     yon menyu: tartib, bo'lim -> ruxsatlar (admin.* nomi "admin." siz yoziladi)
-src/lib/api/                       admin endpoint'lari: types.ts, normalize.ts (javoblarni himoyalangan o'qish), endpoints.ts,
-                                   hooks.ts (TanStack Query), client.ts (xato, qayta tasdiqlash, bo'sh turish)
+src/lib/api/                       admin endpoint'lari: types.ts (api-client'dan olingan turlar), endpoints.ts, hooks.ts (TanStack Query),
+                                   client.ts (xato, qayta tasdiqlash, bo'sh turish), normalize.ts (spetsifikatsiya yetarli aniq bo'lmagan
+                                   joylar), usedCodes.ts (hozirgina ishlatilgan 2FA kodi)
+src/lib/errors.ts                  har bir xato kodi (docs/API.md "Xato formati") -> oddiy o'zbekcha gap
 src/i18n/sections/<bo'lim>.ts      bo'limning matnlari (kalitlar `<bo'lim>_` bilan boshlanadi — test tekshiradi)
 e2e/fake/                          soxta admin backend (kirish, 2FA, jamoa, rollar, jurnal, qidiruv)
 ```
@@ -86,6 +89,13 @@ e2e/fake/                          soxta admin backend (kirish, 2FA, jamoa, roll
 ekranga almashtiring; yon menyu yozuvi, ruxsat (`today.view`, `orders.view`, `monitoring.view`) va manzil tayyor. `platform.ops`
 kanaliga ulanish (`laravel-echo`, `pusher-js` hamkor panelida bor) shu bosqichda qo'shiladi: imzolash `/api/backend/broadcasting/auth`
 orqali o'tadi.
+
+## Qayta tasdiqlash va 2FA kodlari
+
+Backend har bir 2FA kodini **bir marta** qabul qiladi (va undan eskisini ham qayta qabul qilmaydi), kirish paytida ishlatilgan kod ham
+hisobda. Shuning uchun kirgandan keyin darhol muhim amal qilinsa, qayta tasdiqlash oynasida xuddi shu kod rad etiladi. Ilova oxirgi qabul qilingan kodni
+90 soniya xotirada (faqat sahifa xotirasida) saqlaydi va uni qayta yozilganda serverga yubormay "Bu kod hozirgina ishlatilgan — keyingi kodni kiriting"
+deydi; server `invalid_code` desa: "ilovada yangi kod chiqquncha (30 soniya) kuting".
 
 ## Umumiy UI
 
@@ -98,6 +108,13 @@ Hamkor paneli bilan umumiy komponentlar `packages/ts/ui` da: `PageHeader`, `Noti
 (`e2e/fake`, port 14200) sinaydi: kirish + 2FA (o'rnatish, tiklash kodlari, bloklash, muddati o'tgan challenge), taklif, rol o'zgartirish
 (qayta tasdiqlash bilan), rollar jadvali, qidiruv oynasi, jurnal (filtr, kursor, tafsilot), sessiyalar, 360 px. Bitta worker.
 Chromium boshqa joyda bo'lsa `PW_CHROMIUM_PATH`; `E2E_SKIP_BUILD=1` oxirgi build'ni qayta ishlatadi; `E2E_WEB_PORT`/`E2E_FAKE_PORT` portlarni almashtiradi.
+
+### Haqiqiy backend bilan
+
+`scripts/e2e-stack.sh` (hamkor paneli va Mini App bilan umumiy stek: Laravel, Postgres, Reverb) boshqaruv markazini ham ishga tushiradi (`E2E_ADMIN_PORT`,
+13300) va `php artisan rizqim:admin:create` bilan birinchi superadminni yaratadi. `e2e/stack/tests/admin-journey.spec.ts`: taklif havolasi -> parol -> 2FA
+(TOTP kodlarni test o'zi kalitdan hisoblaydi, RFC 6238) -> tiklash kodlari -> boshqa a'zoni taklif qilish (qayta tasdiqlash: keyingi 30 soniyalik qadamni kutadi) ->
+u taklifni qabul qiladi -> tiklash kodi bilan qayta kirish -> rolni o'zgartirish (yana qayta tasdiqlash) -> jurnal (oldin/keyin, IP, brauzer) -> qidiruv -> chiqish.
 
 ## Docker
 

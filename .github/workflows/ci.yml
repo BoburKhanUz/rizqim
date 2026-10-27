@@ -134,6 +134,8 @@ jobs:
               - 'backend/**'
               - 'packages/api-spec/**'
               - 'partner/web/**'
+              # P4-12: the control center journey (tests/admin-journey.spec.ts) runs in the same stack
+              - 'platform/admin/**'
               - 'customer/miniapp/**'
               - 'packages/ts/**'
               - 'e2e/**'
@@ -700,16 +702,20 @@ jobs:
           retention-days: 7
 
   # --- P2-31 Cross-app e2e with the REAL stack (runs when e2estack paths changed, see the `e2estack` filter) -----
-  # Postgres-backed Laravel (php artisan serve), Reverb, the partner web (next start) and the Mini App (vite preview with
-  # its /api proxy), driven by Playwright (e2e/stack): a customer's order appears on the partner web board over the socket,
-  # the kitchen bumps its lines through the staff API with a PIN session, the board and the manager's Mini App follow.
+  # Postgres-backed Laravel (php artisan serve), Reverb, the partner web (next start), the Mini App (vite preview with
+  # its /api proxy) and the RIZQIM control center (platform/admin, next start), driven by Playwright (e2e/stack): a customer's
+  # order appears on the partner web board over the socket, the kitchen bumps its lines through the staff API with a PIN
+  # session, the board and the manager's Mini App follow; and (P4-12) the first superadmin made by `rizqim:admin:create`
+  # accepts the invite, sets up 2FA with TOTP codes the test computes, invites and re-roles a member behind step-up, and
+  # finds it in the audit log and the search.
   # scripts/e2e-stack.sh does all of it (it is the same command to run locally).
   e2e-stack:
     name: Cross-app e2e (Laravel, Reverb, partner web, Mini App)
     needs: changes
     if: needs.changes.outputs.e2estack == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # The control center test waits for TOTP time steps (about two minutes in all)
+    timeout-minutes: 30
     services:
       postgres:
         # Same major version as docker-compose.yml
@@ -763,6 +769,7 @@ jobs:
           cache: npm
           cache-dependency-path: |
             partner/web/package-lock.json
+            platform/admin/package-lock.json
             customer/miniapp/package-lock.json
             packages/ts/api-client/package-lock.json
             e2e/stack/package-lock.json
@@ -776,6 +783,7 @@ jobs:
       - name: Install the apps and the test
         run: |
           npm ci --prefix partner/web
+          npm ci --prefix platform/admin
           npm ci --prefix customer/miniapp
           npm ci --prefix e2e/stack
 

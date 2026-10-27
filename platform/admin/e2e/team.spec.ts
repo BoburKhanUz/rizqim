@@ -1,4 +1,5 @@
-import { expect, openSignedIn, test, VALID_CODE } from './fixtures'
+import { expect, NEXT_CODE, openSignedIn, test, VALID_CODE } from './fixtures'
+import { PASSWORD } from './fake/backend'
 
 // Tizim → Jamoa: invite, change role, disable / enable, reset 2FA, re-issue an invite. Each change is a sensitive action: the
 // backend asks for a fresh 2FA code (step-up) once, and the app opens the dialog by itself and repeats the call.
@@ -19,7 +20,7 @@ test('a role change asks for the 2FA code once, then goes through', async ({ pag
   await expect(stepUp).toBeVisible()
   await stepUp.getByLabel('6 xonali kod').fill('000000')
   await stepUp.getByRole('button', { name: 'Tasdiqlash' }).click()
-  await expect(stepUp.getByText("Kod noto'g'ri yoki eskirgan. Ilovadagi yangi kodni kiriting.")).toBeVisible()
+  await expect(stepUp.getByText(/Ilovada yangi kod chiqquncha \(30 soniya\) kuting/)).toBeVisible()
   await stepUp.getByLabel('6 xonali kod').fill(VALID_CODE)
   await stepUp.getByRole('button', { name: 'Tasdiqlash' }).click()
 
@@ -101,7 +102,7 @@ test('the backend refuses to demote the last superadmin and says why inside the 
   const dialog = page.getByRole('dialog', { name: "Rolni o'zgartirish" })
   await dialog.getByLabel('Roli').selectOption('operator')
   await dialog.getByRole('button', { name: 'Saqlash' }).click()
-  await expect(dialog.getByText("Oxirgi superadministratorni o'zgartirib bo'lmaydi.")).toBeVisible()
+  await expect(dialog.getByText("Oxirgi superadministratorni o'zgartirib yoki o'chirib bo'lmaydi. Avval boshqa superadministrator tayinlang.")).toBeVisible()
   expect(api.member('aziza@rizqim.uz').platform_role).toBe('superadmin')
 })
 
@@ -120,4 +121,41 @@ test('re-issuing an invite shows a new link, and a member cannot change themselv
   const url = await page.getByRole('textbox', { name: 'Taklif havolasi' }).inputValue()
   expect(url).toMatch(/\/invite\/invite-/)
   expect(pending.inviteToken).not.toBe('old-token')
+})
+
+test('right after signing in, the same code is not accepted again: the member is told to wait for the next one', async ({ page, api }) => {
+  await page.goto('/login')
+  await page.getByLabel('Email').fill('aziza@rizqim.uz')
+  await page.getByLabel('Parol', { exact: true }).fill(PASSWORD)
+  await page.getByRole('button', { name: 'Kirish' }).click()
+  await page.getByLabel('6 xonali kod').fill(VALID_CODE)
+  await page.getByRole('button', { name: 'Tasdiqlash' }).click()
+  await expect(page.getByRole('heading', { name: 'Bugun', level: 1 })).toBeVisible()
+
+  await page.getByRole('link', { name: 'Jamoa' }).click()
+  await card(page, 'Sardor Operator').getByRole('button', { name: /2FA ni tiklash/ }).click()
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Ha, tiklash' }).click()
+  const stepUp = page.getByRole('alertdialog', { name: 'Amalni tasdiqlang' })
+  await stepUp.getByLabel('6 xonali kod').fill(VALID_CODE)
+  await stepUp.getByRole('button', { name: 'Tasdiqlash' }).click()
+  await expect(stepUp.getByText('Bu kod hozirgina ishlatilgan — keyingi kodni kiriting')).toBeVisible()
+  expect(api.callsTo('POST', '/auth/confirm')).toHaveLength(0)
+
+  // The next code (30 seconds later in real life)
+  await stepUp.getByLabel('6 xonali kod').fill(NEXT_CODE)
+  await stepUp.getByRole('button', { name: 'Tasdiqlash' }).click()
+  await expect(page.getByText(/Sardor Operator uchun 2FA tiklandi/)).toBeVisible()
+  expect(api.callsTo('POST', '/auth/confirm').map((call) => call.status)).toEqual([200])
+})
+
+test('a code the backend refuses says to wait for the next one', async ({ page, api, signIn }) => {
+  // The code was taken a moment ago (by another device): the page cannot know, the backend answers invalid_code
+  api.member('aziza@rizqim.uz').lastCode = { code: VALID_CODE, at: Date.now() }
+  await openSignedIn(page, signIn, '/team')
+  await card(page, 'Sardor Operator').getByRole('button', { name: /2FA ni tiklash/ }).click()
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Ha, tiklash' }).click()
+  const stepUp = page.getByRole('alertdialog', { name: 'Amalni tasdiqlang' })
+  await stepUp.getByLabel('6 xonali kod').fill(VALID_CODE)
+  await stepUp.getByRole('button', { name: 'Tasdiqlash' }).click()
+  await expect(stepUp.getByText(/Ilovada yangi kod chiqquncha \(30 soniya\) kuting/)).toBeVisible()
 })

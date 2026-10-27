@@ -5,6 +5,8 @@
 import { fail, ok, validation, type FakeRequest, type RecordedCall, type Reply } from './types'
 
 export const VALID_CODE = '123456'
+/** The code of the next 30 s window: a good code too, so a test can "wait for the next one" */
+export const NEXT_CODE = '654321'
 export const PASSWORD = 'correct horse battery'
 const STEP_UP_MS = 10 * 60_000
 const INVITE_MS = 72 * 3_600_000
@@ -27,6 +29,7 @@ export const PERMISSIONS: Array<{ key: string; label: string; group: string }> =
   { key: 'admin.users.view', label: "Foydalanuvchilarni ko'rish", group: 'Mijozlar' },
   { key: 'admin.support.view', label: "Shikoyatlarni ko'rish", group: 'Mijozlar' },
   { key: 'admin.subscriptions.manage', label: 'Obunalarni boshqarish', group: 'POS va obunalar' },
+  { key: 'admin.marketing.view', label: "Marketingni ko'rish", group: 'Marketing' },
   { key: 'admin.marketing.manage', label: 'Marketingni boshqarish', group: 'Marketing' },
   { key: 'admin.integrations.view', label: "Integratsiyalarni ko'rish", group: 'Integratsiyalar' },
   { key: 'admin.audit.view', label: "Jurnalni ko'rish", group: 'Tizim' },
@@ -56,6 +59,8 @@ export interface Member {
   twoFactor: boolean
   recoveryCodes: string[]
   lastLoginAt: string | null
+  /** The last accepted TOTP code: the backend takes a code once (also inside its 30 s window) */
+  lastCode: { code: string; at: number } | null
 }
 
 interface Challenge {
@@ -146,6 +151,7 @@ export class FakeBackend {
       twoFactor: input.twoFactor ?? false,
       recoveryCodes: input.twoFactor ? ['seed-0001', 'seed-0002', 'seed-0003', 'seed-0004', 'seed-0005', 'seed-0006', 'seed-0007', 'seed-0008'] : [],
       lastLoginAt: input.twoFactor ? '2026-10-26T09:00:00+05:00' : null,
+      lastCode: null,
     }
     this.members.push(member)
     return member
@@ -266,9 +272,18 @@ export class FakeBackend {
     return challenge
   }
 
+  /** Whether `code` is a good TOTP code now; a good one is taken once. */
+  private takeCode(member: Member, code: unknown): boolean {
+    if (code !== VALID_CODE && code !== NEXT_CODE) return false
+    if (member.lastCode && member.lastCode.code === code && Date.now() - member.lastCode.at < 90_000) return false
+    member.lastCode = { code: String(code), at: Date.now() }
+    return true
+  }
+
   private signIn(member: Member, challengeToken: string, req: FakeRequest, extra: Record<string, unknown> = {}): Reply {
     this.challenges.delete(challengeToken)
-    const session = this.openSession(member, '127.0.0.1', 'E2E Browser')
+    // A new sign-in is not a step-up: sensitive actions ask for a code again (the next one, the backend takes each once)
+    const session = this.openSession(member, '127.0.0.1', 'E2E Browser', false)
     member.lastLoginAt = new Date().toISOString()
     this.entry(member, 'admin.auth.login', 'platform_member', String(member.id), null, null, null)
     void req
@@ -346,7 +361,7 @@ export class FakeBackend {
       return ok([])
     }
     if (req.method === 'POST' && path === '/auth/confirm') {
-      if (body.code !== VALID_CODE) return fail(422, 'Kod xato.', { reason: 'invalid_code' })
+      if (!this.takeCode(member, body.code)) return fail(422, 'Kod xato.', { reason: 'invalid_code' })
       session.confirmedUntil = Date.now() + STEP_UP_MS
       return ok({ confirmed_until: new Date(session.confirmedUntil).toISOString() })
     }
@@ -408,8 +423,8 @@ export class FakeBackend {
   private confirmSetup(body: Record<string, unknown>, req: FakeRequest): Reply {
     const challenge = this.useChallenge(body.challenge_token, ['setup'])
     if ('status' in challenge) return challenge
-    if (body.code !== VALID_CODE) return fail(422, 'Kod xato.', { reason: 'invalid_code' })
     const member = this.members.find((m) => m.id === challenge.memberId)!
+    if (!this.takeCode(member, body.code)) return fail(422, 'Kod xato.', { reason: 'invalid_code' })
     member.twoFactor = true
     this.entry(member, 'admin.auth.two_factor_enabled', 'platform_member', String(member.id), null, null, null)
     return this.signIn(member, String(body.challenge_token), req, { recovery_codes: this.newCodes(member) })
@@ -423,7 +438,7 @@ export class FakeBackend {
       const index = member.recoveryCodes.indexOf(body.recovery_code)
       if (index < 0) return fail(422, "Tiklash kodi noto'g'ri yoki ishlatilgan.", { reason: 'invalid_recovery_code' })
       member.recoveryCodes.splice(index, 1)
-    } else if (body.code !== VALID_CODE) {
+    } else if (!this.takeCode(member, body.code)) {
       return fail(422, 'Kod xato.', { reason: 'invalid_code' })
     }
     return this.signIn(member, String(body.challenge_token), req)
@@ -512,6 +527,8 @@ export class FakeBackend {
       roles: ROLES.map((key) => ({ key, label: ROLE_LABELS[key], editable: key !== 'superadmin' })),
       permissions: PERMISSIONS,
       grants: Object.fromEntries(ROLES.map((key) => [key, key === 'superadmin' ? ALL : (this.grants[key] ?? [])])),
+      // The built-in table, before the superadmin's changes ("O'zgartirilgan" compares with it)
+      defaults: Object.fromEntries(ROLES.map((key) => [key, DEFAULT_GRANTS[key]])),
     }
   }
 

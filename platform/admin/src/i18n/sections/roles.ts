@@ -17,5 +17,12 @@ export const roles = defineSection({
     roles_riskyText: "Bu pul yoki muhim ma'lumotlarga ta'sir qiladi. «{{role}}» rolidagi barcha xodimlar buni qila oladi.",
     roles_riskyConfirm: 'Ruxsat berish',
     roles_group_other: 'Boshqa',
+    roles_changed: "O'zgartirilgan",
+    roles_changedHint: "Rangli katak standart jadvaldan farq qiladi (\"O'zgartirilgan\"). Aylana strelka uni standartga qaytaradi.",
+    roles_default: 'Standart: {{value}}',
+    roles_defaultOn: 'ruxsat bor',
+    roles_defaultOff: "ruxsat yo'q",
+    roles_resetLabel: 'Standartga qaytarish: {{role}}, {{permission}} ({{value}})',
+    roles_resetDone: '«{{role}}» roli uchun «{{permission}}» ruxsati standartga qaytarildi.',
   },
 });

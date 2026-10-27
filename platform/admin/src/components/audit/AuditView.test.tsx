@@ -6,12 +6,12 @@ import { changedFields } from './AuditDetail';
 import { AuditView } from './AuditView';
 
 const entry = (id: number, overrides: Record<string, unknown> = {}) => ({
-  id: String(id),
+  id,
   action: 'admin.team.role_changed',
   actor: { id: 1, name: 'Aziza Karimova' },
   subject_type: 'platform_member',
-  subject_id: '2',
-  store_id: null,
+  subject_id: 2,
+  store: null,
   reason: null,
   before: { platform_role: 'operator', note: 'same' },
   after: { platform_role: 'finance', note: 'same' },
@@ -21,6 +21,9 @@ const entry = (id: number, overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
+// The backend's cursor page: the list and `next_cursor` inside `data`
+const page = (rows: unknown[], next: string | null = null) => ok({ data: rows, next_cursor: next, prev_cursor: null, per_page: 30 });
+
 function setup(audit: (query: URLSearchParams) => Response, permissions?: string[]) {
   const mocks = mockFetch({ 'GET /auth/me': () => json(meBody(permissions ? { permissions } : {})), 'GET /audit-logs': (request) => audit(new URL(request.url).searchParams) });
   renderPage(<AuditView />);
@@ -29,7 +32,7 @@ function setup(audit: (query: URLSearchParams) => Response, permissions?: string
 
 describe('Harakatlar jurnali', () => {
   it('lists the entries newest first with who, when and what', async () => {
-    setup(() => ok([entry(2), entry(1, { action: 'admin.auth.login', actor: null, reason: 'navbatchi' })], { meta: { next_cursor: null } }));
+    setup(() => page([entry(2), entry(1, { action: 'admin.auth.login', actor: null, reason: 'navbatchi' })]));
     const list = await screen.findByRole('list', { name: 'Jurnal yozuvlari' });
     const rows = within(list).getAllByRole('listitem');
     expect(rows).toHaveLength(2);
@@ -41,7 +44,7 @@ describe('Harakatlar jurnali', () => {
   });
 
   it('sends the filters together when applied, and clears them', async () => {
-    const { callsTo, user } = setup(() => ok([], { meta: {} }));
+    const { callsTo, user } = setup(() => page([]));
     await screen.findByText('Bu filtrlar bo\'yicha yozuv topilmadi');
     expect(callsTo('GET', '/audit-logs')).toHaveLength(1);
 
@@ -70,8 +73,6 @@ describe('Harakatlar jurnali', () => {
   });
 
   it('loads the next page by cursor and keeps the first page', async () => {
-    // The backend's cursor pages: the list and `next_cursor` inside `data`
-    const page = (rows: unknown[], next: string | null) => ok({ data: rows, next_cursor: next, prev_cursor: null, per_page: 30 });
     const { callsTo, user } = setup((query) => (query.get('cursor') === 'c2' ? page([entry(1, { action: 'admin.auth.logout' })], null) : page([entry(2)], 'c2')));
     await screen.findByText('admin.team.role_changed');
     await user.click(screen.getByRole('button', { name: 'Yana yuklash' }));
@@ -82,13 +83,13 @@ describe('Harakatlar jurnali', () => {
   });
 
   it('shows the store of an entry by name', async () => {
-    setup(() => ok({ data: [entry(3, { action: 'admin.stores.suspended', store: { id: 12, name: 'Lazzat Oshxona' } })], next_cursor: null, prev_cursor: null, per_page: 30 }));
+    setup(() => page([entry(3, { action: 'admin.stores.suspended', store: { id: 12, name: 'Lazzat Oshxona' } })]));
     const row = await screen.findByRole('button', { name: 'admin.stores.suspended: batafsil' });
     expect(row).toHaveTextContent('Ovqatxona: Lazzat Oshxona');
   });
 
   it('opens an entry with what changed: before and after, and who, from where', async () => {
-    const { user } = setup(() => ok([entry(2, { reason: 'rol almashdi' })], { meta: {} }));
+    const { user } = setup(() => page([entry(2, { reason: 'rol almashdi' })]));
     await user.click(await screen.findByRole('button', { name: 'admin.team.role_changed: batafsil' }));
     const detail = await screen.findByRole('dialog', { name: 'Yozuv tafsiloti' });
     expect(detail).toHaveTextContent('Aziza Karimova');
@@ -116,7 +117,7 @@ describe('Harakatlar jurnali', () => {
   });
 
   it('is closed to a member without audit.view', async () => {
-    const { callsTo } = setup(() => ok([]), ['admin.today.view']);
+    const { callsTo } = setup(() => page([]), ['admin.today.view']);
     expect(await screen.findByText("Bu amal uchun ruxsatingiz yo'q.")).toBeInTheDocument();
     expect(callsTo('GET', '/audit-logs')).toHaveLength(0);
   });

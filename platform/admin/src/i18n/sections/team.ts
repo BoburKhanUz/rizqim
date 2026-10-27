@@ -9,7 +9,6 @@ export const team = defineSection({
     team_empty: "Jamoada hali hech kim yo'q",
     team_loadError: "Jamoa ro'yxati yuklanmadi",
     team_you: 'Siz',
-    team_role: 'Roli',
     team_lastLogin: 'Oxirgi kirish',
     team_sessions: 'Faol seanslar',
     team_twoFactorOn: '2FA yoqilgan',
@@ -23,7 +22,6 @@ export const team = defineSection({
     team_resetTwoFactor: '2FA ni tiklash',
     team_reissue: 'Taklifni qayta yuborish',
     team_selfNote: "O'zingizni o'zgartira olmaysiz.",
-    team_actionsFor: '{{name}}: amallar',
 
     team_inviteTitle: 'Yangi xodim taklif qilish',
     team_inviteName: 'Ism',
@@ -61,6 +59,5 @@ export const team = defineSection({
     team_reissueTitle: '{{name}} uchun yangi havola yaratasizmi?',
     team_reissueText: 'Eski havola ishlamay qoladi.',
     team_reissueConfirm: 'Ha, yangi havola',
-    team_lastSuperadmin: "Oxirgi superadministratorni o'zgartirib bo'lmaydi.",
   },
 });

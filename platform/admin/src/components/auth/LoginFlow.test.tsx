@@ -1,13 +1,17 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { forgetAcceptedCode } from '@/lib/api/usedCodes';
 import { json, meBody, mockFetch, ok, refusal, renderPage } from '@/test/helpers';
 import { LoginFlow } from './LoginFlow';
 
 const replace = vi.fn();
 vi.mock('next/navigation', () => ({ useRouter: () => ({ replace, push: vi.fn() }), usePathname: () => '/login' }));
 
-afterEach(() => replace.mockReset());
+afterEach(() => {
+  replace.mockReset();
+  forgetAcceptedCode();
+});
 
 const anonymous = () => refusal(401, 'Unauthenticated.');
 const challenge = (status: 'otp_required' | 'setup_required') => ok({ status, challenge_token: 'chal-1', expires_at: '2026-10-27T12:05:00Z' });
@@ -43,7 +47,7 @@ describe('LoginFlow: email, password and the 6-digit code', () => {
   });
 
   it('asks for both fields and says a wrong password in one sentence for every cause', async () => {
-    mockFetch({ 'GET /auth/me': anonymous, 'POST /auth/login': () => refusal(401, "Email yoki parol noto'g'ri.") });
+    mockFetch({ 'GET /auth/me': anonymous, 'POST /auth/login': () => refusal(422, 'x', { reason: 'invalid_credentials' }, { code: 'invalid_credentials' }) });
     const user = userEvent.setup();
     renderPage(<LoginFlow />);
     await user.click(screen.getByRole('button', { name: 'Kirish' }));
@@ -55,16 +59,16 @@ describe('LoginFlow: email, password and the 6-digit code', () => {
   });
 
   it('shows the lockout in the backend\'s words and a disabled account as it is', async () => {
-    let answer = refusal(429, "Juda ko'p urinish. 15 daqiqadan so'ng qayta urinib ko'ring.");
+    let answer = refusal(429, 'x', { reason: 'locked', retry_after: 900 }, { code: 'locked' });
     mockFetch({ 'GET /auth/me': anonymous, 'POST /auth/login': () => answer.clone() });
     const user = userEvent.setup();
     renderPage(<LoginFlow />);
     await fillCredentials(user);
-    expect(await screen.findByText("Juda ko'p urinish. 15 daqiqadan so'ng qayta urinib ko'ring.")).toBeInTheDocument();
+    expect(await screen.findByText("Juda ko'p xato urinish. 15 daqiqadan so'ng qayta urinib ko'ring.")).toBeInTheDocument();
 
-    answer = refusal(403, "Hisobingiz o'chirilgan.");
+    answer = refusal(403, 'x', { reason: 'member_disabled' }, { code: 'member_disabled' });
     await user.click(screen.getByRole('button', { name: 'Kirish' }));
-    expect(await screen.findByText("Hisobingiz o'chirilgan.")).toBeInTheDocument();
+    expect(await screen.findByText("Hisobingiz o'chirilgan. Superadministratorga murojaat qiling.")).toBeInTheDocument();
   });
 
   it('refuses a wrong code and lets the member type it again', async () => {
@@ -72,14 +76,14 @@ describe('LoginFlow: email, password and the 6-digit code', () => {
     mockFetch({
       'GET /auth/me': anonymous,
       'POST /auth/login': () => challenge('otp_required'),
-      'POST /auth/2fa/verify': () => (++attempts === 1 ? refusal(422, 'Kod xato.') : ok({ member: null })),
+      'POST /auth/2fa/verify': () => (++attempts === 1 ? refusal(422, 'Kod xato.', { reason: 'invalid_code' }, { code: 'invalid_code' }) : ok({ member: null })),
     });
     const user = userEvent.setup();
     renderPage(<LoginFlow />);
     await fillCredentials(user);
     await user.type(await screen.findByLabelText('6 xonali kod'), '000000');
     await user.click(screen.getByRole('button', { name: 'Tasdiqlash' }));
-    expect(await screen.findByText("Kod noto'g'ri yoki eskirgan. Ilovadagi yangi kodni kiriting.")).toBeInTheDocument();
+    expect(await screen.findByText(/Ilovada yangi kod chiqquncha \(30 soniya\) kuting/)).toBeInTheDocument();
 
     await user.clear(screen.getByLabelText('6 xonali kod'));
     await user.type(screen.getByLabelText('6 xonali kod'), '123456');
@@ -107,7 +111,7 @@ describe('LoginFlow: email, password and the 6-digit code', () => {
     mockFetch({
       'GET /auth/me': anonymous,
       'POST /auth/login': () => challenge('otp_required'),
-      'POST /auth/2fa/verify': () => refusal(422, 'Muddat tugadi', { reason: 'challenge_expired' }),
+      'POST /auth/2fa/verify': () => refusal(422, 'Muddat tugadi', { reason: 'challenge_invalid' }, { code: 'challenge_invalid' }),
     });
     const user = userEvent.setup();
     renderPage(<LoginFlow />);
@@ -225,12 +229,12 @@ describe('LoginFlow: accepting an invite', () => {
   });
 
   it('says an old or used link in the backend\'s words', async () => {
-    mockFetch({ 'GET /auth/me': anonymous, 'POST /auth/invite/accept': () => refusal(422, 'Taklif muddati tugagan.', { reason: 'invite_invalid' }) });
+    mockFetch({ 'GET /auth/me': anonymous, 'POST /auth/invite/accept': () => refusal(422, 'Taklif muddati tugagan.', { reason: 'invite_invalid' }, { code: 'invite_invalid' }) });
     const user = userEvent.setup();
     renderPage(<LoginFlow inviteToken="old" />);
     await user.type(screen.getByLabelText('Yangi parol'), 'a long enough password');
     await user.type(screen.getByLabelText('Parolni takrorlang'), 'a long enough password');
     await user.click(screen.getByRole('button', { name: 'Parolni saqlash' }));
-    expect(await screen.findByText('Taklif muddati tugagan.')).toBeInTheDocument();
+    expect(await screen.findByText("Taklif havolasi eskirgan yoki ishlatilgan. Superadministratordan yangi havola so'rang.")).toBeInTheDocument();
   });
 });

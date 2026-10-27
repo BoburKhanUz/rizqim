@@ -67,3 +67,21 @@ test('a member without team.manage does not see the page and is sent elsewhere',
   await expect(page).toHaveURL(/\/today$/)
   await expect(page.getByRole('link', { name: 'Rollar' })).toHaveCount(0)
 })
+
+test('a cell changed from the default is marked "O\'zgartirilgan" and goes back to it with the reset button', async ({ page, api, signIn }) => {
+  await openSignedIn(page, signIn, '/roles', 'aziza@rizqim.uz', { confirmed: true })
+  const table = page.getByRole('table', { name: 'Rollar va ruxsatlar jadvali' })
+  await expect(table.getByText("O'zgartirilgan")).toHaveCount(0)
+
+  await table.getByRole('switch', { name: "Moliya: Bugun sahifasini ko'rish" }).click()
+  await expect(page.getByText(/ruxsati berildi/)).toBeVisible()
+  const cell = table.getByRole('switch', { name: "Moliya: Bugun sahifasini ko'rish" }).locator('xpath=ancestor::td')
+  await expect(cell.getByText("O'zgartirilgan")).toBeVisible()
+  await expect(table.getByText("O'zgartirilgan")).toHaveCount(1)
+
+  await cell.getByRole('button', { name: "Standartga qaytarish: Moliya, Bugun sahifasini ko'rish (ruxsat yo'q)" }).click()
+  await expect(page.getByText("«Moliya» roli uchun «Bugun sahifasini ko'rish» ruxsati standartga qaytarildi.")).toBeVisible()
+  await expect(table.getByText("O'zgartirilgan")).toHaveCount(0)
+  await expect(table.getByRole('switch', { name: "Moliya: Bugun sahifasini ko'rish" })).not.toBeChecked()
+  expect(api.callsTo('PUT', '/roles').map((call) => call.body?.allowed)).toEqual([true, null])
+})

@@ -1,76 +1,38 @@
-// The admin API as the web app uses it (docs/API.md "Admin API", /api/v1/admin/*). Written against the P4-11 contract;
-// the generated @rizqim/api-client replaces these shapes once the spec lands.
+import type { components, operations } from '@rizqim/api-client';
 
-export const PLATFORM_ROLES = ['superadmin', 'operator', 'support', 'finance', 'sales', 'viewer'] as const;
-export type PlatformRole = (typeof PLATFORM_ROLES)[number];
+// The admin API as the web app uses it (docs/API.md "Admin API", /api/v1/admin/*). The shapes are the ones of the generated
+// @rizqim/api-client (packages/api-spec/openapi.json): the data of the 200/201 answer of an operation. What the spec leaves
+// loose (plain `string` for a status, a role) is compared with the literal values where it is used.
 
+type JsonBody<R> = R extends { content: { 'application/json': infer B } } ? B : never;
+type Data<K extends keyof operations, S extends number = 200> = operations[K] extends { responses: infer R }
+  ? S extends keyof R
+    ? JsonBody<R[S]> extends { data: infer D }
+      ? D
+      : never
+    : never
+  : never;
+
+export type PlatformRole = components['schemas']['PlatformRole'];
+// In the order of the team table of docs/PHASE4_PLAN.md section 5
+export const PLATFORM_ROLES: readonly PlatformRole[] = ['superadmin', 'operator', 'support', 'finance', 'sales', 'viewer'];
 export const isPlatformRole = (value: unknown): value is PlatformRole => typeof value === 'string' && (PLATFORM_ROLES as readonly string[]).includes(value);
 
 // --- Sign-in -----------------------------------------------------------------------------------------------------------
 
-export type ChallengeStatus = 'otp_required' | 'setup_required';
-
-export interface Challenge {
-  status: ChallengeStatus;
-  challenge_token: string;
-  expires_at: string | null;
-}
-
-export interface TwoFactorSetup {
-  secret: string;
-  otpauth_uri: string;
-  // The QR code as an inline SVG (drawn on the server)
-  qr_svg: string;
-}
-
-export interface SignedInMember {
-  id: number;
-  name: string;
-  email: string;
-  platform_role: PlatformRole | null;
-}
-
-export interface SessionResult {
-  expires_at: string | null;
-  member: SignedInMember | null;
-  // Only after 2fa/confirm: shown once
-  recovery_codes: string[];
-}
-
-export interface AdminMe {
-  member: SignedInMember;
-  platform_role: PlatformRole | null;
-  // Permission keys as the backend names them ("admin.team.manage"); use `hasPermission`
-  permissions: string[];
-  two_factor_enabled: boolean;
-  recovery_codes_left: number;
-  last_login_at: string | null;
-}
-
-export interface AdminSessionRow {
-  id: string;
-  current: boolean;
-  ip: string | null;
-  user_agent: string | null;
-  created_at: string | null;
-  last_used_at: string | null;
-  expires_at: string | null;
-}
+export type Challenge = Data<'admin.auth.login'>;
+export type TwoFactorSetup = Data<'admin.auth.2fa_setup'>;
+// 2fa/verify: the session; 2fa/confirm: the same and the recovery codes (shown once)
+export type SessionResult = Data<'admin.auth.2fa_confirm'>;
+export type AdminMember = SessionResult['member'];
+export type AdminMe = Data<'admin.auth.me'>;
+export type AdminSessionRow = Data<'admin.auth.sessions'>[number];
 
 // --- Team --------------------------------------------------------------------------------------------------------------
 
-export interface TeamMember {
-  id: number;
-  name: string;
-  email: string;
-  platform_role: PlatformRole | null;
-  disabled: boolean;
-  // Invited and has not set a password and 2FA yet
-  invite_pending: boolean;
-  two_factor_enabled: boolean;
-  last_login_at: string | null;
-  active_sessions: number;
-}
+export type TeamMember = Data<'admin.team'>[number];
+// `status` is invited (has not accepted the invite), active or disabled
+export const isInvited = (member: Pick<TeamMember, 'status'>): boolean => member.status === 'invited';
 
 export interface InviteLink {
   // The link to hand over, shown once
@@ -78,50 +40,18 @@ export interface InviteLink {
   expires_at: string | null;
 }
 
-export interface InviteResult {
-  member: TeamMember | null;
-  invite: InviteLink;
-}
-
 // --- Roles -------------------------------------------------------------------------------------------------------------
 
-export interface RoleColumn {
-  key: string;
-  label: string;
-  editable: boolean;
-}
-
-export interface PermissionRow {
-  key: string;
-  label: string;
-  group: string;
-}
-
-export interface RoleMatrix {
-  roles: RoleColumn[];
-  permissions: PermissionRow[];
-  grants: Record<string, string[]>;
-}
+export type RoleMatrix = Data<'admin.roles'>;
+export type RoleColumn = RoleMatrix['roles'][number];
+export type PermissionRow = RoleMatrix['permissions'][number];
 
 // --- Audit log ---------------------------------------------------------------------------------------------------------
 
-export interface AuditEntry {
-  id: string;
-  action: string;
-  actor_name: string | null;
-  actor_id: number | null;
-  subject_type: string | null;
-  subject_id: string | null;
-  store_id: number | null;
-  store_name: string | null;
-  reason: string | null;
-  before: Record<string, unknown> | null;
-  after: Record<string, unknown> | null;
-  ip: string | null;
-  user_agent: string | null;
-  created_at: string | null;
-}
+export type AuditPage = Data<'admin.audit_logs'>;
+export type AuditEntry = AuditPage['data'][number];
 
+// The filters of the screen, as typed (the empty ones are not sent)
 export interface AuditFilters {
   q: string;
   action: string;
@@ -135,20 +65,6 @@ export interface AuditFilters {
 
 export const EMPTY_AUDIT_FILTERS: AuditFilters = { q: '', action: '', actor_id: '', store_id: '', subject_type: '', subject_id: '', from: '', to: '' };
 
-export interface AuditPage {
-  entries: AuditEntry[];
-  nextCursor: string | null;
-}
-
 // --- Search ------------------------------------------------------------------------------------------------------------
 
-export type SearchType = 'store' | 'order' | 'user' | 'member';
-
-export interface SearchResult {
-  type: SearchType | string;
-  id: string;
-  title: string;
-  subtitle: string | null;
-  // The path in this app ("/stores/12")
-  href: string;
-}
+export type SearchResult = Data<'admin.search'>[number];

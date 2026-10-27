@@ -7,6 +7,7 @@ import { Button, Field, fieldClass, FormError } from '@rizqim/ui';
 import { ApiError } from '@/lib/api/client';
 import { acceptInvite, confirmTwoFactorSetup, login, startTwoFactorSetup, verifyTwoFactor } from '@/lib/api/endpoints';
 import type { Challenge, TwoFactorSetup } from '@/lib/api/types';
+import { rememberAcceptedCode, wasJustUsed } from '@/lib/api/usedCodes';
 import { authErrorText, errorText, fieldError } from '@/lib/errors';
 import { useAuth } from '../AuthProvider';
 import { useT } from '../I18nProvider';
@@ -22,7 +23,8 @@ type Step =
   | { name: 'codes'; codes: string[] };
 
 const MIN_PASSWORD = 12;
-const EXPIRED_CODES = ['challenge_expired', 'challenge_invalid', 'challenge_used'];
+// One code for an unknown, used or expired challenge
+const EXPIRED_CODES = ['challenge_invalid'];
 
 // Email and password → the 6-digit code from the phone app (or the 2FA setup the first time) → the control center. The same
 // flow serves the invite page: a new member chooses a password first, then sets up 2FA. The session token never reaches this
@@ -118,8 +120,7 @@ export function LoginFlow({ inviteToken }: { inviteToken?: string }) {
         setPassword('');
         setRepeat('');
       } catch (failure) {
-        if (failure instanceof ApiError && !failure.unreachable && failure.status !== 429 && failure.status < 500 && !fieldError(failure, 'password')) setError(failure.message || t('auth_inviteExpired'));
-        else setError(fieldError(failure, 'password') ?? errorText(failure, t));
+        setError(fieldError(failure, 'password') ?? errorText(failure, t));
       }
     });
   };
@@ -132,9 +133,14 @@ export function LoginFlow({ inviteToken }: { inviteToken?: string }) {
       setError(step.recovery ? t('auth_recoveryInvalid') : t('auth_codeInvalid'));
       return;
     }
+    if (!step.recovery && wasJustUsed(code)) {
+      setError(t('auth_codeUsed'));
+      return;
+    }
     void run(async () => {
       try {
         await verifyTwoFactor(step.challenge, proof);
+        if (!step.recovery) rememberAcceptedCode(code);
         auth.start();
         router.replace('/');
       } catch (failure) {
@@ -149,6 +155,7 @@ export function LoginFlow({ inviteToken }: { inviteToken?: string }) {
     void run(async () => {
       try {
         const result = await confirmTwoFactorSetup(step.challenge, confirmCode);
+        rememberAcceptedCode(confirmCode);
         setStep({ name: 'codes', codes: result.recovery_codes });
       } catch (failure) {
         if (challengeGone(failure)) restart(t('auth_challengeExpired'));

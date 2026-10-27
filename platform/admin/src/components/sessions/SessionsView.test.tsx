@@ -5,8 +5,8 @@ import { json, meBody, mockFetch, ok, refusal, renderPage } from '@/test/helpers
 import { deviceName, SessionsView } from './SessionsView';
 
 const SESSIONS = [
-  { id: 'a1', current: true, ip: '10.0.0.5', user_agent: 'Mozilla/5.0 (X11; Linux x86_64) Chrome/120.0 Safari/537.36', created_at: '2026-10-27T08:00:00+05:00', last_used_at: '2026-10-27T10:00:00+05:00', expires_at: '2026-10-27T20:00:00+05:00' },
-  { id: 'b2', current: false, ip: '10.0.0.9', user_agent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Safari/604.1', created_at: '2026-10-26T08:00:00+05:00', last_used_at: '2026-10-26T09:00:00+05:00', expires_at: '2026-10-26T20:00:00+05:00' },
+  { id: 11, current: true, ip: '10.0.0.5', user_agent: 'Mozilla/5.0 (X11; Linux x86_64) Chrome/120.0 Safari/537.36', created_at: '2026-10-27T08:00:00+05:00', last_used_at: '2026-10-27T10:00:00+05:00', expires_at: '2026-10-27T20:00:00+05:00' },
+  { id: 12, current: false, ip: '10.0.0.9', user_agent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Safari/604.1', created_at: '2026-10-26T08:00:00+05:00', last_used_at: '2026-10-26T09:00:00+05:00', expires_at: '2026-10-26T20:00:00+05:00' },
 ];
 
 function setup(extra: Parameters<typeof mockFetch>[0] = {}) {
@@ -28,12 +28,12 @@ describe('Sessiyalarim', () => {
   });
 
   it('ends another session after a question', async () => {
-    const { callsTo, user } = setup({ 'DELETE /auth/sessions/b2': () => ok([]) });
+    const { callsTo, user } = setup({ 'DELETE /auth/sessions/12': () => ok([]) });
     await user.click(await screen.findByRole('button', { name: /Sessiyani tugatish: Safari, iOS/ }));
     const ask = await screen.findByRole('alertdialog', { name: 'Sessiyani tugatasizmi?' });
     await user.click(within(ask).getByRole('button', { name: 'Ha, tugatish' }));
     expect(await screen.findByText('Sessiya tugatildi.')).toBeInTheDocument();
-    expect(callsTo('DELETE', '/auth/sessions/b2')).toHaveLength(1);
+    expect(callsTo('DELETE', '/auth/sessions/12')).toHaveLength(1);
   });
 
   it('shows the security card and makes new recovery codes (shown once, with copy and download)', async () => {

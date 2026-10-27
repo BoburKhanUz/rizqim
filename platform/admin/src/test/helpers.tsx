@@ -11,7 +11,7 @@ export const ADMIN = '/api/backend/v1/admin';
 // The member of a test: the permissions the backend would list ("admin.<name>")
 export const ALL_PERMISSIONS = [
   'today.view', 'orders.view', 'orders.intervene', 'stores.view', 'stores.manage', 'finance.view', 'subscriptions.manage', 'devices.view',
-  'monitoring.view', 'support.view', 'users.view', 'marketing.manage', 'integrations.view', 'team.manage', 'audit.view',
+  'monitoring.view', 'support.view', 'users.view', 'marketing.view', 'marketing.manage', 'integrations.view', 'team.manage', 'audit.view',
 ].map((name) => `admin.${name}`);
 
 export function meBody(overrides: Record<string, unknown> = {}) {

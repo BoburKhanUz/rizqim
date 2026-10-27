@@ -2,13 +2,13 @@
 
 import { useState, type FormEvent } from 'react';
 import { Button, Dialog, Field, fieldClass, FormError } from '@rizqim/ui';
-import { PLATFORM_ROLES, type PlatformRole, type TeamMember } from '@/lib/api/types';
+import { isPlatformRole, PLATFORM_ROLES, type PlatformRole, type TeamMember } from '@/lib/api/types';
 import { ROLE_LABELS } from '@/lib/labels';
 import { useT } from '../I18nProvider';
 
 export function RoleDialog({ member, busy, error, onSubmit, onClose }: { member: TeamMember; busy: boolean; error: string | null; onSubmit: (role: PlatformRole) => void; onClose: () => void }) {
   const t = useT();
-  const [role, setRole] = useState<PlatformRole>(member.platform_role ?? 'viewer');
+  const [role, setRole] = useState<PlatformRole>(isPlatformRole(member.platform_role) ? member.platform_role : 'viewer');
 
   function submit(event: FormEvent) {
     event.preventDefault();

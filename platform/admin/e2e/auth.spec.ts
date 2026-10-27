@@ -62,7 +62,7 @@ test('a wrong password and a wrong code are refused in plain words', async ({ pa
   await page.getByRole('button', { name: 'Kirish' }).click()
   await page.getByLabel('6 xonali kod').fill('000000')
   await page.getByRole('button', { name: 'Tasdiqlash' }).click()
-  await expect(page.getByText("Kod noto'g'ri yoki eskirgan. Ilovadagi yangi kodni kiriting.")).toBeVisible()
+  await expect(page.getByText(/Ilovada yangi kod chiqquncha \(30 soniya\) kuting/)).toBeVisible()
   await expect(page).toHaveURL(/\/login$/)
 })
 
@@ -76,7 +76,7 @@ test('five wrong passwords lock the sign-in and the backend\'s sentence is shown
   }
   await page.getByLabel('Parol', { exact: true }).fill(PASSWORD)
   await page.getByRole('button', { name: 'Kirish' }).click()
-  await expect(page.getByText("Juda ko'p urinish. 15 daqiqadan so'ng qayta urinib ko'ring.")).toBeVisible()
+  await expect(page.getByText("Juda ko'p xato urinish. 15 daqiqadan so'ng qayta urinib ko'ring.")).toBeVisible()
 })
 
 test('a disabled member is told so', async ({ page, api }) => {
@@ -93,7 +93,7 @@ test('the first sign-in sets up 2FA: QR code, key, recovery codes that must be s
 
   await page.getByLabel('6 xonali kod').fill('111111')
   await page.getByRole('button', { name: 'Yoqish' }).click()
-  await expect(page.getByText("Kod noto'g'ri yoki eskirgan. Ilovadagi yangi kodni kiriting.")).toBeVisible()
+  await expect(page.getByText(/Ilovada yangi kod chiqquncha \(30 soniya\) kuting/)).toBeVisible()
   await page.getByLabel('6 xonali kod').fill(VALID_CODE)
   await page.getByRole('button', { name: 'Yoqish' }).click()
 
@@ -126,7 +126,7 @@ test('a recovery code signs in once and is burnt', async ({ page, api }) => {
   await page.getByRole('button', { name: 'Tiklash kodidan foydalanish' }).click()
   await page.getByLabel('Tiklash kodi').fill('seed-0001')
   await page.getByRole('button', { name: 'Tasdiqlash' }).click()
-  await expect(page.getByText("Tiklash kodi noto'g'ri yoki ishlatilgan.")).toBeVisible()
+  await expect(page.getByText("Tiklash kodi noto'g'ri yoki oldin ishlatilgan.")).toBeVisible()
 })
 
 test('a challenge that ran out sends the member back to the start', async ({ page, api }) => {

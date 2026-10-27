@@ -44,7 +44,7 @@ export function AuditView() {
     setApplied(EMPTY_AUDIT_FILTERS);
   };
 
-  const entries = log.data?.pages.flatMap((page) => page.entries) ?? [];
+  const entries = log.data?.pages.flatMap((page) => page.data) ?? [];
   return (
     <>
       <PageHeader title={t('audit_title')} subtitle={t('audit_subtitle')} />
@@ -99,10 +99,10 @@ export function AuditView() {
                     <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                       <span className="break-all font-mono text-footnote font-bold text-fg">{entry.action}</span>
                       <span className="text-footnote text-fg-muted">
-                        {entry.actor_name ?? t('audit_system')} · {when(entry.created_at)}
+                        {entry.actor?.name ?? t('audit_system')} · {when(entry.created_at)}
                       </span>
                       <span className="break-words text-footnote text-fg-muted">
-                        {[entry.subject_type && `${entry.subject_type}${entry.subject_id ? ` #${entry.subject_id}` : ''}`, entry.store_id && `${t('audit_storeLabel')}: ${entry.store_name ?? `#${entry.store_id}`}`, entry.reason].filter(Boolean).join(' · ')}
+                        {[entry.subject_type && `${entry.subject_type}${entry.subject_id ? ` #${entry.subject_id}` : ''}`, entry.store && `${t('audit_storeLabel')}: ${entry.store.name}`, entry.reason].filter(Boolean).join(' · ')}
                       </span>
                     </span>
                     <ChevronRight aria-hidden="true" className="size-5 shrink-0 text-fg-muted" />

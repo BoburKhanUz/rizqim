@@ -10,18 +10,18 @@ const member = (overrides: Record<string, unknown>) => ({
   email: 'sardor@rizqim.uz',
   platform_role: 'operator',
   disabled: false,
-  invite_pending: false,
+  status: 'active',
   two_factor_enabled: true,
   last_login_at: '2026-10-26T09:00:00+05:00',
-  active_sessions_count: 2,
+  active_sessions: 2,
   ...overrides,
 });
 
 const TEAM = [
-  member({ id: 1, name: 'Aziza Karimova', email: 'aziza@rizqim.uz', platform_role: 'superadmin', active_sessions_count: 1 }),
+  member({ id: 1, name: 'Aziza Karimova', email: 'aziza@rizqim.uz', platform_role: 'superadmin', active_sessions: 1 }),
   member({}),
-  member({ id: 3, name: 'Dilnoza Moliya', email: 'dilnoza@rizqim.uz', platform_role: 'finance', two_factor_enabled: false, last_login_at: null, active_sessions_count: 0, disabled: true }),
-  member({ id: 4, name: 'Bekzod Yangi', email: 'bekzod@rizqim.uz', platform_role: 'sales', invite_pending: true, two_factor_enabled: false, last_login_at: null, active_sessions_count: 0 }),
+  member({ id: 3, name: 'Dilnoza Moliya', email: 'dilnoza@rizqim.uz', platform_role: 'finance', two_factor_enabled: false, last_login_at: null, active_sessions: 0, disabled: true, status: 'disabled' }),
+  member({ id: 4, name: 'Bekzod Yangi', email: 'bekzod@rizqim.uz', platform_role: 'sales', status: 'invited', two_factor_enabled: false, last_login_at: null, active_sessions: 0 }),
 ];
 
 const card = (name: string) => screen.getByRole('heading', { name: new RegExp(`^${name}`) }).closest('li') as HTMLElement;
@@ -66,7 +66,7 @@ describe('Jamoa', () => {
 
   it('invites a member and shows the one-time link with a copy button', async () => {
     const { callsTo, user } = setup({
-      'POST /team': () => ok({ member: member({ id: 9, name: 'Yangi Xodim', email: 'yangi@rizqim.uz', invite_pending: true }), invite: { url: 'https://admin.rizqim.uz/invite/tok-123', expires_at: '2026-10-30T12:00:00Z' } }),
+      'POST /team': () => ok({ member: member({ id: 9, name: 'Yangi Xodim', email: 'yangi@rizqim.uz', status: 'invited' }), invite_url: 'https://admin.rizqim.uz/invite/tok-123', invite_token: 'tok-123', invite_expires_at: '2026-10-30T12:00:00Z' }, {}),
     });
     await screen.findByRole('heading', { name: 'Sardor Operator' });
     await user.click(screen.getByRole('button', { name: 'Xodim taklif qilish' }));
@@ -95,7 +95,7 @@ describe('Jamoa', () => {
   });
 
   it('builds the link from a bare token', async () => {
-    const { user } = setup({ 'POST /team': () => ok({ member: null, invite_token: 'bare-token', invite_expires_at: null }) });
+    const { user } = setup({ 'POST /team': () => ok({ member: null, invite_url: '', invite_token: 'bare-token', invite_expires_at: null }) });
     await screen.findByRole('heading', { name: 'Sardor Operator' });
     await user.click(screen.getByRole('button', { name: 'Xodim taklif qilish' }));
     const dialog = await screen.findByRole('dialog');
@@ -172,7 +172,7 @@ describe('Jamoa', () => {
   });
 
   it('re-issues an invite for a member who has not accepted yet', async () => {
-    const { callsTo, user } = setup({ 'POST /team/4/invite': () => ok({ url: 'https://admin.rizqim.uz/invite/new-tok', expires_at: '2026-10-30T12:00:00Z' }) });
+    const { callsTo, user } = setup({ 'POST /team/4/invite': () => ok({ invite_url: 'https://admin.rizqim.uz/invite/new-tok', invite_token: 'new-tok', invite_expires_at: '2026-10-30T12:00:00Z' }) });
     await screen.findByRole('heading', { name: 'Bekzod Yangi' });
     const bekzod = within(card('Bekzod Yangi'));
     expect(bekzod.queryByRole('button', { name: /2FA ni tiklash/ })).toBeNull();

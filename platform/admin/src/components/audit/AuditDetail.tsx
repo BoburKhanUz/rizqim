@@ -26,10 +26,10 @@ export function AuditDetail({ entry, onClose }: { entry: AuditEntry; onClose: ()
   const rows = changedFields(entry.before, entry.after);
   const info: Array<[string, string | null]> = [
     [t('audit_what'), entry.action],
-    [t('audit_who'), entry.actor_name ?? t('audit_system')],
+    [t('audit_who'), entry.actor?.name ?? t('audit_system')],
     [t('audit_when'), when(entry.created_at)],
     [t('audit_subject'), entry.subject_type ? `${entry.subject_type}${entry.subject_id ? ` #${entry.subject_id}` : ''}` : null],
-    [t('audit_storeLabel'), entry.store_id ? (entry.store_name ? `${entry.store_name} (#${entry.store_id})` : `#${entry.store_id}`) : null],
+    [t('audit_storeLabel'), entry.store ? `${entry.store.name} (#${entry.store.id})` : null],
     [t('audit_reason'), entry.reason],
     [t('audit_ip'), entry.ip],
     [t('audit_device'), entry.user_agent],

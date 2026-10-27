@@ -1,10 +1,10 @@
 // Playwright fixtures shared by the specs: a page whose backend is the fake (e2e/fake), and a way to start signed in.
 import { test as base, expect, type BrowserContext, type Page } from '@playwright/test'
-import { FakeBackend, VALID_CODE } from './fake/backend'
+import { FakeBackend, NEXT_CODE, VALID_CODE } from './fake/backend'
 import { FakeServer } from './fake/server'
 import { FAKE_PORT, FAKE_URL, WEB_URL } from './ports'
 
-export { expect, VALID_CODE }
+export { expect, NEXT_CODE, VALID_CODE }
 
 interface Fixtures {
   /** The fake backend of this test (a fresh one): seed it before page.goto(), read what the page sent after. */

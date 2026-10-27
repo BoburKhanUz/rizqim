@@ -45,7 +45,8 @@ export function errorFrom(status: number, body: unknown, retryAfter: string | nu
   const data = isRecord(record.data) ? record.data : {};
   const code = [record.code, data.code, data.reason, record.reason].find((value): value is string => typeof value === 'string' && value !== '') ?? '';
   const message = typeof record.message === 'string' ? record.message : '';
-  const seconds = retryAfter ? Number(retryAfter) : NaN;
+  // The lockout says how long in the header and in data.retry_after
+  const seconds = retryAfter ? Number(retryAfter) : typeof data.retry_after === 'number' ? data.retry_after : NaN;
   return new ApiError(message, status, code, toFields(record.errors ?? data.errors), Number.isFinite(seconds) ? seconds : null);
 }
 

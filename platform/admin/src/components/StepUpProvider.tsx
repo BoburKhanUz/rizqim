@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { ShieldCheck } from 'lucide-react';
 import { Button, Dialog, Field, fieldClass } from '@rizqim/ui';
-import { ApiError, setStepUpHandler } from '@/lib/api/client';
+import { setStepUpHandler } from '@/lib/api/client';
 import { confirmStepUp } from '@/lib/api/endpoints';
+import { rememberAcceptedCode, wasJustUsed } from '@/lib/api/usedCodes';
 import { authErrorText } from '@/lib/errors';
 import { useT } from './I18nProvider';
 
@@ -58,13 +59,19 @@ function StepUpDialog({ onDone }: { onDone: (confirmed: boolean) => void }) {
       setError(t('auth_codeInvalid'));
       return;
     }
+    // The code that just signed the member in cannot be used again: the next one comes in at most 30 seconds
+    if (wasJustUsed(code)) {
+      setError(t('auth_codeUsed'));
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
       await confirmStepUp(code);
+      rememberAcceptedCode(code);
       onDone(true);
     } catch (failure) {
-      setError(failure instanceof ApiError && failure.status === 422 ? t('auth_codeWrong') : authErrorText(failure, t, t('auth_codeWrong')));
+      setError(authErrorText(failure, t, t('auth_codeWrong')));
       setBusy(false);
     }
   }

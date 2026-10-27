@@ -45,6 +45,27 @@ export const uz = {
   noAccessTitle: "Sizda hali hech bir bo'limga ruxsat yo'q",
   noAccessText: "Ruxsatlar rolingizga bog'liq. Superadministratorga murojaat qiling.",
 
+  // Backend xato kodlari (docs/API.md "Xato formati"): har biri oddiy gap bilan. Kalit: err_<kod>
+  err_invalid_credentials: "Email yoki parol noto'g'ri.",
+  err_member_disabled: "Hisobingiz o'chirilgan. Superadministratorga murojaat qiling.",
+  err_locked: "Juda ko'p xato urinish. {{minutes}} daqiqadan so'ng qayta urinib ko'ring.",
+  err_challenge_invalid: 'Kirish muddati tugadi (5 daqiqa) yoki u allaqachon ishlatilgan. Qaytadan boshlang.',
+  err_invalid_code: "Kod noto'g'ri yoki allaqachon ishlatilgan. Ilovada yangi kod chiqquncha (30 soniya) kuting va keyingisini kiriting.",
+  err_invalid_recovery_code: "Tiklash kodi noto'g'ri yoki oldin ishlatilgan.",
+  err_setup_required: 'Avval ilovada 2 bosqichli tasdiqlashni yoqing. Qaytadan boshlang.',
+  err_setup_not_started: "2FA sozlash boshlanmagan. Qaytadan boshlang.",
+  err_two_factor_already_enabled: 'Bu hisobda 2FA allaqachon yoqilgan. Ilovadagi kod bilan kiring.',
+  err_invite_invalid: "Taklif havolasi eskirgan yoki ishlatilgan. Superadministratordan yangi havola so'rang.",
+  err_invite_already_accepted: 'Bu xodim taklifni allaqachon qabul qilgan.',
+  err_email_taken: 'Bu email allaqachon jamoada.',
+  err_reauth_required: 'Bu amal uchun 2FA kodini qayta kiriting.',
+  err_forbidden: "Bu amal uchun ruxsatingiz yo'q.",
+  err_superadmin_only: 'Superadministrator hisobiga va roliga faqat superadministrator tegishi mumkin.',
+  err_cannot_change_self: "O'zingizni o'zgartira olmaysiz.",
+  err_last_superadmin: "Oxirgi superadministratorni o'zgartirib yoki o'chirib bo'lmaydi. Avval boshqa superadministrator tayinlang.",
+  err_role_not_editable: "Superadmin roli o'zgarmaydi: unda hamma ruxsat bor.",
+  err_not_found: "Topilmadi. Sahifani yangilab ko'ring.",
+
   // Hali qurilmagan bo'limlar
   placeholderTitle: "Bu bo'lim keyingi to'lqinda qo'shiladi",
   placeholderText: "Hozircha bu yerda hech narsa yo'q. Tayyor bo'lgach shu joyda paydo bo'ladi.",
