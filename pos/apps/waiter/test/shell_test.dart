@@ -1,13 +1,40 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pos_data/pos_data.dart';
+import 'package:rizqim_api/rizqim_api.dart';
+import 'package:rizqim_waiter/src/app.dart';
 import 'package:rizqim_waiter/src/features/rooms/rooms_page.dart';
+import 'package:rizqim_waiter/src/services.dart';
 import 'package:rizqim_waiter/src/shell/approval_dialog.dart';
 import 'package:rizqim_waiter/src/shell/staff_sign_in_screen.dart';
 
 import 'support/harness.dart';
 
 void main() {
+  testWidgets('a keyring that cannot be read: the pairing screen says why', (
+    WidgetTester tester,
+  ) async {
+    final WaiterHarness h = WaiterHarness();
+    final RizqimClient client = RizqimClient(
+      baseUrl: 'https://api.test/api',
+      store: _UnreadableStore(),
+      dio: h.client.dio,
+    );
+    await client.auth.restore();
+    tester.view
+      ..physicalSize = const Size(412, 860)
+      ..devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      WaiterApp(services: WaiterServices(client: client)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Telefonni ulash'), findsOneWidget);
+    expect(find.textContaining("o'qib bo'lmadi"), findsOneWidget);
+    expect(find.textContaining('gnome-keyring'), findsOneWidget);
+  });
+
   testWidgets('pairing → staff list → PIN → "Mening xonalarim" on a phone', (
     WidgetTester tester,
   ) async {
@@ -96,4 +123,17 @@ void main() {
     expect(find.byType(StaffSignInScreen), findsOneWidget);
     expect(find.text('Botir Aliyev'), findsOneWidget);
   });
+}
+
+/// Kalitlar ombori o'qilmaydi (Linux'da kalitlar xizmati yo'q yoki qulflangan).
+class _UnreadableStore implements SecureKeyValueStore {
+  @override
+  Future<String?> read(String key) =>
+      Future<String?>.error(StateError('no keyring'));
+
+  @override
+  Future<void> write(String key, String value) async {}
+
+  @override
+  Future<void> delete(String key) async {}
 }

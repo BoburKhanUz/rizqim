@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pos_core/pos_core.dart';
@@ -289,6 +290,82 @@ void main() {
       await tester.pumpWidget(host(FloorMap(items: hall, now: now)));
       expect(tester.takeException(), isNull);
       expect(find.byType(FloorTile), findsNWidgets(hall.length));
+    });
+  });
+
+  group('FloorTile long names', () {
+    const String longName = 'Katta xona (oilaviy)';
+
+    Future<void> pumpTile(WidgetTester tester, Size size) async {
+      setScreen(tester, const Size(600, 400));
+      await tester.pumpWidget(
+        host(
+          Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox.fromSize(
+              size: size,
+              child: FloorTile(
+                item: FloorMapItem(
+                  id: 'r',
+                  label: longName,
+                  rect: Rect.zero,
+                  kind: FloorTableKind.room,
+                  status: FloorTableStatus.occupied,
+                  guests: 4,
+                  seats: 10,
+                  openedAt: now.subtract(const Duration(minutes: 95)),
+                ),
+                now: now,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // The test font (Ahem) is wider than a real one, so the tile is wide enough for two lines of it.
+    testWidgets('wraps to two lines instead of cutting the name', (
+      WidgetTester tester,
+    ) async {
+      await pumpTile(tester, const Size(260, 110));
+      final RenderParagraph name = tester.renderObject<RenderParagraph>(
+        find.descendant(
+          of: find.byType(FloorTile),
+          matching: find.text(longName),
+        ),
+      );
+      expect(name.didExceedMaxLines, isFalse);
+      expect(name.size.height, greaterThan(22)); // more than one line
+      // status, open time and guests stay on the tile
+      expect(find.text('1:35'), findsOneWidget);
+      expect(find.text('4/10'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets(
+      'narrow tile uses smaller text and keeps the full name in a tooltip',
+      (WidgetTester tester) async {
+        await pumpTile(tester, const Size(260, 110));
+        final double wide = tester
+            .widget<Text>(find.text(longName))
+            .style!
+            .fontSize!;
+        await pumpTile(tester, const Size(120, 110));
+        final double narrow = tester
+            .widget<Text>(find.text(longName))
+            .style!
+            .fontSize!;
+        expect(narrow, lessThan(wide));
+        expect(find.byTooltip(longName), findsOneWidget);
+        expect(find.text('1:35'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets('tiny tile keeps the tooltip', (WidgetTester tester) async {
+      await pumpTile(tester, const Size(70, 50));
+      expect(find.byTooltip(longName), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
   });
 

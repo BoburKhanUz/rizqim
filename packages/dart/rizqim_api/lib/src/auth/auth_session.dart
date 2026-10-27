@@ -94,6 +94,7 @@ class AuthSession {
   /// Saqlangan kirish ma'lumotlarini o'qiydi. Ilova ishga tushganda bir marta chaqiriladi.
   Future<void> restore() async {
     final StoredCredentials stored = await _storage.read();
+    storageError = _storage.readError;
     _terminal = stored.terminal;
     _user = stored.user;
     _staff = null;
@@ -295,15 +296,17 @@ class AuthSession {
     _emit(AuthEvent(AuthEventKind.userSignedOut, reason: reason));
   }
 
-  /// Oxirgi yozuv muvaffaqiyatsiz bo'lsa (masalan, Linux'da kalitlar xizmati yo'q) shu xato; aks holda `null`.
-  /// Kirish qurilma xotirasida ishlayveradi, lekin qayta ishga tushirilganda tokenlar yo'qoladi: ilova buni
-  /// foydalanuvchiga ko'rsatishi kerak.
+  /// Oxirgi o'qish yoki yozish muvaffaqiyatsiz bo'lsa (masalan, Linux'da kalitlar xizmati yo'q) shu xato; aks holda
+  /// `null`. Yozuv xatosida kirish qurilma xotirasida ishlayveradi, lekin qayta ishga tushirilganda tokenlar yo'qoladi;
+  /// o'qish xatosida saqlangan token o'qilmadi (omborda qolgan bo'lishi mumkin) va ilova qayta ulashni so'raydi:
+  /// ilova buni foydalanuvchiga ko'rsatishi kerak.
   Object? storageError;
 
   Future<void> _persist() async {
     try {
       await _storage.write(StoredCredentials(terminal: _terminal, user: _user));
-      storageError = null;
+      storageError =
+          _storage.readError; // a skipped delete keeps the earlier read error
     } on Object catch (e) {
       storageError = e;
     }

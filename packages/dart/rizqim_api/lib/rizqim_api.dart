@@ -18,6 +18,7 @@ export 'src/auth/models.dart';
 export 'src/auth/pairing_code.dart';
 export 'src/auth/pin_errors.dart';
 export 'src/auth/token_storage.dart';
+export 'src/bool_query_interceptor.dart';
 export 'src/generated/rizqim_api.dart';
 export 'src/kitchen/kitchen_models.dart';
 export 'src/kitchen/kitchen_service.dart';

@@ -40,6 +40,9 @@ class StoredCredentials {
 }
 
 /// [StoredCredentials] ni bitta kalit ostida JSON qilib yozadi/o'qiydi. Buzilgan yozuv "kirmagan" deb o'qiladi.
+///
+/// Ombor o'qilmasa (masalan, kalitlar xizmati qulflangan yoki Linux'da yo'q) ham "kirmagan" deb o'qiladi, lekin bu
+/// [readError] da eslab qolinadi va o'qib bo'lmagan yozuv o'chirilmaydi: ombor tiklangach token joyida bo'ladi.
 class CredentialStorage {
   CredentialStorage(this._store);
 
@@ -47,12 +50,22 @@ class CredentialStorage {
 
   final SecureKeyValueStore _store;
 
+  /// Oxirgi [read] ombor xatosi bilan tugagan bo'lsa shu xato (buzilgan yozuv emas); aks holda `null`.
+  Object? readError;
+
   // Yozuvlar navbat bilan bajariladi: tez ketma-ket ikkita o'zgarishda eskisi yangisini bosib ketmasin.
   Future<void> _queue = Future<void>.value();
 
   Future<StoredCredentials> read() async {
+    final String? raw;
     try {
-      final String? raw = await _store.read(key);
+      raw = await _store.read(key);
+      readError = null;
+    } on Object catch (e) {
+      readError = e;
+      return const StoredCredentials();
+    }
+    try {
       if (raw == null) return const StoredCredentials();
       final Map<String, Object?> json =
           (jsonDecode(raw) as Map<Object?, Object?>).cast<String, Object?>();
@@ -74,7 +87,8 @@ class CredentialStorage {
   Future<void> write(StoredCredentials credentials) {
     final Future<void> next = _queue.then((_) async {
       if (credentials.isEmpty) {
-        await _store.delete(key);
+        // O'qilmagan yozuvni o'chirmaymiz: bo'sh sessiya omborda nima borligini bilmaydi
+        if (readError == null) await _store.delete(key);
         return;
       }
       await _store.write(
@@ -84,6 +98,7 @@ class CredentialStorage {
           'user': credentials.user?.toJson(),
         }),
       );
+      readError = null;
     });
     // Bitta yozuvdagi xato keyingilarini to'xtatmasin; xato chaqiruvchiga qaytadi
     _queue = next.then((_) {}, onError: (Object _) {});

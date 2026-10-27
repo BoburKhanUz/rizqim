@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pos_core/pos_core.dart' show PosMoney;
 import 'package:pos_data/pos_data.dart';
+import 'package:rizqim_api/rizqim_api.dart';
+import 'package:rizqim_cashier/src/app.dart';
 import 'package:rizqim_cashier/src/features/billing/billing_page.dart';
 import 'package:rizqim_cashier/src/features/floor/floor_page.dart';
+import 'package:rizqim_cashier/src/services.dart';
 import 'package:rizqim_cashier/src/shell/routes.dart';
 import 'package:rizqim_cashier/src/shell/staff_sign_in_screen.dart';
 
@@ -199,6 +202,29 @@ void main() {
     expect(h.client.auth.terminal, isNull);
   });
 
+  testWidgets('a keyring that cannot be read: the pairing screen says why', (
+    WidgetTester tester,
+  ) async {
+    final CashierHarness h = CashierHarness();
+    final RizqimClient client = RizqimClient(
+      baseUrl: 'https://api.test/api',
+      store: _UnreadableStore(),
+      dio: h.client.dio,
+    );
+    await client.auth.restore();
+    setScreen(tester, const Size(1280, 800));
+    await tester.pumpWidget(
+      CashierApp(
+        services: CashierServices(client: client, settings: h.settings),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Kassani ulash'), findsOneWidget);
+    expect(find.textContaining("o'qib bo'lmadi"), findsOneWidget);
+    expect(find.textContaining('gnome-keyring'), findsOneWidget);
+  });
+
   testWidgets('narrow screen: bottom navigation bar', (
     WidgetTester tester,
   ) async {
@@ -247,4 +273,17 @@ abstract final class CashierRoutesTest {
 
   static void openBilling(BuildContext context) =>
       CashierRoutes.openBilling<void>(context, orderUuid: 'o1').ignore();
+}
+
+/// Kalitlar ombori o'qilmaydi (Linux'da kalitlar xizmati yo'q yoki qulflangan).
+class _UnreadableStore implements SecureKeyValueStore {
+  @override
+  Future<String?> read(String key) =>
+      Future<String?>.error(StateError('no keyring'));
+
+  @override
+  Future<void> write(String key, String value) async {}
+
+  @override
+  Future<void> delete(String key) async {}
 }

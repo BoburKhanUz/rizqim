@@ -94,6 +94,13 @@ class _PairingScreenState extends State<PairingScreen> {
                     style: RzType.body.copyWith(color: c.fgMuted),
                     textAlign: TextAlign.center,
                   ),
+                  // Saqlangan ulanish o'qilmadi (masalan, Linux'da kalitlar xizmati yo'q): nega yana kod so'ralayotgani
+                  if (widget.auth.storageError != null) ...<Widget>[
+                    const SizedBox(height: 16),
+                    const InlineError(
+                      message: "Saqlangan ulanishni o'qib bo'lmadi: qurilmaning kalitlar ombori ishlamayapti (Linux'da gnome-keyring yoki KWallet kerak). Kod bilan ulashingiz mumkin, lekin ilova qayta ishga tushirilsa, kod yana so'raladi.",
+                    ),
+                  ],
                   const SizedBox(height: 24),
                   TextField(
                     controller: _controller,

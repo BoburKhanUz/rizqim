@@ -753,6 +753,59 @@ void main() {
       },
     );
 
+    test(
+      'a failed read is reported and never wipes the saved terminal',
+      () async {
+        adapter.handler = (RequestOptions o) => ok(pairData(), status: 201);
+        final _FlakyStore flaky = _FlakyStore();
+        RizqimClient open() => RizqimClient(
+          baseUrl: 'https://api.test/api',
+          store: flaky,
+          dio: Dio()..httpClientAdapter = adapter,
+          clock: () => now,
+        );
+        final RizqimClient first = open();
+        await first.auth.pairTerminal('ABCD-EFGH');
+        await first.auth.dispose();
+        expect(flaky.values, contains(CredentialStorage.key));
+
+        // The keyring is locked for a moment: the read throws, the stored token is still there
+        flaky.failReads = true;
+        final RizqimClient second = open();
+        await second.auth.restore();
+        expect(second.auth.isPaired, isFalse);
+        expect(
+          second.auth.storageError,
+          isNotNull,
+        ); // the app can say why it asks to pair again
+
+        // Nothing the app does with the empty session may delete the record it could not read
+        await second.auth.forgetTerminal();
+        expect(second.auth.storageError, isNotNull);
+        expect(flaky.deletes, 0);
+        expect(flaky.values, contains(CredentialStorage.key));
+        await second.auth.dispose();
+
+        // The keyring is back: the same record is read, the error is gone
+        flaky.failReads = false;
+        final RizqimClient third = open();
+        await third.auth.restore();
+        expect(third.auth.isPaired, isTrue);
+        expect(third.auth.storageError, isNull);
+        await third.auth.dispose();
+      },
+    );
+
+    test(
+      'an unreadable (corrupt) record is "signed out", not a storage error',
+      () async {
+        store.values[CredentialStorage.key] = 'not json';
+        await client.auth.restore();
+        expect(client.auth.isPaired, isFalse);
+        expect(client.auth.storageError, isNull);
+      },
+    );
+
     test('forgetting the terminal clears the store and says so', () async {
       adapter.handler = (RequestOptions o) => ok(pairData(), status: 201);
       await client.auth.pairTerminal('ABCD-EFGH');
@@ -810,4 +863,21 @@ class _BrokenStore implements SecureKeyValueStore {
   @override
   Future<void> delete(String key) =>
       Future<void>.error(StateError('no keyring'));
+}
+
+/// A store whose reads can fail for a while (a locked or still starting keyring) and that counts deletes.
+class _FlakyStore extends MemoryKeyValueStore {
+  bool failReads = false;
+  int deletes = 0;
+
+  @override
+  Future<String?> read(String key) => failReads
+      ? Future<String?>.error(StateError('keyring locked'))
+      : super.read(key);
+
+  @override
+  Future<void> delete(String key) {
+    deletes++;
+    return super.delete(key);
+  }
 }
