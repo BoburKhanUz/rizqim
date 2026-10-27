@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { ExternalLink, Inbox, RefreshCw } from 'lucide-react';
-import { Button, Card, Dialog, EmptyState, InlineError, Skeleton, formatDateTime, formatMoney } from '@rizqim/ui';
+import { Button, Card, Dialog, EmptyState, InlineError, Skeleton, formatDateTime, formatMoney, Notice } from '@rizqim/ui';
 import {
   FISCAL_RECEIPT_STATUSES,
   FISCAL_RECEIPT_TYPES,
@@ -14,7 +14,6 @@ import {
 } from '@rizqim/staff';
 import { useI18n } from '../I18nProvider';
 import { errorText } from '../management/errors';
-import { Notice } from '../management/Notice';
 import { useBranchScope } from '../shell/BranchScope';
 import { labelFor } from '../reports/format';
 import { HistoryFilters, SelectFilter, usableDates, type DateFilter } from '../reports/HistoryFilters';

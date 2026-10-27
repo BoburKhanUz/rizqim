@@ -1,13 +1,11 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
-import { Button, Card, Field, Section, fieldClass } from '@rizqim/ui';
+import { Button, Card, Field, Section, fieldClass, FormError, Notice, Pill } from '@rizqim/ui';
 import { getApiFieldError, useSaveStoreSettings, type StoreSettings } from '@rizqim/staff';
 import { useI18n } from '../I18nProvider';
 import { errorText } from './errors';
 import { Check, NumberField, PhoneField, parseDecimal, phoneToInput } from './fields';
-import { FormError, Notice } from './Notice';
-import { Pill } from './Pill';
 import { draftFromSettings, inputFromDraft, providerAvailable, PROVIDERS, type Provider, type SettingsDraft } from './paymentSettings';
 
 const COMMON_TIMEZONES = ['Asia/Tashkent', 'Asia/Samarkand'];

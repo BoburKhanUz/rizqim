@@ -1,0 +1,20 @@
+# The ignore file of platform/admin/Dockerfile (BuildKit reads <Dockerfile>.dockerignore next to the Dockerfile).
+# The build context is the repository root, so only what the build needs gets in: the app and the two linked packages.
+*
+!platform/admin/
+!packages/ts/ui/
+!packages/ts/api-client/
+
+# ...minus what must not be baked into the image
+**/node_modules
+**/.git
+platform/admin/.next
+platform/admin/.env
+platform/admin/.env.*
+!platform/admin/.env.example
+platform/admin/coverage
+platform/admin/playwright-report
+platform/admin/test-results
+packages/ts/api-client/dist
+**/*.log
+**/*.tsbuildinfo

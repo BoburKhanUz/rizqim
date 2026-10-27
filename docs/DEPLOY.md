@@ -49,7 +49,7 @@ Hammasining ma'nosi va standarti: [backend/README.md](../backend/README.md), [cu
 
 ## 3. Ishga tushirish
 
-Xizmatlar: `postgres` (17), `redis` (7, AOF, parol ixtiyoriy), `backend` (nginx + php-fpm, deploy qadamlarini shu bajaradi), `queue` (`--queue=default,broadcasts`: Telegram xabarlari va h.k., so'ng Reverb eventlari), `queue-reports` (`--queue=reports`: og'ir CSV hisobotlar, `SendOrderReport`), `scheduler`, `reverb` (WebSocket, 9-bo'lim), `frontend` (nginx), `partner-web` (hamkor veb-panel, Next.js, 4-bo'lim). `queue`, `queue-reports`, `scheduler`, `reverb`, `frontend` va `partner-web` `backend` healthcheck'i (`/up`) o'tgunicha kutadi.
+Xizmatlar: `postgres` (17), `redis` (7, AOF, parol ixtiyoriy), `backend` (nginx + php-fpm, deploy qadamlarini shu bajaradi), `queue` (`--queue=default,broadcasts`: Telegram xabarlari va h.k., so'ng Reverb eventlari), `queue-reports` (`--queue=reports`: og'ir CSV hisobotlar, `SendOrderReport`), `scheduler`, `reverb` (WebSocket, 9-bo'lim), `frontend` (nginx), `partner-web` (hamkor veb-panel, Next.js, 4-bo'lim), `platform-admin` (RIZQIM boshqaruv markazi, Next.js, 4-bo'lim, «RIZQIM boshqaruv markazi»). `queue`, `queue-reports`, `scheduler`, `reverb`, `frontend`, `partner-web` va `platform-admin` `backend` healthcheck'i (`/up`) o'tgunicha kutadi.
 
 ```bash
 git clone <repo-url> rizqim && cd rizqim
@@ -135,6 +135,40 @@ Restoran egasi, menejeri va boshqa xodimlar uchun veb-panel ([partner/web/README
   brauzer konsolida API so'rovlarida CORS xatosi yo'q.
 - Yangilash: `docker compose up -d --build partner-web` (sozlamalar runtime'da o'qiladi, `.env` o'zgarsa
   `docker compose up -d --force-recreate partner-web` yetadi).
+
+### RIZQIM boshqaruv markazi (`platform-admin`)
+
+Platforma jamoasi (operator, yordam, moliya, savdo, rahbar) uchun veb-ilova ([platform/admin/README.md](../platform/admin/README.md),
+xodimlar uchun qo'llanma: [docs/guides/boshqaruv-markazi.md](guides/boshqaruv-markazi.md)). Compose'da `platform-admin` xizmati
+(`platform/admin/Dockerfile`, build konteksti repozitoriy ildizi), port `ADMIN_WEB_PORT` (3100). Alohida hostda turadi:
+
+| Host | Tashqi proksi qayerga uzatadi |
+|---|---|
+| `admin.<domen>` (boshqaruv markazi) | `ADMIN_WEB_PORT` |
+
+- **Muhit (ildiz `.env`).** `ADMIN_SESSION_COOKIE_SECURE` standart `true` (cookie faqat HTTPS orqali; `false` faqat `http://`
+  orqali sinash uchun). Taklif havolasini backend yasaydi: `backend/.env` da `ADMIN_APP_URL=https://admin.<domen>`
+  bo'lishi shart (ilovaning o'zida bunday o'zgaruvchi yo'q). Backend manzili compose tarmog'ida (`API_BASE_URL=http://backend/api`) beriladi.
+- **CORS kerak emas.** Brauzer backend'ga to'g'ridan-to'g'ri murojaat qilmaydi: hamma so'rov ilovaning o'z manzilidan
+  (`/api/backend/v1/admin/...`) o'tadi, Next serveri uni backend'ga uzatadi. Admin token (Sanctum, 12 soat, 60 daqiqa
+  faolsizlikdan keyin tugaydi) **httpOnly cookie**da turadi, sahifa JavaScript'i uni ko'rmaydi. Shuning uchun
+  `CORS_ALLOWED_ORIGINS` ga `admin.<domen>` qo'shish shart emas va `PUBLIC_API_BASE_URL` yo'q. Ilova faqat
+  `/v1/admin/*` va `/broadcasting/auth` yo'llarini uzatadi.
+- **Proksi.** `Host` sarlavhasini o'zgartirmay uzating (yoki `X-Forwarded-Host` yuboring): yozuvchi so'rovlar `Origin` ni shu
+  host bilan solishtiradi. nginx misoli `partner-web` bilan bir xil (`proxy_set_header Host $host; X-Forwarded-Proto https;
+  X-Forwarded-For $proxy_add_x_forwarded_for;`).
+- **Mijoz IP manzili.** Kirish limitlari (15 daqiqalik bloklash) va jurnaldagi IP uchun ilova `X-Forwarded-For` ning
+  **oxirgi** yozuvini backend'ga uzatadi. Shuning uchun port standart bo'yicha faqat `127.0.0.1` da ochiladi
+  (`ADMIN_WEB_BIND`): proksini chetlab kelgan kishi IP'sini soxtalashtirib limitlarni aylanib o'tardi. Proksi boshqa xostda
+  bo'lsa `ADMIN_WEB_BIND` ni o'zgartiring va portni firewall bilan yoping. CDN bo'lsa, `partner-web` bilan bir xil qoida
+  (nginx `real_ip`).
+- **Qo'shimcha himoya (ixtiyoriy).** Rejadagi "IP cheklovi" uchun tashqi proksida `admin.<domen>` ga faqat ofis/VPN
+  manzillaridan kirishga ruxsat bering (`allow`/`deny`).
+- **Birinchi superadmin** va yo'qolgan 2FA'ni tiklash: [OPERATIONS.md](OPERATIONS.md) (`rizqim:admin:create`).
+- **Tekshirish.** `docker compose ps` da `platform-admin` healthy (`GET /login`); `https://admin.<domen>/login` ochiladi.
+- Yangilash: `docker compose up -d --build platform-admin` (sozlamalar runtime'da o'qiladi, `.env` o'zgarsa
+  `docker compose up -d --force-recreate platform-admin` yetadi). Real-time (`platform.ops` kanali, Reverb) keyingi
+  to'lqinda (P4-13) shu xizmatga ulanadi.
 
 ## 5. Birinchi ishga tushishdan keyin
 

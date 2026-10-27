@@ -1,12 +1,11 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
-import { Button, Dialog, Field, fieldClass } from '@rizqim/ui';
+import { Button, Dialog, Field, fieldClass, FormError } from '@rizqim/ui';
 import { useChangeStaffRole, type AssignableRole, type ManagedBranch, type StaffMember } from '@rizqim/staff';
 import { roleLabel } from '@/lib/labels';
 import { useI18n } from '../I18nProvider';
 import { errorText } from './errors';
-import { FormError } from './Notice';
 import { ASSIGNABLE_ROLES } from './StaffFormDialog';
 
 // PUT /owner/staff/{id}/role (staff.manage, the owner): a new role and, if need be, a new branch. The owner's own role and

@@ -27,6 +27,8 @@ jobs:
       infra: ${{ steps.filter.outputs.infra }}
       apiclient: ${{ steps.filter.outputs.apiclient }}
       partnerweb: ${{ steps.filter.outputs.partnerweb }}
+      # P4-12: the RIZQIM control center (platform-admin and platform-admin-e2e jobs)
+      platformadmin: ${{ steps.filter.outputs.platformadmin }}
       staffpkg: ${{ steps.filter.outputs.staffpkg }}
       flutter: ${{ steps.filter.outputs.flutter }}
       e2estack: ${{ steps.filter.outputs.e2estack }}
@@ -83,12 +85,18 @@ jobs:
               # the TypeScript packages they link (packages/ts) can break the image build (lockfiles, file: links, build)
               - 'customer/miniapp/**'
               - 'partner/web/**'
+              - 'platform/admin/**'
               - 'packages/ts/**'
               - '.dockerignore'
               - '.github/workflows/ci.yml'
             # P1-25: the partner web (partner/web) and the TypeScript packages it links (packages/ts: ui, api-client)
             partnerweb:
               - 'partner/web/**'
+              - 'packages/ts/**'
+              - '.github/workflows/ci.yml'
+            # P4-12: the RIZQIM control center (platform/admin) and the TypeScript packages it links (packages/ts: ui, api-client)
+            platformadmin:
+              - 'platform/admin/**'
               - 'packages/ts/**'
               - '.github/workflows/ci.yml'
             # P2-13: the shared staff package (packages/ts/staff) and what it is built on (staff-package job)
@@ -410,6 +418,11 @@ jobs:
 
       - uses: hadolint/hadolint-action@v3.1.0
         with:
+          dockerfile: platform/admin/Dockerfile
+          failure-threshold: error
+
+      - uses: hadolint/hadolint-action@v3.1.0
+        with:
           dockerfile: infra/backup/Dockerfile
           failure-threshold: error
 
@@ -440,6 +453,13 @@ jobs:
         run: |
           docker build -f partner/web/Dockerfile -t rizqim-partner-web:ci .
           docker run --rm --entrypoint test rizqim-partner-web:ci -f partner/web/server.js
+
+      - name: Platform admin image builds
+        env:
+          DOCKER_BUILDKIT: "1"
+        run: |
+          docker build -f platform/admin/Dockerfile -t rizqim-platform-admin:ci .
+          docker run --rm --entrypoint test rizqim-platform-admin:ci -f platform/admin/server.js
 
   # --- P1-11 TypeScript API client (runs when packages/ts or the OpenAPI spec changed, see the `apiclient` filter) --
   api-client:
@@ -576,6 +596,107 @@ jobs:
           path: |
             partner/web/playwright-report
             partner/web/test-results
+          retention-days: 7
+
+  # --- P4-12 RIZQIM control center (runs when platform/admin or packages/ts changed, see the `platformadmin` filter) ---
+  platform-admin:
+    name: Platform admin (lint, typecheck, tests, build)
+    needs: changes
+    if: needs.changes.outputs.platformadmin == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            platform/admin/package-lock.json
+            packages/ts/api-client/package-lock.json
+
+      # platform/admin links packages/ts/api-client (compiled to dist/, its "main") and packages/ts/ui (TypeScript source)
+      - name: Build the API client
+        working-directory: packages/ts/api-client
+        run: |
+          npm ci
+          npm run build
+
+      - name: Install dependencies
+        working-directory: platform/admin
+        run: npm ci
+
+      - name: Lint
+        working-directory: platform/admin
+        run: npm run lint
+
+      - name: Typecheck
+        working-directory: platform/admin
+        run: npm run typecheck
+
+      # The Playwright tests and their fake backend (platform/admin/e2e) are TypeScript too
+      - name: Typecheck (e2e)
+        working-directory: platform/admin
+        run: npm run typecheck:e2e
+
+      - name: Tests
+        working-directory: platform/admin
+        run: npm test
+
+      - name: Build
+        working-directory: platform/admin
+        run: npm run build
+
+  # --- P4-12 Platform admin e2e (Playwright; runs with the platform-admin filter) -------------------------------------
+  platform-admin-e2e:
+    name: Platform admin e2e (Playwright, fake backend)
+    needs: changes
+    if: needs.changes.outputs.platformadmin == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: platform/admin
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            platform/admin/package-lock.json
+            packages/ts/api-client/package-lock.json
+
+      - name: Build the API client
+        working-directory: packages/ts/api-client
+        run: |
+          npm ci
+          npm run build
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Playwright's own Chromium. The backend is a fake inside the test worker: nothing else is started. The test builds and
+      # starts the production app itself (next build + start).
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: E2E tests
+        run: npm run test:e2e
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: platform-admin-playwright-report
+          path: |
+            platform/admin/playwright-report
+            platform/admin/test-results
           retention-days: 7
 
   # --- P2-31 Cross-app e2e with the REAL stack (runs when e2estack paths changed, see the `e2estack` filter) -----

@@ -2,14 +2,12 @@
 
 import { useState } from 'react';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
-import { Button, Card, EmptyState, IconButton, formatDate, formatMoney } from '@rizqim/ui';
+import { Button, Card, EmptyState, IconButton, formatDate, formatMoney, Notice, Pill } from '@rizqim/ui';
 import { useDeleteRoomTariff, useHalls, useRoomTariffs, type RoomTariff } from '@rizqim/staff';
 import { Banknote } from 'lucide-react';
 import { useI18n } from '../I18nProvider';
 import { ConfirmDialog } from '../management/ConfirmDialog';
 import { errorText } from '../management/errors';
-import { Notice } from '../management/Notice';
-import { Pill } from '../management/Pill';
 import { Gate } from '../pos/Gate';
 import { labelFor, localDate } from '../reports/format';
 import { DataTable, Td, Th } from '../reports/ui';

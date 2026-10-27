@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { CookingPot, Minus, Plus, Power } from 'lucide-react';
-import { Button, Card, CardSkeletons, Dialog, EmptyState, Field, fieldClass, formatDateTime, InlineError } from '@rizqim/ui';
+import { Button, Card, CardSkeletons, Dialog, EmptyState, Field, fieldClass, formatDateTime, InlineError, PageHeader, Switch } from '@rizqim/ui';
 import {
   formatQuantity,
   type MenuUnit,
@@ -16,14 +16,12 @@ import {
 } from '@rizqim/staff';
 import { cx } from '@rizqim/ui';
 import { useI18n } from '../I18nProvider';
-import { PageHeader } from '../PageHeader';
 import { useMenuAccess } from './access';
 import { BranchSelect, useBranchChoice } from './BranchChoice';
 import { ErrorBanner } from './ErrorBanner';
 import { parseDecimal } from './numbers';
 import { describeError } from './serverError';
 import { StockTabs } from './StockTabs';
-import { Switch } from './Switch';
 
 // The batches are refetched every 5 seconds (docs/MENU.md, "Qozon qoldig'i")
 const REFRESH_MS = 5000;

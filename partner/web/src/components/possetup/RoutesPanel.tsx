@@ -2,12 +2,10 @@
 
 import { useMemo, useState } from 'react';
 import { Route } from 'lucide-react';
-import { Button, Card, EmptyState } from '@rizqim/ui';
+import { Button, Card, EmptyState, FormError, Notice, Pill } from '@rizqim/ui';
 import { useAssignStationRoutes, useKitchenStations, useOwnerCategories, useOwnerProducts, useStationRoutes } from '@rizqim/staff';
 import { useI18n } from '../I18nProvider';
 import { errorText } from '../management/errors';
-import { FormError, Notice } from '../management/Notice';
-import { Pill } from '../management/Pill';
 import { Gate } from '../pos/Gate';
 import { SelectField, TextField } from '../pos/fields';
 

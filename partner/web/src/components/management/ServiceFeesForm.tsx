@@ -1,13 +1,12 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
-import { Button, Card, CardSkeletons, Field, InlineError, Section, fieldClass } from '@rizqim/ui';
+import { Button, Card, CardSkeletons, Field, InlineError, Section, fieldClass, FormError, Notice } from '@rizqim/ui';
 import { getApiFieldError, useMenuBranches, useSaveServiceFee, useServiceFees, type PlaceFeeMode, type ServiceFeeRow } from '@rizqim/staff';
 import { isMessageKey } from '@/i18n';
 import { useI18n } from '../I18nProvider';
 import { errorText } from './errors';
 import { Check, NumberField, parseDecimal } from './fields';
-import { FormError, Notice } from './Notice';
 
 // A channel with no setting means the hall only (`["pos_hall"]`, docs: Telegram orders never get either fee)
 const DEFAULT_CHANNELS = ['pos_hall'];

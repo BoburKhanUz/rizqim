@@ -2,14 +2,13 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { ClipboardList } from 'lucide-react';
-import { Card, CardSkeletons, EmptyState, formatDateTime, formatMoney, formatNumber, InlineError, Section, Skeleton, StatusBadge } from '@rizqim/ui';
+import { Card, CardSkeletons, EmptyState, formatDateTime, formatMoney, formatNumber, InlineError, Section, Skeleton, StatusBadge, PageHeader } from '@rizqim/ui';
 import { useApi } from '@/lib/apiConfig';
 import { hasAny } from '@/lib/permissions';
 import { useAccess, useOptionalAuth } from './AuthProvider';
 import { BoardSummary } from './orders/BoardSummary';
 import { orderTypeLabel, paymentLabel, statusLabel } from '@/lib/labels';
 import { useI18n } from './I18nProvider';
-import { PageHeader } from './PageHeader';
 
 type Analytics = NonNullable<ReturnType<typeof useAnalyticsData>['data']>;
 

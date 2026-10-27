@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from 'react';
 import { Pencil, Plus, Printer as PrinterIcon, Trash2 } from 'lucide-react';
-import { Button, Card, Dialog, EmptyState, IconButton } from '@rizqim/ui';
+import { Button, Card, Dialog, EmptyState, IconButton, FormError, Notice, Pill } from '@rizqim/ui';
 import {
   PAPER_WIDTHS,
   PRINTER_CONNECTIONS,
@@ -22,8 +22,6 @@ import { useI18n } from '../I18nProvider';
 import { ConfirmDialog } from '../management/ConfirmDialog';
 import { errorText } from '../management/errors';
 import { Check } from '../management/fields';
-import { FormError, Notice } from '../management/Notice';
-import { Pill } from '../management/Pill';
 import { Gate } from '../pos/Gate';
 import { SelectField, TextField } from '../pos/fields';
 import { NO_ERRORS, sortServerErrors, type FormErrors } from '../pos/serverErrors';

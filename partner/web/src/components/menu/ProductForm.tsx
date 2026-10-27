@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { ImagePlus, X } from 'lucide-react';
-import { Button, Card, Field, fieldClass } from '@rizqim/ui';
+import { Button, Card, Field, fieldClass, Switch } from '@rizqim/ui';
 import { productEditorFormData, useSaveProduct, type Category, type Product } from '@rizqim/staff';
 import { useT } from '../I18nProvider';
 import { checkFiscalDraft, fiscalChanges, fiscalDraftFrom, type FiscalDraft } from '../fiscal/productFiscal';
@@ -11,7 +11,6 @@ import { ErrorBanner, SuccessNote } from './ErrorBanner';
 import { parseDecimal } from './numbers';
 import { ProductThumb } from './ProductThumb';
 import { describeError, unplacedMessages } from './serverError';
-import { Switch } from './Switch';
 import { emptyVariant, variantFromApi, VariantFields, type VariantDraft } from './VariantFields';
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;

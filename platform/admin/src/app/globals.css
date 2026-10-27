@@ -1,0 +1,11 @@
+@import "tailwindcss";
+/* The Rizqim design tokens and Tailwind theme (colours, radii, type scale), light and dark from the system setting */
+@import "@rizqim/ui/styles.css";
+
+@layer base {
+  /* Tablet and desktop: pointer or touch, a control is never smaller than the 44px the design system sets */
+  button,
+  [role="button"] {
+    cursor: pointer;
+  }
+}

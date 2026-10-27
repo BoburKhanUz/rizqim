@@ -2,10 +2,9 @@
 
 import { useState } from 'react';
 import { ArrowDownToLine, Banknote, Wallet } from 'lucide-react';
-import { Button, Card, InlineError, Skeleton, cx, formatMoney, formatNumber } from '@rizqim/ui';
+import { Button, Card, InlineError, Skeleton, cx, formatMoney, formatNumber, PageHeader } from '@rizqim/ui';
 import { getApiErrorStatus, useOwnerFinance, type OwnerFinance } from '@rizqim/staff';
 import { useI18n } from '../I18nProvider';
-import { PageHeader } from '../PageHeader';
 import { PayoutDialog, TopupDialog } from './FinanceDialogs';
 import { PaymentsPanel, PayoutsPanel, TransactionsPanel } from './HistoryPanels';
 import { PlanPanel } from './PlanPanel';

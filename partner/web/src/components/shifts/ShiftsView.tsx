@@ -2,13 +2,11 @@
 
 import { useState } from 'react';
 import { ArrowLeft, Printer, Timer } from 'lucide-react';
-import { Button, Card, EmptyState, InlineError, Skeleton, formatDateTime, formatMoney } from '@rizqim/ui';
+import { Button, Card, EmptyState, InlineError, Skeleton, formatDateTime, formatMoney, PageHeader, Pill } from '@rizqim/ui';
 import { useShift, useShifts, useXReport, type Shift, type ShiftReport, type ShiftsQuery } from '@rizqim/staff';
 import { useI18n } from '../I18nProvider';
-import { PageHeader } from '../PageHeader';
 import { useCan } from '../management/access';
 import { errorText } from '../management/errors';
-import { Pill } from '../management/Pill';
 import { useBranchScope } from '../shell/BranchScope';
 import { labelFor } from '../reports/format';
 import { HistoryFilters, SelectFilter, usableDates, type DateFilter } from '../reports/HistoryFilters';

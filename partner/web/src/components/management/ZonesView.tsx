@@ -2,7 +2,7 @@
 
 import { useMemo, useReducer, useState } from 'react';
 import { Eraser, Flag, Map as MapIcon, Plus, Shapes, Undo2, X } from 'lucide-react';
-import { Button, Card, CardSkeletons, EmptyState, InlineError, cx, formatMoney } from '@rizqim/ui';
+import { Button, Card, CardSkeletons, EmptyState, InlineError, cx, formatMoney, PageHeader, FormError, Notice, Pill } from '@rizqim/ui';
 import {
   getApiFieldError,
   useCreateDeliveryZone,
@@ -14,12 +14,9 @@ import {
   type ZoneInput,
 } from '@rizqim/staff';
 import { useI18n } from '../I18nProvider';
-import { PageHeader } from '../PageHeader';
 import { useCan } from './access';
 import { ConfirmDialog } from './ConfirmDialog';
 import { errorText } from './errors';
-import { FormError, Notice } from './Notice';
-import { Pill } from './Pill';
 import { countPoints, editorReducer, initialEditor, parseGeometry, shapesToGeometry } from './polygon';
 import { ZoneForm, type ZoneFormErrors } from './ZoneForm';
 import { ZoneMap } from './ZoneMap';

@@ -2,18 +2,13 @@
 
 import { useState } from 'react';
 import { ShieldAlert, ShieldCheck, Undo2 } from 'lucide-react';
-import { Button, Card, CardSkeletons, EmptyState, InlineError } from '@rizqim/ui';
+import { Button, Card, CardSkeletons, EmptyState, InlineError, PageHeader, FormError, Notice, Pill, Switch, Tabs } from '@rizqim/ui';
 import { overrideFor, PERMISSION_ROLES, permissionState, useRolePermissions, useSaveRolePermission, type PermissionRole, type RolePermissionChange, type RolePermissionTable } from '@rizqim/staff';
 import { roleLabel } from '@/lib/labels';
 import { useI18n } from '../I18nProvider';
-import { PageHeader } from '../PageHeader';
 import { useCan } from '../management/access';
 import { ConfirmDialog } from '../management/ConfirmDialog';
 import { errorText } from '../management/errors';
-import { FormError, Notice } from '../management/Notice';
-import { Pill } from '../management/Pill';
-import { Switch } from '../menu/Switch';
-import { Tabs } from '../menu/Tabs';
 import { isRisky, permissionWords, sectionsOf, type ListedPermission } from './catalog';
 
 // /permissions (permissions.manage, the owner): what each role may do alone in the store. Every switch is one

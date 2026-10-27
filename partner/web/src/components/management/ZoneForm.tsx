@@ -1,11 +1,10 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
-import { Button, Field, fieldClass } from '@rizqim/ui';
+import { Button, Field, fieldClass, FormError } from '@rizqim/ui';
 import type { DeliveryZone, ManagedBranch, ZoneInput, ZonePolygon } from '@rizqim/staff';
 import { useI18n } from '../I18nProvider';
 import { Check, NumberField, parseDecimal } from './fields';
-import { FormError } from './Notice';
 import { parseGeometry, shapesToGeometry, type Shape } from './polygon';
 
 export interface ZoneFormErrors {

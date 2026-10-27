@@ -1,12 +1,11 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
-import { Button, Dialog } from '@rizqim/ui';
+import { Button, Dialog, FormError } from '@rizqim/ui';
 import { useDeleteHallServiceFee, useSaveServiceFee, type Hall, type PlaceFeeMode } from '@rizqim/staff';
 import { useI18n } from '../I18nProvider';
 import { errorText } from '../management/errors';
 import { NumberField, parseDecimal } from '../management/fields';
-import { FormError } from '../management/Notice';
 import { SelectField } from '../pos/fields';
 import { NO_ERRORS, sortServerErrors, type FormErrors } from '../pos/serverErrors';
 

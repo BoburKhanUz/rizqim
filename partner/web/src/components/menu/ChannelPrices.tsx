@@ -1,13 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { Button, Card, CardSkeletons, fieldClass, formatMoney, InlineError } from '@rizqim/ui';
+import { Button, Card, CardSkeletons, fieldClass, formatMoney, InlineError, Switch } from '@rizqim/ui';
 import { useChannelPrices, useSaveChannelPrices, type ChannelPriceRow, type ChannelPrices as ChannelPricesData, type ChannelPricesInput, type Product } from '@rizqim/staff';
 import { useI18n } from '../I18nProvider';
 import { ErrorBanner, SuccessNote } from './ErrorBanner';
 import { parseDecimal, toInputText } from './numbers';
 import { describeError } from './serverError';
-import { Switch } from './Switch';
 
 // The channels this screen sets. The save REPLACES every row of the product, so rows of other channels (POS, aggregators)
 // are sent back as they were read.

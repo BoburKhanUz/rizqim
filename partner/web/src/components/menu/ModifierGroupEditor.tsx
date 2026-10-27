@@ -4,16 +4,14 @@ import { useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Layers, Plus, Trash2 } from 'lucide-react';
-import { Button, buttonClasses, Card, CardSkeletons, EmptyState, Field, fieldClass, IconButton, InlineError, Section } from '@rizqim/ui';
+import { Button, buttonClasses, Card, CardSkeletons, EmptyState, Field, fieldClass, IconButton, InlineError, Section, PageHeader, Switch } from '@rizqim/ui';
 import { useModifierGroups, useSaveModifierGroup, type ModifierGroup, type ModifierGroupInput } from '@rizqim/staff';
 import { useI18n } from '../I18nProvider';
-import { PageHeader } from '../PageHeader';
 import { useMenuAccess } from './access';
 import { ErrorBanner, SuccessNote } from './ErrorBanner';
 import { GroupProducts } from './GroupProducts';
 import { parseDecimal, toInputText } from './numbers';
 import { describeError, unplacedMessages } from './serverError';
-import { Switch } from './Switch';
 
 interface OptionDraft {
   key: string;

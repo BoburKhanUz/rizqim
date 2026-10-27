@@ -1,4 +1,4 @@
-import { cx } from '@rizqim/ui';
+import { cx } from './cx';
 
 // An on/off switch with a 44px touch target. The state is also written out by `label` for a screen reader, and the
 // knob's position (not only the colour) shows it.

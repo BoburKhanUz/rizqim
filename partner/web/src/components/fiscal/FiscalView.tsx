@@ -1,12 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { EmptyState } from '@rizqim/ui';
+import { EmptyState, PageHeader, Tabs } from '@rizqim/ui';
 import { ReceiptText } from 'lucide-react';
 import { useI18n } from '../I18nProvider';
-import { PageHeader } from '../PageHeader';
 import { useCan } from '../management/access';
-import { Tabs } from '../menu/Tabs';
 import { FiscalSettingsPanel } from './FiscalSettingsPanel';
 import { ReadinessPanel } from './ReadinessPanel';
 import { ReceiptsPanel } from './ReceiptsPanel';

@@ -1,11 +1,10 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
-import { Button, Dialog } from '@rizqim/ui';
+import { Button, Dialog, FormError } from '@rizqim/ui';
 import { DAY_TYPES, TABLE_KINDS, useCreateRoomTariff, useUpdateRoomTariff, type DayType, type RoomTariff, type TableKind } from '@rizqim/staff';
 import { useI18n } from '../I18nProvider';
 import { NumberField, parseDecimal } from '../management/fields';
-import { FormError } from '../management/Notice';
 import { DateField, SelectField } from '../pos/fields';
 import { NO_ERRORS, sortServerErrors, type FormErrors } from '../pos/serverErrors';
 import { labelFor } from '../reports/format';

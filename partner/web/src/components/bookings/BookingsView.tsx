@@ -2,15 +2,13 @@
 
 import { useMemo, useState } from 'react';
 import { CalendarDays, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
-import { Button, CardSkeletons, EmptyState, IconButton, InlineError, cx } from '@rizqim/ui';
+import { Button, CardSkeletons, EmptyState, IconButton, InlineError, cx, PageHeader, Notice } from '@rizqim/ui';
 import { useBookingCalendar, type BookingCalendar } from '@rizqim/staff';
 import { addDays, mondayOf, todayIn } from '@/lib/storeTime';
 import { useI18n } from '../I18nProvider';
-import { PageHeader } from '../PageHeader';
 import { useCan } from '../management/access';
 import { errorText } from '../management/errors';
 import { Check } from '../management/fields';
-import { Notice } from '../management/Notice';
 import { BranchSelect, useBranchChoice } from '../menu/BranchChoice';
 import { DateField } from '../pos/fields';
 import { BookingCalendarView } from './BookingCalendarView';

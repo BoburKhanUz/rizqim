@@ -1,10 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { CardSkeletons, InlineError, cx } from '@rizqim/ui';
+import { CardSkeletons, InlineError, cx, PageHeader } from '@rizqim/ui';
 import { useStoreSettings } from '@rizqim/staff';
 import { useI18n } from '../I18nProvider';
-import { PageHeader } from '../PageHeader';
 import { useCan } from './access';
 import { DevicesPanel } from './DevicesPanel';
 import { errorText } from './errors';

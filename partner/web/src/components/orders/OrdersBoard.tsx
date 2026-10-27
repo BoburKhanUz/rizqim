@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useId, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, Search, X } from 'lucide-react';
-import { Button, cx, fieldClass, IconButton, InlineError, Skeleton } from '@rizqim/ui';
+import { Button, cx, fieldClass, IconButton, InlineError, Skeleton, PageHeader } from '@rizqim/ui';
 import {
   boardKeys,
   getBoardActions,
@@ -23,7 +23,6 @@ import { orderTypeLabel } from '@/lib/labels';
 import { readStored, writeStored } from '@/lib/storage';
 import { useAccess } from '../AuthProvider';
 import { useI18n } from '../I18nProvider';
-import { PageHeader } from '../PageHeader';
 import { useBranchScope } from '../shell/BranchScope';
 import { useLiveOrders } from '../shell/LiveOrders';
 import { CourierDialog, ReasonDialog } from './ActionDialogs';

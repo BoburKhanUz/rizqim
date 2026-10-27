@@ -2,14 +2,11 @@
 
 import { useState } from 'react';
 import { Armchair, Pencil, Percent, Plus, Trash2 } from 'lucide-react';
-import { Button, Card, EmptyState, IconButton, formatMoney } from '@rizqim/ui';
+import { Button, Card, EmptyState, IconButton, formatMoney, Notice, Pill, Switch } from '@rizqim/ui';
 import { useDeleteDiningTable, useDeleteHall, useHalls, useUpdateDiningTable, useUpdateHall, type DiningTable, type Hall } from '@rizqim/staff';
 import { useI18n } from '../I18nProvider';
 import { ConfirmDialog } from '../management/ConfirmDialog';
 import { errorText } from '../management/errors';
-import { Notice } from '../management/Notice';
-import { Pill } from '../management/Pill';
-import { Switch } from '../menu/Switch';
 import { Gate } from '../pos/Gate';
 import { labelFor } from '../reports/format';
 import { DataTable, Td, Th } from '../reports/ui';

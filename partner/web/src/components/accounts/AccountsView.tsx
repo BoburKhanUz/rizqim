@@ -2,14 +2,11 @@
 
 import { useState } from 'react';
 import { BookUser, Pencil, Plus, ScrollText, Search } from 'lucide-react';
-import { Button, Card, EmptyState, Field, InlineError, Skeleton, cx, fieldClass, formatMoney } from '@rizqim/ui';
+import { Button, Card, EmptyState, Field, InlineError, Skeleton, cx, fieldClass, formatMoney, PageHeader, Notice, Pill } from '@rizqim/ui';
 import { useCustomerAccounts, useDebtors, type CustomerAccount } from '@rizqim/staff';
 import { useI18n } from '../I18nProvider';
-import { PageHeader } from '../PageHeader';
 import { useCan } from '../management/access';
 import { errorText } from '../management/errors';
-import { Notice } from '../management/Notice';
-import { Pill } from '../management/Pill';
 import { DataTable, Pager, Td, Th } from '../reports/ui';
 import { AccountDialog } from './AccountDialog';
 import { StatementDialog } from './StatementDialog';

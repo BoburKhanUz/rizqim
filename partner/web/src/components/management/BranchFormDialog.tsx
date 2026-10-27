@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState, type FormEvent } from 'react';
-import { Button, Dialog, Field, fieldClass } from '@rizqim/ui';
+import { Button, Dialog, Field, fieldClass, FormError } from '@rizqim/ui';
 import {
   getApiFieldError,
   useCreateBranch,
@@ -15,7 +15,6 @@ import { useI18n } from '../I18nProvider';
 import { errorText } from './errors';
 import { Check, NumberField, parseDecimal } from './fields';
 import { clock } from './hours';
-import { FormError } from './Notice';
 
 type Status = 'active' | 'inactive' | 'temporarily_closed';
 const STATUSES: readonly Status[] = ['active', 'inactive', 'temporarily_closed'];
