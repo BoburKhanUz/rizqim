@@ -313,7 +313,7 @@ describe('menu', () => {
     });
     const api = testApi();
     expect(await fetchBatches(api, { branchId: 2, includeClosed: true })).toHaveLength(1);
-    expect(new URL(calls[0]!.url).searchParams.get('include_closed')).toBe('true');
+    expect(new URL(calls[0]!.url).searchParams.get('include_closed')).toBe('1');
     const branches = await fetchMenuAvailability(api, 4);
     expect(branches[0]!.sold_out.variants).toEqual([9]);
     expect(new URL(calls[1]!.url).searchParams.get('store_id')).toBe('4');

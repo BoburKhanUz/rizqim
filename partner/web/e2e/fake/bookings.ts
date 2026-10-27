@@ -77,6 +77,13 @@ export class FakeBookings {
     )
   }
 
+  // A booking made before the page opens (what a test starts from); `input` is the body of POST /v1/pos/bookings
+  seed(input: Record<string, unknown>): FakeBooking {
+    const reply = this.create(input)
+    if (reply.status !== 201) throw new Error(`Could not seed the booking: ${JSON.stringify(reply.body)}`)
+    return this.bookings[this.bookings.length - 1]!
+  }
+
   private create(input: Record<string, unknown>): Reply {
     const errors: Record<string, string[]> = {}
     if (String(input.contact_name ?? '').trim() === '') errors.contact_name = ['Ismini kiriting.']
@@ -114,7 +121,7 @@ export class FakeBookings {
       items_count: 0,
       cancel_reason: null,
       version: 1,
-      created_by: this.backend.account.id,
+      created_by: this.backend.account?.id ?? null, // (a seeded booking is made before anyone signs in)
       confirmed_at: status === 'confirmed' ? new Date().toISOString() : null,
       arrived_at: null,
       completed_at: null,
@@ -133,8 +140,12 @@ export class FakeBookings {
     if (req.method === 'GET' && path === '/v1/pos/bookings/calendar') {
       const from = req.query.from ?? this.inStoreDay(new Date().toISOString())
       const to = req.query.to ?? from
+      // Laravel's `boolean` rule: only 1 and 0 in a query string ("true"/"false" is a 422)
+      if (req.query.include_canceled !== undefined && !['0', '1'].includes(req.query.include_canceled)) {
+        return fail(422, 'The given data was invalid.', { include_canceled: ['include_canceled true yoki false bo\'lishi kerak.'] })
+      }
       const shown = this.bookings.filter((booking) => {
-        if (booking.status === 'canceled' && req.query.include_canceled !== 'true') return false
+        if (booking.status === 'canceled' && req.query.include_canceled !== '1') return false
         return this.inStoreDay(booking.starts_at) <= to && this.inStoreDay(booking.ends_at) >= from
       })
       const rooms = this.backend.floor.tables.map((table) => ({

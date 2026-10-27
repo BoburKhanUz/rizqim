@@ -51,7 +51,7 @@ describe('the batches', () => {
     const user = userEvent.setup();
     await user.click(await screen.findByRole('switch', { name: "Yopilganlarni ko'rsatish" }));
     expect(await screen.findByText('Yopilgan')).toBeInTheDocument();
-    expect(calls.some((call) => new URL(call.url).searchParams.get('include_closed') === 'true' || new URL(call.url).searchParams.get('include_closed') === '1')).toBe(true);
+    expect(calls.some((call) => new URL(call.url).searchParams.get('include_closed') === '1')).toBe(true);
     // a closed batch has no actions
     expect(screen.queryByRole('button', { name: /To'ldirish/ })).not.toBeInTheDocument();
   });

@@ -173,8 +173,8 @@ describe('terminals', () => {
     const api = testApi();
     await fetchStoreDevices(api);
     await fetchStoreDevices(api, true);
-    expect(new URL(calls[0]!.url).searchParams.get('include_revoked')).toBe('false');
-    expect(new URL(calls[1]!.url).searchParams.get('include_revoked')).toBe('true');
+    expect(new URL(calls[0]!.url).searchParams.get('include_revoked')).toBe('0');
+    expect(new URL(calls[1]!.url).searchParams.get('include_revoked')).toBe('1');
     expect((await renameStoreDevice(api, 'd-1', 'Kassa 2')).name).toBe('Kassa 2');
     expect((await revokeStoreDevice(api, 'd-1')).revoked_at).not.toBeNull();
   });

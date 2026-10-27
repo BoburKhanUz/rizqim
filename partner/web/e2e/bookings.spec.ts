@@ -103,3 +103,41 @@ test('the confirmation is previewed and sent to the guest; with no channel the c
   await expect(section.getByRole('alert')).toContainText("mehmon Telegram'da yo'q")
   expect(api.bookings.sent).toHaveLength(1)
 })
+
+// The footer of the booking dialog holds Yopish, Tahrirlash, Tasdiqlash and Bekor qilish: none of them may be clipped at a
+// phone's width (360px) or on a desktop
+for (const size of [
+  { name: 'phone', width: 360, height: 740 },
+  { name: 'desktop', width: 1280, height: 800 },
+]) {
+  test(`the booking dialog keeps all its buttons inside at ${size.name} width`, async ({ page, api, signIn, reverb }, testInfo) => {
+    void reverb
+    api.bookings.seed({ branch_id: 1, dining_table_id: 11, contact_name: 'Aziz Karimov', contact_phone: '+998901234567', guests_planned: 12, starts_at: `${DAY}T19:00:00`, ends_at: `${DAY}T23:00:00` })
+    await page.setViewportSize({ width: size.width, height: size.height })
+    await openSignedIn(page, signIn, '/bookings')
+    await page.getByLabel('Sana').fill(DAY)
+    const chip = page.getByRole('group', { name: 'Xona 1' }).getByRole('button', { name: /Aziz Karimov, 19:00–23:00/ })
+    await expect(chip).toBeVisible()
+    // The first press on the page also unlocks the chime and takes the "sound is off" hint away: it must still land on the chip
+    await chip.click()
+
+    const dialog = page.getByRole('dialog')
+    await expect(dialog.getByRole('button', { name: 'Bekor qilish' })).toBeVisible()
+    const box = await dialog.boundingBox()
+    expect(box).not.toBeNull()
+    // (the round close button in the header is called Yopish too, but has no text of its own)
+    const buttons = dialog.getByRole('button', { name: /^(Yopish|Tahrirlash|Tasdiqlash|Bekor qilish)$/ }).filter({ hasText: /\S/ })
+    expect(await buttons.count()).toBeGreaterThanOrEqual(4)
+    for (const button of await buttons.all()) {
+      const rect = await button.boundingBox()
+      expect(rect).not.toBeNull()
+      // Inside the dialog's box, so not clipped by it and not pushed past the screen
+      expect(rect!.x).toBeGreaterThanOrEqual(box!.x - 0.5)
+      expect(rect!.x + rect!.width).toBeLessThanOrEqual(box!.x + box!.width + 0.5)
+      expect(rect!.x + rect!.width).toBeLessThanOrEqual(size.width + 0.5)
+      // Wide enough to read its label
+      expect(rect!.width).toBeGreaterThanOrEqual(80)
+    }
+    await page.screenshot({ path: testInfo.outputPath(`booking-dialog-${size.width}.png`) })
+  })
+}

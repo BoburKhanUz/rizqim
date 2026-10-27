@@ -143,17 +143,19 @@ export function LiveOrdersProvider({ children, connect = defaultConnect, chime: 
   useEffect(() => () => chime.close(), [chime]);
   useEffect(() => {
     if (!enabled) return;
-    // Every gesture checks: the context may have been closed and must be opened again (a remount)
+    // Every gesture checks: the context may have been closed and must be opened again (a remount). A click, not a
+    // pointerdown: unlocking hides the "sound needs a click" hint, and on a pointerdown the layout would shift under the
+    // finger before the click lands, so the first tap on a phone missed its button
     const unlock = () => {
       if (chime.ready) return;
       void chime.unlock().then((ready) => {
         if (ready) setSoundReady(true);
       });
     };
-    window.addEventListener('pointerdown', unlock);
+    window.addEventListener('click', unlock);
     window.addEventListener('keydown', unlock);
     return () => {
-      window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('click', unlock);
       window.removeEventListener('keydown', unlock);
     };
   }, [chime, enabled]);

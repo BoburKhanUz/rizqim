@@ -58,7 +58,8 @@ export function BookingDetailDialog({
       onClose={onClose}
       footer={
         booking ? (
-          <>
+          // Up to four buttons: they wrap (two a row on a phone) instead of squeezing past the edge of the sheet
+          <div className="flex min-w-0 flex-wrap gap-2 [&>*]:min-w-[9rem] [&>*]:flex-1">
             <Button variant="secondary" onClick={onClose} disabled={busy}>
               {t('mgmt_close')}
             </Button>
@@ -82,7 +83,7 @@ export function BookingDetailDialog({
                 </Button>
               </>
             )}
-          </>
+          </div>
         ) : undefined
       }
     >

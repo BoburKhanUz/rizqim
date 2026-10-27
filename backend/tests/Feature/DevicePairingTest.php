@@ -244,6 +244,20 @@ class DevicePairingTest extends TestCase
         $this->assertSame(0, PersonalAccessToken::where('device_id', $ours->id)->count());
     }
 
+    public function test_the_removed_devices_are_listed_with_include_revoked_as_1_or_0(): void
+    {
+        // The web clients send booleans in a query string as 1/0 (Laravel's `boolean` rule does not take "true"/"false")
+        ['device' => $live] = $this->pairTerminal($this->owner, $this->branch);
+        ['device' => $gone] = $this->pairTerminal($this->owner, $this->branch);
+        $this->actingAs($this->owner, 'sanctum')->postJson("/api/v1/owner/devices/{$gone->uuid}/revoke")->assertOk();
+
+        $without = $this->actingAs($this->owner, 'sanctum')->getJson('/api/v1/owner/devices?include_revoked=0')->assertOk()->json('data');
+        $this->assertSame([$live->uuid], array_column($without, 'uuid'));
+
+        $with = $this->actingAs($this->owner, 'sanctum')->getJson('/api/v1/owner/devices?include_revoked=1')->assertOk()->json('data');
+        $this->assertEqualsCanonicalizing([$live->uuid, $gone->uuid], array_column($with, 'uuid'));
+    }
+
     public function test_a_branch_manager_sees_and_manages_their_branch_devices_only(): void
     {
         ['device' => $main] = $this->pairTerminal($this->owner, $this->branch);

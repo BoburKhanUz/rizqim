@@ -119,6 +119,11 @@ Endpointning o'z xabari bo'lsa, o'shanisi. Bu `APP_LOCALE` ga bog'liq emas (Fila
 `API_LOCALE` (standart `uz`, `App\Http\Middleware\SetApiLocale`). 401 `{"message": "Unauthenticated."}` o'zgarmagan.
 Ilova xabarni ko'rsatishi mumkin, qaror esa `data.reason` va HTTP kod bo'yicha.
 
+**Query'dagi mantiqiy qiymatlar (P4-01).** GET so'rovida `boolean` parametr (`include_revoked`, `include_canceled`,
+`debtors`, `include_closed`...) `1` yoki `0` bilan yuboriladi. `true`/`false` matni 422 beradi (Laravel `boolean` qoidasi
+faqat `1`, `0`, `"1"`, `"0"` va JSON `true`/`false` ni qabul qiladi). `@rizqim/api-client` mantiqiy qiymatni o'zi `1`/`0`
+ga aylantiradi; boshqa klientlar (Dart) ham shunday qilishi kerak.
+
 **Mashina uchun sabablar (`data.reason`).** Ilova `message` matniga emas, shu kodga qarab qaror qiladi:
 
 | `reason` | HTTP | Qayerda | Ma'nosi |

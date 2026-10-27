@@ -56,7 +56,7 @@ Namuna: [.env.example](.env.example). "Standart" ustunida `.env.example` qiymati
 
 | O'zgaruvchi | Standart | Ma'nosi |
 |---|---|---|
-| `APP_NAME` | `Laravel` | ilova nomi (kesh va sessiya prefikslarida ham) |
+| `APP_NAME` | `RIZQIM` | ilova nomi (kesh va sessiya prefikslarida ham) |
 | `APP_ENV` | `production` | `production` bo'lmasa `app:check-production` deploy'ni to'xtatadi; lokal: `local` |
 | `APP_KEY` | bo'sh | shifrlash kaliti, `php artisan key:generate`; majburiy. Almashtirilsa eskisini `APP_PREVIOUS_KEYS` ga yozing |
 | `APP_DEBUG` | `false` | productionda `true` bo'lishi mumkin emas |

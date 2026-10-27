@@ -52,7 +52,7 @@ describe('Nasiya hisoblari', () => {
     const typing = userEvent.setup();
     renderPage(<AccountsView />);
     await typing.click(await screen.findByRole('button', { name: 'Qarzdorlar' }));
-    await waitFor(() => expect(listQuery(calls).get('debtors')).toBe('true'));
+    await waitFor(() => expect(listQuery(calls).get('debtors')).toBe('1'));
     await typing.type(screen.getByLabelText('Ism, guruh yoki telefon'), 'Kar');
     await waitFor(() => expect(listQuery(calls).get('q')).toBe('Kar'));
     expect(listQuery(calls).get('page')).toBe('1');

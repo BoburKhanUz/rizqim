@@ -18,7 +18,7 @@ describe('bookings', () => {
     const { calls } = mockFetch({ 'GET /api/v1/pos/bookings/calendar': () => ok({ branch_id: 2, from: '2026-10-22', to: '2026-10-22', timezone: 'Asia/Tashkent', rooms: [], unassigned: [] }) });
     const calendar = await fetchBookingCalendar(testApi(), { branch_id: 2, from: '2026-10-22', to: '2026-10-28', include_canceled: false });
     expect(calendar.timezone).toBe('Asia/Tashkent');
-    expect(Object.fromEntries(new URL(calls[0]!.url).searchParams)).toEqual({ branch_id: '2', from: '2026-10-22', to: '2026-10-28', include_canceled: 'false' });
+    expect(Object.fromEntries(new URL(calls[0]!.url).searchParams)).toEqual({ branch_id: '2', from: '2026-10-22', to: '2026-10-28', include_canceled: '0' });
   });
 
   it('lists by phone and unwraps the bookings; shows one with its deposits', async () => {
@@ -107,7 +107,7 @@ describe('customer accounts', () => {
     const api = testApi();
     const page = await fetchCustomerAccounts(api, { q: 'Kar', debtors: true, per_page: 30 });
     expect(page.meta.total).toBe(1);
-    expect(Object.fromEntries(new URL(calls[0]!.url).searchParams)).toEqual({ q: 'Kar', debtors: 'true', per_page: '30' });
+    expect(Object.fromEntries(new URL(calls[0]!.url).searchParams)).toEqual({ q: 'Kar', debtors: '1', per_page: '30' });
     expect((await fetchDebtors(api)).total_debt).toBe('150000.00');
     const statement = await fetchAccountStatement(api, 'a1', { from: '2026-10-01', to: '2026-10-22' });
     expect(statement.closing_balance).toBe('150000.00');

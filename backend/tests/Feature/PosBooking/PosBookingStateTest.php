@@ -178,6 +178,10 @@ class PosBookingStateTest extends TestCase
         $this->assertSame([$lunch, $canceled], array_column(collect($withCanceled)->firstWhere('id', $this->roomC)['bookings'], 'uuid'));
         $this->assertSame([$evening, $nextDay], array_column(collect($withCanceled)->firstWhere('id', $this->roomA)['bookings'], 'uuid'));
 
+        // The web clients send `include_canceled` as 1/0
+        $without = $this->api($this->cashier, 'GET', '/api/v1/pos/bookings/calendar?from=2026-11-05&to=2026-11-06&include_canceled=0')->assertOk()->json('data.rooms');
+        $this->assertSame([$lunch], array_column(collect($without)->firstWhere('id', $this->roomC)['bookings'], 'uuid'));
+
         $this->api($this->cashier, 'GET', '/api/v1/pos/bookings/calendar?from=2026-11-05&to=2026-12-31')->assertStatus(422);
         $this->api($this->cashier, 'GET', '/api/v1/pos/bookings/calendar?from=2026-11-05&to=2026-11-01')->assertStatus(422);
     }

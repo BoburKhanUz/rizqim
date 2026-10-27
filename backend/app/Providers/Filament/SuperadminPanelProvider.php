@@ -26,6 +26,7 @@ class SuperadminPanelProvider extends PanelProvider
         return $panel
             ->id('superadmin')
             ->path('superadmin')
+            ->brandName('RIZQIM')
             ->login(\App\Filament\Pages\Auth\CustomLogin::class)
             ->colors([
                 'primary' => Color::Amber,
