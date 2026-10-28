@@ -152,8 +152,8 @@ jurnalga yoziladi.
 | Tarif | Oylik | Yillik (12 oy = 10 oy) | Ichida |
 |---|---|---|---|
 | Start | 149 000 so'm | 1 490 000 | zal, xona puli, choy-non, smena, Z, RIZQIM buyurtmalari, 1 kassa |
-| Asosiy | 249 000 so'm | 2 490 000 | + bron va bo'nak, nasiya, KDS, xizmat haqi; 2 terminal |
-| Pro | 449 000 so'm | 4 490 000 | + filiallar hisoboti, keyin Yandex/Uzum buyurtmalari va banket; 3 terminal |
+| Asosiy | 249 000 so'm | 2 490 000 | + bron va bo'nak, nasiya, KDS, xizmat haqi; 1 kassa + 1 oshxona ekrani |
+| Pro | 449 000 so'm | 4 490 000 | + filiallar hisoboti, keyin Yandex/Uzum buyurtmalari va banket; 2 kassa + 1 oshxona ekrani |
 
 - Qo'shimcha kassa 59 000, qo'shimcha oshxona ekrani 29 000 so'm/oy; ofitsiant telefonlari cheklanmagan va bepul.
 - Sinov 14 kun. Tarifda yo'q funksiya kassada va hamkor panelida "Asosiy tarifda bor" deb ko'rsatiladi.
@@ -336,11 +336,14 @@ Ish tartibi 1-to'lqindagidek: avval backend kelishuvi (endpointlar, ruxsatlar), 
 - Qo'lda tuzatishda ikkinchi xodim tasdig'i 1 000 000 so'mdan boshlab (28.10.2026).
 - Didox — hozircha yo'q (28.10.2026).
 - Ogohlantirishlar — guruh ochilguncha superadmin chatiga (28.10.2026).
+- Tarif ichidagi qurilmalar: Start 1 kassa; Asosiy 1 kassa + 1 oshxona ekrani; Pro 2 kassa + 1 oshxona ekrani
+  (28.10.2026).
+- Hali ishlayotgan mijoz ovqatxona yo'q: eski tariflardan o'tkazish (`billing:migrate-plans`) va eski superadminlarni
+  qayta taklif qilish kerak emas; birinchi deployda superadmin `rizqim:admin:create` bilan ochiladi (28.10.2026).
+- Ikkala eski Filament panelni (`/superadmin` va `/admin`) 3-to'lqinda o'chirishga rozilik berildi (28.10.2026).
 
 **Hali kerak:**
 1. Ogohlantirishlar uchun Telegram guruhi ("RIZQIM navbatchi") ochilsa — uning ID'si (`TELEGRAM_OPS_CHAT_ID`).
 2. Admin manzili (masalan `admin.rizqim.uz`) va server (O'zbekistondagi server tavsiya: soliq API va Marketpleys
    talabi).
-3. Mavjud superadminlar uchun serverda `php artisan rizqim:admin:invite <email>` (birinchi kirish).
-4. Yangi markaz tayyor bo'lgach, ikkala eski Filament panelni (`/superadmin` va `/admin`) o'chirishga rozilik.
-5. Integratsiyalar bo'yicha muzokaralar: [PHASE5_PLAN.md](PHASE5_PLAN.md), "Egasidan kerak".
+3. Integratsiyalar bo'yicha muzokaralar: [PHASE5_PLAN.md](PHASE5_PLAN.md), "Egasidan kerak".
