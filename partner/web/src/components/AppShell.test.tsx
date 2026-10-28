@@ -113,8 +113,30 @@ describe('AppShell', () => {
     renderShell();
     expect(await navLabels()).toEqual([
       'Boshqaruv paneli', 'Buyurtmalar', 'Bronlar', 'Zal va xonalar', 'Menyu', 'Stop-list', 'Qozon', 'Smenalar', 'Nasiya', 'Xodimlar', 'Filiallar', 'Yetkazish zonalari', 'Sozlamalar',
-      'Kassa sozlamalari', 'Fiskal', 'Hisobotlar', 'Moliya',
+      'Kassa sozlamalari', 'Fiskal', 'Hisobotlar', 'Moliya', "Tarif va to'lov",
     ]);
+  });
+
+  it('shows the unpaid-invoice banner across the panel, with the link to pay for a person who may open the billing page', async () => {
+    const notice = {
+      level: 'reminder',
+      message: 'x',
+      days_overdue: 3,
+      lock_at: new Date(Date.now() + 4 * 86_400_000).toISOString(),
+      invoice: { uuid: 'i-1', number: 'OB-202610-1', amount: '249000.00', outstanding: '249000.00', due_date: '2026-11-11' },
+    };
+    mockFetch({
+      'POST /api/session/refresh': () => refreshed(1, 'owner'),
+      'GET /api/v1/me/permissions': () => access(OWNER, 'owner', { id: null, scoped: false }),
+      'GET /api/v1/owner/branches': () => ok([branch(2, 'Chilonzor')]),
+      'GET /api/v1/staff/orders': noOrders,
+      'GET /api/v1/owner/billing/entitlements': () => ok({ notice, lock_at: notice.lock_at, settings_locked: false, legacy: false, features: {}, plan: null }),
+    });
+    renderShell();
+    const banner = await screen.findByRole('status', { name: "To'lanmagan hisob-faktura haqida" });
+    expect(banner).toHaveTextContent("To'lov muddati o'tdi — 4 kundan keyin sozlamalar yopiladi");
+    expect(within(banner).getByRole('link', { name: "To'lash" })).toHaveAttribute('href', '/billing');
+    expect(screen.getByText('page content')).toBeInTheDocument();
   });
 
   it('sends a signed-out browser to the sign-in page', async () => {

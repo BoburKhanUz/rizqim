@@ -3,7 +3,6 @@ import { getRoleHomePath, isCustomerRole } from './roles';
 
 describe('getRoleHomePath', () => {
   it.each([
-    ['super_admin', '/superadmin/dashboard'],
     ['owner', '/admin/analytics'],
     ['manager', '/manager'],
     ['courier', '/courier'],
@@ -14,7 +13,9 @@ describe('getRoleHomePath', () => {
   it('keeps customers (and unknown roles) on the catalog', () => {
     expect(getRoleHomePath('customer')).toBeNull();
     expect(getRoleHomePath('user')).toBeNull();
-    expect(getRoleHomePath('superadmin')).toBeNull(); // not a role the API sends
+    // P4-25: superadmins sign in through the control center; the Mini App has no screen for the role
+    expect(getRoleHomePath('super_admin')).toBeNull();
+    expect(getRoleHomePath('superadmin')).toBeNull();
     expect(getRoleHomePath(undefined)).toBeNull();
     expect(getRoleHomePath(null)).toBeNull();
   });
@@ -30,13 +31,13 @@ describe('isCustomerRole', () => {
   });
 
   it('is false for every staff role', () => {
-    for (const role of ['super_admin', 'owner', 'manager', 'courier']) {
+    for (const role of ['owner', 'manager', 'courier']) {
       expect(isCustomerRole(role)).toBe(false);
     }
   });
 
   it('agrees with getRoleHomePath: a customer is exactly a role without a staff home', () => {
-    for (const role of ['super_admin', 'owner', 'manager', 'courier', 'customer', undefined]) {
+    for (const role of ['owner', 'manager', 'courier', 'customer', undefined]) {
       expect(isCustomerRole(role)).toBe(getRoleHomePath(role) === null);
     }
   });

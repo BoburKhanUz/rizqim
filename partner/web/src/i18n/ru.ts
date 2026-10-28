@@ -13,6 +13,7 @@ export const ru: Messages = {
   nav_staff: 'Сотрудники',
   nav_reports: 'Отчёты',
   nav_finance: 'Финансы',
+  nav_billing: 'Тариф и оплата',
   nav_settings: 'Настройки',
   nav_zones: 'Зоны доставки',
   nav_batches: 'Казан',

@@ -13,6 +13,7 @@ yorliq bilan ham ko'rsatiladi.
 | `PosQuantityStepper` | − miqdor +, eng kichigida "olib tashlash" |
 | `FloorMap`, `FloorTile`, `FloorStatusBadge` | Zal xaritasi: xona, tapchan, stol o'z joyida (`layout` x/y/w/h), holat, ochiq soatlar, mehmonlar, bron vaqti, summa |
 | `RoomSummaryCard` | Xona hisobi: holat, mehmonlar, ofitsiant, vaqt, bosqichlar, jami, avans, minimal summagacha qancha |
+| `PosLockChip`, `PosPlanButton`, `PosPlanNoticeBar` | Tarif qulflari (P4-21): "Asosiy tarifda bor" yorlig'i, yopiq amal tugmasi (o'chirilgan + sababi), to'lanmagan hisob-faktura lentasi. Faqat yangi yozuv uchun; to'lov, chek, smena va qaytarish hech qachon o'ralmaydi |
 
 PIN klaviaturasi va ekran qulfi — `rizqim_ui` dagi `RzPinEntry` / `RzPinPad` (bu yerda takrorlanmaydi).
 

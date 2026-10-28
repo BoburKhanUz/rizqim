@@ -35,6 +35,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string|null $void_reason
  * @property int|null $ledger_transaction_id
  * @property int|null $void_transaction_id
+ *
+ * P4-21
+ * @property \App\Enums\InvoiceKind $kind
+ * @property int $sequence
+ * @property numeric-string $paid_amount what the ledger has paid of it (subscription_debt is the rest)
  */
 class SubscriptionInvoice extends Model
 {
@@ -58,6 +63,10 @@ class SubscriptionInvoice extends Model
             'issued_at' => 'datetime',
             'paid_at' => 'datetime',
             'voided_at' => 'datetime',
+            // P4-21
+            'kind' => \App\Enums\InvoiceKind::class,
+            'sequence' => 'integer',
+            'paid_amount' => 'decimal:2',
         ];
     }
 
@@ -72,9 +81,19 @@ class SubscriptionInvoice extends Model
     }
 
     /**
+     * P4-21: what is still unpaid of it (0 for a void one).
+     */
+    public function outstanding(): Money
+    {
+        return $this->status === SubscriptionInvoiceStatus::VOID
+            ? Money::zero()
+            : Money::max(Money::zero(), $this->total()->minus($this->paid_amount ?? 0));
+    }
+
+    /**
      * The shape the owner API returns.
      *
-     * @return array{uuid: string, number: string, period: string, period_start: string, period_end: string, plan: array{code: string, name: string}|null, terminals_count: int, included_terminals: int, base_fee: float, fee_per_terminal: float, lines: list<array{type: string, label: string, quantity: int, unit_price: float, amount: float}>, amount: float, status: string, due_date: string, issued_at: string, paid_at: string|null, voided_at: string|null}
+     * @return array{uuid: string, number: string, period: string, period_start: string, period_end: string, plan: array{code: string, name: string}|null, terminals_count: int, included_terminals: int, base_fee: float, fee_per_terminal: float, lines: list<array{type: string, label: string, quantity: int, unit_price: float, amount: float}>, amount: float, kind: string, paid_amount: string, status: string, due_date: string, issued_at: string, paid_at: string|null, voided_at: string|null}
      */
     public function toPublicArray(): array
     {
@@ -97,6 +116,9 @@ class SubscriptionInvoice extends Model
                 'amount' => Money::of($line['amount'])->toFloat(),
             ], $this->lines)),
             'amount' => $this->total()->toFloat(),
+            // P4-21: yearly, upgrade or monthly; what the ledger paid of it, as a decimal string (new fields)
+            'kind' => $this->kind->value,
+            'paid_amount' => Money::of($this->paid_amount ?? 0)->toString(),
             'status' => $this->status->value,
             'due_date' => $this->due_date->toDateString(),
             'issued_at' => $this->issued_at->toIso8601String(),

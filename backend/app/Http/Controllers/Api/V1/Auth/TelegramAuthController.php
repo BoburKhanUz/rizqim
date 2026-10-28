@@ -12,6 +12,7 @@ use App\Models\Store;
 use App\Actions\Auth\ValidateTelegramInitDataAction;
 use App\Actions\Auth\AuthenticateTelegramUserAction;
 use App\Actions\Auth\GenerateAuthTokenAction;
+use App\Services\Auth\PlatformAccountSignInException;
 
 #[Group('Auth', "Kirish: Telegram, SMS kod, refresh token, chiqish, ruxsatlar (docs/AUTH.md).")]
 class TelegramAuthController extends Controller
@@ -26,6 +27,7 @@ class TelegramAuthController extends Controller
         protected \App\Services\Auth\TokenService $tokens,
     ) {}
 
+    #[ApiDocResponse(403, 'Superadmin yoki RIZQIM jamoasi hisobi: Telegram orqali kirish yopiq (`reason: platform_account`), yoki bu bot orqali kirib bo\'lmaydi', type: 'array{success: false, message: string, data: array{reason?: string}}')]
     #[ApiDocResponse(200, description: '`device` yuborilganda `token` qisqa muddatli bo\'ladi va refresh maydonlari qo\'shiladi.', type: 'array{success: true, message: string, data: array{token: string, user: User, store: Store|null, sms_verification_required: bool, token_expires_at?: string, refresh_token?: string, refresh_token_expires_at?: string, device?: array{uuid: string, type: string, name: string, platform: string|null, app_version: string|null, store_id: int|null, branch_id: int|null, user: array{id: int, name: string, role: string}|null, has_push_token: bool, last_seen_at: string|null, revoked_at: string|null, created_at: string|null}}}')]
     public function authenticate(Request $request): JsonResponse
     {
@@ -91,7 +93,12 @@ class TelegramAuthController extends Controller
         }
 
         // 3. Find or Create User
-        $user = $this->authenticateAction->execute($telegramUser, $store, $request->start_param, $botStore);
+        try {
+            $user = $this->authenticateAction->execute($telegramUser, $store, $request->start_param, $botStore);
+        } catch (PlatformAccountSignInException $e) {
+            // P4-25: superadmin and platform accounts sign in through the control center only
+            return $this->error($e->getMessage(), ['reason' => PlatformAccountSignInException::REASON], 403);
+        }
 
         if (!$user) {
             return $this->error("Bu bot orqali tizimga kirib bo'lmaydi. Iltimos, asosiy bot orqali kiring.", [], 403);

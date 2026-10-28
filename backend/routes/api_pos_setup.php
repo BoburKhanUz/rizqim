@@ -23,15 +23,17 @@ Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->group(functi
     // P3-26: the POS menu with a typed answer (the same as GET /catalog?channel=pos_hall|pos_takeaway)
     Route::get('/pos/catalog', [PosCatalogController::class, 'index'])->middleware('permission:menu.view');
 
+    // P4-21: kitchen stations are not changed while the subscription is locked (billing.unlocked); printers and the
+    // branch's POS settings are, so the till keeps printing
     Route::middleware(['not-staff-session', 'permission:settings.manage'])->group(function () {
         Route::get('/owner/kitchen-stations', [KitchenStationController::class, 'index']);
-        Route::post('/owner/kitchen-stations', [KitchenStationController::class, 'store']);
-        Route::patch('/owner/kitchen-stations/{id}', [KitchenStationController::class, 'update'])->where('id', RowId::ROUTE_PATTERN);
-        Route::delete('/owner/kitchen-stations/{id}', [KitchenStationController::class, 'destroy'])->where('id', RowId::ROUTE_PATTERN);
+        Route::post('/owner/kitchen-stations', [KitchenStationController::class, 'store'])->middleware('billing.unlocked');
+        Route::patch('/owner/kitchen-stations/{id}', [KitchenStationController::class, 'update'])->where('id', RowId::ROUTE_PATTERN)->middleware('billing.unlocked');
+        Route::delete('/owner/kitchen-stations/{id}', [KitchenStationController::class, 'destroy'])->where('id', RowId::ROUTE_PATTERN)->middleware('billing.unlocked');
 
         Route::get('/owner/kitchen-station-routes', [KitchenStationRouteController::class, 'index']);
-        Route::put('/owner/kitchen-station-routes', [KitchenStationRouteController::class, 'assign']);
-        Route::delete('/owner/kitchen-station-routes/{id}', [KitchenStationRouteController::class, 'destroy'])->where('id', RowId::ROUTE_PATTERN);
+        Route::put('/owner/kitchen-station-routes', [KitchenStationRouteController::class, 'assign'])->middleware('billing.unlocked');
+        Route::delete('/owner/kitchen-station-routes/{id}', [KitchenStationRouteController::class, 'destroy'])->where('id', RowId::ROUTE_PATTERN)->middleware('billing.unlocked');
 
         Route::get('/owner/printers', [PrinterController::class, 'index']);
         Route::post('/owner/printers', [PrinterController::class, 'store']);

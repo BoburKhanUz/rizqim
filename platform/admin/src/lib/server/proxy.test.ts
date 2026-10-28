@@ -165,4 +165,49 @@ describe('admin proxy', () => {
     expect(page.status).toBe(502);
     expect(JSON.stringify(await page.json())).not.toContain('html');
   });
+
+  describe('P4-23 files', () => {
+    it('passes a multipart upload of an adjustment on as it came, and refuses it anywhere else', async () => {
+      const calls: { contentType: string | null; size: number }[] = [];
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (_input: string | URL, init: RequestInit) => {
+          calls.push({ contentType: new Headers(init.headers).get('Content-Type'), size: (init.body as ArrayBuffer).byteLength });
+          return reply({ success: true, data: { id: 1 } }, 201);
+        }),
+      );
+      const form = new FormData();
+      form.set('reason', 'Akt');
+      form.set('document', new Blob(['%PDF-1.4'], { type: 'application/pdf' }), 'akt.pdf');
+      const upload = (path: string) =>
+        new NextRequest(`http://localhost:3100/api/backend/${path}`, { method: 'POST', headers: { Host: 'localhost:3100', Origin: 'http://localhost:3100', Cookie: `${SESSION_COOKIE}=tok` }, body: form });
+
+      const ok = await forward(upload('v1/admin/finance/adjustments'), ['v1', 'admin', 'finance', 'adjustments']);
+      expect(ok.status).toBe(201);
+      expect(calls[0]?.contentType).toMatch(/^multipart\/form-data; ?boundary=/);
+      expect(calls[0]?.size).toBeGreaterThan(8);
+
+      const elsewhere = await forward(upload('v1/admin/team'), ['v1', 'admin', 'team']);
+      expect(elsewhere.status).toBe(415);
+      expect(calls).toHaveLength(1);
+    });
+
+    it('passes the Excel export on as a file, but never a file from another path or of another type', async () => {
+      const xlsx = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      stubBackend(() => new Response(new Uint8Array([80, 75, 3, 4]), { status: 200, headers: { 'Content-Type': xlsx, 'Content-Disposition': 'attachment; filename=rizqim-daromad-2026-10.xlsx' } }));
+      const file = await forward(request('GET', 'v1/admin/finance/reports/monthly/export?period=2026-10', { cookie: 'tok' }), ['v1', 'admin', 'finance', 'reports', 'monthly', 'export']);
+      expect(file.status).toBe(200);
+      expect(file.headers.get('Content-Type')).toBe(xlsx);
+      expect(file.headers.get('Content-Disposition')).toContain('rizqim-daromad-2026-10.xlsx');
+      expect(new Uint8Array(await file.arrayBuffer())).toEqual(new Uint8Array([80, 75, 3, 4]));
+
+      // Not a download path: the bytes never pass (said as a bad gateway answer)
+      const other = await forward(request('GET', 'v1/admin/team', { cookie: 'tok' }), ['v1', 'admin', 'team']);
+      expect((await other.json()).data.reason).toBe('bad_gateway');
+
+      stubBackend(() => new Response('<html>', { status: 200, headers: { 'Content-Type': 'text/html' } }));
+      const html = await forward(request('GET', 'v1/admin/finance/adjustments/3/document', { cookie: 'tok' }), ['v1', 'admin', 'finance', 'adjustments', '3', 'document']);
+      expect((await html.json()).data.reason).toBe('bad_gateway');
+    });
+  });
 });

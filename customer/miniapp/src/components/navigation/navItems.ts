@@ -1,13 +1,10 @@
 import {
-  Activity,
   BarChart3,
-  Building2,
   ClipboardList,
   Home as HomeIcon,
   LayoutGrid,
   List,
   PackageX,
-  PlusCircle,
   ShoppingBag,
   User as UserIcon,
   Users,
@@ -34,12 +31,6 @@ const CUSTOMER: NavItem[] = [
 ];
 
 const STAFF: Partial<Record<UserRole, NavItem[]>> = {
-  super_admin: [
-    { to: '/superadmin/dashboard', icon: Activity, labelKey: 'nav_home' },
-    { to: '/superadmin/stores', icon: Building2, labelKey: 'nav_stores' },
-    { to: '/superadmin/stores/create', icon: PlusCircle, labelKey: 'nav_add' },
-    PROFILE,
-  ],
   owner: [
     { to: '/admin/analytics', icon: BarChart3, labelKey: 'nav_analytics' },
     { to: '/admin/catalog', icon: LayoutGrid, labelKey: 'nav_menu' },

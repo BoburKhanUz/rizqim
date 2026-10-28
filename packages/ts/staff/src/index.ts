@@ -91,7 +91,6 @@ export * from './api/team';
 export * from './api/settings';
 export * from './api/payments';
 export * from './api/analytics';
-export * from './api/superadmin';
 
 // TanStack Query hooks
 export { setDefaultStaffApi, StaffApiProvider, useStaffApi } from './hooks/context';
@@ -136,3 +135,8 @@ export * from './hooks/shifts';
 // P3-37: the role permission table of the partner web's "Huquqlar" page (GET/PUT /owner/permissions)
 export * from './api/permissions';
 export * from './hooks/permissions';
+
+// P4-21: what the plan lets the store use (GET /owner/billing/entitlements): "Asosiy tarifda bor" locks, the unpaid-invoice
+// notice and the server's plan refusals
+export * from './api/entitlements';
+export * from './hooks/entitlements';

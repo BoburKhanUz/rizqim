@@ -32,7 +32,6 @@ const stubs: Record<string, string> = {
   AdminAnalytics: 'Analitika sahifasi',
   ManagerDashboard: 'Menejer sahifasi',
   CourierDashboard: 'Kuryer sahifasi',
-  SuperadminDashboard: 'Superadmin sahifasi',
   Orders: 'Buyurtmalar sahifasi',
   StoreDetail: 'Restoran sahifasi',
   CategoryDetail: 'Turkum sahifasi',
@@ -44,7 +43,6 @@ vi.mock('./pages/Profile', () => ({ default: () => <p>{stubs.Profile}</p> }));
 vi.mock('./pages/AdminAnalytics', () => ({ default: () => <p>{stubs.AdminAnalytics}</p> }));
 vi.mock('./pages/ManagerDashboard', () => ({ default: () => <p>{stubs.ManagerDashboard}</p> }));
 vi.mock('./pages/CourierDashboard', () => ({ default: () => <p>{stubs.CourierDashboard}</p> }));
-vi.mock('./pages/SuperadminDashboard', () => ({ default: () => <p>{stubs.SuperadminDashboard}</p> }));
 vi.mock('./pages/Orders', () => ({ default: () => <p>{stubs.Orders}</p> }));
 vi.mock('./pages/StoreDetail', () => ({ default: () => <p>{stubs.StoreDetail}</p> }));
 vi.mock('./pages/CategoryDetail', () => ({ default: () => <p>{stubs.CategoryDetail}</p> }));
@@ -85,7 +83,6 @@ describe('where "/" leads', () => {
     ['owner', '/admin/analytics', stubs.AdminAnalytics],
     ['manager', '/manager', stubs.ManagerDashboard],
     ['courier', '/courier', stubs.CourierDashboard],
-    ['super_admin', '/superadmin/dashboard', stubs.SuperadminDashboard],
   ] as const)('sends a %s to %s', async (role, path, pageText) => {
     signInAs(role);
     openApp('/');
@@ -93,6 +90,19 @@ describe('where "/" leads', () => {
     expect(await screen.findByText(pageText)).toBeInTheDocument();
     expect(window.location.pathname).toBe(path);
     expect(screen.queryByText(stubs.Home)).not.toBeInTheDocument();
+  });
+});
+
+// P4-25: superadmins work in the control center; the Mini App has no screen, route or tab for them
+describe('superadmin screens', () => {
+  it.each(['/superadmin/dashboard', '/superadmin/stores', '/superadmin/stores/create'])('has no route for %s', async (path) => {
+    signInAs('owner');
+    openApp(path);
+
+    // The app renders (the owner's tabs are there) but no page answers this path
+    expect(await screen.findByText('Analitika')).toBeInTheDocument();
+    expect(screen.queryByText(stubs.AdminAnalytics)).not.toBeInTheDocument();
+    expect(screen.queryByText(/superadmin/i)).not.toBeInTheDocument();
   });
 });
 
@@ -104,7 +114,7 @@ describe('/profile', () => {
     expect(await screen.findByText(stubs.CustomerProfile)).toBeInTheDocument();
   });
 
-  it.each(['owner', 'manager', 'courier', 'super_admin'] as const)('is the staff profile for a %s', async (role) => {
+  it.each(['owner', 'manager', 'courier'] as const)('is the staff profile for a %s', async (role) => {
     signInAs(role);
     openApp('/profile');
 
@@ -128,7 +138,6 @@ describe('navigation bar', () => {
     ['owner', ['Analitika', 'Menyu', 'Buyurtmalar', 'Xodimlar', 'Profil']],
     ['manager', ['Buyurtmalar', 'Profil']],
     ['courier', ['Yetkazmalar', 'Profil']],
-    ['super_admin', ['Asosiy', 'Restoranlar', "Qo'shish", 'Profil']],
   ] as const)('gives a %s only their own tabs', async (role, labels) => {
     signInAs(role);
     openApp('/profile');

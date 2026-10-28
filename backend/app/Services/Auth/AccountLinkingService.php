@@ -32,6 +32,7 @@ class AccountLinkingService
      * @return array{user: User, created: bool}
      *
      * @throws AccountLinkConflictException
+     * @throws PlatformAccountSignInException a superadmin / platform account holds the phone and no customer does
      */
     public function customerForVerifiedPhone(string $phone): array
     {
@@ -46,11 +47,28 @@ class AccountLinkingService
                 return ['user' => $matches->first(), 'created' => false];
             }
 
+            // P4-25: no customer account for a number that belongs to the control center's team
+            if ($this->platformAccountHoldsPhone($phone)) {
+                throw new PlatformAccountSignInException();
+            }
+
             $user = new User(['name' => 'Mijoz', 'role' => UserRole::CUSTOMER]);
             $user->forceFill(['phone' => $phone, 'phone_verified_at' => now(), 'phone_verified_via' => User::PHONE_VIA_SMS])->save();
 
             return ['user' => $user, 'created' => true];
         });
+    }
+
+    /**
+     * Whether a superadmin / platform account holds $phone (verified or not): such a phone never signs anybody in by
+     * SMS code and never gets a new customer account.
+     */
+    public function platformAccountHoldsPhone(string $phone): bool
+    {
+        return User::where('phone', $phone)
+            ->where(fn ($query) => $query->whereNotNull('platform_role')
+                ->orWhereIn('role', [UserRole::SUPER_ADMIN->value, UserRole::PLATFORM->value]))
+            ->exists();
     }
 
     /**

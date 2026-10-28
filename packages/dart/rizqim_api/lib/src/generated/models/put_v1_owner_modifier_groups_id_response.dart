@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data83.dart';
+import 'data84.dart';
 
 part 'put_v1_owner_modifier_groups_id_response.g.dart';
 
@@ -22,7 +22,7 @@ class PutV1OwnerModifierGroupsIdResponse {
 
   final bool success;
   final String message;
-  final Data83 data;
+  final Data84 data;
 
   Map<String, Object?> toJson() =>
       _$PutV1OwnerModifierGroupsIdResponseToJson(this);

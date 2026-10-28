@@ -432,6 +432,8 @@ Qurilma bilan boshqa amallar (qalam va to'siq belgilari):
 - **O'chirilganlarni ham ko'rsatish** — eski qurilmalarni ko'rsatadi.
 
 Eslatma: kassa va oshxona ekrani terminallari soni oylik to'lovga ta'sir qilishi mumkin (tarifga qarang, [Moliya](#12-moliya)).
+Oshxona ekrani **Asosiy** tarifdan boshlab bor; Start tarifda **Kod yaratish** o'chiq turadi. Tarifdagidan ortiq qurilma har oy
+qo'shimcha to'lanadi; to'lanmagan hisob-faktura sababli sozlamalar yopilganda esa ortiqcha qurilma ulanmaydi.
 
 ## 9. Filiallar va ish vaqti
 
@@ -542,6 +544,55 @@ Hammasida **Turi**, **Holati** bo'yicha filtr va sahifalash bor.
 - "Tarif biriktirilmagan" yozuvi bo'lsa, oylik to'lov yo'q, komissiya do'konning o'z foizida olinadi.
   Tarifni Rizqim jamoasi biriktiradi.
 
+### Tarif va to'lov sahifasi
+
+Chap menyuda **Tarif va to'lov** (Moliya ruxsati bor xodimga ko'rinadi). Bu sahifada:
+
+- **Joriy tarif** — Start, Asosiy yoki Pro; holati (**Sinov davri**, **Faol**, **To'lov muddati o'tgan**, **Sozlamalar yopiq**),
+  **To'lov davri** (oylik yoki yillik), **Oylik narx**, **Joriy davr**. Sinov davrida "Sinov davri: 5 kun qoldi" yoziladi;
+  sinov 14 kun, hisob-faktura chiqmaydi.
+- **Qurilmalar** — kassa va oshxona ekrani: tarifga nechta kiradi, hozir nechta faol (`1 / 1 ta`). Tarifdan ortiqlari uchun
+  oyiga qo'shimcha narx: **qo'shimcha kassa 59 000 so'm**, **qo'shimcha oshxona ekrani 29 000 so'm**. Ofitsiant telefonlari
+  **cheksiz va bepul**.
+- **Funksiyalar** — tarifga nima kirgani: **Bron**, **Bo'nak (avans)**, **Nasiya**, **Oshxona ekrani (KDS)**, **Xizmat haqi**,
+  **Filiallar hisoboti**, **Yandex va Uzum buyurtmalari**, **Banket**. Tarifda yo'qlari yonida qaysi tarifda borligi yoziladi:
+  **Asosiy tarifda bor** yoki **Pro tarifda bor**. Zal, xona puli, choy-non, smena va RIZQIM buyurtmalari har tarifda bor.
+- **Hisob-fakturalar** — raqam, davr, summa, **Qoldiq** (hali to'lanmagani), to'lov muddati va holati; muddati o'tganiga
+  **Muddati o'tgan** belgisi qo'yiladi.
+- **Qanday to'lanadi** — Moliya sahifasida **Balansni to'ldirish** (Click yoki Payme). To'lov avval eng eski hisob-fakturani
+  yopadi, qolgani komissiya qarziga o'tadi. Hisob-faktura to'liq yopilishi bilan cheklovlar **darhol** ochiladi.
+
+### "Asosiy tarifda bor" yozuvi
+
+Tarifda yo'q imkoniyat o'z sahifasida xato bilan emas, tushuntirish bilan ko'rinadi. Masalan Start tarifda:
+
+- **Bronlar** sahifasida **Bron — Asosiy tarifda bor** lentasi chiqadi, **Bron qo'shish** tugmasi o'chiq turadi; taqvim va mavjud
+  bronlar ochiq qoladi.
+- **Nasiya** sahifasida **Hisob ochish** o'chiq; mavjud hisoblar, ko'chirma va qarzdorlar ro'yxati ishlayveradi.
+- **Sozlamalar → Xizmat haqi**da **Foiz** maydoni o'chiq (**Xizmat haqi Asosiy tarifda bor. Hozir faqat joy puli sozlanadi.**);
+  joy narxini o'zgartirish mumkin. Xuddi shunday zalning o'z xizmat haqi oynasida.
+- **Qurilmalar → Ulash kodini yaratish**da **Turi: Oshxona ekrani** tanlansa, "Oshxona ekrani (KDS) Asosiy tarifda bor" yoziladi
+  va **Kod yaratish** o'chiq turadi.
+
+Sahifa eskirib qolgan bo'lsa-yu, server baribir rad etsa, shu gap qizil xabar bilan chiqadi: "Bron Asosiy tarifda bor. Hozirgi
+tarifingizda yo'q." Tarifni Rizqim jamoasi o'zgartiradi; o'zgargach sahifani yangilang.
+
+### To'lanmagan hisob-faktura: lenta va cheklov
+
+Hisob-faktura muddatidan keyin panelning tepasida (har sahifada) lenta chiqadi:
+
+| Qachon | Lenta | Nima bo'ladi |
+|---|---|---|
+| muddatdan 1, 3 va 7-kuni | **To'lov muddati o'tdi — X kundan keyin sozlamalar yopiladi** (sariq) | hamma ishlaydi; Telegramga ham eslatma keladi |
+| muddatdan 8-kunidan | **Sozlamalar yopiq — to'lov qiling** (qizil) | yangi sozlamalar va tarifdan ortiq imkoniyatlar yopiladi |
+
+Lentada hisob-faktura raqami, qoldiq va **To'lash** tugmasi (Tarif va to'lov sahifasiga) bor.
+
+**Yopilganda nima o'zgarmaydi:** kassa to'lov qabul qiladi, schyot yopadi, chek (fiskal ham) chiqaradi, smena va pulni qaytarishni
+bajaradi; menyu, stop-list, xodimlar, printerlar va filialning kassa sozlamalari ham ochiq qoladi. **Nima yopiladi:** xizmat haqi
+va joy narxi, zal va stollar, xona narxlari, choy-non sozlamalari, sexlar, tarifdagidan ortiq yangi qurilma (buzilgan qurilmani
+o'chirib, o'rniga yangisini ulash mumkin). To'lov tushishi bilan hammasi darhol ochiladi.
+
 ## 13. Xatolar va yechimlar
 
 | Xabar yoki holat | Nima qilish kerak |
@@ -556,3 +607,5 @@ Hammasida **Turi**, **Holati** bo'yicha filtr va sahifalash bor.
 | Buyurtma o'zi chiqmayapti | **Jonli** o'rniga "Har 15 soniyada yangilanadi" yozilgan bo'lsa, kuting — ro'yxat baribir yangilanadi |
 | Menyu bo'limi yo'q | Sizda menyuni ko'rish ruxsati yo'q |
 | Planshet kodni qabul qilmayapti | Kod 10 daqiqada eskiradi va bir marta ishlaydi: **Yangi kod** yarating |
+| Tugma o'chiq, yonida **Asosiy tarifda bor** | Tarifingizda bu imkoniyat yo'q ([Tarif va to'lov sahifasi](#tarif-va-tolov-sahifasi)). Tarifni Rizqim jamoasi o'zgartiradi |
+| Tepada sariq yoki qizil lenta **To'lov muddati o'tdi** / **Sozlamalar yopiq** | Hisob-faktura to'lanmagan: **To'lash** → Moliya → **Balansni to'ldirish**. To'lov tushishi bilan lenta yo'qoladi, kassa hech qachon to'xtamaydi |

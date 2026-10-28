@@ -7,13 +7,25 @@ part of 'data140.dart';
 // **************************************************************************
 
 Data140 _$Data140FromJson(Map<String, dynamic> json) => Data140(
-  accounts: (json['accounts'] as List<dynamic>)
-      .map((e) => Accounts.fromJson(e as Map<String, dynamic>))
+  channel: Channel6.fromJson(json['channel'] as String),
+  menuVersion: json['menu_version'] as String,
+  branch: Branch12.fromJson(json['branch'] as Map<String, dynamic>),
+  categories: (json['categories'] as List<dynamic>)
+      .map((e) => Category.fromJson(e as Map<String, dynamic>))
       .toList(),
-  meta: Meta.fromJson(json['meta'] as Map<String, dynamic>),
+  products: (json['products'] as List<dynamic>)
+      .map((e) => Products.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  availability: Availability.fromJson(
+    json['availability'] as Map<String, dynamic>,
+  ),
 );
 
 Map<String, dynamic> _$Data140ToJson(Data140 instance) => <String, dynamic>{
-  'accounts': instance.accounts,
-  'meta': instance.meta,
+  'channel': instance.channel,
+  'menu_version': instance.menuVersion,
+  'branch': instance.branch,
+  'categories': instance.categories,
+  'products': instance.products,
+  'availability': instance.availability,
 };

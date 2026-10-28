@@ -214,9 +214,8 @@ export class FakeApi {
       manager: 'Bobur Menejer',
       courier: 'Jasur Kuryer',
       owner: 'Olim Egasi',
-      super_admin: 'Super Admin',
     }
-    const ids: Record<UserRole, number> = { customer: 1, manager: 2, courier: 3, owner: 4, super_admin: 5 }
+    const ids: Record<UserRole, number> = { customer: 1, manager: 2, courier: 3, owner: 4 }
     this.user = makeUser({
       id: ids[role],
       telegram_id: TELEGRAM_ID,
@@ -319,7 +318,7 @@ export class FakeApi {
   }
 
   private userStore(): Store | null {
-    return this.user.role === 'super_admin' ? null : { ...this.store, branches: [] }
+    return { ...this.store, branches: [] }
   }
 
   private storeListItem(): StoreListItem {

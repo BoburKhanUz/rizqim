@@ -2,7 +2,7 @@ import type { Decimal } from './api';
 import type { Branch, Store } from './store';
 
 // Mirrors App\Enums\UserRole.
-export type UserRole = 'super_admin' | 'owner' | 'manager' | 'courier' | 'customer';
+export type UserRole = 'owner' | 'manager' | 'courier' | 'customer';
 
 // A user exactly as the API serializes it (App\Models\User; `password` and `remember_token` are hidden).
 export interface ApiUser {

@@ -267,6 +267,11 @@ class FakePosState {
   final Map<String, Map<String, Object?>> orders =
       <String, Map<String, Object?>>{};
 
+  /// P4-21: do'kon tarifi (`entitlements` bloki: bootstrap'da va `GET /owner/billing/entitlements` da). `null` — eski
+  /// server: bloki yo'q, hamma narsa ochiq. [FakeCashierBackend] yopiq funksiyaning yangi yozuvini 403
+  /// `plan_feature_missing` bilan rad etadi; to'lov, schyot, chek, smena va qaytarish hech qachon.
+  Map<String, Object?>? entitlements;
+
   /// Server javob bermaydigan yo'llar (sinash uchun): yo'l qismi → status.
   final Map<String, int> failPaths = <String, int>{};
 
@@ -738,6 +743,10 @@ class FakePosState {
     if (method == 'GET' && p == '/v1/pos/bootstrap') {
       return _ok(_bootstrap(member));
     }
+    if (method == 'GET' && p == '/v1/owner/billing/entitlements') {
+      final Map<String, Object?>? plan = entitlements;
+      return plan == null ? _notFound() : _ok(plan);
+    }
     if (method == 'GET' && p == '/v1/catalog') {
       return _catalog(query['channel']);
     }
@@ -1089,6 +1098,7 @@ class FakePosState {
         ],
         'halls': halls,
         'tables': tables,
+        'entitlements': ?entitlements,
         'shift': shift == null
             ? null
             : <String, Object?>{

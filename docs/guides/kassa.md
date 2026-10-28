@@ -141,6 +141,34 @@ Aloqa belgisi:
 - **Har 15 soniyada** — jonli ulanish yo'q, ekran har 15 soniyada o'zi yangilanadi. Ishlash mumkin.
 - **Server javob bermayapti** — internet yoki server yo'q (qarang: [Internet uzilsa](#20-internet-uzilsa)).
 
+### Tarif qulflari va to'lanmagan hisob-faktura
+
+Do'kon tarifi (Start, Asosiy, Pro) ba'zi imkoniyatlarni o'z ichiga olmasligi mumkin. Bunday imkoniyatning **yangi yozuvi** kassada
+o'chiq turadi va yonida **Asosiy tarifda bor** (yoki **Pro tarifda bor**) yozuvi chiqadi:
+
+| Qayerda | Nima o'chiq | Nima ishlayveradi |
+|---|---|---|
+| **Bronlar** | **Yangi bron** va bo'sh katakni bosib bron qo'shish | taqvim, mavjud bronlar, **Keldi**, tasdiqlash, bekor qilish |
+| Bron sahifasida **Avans** | **Avans olish** | olingan avans, uni qaytarish, ushlab qolish va schyotga ayirish |
+| **Nasiya** va to'lov oynasi | **Yangi hisob**, **Yangi hisob ochish** | mavjud hisoblar, ko'chirma, **Qarz to'lovi**, schyotni mavjud hisobga nasiyaga yozish |
+| Buyurtmadagi **Xizmat haqi** | olib tashlangan xizmat haqini **Qaytarish** | xizmat haqini **Olib tashlash**, schyot va to'lov |
+
+**Hech qachon o'chmaydi:** to'lov qabul qilish, schyot tuzish va yopish, chek (fiskal ham), smena, kirim-chiqim, X va Z,
+pulni qaytarish va internetsiz rejim. Tarif yoki qarz kassani to'xtatmaydi.
+
+Tarif ega to'lov qilgach yoki tarifni almashtirgach o'zgaradi. Kassa buni o'zi bilib oladi (taxminan 10 daqiqada) yoki qayta
+kirganingizda. Tugma o'chiq tursa-yu, egasi "tarifda bor" desa — ekranni qulflab, PIN bilan qayta kiring.
+
+Agar do'kon **hisob-fakturani to'lamagan** bo'lsa, kassaning tepasida rangli lenta chiqadi:
+
+- **To'lov muddati o'tdi — 4 kundan keyin sozlamalar yopiladi** (sariq) — hisob-faktura muddati o'tgan, hali hammasi ishlaydi.
+  Lentada hisob-faktura raqami va qoldiq summa yoziladi.
+- **Sozlamalar yopiq — to'lov qiling** (qizil) — muddatdan 7 kun o'tgan: yangi sozlamalar va tarifdan ortiq imkoniyatlar
+  yopiladi. **Kassa baribir to'lov qabul qiladi, chek chiqaradi, smena va qaytarishni bajaradi.**
+
+To'lovni kassir emas, **ega** qiladi: hamkor panelida **Tarif va to'lov**. To'lov tushishi bilan lenta o'zi yo'qoladi. Lenta
+uchun siz hech narsa qilmaysiz: ishlashda davom eting va egaga ayting.
+
 ## 4. Smenani ochish
 
 Smena ochiq bo'lmasa, to'lov qabul qilib bo'lmaydi. Smenani ish boshlashdan oldin oching.
@@ -559,6 +587,9 @@ soatlar. Band soatlarda bron nomi va vaqti ko'rinadi. **Xonasiz bronlar** alohid
 
 ### Yangi bron
 
+Tarifda **Bron** bo'lmasa (Start), **Yangi bron** o'chiq turadi va yonida **Asosiy tarifda bor** yozilgan, bo'sh katak bosilsa ham
+forma ochilmaydi: sababi aytiladi ([3-bo'lim](#tarif-qulflari-va-tolanmagan-hisob-faktura)). Mavjud bronlar bilan ishlash davom etadi.
+
 1. Bo'sh katakni bosing (o'sha xona va soat tanlanadi) yoki **Yangi bron**.
 2. To'ldiring: **Xona yoki joy**, **Sana va vaqt**, **Davomiyligi** (standart — filial sloti, odatda 4–5 soat), **Mehmonlar**,
    **Tadbir** (Gap, Ziyofat, Tug'ilgan kun, Nahor oshi, Korporativ, Boshqa), **Mijoz ismi**, **Telefon**, **Qayerdan**
@@ -624,6 +655,9 @@ Bron sahifasida yoki formada **Oldindan buyurtma** bo'limi: osh, qozon kabob, se
 
 ### Avans
 
+Tarifda **Bo'nak (avans)** bo'lmasa, **Avans olish** o'chiq turadi (**Asosiy tarifda bor**); oldin olingan avansni qaytarish,
+ushlab qolish va schyotga ayirish ishlayveradi.
+
 Bron sahifasida **Avans** bo'limi:
 
 1. **Avans olish** → **Avans summasi** → to'lov turi (naqd, karta, QR; karta bo'lsa tur va tranzaksiya raqami).
@@ -671,6 +705,8 @@ telefon, limit. Hisobni menejer yoki ega ochadi.
 4. To'lovni tasdiqlang → **menejer PIN'i** (nasiya doim menejer tasdig'i bilan).
 
 Hisob topilmasa va sizda hisob ochish huquqi bo'lmasa, menejerni chaqiring: kassirda **Yangi hisob** tugmasi chiqmaydi.
+Tarifda **Nasiya** bo'lmasa (Start), yangi hisob ochib bo'lmaydi: **Yangi hisob ochish** o'chiq va yonida **Asosiy tarifda bor**
+yozuvi turadi. Mavjud hisobga nasiyaga yozish va qarz to'lovi tarifga bog'liq emas.
 Bloklangan hisobga yangi nasiya yozilmaydi.
 
 Nasiyaga yopilganda kassaga pul tushmaydi. Sotuv cheki baribir **to'liq summaga** chiqadi (to'lovgacha kechiktirilmaydi). X
@@ -884,6 +920,8 @@ qayta bosing** — u ikki marta yozilmaydi va menejer PIN'i qayta so'ralmaydi.
 | **PIN noto'g'ri** | Qayta tering. Ko'p xato bo'lsa kuting. Unutgan bo'lsangiz, menejer panelda yangi PIN o'rnatadi |
 | Ismim PIN ekranida yo'q | Sizga PIN qo'yilmagan. Menejerdan so'rang, keyin **Yangilash** |
 | Bo'limlardan biri ko'rinmayapti (**Bronlar**, **Nasiya**, **Smena**) | Rolingizda ruxsat yo'q. Egaga ayting |
+| **Yangi bron**, **Avans olish** yoki **Yangi hisob** o'chiq, yonida **Asosiy tarifda bor** | Do'kon tarifida bu imkoniyat yo'q. Egaga ayting: tarifni **Tarif va to'lov** sahifasida ko'radi. Kassaning to'lov, chek va smenasi ishlayveradi ([3-bo'lim](#tarif-qulflari-va-tolanmagan-hisob-faktura)) |
+| Tepada sariq yoki qizil lenta: **To'lov muddati o'tdi** / **Sozlamalar yopiq** | Do'kon hisob-fakturasi to'lanmagan. Egaga ayting; kassa to'xtamaydi, ega to'lagach lenta yo'qoladi |
 | "Bu terminalda PIN o'rnatilgan menejer yo'q" | Menejer tasdig'i uchun menejerga PIN o'rnatilishi kerak (**Xodimlar** bo'limi) |
 | To'lov: "Smena ochilmagan" / **Smenani ochish** chiqdi | [Smenani oching](#4-smenani-ochish) |
 | To'lov yoki qaytarish: "Smena shu orada yopildi" | Boshqa kassa yoki menejer Z bilan smenani yopdi, pul olinmadi. Yangi smena oching va qayta bajaring |

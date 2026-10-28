@@ -198,6 +198,16 @@ class User extends Authenticatable implements FilamentUser, HasTenants, HasAppAu
         return $this->platform_role !== null && $this->platform_disabled_at === null;
     }
 
+    /**
+     * P4-25: a superadmin or RIZQIM team account (also one whose role and platform role are out of step). Such an account
+     * only ever holds an admin session token: Telegram / phone sign-in, store and customer tokens are refused for it.
+     */
+    public function isPlatformAccount(): bool
+    {
+        return $this->platform_role !== null
+            || in_array($this->role, [\App\Enums\UserRole::SUPER_ADMIN, \App\Enums\UserRole::PLATFORM], true);
+    }
+
     public function isPlatformSuperadmin(): bool
     {
         return $this->platform_role === \App\Enums\PlatformRole::SUPERADMIN;

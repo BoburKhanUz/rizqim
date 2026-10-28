@@ -15,6 +15,12 @@ export const SECURE_SESSION_COOKIE_NAME = `__Host-${SESSION_COOKIE_NAME}`;
 export const sessionCookieName = (): string => (secureCookies() ? SECURE_SESSION_COOKIE_NAME : SESSION_COOKIE_NAME);
 const BACKEND_TIMEOUT_MS = 20_000;
 const MAX_BODY_BYTES = 256 * 1024;
+// P4-23: the only calls that send a file (multipart/form-data, raw bytes passed on) and how big it may be
+const UPLOAD_PATHS = /^v1\/admin\/finance\/adjustments$/;
+const MAX_UPLOAD_BYTES = 11 * 1024 * 1024;
+// P4-23: the only answers passed on as a file (the monthly report's Excel, an adjustment's document), and their types
+const DOWNLOAD_PATHS = /^v1\/admin\/finance\/(?:reports\/monthly\/export|adjustments\/\d{1,18}\/document)$/;
+const DOWNLOAD_TYPES = /^(?:application\/vnd\.openxmlformats-officedocument\.spreadsheetml\.sheet|application\/pdf|image\/(?:jpeg|png|webp))(?:;|$)/i;
 // Cookie lifetime when the backend sends no expiry: the absolute session limit
 const FALLBACK_MAX_AGE_S = 12 * 60 * 60;
 
@@ -83,10 +89,21 @@ async function forwardCall(request: NextRequest, segments: string[]): Promise<Ne
   const write = request.method !== 'GET' && request.method !== 'HEAD';
   if (write && !isSameOrigin(request)) return jsonError(403, 'Ruxsat etilmagan so\'rov.', 'cross_origin');
 
-  let body: string | undefined;
-  if (write) {
+  let body: string | ArrayBuffer | undefined;
+  let contentType: string | null = null;
+  const multipart = /^multipart\/form-data;\s*boundary=/i.test(request.headers.get('content-type') ?? '');
+  if (write && multipart) {
+    // P4-23: a file goes only to the paths that take one, as it came (the boundary is in its Content-Type)
+    if (!UPLOAD_PATHS.test(path)) return jsonError(415, "Bu so'rov fayl qabul qilmaydi.", 'unsupported_media_type');
+    const declared = Number(request.headers.get('content-length') ?? '0');
+    if (declared > MAX_UPLOAD_BYTES) return jsonError(413, 'Fayl juda katta.', 'too_large');
+    body = await request.arrayBuffer();
+    if (body.byteLength > MAX_UPLOAD_BYTES) return jsonError(413, 'Fayl juda katta.', 'too_large');
+    contentType = request.headers.get('content-type');
+  } else if (write) {
     body = await request.text();
     if (body.length > MAX_BODY_BYTES) return jsonError(413, 'So\'rov juda katta.', 'too_large');
+    if (body) contentType = 'application/json';
   }
 
   const token = request.cookies.get(sessionCookieName())?.value;
@@ -100,7 +117,7 @@ async function forwardCall(request: NextRequest, segments: string[]): Promise<Ne
       method: request.method,
       headers: {
         Accept: 'application/json',
-        ...(body ? { 'Content-Type': 'application/json' } : {}),
+        ...(contentType ? { 'Content-Type': contentType } : {}),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...(ip ? { 'X-Forwarded-For': ip } : {}),
         // The audit log records the browser, not this server
@@ -114,6 +131,18 @@ async function forwardCall(request: NextRequest, segments: string[]): Promise<Ne
     });
   } catch {
     return jsonError(502, 'Serverga ulanib bo\'lmadi.', 'unreachable');
+  }
+
+  // P4-23: a file answer of an allowed download path is passed on as bytes, with its name; anything else stays JSON-only
+  const upstreamType = upstream.headers.get('content-type') ?? '';
+  if (request.method === 'GET' && upstream.ok && DOWNLOAD_PATHS.test(path) && DOWNLOAD_TYPES.test(upstreamType)) {
+    const file = new NextResponse(await upstream.arrayBuffer(), { status: 200 });
+    file.headers.set('Content-Type', upstreamType);
+    const disposition = upstream.headers.get('content-disposition');
+    if (disposition) file.headers.set('Content-Disposition', disposition);
+    file.headers.set('Cache-Control', 'private, no-store');
+    file.headers.set('X-Content-Type-Options', 'nosniff');
+    return file;
   }
 
   const text = await upstream.text();

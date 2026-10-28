@@ -4,9 +4,9 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'branch6.dart';
-import 'polygon4.dart';
-import 'bbox4.dart';
+import 'branch5.dart';
+import 'polygon3.dart';
+import 'bbox3.dart';
 
 part 'data45.g.dart';
 
@@ -36,9 +36,9 @@ class Data45 {
   final String name;
   @JsonKey(name: 'branch_id')
   final int? branchId;
-  final Branch6? branch;
-  final Polygon4 polygon;
-  final Bbox4 bbox;
+  final Branch5? branch;
+  final Polygon3 polygon;
+  final Bbox3 bbox;
   @JsonKey(name: 'area_km2')
   final String areaKm2;
   @JsonKey(name: 'delivery_price')

@@ -7,8 +7,8 @@ part of 'data119.dart';
 // **************************************************************************
 
 Data119 _$Data119FromJson(Map<String, dynamic> json) => Data119(
-  bill: Bill2.fromJson(json['bill'] as Map<String, dynamic>),
-  order: Order5.fromJson(json['order'] as Map<String, dynamic>),
+  bill: Bill.fromJson(json['bill'] as Map<String, dynamic>),
+  order: Order4.fromJson(json['order'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data119ToJson(Data119 instance) => <String, dynamic>{

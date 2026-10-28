@@ -24,6 +24,15 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property bool $cancel_at_period_end
  * @property \Illuminate\Support\Carbon|null $cancelled_at
  * @property int|null $created_by
+ *
+ * P4-21 (docs/BILLING.md)
+ * @property \App\Enums\BillingPeriod $billing_period
+ * @property \App\Enums\BillingPeriod|null $next_billing_period
+ * @property \Illuminate\Support\Carbon|null $term_ends_at end of the yearly term paid in advance
+ * @property int|null $prorate_from_plan_id the plan an immediate upgrade came from (the first month's credit)
+ * @property int|null $price_lock_plan_id a P1-23 plan whose price caps this row's periods until price_locked_until
+ * @property \Illuminate\Support\Carbon|null $price_locked_until
+ * @property \Illuminate\Support\Carbon|null $locked_at when the dunning routine locked it
  */
 class StoreSubscription extends Model
 {
@@ -39,6 +48,12 @@ class StoreSubscription extends Model
             'current_period_end' => 'datetime',
             'cancel_at_period_end' => 'boolean',
             'cancelled_at' => 'datetime',
+            // P4-21
+            'billing_period' => \App\Enums\BillingPeriod::class,
+            'next_billing_period' => \App\Enums\BillingPeriod::class,
+            'term_ends_at' => 'datetime',
+            'price_locked_until' => 'datetime',
+            'locked_at' => 'datetime',
         ];
     }
 
@@ -80,6 +95,27 @@ class StoreSubscription extends Model
     public function nextPlan(): BelongsTo
     {
         return $this->belongsTo(TariffPlan::class, 'next_tariff_plan_id');
+    }
+
+    public function isYearly(): bool
+    {
+        return $this->billing_period === \App\Enums\BillingPeriod::YEARLY;
+    }
+
+    /**
+     * @return BelongsTo<TariffPlan, $this>
+     */
+    public function prorateFromPlan(): BelongsTo
+    {
+        return $this->belongsTo(TariffPlan::class, 'prorate_from_plan_id');
+    }
+
+    /**
+     * @return BelongsTo<TariffPlan, $this>
+     */
+    public function priceLockPlan(): BelongsTo
+    {
+        return $this->belongsTo(TariffPlan::class, 'price_lock_plan_id');
     }
 
     /**

@@ -4,6 +4,7 @@ import 'package:rizqim_api/rizqim_api.dart';
 
 import '../bootstrap/bootstrap_models.dart';
 import '../bootstrap/bootstrap_repository.dart';
+import '../entitlements/entitlements_models.dart';
 import 'approvals.dart';
 
 /// Kassa yoki ofitsiant terminalining holati.
@@ -46,6 +47,7 @@ class PosSession {
   late final StreamSubscription<AuthEvent> _authSub;
   PosShiftSummary? _shift;
   bool _shiftOverridden = false;
+  PosEntitlements? _lastEntitlements;
 
   /// Holat o'zgardi (kirish, chiqish, ulash, bootstrap, smena).
   Stream<PosSessionPhase> get changes => _changes.stream;
@@ -99,9 +101,27 @@ class PosSession {
     return b == null ? fallback : b.branch.settings.screenLock;
   }
 
+  /// Tarif nimaga yo'l qo'yadi (P4-21): bootstrapdagi, bo'lmasa oxirgi ma'lum (xodim chiqqan yoki aloqa yo'q paytda ham
+  /// qoladi), hech qachon kelmagan bo'lsa — hammasi ochiq ([PosEntitlements.open]). Terminal faqat qulflarni
+  /// ko'rsatadi: to'lov, schyot, chek, smena va qaytarishga bu hech qachon ta'sir qilmaydi.
+  PosEntitlements get entitlements =>
+      bootstrap?.entitlements ?? _lastEntitlements ?? PosEntitlements.open;
+
+  /// Tarif ma'lumotini serverdan qayta o'qiydi (egasi to'lov qilganda qulf ochilishi uchun) va [changes] ga xabar beradi.
+  /// Aloqa yo'q bo'lsa jim: oxirgi ma'lum holat qoladi.
+  Future<void> refreshEntitlements() async {
+    if (auth.staff == null) return;
+    final PosEntitlements? fresh = await bootstrapRepository.loadEntitlements();
+    if (fresh == null) return;
+    _lastEntitlements = fresh;
+    _emit();
+  }
+
   /// `GET /pos/bootstrap` va [changes].
   Future<PosBootstrap> loadBootstrap() async {
     final PosBootstrap b = await bootstrapRepository.load();
+    final PosEntitlements? known = b.entitlements;
+    if (known != null) _lastEntitlements = known;
     _shiftOverridden = false;
     _shift = null;
     _emit();
@@ -131,6 +151,11 @@ class PosSession {
         bootstrapRepository.clear();
         _shift = null;
         _shiftOverridden = false;
+        // Another store may be paired next: its plan is not this one's
+        if (e.kind == AuthEventKind.terminalRevoked ||
+            e.kind == AuthEventKind.terminalForgotten) {
+          _lastEntitlements = null;
+        }
         _emit();
       case AuthEventKind.terminalPaired:
         _emit();

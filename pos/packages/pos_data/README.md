@@ -37,6 +37,14 @@ final next = await pos.orders.addRound(order.uuid, version: order.version, items
   server matnidan ustun (`PosReasons.clientWorded`), summa aytadigan `reverse_exceeds_applied`, `reverse_exceeds_charge`,
   `more_than_debt` da server matni qoladi. `needsOrderReload` — ekrandagi buyurtma eskirgan (`version_conflict`,
   `order_closed`, `order_changed`, `paid_bill_affected`).
+- **Tarif (P4-21):** `PosBootstrap.entitlements` — `GET /pos/bootstrap` dagi `entitlements` (`PosEntitlements`: tarif, holat,
+  `has(PosFeature.bookings)`, `lockLabel(...)` = "Asosiy tarifda bor", qurilmalar, `notice` — to'lanmagan hisob-faktura
+  xabari, `title(now)` / `text` oddiy so'zlar bilan). `PosSession.entitlements` — bootstrapdagi, bo'lmasa oxirgi ma'lum
+  (internetsiz ochilganda saqlangan nusxadan; hech qachon kelmagan bo'lsa — hammasi ochiq), `refreshEntitlements()` —
+  `GET /owner/billing/entitlements` (egasi to'lov qilganda qulflar ochilishi uchun). 403 `plan_feature_missing`,
+  `subscription_locked`, `device_limit` — `PosPlanRefused` (`feature`, `requiredPlanName`, `byUnpaidInvoice`). Terminal
+  faqat **yashiradi va tushuntiradi**; to'lov, schyot, chek, smena va qaytarish tarifga hech qachon bog'lanmaydi.
+  Testlarda: `fakeEntitlements(plan: 'start')`, `fakeBillingNotice(...)`, `FakePosState.entitlements`.
 - **Qoidalar:** har o'zgartiruvchi so'rovda `Idempotency-Key` (yangi amal — yangi kalit; tarmoq xatosidan keyin aynan
   o'sha amal — xatodagi kalit), buyurtmada `version`. Pul — `PosMoney`, miqdor — `PosQuantity` (`pos_core`).
 - **Real-time:** `PosRealtime.create(...)` — `private-pos-branch.{id}` terminal tokeni bilan; `events` (tiplangan

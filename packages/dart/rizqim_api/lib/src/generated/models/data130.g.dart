@@ -7,11 +7,19 @@ part of 'data130.dart';
 // **************************************************************************
 
 Data130 _$Data130FromJson(Map<String, dynamic> json) => Data130(
-  channel: Channel4.fromJson(json['channel'] as String),
-  queued: json['queued'] as bool,
+  text: json['text'] as String,
+  lines: (json['lines'] as List<dynamic>)
+      .map((e) => Lines9.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  roomFee: json['room_fee'] == null
+      ? null
+      : RoomFee4.fromJson(json['room_fee'] as Map<String, dynamic>),
+  channels: Channels3.fromJson(json['channels'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data130ToJson(Data130 instance) => <String, dynamic>{
-  'channel': instance.channel,
-  'queued': instance.queued,
+  'text': instance.text,
+  'lines': instance.lines,
+  'room_fee': instance.roomFee,
+  'channels': instance.channels,
 };

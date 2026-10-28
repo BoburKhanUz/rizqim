@@ -20,6 +20,17 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int $included_terminals
  * @property int $trial_days
  * @property string|null $description
+ *
+ * P4-21: the v2 catalog (version 2: Start, Asosiy, Pro; docs/BILLING.md)
+ * @property int $version
+ * @property string|null $tier start | asosiy | pro
+ * @property int $sort_order
+ * @property numeric-string|null $yearly_fee
+ * @property int $included_pos
+ * @property int $included_kds
+ * @property numeric-string|null $extra_pos_fee
+ * @property numeric-string|null $extra_kds_fee
+ * @property array<int, string>|null $features App\Enums\PlanFeature values on top of the base ones
  */
 class TariffPlan extends Model
 {
@@ -33,6 +44,16 @@ class TariffPlan extends Model
         'included_terminals',
         'trial_days',
         'description',
+        // P4-21
+        'version',
+        'tier',
+        'sort_order',
+        'yearly_fee',
+        'included_pos',
+        'included_kds',
+        'extra_pos_fee',
+        'extra_kds_fee',
+        'features',
     ];
 
     protected function casts(): array
@@ -44,6 +65,15 @@ class TariffPlan extends Model
             'monthly_fee_per_terminal' => 'decimal:2',
             'included_terminals' => 'integer',
             'trial_days' => 'integer',
+            // P4-21
+            'version' => 'integer',
+            'sort_order' => 'integer',
+            'yearly_fee' => 'decimal:2',
+            'included_pos' => 'integer',
+            'included_kds' => 'integer',
+            'extra_pos_fee' => 'decimal:2',
+            'extra_kds_fee' => 'decimal:2',
+            'features' => 'array',
         ];
     }
 
@@ -86,6 +116,62 @@ class TariffPlan extends Model
 
         return implode(' + ', $parts);
     }
+
+    // --- P4-21: the v2 catalog ---
+
+    /**
+     * A Billing v2 plan (Start, Asosiy, Pro): features, devices by type, yearly price. A P1-23 plan (version 1) keeps
+     * every feature and its P1-23 invoice formula.
+     */
+    public function isV2(): bool
+    {
+        return $this->version >= 2;
+    }
+
+    /**
+     * Where the plan stands in the catalog (higher is more): an immediate change to a higher one is an upgrade
+     * (prorated), to a lower one a downgrade (at the period's end).
+     */
+    public function rank(): int
+    {
+        return $this->sort_order;
+    }
+
+    public function yearlyFee(): Money
+    {
+        return $this->yearly_fee !== null
+            ? Money::of($this->yearly_fee)
+            : $this->baseFee()->times((int) config('billing.yearly_months_charged', 10));
+    }
+
+    public function extraDeviceFee(\App\Enums\DeviceType $type): Money
+    {
+        return Money::of($type === \App\Enums\DeviceType::KDS ? $this->extra_kds_fee : $this->extra_pos_fee);
+    }
+
+    public function includedDevices(\App\Enums\DeviceType $type): int
+    {
+        return max(0, $type === \App\Enums\DeviceType::KDS ? $this->included_kds : $this->included_pos);
+    }
+
+    /**
+     * Whether the plan has a gated feature (a base feature is in every plan; a P1-23 plan has them all).
+     */
+    public function hasFeature(\App\Enums\PlanFeature $feature): bool
+    {
+        return $feature->isBase() || !$this->isV2() || in_array($feature->value, $this->features ?? [], true);
+    }
+
+    /**
+     * @param  \Illuminate\Database\Eloquent\Builder<TariffPlan>  $query
+     * @return \Illuminate\Database\Eloquent\Builder<TariffPlan>
+     */
+    public function scopeCatalog(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
+    {
+        return $query->where('version', '>=', 2)->orderBy('sort_order')->orderBy('id');
+    }
+
+    // --- end P4-21 ---
 
     /**
      * @return HasMany<StoreSubscription, $this>

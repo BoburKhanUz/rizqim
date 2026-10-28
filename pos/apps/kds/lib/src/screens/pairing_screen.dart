@@ -9,6 +9,23 @@ import 'package:rizqim_ui/rizqim_ui.dart';
 import '../app_config.dart';
 import '../pairing_code_formatter.dart';
 
+/// P4-21: ulashni tarif yoki to'lanmagan hisob-faktura rad etganda (403 `plan_feature_missing`, `device_limit`,
+/// `subscription_locked`) nima uchunligi oddiy so'zlar bilan; boshqa xato uchun `null`.
+String? planRefusalText(ApiException e) {
+  if (e.statusCode != 403) return null;
+  switch (e.reason) {
+    case 'plan_feature_missing':
+      return "Oshxona ekrani (KDS) hozirgi tarifda yo'q: u Asosiy tarifda bor. Ega panelda «Tarif va to'lov» sahifasini ko'rsin. "
+          'Bu ekran ulanmadi, kassa va boshqa qurilmalar ishlashda davom etadi.';
+    case 'device_limit':
+      return "To'lanmagan hisob-faktura sababli tarifdagidan ortiq qurilma ulab bo'lmaydi. "
+          "Eskisini panelda o'chirib, o'rniga shuni ulashingiz yoki hisob-fakturani to'lashingiz mumkin.";
+    case 'subscription_locked':
+      return "To'lanmagan hisob-faktura sababli yangi sozlamalar yopilgan. To'lov qilinishi bilan darhol ochiladi.";
+  }
+  return null;
+}
+
 /// Terminalni ulash: ega yoki menejer panelda (Sozlamalar → Qurilmalar → "Ulash kodini yaratish") olgan 8 belgili kod.
 class PairingScreen extends StatefulWidget {
   const PairingScreen({super.key, required this.auth});
@@ -49,6 +66,11 @@ class _PairingScreenState extends State<PairingScreen> {
     } on InvalidPairingCodeException catch (e) {
       _fail(e.message);
     } on ApiException catch (e) {
+      final String? plan = planRefusalText(e);
+      if (plan != null) {
+        _fail(plan);
+        return;
+      }
       final Duration? wait = e.retryAfter;
       _fail(
         wait == null

@@ -4,6 +4,7 @@ import 'package:pos_data/pos_data.dart';
 import 'package:pos_ui/pos_ui.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
+import '../../shell/pos_scope.dart';
 import 'discount_dialog.dart';
 import 'order_controller.dart';
 import 'order_draft.dart';
@@ -452,21 +453,34 @@ class _Totals extends StatelessWidget {
     }
     final PosOrderCharges ch = o.charges;
     final bool open = o.isOpen;
+    final PosEntitlements plan =
+        PosScope.maybeOf(context)?.session.entitlements ?? PosEntitlements.open;
     PosTotalsLine? charge(PosChargeKind kind, String label, PosMoney amount) {
       final bool waived = ch.waived.contains(kind);
       if (!waived && amount.isZero) return null;
       final PosChargeWaiver? w = ch.waivers
           .where((PosChargeWaiver x) => x.charge == kind.wire)
           .lastOrNull;
+      // P4-21: taking a waived service charge back is the plan's service_charge; taking it off is always allowed
+      final bool restoreLocked =
+          waived &&
+          kind == PosChargeKind.serviceCharge &&
+          !plan.has(PosFeature.serviceCharge);
+      final String waivedText =
+          'Olib tashlandi${w == null || w.reason.isEmpty ? '' : ': ${w.reason}'}';
       return PosTotalsLine(
         label: label,
         amount: amount,
         waived: waived,
-        detail: waived
-            ? 'Olib tashlandi${w == null || w.reason.isEmpty ? '' : ': ${w.reason}'}'
+        detail: restoreLocked
+            ? '$waivedText · ${plan.lockLabel(PosFeature.serviceCharge)}'
+            : waived
+            ? waivedText
             : null,
-        actionLabel: open ? (waived ? 'Qaytarish' : 'Olib tashlash') : null,
-        onAction: open ? () => onCharge(kind, waived) : null,
+        actionLabel: open && !restoreLocked
+            ? (waived ? 'Qaytarish' : 'Olib tashlash')
+            : null,
+        onAction: open && !restoreLocked ? () => onCharge(kind, waived) : null,
       );
     }
 

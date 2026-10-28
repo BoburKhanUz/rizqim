@@ -21,6 +21,16 @@ class LedgerService
     private const REFERRAL_NOTE = 'Referral cashback reward cost';
 
     /**
+     * P4-21: the subscription part of the debt (docs/BILLING.md, "Qarzning ikki qismi"): payments pay the oldest
+     * invoices first, and the credit limit counts only the commission debt (Store::exceedsCreditLimit).
+     */
+    public function __construct(
+        protected \App\Services\Finance\Billing\SubscriptionDebt $subscriptionDebt,
+        // P4-23: platform-collected money pays the store's debt first (docs/BILLING.md "Netting")
+        protected \App\Services\Finance\Netting\NettingService $netting,
+    ) {}
+
+    /**
      * Deduct commission from the Store Balance (Store owes Platform)
      */
     public function deductCommission(Store $store, Money|string|int|float $amount, \App\Models\Order $order, ?string $paymentId = null, ?int $performedBy = null): ?StoreTransaction
@@ -161,13 +171,13 @@ class LedgerService
                 'performed_by' => $performedBy,
             ]);
 
-            $updateData = ['debt_balance' => $balanceAfter->toString()];
+            $lockedStore->forceFill(['debt_balance' => $balanceAfter->toString()])->save();
+            // P4-21: the oldest subscription invoices are paid first (an invoice paid in full unlocks at once)
+            $this->subscriptionDebt->paid($lockedStore, $amount, now());
 
             if ($this->hasStatus($lockedStore, StoreStatus::PAYMENT_REQUIRED) && !$this->exceedsCreditLimit($lockedStore, $balanceAfter)) {
-                $updateData['status'] = StoreStatus::ACTIVE->value;
+                $lockedStore->forceFill(['status' => StoreStatus::ACTIVE->value])->save();
             }
-
-            $lockedStore->forceFill($updateData)->save();
 
             return $transaction;
         });
@@ -252,7 +262,7 @@ class LedgerService
         // Charge the snapshot taken at order time as-is (0 is valid); the rate is only a fallback for an in-memory order without the attribute.
         $commissionAmount = isset($order->commission_amount)
             ? Money::of($order->commission_amount)
-            : Money::of($order->total_price)->percent($store->commissionRate()); // P1-23: same resolved rate as checkout
+            : Money::of($order->total_price)->percent($this->commissionRateOf($order, $store)); // the same resolved rate as checkout
 
         // 1. Always deduct commission for every order to log the commission transaction
         if ($commissionAmount->isPositive() && !$this->hasCommission($order)) {
@@ -342,7 +352,8 @@ class LedgerService
 
     /**
      * Credit a paid, platform-collected order to its store exactly once: at delivery, or when the payment only
-     * arrives after delivery. Returns whether it credited now.
+     * arrives after delivery. Returns whether it credited now. P4-23: whatever the provider, the money pays the
+     * store's debt first and only the rest reaches the wallet (owner decision 28.10.2026).
      */
     public function settlePlatformOrder(\App\Models\Order $order, ?int $performedBy = null): bool
     {
@@ -365,12 +376,9 @@ class LedgerService
                 return false;
             }
 
-            if ($order->payment_method === 'keshbek') {
-                // Cashback payment logic: Pay off debt first, remainder goes to wallet
-                $this->settleKeshbek($lockedStore, $total, $order, $performedBy);
-            } else {
-                $this->addSettlement($lockedStore, $total, $order, null, $performedBy);
-            }
+            // P4-23 (netting): keshbek, Click, Payme alike — the store's debt first (oldest invoices, then the commission
+            // debt, a row each), the rest to the wallet
+            $this->settleWithNetting($lockedStore, $total, $order, $performedBy);
 
             return true;
         });
@@ -387,49 +395,121 @@ class LedgerService
 
     /**
      * Undo, exactly once, what delivery booked for a now refunded order: the commission goes back where it was taken
-     * from (wallet and/or debt), and a platform-collected order's money comes back from the store: a keshbek debt
-     * payoff onto the debt again, the wallet settlement out of the wallet, and whatever the wallet no longer holds
-     * added to the debt instead of overdrawing it. The referral reward stays (see processOrderDelivered).
-     * Callers hold the order lock; StoreBalanceLow, if the debt now blocks the store, fires after commit.
+     * from (wallet and/or debt), and a platform-collected order's money comes back from the store: a debt payoff
+     * (keshbek, and since P4-23 Click and Payme too) onto the debt again — reopening the subscription invoices it had
+     * paid —, the wallet settlement out of the wallet, and whatever the wallet no longer holds added to the debt
+     * instead of overdrawing it. The referral reward stays (see processOrderDelivered). P4-23: after parts reversed
+     * through reverseDeliveredOrderShare only the rest is reversed. Callers hold the order lock; StoreBalanceLow, if
+     * the debt now blocks the store, fires after commit.
      *
      * @return array{commission: Money, settlement: Money, added_to_debt: Money}
      */
     public function reverseDeliveredOrder(\App\Models\Order $order, ?int $performedBy = null): array
     {
-        return DB::transaction(function () use ($order, $performedBy) {
+        return $this->reverseDelivery($order, null, $performedBy);
+    }
+
+    /**
+     * P4-23: a part of a delivered order was given back through a refund request: reverse the same share of what
+     * delivery booked (commission, settlement, debt payoff), pro-rata — $refunded is what has been given back of the
+     * order in all, this part included, of $paid. Each request at most once; parts that add up to everything paid
+     * reverse exactly what a full refund would, and the order's refund afterwards only the rest.
+     *
+     * @return array{commission: Money, settlement: Money, added_to_debt: Money}
+     */
+    public function reverseDeliveredOrderShare(\App\Models\Order $order, int $refundRequestId, Money $refunded, Money $paid, ?int $performedBy = null): array
+    {
+        return $this->reverseDelivery($order, ['request' => $refundRequestId, 'refunded' => $refunded, 'paid' => $paid], $performedBy);
+    }
+
+    /**
+     * @param  array{request: int, refunded: Money, paid: Money}|null  $share  null: the whole order
+     * @return array{commission: Money, settlement: Money, added_to_debt: Money}
+     */
+    private function reverseDelivery(\App\Models\Order $order, ?array $share, ?int $performedBy): array
+    {
+        return DB::transaction(function () use ($order, $share, $performedBy) {
             $store = Store::where('id', $order->store_id)->lockForUpdate()->firstOrFail();
+            $nothing = ['commission' => Money::zero(), 'settlement' => Money::zero(), 'added_to_debt' => Money::zero()];
             $debtRows = fn () => StoreTransaction::where('store_id', $store->id)->where('order_id', $order->id);
             $walletRows = fn () => StoreWalletTransaction::where('store_id', $store->id)->where('order_id', $order->id);
 
-            if ($debtRows()->where('type', StoreTransactionType::REFUND->value)->exists()
-                || $walletRows()->where('type', StoreTransactionType::REFUND->value)->exists()) {
-                return ['commission' => Money::zero(), 'settlement' => Money::zero(), 'added_to_debt' => Money::zero()];
+            $reversals = \App\Models\OrderLedgerReversal::where('order_id', $order->id)->lockForUpdate()->get();
+            if ($reversals->contains(fn ($reversal) => $reversal->is_full)
+                || ($share !== null && $reversals->contains(fn ($reversal) => (int) $reversal->order_refund_request_id === $share['request']))) {
+                return $nothing;
+            }
+            // Reversed before P4-23 (all at once, with no record): nothing is left to reverse
+            if ($reversals->isEmpty() && ($debtRows()->where('type', StoreTransactionType::REFUND->value)->exists()
+                || $walletRows()->where('type', StoreTransactionType::REFUND->value)->exists())) {
+                return $nothing;
             }
 
-            $commissionFromWallet = Money::of($walletRows()->where('type', StoreTransactionType::COMMISSION->value)->sum('amount'))->negated();
-            $commissionFromDebt = Money::of($debtRows()->where('type', StoreTransactionType::COMMISSION->value)
-                ->where(fn ($query) => $query->whereNull('notes')->orWhere('notes', 'not like', self::REFERRAL_NOTE . '%'))
-                ->sum('amount'));
-            $settledToWallet = Money::of($walletRows()->where('type', StoreTransactionType::SETTLEMENT->value)->sum('amount'));
-            $paidOffDebt = Money::of($debtRows()->where('type', StoreTransactionType::TOPUP->value)->sum('amount'))->negated();
+            // What delivery booked
+            $booked = [
+                'commission_wallet' => Money::of($walletRows()->where('type', StoreTransactionType::COMMISSION->value)->sum('amount'))->negated(),
+                'commission_debt' => Money::of($debtRows()->where('type', StoreTransactionType::COMMISSION->value)
+                    ->where(fn ($query) => $query->whereNull('notes')->orWhere('notes', 'not like', self::REFERRAL_NOTE . '%'))
+                    ->sum('amount')),
+                'settlement_wallet' => Money::of($walletRows()->where('type', StoreTransactionType::SETTLEMENT->value)->sum('amount')),
+                // A payoff row without an invoice (keshbek before P4-23, or the commission part) is commission debt
+                'payoff_commission' => Money::of($debtRows()->where('type', StoreTransactionType::TOPUP->value)->whereNull('subscription_invoice_id')->sum('amount'))->negated(),
+            ];
+            $bookedInvoices = [];
+            foreach ($debtRows()->where('type', StoreTransactionType::TOPUP->value)->whereNotNull('subscription_invoice_id')
+                ->groupBy('subscription_invoice_id')->selectRaw('subscription_invoice_id, SUM(amount) AS total')->toBase()->get() as $row) {
+                $bookedInvoices[(int) $row->subscription_invoice_id] = Money::of((string) $row->total)->negated();
+            }
+
+            // What earlier reversals (parts) took back
+            $already = array_map(fn () => Money::zero(), $booked);
+            $alreadyInvoices = [];
+            foreach ($reversals as $reversal) {
+                foreach (array_keys($booked) as $key) {
+                    $already[$key] = $already[$key]->plus((string) ($reversal->components[$key] ?? '0'));
+                }
+                foreach ((array) ($reversal->components['payoff_invoices'] ?? []) as $invoiceId => $amount) {
+                    $alreadyInvoices[(int) $invoiceId] = ($alreadyInvoices[(int) $invoiceId] ?? Money::zero())->plus((string) $amount);
+                }
+            }
+
+            // This reversal's target: everything (a full refund, or parts that reached what was paid), else the share
+            $isFull = $share === null || !$share['paid']->isPositive() || $share['refunded']->isGreaterThanOrEqualTo($share['paid']);
+            $target = fn (Money $amount) => $isFull ? $amount : self::prorate($amount, $share['refunded'], $share['paid']);
+            $delta = [];
+            foreach ($booked as $key => $amount) {
+                $delta[$key] = Money::max(Money::zero(), $target($amount)->minus($already[$key]));
+            }
+            $deltaInvoices = [];
+            foreach ($bookedInvoices as $invoiceId => $amount) {
+                $take = Money::max(Money::zero(), $target($amount)->minus($alreadyInvoices[$invoiceId] ?? Money::zero()));
+                if ($take->isPositive()) {
+                    $deltaInvoices[$invoiceId] = $take;
+                }
+            }
 
             $debtBefore = Money::of($store->debt_balance);
             $debt = $debtBefore;
             $wallet = Money::of($store->wallet_balance);
-            $label = "refunded order #{$order->short_code}";
+            $label = $isFull ? "refunded order #{$order->short_code}" : "part of order #{$order->short_code} refunded";
 
-            if ($commissionFromWallet->isPositive()) {
-                $wallet = $this->bookRefund($store, $order, StoreWalletTransaction::class, $wallet, $commissionFromWallet, $performedBy, "Commission returned to the wallet for {$label}");
+            if ($delta['commission_wallet']->isPositive()) {
+                $wallet = $this->bookRefund($store, $order, StoreWalletTransaction::class, $wallet, $delta['commission_wallet'], $performedBy, "Commission returned to the wallet for {$label}");
             }
-            if ($commissionFromDebt->isPositive()) {
-                $debt = $this->bookRefund($store, $order, StoreTransaction::class, $debt, $commissionFromDebt->negated(), $performedBy, "Commission reversed for {$label}");
+            if ($delta['commission_debt']->isPositive()) {
+                $debt = $this->bookRefund($store, $order, StoreTransaction::class, $debt, $delta['commission_debt']->negated(), $performedBy, "Commission reversed for {$label}");
             }
-            if ($paidOffDebt->isPositive()) {
-                $debt = $this->bookRefund($store, $order, StoreTransaction::class, $debt, $paidOffDebt, $performedBy, "Keshbek debt payoff reversed for {$label}");
+            if ($delta['payoff_commission']->isPositive()) {
+                $debt = $this->bookRefund($store, $order, StoreTransaction::class, $debt, $delta['payoff_commission'], $performedBy, "Commission debt payoff reversed for {$label}");
+            }
+            $invoiceNumbers = $deltaInvoices !== [] ? \App\Models\SubscriptionInvoice::whereKey(array_keys($deltaInvoices))->pluck('number', 'id') : collect();
+            foreach ($deltaInvoices as $invoiceId => $amount) {
+                $number = $invoiceNumbers[$invoiceId] ?? "#{$invoiceId}";
+                $debt = $this->bookRefund($store, $order, StoreTransaction::class, $debt, $amount, $performedBy, "Subscription invoice {$number} payoff reversed for {$label}", $invoiceId);
             }
 
-            $fromWallet = Money::min($settledToWallet, Money::max(Money::zero(), $wallet));
-            $shortfall = $settledToWallet->minus($fromWallet);
+            $fromWallet = Money::min($delta['settlement_wallet'], Money::max(Money::zero(), $wallet));
+            $shortfall = $delta['settlement_wallet']->minus($fromWallet);
             if ($fromWallet->isPositive()) {
                 $wallet = $this->bookRefund($store, $order, StoreWalletTransaction::class, $wallet, $fromWallet->negated(), $performedBy, "Settlement taken back for {$label}");
             }
@@ -438,25 +518,66 @@ class LedgerService
             }
 
             // Same rules as a commission (blocks an active store at the limit) and a top-up (unblocks under it)
-            $update = ['debt_balance' => $debt->toString(), 'wallet_balance' => $wallet->toString()];
+            $store->forceFill(['debt_balance' => $debt->toString(), 'wallet_balance' => $wallet->toString()])->save();
+            // P4-23: the invoices this money had paid are unpaid again (a void one stays void: its share is commission debt)
+            $reopened = [];
+            foreach ($deltaInvoices as $invoiceId => $amount) {
+                $again = $this->subscriptionDebt->reopen($store, $invoiceId, $amount, now());
+                if ($again->isPositive()) {
+                    $reopened[$invoiceId] = $again->toString();
+                }
+            }
+            // P4-21: a debt that fell below its subscription part pays the oldest invoices from the credit
+            $this->subscriptionDebt->settleFromCredit($store, now());
+            $update = [];
             $blocked = $debt->isGreaterThan($debtBefore) && $this->hasStatus($store, StoreStatus::ACTIVE) && $this->exceedsCreditLimit($store, $debt);
             if ($blocked) {
                 $update['status'] = StoreStatus::PAYMENT_REQUIRED->value;
             } elseif ($debt->isLessThan($debtBefore) && $this->hasStatus($store, StoreStatus::PAYMENT_REQUIRED) && !$this->exceedsCreditLimit($store, $debt)) {
                 $update['status'] = StoreStatus::ACTIVE->value;
             }
-            $store->forceFill($update)->save();
+            if ($update !== []) {
+                $store->forceFill($update)->save();
+            }
 
             if ($blocked) {
                 DB::afterCommit(fn () => event(new \App\Events\StoreBalanceLow($store)));
             }
 
+            $reversedSomething = collect($delta)->contains(fn (Money $amount) => $amount->isPositive()) || $deltaInvoices !== [];
+            if ($reversedSomething) {
+                \App\Models\OrderLedgerReversal::create([
+                    'order_id' => $order->id,
+                    'store_id' => $store->id,
+                    'order_refund_request_id' => $share['request'] ?? null,
+                    'is_full' => $isFull,
+                    'refunded_total' => $share !== null ? $share['refunded']->toString() : null,
+                    'paid_total' => $share !== null ? $share['paid']->toString() : null,
+                    'components' => array_map(fn (Money $amount) => $amount->toString(), $delta) + [
+                        'payoff_invoices' => array_map(fn (Money $amount) => $amount->toString(), $deltaInvoices),
+                        'added_to_debt' => $shortfall->toString(),
+                        'invoices_reopened' => $reopened,
+                    ],
+                    'performed_by' => $performedBy,
+                ]);
+            }
+
             return [
-                'commission' => $commissionFromWallet->plus($commissionFromDebt),
-                'settlement' => $settledToWallet->plus($paidOffDebt),
+                'commission' => $delta['commission_wallet']->plus($delta['commission_debt']),
+                'settlement' => $delta['settlement_wallet']->plus($delta['payoff_commission'])->plus(Money::sum(...array_values($deltaInvoices))),
                 'added_to_debt' => $shortfall,
             ];
         });
+    }
+
+    /**
+     * $amount × $refunded / $paid, rounded half-up to the tiyin once.
+     */
+    private static function prorate(Money $amount, Money $refunded, Money $paid): Money
+    {
+        return Money::of(\Brick\Math\BigDecimal::of($amount->toString())
+            ->multipliedBy($refunded->toString())
+            ->dividedBy($paid->toString(), Money::SCALE, \Brick\Math\RoundingMode::HalfUp));
     }
 
     /**
@@ -464,11 +585,11 @@ class LedgerService
      *
      * @param class-string<StoreTransaction|StoreWalletTransaction> $ledger
      */
-    private function bookRefund(Store $store, \App\Models\Order $order, string $ledger, Money $before, Money $change, ?int $performedBy, string $notes): Money
+    private function bookRefund(Store $store, \App\Models\Order $order, string $ledger, Money $before, Money $change, ?int $performedBy, string $notes, ?int $invoiceId = null): Money
     {
         $after = $before->plus($change);
 
-        $ledger::create([
+        $ledger::create(($invoiceId !== null ? ['subscription_invoice_id' => $invoiceId] : []) + [
             'store_id' => $store->id,
             'type' => StoreTransactionType::REFUND->value,
             'amount' => $change->toString(),
@@ -483,74 +604,31 @@ class LedgerService
         return $after;
     }
 
-    private function settleKeshbek(Store $lockedStore, Money $settlementAmount, \App\Models\Order $order, ?int $performedBy): void
+    /**
+     * P4-23: a platform-collected order's money: the debt first (NettingService, one row per invoice and one for the
+     * commission debt, each carrying the order), the rest to the wallet as the order's settlement.
+     */
+    private function settleWithNetting(Store $lockedStore, Money $settlementAmount, \App\Models\Order $order, ?int $performedBy): void
     {
-        $debt = Money::of($lockedStore->debt_balance);
+        $provider = match ((string) $order->payment_method) {
+            'keshbek' => 'Keshbek',
+            'click' => 'Click',
+            'payme' => 'Payme',
+            'uzum' => 'Uzum',
+            default => ucfirst((string) $order->payment_method),
+        };
 
-        if ($debt->isPositive()) {
-            $amountToPayOff = Money::min($settlementAmount, $debt);
-            $remainingToWallet = $settlementAmount->minus($amountToPayOff);
+        $netting = $this->netting->payDebt(
+            $lockedStore,
+            $settlementAmount,
+            "{$provider} payment for order #{$order->short_code}",
+            ['order_id' => $order->id, 'reference_id' => $order->uuid],
+            $performedBy,
+        );
 
-            // Reduce debt
-            $balanceBefore = $debt;
-            $balanceAfter = $balanceBefore->minus($amountToPayOff);
-
-            StoreTransaction::create([
-                'store_id' => $lockedStore->id,
-                'type' => StoreTransactionType::TOPUP->value,
-                'amount' => $amountToPayOff->negated()->toString(),
-                'balance_before' => $balanceBefore->toString(),
-                'balance_after' => $balanceAfter->toString(),
-                'reference_id' => $order->uuid,
-                'order_id' => $order->id,
-                'performed_by' => $performedBy,
-                'notes' => "Keshbek payment covering restaurant debt for order #{$order->short_code}",
-            ]);
-
-            $updateData = ['debt_balance' => $balanceAfter->toString()];
-
-            if ($this->hasStatus($lockedStore, StoreStatus::PAYMENT_REQUIRED) && !$this->exceedsCreditLimit($lockedStore, $balanceAfter)) {
-                $updateData['status'] = StoreStatus::ACTIVE->value;
-            }
-            $lockedStore->forceFill($updateData)->save();
-
-            // Add remaining to wallet if any
-            if ($remainingToWallet->isPositive()) {
-                $walletBefore = Money::of($lockedStore->wallet_balance);
-                $walletAfter = $walletBefore->plus($remainingToWallet);
-
-                StoreWalletTransaction::create([
-                    'store_id' => $lockedStore->id,
-                    'type' => StoreTransactionType::SETTLEMENT->value,
-                    'amount' => $remainingToWallet->toString(),
-                    'balance_before' => $walletBefore->toString(),
-                    'balance_after' => $walletAfter->toString(),
-                    'reference_id' => $order->uuid,
-                    'order_id' => $order->id,
-                    'performed_by' => $performedBy,
-                    'notes' => "Keshbek payment remainder settlement for order #{$order->short_code}",
-                ]);
-
-                $lockedStore->forceFill(['wallet_balance' => $walletAfter->toString()])->save();
-            }
-        } else {
-            // No debt, goes directly to wallet
-            $walletBefore = Money::of($lockedStore->wallet_balance);
-            $walletAfter = $walletBefore->plus($settlementAmount);
-
-            StoreWalletTransaction::create([
-                'store_id' => $lockedStore->id,
-                'type' => StoreTransactionType::SETTLEMENT->value,
-                'amount' => $settlementAmount->toString(),
-                'balance_before' => $walletBefore->toString(),
-                'balance_after' => $walletAfter->toString(),
-                'reference_id' => $order->uuid,
-                'order_id' => $order->id,
-                'performed_by' => $performedBy,
-                'notes' => "Keshbek payment settlement for order #{$order->short_code}",
-            ]);
-
-            $lockedStore->forceFill(['wallet_balance' => $walletAfter->toString()])->save();
+        $remainder = $netting->remainder();
+        if ($remainder->isPositive()) {
+            $this->addSettlement($lockedStore, $remainder, $order, null, $performedBy);
         }
     }
 
@@ -558,8 +636,11 @@ class LedgerService
 
     /**
      * Post a subscription invoice to the store's debt ledger exactly once: a SUBSCRIPTION row (positive amount, debt
-     * up), never taken from the wallet, so the owner sees and settles it like the rest of the debt. The same rule as a
-     * commission blocks an active store whose debt goes over its credit limit (StoreBalanceLow after commit).
+     * up), never taken from the wallet, so the owner sees and settles it like the rest of the debt.
+     *
+     * P4-21 (owner decision 28.10.2026): it joins the subscription part of the debt and never blocks the store (the
+     * credit limit counts only the commission debt); unpaid, it goes through the dunning routine instead. Credit the
+     * store already has pays it at once.
      */
     public function chargeSubscription(\App\Models\SubscriptionInvoice $invoice, ?int $performedBy = null): StoreTransaction
     {
@@ -592,16 +673,8 @@ class LedgerService
                 'notes' => "Subscription invoice {$invoice->number} for {$invoice->period}",
             ]);
 
-            $update = ['debt_balance' => $after->toString()];
-            $blocked = $this->hasStatus($store, StoreStatus::ACTIVE) && $this->exceedsCreditLimit($store, $after);
-            if ($blocked) {
-                $update['status'] = StoreStatus::PAYMENT_REQUIRED->value;
-            }
-            $store->forceFill($update)->save();
-
-            if ($blocked) {
-                DB::afterCommit(fn () => event(new \App\Events\StoreBalanceLow($store)));
-            }
+            $store->forceFill(['debt_balance' => $after->toString()])->save();
+            $this->subscriptionDebt->charged($store, now());
 
             return $transaction;
         });
@@ -610,6 +683,8 @@ class LedgerService
     /**
      * Undo, exactly once, a voided invoice's charge: a negative SUBSCRIPTION row (debt down), unblocking the store
      * once its debt is back within the credit limit, like a top-up. Null when the invoice was never charged.
+     * P4-21: the caller marks the invoice void first, so what was unpaid of it leaves the subscription part; what had
+     * been paid of it becomes credit, which pays the store's other invoices.
      */
     public function reverseSubscriptionCharge(\App\Models\SubscriptionInvoice $invoice, ?int $performedBy = null, ?string $reason = null): ?StoreTransaction
     {
@@ -637,11 +712,11 @@ class LedgerService
                 'notes' => "Subscription invoice {$invoice->number} voided" . ($reason !== null && $reason !== '' ? ": {$reason}" : ''),
             ]);
 
-            $update = ['debt_balance' => $after->toString()];
+            $store->forceFill(['debt_balance' => $after->toString()])->save();
+            $this->subscriptionDebt->voided($store, now());
             if ($this->hasStatus($store, StoreStatus::PAYMENT_REQUIRED) && !$this->exceedsCreditLimit($store, $after)) {
-                $update['status'] = StoreStatus::ACTIVE->value;
+                $store->forceFill(['status' => StoreStatus::ACTIVE->value])->save();
             }
-            $store->forceFill($update)->save();
 
             return $transaction;
         });
@@ -658,6 +733,18 @@ class LedgerService
     }
 
     // --- end P1-23 ---
+
+    /**
+     * P4-21: the rate of an order without a commission snapshot (only an in-memory order): its channel's rate.
+     *
+     * @return numeric-string
+     */
+    private function commissionRateOf(\App\Models\Order $order, Store $store): string
+    {
+        $policy = app(\App\Services\Finance\Billing\CommissionPolicy::class);
+
+        return $policy->rateFor($store, $policy->channelOfOrder($order, $store));
+    }
 
     private function minPayoutReserve(Store $store): Money
     {

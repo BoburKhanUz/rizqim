@@ -4,7 +4,7 @@ Restoran xodimlari uchun oddiy tilda yozilgan qo'llanmalar (o'zbekcha, lotin). T
 
 | Qo'llanma | Kim uchun | Nima haqida |
 |---|---|---|
-| [hamkor-panel.md](hamkor-panel.md) | Ega va menejer | Veb-panelga kirish, buyurtmalar doskasi, menyu, stop-list va qozon, xodimlar va PIN, filiallar, yetkazish zonalari, sozlamalar va planshet ulash, hisobotlar, moliya |
+| [hamkor-panel.md](hamkor-panel.md) | Ega va menejer | Veb-panelga kirish, buyurtmalar doskasi, menyu, stop-list va qozon, xodimlar va PIN, filiallar, yetkazish zonalari, sozlamalar va planshet ulash, hisobotlar, moliya; **Tarif va to'lov** sahifasi, "Asosiy tarifda bor" yozuvi, to'lanmagan hisob-faktura lentasi |
 | [oshxona-ekrani.md](oshxona-ekrani.md) | Oshpaz, mangalchi va planshetni sozlovchi | Planshetni kod bilan ulash, PIN bilan kirish, chiptani o'qish, taomni "tayyor" deb belgilash va qaytarish, ranglar, "Aloqa yo'q"; sexlar, mangal ko'rinishi (six sanog'i), oldindan buyurtmalar, "O'CHIRILDI", qozon paneli, muammolar |
 | [kassa.md](kassa.md) | Kassir (va menejer) | Kassani ulash, PIN va menejer tasdig'i, smena, zal xaritasi, buyurtma olish, oshxonaga yuborish, o'chirish, ko'chirish va birlashtirish, schyot va bo'lish, to'lov turlari, fiskal chek, qaytarish, bron va avans, nasiya, onlayn buyurtmalar, kirim-chiqim, X va Z, printer, "Internet uzilsa" (internetsiz rejim), muammolar |
 | [ofitsiant.md](ofitsiant.md) | Ofitsiant | Telefon ilovasi: ulash va PIN, "Mening xonalarim", xonani ochish, taom qo'shish va yuborish, "Berildi", schyot so'rash, boshqa ofitsiantning buyurtmasi, aloqa yo'qolganda |

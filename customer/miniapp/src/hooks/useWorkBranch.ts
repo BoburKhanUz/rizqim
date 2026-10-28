@@ -24,7 +24,7 @@ export interface WorkBranch {
 // none; the owner and store-wide staff (a manager without a branch) must name one (branch_id, else 422), so they pick.
 export function useWorkBranch(): WorkBranch {
   const user = useAuthStore((state) => state.user);
-  const storeWide = user !== null && (user.role === 'owner' || user.role === 'super_admin' || user.branch_id === null);
+  const storeWide = user !== null && (user.role === 'owner' || user.branch_id === null);
   const { data, isLoading, isError, refetch } = useBranchList({ enabled: storeWide });
   const branches = data ?? NO_BRANCHES;
   const [chosen, setChosen] = useState<number | null>(null);

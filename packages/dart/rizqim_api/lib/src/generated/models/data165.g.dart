@@ -19,10 +19,10 @@ Data165 _$Data165FromJson(Map<String, dynamic> json) => Data165(
   version: (json['version'] as num).toInt(),
   hall: json['hall'] == null
       ? null
-      : Hall13.fromJson(json['hall'] as Map<String, dynamic>),
+      : Hall12.fromJson(json['hall'] as Map<String, dynamic>),
   table: json['table'] == null
       ? null
-      : Table13.fromJson(json['table'] as Map<String, dynamic>),
+      : Table12.fromJson(json['table'] as Map<String, dynamic>),
   hallRef: json['hall_ref'] as String?,
   tableRef: json['table_ref'] as String?,
   guestsCount: (json['guests_count'] as num?)?.toInt(),
@@ -39,7 +39,7 @@ Data165 _$Data165FromJson(Map<String, dynamic> json) => Data165(
   updatedAt: json['updated_at'] as String?,
   subtotal: json['subtotal'] as String,
   items: (json['items'] as List<dynamic>)
-      .map((e) => Items36.fromJson(e as Map<String, dynamic>))
+      .map((e) => Items35.fromJson(e as Map<String, dynamic>))
       .toList(),
   discountKind: json['discount_kind'] == null
       ? null
@@ -52,10 +52,10 @@ Data165 _$Data165FromJson(Map<String, dynamic> json) => Data165(
   roomFeeAmount: json['room_fee_amount'] as String,
   minSpendTopupAmount: json['min_spend_topup_amount'] as String,
   totalPrice: json['total_price'] as String,
-  charges: Charges16.fromJson(json['charges'] as Map<String, dynamic>),
+  charges: Charges15.fromJson(json['charges'] as Map<String, dynamic>),
   offline: json['offline'] == null
       ? null
-      : Offline12.fromJson(json['offline'] as Map<String, dynamic>),
+      : Offline11.fromJson(json['offline'] as Map<String, dynamic>),
   rounds: (json['rounds'] as num).toInt(),
   discount: json['discount'] as String,
 );

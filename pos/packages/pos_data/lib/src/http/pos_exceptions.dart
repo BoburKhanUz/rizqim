@@ -14,6 +14,7 @@ import 'package:rizqim_api/rizqim_api.dart';
 /// | [PosConflict] | boshqa 409 (`has_payments`, `shift_not_open`, `booking_conflict`, `order_changed` ...) |
 /// | [PosRejected] | 422 `data.reason` bilan (`table_occupied`, `nothing_to_send`, `mxik_missing` ...) |
 /// | [PosValidationException] | 422 maydon xatolari (`errors`), sababsiz |
+/// | [PosPlanRefused] | 403 `plan_feature_missing` / `subscription_locked` / `device_limit`: tarif yoki to'lanmagan hisob-faktura yopgan (P4-21) |
 /// | [PosForbidden] | boshqa 403 (ruxsat yo'q) |
 /// | [PosNotFound] | 404 |
 /// | [PosNetworkException] | javob kelmadi: tarmoq yo'q (qayta urinishda o'sha [idempotencyKey] bilan yuboring) |
@@ -152,6 +153,28 @@ class PosForbidden extends PosException {
   });
 }
 
+/// P4-21: tarif yoki to'lanmagan hisob-faktura yopiq yozuvni rad etdi (403): yangi bron, bo'nak, nasiya hisobi, xizmat
+/// haqi, KDS ulash. **To'lov, schyot, chek, smena va qaytarish bunday rad etilmaydi.** Matn — serverning oddiy so'zlari.
+class PosPlanRefused extends PosForbidden {
+  const PosPlanRefused({
+    required super.message,
+    super.statusCode,
+    super.reason,
+    super.cause,
+    super.data,
+    super.idempotencyKey,
+  });
+
+  /// `plan_feature_missing`: qaysi funksiya ([PosFeature.wire]).
+  String? get feature => data['feature'] as String?;
+
+  /// Shu funksiya bor eng arzon tarifning nomi ("Asosiy").
+  String? get requiredPlanName => data['required_plan_name'] as String?;
+
+  /// `subscription_locked` yoki `device_limit`: to'lanmagan hisob-faktura sababli.
+  bool get byUnpaidInvoice => reason != PosReasons.planFeatureMissing;
+}
+
 /// 404: buyurtma, schyot, smena yoki bron topilmadi (boshqa do'kon yoki filialniki ham).
 class PosNotFound extends PosException {
   const PosNotFound({
@@ -216,6 +239,22 @@ abstract final class PosReasons {
   /// P3-38: bron tasdig'ini yuboradigan kanal yo'q (422): mehmon telefoni do'kon Telegram botiga ulanmagan, SMS
   /// filialda o'chirilgan.
   static const String noChannel = 'no_channel';
+
+  /// P4-21: tarifda yo'q funksiya (403).
+  static const String planFeatureMissing = 'plan_feature_missing';
+
+  /// P4-21: to'lanmagan hisob-faktura sababli yangi sozlamalar yopiq (403).
+  static const String subscriptionLocked = 'subscription_locked';
+
+  /// P4-21: cheklangan obunada tarifdagidan ortiq qurilma (403).
+  static const String deviceLimit = 'device_limit';
+
+  /// Tarif / to'lanmagan hisob-faktura rad etishlari ([PosPlanRefused]).
+  static const Set<String> planRefusals = <String>{
+    planFeatureMissing,
+    subscriptionLocked,
+    deviceLimit,
+  };
 
   /// Rad etilgan amaldan keyin buyurtma (va schyot) serverdan qayta yuklanadi: ekrandagi ko'rinish eskirgan.
   static const Set<String> reloadOrder = <String>{
@@ -316,6 +355,9 @@ abstract final class PosReasons {
         "qo'lda hal qilsin.",
     accountUnknown:
         "Nasiya to'lovining hisobi topilmadi: qarzni menejer qo'lda tuzatsin.",
+    planFeatureMissing: "Bu imkoniyat hozirgi tarifingizda yo'q.",
+    subscriptionLocked: "To'lanmagan hisob-faktura sababli yangi sozlamalar yopilgan. To'lov qilinishi bilan darhol ochiladi. Kassa to'lov qabul qilishda davom etadi.",
+    deviceLimit: "To'lanmagan hisob-faktura sababli tarifdagidan ortiq qurilma ulab bo'lmaydi. Eskisini o'chirib, o'rniga yangisini ulashingiz mumkin.",
     noChannel:
         "Yuborib bo'lmadi: mehmon telefoni do'kon Telegram botiga ulanmagan, SMS esa filial sozlamasida o'chirilgan. "
         "Matnni nusxa olib o'zingiz yuboring yoki chop etib bering.",

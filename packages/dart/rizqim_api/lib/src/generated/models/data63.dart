@@ -4,31 +4,34 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'products_missing_mxik.dart';
+import 'data62.dart';
 
 part 'data63.g.dart';
 
 @JsonSerializable()
 class Data63 {
   const Data63({
-    required this.enabled,
-    required this.tinSet,
-    required this.taxRegime,
-    required this.productsMissingMxik,
-    required this.chargesMissingMxik,
+    required this.data,
+    required this.currentPage,
+    required this.lastPage,
+    required this.perPage,
+    required this.total,
+    required this.from,
+    required this.to,
   });
 
   factory Data63.fromJson(Map<String, Object?> json) => _$Data63FromJson(json);
 
-  final bool enabled;
-  @JsonKey(name: 'tin_set')
-  final bool tinSet;
-  @JsonKey(name: 'tax_regime')
-  final String? taxRegime;
-  @JsonKey(name: 'products_missing_mxik')
-  final List<ProductsMissingMxik> productsMissingMxik;
-  @JsonKey(name: 'charges_missing_mxik')
-  final List<String> chargesMissingMxik;
+  final List<Data62> data;
+  @JsonKey(name: 'current_page')
+  final int currentPage;
+  @JsonKey(name: 'last_page')
+  final int lastPage;
+  @JsonKey(name: 'per_page')
+  final int perPage;
+  final int total;
+  final int? from;
+  final int? to;
 
   Map<String, Object?> toJson() => _$Data63ToJson(this);
 }

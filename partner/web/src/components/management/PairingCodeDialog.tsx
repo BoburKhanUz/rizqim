@@ -3,7 +3,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Check, Copy, RefreshCw } from 'lucide-react';
 import { Button, Dialog, Field, fieldClass, formatTime, FormError } from '@rizqim/ui';
-import { getApiFieldError, useCreatePairingCode, useMenuBranches, type PairingCode } from '@rizqim/staff';
+import { getApiFieldError, useCreatePairingCode, useEntitlements, useFeature, useMenuBranches, type PairingCode } from '@rizqim/staff';
 import { useI18n } from '../I18nProvider';
 import { errorText } from './errors';
 
@@ -38,6 +38,12 @@ export function PairingCodeDialog({ onClose }: { onClose: () => void }) {
   const [formError, setFormError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const create = useCreatePairingCode();
+  // P4-21: a KDS is the plan's `kds`; while an invoice is overdue for a week only the plan's own terminals can be paired
+  const kds = useFeature('kds');
+  const entitlements = useEntitlements();
+  const kdsOff = type === 'kds' && !kds.allowed;
+  const device = entitlements.data?.devices[type];
+  const limitHit = !kdsOff && device?.can_add === false;
   const secondsLeft = useSecondsLeft(code?.expires_at ?? null);
   const expired = code !== null && secondsLeft === 0;
 
@@ -140,12 +146,17 @@ export function PairingCodeDialog({ onClose }: { onClose: () => void }) {
         <Field label={t('devices_name')} hint={t('devices_nameHint')} error={errors.name}>
           {(props) => <input {...props} type="text" maxLength={100} autoComplete="off" value={name} onChange={(event) => setName(event.target.value)} className={fieldClass} />}
         </Field>
+        {(kdsOff || limitHit) && (
+          <p role="status" className="rounded-control bg-info-soft px-3 py-2.5 text-footnote font-bold text-info-soft-fg">
+            {kdsOff ? t(kds.planName ? 'billing_kdsLocked' : 'billing_kdsLockedNoPlan', { plan: kds.planName ?? '' }) : t('billing_err_device')}
+          </p>
+        )}
         <FormError message={formError} />
         <div className="flex gap-2 [&>*]:flex-1">
           <Button variant="secondary" onClick={onClose} disabled={create.isPending}>
             {t('mgmt_cancel')}
           </Button>
-          <Button type="submit" loading={create.isPending}>
+          <Button type="submit" loading={create.isPending} disabled={kdsOff || limitHit}>
             {t('devices_createCode')}
           </Button>
         </div>

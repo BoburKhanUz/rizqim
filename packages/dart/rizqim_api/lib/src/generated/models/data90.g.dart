@@ -7,13 +7,23 @@ part of 'data90.dart';
 // **************************************************************************
 
 Data90 _$Data90FromJson(Map<String, dynamic> json) => Data90(
-  role: Role.fromJson(json['role'] as String),
-  permission: json['permission'] as String,
-  allowed: json['allowed'] as bool,
+  roles: (json['roles'] as List<dynamic>)
+      .map((e) => Roles.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  permissions: (json['permissions'] as List<dynamic>)
+      .map((e) => Permissions.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  matrix: (json['matrix'] as Map<String, dynamic>).map(
+    (k, e) => MapEntry(k, Map<String, bool>.from(e as Map)),
+  ),
+  defaults: (json['defaults'] as Map<String, dynamic>).map(
+    (k, e) => MapEntry(k, Map<String, bool>.from(e as Map)),
+  ),
 );
 
 Map<String, dynamic> _$Data90ToJson(Data90 instance) => <String, dynamic>{
-  'role': instance.role,
-  'permission': instance.permission,
-  'allowed': instance.allowed,
+  'roles': instance.roles,
+  'permissions': instance.permissions,
+  'matrix': instance.matrix,
+  'defaults': instance.defaults,
 };

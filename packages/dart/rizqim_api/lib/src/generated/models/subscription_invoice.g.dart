@@ -44,6 +44,9 @@ SubscriptionInvoice _$SubscriptionInvoiceFromJson(Map<String, dynamic> json) =>
       updatedAt: json['updated_at'] == null
           ? null
           : DateTime.parse(json['updated_at'] as String),
+      kind: InvoiceKind.fromJson(json['kind'] as String),
+      sequence: (json['sequence'] as num).toInt(),
+      paidAmount: json['paid_amount'] as String,
       store: json['store'] == null
           ? null
           : Store.fromJson(json['store'] as Map<String, dynamic>),
@@ -86,6 +89,9 @@ Map<String, dynamic> _$SubscriptionInvoiceToJson(
   'void_transaction_id': instance.voidTransactionId,
   'created_at': instance.createdAt?.toIso8601String(),
   'updated_at': instance.updatedAt?.toIso8601String(),
+  'kind': instance.kind,
+  'sequence': instance.sequence,
+  'paid_amount': instance.paidAmount,
   'store': instance.store,
   'subscription': instance.subscription,
   'plan': instance.plan,

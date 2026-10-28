@@ -1,6 +1,7 @@
 // An in-memory stand-in for the backend API, shaped like the real answers (docs/API.md, the OpenAPI spec). It serves both
 // the Next server's session route handlers (sign-in, refresh, sign-out) and the browser's own calls (with the access
 // token). The feature areas live in their own modules; this one has the accounts, tokens and the routing.
+import { FakeBilling } from './billing'
 import { FakeBookings } from './bookings'
 import { FakeFiscal } from './fiscal'
 import { FakeFloor } from './floor'
@@ -94,6 +95,7 @@ export class FakeBackend {
   shifts: FakeShifts
   bookings: FakeBookings
   permissions: FakePermissions
+  billing: FakeBilling
 
   constructor() {
     this.orders = new FakeOrders(this)
@@ -106,6 +108,7 @@ export class FakeBackend {
     this.shifts = new FakeShifts(this)
     this.bookings = new FakeBookings(this)
     this.permissions = new FakePermissions(this)
+    this.billing = new FakeBilling(this)
     this.accounts.set(OWNER.phone, [OWNER])
   }
 
@@ -267,7 +270,7 @@ export class FakeBackend {
       return { status: 200, body: { auth: 'e2e-key:fake-signature' } }
     }
 
-    for (const area of [this.orders, this.menu, this.team, this.zones, this.reports, this.fiscal, this.floor, this.shifts, this.bookings, this.permissions]) {
+    for (const area of [this.billing, this.orders, this.menu, this.team, this.zones, this.reports, this.fiscal, this.floor, this.shifts, this.bookings, this.permissions]) {
       const reply = area.handle(req, json)
       if (reply) return reply
     }

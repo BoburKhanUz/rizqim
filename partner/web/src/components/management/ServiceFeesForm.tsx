@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from 'react';
 import { Button, Card, CardSkeletons, Field, InlineError, Section, fieldClass, FormError, Notice } from '@rizqim/ui';
-import { getApiFieldError, useMenuBranches, useSaveServiceFee, useServiceFees, type PlaceFeeMode, type ServiceFeeRow } from '@rizqim/staff';
+import { getApiFieldError, useFeature, useMenuBranches, useSaveServiceFee, useServiceFees, type PlaceFeeMode, type ServiceFeeRow } from '@rizqim/staff';
 import { isMessageKey } from '@/i18n';
 import { useI18n } from '../I18nProvider';
 import { errorText } from './errors';
@@ -62,6 +62,8 @@ function FeeForm({ branchId, base, channels }: { branchId: number | null; base: 
   const [formError, setFormError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
   const save = useSaveServiceFee();
+  // P4-21: a service charge above 0 is the plan's `service_charge`; the place fee below is not
+  const serviceCharge = useFeature('service_charge');
 
   const toggle = (list: string[], channel: string, on: boolean) => (on ? [...list, channel] : list.filter((item) => item !== channel));
 
@@ -107,7 +109,15 @@ function FeeForm({ branchId, base, channels }: { branchId: number | null; base: 
       <Notice message={saved} />
       <Section title={t('settings_serviceCharge')}>
         <Card className="flex flex-col gap-3">
-          <NumberField label={t('settings_serviceChargePercent')} value={percent} onChange={setPercent} error={errors.service_charge_percent} suffix="%" hint={t('settings_serviceChargeHint')} />
+          <NumberField
+            label={t('settings_serviceChargePercent')}
+            value={percent}
+            onChange={setPercent}
+            error={errors.service_charge_percent}
+            suffix="%"
+            disabled={!serviceCharge.allowed}
+            hint={serviceCharge.allowed ? t('settings_serviceChargeHint') : t(serviceCharge.planName ? 'billing_serviceChargeLocked' : 'billing_serviceChargeLockedNoPlan', { plan: serviceCharge.planName ?? '' })}
+          />
           <fieldset className="flex flex-col">
             <legend className="mb-1 text-footnote font-bold text-fg-muted">{t('settings_appliesTo')}</legend>
             {channels.map((channel) => (

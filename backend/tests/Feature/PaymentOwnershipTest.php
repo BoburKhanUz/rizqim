@@ -120,10 +120,11 @@ class PaymentOwnershipTest extends TestCase
 
         $this->deliver($order);
 
-        // The platform holds the money: the full total is credited to the wallet, the 10% commission becomes debt.
+        // The platform holds the money: the 10% commission becomes debt and (P4-23, netting) the collected total pays
+        // it first; the rest is credited to the wallet.
         $store = $this->store->fresh();
-        $this->assertEquals(50000, (float) $store->wallet_balance);
-        $this->assertEquals(5000, (float) $store->debt_balance);
+        $this->assertEquals(45000, (float) $store->wallet_balance);
+        $this->assertEquals(0, (float) $store->debt_balance);
     }
 
     public function test_own_account_with_complete_click_credentials_collects_its_own_payments(): void

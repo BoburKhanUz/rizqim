@@ -13,6 +13,7 @@ export const en: Messages = {
   nav_staff: 'Staff',
   nav_reports: 'Reports',
   nav_finance: 'Finance',
+  nav_billing: 'Plan & billing',
   nav_settings: 'Settings',
   nav_zones: 'Delivery zones',
   nav_batches: 'Batches (kazan)',

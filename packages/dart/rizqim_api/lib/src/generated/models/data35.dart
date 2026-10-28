@@ -4,34 +4,55 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'variants.dart';
+import 'plan.dart';
+import 'current_period.dart';
+import 'devices.dart';
+import 'notice.dart';
 
 part 'data35.g.dart';
 
 @JsonSerializable()
 class Data35 {
   const Data35({
-    required this.productId,
-    required this.name,
-    required this.description,
-    required this.imageUrl,
-    required this.batchTracked,
-    required this.variants,
+    required this.plan,
+    required this.legacy,
+    required this.period,
+    required this.status,
+    required this.trialEndsAt,
+    required this.currentPeriod,
+    required this.termEndsAt,
+    required this.lockedSince,
+    required this.lockAt,
+    required this.settingsLocked,
+    required this.features,
+    required this.requiredPlans,
+    required this.devices,
+    required this.notice,
   });
 
   factory Data35.fromJson(Map<String, Object?> json) => _$Data35FromJson(json);
 
-  @JsonKey(name: 'product_id')
-  final int productId;
-  final String name;
-  final String? description;
-  @JsonKey(name: 'image_url')
-  final String? imageUrl;
-
-  /// P2-30: sold from a batch (kazan): without an open batch on the branch it is sold out (docs/MENU.md §4)
-  @JsonKey(name: 'batch_tracked')
-  final bool batchTracked;
-  final List<Variants> variants;
+  final Plan? plan;
+  final bool legacy;
+  final String? period;
+  final String status;
+  @JsonKey(name: 'trial_ends_at')
+  final String? trialEndsAt;
+  @JsonKey(name: 'current_period')
+  final CurrentPeriod? currentPeriod;
+  @JsonKey(name: 'term_ends_at')
+  final String? termEndsAt;
+  @JsonKey(name: 'locked_since')
+  final String? lockedSince;
+  @JsonKey(name: 'lock_at')
+  final String? lockAt;
+  @JsonKey(name: 'settings_locked')
+  final bool settingsLocked;
+  final Map<String, bool> features;
+  @JsonKey(name: 'required_plans')
+  final Map<String, String?> requiredPlans;
+  final Devices devices;
+  final Notice? notice;
 
   Map<String, Object?> toJson() => _$Data35ToJson(this);
 }

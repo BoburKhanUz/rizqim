@@ -178,7 +178,7 @@ export class FakeStaff {
   // The branch a branch-bound caller works in; null for the owner
   private boundBranch(): number | null {
     const user = this.ctx.user()
-    return user.role === 'owner' || user.role === 'super_admin' ? null : user.branch_id
+    return user.role === 'owner' ? null : user.branch_id
   }
 
   private branchName(id: number | null): string | null {

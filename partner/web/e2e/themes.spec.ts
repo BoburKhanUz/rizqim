@@ -12,6 +12,7 @@ const PAGES: Array<{ path: string; heading: string }> = [
   { path: '/staff', heading: 'Xodimlar' },
   { path: '/zones', heading: 'Yetkazish zonalari' },
   { path: '/reports', heading: 'Hisobotlar' },
+  { path: '/billing', heading: "Tarif va to'lov" },
 ]
 
 // WCAG relative luminance of a computed "rgb(a)" / "color(srgb ...)" colour

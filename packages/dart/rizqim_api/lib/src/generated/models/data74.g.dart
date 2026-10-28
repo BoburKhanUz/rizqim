@@ -7,45 +7,25 @@ part of 'data74.dart';
 // **************************************************************************
 
 Data74 _$Data74FromJson(Map<String, dynamic> json) => Data74(
-  uuid: json['uuid'] as String,
-  number: json['number'] as String,
-  period: json['period'] as String,
-  periodStart: json['period_start'] as String,
-  periodEnd: json['period_end'] as String,
-  plan: json['plan'] == null
+  id: (json['id'] as num).toInt(),
+  branchId: (json['branch_id'] as num).toInt(),
+  name: json['name'] as String,
+  sortOrder: (json['sort_order'] as num).toInt(),
+  isActive: json['is_active'] as bool,
+  serviceFee: json['service_fee'] == null
       ? null
-      : Plan.fromJson(json['plan'] as Map<String, dynamic>),
-  terminalsCount: (json['terminals_count'] as num).toInt(),
-  includedTerminals: (json['included_terminals'] as num).toInt(),
-  baseFee: json['base_fee'] as num,
-  feePerTerminal: json['fee_per_terminal'] as num,
-  lines: (json['lines'] as List<dynamic>)
-      .map((e) => Lines4.fromJson(e as Map<String, dynamic>))
+      : ServiceFee3.fromJson(json['service_fee'] as Map<String, dynamic>),
+  tables: (json['tables'] as List<dynamic>)
+      .map((e) => Tables4.fromJson(e as Map<String, dynamic>))
       .toList(),
-  amount: json['amount'] as num,
-  status: json['status'] as String,
-  dueDate: json['due_date'] as String,
-  issuedAt: json['issued_at'] as String,
-  paidAt: json['paid_at'] as String?,
-  voidedAt: json['voided_at'] as String?,
 );
 
 Map<String, dynamic> _$Data74ToJson(Data74 instance) => <String, dynamic>{
-  'uuid': instance.uuid,
-  'number': instance.number,
-  'period': instance.period,
-  'period_start': instance.periodStart,
-  'period_end': instance.periodEnd,
-  'plan': instance.plan,
-  'terminals_count': instance.terminalsCount,
-  'included_terminals': instance.includedTerminals,
-  'base_fee': instance.baseFee,
-  'fee_per_terminal': instance.feePerTerminal,
-  'lines': instance.lines,
-  'amount': instance.amount,
-  'status': instance.status,
-  'due_date': instance.dueDate,
-  'issued_at': instance.issuedAt,
-  'paid_at': instance.paidAt,
-  'voided_at': instance.voidedAt,
+  'id': instance.id,
+  'branch_id': instance.branchId,
+  'name': instance.name,
+  'sort_order': instance.sortOrder,
+  'is_active': instance.isActive,
+  'service_fee': instance.serviceFee,
+  'tables': instance.tables,
 };

@@ -165,9 +165,8 @@ class ApiDocsSpecTest extends TestCase
         $this->assertSame(['object', 'null'], $employee['properties']['branch']['type']);
         $this->assertArrayHasKey('telegram_invite_token', $employee['properties']);
 
-        $this->assertSame(['id', 'name'], array_keys($data('/v1/superadmin/locations')['properties']['regions']['items']['properties']));
-        $this->assertSame('number', $data('/v1/superadmin/dashboard')['properties']['total_store_debt']['type']);
-        $this->assertSame(['string', 'null'], $data('/v1/superadmin/stores')['items']['properties']['owner']['properties']['invite_link']['type']);
+        // P4-25: the legacy /superadmin/* endpoints are gone from the document
+        $this->assertSame([], array_values(array_filter(array_keys($paths), fn (string $path) => str_starts_with($path, '/v1/superadmin'))));
 
         $this->assertSame('object', $data('/v1/owner/settings')['properties']['payment_settings']['type']);
         $this->assertSame('object', $paths['/v1/owner/settings']['post']['requestBody']['content']['application/json']['schema']['properties']['payment_settings']['type']);

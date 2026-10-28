@@ -4,6 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'billing_period.dart';
 import 'store.dart';
 import 'subscription_invoice.dart';
 import 'subscription_status.dart';
@@ -28,9 +29,18 @@ class StoreSubscription {
     required this.createdBy,
     required this.createdAt,
     required this.updatedAt,
+    required this.billingPeriod,
+    required this.nextBillingPeriod,
+    required this.termEndsAt,
+    required this.prorateFromPlanId,
+    required this.priceLockPlanId,
+    required this.priceLockedUntil,
+    required this.lockedAt,
     this.store,
     this.plan,
     this.nextPlan,
+    this.prorateFromPlan,
+    this.priceLockPlan,
     this.invoices,
   });
 
@@ -63,10 +73,28 @@ class StoreSubscription {
   final DateTime? createdAt;
   @JsonKey(name: 'updated_at')
   final DateTime? updatedAt;
+  @JsonKey(name: 'billing_period')
+  final BillingPeriod billingPeriod;
+  @JsonKey(name: 'next_billing_period')
+  final BillingPeriod? nextBillingPeriod;
+  @JsonKey(name: 'term_ends_at')
+  final DateTime? termEndsAt;
+  @JsonKey(name: 'prorate_from_plan_id')
+  final int? prorateFromPlanId;
+  @JsonKey(name: 'price_lock_plan_id')
+  final int? priceLockPlanId;
+  @JsonKey(name: 'price_locked_until')
+  final DateTime? priceLockedUntil;
+  @JsonKey(name: 'locked_at')
+  final DateTime? lockedAt;
   final Store? store;
   final TariffPlan? plan;
   @JsonKey(name: 'next_plan')
   final TariffPlan? nextPlan;
+  @JsonKey(name: 'prorate_from_plan')
+  final TariffPlan? prorateFromPlan;
+  @JsonKey(name: 'price_lock_plan')
+  final TariffPlan? priceLockPlan;
   final List<SubscriptionInvoice>? invoices;
 
   Map<String, Object?> toJson() => _$StoreSubscriptionToJson(this);

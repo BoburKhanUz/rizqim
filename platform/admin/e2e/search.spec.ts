@@ -29,7 +29,8 @@ test('Ctrl+K opens the search; results come grouped by type, masked, and Enter o
   await expect(palette.getByRole('option', { name: /^Lazzat Express/ })).toHaveAttribute('aria-selected', 'true')
   await box.press('Enter')
   await expect(page).toHaveURL(/\/stores\/13$/)
-  await expect(page.getByText("Bu bo'lim keyingi to'lqinda qo'shiladi")).toBeVisible()
+  // P4-22: the store's 360° card
+  await expect(page.getByRole('heading', { name: 'Lazzat Express', level: 1 })).toBeVisible()
   await expect(palette).toHaveCount(0)
 })
 

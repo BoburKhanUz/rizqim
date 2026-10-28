@@ -26,6 +26,7 @@ StoreWalletTransaction _$StoreWalletTransactionFromJson(
   updatedAt: json['updated_at'] == null
       ? null
       : DateTime.parse(json['updated_at'] as String),
+  payoutRequestId: (json['payout_request_id'] as num?)?.toInt(),
   store: json['store'] == null
       ? null
       : Store.fromJson(json['store'] as Map<String, dynamic>),
@@ -50,6 +51,7 @@ Map<String, dynamic> _$StoreWalletTransactionToJson(
   'notes': instance.notes,
   'created_at': instance.createdAt?.toIso8601String(),
   'updated_at': instance.updatedAt?.toIso8601String(),
+  'payout_request_id': instance.payoutRequestId,
   'store': instance.store,
   'order': instance.order,
 };

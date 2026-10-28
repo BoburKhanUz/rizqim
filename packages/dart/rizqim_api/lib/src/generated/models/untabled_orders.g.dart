@@ -22,7 +22,7 @@ UntabledOrders _$UntabledOrdersFromJson(Map<String, dynamic> json) =>
       guestsCount: (json['guests_count'] as num?)?.toInt(),
       waiter: json['waiter'] == null
           ? null
-          : Waiter2.fromJson(json['waiter'] as Map<String, dynamic>),
+          : Waiter3.fromJson(json['waiter'] as Map<String, dynamic>),
       totalPrice: json['total_price'] as String,
       itemsCount: (json['items_count'] as num).toInt(),
       unsentCount: (json['unsent_count'] as num).toInt(),

@@ -35,8 +35,10 @@ class GlobalStoreForm
                                 \Filament\Forms\Components\TextInput::make('commission_rate')
                                     ->label('Commission Rate (%)')
                                     ->numeric()
-                                    ->default(10)
-                                    ->required(),
+                                    ->minValue(0)
+                                    ->maxValue(100)
+                                    // Empty = the per-channel rates of billing v2 (15/10/5/0%, docs/BILLING.md)
+                                    ->helperText("Bo'sh qoldirilsa kanal bo'yicha stavka ishlaydi (15/10/5/0%). Faqat alohida kelishilgan bitta stavka bo'lsa yozing."),
                                 \Filament\Forms\Components\TextInput::make('credit_limit')
                                     ->label('Credit Limit (UZS)')
                                     ->numeric()

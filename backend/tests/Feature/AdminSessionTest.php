@@ -55,7 +55,7 @@ class AdminSessionTest extends TestCase
         foreach ([$superadmin, $operator] as $member) {
             $token = $this->signIn($member);
 
-            foreach (['/api/v1/user', '/api/v1/me/permissions', '/api/v1/orders', '/api/v1/owner/audit-logs', '/api/v1/superadmin/dashboard', '/api/v1/terminal'] as $uri) {
+            foreach (['/api/v1/user', '/api/v1/me/permissions', '/api/v1/orders', '/api/v1/owner/audit-logs', '/api/v1/terminal'] as $uri) {
                 $this->bearerJson('GET', $uri, $token)->assertUnauthorized();
             }
             $this->bearerJson('POST', '/api/v1/auth/logout', $token)->assertUnauthorized();
@@ -87,10 +87,10 @@ class AdminSessionTest extends TestCase
             $this->adminJson('GET', '/team', $token)->assertUnauthorized();
         }
 
-        // Their own routes still work for them (existing super_admin behaviour on store APIs unchanged)
+        // Their own routes still work for them; P4-25: a superadmin's non-admin token works nowhere (AuthSuperadminControlCenterTest)
         $this->bearerJson('GET', '/api/v1/user', $tokens['owner'])->assertOk();
-        $this->bearerJson('GET', '/api/v1/superadmin/dashboard', $tokens['superadmin sanctum'])->assertOk();
-        $this->bearerJson('GET', '/api/v1/me/permissions', $tokens['superadmin sanctum'])->assertOk();
+        $this->bearerJson('GET', '/api/v1/user', $tokens['superadmin sanctum'])->assertUnauthorized();
+        $this->bearerJson('GET', '/api/v1/me/permissions', $tokens['superadmin sanctum'])->assertUnauthorized();
     }
 
     public function test_a_non_superadmin_team_member_has_no_store_level_token_at_all(): void

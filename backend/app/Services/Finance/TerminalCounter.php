@@ -13,7 +13,10 @@ use Carbon\CarbonInterface;
  */
 class TerminalCounter
 {
-    public function maxConcurrent(int $storeId, CarbonInterface $from, CarbonInterface $to): int
+    /**
+     * @param  list<DeviceType>|null  $types  P4-21: only these terminal types (Billing v2 bills kassa and KDS apart)
+     */
+    public function maxConcurrent(int $storeId, CarbonInterface $from, CarbonInterface $to, ?array $types = null): int
     {
         if ($to->lessThanOrEqualTo($from)) {
             return 0;
@@ -25,7 +28,7 @@ class TerminalCounter
 
         $devices = Device::query()
             ->where('store_id', $storeId)
-            ->whereIn('type', array_map(fn (DeviceType $type) => $type->value, DeviceType::terminals()))
+            ->whereIn('type', array_map(fn (DeviceType $type) => $type->value, $types ?? DeviceType::terminals()))
             ->where('created_at', '<', $to)
             ->where(fn ($query) => $query->whereNull('revoked_at')->orWhere('revoked_at', '>', $from))
             ->get(['id', 'created_at', 'revoked_at']);
@@ -62,11 +65,14 @@ class TerminalCounter
     /**
      * Terminals paired and not revoked right now.
      */
-    public function activeNow(int $storeId): int
+    /**
+     * @param  list<DeviceType>|null  $types
+     */
+    public function activeNow(int $storeId, ?array $types = null): int
     {
         return Device::query()
             ->where('store_id', $storeId)
-            ->whereIn('type', array_map(fn (DeviceType $type) => $type->value, DeviceType::terminals()))
+            ->whereIn('type', array_map(fn (DeviceType $type) => $type->value, $types ?? DeviceType::terminals()))
             ->whereNull('revoked_at')
             ->count();
     }

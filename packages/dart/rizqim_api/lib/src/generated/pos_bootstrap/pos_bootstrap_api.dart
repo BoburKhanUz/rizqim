@@ -39,7 +39,8 @@ abstract class PosBootstrapApi {
   /// fee and minimum spend per place, the choy-non items, its local number prefix and next number, the limits);.
   /// P3-26: `quick_items`, the one-tap buttons (products marked `quick_add` in the menu, then the.
   /// branch's per-guest "choy-non" items: `source` quick_add | auto_guest, `variant_uuid` to add as a line; prices and.
-  /// availability from the POS catalog).
+  /// availability from the POS catalog); P4-21: `entitlements`, the store's plan, status, features and devices (the.
+  /// same as GET /owner/billing/entitlements) for the "Asosiy tarifda bor" locks and the unpaid-invoice notice.
   ///
   /// [branchId] - The branch, for a caller who is not tied to one (the owner, a store-wide terminal).
   @GET('/v1/pos/bootstrap')

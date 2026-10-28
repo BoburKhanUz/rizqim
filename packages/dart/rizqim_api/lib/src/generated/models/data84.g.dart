@@ -7,29 +7,39 @@ part of 'data84.dart';
 // **************************************************************************
 
 Data84 _$Data84FromJson(Map<String, dynamic> json) => Data84(
+  id: (json['id'] as num).toInt(),
   uuid: json['uuid'] as String,
-  provider: json['provider'] as String,
-  providerTransactionId: json['provider_transaction_id'] as String?,
-  status: json['status'] as String,
-  amount: json['amount'] as String,
-  paidAt: json['paid_at'] as String?,
-  cancelledAt: json['cancelled_at'] as String?,
-  createdAt: json['created_at'] as String,
-  order: Order3.fromJson(json['order'] as Map<String, dynamic>),
-  fiscal: json['fiscal'] == null
-      ? null
-      : Fiscal.fromJson(json['fiscal'] as Map<String, dynamic>),
+  name: json['name'] as String,
+  nameI18n: (json['name_i18n'] as Map<String, dynamic>?)?.map(
+    (k, e) => MapEntry(k, e as String),
+  ),
+  minSelect: (json['min_select'] as num).toInt(),
+  maxSelect: (json['max_select'] as num?)?.toInt(),
+  isRequired: json['is_required'] as bool,
+  sortOrder: (json['sort_order'] as num).toInt(),
+  isActive: json['is_active'] as bool,
+  modifiers: (json['modifiers'] as List<dynamic>)
+      .map((e) => Modifiers3.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  productIds: (json['product_ids'] as List<dynamic>)
+      .map((e) => (e as num).toInt())
+      .toList(),
+  productRules: ProductRules3.fromJson(
+    json['product_rules'] as Map<String, dynamic>,
+  ),
 );
 
 Map<String, dynamic> _$Data84ToJson(Data84 instance) => <String, dynamic>{
+  'id': instance.id,
   'uuid': instance.uuid,
-  'provider': instance.provider,
-  'provider_transaction_id': instance.providerTransactionId,
-  'status': instance.status,
-  'amount': instance.amount,
-  'paid_at': instance.paidAt,
-  'cancelled_at': instance.cancelledAt,
-  'created_at': instance.createdAt,
-  'order': instance.order,
-  'fiscal': instance.fiscal,
+  'name': instance.name,
+  'name_i18n': instance.nameI18n,
+  'min_select': instance.minSelect,
+  'max_select': instance.maxSelect,
+  'is_required': instance.isRequired,
+  'sort_order': instance.sortOrder,
+  'is_active': instance.isActive,
+  'modifiers': instance.modifiers,
+  'product_ids': instance.productIds,
+  'product_rules': instance.productRules,
 };

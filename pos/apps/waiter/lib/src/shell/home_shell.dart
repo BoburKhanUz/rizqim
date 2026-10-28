@@ -8,6 +8,7 @@ import 'package:rizqim_ui/rizqim_ui.dart';
 import '../features/rooms/rooms_page.dart';
 import '../services.dart';
 import 'connection_indicator.dart';
+import 'plan_notice.dart';
 import 'unpair_dialog.dart';
 import 'waiter_scope.dart';
 
@@ -25,6 +26,7 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> {
   late final StreamSubscription<PosSessionPhase> _sub;
+  late final PlanRefresher _plan = PlanRefresher(widget.services.session);
 
   PosSession get _session => widget.services.session;
 
@@ -34,10 +36,13 @@ class _HomeShellState extends State<HomeShell> {
     _sub = _session.changes.listen((_) {
       if (mounted) setState(() {});
     });
+    // P4-21: the plan is read again now and then, so paying the invoice removes the notice
+    _plan.start();
   }
 
   @override
   void dispose() {
+    _plan.dispose();
     unawaited(_sub.cancel());
     super.dispose();
   }
@@ -111,7 +116,16 @@ class _HomeShellState extends State<HomeShell> {
             const SizedBox(width: 4),
           ],
         ),
-        body: const RoomsPage(),
+        body: Column(
+          children: <Widget>[
+            // P4-21: an unpaid invoice, in plain words; taking orders is never blocked
+            PlanNoticeBanner(
+              session: widget.services.session,
+              now: widget.services.now,
+            ),
+            const Expanded(child: RoomsPage()),
+          ],
+        ),
       ),
     );
   }

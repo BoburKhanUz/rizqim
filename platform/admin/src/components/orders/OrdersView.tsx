@@ -23,6 +23,7 @@ import { when } from '@/lib/format';
 import { OPS_EVENTS, usePlatformOps } from '@/lib/realtime';
 import { useCan } from '../AuthProvider';
 import { useT } from '../I18nProvider';
+import { RegionSelect, StorePicker } from '../stores/StorePicker';
 import { SlaSettingsDialog } from './OrderDialogs';
 import { clockSkew, exactMoney, GROUP_LABEL, money } from './ordersModel';
 import { SlaBadge } from './SlaBadge';
@@ -39,15 +40,16 @@ export const ORDERS_EVENT_COALESCE_MS = 1_000;
 const CHIP = 'inline-flex min-h-10 items-center gap-1.5 rounded-full border px-3 text-footnote font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand';
 const chipTone = (on: boolean) => (on ? 'border-brand bg-brand text-on-brand' : 'border-line bg-surface text-fg hover:bg-surface-2');
 
-export function OrdersView() {
+// P4-22: `initial` carries ?store_id= and ?region_id= (the store card's "Buyurtmalarini ochish" link)
+export function OrdersView({ initial }: { initial?: Partial<Pick<OrderFilters, 'store_id' | 'region_id'>> } = {}) {
   const t = useT();
   const { ready, can } = useCan();
   const allowed = ready && can('orders.view');
   const queryClient = useQueryClient();
   const now = useNow(15_000);
-  const [filters, setFilters] = useState<OrderFilters>(DEFAULT_FILTERS);
+  const [filters, setFilters] = useState<OrderFilters>(() => ({ ...DEFAULT_FILTERS, ...initial }));
   const [search, setSearch] = useState('');
-  const [more, setMore] = useState(false);
+  const [more, setMore] = useState(Boolean(initial?.store_id || initial?.region_id));
   const [slaOpen, setSlaOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -217,12 +219,9 @@ export function OrdersView() {
         </div>
         {more && (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Field label={t('orders_storeId')}>
-              {(control) => <input {...control} type="text" inputMode="numeric" className={fieldClass} value={filters.store_id} onChange={(event) => set('store_id', event.target.value.replace(/\D+/g, ''))} />}
-            </Field>
-            <Field label={t('orders_regionId')}>
-              {(control) => <input {...control} type="text" inputMode="numeric" className={fieldClass} value={filters.region_id} onChange={(event) => set('region_id', event.target.value.replace(/\D+/g, ''))} />}
-            </Field>
+            {/* P4-22: pickers by name instead of raw ids (GET /admin/stores/lookup) */}
+            <StorePicker value={filters.store_id ? Number(filters.store_id) : null} onChange={(id) => set('store_id', id === null ? '' : String(id))} label={t('orders_store')} />
+            <RegionSelect value={filters.region_id} onChange={(id) => set('region_id', id)} label={t('orders_region')} />
             <Field label={t('orders_from')}>{(control) => <input {...control} type="date" className={fieldClass} value={filters.from} onChange={(event) => set('from', event.target.value)} />}</Field>
             <Field label={t('orders_to')}>{(control) => <input {...control} type="date" className={fieldClass} value={filters.to} onChange={(event) => set('to', event.target.value)} />}</Field>
           </div>

@@ -7,47 +7,27 @@ part of 'data148.dart';
 // **************************************************************************
 
 Data148 _$Data148FromJson(Map<String, dynamic> json) => Data148(
-  uuid: json['uuid'] as String,
-  type: Type6.fromJson(json['type'] as String),
-  status: Status5.fromJson(json['status'] as String),
-  paymentForm: PaymentForm.fromJson(json['payment_form'] as String),
-  nonFiscal: json['non_fiscal'] as bool,
-  total: json['total'] as String,
-  vatTotal: json['vat_total'] as String,
-  fiscalSign: json['fiscal_sign'] as String?,
-  receiptNumber: json['receipt_number'] as String?,
-  qrUrl: json['qr_url'] as String?,
-  terminalId: json['terminal_id'] as String?,
-  error: json['error'] as String?,
-  issuedAt: json['issued_at'] as String?,
-  createdAt: json['created_at'] as String?,
-  branchId: (json['branch_id'] as num?)?.toInt(),
-  originalReceiptUuid: json['original_receipt_uuid'] as String?,
-  lines: (json['lines'] as List<dynamic>)
-      .map((e) => Lines14.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  payments: (json['payments'] as List<dynamic>)
-      .map((e) => Payments27.fromJson(e as Map<String, dynamic>))
+  account: Account4.fromJson(json['account'] as Map<String, dynamic>),
+  from: json['from'] as String,
+  to: json['to'] as String,
+  openingBalance: json['opening_balance'] as String,
+  closingBalance: json['closing_balance'] as String,
+  chargesTotal: json['charges_total'] as String,
+  repaymentsTotal: json['repayments_total'] as String,
+  adjustmentsTotal: json['adjustments_total'] as String,
+  entries: (json['entries'] as List<dynamic>)
+      .map((e) => Entries3.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 
 Map<String, dynamic> _$Data148ToJson(Data148 instance) => <String, dynamic>{
-  'uuid': instance.uuid,
-  'type': instance.type,
-  'status': instance.status,
-  'payment_form': instance.paymentForm,
-  'non_fiscal': instance.nonFiscal,
-  'total': instance.total,
-  'vat_total': instance.vatTotal,
-  'fiscal_sign': instance.fiscalSign,
-  'receipt_number': instance.receiptNumber,
-  'qr_url': instance.qrUrl,
-  'terminal_id': instance.terminalId,
-  'error': instance.error,
-  'issued_at': instance.issuedAt,
-  'created_at': instance.createdAt,
-  'branch_id': instance.branchId,
-  'original_receipt_uuid': instance.originalReceiptUuid,
-  'lines': instance.lines,
-  'payments': instance.payments,
+  'account': instance.account,
+  'from': instance.from,
+  'to': instance.to,
+  'opening_balance': instance.openingBalance,
+  'closing_balance': instance.closingBalance,
+  'charges_total': instance.chargesTotal,
+  'repayments_total': instance.repaymentsTotal,
+  'adjustments_total': instance.adjustmentsTotal,
+  'entries': instance.entries,
 };

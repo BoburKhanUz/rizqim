@@ -92,9 +92,8 @@ filtr va Excel'ga eksport, har bir amal sabab bilan jurnalga yoziladi.
 - **Payoutdan ushlab qolish (netting, egasi qarori 28.10.2026):** RIZQIM yig'gan puldan (Payme, Click, keshbek)
   ovqatxonaga pul o'tkazishdan oldin uning qarzi (obuna hisob-fakturalari va naqd buyurtmalar komissiyasi) avval
   ushlab qolinadi, qolgani o'tkaziladi. Payout kartasida "Hisoblangan — Ushlab qolingan qarz — O'tkaziladi" qatorlari;
-  har bir ushlash ledger'da alohida yozuv (qaysi hisob-faktura yoki komissiya yopildi). Hozir bu faqat keshbek
-  to'lovlarida ishlaydi (`LedgerService::settleKeshbek`), Payme va Click pullari qarzni yopmaydi — 2-to'lqinda
-  shu bo'shliq yopiladi.
+  har bir ushlash ledger'da alohida yozuv (qaysi hisob-faktura yoki komissiya yopildi). 2-to'lqinda qurildi
+  (P4-23, `NettingService`): payoutda va har bir platforma to'lovida (keshbek, Click, Payme) qarz avval yopiladi.
 - Balans to'ldirishlar (Click, Payme), hisob-kitob xatolari va qayta urinish.
 - **Qo'lda tuzatish** (adjustment): sabab va hujjat bilan; belgilangan summadan katta tuzatishni ikkinchi xodim
   tasdiqlaydi.

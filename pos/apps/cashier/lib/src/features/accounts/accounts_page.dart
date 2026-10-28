@@ -6,6 +6,7 @@ import 'package:pos_data/pos_data.dart';
 import 'package:rizqim_core/rizqim_core.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
+import '../../shell/plan_gate.dart';
 import '../../shell/pos_scope.dart';
 import '../billing/cashier_ui.dart';
 import 'account_form.dart';
@@ -125,6 +126,9 @@ class _AccountsPageState extends State<AccountsPage> {
   }
 
   Future<void> _edit({PosCustomerAccount? account}) async {
+    if (account == null && !ensurePlan(context, PosFeature.customerAccounts)) {
+      return;
+    }
     final PosCustomerAccount? saved = await showAccountForm(
       context,
       account: account,
@@ -223,7 +227,10 @@ class _AccountsPageState extends State<AccountsPage> {
                   ),
                 ),
                 if (manage)
-                  RzButton(
+                  // P4-21: a new nasiya account is the plan's customer_accounts; accounts that exist, repayments and
+                  // paying a bill to an account never depend on the plan
+                  PlanButton(
+                    feature: PosFeature.customerAccounts,
                     label: 'Yangi hisob',
                     icon: Icons.person_add_alt_1_rounded,
                     variant: RzButtonVariant.secondary,

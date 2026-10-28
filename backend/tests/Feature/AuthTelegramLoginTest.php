@@ -95,8 +95,9 @@ class AuthTelegramLoginTest extends TestCase
         $customer = User::create(['name' => 'Regular Customer', 'telegram_id' => '777777777', 'role' => UserRole::CUSTOMER]);
         $owner = User::create(['name' => 'Store Owner', 'telegram_id' => '5550001', 'store_id' => $this->store->id, 'role' => UserRole::OWNER]);
 
+        // P4-25: a superadmin gets no Telegram token (AuthSuperadminControlCenterTest); the stored role is left alone
         $this->login($this->signedInitData(['id' => 1328662483, 'first_name' => 'Admin']))
-            ->assertOk()->assertJsonPath('data.user.role', UserRole::SUPER_ADMIN->value);
+            ->assertForbidden()->assertJsonPath('data.reason', 'platform_account');
         $this->login($this->signedInitData(['id' => 777777777, 'first_name' => 'Customer']))
             ->assertOk()->assertJsonPath('data.user.role', UserRole::CUSTOMER->value);
         $this->login($this->signedInitData(['id' => 5550001, 'first_name' => 'Owner']))

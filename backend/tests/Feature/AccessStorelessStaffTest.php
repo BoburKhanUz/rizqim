@@ -91,7 +91,6 @@ class AccessStorelessStaffTest extends TestCase
         }
 
         $this->actingAs($this->customer, 'sanctum')->getJson('/api/v1/user')->assertOk();
-        $this->actingAs($this->superAdmin, 'sanctum')->getJson('/api/v1/superadmin/dashboard')->assertOk();
     }
 
     public function test_storeless_staff_cannot_enter_the_admin_panel_or_list_global_users(): void

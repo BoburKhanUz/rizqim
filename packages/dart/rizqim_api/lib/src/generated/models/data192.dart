@@ -4,20 +4,38 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'regions2.dart';
-import 'districts2.dart';
+import 'polygon5.dart';
 
 part 'data192.g.dart';
 
 @JsonSerializable()
 class Data192 {
-  const Data192({required this.regions, required this.districts});
+  const Data192({
+    required this.id,
+    required this.name,
+    required this.polygon,
+    required this.deliveryPrice,
+    required this.minOrderAmount,
+    required this.freeDeliveryFrom,
+    required this.etaMinutes,
+    required this.priority,
+  });
 
   factory Data192.fromJson(Map<String, Object?> json) =>
       _$Data192FromJson(json);
 
-  final List<Regions2> regions;
-  final List<Districts2> districts;
+  final int id;
+  final String name;
+  final Polygon5 polygon;
+  @JsonKey(name: 'delivery_price')
+  final String deliveryPrice;
+  @JsonKey(name: 'min_order_amount')
+  final String minOrderAmount;
+  @JsonKey(name: 'free_delivery_from')
+  final String? freeDeliveryFrom;
+  @JsonKey(name: 'eta_minutes')
+  final int? etaMinutes;
+  final int priority;
 
   Map<String, Object?> toJson() => _$Data192ToJson(this);
 }

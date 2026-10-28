@@ -1,4 +1,4 @@
-// Regions and districts of the address forms (GET /locations). The superadmin store form's own types are @rizqim/staff's.
+// Regions and districts of the address forms (GET /locations).
 export interface Region {
   id: number;
   name: string;

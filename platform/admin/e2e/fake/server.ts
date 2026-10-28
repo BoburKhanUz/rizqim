@@ -42,9 +42,19 @@ export class FakeServer {
       res.writeHead(404, { 'Content-Type': 'application/json' }).end(JSON.stringify({ message: 'not an API path' }))
       return
     }
-    let text = ''
-    for await (const chunk of req) text += String(chunk)
-    const body = text ? (JSON.parse(text) as Record<string, unknown>) : null
+    const chunks: Buffer[] = []
+    for await (const chunk of req) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)))
+    const bytes = Buffer.concat(chunks)
+    const contentType = String(req.headers['content-type'] ?? '')
+    let body: Record<string, unknown> | null = null
+    if (/^multipart\/form-data/i.test(contentType)) {
+      // P4-23: a file upload: its fields, and each file as {name, size, type}
+      const form = await new Request('http://fake.test/', { method: 'POST', headers: { 'Content-Type': contentType }, body: bytes }).formData()
+      body = {}
+      for (const [name, value] of form.entries()) body[name] = typeof value === 'string' ? value : { name: value.name, size: value.size, type: value.type }
+    } else if (bytes.length > 0) {
+      body = JSON.parse(bytes.toString('utf8')) as Record<string, unknown>
+    }
     if (this.latencyMs > 0) await new Promise((resolve) => setTimeout(resolve, this.latencyMs))
 
     const request: FakeRequest = {
@@ -53,8 +63,13 @@ export class FakeServer {
       query: Object.fromEntries(url.searchParams),
       body,
       authorization: req.headers.authorization ?? null,
+      headers: Object.fromEntries(Object.entries(req.headers).filter((entry): entry is [string, string] => typeof entry[1] === 'string')),
     }
     const reply = this.backend.handle(request)
+    if (reply.raw) {
+      res.writeHead(reply.status, reply.headers ?? {}).end(Buffer.from(reply.raw))
+      return
+    }
     res.writeHead(reply.status, { 'Content-Type': 'application/json', ...reply.headers }).end(JSON.stringify(reply.body ?? null))
   }
 }

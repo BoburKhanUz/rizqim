@@ -53,9 +53,9 @@ export interface NavItem {
 export const NAV_ITEMS: readonly NavItem[] = [
   { key: 'today', href: '/today', label: 'nav_today', anyOf: ['today.view'], icon: LayoutDashboard, built: true },
   { key: 'orders', href: '/orders', label: 'nav_orders', anyOf: ['orders.view'], icon: ClipboardList, built: true },
-  { key: 'stores', href: '/stores', label: 'nav_stores', anyOf: ['stores.view'], icon: Store, built: false },
-  { key: 'pos', href: '/pos', label: 'nav_pos', anyOf: ['subscriptions.manage', 'devices.view'], icon: MonitorSmartphone, built: false },
-  { key: 'finance', href: '/finance', label: 'nav_finance', anyOf: ['finance.view'], icon: HandCoins, built: false },
+  { key: 'stores', href: '/stores', label: 'nav_stores', anyOf: ['stores.view'], icon: Store, built: true },
+  { key: 'pos', href: '/pos', label: 'nav_pos', anyOf: ['subscriptions.manage', 'finance.view', 'devices.view'], icon: MonitorSmartphone, built: true },
+  { key: 'finance', href: '/finance', label: 'nav_finance', anyOf: ['finance.view'], icon: HandCoins, built: true },
   { key: 'customers', href: '/customers', label: 'nav_customers', anyOf: ['users.view', 'support.view'], icon: UsersRound, alsoPaths: ['/users'], built: false },
   { key: 'marketing', href: '/marketing', label: 'nav_marketing', anyOf: ['marketing.view'], icon: Megaphone, built: false },
   { key: 'monitoring', href: '/monitoring', label: 'nav_monitoring', anyOf: ['monitoring.view'], icon: Activity, built: true },

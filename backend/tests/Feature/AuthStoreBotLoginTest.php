@@ -103,13 +103,15 @@ class AuthStoreBotLoginTest extends TestCase
         $this->assertSame('8800007', $seatInB->fresh()->telegram_id);
     }
 
-    public function test_global_bot_still_logs_in_super_admin(): void
+    public function test_global_bot_no_longer_logs_in_super_admin(): void
     {
         User::create(['name' => 'Admin', 'telegram_id' => '8800009', 'role' => UserRole::SUPER_ADMIN]);
 
         $this->postJson('/api/v1/auth/telegram', [
             'initData' => $this->signedInitData(self::GLOBAL_TOKEN, 8800009),
             'bot_username' => 'rizqim_global_bot',
-        ])->assertOk()->assertJsonPath('data.user.role', UserRole::SUPER_ADMIN->value);
+        ])->assertForbidden()->assertJsonPath('data.reason', 'platform_account');
+
+        $this->assertDatabaseCount('personal_access_tokens', 0);
     }
 }

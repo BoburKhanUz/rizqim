@@ -11,12 +11,12 @@ Data69 _$Data69FromJson(Map<String, dynamic> json) => Data69(
   taxRegime: json['tax_regime'] == null
       ? null
       : TaxRegime.fromJson(json['tax_regime'] as String?),
-  fiscalSettings: FiscalSettings2.fromJson(
+  fiscalSettings: FiscalSettings.fromJson(
     json['fiscal_settings'] as Map<String, dynamic>,
   ),
   drivers: (json['drivers'] as List<dynamic>).map((e) => e as String).toList(),
   taxRegimes: (json['tax_regimes'] as List<dynamic>)
-      .map((e) => TaxRegimes2.fromJson(e as Map<String, dynamic>))
+      .map((e) => TaxRegimes.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 

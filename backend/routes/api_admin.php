@@ -73,5 +73,7 @@ Route::prefix('admin')->name('admin.')->middleware('admin.audit')->group(functio
         require __DIR__ . '/api_admin_monitoring.php';  // Monitoring (monitoring.*)
         require __DIR__ . '/api_admin_billing.php';     // P4-21 tariffs and store subscriptions
         require __DIR__ . '/api_admin_stores.php';      // P4-22 Ovqatxonalar (stores.*)
+        require __DIR__ . '/api_admin_finance.php';     // P4-23 Moliya (finance.*, payouts.approve)
+        require __DIR__ . '/api_admin_pos.php';         // P4-24 POS va obunalar (invoices, devices, shifts, fiscal, sync errors)
     });
 });

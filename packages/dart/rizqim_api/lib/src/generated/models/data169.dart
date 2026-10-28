@@ -4,13 +4,13 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'hall17.dart';
-import 'table17.dart';
+import 'hall16.dart';
+import 'table16.dart';
 import 'waiter19.dart';
 import 'discount_kind.dart';
-import 'charges19.dart';
-import 'offline15.dart';
-import 'items41.dart';
+import 'charges18.dart';
+import 'offline14.dart';
+import 'items39.dart';
 
 part 'data169.g.dart';
 
@@ -72,8 +72,8 @@ class Data169 {
   @JsonKey(name: 'branch_id')
   final int? branchId;
   final int version;
-  final Hall17? hall;
-  final Table17? table;
+  final Hall16? hall;
+  final Table16? table;
   @JsonKey(name: 'hall_ref')
   final String? hallRef;
   @JsonKey(name: 'table_ref')
@@ -120,10 +120,10 @@ class Data169 {
   final String minSpendTopupAmount;
   @JsonKey(name: 'total_price')
   final String totalPrice;
-  final Charges19 charges;
-  final Offline15? offline;
+  final Charges18 charges;
+  final Offline14? offline;
   final int rounds;
-  final List<Items41> items;
+  final List<Items39> items;
 
   Map<String, Object?> toJson() => _$Data169ToJson(this);
 }

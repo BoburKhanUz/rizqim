@@ -394,7 +394,12 @@ class DeliveryZoneCheckoutTest extends TestCase
                 ...StoreWalletTransaction::where('order_id', $order->id)->where('type', StoreTransactionType::COMMISSION->value)->pluck('amount')->map(fn ($amount) => Money::of($amount)->abs())->all(),
             );
             $this->assertSame('6200.00', $commission->toString());
-            $this->assertSame(['62000.00'], StoreWalletTransaction::where('order_id', $order->id)->where('type', StoreTransactionType::SETTLEMENT->value)->pluck('amount')->map(fn ($amount) => Money::of($amount)->toString())->all());
+            // P4-23 (netting): the full total is credited, the store's debt (here the first order's own commission) first
+            $credited = Money::sum(
+                ...StoreWalletTransaction::where('order_id', $order->id)->where('type', StoreTransactionType::SETTLEMENT->value)->pluck('amount')->all(),
+                ...StoreTransaction::where('order_id', $order->id)->where('type', StoreTransactionType::TOPUP->value)->pluck('amount')->map(fn ($amount) => Money::of($amount)->abs())->all(),
+            );
+            $this->assertSame('62000.00', $credited->toString());
         }
     }
 

@@ -8,12 +8,21 @@ part 'waiter.g.dart';
 
 @JsonSerializable()
 class Waiter {
-  const Waiter({required this.id, required this.name});
+  const Waiter({
+    required this.included,
+    required this.unlimited,
+    required this.extraPrice,
+    required this.canAdd,
+  });
 
   factory Waiter.fromJson(Map<String, Object?> json) => _$WaiterFromJson(json);
 
-  final int id;
-  final String? name;
+  final dynamic included;
+  final bool unlimited;
+  @JsonKey(name: 'extra_price')
+  final String extraPrice;
+  @JsonKey(name: 'can_add')
+  final bool canAdd;
 
   Map<String, Object?> toJson() => _$WaiterToJson(this);
 }

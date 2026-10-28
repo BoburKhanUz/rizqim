@@ -7,12 +7,12 @@ part of 'data155.dart';
 // **************************************************************************
 
 Data155 _$Data155FromJson(Map<String, dynamic> json) => Data155(
-  order: Order9.fromJson(json['order'] as Map<String, dynamic>),
+  order: Order8.fromJson(json['order'] as Map<String, dynamic>),
   bills: (json['bills'] as List<dynamic>)
-      .map((e) => Bills2.fromJson(e as Map<String, dynamic>))
+      .map((e) => Bills.fromJson(e as Map<String, dynamic>))
       .toList(),
   refunds: (json['refunds'] as List<dynamic>)
-      .map((e) => Refunds2.fromJson(e as Map<String, dynamic>))
+      .map((e) => Refunds.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 

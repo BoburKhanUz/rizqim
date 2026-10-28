@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
-import { Placeholder } from '@/components/Placeholder';
+import { StoresView } from '@/components/stores/StoresView';
 
 export const metadata: Metadata = { title: 'Ovqatxonalar' };
 
-// Stage B and later waves replace the placeholder with the real screen (docs/PHASE4_PLAN.md, section 9).
+// P4-22: every store with its health, plan and debt
 export default function Page() {
-  return <Placeholder title="nav_stores" />;
+  return <StoresView />;
 }

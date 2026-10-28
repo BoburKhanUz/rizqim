@@ -275,12 +275,15 @@ class AdminRefundRequestTest extends TestCase
         $this->assertFalse($refunds['can_request_refund']);
         $this->adminJson('POST', "/orders/{$order->uuid}/refund-requests", $requester, ['amount' => '1', 'reason' => 'Yana'])
             ->assertStatus(422)->assertJsonPath('code', 'amount_exceeds_refundable');
-        // Parts leave the store's ledger as it was (docs/API.md: not yet)
-        $this->assertSame($ledgerBefore, $ledgerRows());
+        // P4-23: the parts took back the store's commission and settlement pro-rata; together, all of it
+        $this->assertGreaterThan($ledgerBefore, $ledgerRows());
+        $this->assertSame(['0.00', '0.00'], [$this->store->fresh()->debt_balance, $this->store->fresh()->wallet_balance]);
+        $ledgerAfterParts = $ledgerRows();
 
-        // The order's own refund path afterwards finds no keshbek left to return
+        // The order's own refund path afterwards finds no keshbek left to return and nothing left to reverse
         app(OrderStatusService::class)->refund($order, null, 'Tizim');
         $this->assertSame('100000.00', $customer->fresh()->balance);
+        $this->assertSame($ledgerAfterParts, $ledgerRows());
         $this->assertSame(['paid' => '100000.00', 'refunded' => '100000.00', 'refundable' => '0.00'], array_slice($this->refundsOf($order, $approver), 0, 3));
     }
 

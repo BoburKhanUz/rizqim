@@ -11,7 +11,7 @@ _$PatchV1OwnerKitchenStationsIdResponseFromJson(Map<String, dynamic> json) =>
     PatchV1OwnerKitchenStationsIdResponse(
       success: json['success'] as bool,
       message: json['message'] as String,
-      data: Data80.fromJson(json['data'] as Map<String, dynamic>),
+      data: Data81.fromJson(json['data'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$PatchV1OwnerKitchenStationsIdResponseToJson(

@@ -3,9 +3,10 @@
 import { useMemo, useState } from 'react';
 import { CalendarDays, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { Button, CardSkeletons, EmptyState, IconButton, InlineError, cx, PageHeader, Notice } from '@rizqim/ui';
-import { useBookingCalendar, type BookingCalendar } from '@rizqim/staff';
+import { useBookingCalendar, useFeature, type BookingCalendar } from '@rizqim/staff';
 import { addDays, mondayOf, todayIn } from '@/lib/storeTime';
 import { useI18n } from '../I18nProvider';
+import { PlanButton, PlanNotice } from '../billing/PlanGate';
 import { useCan } from '../management/access';
 import { errorText } from '../management/errors';
 import { Check } from '../management/fields';
@@ -24,6 +25,8 @@ export function BookingsView() {
   const { t } = useI18n();
   const access = useCan();
   const choice = useBranchChoice();
+  // P4-21: a new booking is the plan's `bookings`; the ones that exist stay open (confirm, arrive, cancel)
+  const canAdd = useFeature('bookings').allowed;
   const [mode, setMode] = useState<Mode>('day');
   const [day, setDay] = useState<string | null>(null);
   const [withCanceled, setWithCanceled] = useState(false);
@@ -61,13 +64,14 @@ export function BookingsView() {
         subtitle={t('book_subtitle')}
         action={
           choice.branchId !== null && (
-            <Button icon={Plus} onClick={() => setForm({ kind: 'create', day: chosenDay, roomId: null })}>
+            <PlanButton feature="bookings" icon={Plus} onClick={() => setForm({ kind: 'create', day: chosenDay, roomId: null })}>
               {t('book_add')}
-            </Button>
+            </PlanButton>
           )
         }
       />
       <Notice message={notice} />
+      <PlanNotice feature="bookings" />
 
       {choice.isError ? (
         <InlineError title={t('loadErrorTitle')} message={errorText(null, t)} retryLabel={t('retry')} retrying={choice.isFetching} onRetry={choice.refetch} />
@@ -114,7 +118,9 @@ export function BookingsView() {
               from={from}
               day={chosenDay}
               onOpen={setOpen}
-              onAdd={(roomId, forDay) => setForm({ kind: 'create', day: forDay, roomId })}
+              onAdd={(roomId, forDay) => {
+                if (canAdd) setForm({ kind: 'create', day: forDay, roomId });
+              }}
               busy={calendar.isFetching}
             />
           )}

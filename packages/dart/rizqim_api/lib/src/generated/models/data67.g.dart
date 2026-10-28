@@ -32,10 +32,10 @@ Data67 _$Data67FromJson(Map<String, dynamic> json) => Data67(
   subjectId: (json['subject_id'] as num?)?.toInt(),
   originalReceiptUuid: json['original_receipt_uuid'] as String?,
   lines: (json['lines'] as List<dynamic>)
-      .map((e) => Lines3.fromJson(e as Map<String, dynamic>))
+      .map((e) => Lines2.fromJson(e as Map<String, dynamic>))
       .toList(),
   payments: (json['payments'] as List<dynamic>)
-      .map((e) => Payments3.fromJson(e as Map<String, dynamic>))
+      .map((e) => Payments2.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 

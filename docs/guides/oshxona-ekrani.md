@@ -36,6 +36,12 @@ Bu ishni faqat bir marta qilasiz. Keyin planshet o'zi ulangan holda qoladi.
 
 Kod xato bo'lsa yoki muddati o'tgan bo'lsa, panelda yangi kod yarating (**Yangi kod**).
 
+**Tarif va ulash.** Oshxona ekrani **Asosiy** tarifdan boshlab bor. Start tarifda panelda **Oshxona ekrani** tanlansa, "Oshxona
+ekrani (KDS) Asosiy tarifda bor" yoziladi va **Kod yaratish** o'chiq turadi. Tarifdagi oshxona ekranidan ortiqchasi har oy
+qo'shimcha to'lanadi (29 000 so'm). Agar ega hisob-fakturani 7 kundan ortiq to'lamagan bo'lsa, tarifdagidan ortiq ekran ulanmaydi: panelda **Kod yaratish** o'chiq turadi va
+"To'lanmagan hisob-faktura sababli tarifdagidan ortiq qurilma ulab bo'lmaydi. Eskisini o'chirib, o'rniga yangisini ulashingiz mumkin"
+deb yoziladi (planshet ulash paytida rad etilsa, shu gap planshetda chiqadi). Boshqa qurilmalar ishlayveradi.
+
 Muhim:
 
 - Planshet ulangach, panelning **Qurilmalar** ro'yxatida "Oshxona 1" paydo bo'ladi.
@@ -180,6 +186,17 @@ Nima qilish kerak:
 3. **Qayta urinish** tugmasini bosing.
 4. Aloqa tiklansa, lenta o'zi yo'qoladi va ro'yxat yangilanadi.
 5. Uzoq vaqt tiklanmasa, menejerga ayting va muhim buyurtmalarni og'zaki tekshiring.
+
+### Tarif va to'lov lentasi
+
+Doskaning eng tepasida rangli lenta chiqishi mumkin. U faqat xabar: **doska, "tayyor" va qaytarish bu sababdan to'xtamaydi.**
+
+- **To'lov muddati o'tdi — 4 kundan keyin sozlamalar yopiladi** (sariq) — ega hisob-fakturani to'lamagan, hali hammasi ishlaydi.
+- **Sozlamalar yopiq — to'lov qiling** (qizil) — muddatdan 7 kun o'tgan: yangi sozlamalar yopilgan. Oshxona ekrani ishlashda davom etadi.
+- **Oshxona ekrani (KDS) Asosiy tarifda bor** (ko'k) — do'kon tarifida KDS yo'q. Ekran ishlayveradi; tarifni ega panelda
+  **Tarif va to'lov** sahifasida ko'radi.
+
+To'lovni ega qiladi; to'lov tushgach lenta o'zi yo'qoladi (taxminan 10 daqiqada). Siz hech narsa qilmaysiz, egaga ayting.
 
 ## 7. Chiqish
 
@@ -333,4 +350,6 @@ Qozonni panelda yoki Mini App'da ham boshqarish mumkin ([panel qo'llanmasi](hamk
 | **Qozon** yorlig'i yo'q | Sizda qozon ruxsati yo'q. Menejerga ayting |
 | Qozon qoldig'i noto'g'ri | **Sanash** bilan haqiqiy qoldiqni kiriting |
 | Osh menyuda **tugadi** turibdi, lekin bor | Qozon yopilgan yoki ochilmagan. **Yangi qozon** yoki **Qayta ochish** |
+| Tepada sariq, qizil yoki ko'k lenta (**To'lov muddati o'tdi**, **Sozlamalar yopiq**, **KDS … tarifda bor**) | Tarif yoki hisob-faktura haqida xabar. Ekran ishlayveradi; egaga ayting ([lenta haqida](#tarif-va-tolov-lentasi)) |
+| Kod yaratilmayapti yoki planshet ulanmayapti: "Oshxona ekrani (KDS) Asosiy tarifda bor" yoki "tarifdagidan ortiq qurilma ulab bo'lmaydi" | Tarif oshxona ekranini o'z ichiga olmaydi yoki to'lanmagan hisob-faktura sababli limit to'lgan. Egaga ayting ([1-bo'lim](#1-planshetni-ulash-bir-marta)) |
 | Qizil **O'CHIRILDI** chipta chiqdi | Buyurtma yoki taom o'chirildi. Pishirmang; pishgan bo'lsa menejerga ayting |

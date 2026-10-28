@@ -8,6 +8,7 @@ import 'package:rizqim_core/rizqim_core.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
 import '../../shell/approval_dialog.dart';
+import '../../shell/plan_gate.dart';
 import '../../shell/pos_scope.dart';
 import '../../shell/routes.dart';
 import '../billing/cashier_ui.dart';
@@ -238,6 +239,7 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
   }
 
   Future<void> _takeDeposit() async {
+    if (!ensurePlan(context, PosFeature.deposits)) return;
     final PosDepositResult? r = await showScopedDialog<PosDepositResult>(
       context,
       (BuildContext _) => _DepositDialog(booking: _b, room: _roomName),
@@ -540,11 +542,13 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
   Widget _depositsCard(RzColors c, bool active) => PosCard(
     title: 'Avans',
     trailing: active
-        ? TextButton.icon(
+        // P4-21: a new deposit is the plan's deposits; the ones taken stay (return, keep, apply to the bill)
+        ? PlanTextButton(
             key: const ValueKey<String>('booking-deposit'),
+            feature: PosFeature.deposits,
             onPressed: _busy ? null : _takeDeposit,
-            icon: const Icon(Icons.add_card_rounded),
-            label: const Text('Avans olish'),
+            icon: Icons.add_card_rounded,
+            label: 'Avans olish',
           )
         : null,
     child: Column(

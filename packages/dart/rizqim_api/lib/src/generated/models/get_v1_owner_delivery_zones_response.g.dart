@@ -12,7 +12,7 @@ GetV1OwnerDeliveryZonesResponse _$GetV1OwnerDeliveryZonesResponseFromJson(
   success: json['success'] as bool,
   message: json['message'] as String,
   data: (json['data'] as List<dynamic>)
-      .map((e) => Data42.fromJson(e as Map<String, dynamic>))
+      .map((e) => Data43.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 

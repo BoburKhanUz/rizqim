@@ -1,6 +1,6 @@
 # @rizqim/staff
 
-Xodim ekranlari uchun umumiy kod: **Mini App'dagi xodim sahifalari** (menejer, kuryer, ega, superadmin) va **hamkor web panel** shu paketdan
+Xodim ekranlari uchun umumiy kod: **Mini App'dagi xodim sahifalari** (menejer, kuryer, ega) va **hamkor web panel** shu paketdan
 foydalanadi, shuning uchun bitta tuzatish ikkala joyga tushadi ([docs/PHASE2_PLAN.md](../../../docs/PHASE2_PLAN.md), "Asosiy tamoyil").
 
 **Biznes qoidalari faqat backend'da.** Paket faqat *ko'rsatish* mantig'ini beradi: buyurtma statuslari, nomlari, ranglari va ekran qaysi
@@ -19,14 +19,15 @@ ilovadan keladi.
 | `src/orders/` | bekor qilish sabablari (`getStaffCancelReasons`), bosqichlar vaqti (`getStageDurations`), schema'da bo'sh turlangan ustunlarni xavfsiz o'qish (`getShippingAddress`, `getItemModifiers`), buyurtma ro'yxatlari keshi (`refetchOrders`, `applyFinishedOrderChange`, `mergeOrders`); kutish vaqti va uning rangi (`getOrderWaiting`, `WAITING_THRESHOLDS`: serverning `waiting_seconds` qiymati, web doska va Mini App bir xil chegaralar bilan); yangi buyurtma signali (`createChime`: Web Audio, birinchi bosishdan keyin ochiladi, `close()` bilan bo'shatiladi) |
 | `src/i18n/` | uz/ru (ba'zi joyda en) matnlar: status nomlari (`statusLabel`), buyurtma turi, to'lov usuli, bekor qilish sabablari, tugma nomlari (`actionLabel`), menejer va kuryer ekranlari matnlari (`staffText(key, language, params)`) |
 | `src/format/` | Pul, son, sana, vaqt: `@rizqim/ui` ning o'zi (Mini App hozir ham shu bilan yozadi); kg/l miqdor (`formatQuantity`, `formatLineQuantity`) |
-| `src/api/` | `createStaffApi({ baseUrl, fetch })` + funksiyalar: buyurtmalar (ro'yxat, tarix sahifasi, status, kuryer tayinlash, kuryerlar), menyu (mahsulotlar, kategoriyalar, saqlash, stop-list, qozonlar, mavjudlik), xodimlar (taklif, filialga o'tkazish, PIN, rol, ruxsatlar), sozlamalar, to'lovlar (balans, to'ldirish, payout, tarif, hisob-fakturalar), analitika va hisobot eksporti, superadmin. Xato — `StaffApiError` (`status`, server `message`, `fieldError('x')`) |
+| `src/api/` | `createStaffApi({ baseUrl, fetch })` + funksiyalar: buyurtmalar (ro'yxat, tarix sahifasi, status, kuryer tayinlash, kuryerlar), menyu (mahsulotlar, kategoriyalar, saqlash, stop-list, qozonlar, mavjudlik), xodimlar (taklif, filialga o'tkazish, PIN, rol, ruxsatlar), sozlamalar, to'lovlar (balans, to'ldirish, payout, tarif, hisob-fakturalar), analitika va hisobot eksporti. Xato — `StaffApiError` (`status`, server `message`, `fieldError('x')`) |
 | `src/api/` (POS, P3-23) | `fiscal.ts` (MXIK/qadoq kodi tekshiruvi, fiskal tayyorlik, do'kon fiskal sozlamalari, cheklar va qayta urinish, onlayn to'lov `fiscal_status` muammolari, `productFiscalFormData`: mahsulotni **to'liq** qayta yuboradi), `floor.ts` (zallar, stollar/xonalar/tapchanlar, `saveFloorLayout`, xona tariflari + dam olish/bayram kalendari, avto choy-non, zal xizmat haqi), `posSetup.ts` (oshxona stansiyalari, yo'nalishlar, printerlar, filial POS sozlamalari), `bookings.ts` (bron taqvimi va amallar), `accounts.ts` (nasiya hisoblari, qarzdorlar, ko'chirma), `shifts.ts` (smenalar, X/Z hisobot, filial smena xulosasi), `idempotency.ts` (`Idempotency-Key`) |
 | `src/hooks/` (POS, P3-23) | `useFiscalReadiness`, `useFiscalSettings`, `useFiscalReceipts`, `useHalls`, `useSaveFloorLayout`, `useRoomTariffs`, `useKitchenStations`, `usePrinters`, `useBookingCalendar`, `useAccounts`, `useDebtors`, `useShifts`, `useBranchShiftSummary`, ... Kalitlar `['owner', ...]` va `['pos', ...]`; yozuvlar tegishli ro'yxatlarni yangilaydi |
+| `src/api/entitlements.ts`, `src/hooks/entitlements.ts` (P4-21) | tarif nimaga yo'l qo'yadi: `GET /owner/billing/entitlements` (qo'lda yozilgan turlar: `Entitlements`, `BillingNotice`, `DeviceEntitlement` — spetsifikatsiya yangilangach yaratilganlarga almashtiriladi), `hasFeature`, `requiredPlanName`, `daysUntilLock`, `trialDaysLeft`, `billingRefusalOf(err)` (403 `plan_feature_missing` / `subscription_locked` / `device_limit`), `useEntitlements`, `useFeature('bookings')` (noma'lum bo'lsa — ochiq: hal qilishni server qiladi), `subscriptionState`, `invoiceOutstanding` |
 | `src/hooks/` | TanStack Query hook'lari shu funksiyalar ustida: `useActiveOrders`, `useOrderHistory`, `useUpdateOrderStatus`, `useCouriers`, `useOwnerProducts`, `useStopList`, `useBatches`, `useEmployees`, `useOwnerSettings`, `useOwnerFinance`, `useOwnerAnalytics`, ... Polling, `enabled` va h.k. chaqiruvchidan `options` bilan keladi |
 
 Turlar (`Order`, `Product`, `OwnerFinance`, ...) `@rizqim/api-client` ning yaratilgan `schema.d.ts` idan olinadi; qo'lda yozilgan API turi yo'q.
 Yagona istisno — `src/api/specGaps.ts`: OpenAPI spetsifikatsiyasi nohaq bo'lgan ba'zi javoblar (`GET /owner/employees` ro'yxatini `string`
-deydi, `GET /superadmin/locations` `name_uz` deydi, `GET/POST /owner/settings` `payment_settings` ni noto'g'ri turlaydi, ...) uchun to'g'rilangan
+deydi, `GET/POST /owner/settings` `payment_settings` ni noto'g'ri turlaydi, ...) uchun to'g'rilangan
 turlar, har biri qaysi endpoint va spetsifikatsiya nima deyishini aytadi. Backend annotatsiyasi to'g'rilangach, o'chiriladi.
 
 ## API va tokenni ulash

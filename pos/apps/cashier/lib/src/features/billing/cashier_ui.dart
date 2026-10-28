@@ -337,6 +337,11 @@ IconData channelIcon(String channel) => switch (channel) {
 /// Xato matni (snackbar). Tasdiq oynasi yopilgani — jim.
 void showPosError(BuildContext context, Object error) {
   if (error is PosApprovalCancelled) return;
+  // P4-21: the plan or an unpaid invoice said no to a new booking, deposit or account: the message is the server's plain
+  // words; the plan is read again so the lock shows (or, after a payment, goes)
+  if (error is PosPlanRefused) {
+    unawaited(PosScope.maybeOf(context)?.session.refreshEntitlements());
+  }
   final String text = switch (error) {
     final PosValidationException e => e.firstError,
     final ApiException e when e.isNetworkError => "Aloqa yo'q: amal bajarilmadi. Internetni tekshirib, qayta urinib ko'ring.",

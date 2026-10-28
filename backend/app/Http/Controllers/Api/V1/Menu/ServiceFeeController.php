@@ -60,6 +60,11 @@ class ServiceFeeController extends MenuStaffController
             'hall_id' => 'nullable|integer|min:1',
         ]);
 
+        // P4-21: a service charge is the plan's service_charge feature (403 plan_feature_missing); a place fee is not
+        if (Money::of($data['service_charge_percent'])->isPositive()) {
+            app(\App\Services\Finance\Billing\Entitlements::class)->assertFeature($storeId, \App\Enums\PlanFeature::SERVICE_CHARGE);
+        }
+
         $branchId = isset($data['branch_id']) ? (int) $data['branch_id'] : null;
         if ($branchId !== null && !Branch::where('store_id', $storeId)->whereKey($branchId)->exists()) {
             throw ValidationException::withMessages(['branch_id' => 'Filial topilmadi.']);

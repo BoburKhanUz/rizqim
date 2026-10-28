@@ -4,6 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'invoice_kind.dart';
 import 'store.dart';
 import 'store_subscription.dart';
 import 'subscription_invoice_status.dart';
@@ -40,6 +41,9 @@ class SubscriptionInvoice {
     required this.voidTransactionId,
     required this.createdAt,
     required this.updatedAt,
+    required this.kind,
+    required this.sequence,
+    required this.paidAmount,
     this.store,
     this.subscription,
     this.plan,
@@ -93,6 +97,10 @@ class SubscriptionInvoice {
   final DateTime? createdAt;
   @JsonKey(name: 'updated_at')
   final DateTime? updatedAt;
+  final InvoiceKind kind;
+  final int sequence;
+  @JsonKey(name: 'paid_amount')
+  final String paidAmount;
   final Store? store;
   final StoreSubscription? subscription;
   final TariffPlan? plan;

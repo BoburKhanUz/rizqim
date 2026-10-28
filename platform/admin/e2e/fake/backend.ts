@@ -3,8 +3,11 @@
 // email + password, TOTP (any member's code is VALID_CODE), recovery codes, lockout, challenge expiry and reuse, step-up
 // (`admin.recent`), team, roles, audit log, search, sessions.
 import { fail, ok, validation, type FakeRequest, type RecordedCall, type Reply } from './types'
+import { FakeFinance } from './finance'
 import { FakeMonitoring } from './monitoring'
 import { FakeOrders } from './orders'
+import { FakePos } from './pos'
+import { FakeStores } from './stores'
 import { FakeToday } from './today'
 
 export const VALID_CODE = '123456'
@@ -28,6 +31,7 @@ export const PERMISSIONS: Array<{ key: string; label: string; group: string }> =
   { key: 'admin.stores.view', label: "Ovqatxonalarni ko'rish", group: 'Ovqatxonalar' },
   { key: 'admin.stores.manage', label: 'Ovqatxonalarni boshqarish', group: 'Ovqatxonalar' },
   { key: 'admin.finance.view', label: "Moliyani ko'rish", group: 'Moliya' },
+  { key: 'admin.finance.manage', label: "Moliya: qo'lda tuzatish va hisobotlar", group: 'Moliya' },
   { key: 'admin.payouts.approve', label: 'Payoutni tasdiqlash', group: 'Moliya' },
   { key: 'admin.devices.view', label: "Qurilmalarni ko'rish", group: 'POS va obunalar' },
   { key: 'admin.monitoring.view', label: "Monitoringni ko'rish", group: 'Tizim' },
@@ -41,6 +45,7 @@ export const PERMISSIONS: Array<{ key: string; label: string; group: string }> =
   { key: 'admin.audit.view', label: "Jurnalni ko'rish", group: 'Tizim' },
   { key: 'admin.team.manage', label: 'Jamoani boshqarish', group: 'Tizim' },
   { key: 'admin.system.manage', label: 'Tizim sozlamalari', group: 'Tizim' },
+  { key: 'admin.export', label: 'Eksport (Excel, CSV)', group: 'Tizim' },
 ]
 
 const ALL = PERMISSIONS.map((p) => p.key)
@@ -49,8 +54,8 @@ const DEFAULT_GRANTS: Record<PlatformRole, string[]> = {
   superadmin: ALL,
   operator: ['admin.today.view', 'admin.orders.view', 'admin.orders.intervene', 'admin.orders.refund_request', 'admin.stores.view', 'admin.monitoring.view', 'admin.monitoring.manage', 'admin.devices.view'],
   support: ['admin.orders.view', 'admin.orders.refund_request', 'admin.users.view', 'admin.stores.view'],
-  finance: ['admin.finance.view', 'admin.payouts.approve', 'admin.orders.view', 'admin.orders.refund_approve', 'admin.stores.view'],
-  sales: ['admin.stores.view', 'admin.stores.manage'],
+  finance: ['admin.finance.view', 'admin.payouts.approve', 'admin.orders.view', 'admin.orders.refund_approve', 'admin.stores.view', 'admin.finance.manage', 'admin.subscriptions.manage', 'admin.export'],
+  sales: ['admin.stores.view', 'admin.stores.manage', 'admin.subscriptions.manage', 'admin.devices.view'],
   viewer: VIEWS,
 }
 
@@ -131,6 +136,12 @@ export class FakeBackend {
   monitoring = new FakeMonitoring()
   /** Buyurtmalar (P4-14): e2e/fake/orders.ts */
   orders = new FakeOrders()
+  /** Ovqatxonalar (P4-22): e2e/fake/stores.ts */
+  stores = new FakeStores()
+  /** POS va obunalar (P4-24): e2e/fake/pos.ts */
+  pos = new FakePos()
+  /** Moliya (P4-23): e2e/fake/finance.ts */
+  finance = new FakeFinance()
   /** The code a challenge accepts as the TOTP (any 6 digits equal to this) */
   readonly code = VALID_CODE
   /** Milliseconds a challenge lives; tests shorten it to see it expire */
@@ -401,6 +412,18 @@ export class FakeBackend {
     // --- Buyurtmalar (orders.*; every action needs the step-up and a reason)
     const orders = this.orders.route(req, path, body, can, needsRecent, { id: member.id, name: member.name })
     if (orders) return orders
+
+    // --- Ovqatxonalar (stores.*; actions on a store, convert, reject, activation and broadcasts need the step-up and a reason)
+    const stores = this.stores.route(req, path, body, can, needsRecent, { id: member.id, name: member.name })
+    if (stores) return stores
+
+    // --- POS va obunalar (billing/*, pos/*; every change needs the step-up and a reason)
+    const pos = this.pos.route(req, path, body, can, needsRecent, { id: member.id, name: member.name })
+    if (pos) return pos
+
+    // --- Moliya (finance.*, payouts.approve, export; every action needs the step-up and a reason)
+    const finance = this.finance.route(req, path, body, can, needsRecent, { id: member.id, name: member.name }, req.headers)
+    if (finance) return finance
 
     // --- Bugun (today.view)
     const today = this.today.route(req, path, can)

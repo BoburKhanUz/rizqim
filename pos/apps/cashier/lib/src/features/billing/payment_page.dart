@@ -9,6 +9,7 @@ import 'package:rizqim_ui/rizqim_ui.dart';
 import '../../shell/approval_dialog.dart';
 import '../../shell/destinations.dart';
 import '../../shell/limited_mode.dart';
+import '../../shell/plan_gate.dart';
 import '../../shell/pos_scope.dart';
 import '../accounts/account_form.dart';
 import 'billing_page.dart';
@@ -412,6 +413,7 @@ class _PaymentPageState extends State<PaymentPage> {
   }
 
   Future<void> _createAccount() async {
+    if (!ensurePlan(context, PosFeature.customerAccounts)) return;
     final PosCustomerAccount? created = await showAccountForm(
       context,
       initialQuery: _accountQuery.text.trim(),
@@ -799,10 +801,13 @@ class _PaymentPageState extends State<PaymentPage> {
         if (canCreate)
           Align(
             alignment: Alignment.centerLeft,
-            child: TextButton.icon(
+            // P4-21: opening a new account is the plan's customer_accounts; paying the bill to an account that
+            // exists goes on whatever the plan
+            child: PlanTextButton(
+              feature: PosFeature.customerAccounts,
+              icon: Icons.person_add_alt_1_rounded,
+              label: 'Yangi hisob ochish',
               onPressed: _createAccount,
-              icon: const Icon(Icons.person_add_alt_1_rounded),
-              label: const Text('Yangi hisob ochish'),
             ),
           ),
         if (selected != null) ...<Widget>[

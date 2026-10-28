@@ -8,38 +8,22 @@ part of 'data81.dart';
 
 Data81 _$Data81FromJson(Map<String, dynamic> json) => Data81(
   id: (json['id'] as num).toInt(),
-  uuid: json['uuid'] as String,
+  branchId: (json['branch_id'] as num).toInt(),
   name: json['name'] as String,
-  nameI18n: (json['name_i18n'] as Map<String, dynamic>?)?.map(
-    (k, e) => MapEntry(k, e as String),
-  ),
-  minSelect: (json['min_select'] as num).toInt(),
-  maxSelect: (json['max_select'] as num?)?.toInt(),
-  isRequired: json['is_required'] as bool,
+  kind: json['kind'] as String,
+  kindLabel: json['kind_label'] as String,
   sortOrder: (json['sort_order'] as num).toInt(),
   isActive: json['is_active'] as bool,
-  modifiers: (json['modifiers'] as List<dynamic>)
-      .map((e) => Modifiers.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  productIds: (json['product_ids'] as List<dynamic>)
-      .map((e) => (e as num).toInt())
-      .toList(),
-  productRules: ProductRules.fromJson(
-    json['product_rules'] as Map<String, dynamic>,
-  ),
+  showOnKds: json['show_on_kds'] as bool,
 );
 
 Map<String, dynamic> _$Data81ToJson(Data81 instance) => <String, dynamic>{
   'id': instance.id,
-  'uuid': instance.uuid,
+  'branch_id': instance.branchId,
   'name': instance.name,
-  'name_i18n': instance.nameI18n,
-  'min_select': instance.minSelect,
-  'max_select': instance.maxSelect,
-  'is_required': instance.isRequired,
+  'kind': instance.kind,
+  'kind_label': instance.kindLabel,
   'sort_order': instance.sortOrder,
   'is_active': instance.isActive,
-  'modifiers': instance.modifiers,
-  'product_ids': instance.productIds,
-  'product_rules': instance.productRules,
+  'show_on_kds': instance.showOnKds,
 };

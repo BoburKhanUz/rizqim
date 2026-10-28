@@ -68,8 +68,9 @@ class LedgerSettlementTest extends TestCase
                 ->where('type', StoreTransactionType::COMMISSION->value)
                 ->pluck('amount')->map(fn ($amount) => (float) $amount)->all()
         );
-        $this->assertEquals(7000, (float) $this->store->fresh()->debt_balance);
-        $this->assertEquals(100000, (float) $this->store->fresh()->wallet_balance);
+        // P4-23 (netting): the 100 000 collected by RIZQIM pays that commission debt first, the rest reaches the wallet
+        $this->assertEquals(0, (float) $this->store->fresh()->debt_balance);
+        $this->assertEquals(93000, (float) $this->store->fresh()->wallet_balance);
     }
 
     public function test_zero_commission_snapshot_is_charged_as_zero(): void

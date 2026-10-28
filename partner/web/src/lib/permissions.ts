@@ -1,5 +1,6 @@
 import {
   Armchair,
+  BadgeCheck,
   CalendarDays,
   ChartColumn,
   CookingPot,
@@ -36,6 +37,7 @@ import type { MessageKey } from '@/i18n';
 //   shifts     shifts with X and Z reports (pos.close_shift or reports.view)
 //   possetup   kitchen stations, routes, printers, branch POS settings (settings.manage)
 //   permissions what each role may do alone, the "Huquqlar" page (permissions.manage, the owner)
+//   billing    the plan, devices, invoices and how to pay, "Tarif va to'lov" (finance.view)
 //   fiscal     MXIK readiness (menu.view / settings.manage), fiscal settings (settings.manage), receipts (finance.view / reports.view);
 //              the section opens for menu.manage (not every menu.view: cooks and waiters have it), settings.manage, finance.view, reports.view
 export type NavKey =
@@ -56,7 +58,8 @@ export type NavKey =
   | 'permissions'
   | 'fiscal'
   | 'reports'
-  | 'finance';
+  | 'finance'
+  | 'billing';
 
 export interface NavItem {
   key: NavKey;
@@ -85,6 +88,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { key: 'fiscal', href: '/fiscal', label: 'nav_fiscal', anyOf: ['settings.manage', 'menu.manage', 'finance.view', 'reports.view'], icon: ReceiptText },
   { key: 'reports', href: '/reports', label: 'nav_reports', anyOf: ['reports.view'], icon: ChartColumn },
   { key: 'finance', href: '/finance', label: 'nav_finance', anyOf: ['finance.view'], icon: Wallet },
+  { key: 'billing', href: '/billing', label: 'nav_billing', anyOf: ['finance.view'], icon: BadgeCheck },
 ];
 
 // The person has at least one of `required`

@@ -13,7 +13,7 @@ Data51 _$Data51FromJson(Map<String, dynamic> json) => Data51(
   name: json['name'] as String,
   kind: json['kind'] as String,
   seats: (json['seats'] as num?)?.toInt(),
-  layout: Layout2.fromJson(json['layout'] as Map<String, dynamic>),
+  layout: Layout.fromJson(json['layout'] as Map<String, dynamic>),
   sortOrder: (json['sort_order'] as num).toInt(),
   isActive: json['is_active'] as bool,
   minSpend: json['min_spend'] as String?,

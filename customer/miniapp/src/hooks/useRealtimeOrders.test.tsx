@@ -96,15 +96,6 @@ describe('useRealtimeOrders: connecting', () => {
     expect(latestEcho().channels.map((channel) => channel.name)).toEqual(channels);
   });
 
-  it('opens no channel for a super admin', async () => {
-    signIn({ role: 'super_admin', store_id: null });
-
-    renderHook(() => useRealtimeOrders(), { wrapper });
-    await settle();
-
-    expect(echoInstances).toHaveLength(0);
-  });
-
   it('marks the socket connected only when the channel is accepted, and not connected when it drops', async () => {
     signIn();
     renderHook(() => useRealtimeOrders(), { wrapper });

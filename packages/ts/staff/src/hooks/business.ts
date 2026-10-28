@@ -24,19 +24,8 @@ import {
   type TopupInitiated,
   type TopupInput,
 } from '../api/payments';
-import {
-  createStore,
-  fetchLocations,
-  fetchSuperadminDashboard,
-  fetchSuperadminStores,
-  type CreatedStore,
-  type CreateStoreInput,
-  type DashboardStats,
-  type SuperadminStore,
-} from '../api/superadmin';
 import { fetchOwnerSettings, saveOwnerSettings, uploadSettingsFile, type UploadedFile } from '../api/settings';
 import type { OwnerSettings, OwnerSettingsInput } from '../api/settings';
-import type { Locations } from '../api/superadmin';
 import { useStaffApi } from './context';
 import { staffKeys } from './keys';
 import type { MutationExtras, QueryExtras } from './orders';
@@ -125,34 +114,4 @@ export function useOwnerAnalytics(timeframe: Timeframe, range?: DateRange, optio
 export function useExportReport(options: MutationExtras<string | undefined, ReportExportInput> = {}) {
   const api = useStaffApi();
   return useMutation({ ...options, mutationFn: (input: ReportExportInput) => exportReport(api, input) });
-}
-
-// --- Platform (super admin) ------------------------------------------------------------------------------------------
-
-export function useSuperadminDashboard(options: QueryExtras<DashboardStats> = {}) {
-  const api = useStaffApi();
-  return useQuery({ ...options, queryKey: [...staffKeys.superadmin, 'dashboard'], queryFn: () => fetchSuperadminDashboard(api) });
-}
-
-export function useSuperadminStores(options: QueryExtras<SuperadminStore[]> = {}) {
-  const api = useStaffApi();
-  return useQuery({ ...options, queryKey: [...staffKeys.superadmin, 'stores'], queryFn: () => fetchSuperadminStores(api) });
-}
-
-export function useLocations(options: QueryExtras<Locations> = {}) {
-  const api = useStaffApi();
-  return useQuery({ ...options, queryKey: [...staffKeys.superadmin, 'locations'], queryFn: () => fetchLocations(api) });
-}
-
-export function useCreateStore(options: MutationExtras<CreatedStore, CreateStoreInput> = {}) {
-  const api = useStaffApi();
-  const queryClient = useQueryClient();
-  return useMutation({
-    ...options,
-    mutationFn: (input: CreateStoreInput) => createStore(api, input),
-    onSuccess: (...args) => {
-      void queryClient.invalidateQueries({ queryKey: [...staffKeys.superadmin, 'stores'] });
-      return options.onSuccess?.(...args);
-    },
-  });
 }

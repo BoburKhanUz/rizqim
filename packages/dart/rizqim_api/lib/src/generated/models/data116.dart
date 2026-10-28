@@ -4,30 +4,46 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'subscription.dart';
-import 'terminals.dart';
-import 'next_invoice.dart';
-
 part 'data116.g.dart';
 
 @JsonSerializable()
 class Data116 {
   const Data116({
-    required this.subscription,
-    required this.commissionRate,
-    required this.terminals,
-    required this.nextInvoice,
+    required this.id,
+    required this.branchId,
+    required this.type,
+    required this.subjectId,
+    required this.subjectUuid,
+    required this.name,
+    required this.reason,
+    required this.until,
+    required this.createdBy,
+    required this.createdByName,
+    required this.createdAt,
   });
 
   factory Data116.fromJson(Map<String, Object?> json) =>
       _$Data116FromJson(json);
 
-  final Subscription? subscription;
-  @JsonKey(name: 'commission_rate')
-  final num commissionRate;
-  final Terminals terminals;
-  @JsonKey(name: 'next_invoice')
-  final NextInvoice? nextInvoice;
+  final int id;
+  @JsonKey(name: 'branch_id')
+  final int branchId;
+  final String type;
+  @JsonKey(name: 'subject_id')
+  final int subjectId;
+  @JsonKey(name: 'subject_uuid')
+  final dynamic subjectUuid;
+  final dynamic name;
+  final String? reason;
+  final String? until;
+  @JsonKey(name: 'created_by')
+  final int? createdBy;
+
+  /// The store's own staff only (a super admin's entry shows no name)
+  @JsonKey(name: 'created_by_name')
+  final String? createdByName;
+  @JsonKey(name: 'created_at')
+  final String? createdAt;
 
   Map<String, Object?> toJson() => _$Data116ToJson(this);
 }

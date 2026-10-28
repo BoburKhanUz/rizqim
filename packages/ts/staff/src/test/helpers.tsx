@@ -73,6 +73,8 @@ export function makeOrder(over: Partial<Order> = {}): Order {
     payment_method: 'cash',
     courier_id: null,
     commission_amount: '0.00',
+    commission_channel: null,
+    commission_rate: null,
     branch_id: 1,
     address_id: null,
     manager_id: null,

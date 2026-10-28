@@ -60,7 +60,7 @@ export async function deleteBranch(api: StaffApi, id: number): Promise<void> {
 
 export type LocationsList = OkData<'location.index'>;
 
-// GET /locations: regions and districts for the branch form (open to every signed-in person, unlike /superadmin/locations).
+// GET /locations: regions and districts for the branch form (open to every signed-in person).
 export async function fetchRegionsAndDistricts(api: StaffApi): Promise<LocationsList> {
   const body = unwrap(await api.client.GET('/v1/locations'));
   return body.data;

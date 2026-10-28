@@ -164,47 +164,6 @@ class PaymentSettingsLegacyStoresTest extends TestCase
         return [$admin, $region, $district];
     }
 
-    public function test_a_store_created_from_the_mini_app_starts_nested_and_its_telegram_notice_is_queued_unchanged(): void
-    {
-        [$admin, $region, $district] = $this->creationSetup();
-
-        $created = $this->actingAs($admin, 'sanctum')->postJson('/api/v1/superadmin/stores', [
-            'name' => 'Api Cafe',
-            'phone' => '',
-            'branch_phone' => '',
-            'commission_rate' => 12,
-            'owner_name' => 'Api Owner',
-            'owner_phone' => '+998901110002',
-            'branch_region_id' => $region->id,
-            'branch_district_id' => $district->id,
-            'branch_address' => 'Chilonzor 5',
-            'branch_lat' => 41.3,
-            'branch_lng' => 69.2,
-            'branch_radius' => 5,
-        ])->assertOk();
-
-        $this->assertEquals(Store::initialPaymentSettings(['cash']), Store::findOrFail($created->json('data.store_id'))->payment_settings);
-        $this->assertSame([
-            'cash' => ['enabled' => true],
-            'click' => ['enabled' => false],
-            'payme' => ['enabled' => false],
-            'uzum' => ['enabled' => false],
-            'paynet' => ['enabled' => false],
-            'delivery_enabled' => true,
-            'pickup_enabled' => true,
-        ], Store::initialPaymentSettings(['cash']));
-        Queue::assertPushed(SendTelegramRequest::class, fn (SendTelegramRequest $job) => $job->method === 'sendMessage'
-            && $job->params === [
-                'chat_id' => '777001',
-                'text' => "🏢 <b>Yangi do'kon qo'shildi!</b>\n\nNomi: <b>Api Cafe</b>\nKomissiya: <b>12%</b>\n"
-                    . "Egasi: <b>Api Owner</b> (+998901110002)\nFilial: <b>Chilonzor 5</b>\n\n"
-                    . "🔗 <b>Egasi uchun taklifnoma havolasi:</b>\n" . $created->json('data.invite_link'),
-                'parse_mode' => 'HTML',
-            ]);
-        Queue::assertPushed(SendTelegramRequest::class, 1);
-        Http::assertNothingSent();
-    }
-
     public function test_a_store_created_with_the_panel_wizard_starts_nested_and_its_telegram_notice_is_queued_unchanged(): void
     {
         [$admin, $region, $district] = $this->creationSetup();

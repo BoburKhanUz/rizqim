@@ -6,12 +6,16 @@ export interface FakeRequest {
   query: Record<string, string>
   body: Record<string, unknown> | null
   authorization: string | null
+  /** P4-23: the request headers the fakes read (lower-case names: idempotency-key) */
+  headers?: Record<string, string>
 }
 
 export interface Reply {
   status: number
   body?: unknown
   headers?: Record<string, string>
+  /** P4-23: a file answer (the Excel export): these bytes as they are, with `headers` (Content-Type, Content-Disposition) */
+  raw?: Uint8Array
 }
 
 export interface RecordedCall {

@@ -23,6 +23,17 @@ TariffPlan _$TariffPlanFromJson(Map<String, dynamic> json) => TariffPlan(
   updatedAt: json['updated_at'] == null
       ? null
       : DateTime.parse(json['updated_at'] as String),
+  version: (json['version'] as num).toInt(),
+  tier: json['tier'] as String?,
+  sortOrder: (json['sort_order'] as num).toInt(),
+  yearlyFee: json['yearly_fee'] as String?,
+  includedPos: (json['included_pos'] as num).toInt(),
+  includedKds: (json['included_kds'] as num).toInt(),
+  extraPosFee: json['extra_pos_fee'] as String?,
+  extraKdsFee: json['extra_kds_fee'] as String?,
+  features: (json['features'] as List<dynamic>?)
+      ?.map((e) => e as String)
+      .toList(),
   subscriptions: (json['subscriptions'] as List<dynamic>?)
       ?.map((e) => StoreSubscription.fromJson(e as Map<String, dynamic>))
       .toList(),
@@ -42,5 +53,14 @@ Map<String, dynamic> _$TariffPlanToJson(TariffPlan instance) =>
       'description': instance.description,
       'created_at': instance.createdAt?.toIso8601String(),
       'updated_at': instance.updatedAt?.toIso8601String(),
+      'version': instance.version,
+      'tier': instance.tier,
+      'sort_order': instance.sortOrder,
+      'yearly_fee': instance.yearlyFee,
+      'included_pos': instance.includedPos,
+      'included_kds': instance.includedKds,
+      'extra_pos_fee': instance.extraPosFee,
+      'extra_kds_fee': instance.extraKdsFee,
+      'features': instance.features,
       'subscriptions': instance.subscriptions,
     };

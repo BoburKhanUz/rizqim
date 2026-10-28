@@ -112,13 +112,15 @@ function urlOf(path: string, query?: CallOptions['query']): string {
 
 async function send(method: string, path: string, options: CallOptions, retried: boolean): Promise<Envelope<unknown>> {
   let response: Response;
+  // P4-23: a FormData body (a file with its fields) goes as multipart; the browser sets its Content-Type with the boundary
+  const form = typeof FormData !== 'undefined' && options.body instanceof FormData;
   try {
     response = await fetch(urlOf(path, options.query), {
       method,
       credentials: 'same-origin',
       cache: 'no-store',
-      headers: { Accept: 'application/json', ...(options.body !== undefined ? { 'Content-Type': 'application/json' } : {}), ...options.headers },
-      body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+      headers: { Accept: 'application/json', ...(options.body !== undefined && !form ? { 'Content-Type': 'application/json' } : {}), ...options.headers },
+      body: options.body === undefined ? undefined : form ? (options.body as FormData) : JSON.stringify(options.body),
       signal: options.signal,
     });
   } catch (failure) {
@@ -169,4 +171,64 @@ export async function patch<T>(path: string, body?: unknown, options: CallOption
 
 export async function del<T>(path: string, options: CallOptions = {}): Promise<T> {
   return (await call('DELETE', path, options)).data as T;
+}
+
+// --- Files (P4-23) ---------------------------------------------------------------------------------------------------------
+
+export interface DownloadedFile {
+  blob: Blob;
+  name: string;
+}
+
+// The file name of a Content-Disposition header (filename*=UTF-8'' first, then filename=)
+export function fileNameOf(disposition: string | null, fallback: string): string {
+  if (!disposition) return fallback;
+  const encoded = /filename\*=UTF-8''([^;]+)/i.exec(disposition)?.[1];
+  if (encoded) {
+    try {
+      return decodeURIComponent(encoded.trim());
+    } catch {
+      // fall through to the plain name
+    }
+  }
+  const plain = /filename="?([^";]+)"?/i.exec(disposition)?.[1];
+  return plain?.trim() || fallback;
+}
+
+// A GET that answers with a file (the Excel export, a document): the bytes and the name the backend gave. A refusal is
+// still the admin envelope, thrown as an ApiError like any call.
+export async function download(path: string, query: CallOptions['query'], fallbackName: string): Promise<DownloadedFile> {
+  let response: Response;
+  try {
+    response = await fetch(urlOf(path, query), { method: 'GET', credentials: 'same-origin', cache: 'no-store', headers: { Accept: '*/*' } });
+  } catch {
+    throw new ApiError('', 0, 'unreachable');
+  }
+  markActive();
+  if (!response.ok || (response.headers.get('content-type') ?? '').includes('application/json')) {
+    const text = await response.text().catch(() => '');
+    let body: unknown = null;
+    try {
+      body = text ? JSON.parse(text) : null;
+    } catch {
+      body = null;
+    }
+    const error = errorFrom(response.ok ? 502 : response.status, body, response.headers.get('Retry-After'));
+    if (error.status === 401) endedListeners.forEach((listener) => listener());
+    throw error;
+  }
+  return { blob: await response.blob(), name: fileNameOf(response.headers.get('content-disposition'), fallbackName) };
+}
+
+// Hands a downloaded file to the browser to save
+export function saveFile(file: DownloadedFile): void {
+  const url = URL.createObjectURL(file.blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = file.name;
+  link.rel = 'noopener';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1_000);
 }
