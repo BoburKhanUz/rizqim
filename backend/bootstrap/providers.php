@@ -6,8 +6,6 @@ return [
     App\Providers\AccessServiceProvider::class,
     // OpenAPI docs (/docs/api) and the api-spec:export command (P1-11)
     App\Providers\ApiDocsServiceProvider::class,
-    App\Providers\Filament\AdminPanelProvider::class,
-    App\Providers\Filament\SuperadminPanelProvider::class,
     // P3-13: kitchen station routing (KitchenStationResolver)
     App\Domain\Pos\Setup\PosSetupServiceProvider::class,
     // P3-11: fiscal receipts (FiscalIssuer, FiscalLineBuilder, FiscalReadiness)

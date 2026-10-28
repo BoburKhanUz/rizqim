@@ -2,13 +2,10 @@
 
 namespace App\Providers;
 
-use App\Enums\UserRole;
 use App\Http\Controllers\ApiDocsController;
-use App\Models\User;
 use App\OpenApi\IdempotencyKeyHeader;
 use Dedoc\Scramble\Scramble;
 use Illuminate\Routing\Route as RoutingRoute;
-use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 
@@ -27,9 +24,6 @@ class ApiDocsServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        // Outside local/testing (and without API_DOCS_PUBLIC) only a superadmin signed in to the admin panel
-        Gate::define('viewApiDocs', fn (?User $user = null): bool => $user?->role === UserRole::SUPER_ADMIN);
-
         // Laravel registers broadcasting/auth for GET and POST; laravel-echo uses POST, so that is the documented one
         Scramble::configure()->resolveOperationMethodsUsing(
             fn (RoutingRoute $route) => $route->uri() === 'api/broadcasting/auth' ? 'POST' : $route->methods()[0],

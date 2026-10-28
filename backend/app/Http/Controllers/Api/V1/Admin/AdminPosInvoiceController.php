@@ -21,7 +21,7 @@ use Illuminate\Validation\Rule;
 /**
  * P4-24 Hisob-fakturalar: the subscription invoices of every store. Reading: admin.subscriptions.manage or
  * admin.finance.view. Marking paid and voiding: admin.finance.manage, a step-up and a `reason`, through
- * SubscriptionService (the same code as the Filament panel), audited with the invoice's status before and after.
+ * SubscriptionService, audited with the invoice's status before and after.
  * Review W2: a paid or partly paid invoice is never voided, and a void of 1 000 000 so'm or more takes two members.
  */
 #[Group('Admin')]

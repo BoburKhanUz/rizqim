@@ -2741,7 +2741,7 @@ export interface paths {
         /**
          * Create the store from the application
          * @description The store, its owner (a vouched SMS login phone and a Telegram invite) and the main branch, through the same
-         *     path as the Filament superadmin wizard. Store `pending` and hidden from the marketplace until the application
+         *     path as every other store creation (StoreProvisioner). Store `pending` and hidden from the marketplace until the application
          *     reaches `faol`. Fields: `branch_district_id`, `branch_address`, `branch_lat`, `branch_lng` (required);
          *     `branch_region_id` (default: the application's region), `branch_radius` (5), `branch_phone`,
          *     `branch_open_time`/`branch_close_time` (HH:MM), `name`, `owner_name`, `owner_phone` (+998XXXXXXXXX; default: the
@@ -9200,7 +9200,7 @@ export interface components {
         Permission: "orders.view" | "orders.manage" | "orders.cancel" | "orders.discount" | "orders.void_item" | "orders.assign_courier" | "orders.refund" | "kitchen.manage" | "deliveries.manage" | "tables.manage" | "menu.view" | "menu.manage" | "stoplist.manage" | "batches.manage" | "staff.view" | "staff.manage" | "staff.pin" | "devices.view" | "devices.manage" | "reports.view" | "finance.view" | "finance.manage" | "settings.manage" | "zones.manage" | "audit.view" | "permissions.manage" | "pos.open_shift" | "pos.close_shift" | "pos.cash_in_out" | "pos.take_payment" | "pos.reprint_bill" | "branches.manage" | "bookings.manage" | "customer_accounts.manage" | "pos.refund";
         /**
          * PlatformRole
-         * @description P4-11: the RIZQIM team's roles in the Boshqaruv markazi (platform/admin, docs/PHASE4_PLAN.md §5). A user is platform staff when users.platform_role is set. What each role may do is App\Services\Admin\PlatformRolePermissions (defaults) with the superadmin's overrides (platform_role_permissions); `superadmin` is fixed: everything. Only `superadmin` is also users.role = super_admin (the old store-level super admin, the old Filament panels); the other roles are users.role = platform, which holds no store-level permission at all.
+         * @description P4-11: the RIZQIM team's roles in the Boshqaruv markazi (platform/admin, docs/PHASE4_PLAN.md §5). A user is platform staff when users.platform_role is set. What each role may do is App\Services\Admin\PlatformRolePermissions (defaults) with the superadmin's overrides (platform_role_permissions); `superadmin` is fixed: everything. Only `superadmin` is also users.role = super_admin (the old store-level super admin); the other roles are users.role = platform, which holds no store-level permission at all.
          * @enum {string}
          */
         PlatformRole: "superadmin" | "operator" | "support" | "finance" | "sales" | "viewer";

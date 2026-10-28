@@ -5,7 +5,7 @@ namespace App\Services\Admin\Stores;
 use App\Enums\StoreStatus;
 
 /**
- * P4-22: Uzbek words of the Ovqatxonalar section (StoreStatus::getLabel() is the Filament panel's English).
+ * P4-22: Uzbek words of the Ovqatxonalar section (StoreStatus::getLabel() is English).
  */
 final class StoreLabels
 {

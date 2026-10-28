@@ -4,12 +4,9 @@ namespace Tests\Feature;
 
 use App\Domain\Delivery\ZoneResolver;
 use App\Enums\OrderStatus;
-use App\Filament\Pages\StoreSettings;
 use App\Support\StoreTimezone;
 use Carbon\CarbonImmutable;
-use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Livewire\Livewire;
 use Tests\TestCase;
 
 /**
@@ -59,26 +56,14 @@ class StoreTimezoneFallbackTest extends TestCase
         $this->assertIsBool($store->is_open);
     }
 
-    public function test_both_settings_forms_refuse_an_unknown_time_zone(): void
+    public function test_the_settings_refuse_an_unknown_time_zone(): void
     {
         $this->as($this->owner, 'POST', '/api/v1/owner/settings', ['timezone' => 'Tashkent'])
             ->assertStatus(422)->assertJsonValidationErrors('timezone');
-
-        $this->app['auth']->forgetGuards();
-        $this->actingAs($this->owner, 'web');
-        Filament::setCurrentPanel('admin');
-        Filament::setTenant($this->store->fresh());
-
-        Livewire::test(StoreSettings::class)
-            ->set('data.timezone', 'Tashkent')
-            ->call('save')
-            ->assertHasErrors(['data.timezone']);
         $this->assertNotSame('Tashkent', $this->store->fresh()->timezone);
 
-        Livewire::test(StoreSettings::class)
-            ->set('data.timezone', 'Asia/Samarkand')
-            ->call('save')
-            ->assertHasNoErrors();
+        $this->as($this->owner, 'POST', '/api/v1/owner/settings', ['timezone' => 'Asia/Samarkand', 'is_open' => true, 'payment_settings' => ['delivery_fee' => 0]])
+            ->assertOk();
         $this->assertSame('Asia/Samarkand', $this->store->fresh()->timezone);
     }
 

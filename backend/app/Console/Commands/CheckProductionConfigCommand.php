@@ -72,7 +72,7 @@ class CheckProductionConfigCommand extends Command
 
         // Public API docs (Scramble) are fine on staging but list every endpoint to anyone on production
         if (config('app.env') === 'production' && config('scramble.access.public') === true) {
-            $this->warn('OGOHLANTIRISH: API_DOCS_PUBLIC=true — /docs/api va spetsifikatsiya hammaga ochiq; productionda o\'chiring (faqat superadmin ko\'radi).');
+            $this->warn('OGOHLANTIRISH: API_DOCS_PUBLIC=true — /docs/api va spetsifikatsiya hammaga ochiq; productionda o\'chiring (o\'chiq bo\'lsa hujjat faqat repozitoriyda: packages/api-spec/openapi.json).');
         }
 
         $problems = array_merge($problems, $this->reverbProblems(), $this->accountProblems());

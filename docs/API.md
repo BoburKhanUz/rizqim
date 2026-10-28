@@ -56,7 +56,7 @@ Muhim qoidalar:
 - **Xodimlar (P1-36):** `POST /auth/phone/verify` da `account=staff` faqat tasdiqlangan login telefoni bor xodim
   hisoblarini topadi; bir odam bir nechta do'konda bo'lsa `POST /auth/phone/select-account` bilan tanlaydi.
   Batafsil: [AUTH.md](AUTH.md).
-- Filament panellari (`/admin`, `/superadmin`) API emas: ular email/telefon + parol bilan, cookie sessiyasida ishlaydi.
+- Backend'da veb-panel yo'q (P4-33): hamkor paneli va boshqaruv markazi shu API'ning klientlari.
 
 ## 3. Ruxsatlar
 
@@ -116,7 +116,7 @@ Xato (`ApiResponse::error`):
 **Validatsiya xabarlari o'zbekcha (P2-30).** API so'rovlarida Laravel'ning qoida xabarlari ham (`required`, `max`,
 `image`...) `backend/lang/uz` dan keladi: `{"message": "Nomi majburiy. (va yana 1 ta xato)", "errors": {"name":
 ["Nomi majburiy."]}}`. Maydon nomlari `lang/uz/validation.php` dagi `attributes` dan (`category_id` → "Kategoriya").
-Endpointning o'z xabari bo'lsa, o'shanisi. Bu `APP_LOCALE` ga bog'liq emas (Filament paneli o'z tilida qoladi):
+Endpointning o'z xabari bo'lsa, o'shanisi. Bu `APP_LOCALE` ga bog'liq emas:
 `API_LOCALE` (standart `uz`, `App\Http\Middleware\SetApiLocale`). 401 `{"message": "Unauthenticated."}` o'zgarmagan.
 Ilova xabarni ko'rsatishi mumkin, qaror esa `data.reason` va HTTP kod bo'yicha.
 
@@ -442,19 +442,20 @@ izohlang, aks holda klientda tur `unknown` bo'lib qoladi.
 
 ## 12. Boshqaruv API xaritasi (P2-12)
 
-Hamkor web paneli (`partner/web`, 2-bosqich, to'lqin 2) ega va menejer bugun Filament do'kon panelida va Mini App'ning ega
-ekranlarida qiladigan hamma ishni API orqali qilishi kerak. Quyida har bir imkoniyat qaysi endpointga to'g'ri kelishi.
-"Yangi" — P2-12 da qo'shilgan; "bor" — oldin ham bor edi; "faqat Filament" — nima uchun API'ga chiqmagani pastda.
+Hamkor web paneli (`partner/web`, 2-bosqich, to'lqin 2) ega va menejer eski do'kon panelida (P4-33 da olib tashlangan) va
+Mini App'ning ega ekranlarida qiladigan hamma ishni API orqali qiladi. Quyida har bir imkoniyat qaysi endpointga to'g'ri
+kelishi. "Yangi" — P2-12 da qo'shilgan; "bor" — oldin ham bor edi; API'ga chiqmaganlari va sababi pastda. Eski
+panellarning to'liq xaritasi: [PHASE4_PLAN.md](PHASE4_PLAN.md), 8-bo'lim.
 Hamma yangi endpointlar: `auth:sanctum` + `staff.store` + ruxsat, do'kon va filial bo'yicha ajratilgan (boshqa do'konniki
 — 404, o'z do'konidagi begona filial — 403), id'lar 18 xonagacha (`RowId`), xato xabarlari o'zbekcha, pul — ikki xonali
 satr (`"12000.00"`), sanalar do'kon vaqt mintaqasida (`stores.timezone`, standart `Asia/Tashkent`).
 
 ### Xarita
 
-| Ekran (Filament / Mini App) | Imkoniyat | API | Ruxsat | Holat |
+| Ekran (eski do'kon paneli / Mini App) | Imkoniyat | API | Ruxsat | Holat |
 |---|---|---|---|---|
 | Buyurtmalar / Mini App menejer ekrani | ro'yxat, tafsilot, holat, bekor qilish, kuryer | `GET /orders`, `/staff/orders*` (P2-11), `POST /orders/{uuid}/status`, `/cancel`, `/assign-courier`, `GET /couriers` | `orders.*` (kuryer — `orders.assign_courier`, P2-30) | bor (P2-11) |
-| Buyurtmalar | pulni qaytarish | — | `orders.refund` (faqat superadmin) | faqat Filament (superadmin) |
+| Buyurtmalar | pulni qaytarish | boshqaruv markazi: `/admin/orders/{uuid}/refund-requests`, `/admin/refund-requests/*` | `admin.orders.refund_request`, `admin.orders.refund_approve` (jamoa, ikki kishi) | hamkor paneliga chiqmaydi |
 | Mahsulotlar / Mini App menyu | taom, variant, vazn, rasm, faol/nofaol | `GET/POST /owner/products`, `POST/DELETE /owner/products/{id}`, `DELETE /owner/products/{id}/image` (P2-30) | `menu.view` (o'qish), `menu.manage` (o'zgartirish; P2-30 gacha — faqat ega roli) | bor; menyudagi o'rni (`sort_order`) — yangi; `modifier_group_links`, yangi variant qoldig'i (`stock`), rasmni o'chirish — P2-30 |
 | Mahsulotlar | kategoriyalar | `GET /owner/categories` (yaratish — superadmin) | `menu.view` | bor |
 | Modifikator guruhlari | guruh, modifikator, taomga ulash | `/owner/modifier-groups*`, `PUT /owner/products/{id}/modifier-groups` | `menu.manage` | bor |
@@ -487,18 +488,20 @@ satr (`"12000.00"`), sanalar do'kon vaqt mintaqasida (`stores.timezone`, standar
 | Sozlamalar / Mini App sozlamalar | logo, banner, tavsif, manzil, telefon, ochiq/yopiq, minimal summa, ish vaqti, to'lov usullari, yetkazish/olib ketish | `GET/POST /owner/settings`, `POST /owner/settings/upload` | ega | bor; do'kon nomi (`name`) va vaqt mintaqasi (`timezone`) — yangi |
 | Sozlamalar | xizmat haqi va joy narxi | `GET/PUT /owner/service-fees` | `settings.manage` | bor |
 
-### Faqat Filament'da qoladiganlar va sababi
+### Hamkor paneliga chiqmaganlar va sababi
 
-- **Pulni qaytarish (refund), kategoriya yaratish, kuryer turi `fleet`** — superadmin ishi (Rizqim kuryerlarini platforma
-  biriktiradi), hamkor paneliga kerak emas.
-- **`telegram_admin_chat_id` (buyurtmalar guruhi)** — guruh botdagi `?start=store_<uuid>` havolasi bilan ulanadi; raqamni
-  qo'lda yozish superadmin yordami uchun. API'da ochilsa, begona chatga buyurtma yuborish xavfi bor.
-- **Dashboard vidjetlari** (soatlik grafiklar, "war room", jonli lenta), **Inventar** va **Staff** sahifalari — navigatsiyada
-  yashirin yoki bezak uchun (bo'sh bazada namunaviy raqam ko'rsatadi), biznes qoidasi yo'q. Web panel ko'rsatkichlarni
-  `/owner/reports/*` va `/staff/orders` dan oladi; haqiqiy qoldiq — variant `stock` va `/owner/batches`.
-- **Buyurtmasi bor filialni o'chirish** — Filament ruxsat beradi, API rad etadi (`branch_in_use`): buyurtmalar va hisobotlar
-  filialsiz qolmasin. Bunday filial "faol emas" qilinadi. P2-33: xodim, faol qurilma yoki hudud bog'langan filialni
-  ikkalasi ham rad etadi (Filament — xabar bilan, `BranchDeletionGuard`).
+- **Pulni qaytarish (refund), kategoriya yaratish, kuryer turi `fleet`** — platforma ishi (Rizqim kuryerlarini platforma
+  biriktiradi), hamkor paneliga kerak emas. Qaytarish va kategoriyalar — boshqaruv markazida; `fleet` ni beradigan ekran
+  P4-33 dan beri yo'q (RIZQIM kuryer tarmog'i bilan qaytadi).
+- **`telegram_admin_chat_id` (buyurtmalar guruhi)** — guruh botdagi `?start=store_<uuid>` havolasi bilan ulanadi
+  (`GET /owner/settings` → `telegram.group_link`). Raqamni qo'lda yozish yo'q: API'da ochilsa, begona chatga buyurtma
+  yuborish xavfi bor.
+- **Eski dashboard vidjetlari** (soatlik grafiklar, "war room", jonli lenta), **Inventar** va **Staff** sahifalari —
+  biznes qoidasi yo'q edi; P4-33 da panel bilan birga olib tashlandi. Web panel ko'rsatkichlarni `/owner/reports/*` va
+  `/staff/orders` dan oladi; haqiqiy qoldiq — variant `stock` va `/owner/batches`.
+- **Buyurtmasi bor filialni o'chirish** — API rad etadi (`branch_in_use`): buyurtmalar va hisobotlar filialsiz qolmasin.
+  Bunday filial "faol emas" qilinadi. P2-33: xodim, faol qurilma yoki hudud bog'langan filial ham rad etiladi
+  (`BranchService::referencesRefusal`).
 
 ### Yangi endpointlar qisqacha
 
@@ -1792,11 +1795,11 @@ qidiruv. Hammasi `/api/v1/admin` ostida, OpenAPI'da **Admin** guruhi. Kod: `rout
 
 - Jamoa a'zosi — `users.platform_role` to'ldirilgan foydalanuvchi: `superadmin`, `operator`, `support` (Yordam),
   `finance` (Moliya), `sales` (Savdo va ulash), `viewer` (Faqat ko'rish).
-- Eski `super_admin` lar avtomatik `superadmin` bo'ldi; ular do'kon API'si va eski Filament panellarida avvalgidek
-  ishlaydi. 2FA'ni ular `php artisan rizqim:admin:invite <email>` havolasi (yoki boshqa superadmin "2FA ni tiklash")
+- Eski `super_admin` lar avtomatik `superadmin` bo'ldi (P4-25 dan beri faqat boshqaruv markaziga kiradi; eski Filament
+  panellari P4-33 da olib tashlandi). 2FA'ni ular `php artisan rizqim:admin:invite <email>` havolasi (yoki boshqa superadmin "2FA ni tiklash")
   orqali o'rnatadi: faqat parol bilan o'rnatib bo'lmaydi (pastda, `setup_not_allowed`; docs/OPERATIONS.md, 10-bo'lim).
 - Boshqa rollar uchun yangi `users.role = platform`: do'kon huquqi ham, mijoz imkoniyati ham yo'q; hamkor paneli,
-  Mini App, POS va eski panellarga kira olmaydi.
+  Mini App va POS ga kira olmaydi.
 
 ### Token: alohida `admin` turi
 
@@ -1833,8 +1836,7 @@ qidiruv. Hammasi `/api/v1/admin` ostida, OpenAPI'da **Admin** guruhi. Kod: `rout
 Qulflash: bitta hisob + bitta IP manzildan (IPv6 — butun `/64` tarmoq) 5 ta noto'g'ri parol yoki 5 ta noto'g'ri kod
 (2FA, zaxira, step-up) — 15 daqiqaga 429 `locked` (`data.retry_after`, `Retry-After` sarlavhasi). Hisob bo'yicha
 barcha manzillardan jami 15 ta noto'g'ri parol (alohida 15 ta kod) — hisob hamma joydan 15 daqiqaga bloklanadi (to'g'ri
-parol bilan ham). Noma'lum email ham xuddi shunday bloklanadi (farqi bilinmasin). Eski `/superadmin` panel bilan
-hisoblagich umumiy. Jamoa hisobiga har bir urinish jurnalga yoziladi (parol, kod, tokenlarsiz); jamoa a'zosiga
+parol bilan ham). Noma'lum email ham xuddi shunday bloklanadi (farqi bilinmasin). Jamoa hisobiga har bir urinish jurnalga yoziladi (parol, kod, tokenlarsiz); jamoa a'zosiga
 tegishli bo'lmagan email bilan urinishlar jurnalga emas, ilova logiga (daqiqasiga ko'pi bilan 30 qator, emailsiz).
 
 ### Sessiya bilan
@@ -1918,13 +1920,12 @@ raqamni bo'lak-bo'lak qidirib ochib olish mumkin edi.
 `reauth_required`, `forbidden`, `superadmin_only`, `cannot_change_self`, `last_superadmin`, `role_not_editable`,
 `not_found`. Validatsiya — odatdagidek 422 `errors`.
 
-### Eski panellar
+### 2FA saqlanishi
 
-`/superadmin` (Filament) endi xuddi shu 2FA ni talab qiladi: bir xil kalit, zaxira kodlari va qayta ishlatishni
-taqiqlash qoidasi (`App\Filament\Auth\PlatformAppAuthentication`), bir xil bloklash hisoblagichi (parol ham, kod
-ham) va jurnal (`admin.auth.2fa_failed` / `2fa_succeeded`, `channel: filament`). 2FA siz superadmin uni panelda ham
-faqat o'rnatish oynasi ichida o'rnatadi. `/admin` (do'kon paneli) sessiyasi bilan bir xil, shuning uchun superadmin u
-yerga ham faqat 2FA bilan kiradi; egalar va menejerlar avvalgidek.
+Kalit `users.app_authentication_secret` (`encrypted` cast), zaxira kodlarining bcrypt xeshlari
+`users.app_authentication_recovery_codes` (`encrypted:array`). Bu ustun va formatlar eski Filament panellari yozgani
+bilan bir xil: P4-33 da panellar olib tashlangach ham ilgari 2FA o'rnatgan a'zolar o'sha kalit va kodlar bilan kiradi
+(`tests/Feature/UserTwoFactorStorageTest.php`).
 
 Admin ilovasi sessiya cookie'si: `__Host-rz_admin` (httpOnly, Secure, `Path=/`, domensiz, `SameSite=Strict`); faqat
 `SESSION_COOKIE_SECURE=false` (http:// orqali sinov) da `rz_admin`.
@@ -1939,8 +1940,8 @@ Admin ilovasi sessiya cookie'si: `__Host-rz_admin` (httpOnly, Secure, `Path=/`, 
   `2026_11_03_100100` (`users.two_factor_setup_allowed_until`, 2FA o'rnatish oynasi).
 
 Testlar: `tests/Feature/AdminAuthLoginTest.php`, `AdminSessionTest.php`, `AdminTeamTest.php`, `AdminAuditTest.php`,
-`AdminSearchTest.php`, `AdminChannelAndPanelTest.php`, `AdminAccessHardeningTest.php` (xavfsizlik tekshiruvi: rollar,
-parol tanlash, 2FA oynasi, Filament, qidiruv).
+`AdminSearchTest.php`, `AdminOpsChannelTest.php`, `AdminAccessHardeningTest.php` (xavfsizlik tekshiruvi: rollar,
+parol tanlash, 2FA oynasi, qidiruv), `UserTwoFactorStorageTest.php`.
 
 ## Bugun (P4-13)
 
@@ -2106,7 +2107,7 @@ yozuvisiz): o'z oralig'ida allaqachon yozilgan buyurtmalar qancha bo'lmasin, yan
 
 Eng yangisi birinchi, kursor bilan (`cursor` ← `next_cursor`, `per_page` 1–100, standart 30). Filtrlar:
 
-- `status` — guruh (superadmin panelidagi tablar bilan bir xil): `active` (yakunlanmagan), `new`, `kitchen` (accepted,
+- `status` — guruh (eski superadmin panelidagi tablar kabi): `active` (yakunlanmagan), `new`, `kitchen` (accepted,
   preparing, ready), `en_route` (courier_assigned, on_the_way, delivery), `done` (delivered, refunded), `canceled`
   (canceled, rejected);
 - `sla` — `late` yoki `warning`; `channel` — `telegram`, `mobile`; `store_id`; `region_id` (filial viloyati);
@@ -2199,8 +2200,8 @@ to'liq qaytarishdagi summalarning aynan o'zi qaytgan bo'ladi, keyin buyurtmaning
 qismdan keyingi to'liq qaytarish faqat qolganini qaytaradi. Buyurtma `delivered` qoladi. Naqd buyurtmada to'lov "to'langan"
 deb belgilanmagan bo'lsa qaytarib bo'lmaydi (qaytariladigan 0).
 
-**Buyurtmani qaytarish yo'li va oldingi qismlar:** `OrderStatusService::refund` (Filament superadmin panelidagi
-"Qaytarish" tugmasi, Payme qaytarishi va boshqa har qanday chaqiruvchi) keshbekni `refundKeshbek` orqali qaytaradi: har
+**Buyurtmani qaytarish yo'li va oldingi qismlar:** `OrderStatusService::refund` (Payme qaytarishi va boshqa har qanday
+chaqiruvchi; P4-33 gacha eski panelning "Qaytarish" tugmasi ham) keshbekni `refundKeshbek` orqali qaytaradi: har
 bir to'langan keshbek to'lovning summasidan tasdiqlangan so'rovlar orqali balansga allaqachon qaytgan ulushlarini
 (`RefundRequestService::balanceOf` — bitta ta'rif) ayirib, **faqat qolganini** balansga qo'shadi; hech narsa qolmagan
 bo'lsa hech narsa qilmaydi. To'lovda `payload.refunded_to_balance` — shu safar qaytgani,
@@ -2490,14 +2491,13 @@ Bosqichlar (`App\Enums\StoreApplicationStage`): `application` (Ariza) → `revie
   marketpleysda ko'rinadigan bo'ladi. Orqaga — erkin (`active` dan emas: 422 `already_active`). Rad etilgan ariza faqat
   `application` yoki `review` da qayta ochiladi (422 `reopen_only`). `rejected` ga — faqat `reject` orqali (`use_reject`).
 - Bosqichga kirganda muddat = bugun (Toshkent) + standart kun (yoki `due_on`). Ochiq, muddati o'tgan ariza — `overdue`.
-- `POST .../convert` (step-up, `reason`): ovqatxona **Filament superadmin ustasi bilan bir xil yo'l**dan yaratiladi
-  (`App\Services\Admin\Stores\StoreProvisioner`, `CreateGlobalStore` ham shuni chaqiradi): do'kon, egasi (SMS bilan kirish
+- `POST .../convert` (step-up, `reason`): ovqatxona yagona yaratish yo'lidan yaratiladi
+  (`App\Services\Admin\Stores\StoreProvisioner`; eski superadmin ustasi ham shuni chaqirardi): do'kon, egasi (SMS bilan kirish
   telefoni tasdiqlangan, bir martalik Telegram taklif tokeni), "Asosiy Filial". Maydonlar: `branch_district_id`,
   `branch_address`, `branch_lat`, `branch_lng` (majburiy), `branch_region_id` (standart — arizaniki), `branch_radius` (5),
   `branch_phone`, `branch_open_time`/`branch_close_time`, `name`, `owner_name`, `owner_phone` (standart — arizaniki), `phone`,
   `tin`, `legal_name`, `commission_rate` (berilmasa `null` yoziladi — Billing v2 kanal stavkalari 15/10/5/0%; qiymat —
-  barcha onlayn kanallar uchun yagona foiz), `payment_account_type`. Filament ustasida ham komissiya maydoni endi
-  majburiy emas va standart 10 yo'q: bo'sh qoldirilsa `null`. Ovqatxona
+  barcha onlayn kanallar uchun yagona foiz), `payment_account_type`. Ovqatxona
   `pending` va **marketpleysda ko'rinmaydi** (`is_active = false`), ariza `faol` bo'lguncha; kassa ishlayveradi.
   Javobda `invite_link` (faqat shu yerda). 409 `already_converted`, 409 `owner_phone_taken`, 422 `owner_phone_invalid`.
 - `POST .../reject {reason}` (step-up): ariza yopiladi; yaratilgan ovqatxona `rejected` va yashirin bo'ladi.
@@ -2797,8 +2797,7 @@ o'sha javobni qaytaradi, hech narsa ikki marta bajarilmaydi va jurnal ikki marta
 katta payout yoki qo'lda tuzatishni ikki xil xodim tasdiqlaydi: payoutda birinchi tasdiqlovchi, tuzatishda uni yaratgan
 xodim yakunlay olmaydi (403 `four_eyes`, superadmin ham). 999 999,99 — bitta tasdiq yetadi. Tuzatishni bo'lib yuborib
 chetlab bo'lmaydi: oxirgi `config('finance.four_eyes_window_hours')` (24) soatda **bitta xodim tasdig'i bilan** qo'llangan
-tuzatishlar — shu xodimniki (istalgan do'kon) va shu do'konniki (istalgan xodim), eski paneldagi qo'lda to'ldirishlar ham —
-yangisi bilan qo'shiladi; ikkalasidan biri chegaraga yetsa yangi tuzatish `pending`. Ikki kishi tasdiqlagan, kutilayotgan
+tuzatishlar — shu xodimniki (istalgan do'kon) va shu do'konniki (istalgan xodim) — yangisi bilan qo'shiladi; ikkalasidan biri chegaraga yetsa yangi tuzatish `pending`. Ikki kishi tasdiqlagan, kutilayotgan
 va rad etilganlar sanalmaydi. Hisob-fakturani bekor qilish ham shu chegarada ikki xodim (POS va obunalar, `.../void`).
 
 ### Netting: payoutdan va RIZQIM yig'gan puldan avval qarz
@@ -2839,10 +2838,6 @@ hisob-faktura yozuvida `subscription_invoice_id` va izohda raqami, komissiya qis
 - Jurnal: `admin.finance.payouts.approved` / `.rejected`, `before/after.status`, `meta`: `amount`, `netted`, `transferred`,
   `netting` (qatorlar), `first_approved_by`.
 - Egasining so'rovi (`POST /owner/payouts`) va javob shakli o'zgarmagan: `awaiting_second` egaga `pending` bo'lib ko'rinadi.
-  Eski superadmin paneli (Filament) ham shu `PayoutService::complete` orqali o'tkazadi (qarz ushlanadi), lekin 1 mln va
-  undan kattasini o'tkazmaydi ("Boshqaruv markazida ikki xodim tasdiqlaydi"). Xuddi shunday eski paneldagi "To'lov qabul
-  qilish" (qarzni kamaytirish) 1 mln dan (24 soatdagi bo'laklar va bitta tasdiqli tuzatishlar bilan) va 1 mln dan katta yoki
-  to'langan hisob-fakturani bekor qilish rad etiladi.
 
 ### To'ldirishlar, hisob-kitob xatolari, balans va qarzlar
 
@@ -3043,7 +3038,7 @@ kirgan hisobga o'tadi), shuning uchun "bir qurilmadan ko'p hisob"ni o'qib bo'lma
 
 ### Eski paneldan
 
-Superadmin panelidagi **Foydalanuvchilar** (GlobalUsers): ro'yxat, rol filtri, qidiruv, ko'rish (profil, analitika,
+Eski superadmin panelidagi **Foydalanuvchilar** (GlobalUsers): ro'yxat, rol filtri, qidiruv, ko'rish (profil, analitika,
 oxirgi buyurtmalar) — shu yerda. O'chirish o'rniga **bloklash** (buyurtmalar, ledger va jurnal tarixi saqlanadi).
 Yaratish va tahrirlash ko'chirilmadi: mijozlar o'zi ro'yxatdan o'tadi (Telegram, SMS), ovqatxona xodimlarini egasi hamkor
 panelida qo'shadi va tahrirlaydi (rol, filial, telefon, PIN), ega ovqatxona yaratilganda paydo bo'ladi (Ovqatxonalar →
@@ -3062,8 +3057,8 @@ bilan (keyingi bosqich). **E'tirozlar** (Complaints): ro'yxat, ko'rish, holat va
 ## Marketing (P4-31)
 
 Boshqaruv markazining **Marketing** bo'limi (`platform/admin`, `/marketing`): Mini App bosh sahifasidagi bannerlar va
-aksiyalar, promo-kodlar (ishlatilish statistikasi bilan) va kategoriyalar tartibi. Eski `/superadmin` panelidagi
-`PromoResource`, `PromoCodeResource` va `Categories` o'rnini bosadi. Kod: `routes/api_admin_marketing.php`
+aksiyalar, promo-kodlar (ishlatilish statistikasi bilan) va kategoriyalar tartibi. Eski superadmin panelidagi
+«Aksiyalar», «Promo-kodlar» va «Kategoriyalar» o'rnini bosadi. Kod: `routes/api_admin_marketing.php`
 (`/admin/marketing`, nomlar `admin.marketing.*`), `Admin/AdminMarketing*Controller`, `app/Services/Admin/Marketing/*`
 (`PromoBanners`, `PromoCodes`, `MarketingCategories`). Pul — o'nlik satr (`"5000.00"`), vaqt — ISO 8601 (Asia/Tashkent,
 bazada UTC). Har o'zgarish `reason` (3–500 belgi) talab qiladi va jurnalga yoziladi (amal = route nomi, obyekt, oldin/keyin,
@@ -3176,7 +3171,7 @@ rolda, step-up, `reason`, jurnal, rasm cheklovlari, jadval, buyurtma oqimi bilan
 ## Tizim (P4-31)
 
 Boshqaruv markazining **Tizim** sahifasi (`platform/admin`, `/system`, menyuda «Tizim sozlamalari»): platforma
-sozlamalari, to'lov tizimlari, viloyatlar va tumanlar, funksiyalar (feature flag'lar). Eski `/superadmin`dagi «Tizim
+sozlamalari, to'lov tizimlari, viloyatlar va tumanlar, funksiyalar (feature flag'lar). Eski superadmin panelidagi «Tizim
 Sozlamalari», «To'lov Tizimlari», «Regions», «Districts» va «Feature flaglar» shu yerga ko'chdi. Kod:
 `routes/api_admin_system.php` (`/admin/system`, nomlar `admin.system.*`), `Admin/AdminSystem*Controller`,
 `app/Services/Admin/System/*`. Hammasi **`system.manage`** (faqat Superadmin, rol sozlamasi o'zgarmagan bo'lsa); har

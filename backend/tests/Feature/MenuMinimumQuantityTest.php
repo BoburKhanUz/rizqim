@@ -2,11 +2,8 @@
 
 namespace Tests\Feature;
 
-use App\Filament\Resources\Products\Pages\EditProduct;
 use App\Support\QuantityRules;
-use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Livewire\Livewire;
 use Tests\TestCase;
 
 /**
@@ -82,27 +79,5 @@ class MenuMinimumQuantityTest extends TestCase
 
         $update(['min_quantity' => 1.5])->assertOk();
         $this->assertSame('1.500', $variant->fresh()->min_quantity);
-    }
-
-    public function test_the_store_panel_refuses_it_too(): void
-    {
-        $this->actingAs($this->owner, 'web');
-        Filament::setCurrentPanel('admin');
-        Filament::setTenant($this->store);
-
-        $component = Livewire::test(EditProduct::class, ['record' => $this->product->getRouteKey()]);
-        $variants = $component->get('data.variants');
-        $key = array_key_first($variants);
-        $variants[$key]['unit'] = 'kg';
-        $variants[$key]['quantity_step'] = '0.5';
-        $variants[$key]['min_quantity'] = '0.3';
-
-        $component->set('data.variants', $variants)->call('save')
-            ->assertHasFormErrors(["variants.{$key}.min_quantity"]);
-        $this->assertSame('piece', $this->variant->fresh()->unit->value);
-
-        $variants[$key]['min_quantity'] = '1';
-        $component->set('data.variants', $variants)->call('save')->assertHasNoFormErrors();
-        $this->assertSame('1.000', $this->variant->fresh()->min_quantity);
     }
 }

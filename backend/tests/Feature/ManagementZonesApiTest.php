@@ -121,6 +121,21 @@ class ManagementZonesApiTest extends TestCase
         $this->assertSame(0, DeliveryZone::count());
     }
 
+    /**
+     * P4-33 (ported from the old store panel's zone editor): a pasted GeoJSON Feature is accepted and only its geometry
+     * is stored.
+     */
+    public function test_a_pasted_geojson_feature_is_stored_as_a_clean_geometry(): void
+    {
+        $feature = ['type' => 'Feature', 'properties' => ['name' => 'x'], 'geometry' => $this->boxPolygon(self::CITY_BOX)];
+
+        $this->as($this->owner, 'POST', '/api/v1/owner/delivery-zones', $this->payload(['polygon' => json_encode($feature)]))
+            ->assertCreated()
+            ->assertJsonPath('data.bbox.min_lat', '41.250000');
+
+        $this->assertSame($this->boxPolygon(self::CITY_BOX), DeliveryZone::sole()->polygon);
+    }
+
     public function test_the_branch_must_be_an_active_branch_of_the_store(): void
     {
         $closed = $this->makeBranch($this->store, 'Closed');
@@ -170,26 +185,6 @@ class ManagementZonesApiTest extends TestCase
         $this->as($this->owner, 'GET', '/api/v1/owner/delivery-zones/99999999999999999999')->assertNotFound();
 
         $this->assertSame('Foreign', $foreign->refresh()->name);
-    }
-
-    public function test_a_zone_saved_in_the_panel_is_audited_and_listed_by_the_api(): void
-    {
-        $this->actingAs($this->owner);
-        \Filament\Facades\Filament::setCurrentPanel('admin');
-        \Filament\Facades\Filament::setTenant($this->store);
-
-        \Livewire\Livewire::test(\App\Filament\Resources\DeliveryZones\Pages\CreateDeliveryZone::class)
-            ->fillForm([
-                'name' => 'Panel', 'priority' => 0, 'active' => true, 'delivery_price' => 10000, 'min_order_amount' => 0,
-                'polygon' => json_encode($this->boxPolygon(self::CENTRE_BOX)),
-            ])
-            ->call('create')
-            ->assertHasNoFormErrors();
-
-        $log = AuditLog::where('action', 'delivery_zone.created')->sole();
-        $this->assertSame($this->owner->id, $log->user_id);
-        $this->assertSame($this->store->id, (int) $log->store_id);
-        $this->as($this->owner, 'GET', '/api/v1/owner/delivery-zones')->assertOk()->assertJsonPath('data.0.name', 'Panel')->assertJsonPath('data.0.delivery_price', '10000.00');
     }
 
     public function test_zones_manage_cannot_be_granted_to_managers(): void

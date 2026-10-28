@@ -25500,7 +25500,7 @@
         "/v1/admin/store-applications/{uuid}/convert": {
             "post": {
                 "operationId": "admin.stores.applications.converted",
-                "description": "The store, its owner (a vouched SMS login phone and a Telegram invite) and the main branch, through the same\npath as the Filament superadmin wizard. Store `pending` and hidden from the marketplace until the application\nreaches `faol`. Fields: `branch_district_id`, `branch_address`, `branch_lat`, `branch_lng` (required);\n`branch_region_id` (default: the application's region), `branch_radius` (5), `branch_phone`,\n`branch_open_time`/`branch_close_time` (HH:MM), `name`, `owner_name`, `owner_phone` (+998XXXXXXXXX; default: the\napplication's), `phone`, `tin`, `legal_name`, `commission_rate` (a flat rate; none: the channel rates of Billing v2),\n`payment_account_type`; `reason`. Step-up.\n409 `already_converted`, 409 `owner_phone_taken` (another staff account has it), 422 `owner_phone_invalid`.\nAnswers the card and `invite_link` (only here).",
+                "description": "The store, its owner (a vouched SMS login phone and a Telegram invite) and the main branch, through the same\npath as every other store creation (StoreProvisioner). Store `pending` and hidden from the marketplace until the application\nreaches `faol`. Fields: `branch_district_id`, `branch_address`, `branch_lat`, `branch_lng` (required);\n`branch_region_id` (default: the application's region), `branch_radius` (5), `branch_phone`,\n`branch_open_time`/`branch_close_time` (HH:MM), `name`, `owner_name`, `owner_phone` (+998XXXXXXXXX; default: the\napplication's), `phone`, `tin`, `legal_name`, `commission_rate` (a flat rate; none: the channel rates of Billing v2),\n`payment_account_type`; `reason`. Step-up.\n409 `already_converted`, 409 `owner_phone_taken` (another staff account has it), 422 `owner_phone_invalid`.\nAnswers the card and `invite_link` (only here).",
                 "summary": "Create the store from the application",
                 "tags": [
                     "Admin"
@@ -105598,7 +105598,7 @@
             },
             "PlatformRole": {
                 "type": "string",
-                "description": "P4-11: the RIZQIM team's roles in the Boshqaruv markazi (platform/admin, docs/PHASE4_PLAN.md §5). A user is platform staff when users.platform_role is set. What each role may do is App\\Services\\Admin\\PlatformRolePermissions (defaults) with the superadmin's overrides (platform_role_permissions); `superadmin` is fixed: everything. Only `superadmin` is also users.role = super_admin (the old store-level super admin, the old Filament panels); the other roles are users.role = platform, which holds no store-level permission at all.\n",
+                "description": "P4-11: the RIZQIM team's roles in the Boshqaruv markazi (platform/admin, docs/PHASE4_PLAN.md §5). A user is platform staff when users.platform_role is set. What each role may do is App\\Services\\Admin\\PlatformRolePermissions (defaults) with the superadmin's overrides (platform_role_permissions); `superadmin` is fixed: everything. Only `superadmin` is also users.role = super_admin (the old store-level super admin); the other roles are users.role = platform, which holds no store-level permission at all.\n",
                 "enum": [
                     "superadmin",
                     "operator",

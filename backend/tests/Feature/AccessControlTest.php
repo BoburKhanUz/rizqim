@@ -7,7 +7,6 @@ use App\Http\Middleware\EnsureUserHasRole;
 use App\Models\Branch;
 use App\Models\Store;
 use App\Models\User;
-use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Tests\TestCase;
@@ -151,33 +150,6 @@ class AccessControlTest extends TestCase
         $this->actingAs($this->member(UserRole::COURIER), 'sanctum')
             ->getJson('/api/v1/owner/branch-variants')
             ->assertForbidden();
-    }
-
-    public function test_filament_panels_are_limited_to_intended_staff_roles(): void
-    {
-        $adminPanel = Filament::getPanel('admin');
-        $superadminPanel = Filament::getPanel('superadmin');
-
-        // P4-11: a super admin enters the store panel only with 2FA set up (the superadmin panel itself sends them to
-        // its 2FA set-up); a non-superadmin team member (platform) enters neither
-        $expected = [
-            'super_admin' => [false, true],
-            'owner' => [true, false],
-            'manager' => [true, false],
-            'courier' => [false, false],
-            'customer' => [false, false],
-            'platform' => [false, false],
-        ];
-
-        foreach ($expected as $role => [$admin, $superadmin]) {
-            $user = $this->member(UserRole::from($role));
-            $this->assertSame($admin, $user->canAccessPanel($adminPanel), "{$role} admin panel");
-            $this->assertSame($superadmin, $user->canAccessPanel($superadminPanel), "{$role} superadmin panel");
-        }
-
-        $superAdmin = $this->member(UserRole::SUPER_ADMIN);
-        $superAdmin->saveAppAuthenticationSecret(app(\App\Services\Admin\TwoFactorService::class)->generateSecret());
-        $this->assertTrue($superAdmin->canAccessPanel($adminPanel), 'super_admin with 2FA admin panel');
     }
 
     public function test_only_super_admin_can_create_global_categories(): void

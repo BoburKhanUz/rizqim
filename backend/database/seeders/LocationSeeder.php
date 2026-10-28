@@ -31,7 +31,7 @@ class LocationSeeder extends Seeder
         // Safe to re-run on a live database: it only adds the regions and districts that are missing and never deletes or
         // renames a row (branches and addresses point at them; the old TRUNCATE ... CASCADE emptied those tables too).
         // Only rows it creates get the launch defaults (Andijon viloyati / Asaka tumani active), so whatever was switched
-        // on or off in the superadmin panel stays as it is.
+        // on or off in the control center (Tizim → Viloyatlar va tumanlar) stays as it is.
         DB::transaction(function () use ($regions) {
             foreach ($regions as $regionName => $districts) {
                 $region = Region::firstOrCreate(

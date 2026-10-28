@@ -26,8 +26,8 @@ use Illuminate\Support\Facades\DB;
  *   asked, so the members are the two pairs of eyes.
  * - Never twice: every decision runs under the payout's row lock; a repeat of the same decision by the same member
  *   answers the same result (replayed); the HTTP layer also honours Idempotency-Key.
- * - The superadmin panel (Filament) completes payouts through the same complete() (PayoutRequest's updating hook),
- *   but never one that needs two members.
+ * - A status written on the model straight away (PayoutRequest's updating hook, the old superadmin panel's path) goes
+ *   through the same complete(), but never completes one that needs two members.
  */
 class PayoutService
 {

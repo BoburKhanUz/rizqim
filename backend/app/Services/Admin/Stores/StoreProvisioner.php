@@ -16,15 +16,15 @@ use Illuminate\Support\Str;
 
 /**
  * P4-22: the one way a new store is created: the store, its owner account and its main branch, in one transaction.
- * The Filament superadmin wizard (CreateGlobalStore) and the Boshqaruv markazi's "convert an application to a store"
- * both call it, so the two never diverge (the legacy POST /superadmin/stores did the same and is gone, P4-25).
+ * The Boshqaruv markazi's "convert an application to a store" calls it (the old superadmin wizard did too, until
+ * P4-33; the legacy POST /superadmin/stores is gone since P4-25).
  *
  *  - Store: payment settings as a new store starts (cash, Click, Payme where offered), the platform's merchant
  *    account by default, no flat commission rate unless one is given (null: the per-channel policy of P4-21), status
- *    and visibility as the caller says (the wizard:
+ *    and visibility as the caller says (by default
  *    active and visible; the pipeline: pending and hidden until the application reaches `faol`).
  *  - Owner: role owner, a one-time Telegram invite token (the owner opens the bot link and the account binds to their
- *    Telegram), an optional password (Filament asks for one), and the phone vouched as the SMS login phone of the
+ *    Telegram), an optional password, and the phone vouched as the SMS login phone of the
  *    partner panel (docs/AUTH.md). Another staff account may not hold that phone; the owner's own customer account may.
  *  - Branch "Asosiy filial": region, district, address, coordinates, delivery radius, opening hours.
  * The superadmins with Telegram hear about it, with the owner's invite link (as before).

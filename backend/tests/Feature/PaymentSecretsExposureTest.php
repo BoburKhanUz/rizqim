@@ -5,13 +5,10 @@ namespace Tests\Feature;
 use App\Enums\OrderStatus;
 use App\Enums\PaymentStatus;
 use App\Enums\UserRole;
-use App\Filament\Pages\StoreSettings;
 use App\Models\Order;
 use App\Models\Store;
 use App\Models\User;
-use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Livewire\Livewire;
 use Tests\TestCase;
 
 class PaymentSecretsExposureTest extends TestCase
@@ -151,27 +148,5 @@ class PaymentSecretsExposureTest extends TestCase
 
         $complete('click-SECRET-1')->assertJson(['error' => -1]);
         $complete('click-NEW-5')->assertJson(['error' => 0]);
-    }
-
-    public function test_owner_panel_settings_page_save_does_not_wipe_secrets(): void
-    {
-        $this->actingAs($this->owner);
-        Filament::setCurrentPanel('admin');
-        Filament::setTenant($this->store->fresh());
-
-        // The page fills its form from the (secret-free) serialized store, then saves the whole form back.
-        Livewire::test(StoreSettings::class)
-            ->assertSet('data.payment_settings.click.secret_key', null)
-            ->set('data.name', 'Renamed Cafe')
-            ->call('save')
-            ->assertHasNoErrors();
-
-        $this->assertSame('Renamed Cafe', $this->store->fresh()->name);
-        $this->assertSame('click-SECRET-1', $this->storedSettings()['click']['secret_key']);
-        $this->assertSame('payme-SECRET-2', $this->storedSettings()['payme']['secret_key']);
-        // The disabled (hidden) Uzum section survives the save too.
-        $this->assertSame('uzum-SECRET-3', $this->storedSettings()['uzum']['gateway']['api_key']);
-        $this->assertFalse($this->storedSettings()['uzum']['enabled']);
-        $this->assertTrue($this->storedSettings()['click']['enabled']);
     }
 }

@@ -20,8 +20,8 @@ farqni tekshiradi: fayl koddan orqada qolsa, job yiqiladi.
 
 ## Ko'rish
 
-- Brauzerda: backend'da `/docs/api` (JSON: `/docs/api.json`). `local` va `testing` muhitida ochiq; boshqa muhitda faqat
-  admin panelga kirgan superadmin ko'radi, `API_DOCS_PUBLIC=true` hammaga ochadi.
+- Brauzerda: backend'da `/docs/api` (JSON: `/docs/api.json`). `local` va `testing` muhitida ochiq; boshqa muhitda yopiq,
+  `API_DOCS_PUBLIC=true` hammaga ochadi (P4-33 dan beri sessiya bilan ochilmaydi; hujjatning o'zi shu papkada).
 - Server: `/api`, yo'llar `/v1/...` (masalan `GET /api/v1/orders`) va `/broadcasting/auth`.
 - Kirish: `Authorization: Bearer <token>` (Sanctum). Webhooklar va health ochiq (`security: []`).
 - Xatolar: `ErrorResponse` (`success: false`, `message`, ba'zan `errors`); Laravel validatsiyasi 422 `{message, errors}`.

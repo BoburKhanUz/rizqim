@@ -208,7 +208,16 @@ da `app/Filament/**` kodi qatorma-qator o'qilib tekshirildi. **Holat**: **Bor** 
 | Dashboard vidjetlari | Bugun, Ko'rsatkichlar, Moliya | Bor |
 | Ovqatxona egasi paneli `/admin` | Hamkor paneli (`partner/web`) | Bor; harakatlar jurnali, Telegram guruh havolasi, o'z kassa kalitlari, «Mening PIN kodim» — Yangi joyi |
 
-Egasining roziligi (28.10.2026) bilan ikkala Filament panel (`/superadmin` va `/admin`) 3-to'lqinda (P4-33) o'chiriladi.
+Egasining roziligi (28.10.2026) bilan ikkala Filament panel (`/superadmin` va `/admin`) 3-to'lqinda (P4-33) o'chirildi:
+`app/Filament/**`, panel providerlari, Filament ko'rinishlari va aktivlari (`public/{css,js,fonts}/filament`),
+`filament/filament` paketi (composer.lock'dan 30 paket: Filament, Livewire, Blade Icons va ularning bog'liqliklari),
+faqat Filament ishlatgan policy'lar (`Branch`, `BranchProductVariant`, `Category`, `Product`, `Store`, `User` —
+`OrderPolicy` qoldi), `App\Services\Ops\*` va `App\Domain\Ops\*`, `Order` va `ProductVariant` dagi `ops:*` kesh
+hooklari, `User` dagi `FilamentUser` / `HasTenants` / `canAccessPanel`. 2FA kaliti va zaxira kodlari o'sha ustun va
+cast'larda `User` ning o'z kodi bilan saqlanadi (ilgari o'rnatilgan 2FA ishlayveradi). Backend'ning `/` manzili
+`PARTNER_WEB_URL` ga yo'naltiradi (bo'sh bo'lsa 404). `/docs/api` endi faqat local/testing va `API_DOCS_PUBLIC=true`
+bilan ochiladi (superadmin'ning Filament sessiyasi yo'q). Filament orqali ishlagan testlar o'chirildi yoki API'ga
+ko'chirildi (xodim kirish raqami xavfsizligi, do'kon yaratish yo'li, buyurtma guruhlari, hudud GeoJSON, 2FA saqlanishi).
 
 ### 8.1. `/superadmin` — batafsil
 
@@ -295,7 +304,7 @@ Ekranlar hamkor panelida (`partner/web`), API `/api/v1/owner/*`, `/staff/*`, `/p
 | `TelegramBindWidget`, `ManagerOrdersOverviewWidget`, `StoreSalesOverviewWidget`, ledger/hamyon vidjetlari | Ega Telegrami: markaz «Telegram havola»; qolganlari `/dashboard`, `/finance` | Bor |
 | Kirish: `CustomLogin` (email + parol) | `/login` (SMS kod) | Bor |
 
-### 8.3. Faqat Filament ichida bo'lgan mantiq va uning yangi joyi (P4-33 uchun)
+### 8.3. Faqat Filament ichida bo'lgan mantiq va uning yangi joyi (P4-33 da bajarildi)
 
 | Mantiq | Qayerga ko'chdi / holati |
 |---|---|
@@ -316,11 +325,14 @@ Ekranlar hamkor panelida (`partner/web`), API `/api/v1/owner/*`, `/staff/*`, `/p
 | `AuditLogResource::actionLabels()` / `describe()` | Hamkor paneli `src/i18n/sections/audit.ts`, `components/audit/AuditView.tsx`; markaz o'z matnlari bilan |
 | `StoreSettings::unlessUnavailable` | `Store::isPaymentMethodAvailable` / `unavailablePaymentMethods` (API allaqachon shunday) |
 | `OrderResource` «collectCash» | Qasddan olib tashlandi (8.2) |
-| `App\Filament\Support\StorePanelScope` — `App\Services\Ops\OpsContext` undan foydalanadi | `App\Services\Ops\*` (OpsContext, DelayDetection, KitchenLoad, InventoryVelocity, PaymentInsight) faqat egasi paneli vidjetlarida ishlatiladi: P4-33 ularni ham, `Order::booted()` dagi `OpsContext::forgetOrderMetrics` hooklarini ham o'chiradi |
-| `MenuPanelAccess`, `BranchDeletionGuard` | Faqat Filament uchun; API `PermissionService` va `BranchService`dan foydalanadi |
+| `App\Filament\Support\StorePanelScope` — `App\Services\Ops\OpsContext` undan foydalanadi | `App\Services\Ops\*` (OpsContext, DelayDetection, KitchenLoad, InventoryVelocity, PaymentInsight) faqat egasi paneli vidjetlarida ishlatilardi: P4-33 ularni (`App\Domain\Ops\*` bilan), `Order::boot()` dagi `OpsContext::forgetOrderMetrics` va `ProductVariant::boot()` dagi `ops:*` kesh hooklarini o'chirdi |
+| `MenuPanelAccess`, `BranchDeletionGuard` | Faqat Filament uchun edi (P4-33 da o'chirildi); API `PermissionService` va `BranchService::referencesRefusal` dan foydalanadi |
 | Panel providerlari | Faqat panel sozlamasi va `filament.custom-css` render hooki; jadval (schedule), observer yoki listener ro'yxatga olinmaydi |
 | `url('/admin')` — to'lovdan qaytish manzili (`PaymentLinkService`, `OwnerFinanceController`) | `PaymentProviderSwitch::orderReturnUrl()` (Mini App, `TELEGRAM_WEBAPP_URL`) va `topupReturnUrl()` (hamkor paneli `/finance`, yangi `PARTNER_WEB_URL`) |
-| `routes/web.php` `/` → `/superadmin` yoki `/admin` | P4-33 o'zgartiradi |
+| `routes/web.php` `/` → `/superadmin` yoki `/admin` | P4-33: `/` → `PARTNER_WEB_URL` (bo'sh bo'lsa 404) |
+| `User` — Filament `InteractsWithAppAuthentication(Recovery)` (2FA kaliti, zaxira kodlari) | `User` ning o'z metodlari, o'sha `encrypted` / `encrypted:array` cast'lar va ustunlar; `UserTwoFactorStorageTest` ilgari yozilgan kalit va kod bilan kirishni tekshiradi |
+| `ApiDocsServiceProvider` `viewApiDocs` gate (Filament sessiyasidagi superadmin) | P4-33: olib tashlandi; production'da `/docs/api` faqat `API_DOCS_PUBLIC=true` bilan (spetsifikatsiya `packages/api-spec/openapi.json` da) |
+| `StaffPhoneLoginService::loginPhoneChanged` ning `$storeId` parametri (`GlobalUserResource` rol/telefon tahriri) | Endi chaqiruvchisi yo'q (parametr zarar qilmaydi); rol o'zgarganda vouched raqamni `User::booted` baribir o'chiradi |
 | `openspout/openspout` faqat Filament orqali o'rnatilgan edi (Excel eksportlari unga tayanadi) | `composer.json`ga to'g'ridan-to'g'ri qo'shildi (`^4.32`, lock'dagi o'sha versiya) |
 
 ## 9. To'lqinlar
@@ -415,7 +427,8 @@ Ish tartibi 1-to'lqindagidek: avval backend kelishuvi (endpointlar, ruxsatlar), 
 **P4-33 O'tish**
 - Jamoa uchun qo'llanma (`docs/guides/boshqaruv-markazi.md` to'liq).
 - Egasi roziligi bilan ikkala eski Filament panelni o'chirish; Mini App'dagi superadmin ekranlari va eski
-  `/superadmin/*` JSON endpointlari olib tashlanadi (12-bo'lim, 1-band qaroriga ko'ra, ertaroq ham).
+  `/superadmin/*` JSON endpointlari olib tashlanadi (12-bo'lim, 1-band qaroriga ko'ra, ertaroq ham). **Bajarildi**
+  (8-bo'lim).
 
 ## 10. Tekshiruv
 

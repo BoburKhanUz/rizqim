@@ -6,6 +6,7 @@ use App\Enums\OrderStatus;
 use App\Enums\PlatformRole;
 use App\Models\AuditLog;
 use App\Models\FiscalReceipt;
+use App\Services\Admin\Orders\AdminOrderQuery;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Tests\TestCase;
@@ -24,6 +25,21 @@ class AdminOrderListTest extends TestCase
 
         $this->setUpLifecycleStore();
         Cache::flush();
+    }
+
+    /**
+     * P4-33 (ported from the old superadmin panel's order tabs): every status lands in exactly one stage group, and
+     * `active` is every status outside done and canceled.
+     */
+    public function test_every_status_lands_in_one_stage_group(): void
+    {
+        $stages = ['new', 'kitchen', 'en_route', 'done', 'canceled'];
+        foreach (OrderStatus::cases() as $status) {
+            $in = array_values(array_filter($stages, fn (string $group) => in_array($status->value, AdminOrderQuery::GROUPS[$group], true)));
+            $this->assertCount(1, $in, $status->value);
+            $this->assertSame($in[0], AdminOrderQuery::groupOf($status->value));
+            $this->assertSame(!in_array($in[0], ['done', 'canceled'], true), in_array($status->value, AdminOrderQuery::GROUPS['active'], true), $status->value);
+        }
     }
 
     public function test_viewer_lists_orders_of_every_store_but_not_pos_orders(): void
@@ -58,6 +74,8 @@ class AdminOrderListTest extends TestCase
 
     public function test_status_groups_channel_store_region_and_counts(): void
     {
+        // Done and canceled count only today's orders: midday keeps the orders made 90 minutes ago on the same local day
+        $this->travelTo('2026-11-03 07:00:00'); // UTC: 12:00 in Tashkent
         $region = $this->region('Samarqand');
         $this->branch->forceFill(['region_id' => $region->id])->save();
         $other = $this->makeStore('Boshqa');

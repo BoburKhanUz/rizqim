@@ -37,13 +37,15 @@ bo'lsa, shunday yozilgan; 3-bosqichda quriladigan qismlar "3-bosqich" deb belgil
 
 ```
 rizqim/
-├── backend/               Laravel 12 API + Filament panellari (/admin, /superadmin)      ishlayapti
+├── backend/               Laravel 12 API (veb-panelsiz; P4-33)                            ishlayapti
 ├── customer/
 │   ├── miniapp/           React: Telegram Mini App (mijoz va xodim ekranlari)            ishlayapti
 │   └── mobile/            Flutter: mijoz ilovasi                                          6-bosqich
 ├── partner/
 │   ├── web/               Next.js: hamkor veb-paneli (ega, menejer)                        skelet ishlayapti
 │   └── mobile/            Flutter: ega va menejer ilovasi                                 5-bosqich
+├── platform/
+│   └── admin/             Next.js: RIZQIM boshqaruv markazi (jamoa, 2FA)                  ishlayapti
 ├── courier/               Flutter: kuryer ilovasi                                         4-bosqich
 ├── pos/
 │   ├── apps/kds/          Flutter: oshxona ekrani                                         skelet (ulash ekrani)
@@ -70,8 +72,7 @@ marta). Yangi Flutter ilovalar shu ro'yxatga qo'shiladi.
 | Ilova | Kim ishlatadi | Qanday kiradi | Holati |
 |---|---|---|---|
 | Telegram Mini App (`customer/miniapp`) | mijoz; ega, menejer, kuryer, superadmin uchun ham ekranlar bor | Telegram `initData` | ishlayapti: yangi menyu (modifikator, kg, "tugadi", stop-list real-time), checkout'da hudud narxi, idempotent buyurtma. Xodim ekranlari Mini App'da **qoladi** (2-bosqichda web panelda ham quriladi, umumiy kod `packages/ts/staff`) |
-| Do'kon paneli `/admin` (Filament) | ega, menejer | email/telefon + parol | ishlayapti |
-| Superadmin paneli `/superadmin` (Filament) | Rizqim jamoasi | email/telefon + parol | ishlayapti |
+| RIZQIM boshqaruv markazi (`platform/admin`) | Rizqim jamoasi | email + parol + 2FA (TOTP) | ishlayapti (4-bosqich); eski Filament panellari P4-33 da olib tashlandi |
 | Hamkor veb-paneli (`partner/web`) | ega, menejer | telefon + SMS kod | skelet: xodimlar SMS bilan kiradi (bir nechta do'kon bo'lsa akkaunt tanlanadi), docker-compose'da `panel.<domen>`. To'liq ekranlar 2-bosqichda ([PHASE2_PLAN.md](PHASE2_PLAN.md)) |
 | Oshxona ekrani (`pos/apps/kds`) | oshpaz | terminal ulash kodi, keyin PIN | skelet: ulash ekrani va bo'sh ro'yxat |
 | Telegram bot | mijoz, xodimlar | webhook | ishlayapti: `/start` havolalari, buyurtma kartochkalari va tugmalari |
@@ -87,7 +88,7 @@ flowchart LR
     end
     subgraph Xodimlar
         PW[Hamkor web<br/>Next.js]
-        FIL[Filament<br/>/admin, /superadmin]
+        ADM[Boshqaruv markazi<br/>Next.js]
         KDS[KDS / POS<br/>Flutter terminal]
     end
     TG -- "/api/v1" --> NGX[frontend nginx]
@@ -95,7 +96,7 @@ flowchart LR
     NGX -- "/app (WebSocket)" --> REV[Reverb]
     PW -- "/api/v1" --> API
     KDS -- "/api/v1" --> API
-    FIL --> API
+    ADM -- "/api/v1/admin" --> API
     BOT -- webhook --> API[backend<br/>Laravel API]
     PAY[Click / Payme] -- webhook --> API
     API --> PG[(PostgreSQL 17)]
@@ -129,10 +130,9 @@ Laravel 12, PHP 8.3. Kod `backend/app` ostida, vazifa bo'yicha:
 | `Services/Audit` | harakatlar jurnali va maxfiy ma'lumotni yashirish |
 | `Domain/Delivery` | hududlar geometriyasi, hudud va filial tanlash, yetkazish narxi |
 | `Domain/Fiscal`, `Domain/Pos/*` | fiskal qatlam va POS modullari (3-bosqich, pastda 4.1) |
-| `Services/Ops`, `Domain/Ops` | Filament dashboard uchun operatsion ko'rsatkichlar (kechikish, oshxona yuklamasi) |
 | `Events`, `Listeners`, `Events/Broadcast` | buyurtma hodisalari, Telegram/push xabarlari, Reverb hodisalari |
 | `Jobs` | navbat ishlari (pastda, 8-bo'lim) |
-| `Filament` | `/admin` (do'kon) va `/superadmin` panellari |
+| `Services/Admin` | boshqaruv markazining API'si: jamoa, 2FA, ruxsatlar, bo'limlar xizmatlari |
 | `Features/Features.php` | feature flag'lar ro'yxati |
 | `OpenApi` | Scramble sozlamalari (spetsifikatsiya eksporti) |
 
@@ -390,7 +390,7 @@ Redis navbati, uchta nom:
 ## 9. Feature flag'lar
 
 Laravel Pennant, `database` drayveri, **do'kon bo'yicha**. Ro'yxat bitta joyda: `backend/app/Features/Features.php`.
-Yoqish/o'chirish: Superadmin > Sozlamalar > Feature flaglar. Ilovalar uchun `GET /api/v1/features`. Hozir faqat
+Yoqish/o'chirish: boshqaruv markazi, Tizim → Tizim sozlamalari → Funksiyalar. Ilovalar uchun `GET /api/v1/features`. Hozir faqat
 namunaviy flag (`new-checkout-copy`). Batafsil: [OPERATIONS.md](OPERATIONS.md), 8-bo'lim.
 
 ## 10. API spetsifikatsiyasi va yaratiladigan klientlar

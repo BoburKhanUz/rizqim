@@ -295,7 +295,7 @@ class AdminRefundRequestTest extends TestCase
         $this->askAndApprove($order, '30000', $requester, $approver);
         $this->assertSame('30000.00', $customer->fresh()->balance);
 
-        // The Filament "Qaytarish" button (and any other caller) goes through OrderStatusService::refund
+        // Any other caller of OrderStatusService::refund (the old panels' "Qaytarish" went through it too)
         $superadmin = $this->makeMember();
         $result = app(OrderStatusService::class)->refund($order, $superadmin, "Mijoz shikoyati");
         $this->assertTrue($result->changed);

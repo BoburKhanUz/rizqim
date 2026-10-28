@@ -263,7 +263,7 @@ class AdminStoreApplicationController extends AdminController
      * Create the store from the application
      *
      * The store, its owner (a vouched SMS login phone and a Telegram invite) and the main branch, through the same
-     * path as the Filament superadmin wizard. Store `pending` and hidden from the marketplace until the application
+     * path as every other store creation (StoreProvisioner). Store `pending` and hidden from the marketplace until the application
      * reaches `faol`. Fields: `branch_district_id`, `branch_address`, `branch_lat`, `branch_lng` (required);
      * `branch_region_id` (default: the application's region), `branch_radius` (5), `branch_phone`,
      * `branch_open_time`/`branch_close_time` (HH:MM), `name`, `owner_name`, `owner_phone` (+998XXXXXXXXX; default: the

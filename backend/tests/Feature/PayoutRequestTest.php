@@ -4,15 +4,11 @@ namespace Tests\Feature;
 
 use App\Enums\StoreTransactionType;
 use App\Enums\UserRole;
-use App\Filament\Pages\StoreFinance;
-use App\Filament\Superadmin\Resources\PayoutRequests\Pages\EditPayoutRequest;
 use App\Models\PayoutRequest;
 use App\Models\Store;
 use App\Models\StoreWalletTransaction;
 use App\Models\User;
-use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Livewire\Livewire;
 use Tests\TestCase;
 
 class PayoutRequestTest extends TestCase
@@ -118,77 +114,6 @@ class PayoutRequestTest extends TestCase
         $this->assertSame(1, StoreWalletTransaction::where('store_id', $this->store->id)
             ->where('type', StoreTransactionType::PAYOUT->value)->count());
         $this->assertSame('completed', $payout->fresh()->status);
-    }
-
-    public function test_superadmin_panel_debits_once_and_reports_refused_approvals(): void
-    {
-        $admin = User::create([
-            'name' => 'Super Admin',
-            'phone' => '+998904440009',
-            'role' => UserRole::SUPER_ADMIN->value,
-            'password' => bcrypt('password'),
-        ]);
-        $payout = $this->pendingPayout(100000);
-
-        Filament::setCurrentPanel('superadmin');
-        $this->actingAs($admin);
-
-        // Two tabs opened while the request was still pending.
-        $firstTab = Livewire::test(EditPayoutRequest::class, ['record' => $payout->getRouteKey()]);
-        $secondTab = Livewire::test(EditPayoutRequest::class, ['record' => $payout->getRouteKey()]);
-
-        $firstTab->fillForm(['status' => 'completed'])->call('save')->assertHasNoFormErrors();
-        $secondTab->fillForm(['status' => 'completed'])->call('save');
-
-        $this->assertEquals(200000, (float) $this->store->fresh()->wallet_balance);
-        $this->assertSame(1, StoreWalletTransaction::where('store_id', $this->store->id)
-            ->where('type', StoreTransactionType::PAYOUT->value)->count());
-        $this->assertSame($admin->id, $payout->fresh()->processed_by);
-
-        // An approval the wallet cannot cover is refused on the page instead of overdrawing or erroring.
-        $tooLarge = $this->pendingPayout(250000);
-        Livewire::test(EditPayoutRequest::class, ['record' => $tooLarge->getRouteKey()])
-            ->fillForm(['status' => 'completed'])
-            ->call('save')
-            ->assertNotified('Xatolik');
-
-        $this->assertSame('pending', $tooLarge->fresh()->status);
-        $this->assertEquals(200000, (float) $this->store->fresh()->wallet_balance);
-    }
-
-    public function test_owner_panel_payout_action_applies_the_same_locked_rules_as_the_api(): void
-    {
-        $this->actingAs($this->owner);
-        Filament::setCurrentPanel('admin');
-        Filament::setTenant($this->store->fresh());
-
-        Livewire::test(StoreFinance::class)
-            ->callAction('requestPayout', data: ['amount' => 150000, 'card_number' => '8600 1234 5678 9012'])
-            ->assertHasNoActionErrors();
-
-        $this->assertDatabaseHas('payout_requests', [
-            'store_id' => $this->store->id,
-            'amount' => 150000,
-            'card_number' => '8600123456789012',
-            'status' => 'pending',
-        ]);
-
-        // Pending requests count against what is left (300k - 150k pending - 100k reserve = 50k).
-        Livewire::test(StoreFinance::class)
-            ->callAction('requestPayout', data: ['amount' => 100000, 'card_number' => '8600123456789012'])
-            ->assertHasActionErrors(['amount']);
-
-        Livewire::test(StoreFinance::class)
-            ->callAction('requestPayout', data: ['amount' => 10000, 'card_number' => '8600-1234-5678-901a'])
-            ->assertHasActionErrors(['card_number']);
-
-        // The page's figures can be stale (the wallet just dropped): the locked check still refuses.
-        Store::whereKey($this->store->id)->update(['wallet_balance' => 160000]);
-        Livewire::test(StoreFinance::class)
-            ->callAction('requestPayout', data: ['amount' => 50000, 'card_number' => '8600123456789012'])
-            ->assertNotified('Xatolik');
-
-        $this->assertSame(1, PayoutRequest::count());
     }
 
     public function test_processed_payout_cannot_be_reopened_and_approved_again(): void

@@ -112,7 +112,8 @@ class UserCardPresenter
     }
 
     /**
-     * The Filament user page's analytics: orders, delivered total and average check, the segment.
+     * The user's analytics (as the old superadmin user page showed them): orders, delivered total and average check,
+     * the segment.
      *
      * @return array<string, mixed>
      */

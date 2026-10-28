@@ -9,7 +9,7 @@ use App\Enums\UserRole;
  * The default role -> permission map. A store may adjust it (role_permission_overrides, PermissionService), except
  * for the owner, whose set is fixed so nobody can lock the store out of its own settings. super_admin has every
  * permission everywhere. Changing this map changes what existing staff may do: keep owner/manager/courier as the API
- * and panel have always behaved (OrderPolicy, ProductPolicy run on it).
+ * and the panels have always behaved (OrderPolicy and the API's permission checks run on it).
  */
 final class RolePermissions
 {
@@ -26,7 +26,7 @@ final class RolePermissions
                 P::STAFF_VIEW, P::STAFF_PIN, P::DEVICES_VIEW, P::DEVICES_MANAGE, P::REPORTS_VIEW,
                 P::POS_OPEN_SHIFT, P::POS_CLOSE_SHIFT, P::POS_CASH_IN_OUT, P::POS_TAKE_PAYMENT, P::POS_REPRINT_BILL,
                 P::BATCHES_MANAGE, // P1-21
-                P::BRANCHES_MANAGE, // P2-12: their own branch's hours and details, as BranchPolicy lets them in the panel
+                P::BRANCHES_MANAGE, // P2-12: their own branch's hours and details
                 P::BOOKINGS_MANAGE, P::CUSTOMER_ACCOUNTS_MANAGE, // P3-17
                 P::POS_REFUND, // P3-18: refunds within the shift (cashiers ask a manager's PIN)
             ],

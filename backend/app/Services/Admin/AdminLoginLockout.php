@@ -11,8 +11,7 @@ use Illuminate\Support\Facades\Cache;
  *
  * Review F2: bad passwords and bad codes are also counted for the account from every address together (15 in the
  * window lock it everywhere: guessing from rotating addresses), and an IPv6 address counts by its /64 (one customer
- * line hands out a whole /64, so per-address counting there would be per-guess). The same counters guard the old
- * Filament sign-in (App\Filament\Auth\PlatformAppAuthentication).
+ * line hands out a whole /64, so per-address counting there would be per-guess).
  */
 class AdminLoginLockout
 {

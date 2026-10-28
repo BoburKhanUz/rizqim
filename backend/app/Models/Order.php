@@ -88,10 +88,6 @@ class Order extends Model
                 $order->short_code = 'A' . strtoupper(substr(uniqid(), -4));
             }
         });
-
-        // Cached operational metrics (store-wide and per branch) go stale with every order change
-        static::saved(fn ($order) => \App\Services\Ops\OpsContext::forgetOrderMetrics($order));
-        static::deleted(fn ($order) => \App\Services\Ops\OpsContext::forgetOrderMetrics($order));
     }
     
     protected $appends = ['address', 'type'];

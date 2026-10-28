@@ -30,7 +30,8 @@ token, refresh token yoki yangi hisob bermaydi:
 - ularning avvalgi oddiy tokenlari (Mini App, mobil, qurilma tokenlari) ishlamaydi (`sanctum` guard rad etadi, 401), refresh
   token yangi token bermaydi (`refresh_invalid`). Faqat `admin` tokeni (`AdminTokenGuard`) ishlaydi.
 - Eski `/superadmin/dashboard|stores|locations` endpointlari va Mini App'dagi superadmin ekranlari olib tashlangan; do'kon
-  yaratish va platforma ko'rsatkichlari — Boshqaruv markazida (va Filament `/superadmin` panelida, P4-33 gacha).
+  yaratish va platforma ko'rsatkichlari — Boshqaruv markazida. P4-33 da backend'dagi eski veb-panellar ham olib
+  tashlandi: jamoa faqat Boshqaruv markaziga, ovqatxona egalari va xodimlari hamkor paneliga kiradi.
 
 **Qurilmani ro'yxatdan o'tkazish (ixtiyoriy).** So'rovga `device` obyekti qo'shilsa
 (`{type, uuid?, name?, platform?, app_version?, push_token?}`, `type`: `customer_mobile`, `partner_mobile`,
@@ -58,9 +59,9 @@ emas (`not-staff-session` yo'llari ochiq, faqat roldagi ruxsatlar bilan). Har ki
 Kod cheklovlari (5 urinish, sutkasiga 30 ta, kod bir martalik) xuddi yuqoridagidek.
 
 - Kirish raqami — `users.phone_verified_at` belgilangan raqam: xodim uni o'zi SMS kod bilan tasdiqlagan (Mini App yoki
-  ilovada `POST /phone/verify-code`), yoki hisob ustidan vakolati borlar yozgan: superadmin egani yaratganda ("Phone
-  Number (Login)", do'kon yaratish ustasidagi `+998…` ko'rinishidagi egasi raqami), Superadmin > Foydalanuvchilar >
-  "SMS bilan kirishni yoqish", ega yoki menejer do'kon panelidagi Xodimlar formasida ("Telefon (SMS bilan kirish)", menejer —
+  ilovada `POST /phone/verify-code`), yoki hisob ustidan vakolati borlar yozgan: ovqatxona yaratilganda egasining
+  arizadagi raqami (`StoreProvisioner`), Boshqaruv markazidagi ovqatxona kartasi → «Kirish raqami» (`PUT /admin/stores/{id}/owner-login-phone`,
+  `admin.stores.impersonate`), ega yoki menejer hamkor panelining Xodimlar sahifasida (`POST/PATCH /owner/staff`, menejer —
   o'zidan pastdagilarga). Bir do'konda bitta raqam bitta xodimga. Profilda kodsiz o'zgartirilgan raqam kirish raqami
   bo'lmaydi.
 - **Raqam qanday tasdiqlangani saqlanadi (P1-34)** — `users.phone_verified_via`: `sms` (egasi kodni o'zi kiritgan) yoki
@@ -252,7 +253,7 @@ tushirmang** — u barcha terminallarni uzib qo'yadi.
 
 Rollar: `super_admin`, `owner` (ega), `manager` (menejer), `cashier` (kassir), `waiter` (ofitsiant), `cook`
 (oshpaz), `courier` (kuryer), `customer` (mijoz). Kassir, ofitsiant va oshpaz — yangi rollar; ular do'konsiz bo'la
-olmaydi va Filament paneliga kirmaydi (POS/KDS ilovalari uchun).
+olmaydi (POS/KDS ilovalari uchun).
 
 Standart jadval (`App\Services\Auth\RolePermissions`). Superadmin hamma narsaga ega. `orders.refund` hozircha faqat
 superadmin uchun.
@@ -302,7 +303,7 @@ standartga qaytarish). Ega huquqlari o'zgarmaydi. Quyidagilarni boshqa rolga ber
 `GET /owner/permissions` — joriy jadval va standartlar (javob shakli: [API.md](API.md), "Kassadagi chegirma va kassir
 huquqlari (P3-37)"). P3-37 (egasining 24.10.2026 qarori): kassirning standart huquqlariga `pos.reprint_bill` va
 `pos.cash_in_out` qo'shildi; qaytarish (`pos.refund`) va bekor qilish (`orders.cancel`) menejer PIN bilan qoladi. Bu endpointlar chaqiruvchining o'z do'koni uchun: do'konsiz
-superadmin 403 (`data.reason = store_required`) oladi va do'kon ruxsatlarini panel orqali boshqaradi.
+superadmin 403 (`data.reason = store_required`) oladi: do'kon ruxsatlarini egasi hamkor panelida boshqaradi.
 
 **Hisobotlar.** `GET /owner/analytics` ega va menejer uchun, `reports.view` bilan (do'kon o'zgartirishlari hisobga
 olinadi): menejerdan `reports.view` olib qo'yilsa, 403. Web panel hisobotlari (`/owner/reports/*`, P2-12) ham faqat
@@ -310,15 +311,15 @@ olinadi): menejerdan `reports.view` olib qo'yilsa, 403. Web panel hisobotlari (`
 
 **Boshqaruv (P2-12, web panel).** Filiallar: ro'yxat — buyurtma, menyu, xodim yoki hisobot ruxsati bor xodim (filialga
 biriktirilgan — o'z filiali); yaratish va o'chirish — `settings.manage` (ega); tahrirlash — `branches.manage` (ega,
-menejer — o'z filiali; panelning `BranchPolicy` qoidasi). Xodimlar: `GET/POST /owner/staff`, `PATCH /owner/staff/{id}` —
-`staff.view` va panelning xodimlar ekranidagi qoida: ega hamma xodimni, menejer o'z filialidagi o'zidan past rollarni
+menejer — o'z filiali). Xodimlar: `GET/POST /owner/staff`, `PATCH /owner/staff/{id}` —
+`staff.view` va `StaffAccountService` qoidasi: ega hamma xodimni, menejer o'z filialidagi o'zidan past rollarni
 (kassir, ofitsiant, oshpaz, kuryer) qo'shadi va tahrirlaydi; formadagi telefon kirish raqami bo'ladi (yuqorida, 1-bo'lim).
 P2-33: ro'yxatni filialga biriktirilgan har kim (faqat menejer emas) o'z filiali va filialsiz xodimlar bilan ko'radi.
 Ega `staff.view` ni kassir, ofitsiant, oshpaz yoki kuryerga bersa, ular menejeri ko'radigan ro'yxatni (menejerdan past
 rollar) ko'radi, lekin rol bera olmaydi, qo'sha va tahrirlay olmaydi (`can_edit: false`). Rol berish faqat ega,
 superadmin va menejerda (menejer — o'zidan past rollar).
 Filialni o'chirish (P2-33): filialga xodim, bekor qilinmagan qurilma (terminal) yoki yetkazib berish hududi bog'langan
-bo'lsa, rad etiladi (422 `branch_in_use`, `data`: `staff`, `devices`, `zones` soni) — API'da ham, Filament'da ham.
+bo'lsa, rad etiladi (422 `branch_in_use`, `data`: `staff`, `devices`, `zones` soni) (`BranchService::referencesRefusal`).
 Aks holda ularning `branch_id` si bo'shab, ular butun do'konga tegishli bo'lib qolardi (menejer hamma filialni ko'rardi).
 Moliya tarixi — `finance.view`. Hududlar — `zones.manage`. To'liq xarita: [API.md](API.md), 12-bo'lim.
 
@@ -384,28 +385,20 @@ admin harakati `admin.*` nomi bilan yoziladi (IP va brauzer bilan); butun platfo
 
 Ega jurnalni `GET /owner/audit-logs` (`audit.view`; filtrlar: `action` yoki `order.*`, `user_id`,
 `device_uuid`, `branch_id`, `subject_type`, `subject_id`, `from`, `to`, `per_page`) va panelda "Harakatlar
-jurnali" orqali ko'radi. Superadmin panelida butun platforma jurnali va barcha qurilmalar bor.
+jurnali" orqali ko'radi. Butun platforma jurnali va barcha qurilmalar Boshqaruv markazida (Harakatlar jurnali, POS va obunalar → Qurilmalar).
 
-## 8. Filament
+## 8. Panellar
 
-Do'kon panelida "Xodimlar va ruxsatlar" bo'limi:
-- **Xodimlar** — yangi rollar bilan xodim qo'shish, rol va filial, PIN o'rnatish va o'chirish, "Mening PIN kodim".
-- **Qurilmalar** — terminal ulash kodi, nomini o'zgartirish, o'chirish.
-- **Ruxsatlar** — rollar jadvali (ega o'zgartiradi, menejer faqat ko'radi).
-- **Harakatlar jurnali** — faqat ega.
+Backend'da veb-panel yo'q (P4-33: eski Filament panellari olib tashlandi). Ega va xodimlar **hamkor panelida**
+(`partner/web`, SMS kod bilan kirish, 1-bo'lim) ishlaydi: Xodimlar (rol, filial, kirish raqami, PIN, «Mening PIN
+kodim»), Qurilmalar (ulash kodi, nomi, o'chirish), Ruxsatlar (ega o'zgartiradi, menejer faqat ko'radi), Harakatlar
+jurnali (faqat ega). Hammasi chaqiruvchining do'koni bilan cheklangan, filial menejeri — o'z filiali bilan. RIZQIM
+jamoasi **Boshqaruv markazida** (`platform/admin`, email + parol + 2FA: [API.md](API.md) «Admin API», [OPERATIONS.md](OPERATIONS.md),
+10-bo'lim) ishlaydi.
 
-Hammasi joriy do'kon (tenant) bilan cheklangan, filial menejeri — o'z filiali bilan.
-
-P4-11: `/superadmin` panel Boshqaruv markazi bilan **bir xil 2FA** ni talab qiladi (o'sha TOTP kaliti, zaxira
-kodlari, qayta ishlatishni taqiqlash). `/admin` panel sessiyasi umumiy, shuning uchun superadmin u yerga ham faqat 2FA
-bilan kiradi; egalar va menejerlar avvalgidek kiradi.
-
-Xavfsizlik tekshiruvidan keyin (P4 review): panelning parol bosqichi va 2FA kodlari markaz bilan **bitta bloklash
-hisoblagichida** (`App\Services\Admin\AdminLoginLockout`: hisob + manzil (IPv6 da `/64`) bo'yicha 5 ta, hisob bo'yicha
-barcha manzillardan jami 15 ta noto'g'ri urinish — 15 daqiqa). Paneldagi har bir 2FA tekshiruvi jurnalga yoziladi
-(`admin.auth.2fa_failed` / `admin.auth.2fa_succeeded`, `channel: filament`). 2FA siz superadmin uni panelda ham faqat
-24 soatlik o'rnatish oynasi ichida (taklifni qabul qilgach yoki 2FA tiklangach) o'rnatadi; oynadan tashqarida panel
-`php artisan rizqim:admin:invite <email>` yo'rig'ini ko'rsatadi ([OPERATIONS.md](OPERATIONS.md), 10-bo'lim).
+2FA kaliti va zaxira kodlari `users.app_authentication_secret` (shifrlangan, `encrypted` cast) va
+`users.app_authentication_recovery_codes` (bcrypt xeshlar ro'yxati, `encrypted:array`) ustunlarida, ilgari Filament
+yozgan formatda: P4-33 dan oldin 2FA o'rnatgan a'zolar qayta o'rnatmaydi (`App\Models\User`, `TwoFactorService`).
 
 ## 9. Sozlamalar (.env)
 

@@ -304,7 +304,7 @@ Kartada yorliqlar:
 - **Buyurtmalar** — oxirgi 30 kunlik sifat (qabul qilish ulushi, o'rtacha vaqtlar, bekor qilish) va oxirgi buyurtmalar.
 - **Shikoyatlar**, **Tarix** (holat o'zgarishlari va jurnal), **CRM** (izohlar, vazifalar, keyingi aloqa sanasi).
 
-**Amallar** (kartaning tepasida; hammasi **sabab** va **6 xonali kod** so'raydi, "Ovqatxonalarni boshqarish" ruxsati bilan):
+**Amallar** (kartaning tepasida; hammasi **sabab** va **6 xonali kod** so'raydi, "Ovqatxonalarni boshqarish" ruxsati bilan, "Kirish raqami"dan tashqari):
 
 | Amal | Nima qiladi |
 |---|---|
@@ -314,6 +314,8 @@ Kartada yorliqlar:
 | **Ko'rsatish sozlamalari** | "Premium" va "Tavsiya etilgan" belgilari (marketpleysda ko'rinishi) |
 | **Telegram havola** | Egasi uchun bir martalik yangi havola; eskisi ishlamay qoladi. Havola egasining tasdiqlangan telefoniga **SMS bilan** boradi va ekranda ko'rinmaydi |
 | **Egasiga yozish** | Oddiy matn RIZQIM boti orqali egasining Telegramiga boradi |
+| **To'lov hisobi** | Onlayn to'lov pullari qayerga tushadi: RIZQIM hisobi (`platform_account` — pul hamyonga yig'iladi, ovqatxona payout so'raydi) yoki ovqatxonaning o'z hisobi (`own_account` — o'z Click/Payme kalitlari bilan). Shu yerda **payout zaxirasi** ham: hamyonda doim qoladigan, payout qilib bo'lmaydigan summa. Kutilayotgan onlayn to'lovi bor ovqatxonada hisob turini almashtirib bo'lmaydi — to'lovlar yakunlanguncha kuting |
+| **Kirish raqami** | Egasining hamkor paneliga SMS bilan kirish raqami (masalan, eski raqamini yo'qotgan bo'lsa). Faqat "Ovqatxona egasi sifatida kirish" (`stores.impersonate`, standartda Superadmin) ruxsati bor xodimda (u egasi nomidan kirishga ruxsat bermaydi — bunday imkoniyat yo'q); eski raqam bilan ochilgan sessiyalar yopiladi |
 
 Komissiya stavkasini o'zgartirish bu yerda emas — [POS va obunalar](#pos-va-obunalar) bo'limida. Karta tagidagi havolalar ovqatxonaning
 buyurtmalariga, to'liq jurnaliga va obunasiga olib boradi.
@@ -764,10 +766,16 @@ daqiqada kiritilmagan bo'lsa); hammasi harakatlar jurnaliga yoziladi. To'rtta bo
   qiymatga yoki standartga qaytadi. Eskizga o'tish uchun email va parol kiritilgan bo'lishi kerak. Telegram va Umumiy
   qatorlari serverdagi `.env` faylidan — ular faqat ko'rsatiladi, o'zgartirish uchun texnik jamoaga murojaat qiling.
 - **To'lov tizimlari.** Payme, Click, Uzum Bank, Paynet: «Faol» belgisi va rejim (Sinov / Ishchi), kalitlar. Har kalitning
-  yonida qayerdan olingani yoziladi: «Shu yerda saqlangan» yoki «Server sozlamasidan (.env)». **«Faol» o'chirilsa**, to'lov tizimi Mini App'da
-  mijozga taklif qilinmaydi va u orqali yangi to'lov boshlab bo'lmaydi; allaqachon boshlangan to'lovlar esa odatdagidek yakunlanadi
-  (to'lov tizimining javobi qabul qilinaveradi). **Rejim** to'lov tizimi sinov yoki ishchi manzil va kalitlarini ishlatishini belgilaydi:
-  haqiqiy to'lovlar uchun «Ishchi», sinov uchun «Sinov». Rejimni almashtirishdan oldin tegishli kalitlar kiritilganini tekshiring.
+  yonida qayerdan olingani yoziladi: «Shu yerda saqlangan» yoki «Server sozlamasidan (.env)». **«Faol» o'chirilsa**, to'lov
+  tizimi **hamma ovqatxona uchun** o'chadi — o'z hisobiga (o'z merchant kalitlari bilan) pul yig'adigan ovqatxonalar uchun ham:
+  Mini App'da mijozga taklif qilinmaydi, u orqali yangi to'lov (buyurtma yoki ovqatxonaning balans to'ldirishi) boshlab
+  bo'lmaydi. Ovqatxonalar o'zi yoqib qo'ygan sozlama saqlanib qoladi: qayta yoqilganda hammasi avvalgidek ishlaydi.
+  **Allaqachon boshlangan to'lovlar esa odatdagidek yakunlanadi** (to'lov tizimining javobi, bekor qilish va qaytarish
+  qabul qilinaveradi). **Rejim** RIZQIM'ning o'z merchant hisobi orqali o'tadigan to'lovlar uchun: «Sinov»da Payme
+  to'lov sahifasi Payme'ning sinov manzilida (sandbox, `checkout.test.paycom.uz`) ochiladi va **kalitlar o'zgarmaydi** —
+  sinov paytida jamoa shu yerga Payme bergan **sinov kalitlarini** o'zi kiritadi, ishchi rejimga qaytishdan oldin ishchi
+  kalitlarni qaytaradi. Click'da alohida sinov manzili yo'q (sinov — Click'dagi sinov xizmati va uning kalitlari). O'z
+  hisobiga yig'adigan ovqatxonalarning to'lovlari har doim ishchi manzilda. Haqiqiy to'lovlar uchun «Ishchi».
 - **Viloyatlar va tumanlar.** Mini App manzil formasi, filiallar va arizalar shu ro'yxatdan tanlaydi. Qo'shish, nomini
   o'zgartirish, yoqish/o'chirish va tartib («Tartibni o'zgartirish» → yuqoriga/pastga → «Tartibni saqlash»). Filial, mijoz
   manzili yoki ariza ishlatayotgan viloyat/tuman **o'chirilmaydi** — uni «Faol emas» qiling. Tumanlari bor viloyat ham

@@ -90,7 +90,7 @@ class PayoutCardMaskingTest extends TestCase
     {
         $this->as($this->owner, 'POST', '/api/v1/owner/payouts', ['amount' => 100000, 'card_number' => self::CARD])->assertOk();
         $payout = PayoutRequest::firstOrFail();
-        // The platform pays it out (Filament): the wallet row notes the card
+        // The platform pays it out (PayoutRequest's updating hook): the wallet row notes the card
         $this->actingAs($this->makeStaff(UserRole::SUPER_ADMIN));
         $payout->update(['status' => 'completed', 'resolution_notes' => 'Yuborildi: ' . self::CARD]);
 

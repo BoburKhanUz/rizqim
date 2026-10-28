@@ -3,13 +3,9 @@
 namespace Tests\Feature;
 
 use App\Enums\UserRole;
-use App\Filament\Pages\StoreSettings;
-use App\Filament\Superadmin\Resources\GlobalStores\Pages\EditGlobalStore;
 use App\Models\Store;
 use App\Models\User;
-use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Livewire\Livewire;
 use Tests\TestCase;
 
 class PaymentStorePublicDataTest extends TestCase
@@ -117,33 +113,5 @@ class PaymentStorePublicDataTest extends TestCase
             ->assertJsonPath('data.status', 'active')
             ->assertJsonPath('data.is_order_locked', true)
             ->assertJsonPath('data.payment_account_type', 'platform_account');
-    }
-
-    public function test_filament_forms_still_load_and_keep_the_internal_fields(): void
-    {
-        $admin = $this->member(UserRole::SUPER_ADMIN, $this->open, '+998902020004');
-        $this->actingAs($admin);
-        Filament::setCurrentPanel('superadmin');
-
-        Livewire::test(EditGlobalStore::class, ['record' => $this->open->getRouteKey()])
-            ->assertSet('data.commission_rate', '12.50')
-            ->assertSet('data.credit_limit', '-100000.00')
-            ->assertSet('data.telegram_admin_chat_id', '-100777')
-            ->assertSet('data.payment_account_type', 'platform_account');
-
-        $owner = $this->member(UserRole::OWNER, $this->open, '+998902020005');
-        $this->actingAs($owner);
-        Filament::setCurrentPanel('admin');
-        Filament::setTenant($this->open->fresh());
-
-        Livewire::test(StoreSettings::class)
-            ->assertSet('data.telegram_admin_chat_id', '-100777')
-            ->call('save')
-            ->assertHasNoErrors();
-
-        $store = $this->open->fresh();
-        $this->assertSame('-100777', $store->telegram_admin_chat_id);
-        $this->assertEquals(12.5, (float) $store->commission_rate);
-        $this->assertEquals(-100000, (float) $store->credit_limit);
     }
 }

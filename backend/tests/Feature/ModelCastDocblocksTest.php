@@ -85,6 +85,7 @@ class ModelCastDocblocksTest extends TestCase
             enum_exists($cast) => $cast,
             str_starts_with($cast, 'decimal') => 'numeric-string',
             in_array($cast, ['array', 'encrypted:array', 'json'], true) => 'array',
+            $cast === 'encrypted' => 'string',
             in_array($cast, ['datetime', 'date'], true) => 'Illuminate\Support\Carbon',
             in_array($cast, ['float', 'double', 'real'], true) => 'float',
             in_array($cast, ['bool', 'boolean'], true) => 'bool',

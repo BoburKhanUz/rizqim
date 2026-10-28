@@ -43,8 +43,6 @@ fi
 if [ "$RUN_MIGRATIONS" = "true" ]; then
     as_app php artisan migrate --force
     as_app php artisan storage:link || true
-    # filament:upgrade runs config:clear/route:clear/view:clear, so it must come before the caches are built
-    as_app php artisan filament:upgrade || true
     as_app php artisan config:cache
     as_app php artisan route:cache
     as_app php artisan view:cache

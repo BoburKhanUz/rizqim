@@ -47,8 +47,8 @@ class Store extends Model
     protected $appends = ['logo_url', 'banner_url', 'min_order', 'delivery_fee', 'is_order_locked'];
 
     /**
-     * Internal and financial columns left out of serialized stores (API responses, relations). Not $hidden, because
-     * Filament fills its forms from attributesToArray(), which honours $hidden; owner endpoints list them explicitly.
+     * Internal and financial columns left out of serialized stores (API responses, relations). Not $hidden (a form or
+     * export that reads attributesToArray() still gets them); owner endpoints list them explicitly.
      */
     public const INTERNAL_ATTRIBUTES = [
         'debt_balance', 'wallet_balance', 'credit_limit', 'low_balance_threshold', 'min_payout_reserve',

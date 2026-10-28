@@ -14,7 +14,7 @@ Bu hujjat qabul qilingan qarorlar, papkalar tuzilmasi va bosqichlarni saqlaydi. 
 | Mobil va POS ilovalar | Flutter (bitta Dart monoreposi, umumiy paketlar) |
 | Hamkor web | Next.js. Biznes mantiq faqat backend'da |
 | Telegram mini-app | React (hozirgi), `customer/miniapp`ga ko'chadi |
-| Superadmin paneli | **RIZQIM boshqaruv markazi** — alohida Next.js ilova `platform/admin`, 2FA bilan (egasi qarori, 25–27.10.2026); eski Filament panellar 4-bosqich oxirida o'chiriladi ([PHASE4_PLAN.md](PHASE4_PLAN.md)) |
+| Superadmin paneli | **RIZQIM boshqaruv markazi** — alohida Next.js ilova `platform/admin`, 2FA bilan (egasi qarori, 25–27.10.2026); eski Filament panellari 4-bosqichda (P4-33) o'chirildi ([PHASE4_PLAN.md](PHASE4_PLAN.md)) |
 | POS qurilmalari | Hammasi: Windows, Android planshet, Android POS terminal (Sunmi, PAX, iMin), iPad |
 | Kuryerlar | Aralash: restoranning o'z kuryerlari va Rizqim kuryer parki, bitta ilovada |
 | Biznes model | Marketpleys buyurtmadan komissiya oladi (RIZQIM kuryeri 15%, o'z yetkazishi 10%, olib ketish 5%, zal 0%); POS pullik obuna: Start 149 000, Asosiy 249 000, Pro 449 000 so'm/oy, yillik = 10 oy, 14 kun sinov (egasi qarori, 24.10.2026). Obuna qarzi payoutdan ushlab qolinadi (28.10.2026) |

@@ -138,8 +138,8 @@ class BranchService
     }
 
     /**
-     * Why the branch may not be deleted while staff, devices or zones are tied to it (with the counts), or null. Used
-     * by the API and by the panels' delete actions (Filament: BranchResource, the superadmin's branches tab).
+     * Why the branch may not be deleted while staff, devices or zones are tied to it (with the counts), or null (the
+     * branch API's delete).
      */
     public function referencesRefusal(Branch $branch): ?string
     {

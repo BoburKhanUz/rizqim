@@ -6,7 +6,7 @@ Production uchun yagona yo'l: Docker Compose (`docker-compose.yml`). Backend dep
 |---|---|
 | 1 | `app:check-production` (xato bo'lsa konteyner ishga tushmaydi) |
 | 2 | `migrate --force` |
-| 3 | `storage:link`, `filament:upgrade` |
+| 3 | `storage:link` |
 | 4 | `config:cache`, `route:cache`, `view:cache` |
 | 5 | `telegram:set-webhook --if-configured` (xato bo'lsa faqat ogohlantirish) |
 | 6 | `queue:restart` |
@@ -21,7 +21,7 @@ Production uchun yagona yo'l: Docker Compose (`docker-compose.yml`). Backend dep
 - **Domen va HTTPS.** Telegram Mini App va webhook faqat HTTPS bilan ishlaydi. Compose TLS o'rnatmaydi: sertifikatni tashqi reverse proxy (nginx, Caddy, Cloudflare) beradi (4-bo'lim).
 - **Telegram bot** (BotFather): token (`TELEGRAM_BOT_TOKEN`), username (`TELEGRAM_BOT_USERNAME` va Mini App'dagi `VITE_BOT_USERNAME`, `@` siz), Mini App manzili (`TELEGRAM_WEBAPP_URL`).
 - **Click / Payme** merchant: maxfiy kalitlar (`CLICK_SECRET_KEY`, `PAYME_SECRET_KEY`) va id'lar. Merchant kabinetida webhook manzillari: `https://<domen>/api/v1/payments/click/webhook` va `https://<domen>/api/v1/payments/payme/webhook`.
-- **Maxfiy qiymatlar:** `APP_KEY` — `echo "base64:$(openssl rand -base64 32)"`; `TELEGRAM_WEBHOOK_SECRET` — `openssl rand -hex 32` (faqat `A-Za-z0-9_-` ruxsat etiladi); super admin paroli kamida 12 belgi.
+- **Maxfiy qiymatlar:** `APP_KEY` — `echo "base64:$(openssl rand -base64 32)"`; `TELEGRAM_WEBHOOK_SECRET` — `openssl rand -hex 32` (faqat `A-Za-z0-9_-` ruxsat etiladi); super admin paroli (`SuperAdminSeeder` ishlatilsa) kamida 12 belgi.
 
 ## 2. Muhit o'zgaruvchilari
 
@@ -39,7 +39,9 @@ Hammasining ma'nosi va standarti: [backend/README.md](../backend/README.md), [cu
 | `REDIS_DB`, `REDIS_CACHE_DB` | `0`, `1` (farqli bo'lsin; `REDIS_URL` ni o'rnatmang) |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME`, `TELEGRAM_WEBAPP_URL`, `TELEGRAM_WEBHOOK_SECRET` | 1-bo'limdagi qiymatlar. `TELEGRAM_WEBAPP_URL` majburiy va `https://` bilan boshlanishi shart (`app:check-production` tekshiradi). `APP_URL` HTTPS bo'lmasa `TELEGRAM_WEBHOOK_URL` ham kerak |
 | `CLICK_SECRET_KEY`, `PAYME_SECRET_KEY` (+ `CLICK_SERVICE_ID`, `CLICK_MERCHANT_ID`, `PAYME_MERCHANT_ID`) | merchant ma'lumotlari. Standart id'lar `config/services.php` dagi namunalar |
-| `SUPERADMIN_EMAIL`, `SUPERADMIN_PASSWORD` | `SuperAdminSeeder` uchun, parol kamida 12 belgi |
+| `SUPERADMIN_EMAIL`, `SUPERADMIN_PASSWORD` | faqat `SuperAdminSeeder` uchun (ixtiyoriy, parol kamida 12 belgi). Birinchi superadmin odatda `rizqim:admin:create` bilan yaratiladi (5-bo'lim) |
+| `ADMIN_APP_URL` | boshqaruv markazining manzili (`https://admin.<domen>`): taklif havolalari shundan yasaladi (4-bo'lim) |
+| `PARTNER_WEB_URL` | hamkor paneli manzili (`https://panel.<domen>`): ovqatxona balansini onlayn to'ldirgan ega to'lovdan keyin panelning Moliya sahifasiga (`/finance`) qaytadi. Bo'sh bo'lsa `APP_URL` ga qaytadi. Buyurtma to'lovidan keyin mijoz Mini App'ga (`TELEGRAM_WEBAPP_URL`) qaytadi |
 | `CORS_ALLOWED_ORIGINS` | Mini App API'ga boshqa domendan murojaat qilsa; hamkor veb-panel (`partner/web`) ishga tushirilsa, uning origin'i shu yerga yoziladi (ro'yxat berilsa, standart originlar o'chadi: kerak bo'lsa ularni ham yozing) |
 | `AUTH_*` (`AUTH_ACCESS_TOKEN_TTL`, `AUTH_REFRESH_TOKEN_TTL_DAYS`, `AUTH_DEVICE_TOKEN_TTL_DAYS`, `AUTH_STAFF_SESSION_TTL`, `AUTH_PAIRING_CODE_TTL`, `AUTH_PIN_MAX_ATTEMPTS`, `AUTH_PIN_LOCKOUT_SECONDS`) | mobil ilovalar va POS terminallari uchun token muddatlari va PIN cheklovlari; standart qiymatlar yaxshi, ma'nosi `backend/.env.example` va `docs/AUTH.md` da. Mini App tokenlariga ta'sir qilmaydi (`SANCTUM_TOKEN_EXPIRATION`) |
 | `FIREBASE_CREDENTIALS_JSON` (yoki `FIREBASE_CREDENTIALS` fayl yo'li), ixtiyoriy `FIREBASE_PROJECT_ID`, `PUSH_ANDROID_CHANNEL_ID` | Push xabarlar (P1-22). Bo'sh bo'lsa push o'chiq turadi va hech narsa buzilmaydi. Service account kalitini `base64 -w0 kalit.json` bilan bir qatorga o'tkazib bering; qadamlari `docs/PUSH.md` da |
@@ -62,24 +64,24 @@ docker compose ps                     # birinchi ishga tushishda backend healthy
 curl -fsS http://127.0.0.1:8000/up
 ```
 
-- **`APP_KEY`ni oldindan yozing.** Entrypoint kalit yaratmaydi (`key:generate` yo'q): `APP_KEY` bo'sh bo'lsa `app:check-production` konteynerni ishga tushirmaydi. Sabab: web, queue va scheduler alohida konteynerlar, ularning har biri o'z kalitini olardi va konteyner qayta yaratilganda kalit o'zgarardi, natijada sessiyalar va shifrlangan ma'lumotlar (masalan, Superadmin > To'lov Tizimlari kalitlari) o'qilmay qolardi.
+- **`APP_KEY`ni oldindan yozing.** Entrypoint kalit yaratmaydi (`key:generate` yo'q): `APP_KEY` bo'sh bo'lsa `app:check-production` konteynerni ishga tushirmaydi. Sabab: web, queue va scheduler alohida konteynerlar, ularning har biri o'z kalitini olardi va konteyner qayta yaratilganda kalit o'zgarardi, natijada sessiyalar va shifrlangan ma'lumotlar (masalan, boshqaruv markazida kiritilgan to'lov tizimlari kalitlari) o'qilmay qolardi.
 - Konteyner `APP_ENV=production` va boshqa xavfsizlik shartlari bajarilmasa ishga tushmaydi, shuning uchun lokal ishlab chiqish uchun compose mos emas ([backend/README.md](../backend/README.md)).
-- Portlar: Mini App `FRONTEND_PORT` da (statika; `/api/` va `/storage/` ni backendga uzatadi), admin panellar (`/admin`, `/superadmin`) va `/up` `BACKEND_PORT` da, hamkor veb-panel `PARTNER_WEB_PORT` da. Postgres va Redis tashqariga ochilmagan.
+- Portlar: Mini App `FRONTEND_PORT` da (statika; `/api/` va `/storage/` ni backendga uzatadi), backend'ning o'zi (`/up`, `/health`, API) `BACKEND_PORT` da, hamkor veb-panel `PARTNER_WEB_PORT` da, boshqaruv markazi `ADMIN_WEB_PORT` da. Postgres va Redis tashqariga ochilmagan.
 - Volume'lar: `postgres_data`, `redis_data`, `backend_storage` (= `storage/app`; yuklangan rasmlar shu yerda).
 - Loglar: `storage/logs/laravel.log` konteyner ichida (volume emas, konteyner qayta yaratilganda yo'qoladi): `docker compose exec backend tail -f storage/logs/laravel.log`. `docker compose logs` da ko'rish uchun `backend/.env` ga `LOG_CHANNEL=stderr`.
 - Yangilash: `git pull && docker compose up -d --build`. Faqat `.env` o'zgarganda: `docker compose up -d --force-recreate` (`config:cache` konteyner ishga tushganda yig'iladi). `docker compose down -v` volume'larni, ya'ni bazani ham o'chiradi.
 - **Ops buyruqlari `www-data` nomidan:** `docker compose exec -u www-data backend php artisan ...`. `exec` standart bo'yicha root: root yaratgan `storage/logs/laravel.log` ni php-fpm (`www-data`) yoza olmaydi va logga yozadigan har bir so'rov 500 beradi. (Entrypoint o'zi `artisan` ni `www-data` bilan ishga tushiradi va konteyner qayta ishga tushganda `storage/logs`, `storage/framework`, `bootstrap/cache` egaligini tuzatadi.) `config:clear` ni ishlayotgan `backend` konteynerida bajarmang: sozlamalar konteyner ishga tushganda keshlanadi (`config:cache`), o'zgartirish uchun konteynerni qayta yarating.
-- **Fayl yuklash chegaralari.** Zanjir: Mini App nginx `client_max_body_size 10m` (API rasmni 5 MB bilan cheklaydi) → backend nginx `16m` → PHP `post_max_size=16M` ≥ `upload_max_filesize=12M` (`backend/docker/php.ini`; 12 MB — Filament panel yuklashlari chegarasi). Standart nginx (1 MB) va PHP (2 MB) chegaralari rasmlarni rad etardi; chegarani oshirsangiz, uchalasini birga oshiring.
+- **Fayl yuklash chegaralari.** Zanjir: Mini App nginx `client_max_body_size 10m` (API rasmni 5 MB bilan cheklaydi) → backend nginx `16m` → PHP `post_max_size=16M` ≥ `upload_max_filesize=12M` (`backend/docker/php.ini`; API rasmni o'zi 5 MB bilan cheklaydi, qolgani zaxira). Standart nginx (1 MB) va PHP (2 MB) chegaralari rasmlarni rad etardi; chegarani oshirsangiz, uchalasini birga oshiring.
 - **Backend manzili qayta yaratilganda.** Mini App nginx'i `backend` nomini Docker DNS (`127.0.0.11`) orqali har so'rovda qayta aniqlaydi (5 s keshlanadi), shuning uchun `docker compose up -d --build backend` dan keyin frontend'ni qayta ishga tushirish shart emas. Backend tayyor bo'lgunicha `/api/` va `/storage/` 502 qaytaradi.
 - **Mini App keshi.** `index.html` har safar qayta tekshiriladi (`Cache-Control: no-cache`), `/assets/*` (nomida hash bor) bir yil `immutable` keshlanadi: deploydan keyin eski `index.html` yo'q bo'lib ketgan bo'laklarni so'ramaydi.
 - **Versiyalar.** `php:8.3-fpm-alpine` (+ `ext-redis` va Reverb uchun `ext-uv`), `postgres:17-alpine` (CI ham 17; eski deployment'ni 17 ga o'tkazish: `docs/OPERATIONS.md`, 7-bo'lim), `redis:7-alpine`, Mini App build'i uchun Node 22. Redis'da parol ixtiyoriy (ildiz `REDIS_PASSWORD`), portlari yopiq.
 - **`VITE_*` qiymatlari** ildizdagi `.env` dan build argument sifatida o'tadi: o'zgartirgandan keyin `docker compose up -d --build frontend`.
-- Birinchi ishga tushishdan keyingi qadamlar (super admin, birinchi do'kon) 5-bo'limda.
+- Birinchi ishga tushishdan keyingi qadamlar (birinchi superadmin, birinchi do'kon) 5-bo'limda.
 
 ## 4. HTTPS va marshrutlash
 
 - Mini App `VITE_API_URL=/api/v1` bilan same-origin ishlaydi: o'z domenidagi `/api/` backendga uzatilishi kerak (compose'dagi `frontend` buni qiladi), shunda CORS kerak emas. Telegram va to'lov webhooklari ham `/api/...` ostida.
-- `/admin` va `/superadmin` (Livewire/Filament aktivlari bilan) backend portida (`BACKEND_PORT`) xizmat qilinadi. Mini App nginx'i `/api/` va `/storage/` ni backendga uzatadi (yo'lni o'zgartirmasdan); boshqa yo'llar SPA uchun `index.html` ga qaytadi, `/assets/` dagi yo'q fayl 404 beradi.
+- Backend o'zida veb-panel yo'q (P4-33 dan beri): RIZQIM jamoasi boshqaruv markazida (`admin.<domen>`), ovqatxona egalari va xodimlari hamkor panelida (`panel.<domen>`) ishlaydi. Backend'ning `/` manzili `PARTNER_WEB_URL` ga yo'naltiradi (bo'sh bo'lsa 404). Mini App nginx'i `/api/` va `/storage/` ni backendga uzatadi (yo'lni o'zgartirmasdan); boshqa yo'llar SPA uchun `index.html` ga qaytadi, `/assets/` dagi yo'q fayl 404 beradi.
 - Yuklangan rasm havolalari (`logo_url`, `image_url`) `asset('storage/...')` bilan **so'rov Host'idan** quriladi, `APP_URL` dan emas. Compose'dagi `frontend` `/storage/` ni ham backendga uzatadi va `Host` ni o'zgartirmaydi, shuning uchun havolalar Mini App domenida ochiladi. Boshqa nginx/proksi qo'ysangiz, `/storage/` ni ham yo'naltiring (yoki `/api/` proksisida `Host` ni backend domeniga o'zgartiring), aks holda rasmlar `index.html` qaytaradi. Deploydan keyin API javobidagi rasm URL'ini oching: `200` va `image/*` bo'lishi kerak.
 - Backend `X-Forwarded-Proto: https` bo'lsagina `https` havolalar quradi va faqat xususiy tarmoq manzillaridan kelgan `X-Forwarded-For`/`X-Forwarded-Proto` ga ishonadi. `customer/miniapp/docker/nginx.conf` kelgan `X-Forwarded-Proto` ni o'zgartirmay uzatadi va faqat u yo'q so'rovlarda o'zining `$scheme` ini qo'yadi. Shuning uchun TLS'ni compose'dan tashqaridagi proksi tugatsa, u `X-Forwarded-Proto: https` yuborishi shart, aks holda `$scheme` `http` bo'ladi: rasm URL'lari `https://` bilan boshlanishini tekshiring.
 
@@ -127,10 +129,11 @@ Restoran egasi, menejeri va boshqa xodimlar uchun veb-panel ([partner/web/README
   yozuv CDN manzili bo'ladi. Mini App va backend portlariga bu shart emas: Mini App nginx'i o'zi ko'rgan manzilni
   zanjir oxiriga qo'shadi.
 - **Kirish.** Xodim telefon raqami va SMS kod bilan kiradi (`docs/AUTH.md`, 1-bo'lim). Raqam xodim hisobiga "kirish raqami"
-  sifatida biriktirilgan bo'lishi kerak: egasi uchun Superadmin > Restoranlar > yaratishdagi "Phone Number (Login)", boshqa
-  xodimlar uchun do'kon panelidagi Xodimlar formasi. Bu o'zgarishdan oldin yaratilgan egalar uchun: Superadmin >
-  Foydalanuvchilar > "SMS bilan kirishni yoqish". Productionda SMS drayveri sozlangan bo'lishi kerak (Superadmin > Tizim
-  Sozlamalari).
+  sifatida biriktirilgan bo'lishi kerak: egasi uchun ovqatxona yaratilganda arizadagi telefon (boshqaruv markazida yangisi:
+  ovqatxona kartasi → «Kirish raqami»), boshqa xodimlar uchun hamkor panelidagi Xodimlar sahifasi. Productionda SMS
+  drayveri sozlangan bo'lishi kerak (boshqaruv markazi: Tizim → Tizim sozlamalari → Sozlamalar).
+- **To'lovdan qaytish.** Ega balansni onlayn to'ldirgach panelning Moliya sahifasiga qaytadi: `backend/.env` da
+  `PARTNER_WEB_URL=https://panel.<domen>` (bo'sh bo'lsa `APP_URL` ga qaytadi).
 - **Tekshirish.** `docker compose ps` da `partner-web` healthy (`GET /login`); `https://panel.<domen>/login` ochiladi;
   brauzer konsolida API so'rovlarida CORS xatosi yo'q.
 - Yangilash: `docker compose up -d --build partner-web` (sozlamalar runtime'da o'qiladi, `.env` o'zgarsa
@@ -175,15 +178,18 @@ xodimlar uchun qo'llanma: [docs/guides/boshqaruv-markazi.md](guides/boshqaruv-ma
 Deploy hech qaysi seederni ishga tushirmaydi (`DatabaseSeeder` faqat `SettingSeeder`). Buyruqlarni `docker compose exec -u www-data backend ...` bilan bajaring.
 
 ```bash
-php artisan db:seed --class=SuperAdminSeeder --force   # SUPERADMIN_EMAIL / SUPERADMIN_PASSWORD bilan
+php artisan rizqim:admin:create boss@rizqim.uz "Bosh admin"   # birinchi superadmin: bir martalik taklif havolasini chiqaradi
 php artisan db:seed --class=LocationSeeder --force     # viloyat/tumanlar; faqat yetishmaganini qo'shadi, qayta ishga tushirish xavfsiz
+php artisan db:seed --class=PaymentProviderSeeder --force  # ixtiyoriy: click/payme qatorlari (mavjud qatorga tegmaydi)
 php artisan db:seed --force                             # ixtiyoriy: SettingSeeder (sms_driver=log va h.k.)
 ```
 
-1. `/superadmin` ga SUPERADMIN_* bilan kiring. Superadmin > Viloyatlar/Tumanlar da kerakli hududlarni faollashtiring (seeder faqat Andijon viloyati/Asaka tumanini yoqadi).
-2. Ixtiyoriy: Superadmin > To'lov Tizimlari da platforma merchant kalitlarini kiriting (`click`, `payme` slug'li qatorlar; qatorlarni `PaymentProviderSeeder` yaratadi (mavjud qatorga tegmaydi, qayta ishga tushirish kiritilgan kalitlarni saqlaydi) yoki panelda qo'lda qo'shasiz; bo'sh qiymat env'ga qaytadi). SMS kerak bo'lsa Superadmin > Tizim Sozlamalari.
-3. Superadmin > Restoranlar da birinchi do'konni yarating (egasi, birinchi filial, koordinata va radius). **Kamida bitta faol do'kon bo'lmaguncha Mini App'ga hech kim kira olmaydi** (`POST /auth/telegram` 404 qaytaradi). Egasi uchun Telegram taklif havolasi Restoranlar jadvalidagi "Telegram Link" amalida chiqadi (egasi botga shu havola bilan kirib akkauntini ulaydi).
-4. Mini App'ni bot orqali oching, so'ng o'zingizga `php artisan user:assign-role <telegram_id> super_admin` bering (Mini App'da super admin bo'lish uchun).
+Qadamlari batafsil (2FA, jamoa, rollar): [guides/boshqaruv-markazi.md](guides/boshqaruv-markazi.md), «Birinchi ishga tushirish»; buyruqlar: [OPERATIONS.md](OPERATIONS.md), 10-bo'lim.
+
+1. Taklif havolasini oching (`https://admin.<domen>/invite/...`, 72 soat): parol, 2FA va tiklash kodlari. Jamoani **Tizim → Jamoa** dan taklif qiling.
+2. **Tizim → Tizim sozlamalari → Viloyatlar va tumanlar** da kerakli hududlarni faollashtiring (seeder faqat Andijon viloyati/Asaka tumanini yoqadi).
+3. Ixtiyoriy: **Tizim → Tizim sozlamalari → To'lov tizimlari** da platforma merchant kalitlarini kiriting (bo'sh qiymat env'ga qaytadi). SMS: **Sozlamalar** yorlig'i.
+4. **Ovqatxonalar → Ulash jarayoni** da birinchi ovqatxonaning arizasini qo'shing va «Ovqatxonani yaratish» bilan ovqatxonaga aylantiring (egasi, birinchi filial, koordinata). **Kamida bitta faol do'kon bo'lmaguncha Mini App'ga hech kim kira olmaydi** (`POST /auth/telegram` 404 qaytaradi). Egasining Telegram taklif havolasi ovqatxona kartasidagi «Telegram havola» amali bilan egasiga SMS'da boradi (egasi botga shu havola bilan kirib akkauntini ulaydi); ega hamkor paneliga telefon va SMS kod bilan kiradi.
 5. Webhook: deploy `telegram:set-webhook` ni ishga tushirgan; holatni tekshirish: `curl "https://api.telegram.org/bot<TOKEN>/getWebhookInfo"` (`url` va `last_error_message`). Muvaffaqiyatsiz bo'lsa qo'lda: `php artisan telegram:set-webhook [--url=https://...]`.
 
 ## 6. Production checklist
@@ -191,17 +197,17 @@ php artisan db:seed --force                             # ixtiyoriy: SettingSeed
 | Tekshiruv | Izoh |
 |---|---|
 | `APP_ENV=production`, `APP_DEBUG=false`, `TELEGRAM_ALLOW_MOCK_AUTH=false` | `app:check-production` buzilganda `exit 1` qiladi: konteyner ishga tushmaydi. U `APP_ENV`, `APP_DEBUG`, `APP_KEY` (bo'sh bo'lmasligi), `TELEGRAM_ALLOW_MOCK_AUTH`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_WEBAPP_URL` (`https://`) va standart super admin parolini tekshiradi; Click/Payme kalitlari, Redis, CORS va `SMS_EXPOSE_CODE_IN_RESPONSE` ni **tekshirmaydi** |
-| `CLICK_SECRET_KEY`, `PAYME_SECRET_KEY` (yoki Superadmin > To'lov Tizimlari) | Kalit yo'q bo'lsa webhook rad etadi (Click `error -1`, Payme `-32504`): onlayn to'lov hech qachon `paid` bo'lmaydi va buyurtmalar TTL bo'yicha bekor bo'ladi |
+| `CLICK_SECRET_KEY`, `PAYME_SECRET_KEY` (yoki boshqaruv markazi: Tizim → To'lov tizimlari) | Kalit yo'q bo'lsa webhook rad etadi (Click `error -1`, Payme `-32504`): onlayn to'lov hech qachon `paid` bo'lmaydi va buyurtmalar TTL bo'yicha bekor bo'ladi |
 | `TELEGRAM_WEBHOOK_SECRET` + `telegram:set-webhook` | Secret bo'sh yoki noto'g'ri belgili bo'lsa `app:check-production` yiqiladi; webhook ro'yxatdan o'tmasa bot `/start` ga va buyurtma tugmalari bosilishiga javob bermaydi (chiquvchi xabarlar ketaveradi) |
 | `TELEGRAM_WEBAPP_URL` | Mini App'ning `https://` manzili. Bo'sh bo'lsa bot xabarlaridagi Mini App tugmalari tushirib qoldiriladi (zaxira manzil yo'q) va `app:check-production` yiqiladi; `https://` bilan boshlanmasa ham yiqiladi |
-| Standart super admin parolini almashtiring | `12345678` parolli `super_admin` bo'lsa `app:check-production` yiqiladi (lokal seeder `admin@gmail.com` yaratgan bo'lishi mumkin). Almashtirish: Superadmin > Foydalanuvchilar |
-| Do'konsiz xodimlar | `app:check-production` ogohlantiradi ("N ta xodim hisobi hech qaysi do'konga biriktirilmagan"), API 403 beradi, panelga kirmaydi. Tuzatish: `php artisan user:assign-role <telegram_id> <rol> --store=<id> [--branch=<id>]` yoki Superadmin > Foydalanuvchilar |
+| Standart super admin parolini almashtiring | `12345678` parolli `super_admin` bo'lsa `app:check-production` yiqiladi (lokal seeder `admin@gmail.com` yaratgan bo'lishi mumkin). Almashtirish: shu hisobni boshqaruv markazida o'chiring (Tizim → Jamoa) yoki `rizqim:admin:invite <email>` bilan yangi parol o'rnating |
+| Do'konsiz xodimlar | `app:check-production` ogohlantiradi ("N ta xodim hisobi hech qaysi do'konga biriktirilmagan"), API 403 beradi. Tuzatish: `php artisan user:assign-role <telegram_id> <rol> --store=<id> [--branch=<id>]` |
 | Redis | `CACHE_STORE`, `QUEUE_CONNECTION`, `SESSION_DRIVER` = `redis`; AOF yoqilgan; `maxmemory-policy` ni `allkeys-*`/`volatile-*` qilmang (navbat/sessiya kalitlari o'chadi); `REDIS_DB` ≠ `REDIS_CACHE_DB`. Navbatni `database` dan Redis'ga o'tkazishdan oldin bo'shating: `php artisan queue:work database --stop-when-empty` |
 | `queue`, `queue-reports` va `scheduler` ishlayaptimi | Navbatsiz Telegram xabarlari ketmaydi; `reports` ishchisisiz CSV hisobotlar yuborilmaydi (job `reports` navbatida qotadi); schedulersiz to'lanmagan buyurtmalar bekor bo'lmaydi va kuryer ogohlantirishi chiqmaydi. `php artisan schedule:list` to'rtta vazifani ko'rsatishi kerak |
 | CORS | Mini App same-origin bo'lsa kerak emas; aks holda `CORS_ALLOWED_ORIGINS`. Hamkor veb-panel brauzerdan API'ga to'g'ridan-to'g'ri murojaat qiladi: origin'i `CORS_ALLOWED_ORIGINS` da bo'lishi shart ([partner/web/README.md](../partner/web/README.md)) |
 | Xarita va geokodlash | Ochiq Nominatim/OSM tile serverlari faqat ishlab chiqish va kam trafik uchun: `NOMINATIM_BASE_URL`, `NOMINATIM_EMAIL`, `VITE_MAP_TILE_URL`, `VITE_MAP_ATTRIBUTION` |
 | Push (Firebase) | Ixtiyoriy, `app:check-production` tekshirmaydi. Yoqilgan bo'lsa: `FIREBASE_CREDENTIALS_JSON` to'g'ri, `queue` ishchisi ishlayapti (pushlar navbat orqali ketadi), `php artisan push:test <foydalanuvchi_id>` sinov pushini yuboradi. Tafsilot: `docs/PUSH.md` |
-| SMS | `SettingSeeder` yozgan `settings` qatorlari `SMS_DRIVER`/`ESKIZ_*` env'dan ustun: SMS'ni Superadmin > Tizim Sozlamalari'dan yoqing |
+| SMS | `SettingSeeder` yozgan `settings` qatorlari `SMS_DRIVER`/`ESKIZ_*` env'dan ustun: SMS'ni boshqaruv markazida Tizim → Tizim sozlamalari → Sozlamalar dan yoqing |
 | Zaxira nusxa | Postgres (`pg_dump`) va yuklangan rasmlar (`backend_storage` volume); tartibi: `docs/OPERATIONS.md`, 4-bo'lim |
 | Real-time (Reverb) | `BROADCAST_CONNECTION=reverb` va `REVERB_APP_ID`/`KEY`/`SECRET` to'ldirilgan (ildiz `.env`), `REVERB_ALLOWED_ORIGINS` = Mini App hosti, hamkor paneli hosti (`panel.<domen>`) va KDS ilovasining API hosti (`RIZQIM_API_URL` xosti; Mini App hosti bilan bir xil bo'lsa alohida yozish shart emas), vergul bilan, `docker compose ps` da `reverb` healthy, Mini App build'ida `VITE_REVERB_APP_KEY` = `REVERB_APP_KEY`. Tashqi proksi `/app/` uchun WebSocket upgrade'ni o'tkazishi shart (9-bo'lim). `app:check-production` `reverb` + bo'sh kalitni rad etadi, `REVERB_ALLOWED_ORIGINS=*` da ogohlantiradi |
 | `LocationSeeder`, `PaymentProviderSeeder` | Ikkalasi ham qayta ishga tushirish uchun xavfsiz: faqat yetishmaydigan qatorlarni qo'shadi, hech narsani o'chirmaydi va kiritilgan kalitlar hamda yoqilgan/o'chirilgan holatni saqlaydi |
@@ -320,20 +326,20 @@ docker compose exec -u www-data backend php artisan db:seed --class=SuperAdminSe
 docker compose exec -u www-data backend php artisan db:seed --class=LocationSeeder --force
 ```
 
-`COMPOSE_FILE` bo'lmasa har buyruqqa `-f docker-compose.yml -f docker-compose.staging.yml` qo'shing. Domen va HTTPS: 4-bo'limdagidek, staging domeniga alohida sertifikat va tashqi proksi (Mini App `FRONTEND_PORT`=8180 ga, `/admin` va `/superadmin` `BACKEND_PORT`=8100 ga, hamkor paneli `panel.` hosti `PARTNER_WEB_PORT`=8130 ga; panel origin'i `backend/.env` dagi `CORS_ALLOWED_ORIGINS` da). Telegram test botida Mini App manzili `TELEGRAM_WEBAPP_URL`; deploy `telegram:set-webhook` ni o'zi ishga tushiradi. Birinchi do'kon va superadmin: 5-bo'lim (test ma'lumotlari bilan). Faqat bitta xostda ishlatsangiz, `.env` dagi portlar (8100/8180/8130) productionnikidan farq qilsin; loyiha va volume nomlari allaqachon alohida.
+`COMPOSE_FILE` bo'lmasa har buyruqqa `-f docker-compose.yml -f docker-compose.staging.yml` qo'shing. Domen va HTTPS: 4-bo'limdagidek, staging domeniga alohida sertifikat va tashqi proksi (Mini App `FRONTEND_PORT`=8180 ga, backend `BACKEND_PORT`=8100 ga, hamkor paneli `panel.` hosti `PARTNER_WEB_PORT`=8130 ga, boshqaruv markazi `admin.` hosti `ADMIN_WEB_PORT` ga; panel origin'i `backend/.env` dagi `CORS_ALLOWED_ORIGINS` da). Telegram test botida Mini App manzili `TELEGRAM_WEBAPP_URL`; deploy `telegram:set-webhook` ni o'zi ishga tushiradi. Birinchi do'kon va superadmin: 5-bo'lim (test ma'lumotlari bilan). `backend/.env` da `PARTNER_WEB_URL` (staging hamkor paneli) va `ADMIN_APP_URL`. Faqat bitta xostda ishlatsangiz, `.env` dagi portlar (8100/8180/8130) productionnikidan farq qilsin; loyiha va volume nomlari allaqachon alohida.
 
 **`app:check-production` staging'da.** Buyruq `APP_ENV=production` **yoki** `staging` ni qabul qiladi. Qolgan hamma shartlar staging'da ham o'zgarishsiz tekshiriladi (debug o'chiq, `APP_KEY`, Telegram secret va HTTPS manzil, Reverb kalitlari, standart super admin paroli yo'q): staging internetda turadi, shuning uchun "staging deb" zaiflashtirilmaydi. Production-only shart bitta: `APP_ENV` qiymatining o'zi (`local`/`testing` va boshqalar ikkalasida ham rad etiladi). Muvaffaqiyatli bo'lsa chiqadi: "Staging sozlamalari tekshiruvdan o'tdi".
 
-**Production ma'lumotlarini staging'ga ko'chirmang.** Zarur bo'lsa faqat anonimlashtirilgan dump yuklang va keyin: `Superadmin > Tizim Sozlamalari` da `sms_driver=log` (bazadagi qiymat env'dan ustun, aks holda haqiqiy mijozlarga SMS ketadi), do'konlarning Telegram bot tokenlari va to'lov kalitlarini test qiymatlarga almashtiring.
+**Production ma'lumotlarini staging'ga ko'chirmang.** Zarur bo'lsa faqat anonimlashtirilgan dump yuklang va keyin: boshqaruv markazida Tizim → Tizim sozlamalari → Sozlamalar da SMS usulini «Log» qiling (`sms_driver=log`; bazadagi qiymat env'dan ustun, aks holda haqiqiy mijozlarga SMS ketadi), do'konlarning Telegram bot tokenlari va to'lov kalitlarini test qiymatlarga almashtiring.
 
 ### Staging'da tekshiruv ro'yxati
 
 1. `docker compose ps`: hamma xizmat `healthy`; `docker compose logs backend | grep -i "tekshiruvdan o'tdi"`.
-2. `curl -I https://<staging-domen>/` va `/superadmin/login`: `X-Robots-Tag: noindex, nofollow, noarchive`; `/robots.txt` — `Disallow: /`.
-3. Superadmin'ga kirish, test do'kon va mahsulot yaratish; test bot orqali Mini App'dan buyurtma berish; holatni o'zgartirganda real-time yangilanishi (9-bo'lim).
+2. `curl -I https://<staging-domen>/` va `https://<staging-domen>/api/v1/stores`: `X-Robots-Tag: noindex, nofollow, noarchive`; `/robots.txt` — `Disallow: /`.
+3. Boshqaruv markaziga kirish (parol + 2FA), test ovqatxona yaratish (Ovqatxonalar → Ulash jarayoni), hamkor panelida mahsulot qo'shish; test bot orqali Mini App'dan buyurtma berish; holatni o'zgartirganda real-time yangilanishi (9-bo'lim).
 4. Click/Payme sandbox to'lovi (webhook'lar `https://<staging-domen>/api/v1/payments/...`).
 5. Yangi migratsiyalar toza bazada ham, oldingi release ma'lumotlari ustida ham o'tdi (`docker compose logs backend`).
-6. Yangi feature flag bo'lsa: Superadmin > Sozlamalar > Feature flaglar da bitta test do'konda yoqib, `GET /api/v1/features` ni tekshiring.
+6. Yangi feature flag bo'lsa: boshqaruv markazida Tizim → Tizim sozlamalari → Funksiyalar da bitta test do'konda yoqib, `GET /api/v1/features` ni tekshiring.
 
 ### Build'ni production'ga ko'tarish (promote)
 
@@ -360,7 +366,7 @@ docker compose ps && curl -fsS https://<domen>/api/v1/health
 
 - **Production serverda `COMPOSE_FILE` bo'lmasin** va `.env` ga `.env.staging.example` ni nusxalamang: staging fayli production'da resurslarni cheklab, `APP_ENV=staging` qilib qo'yadi.
 - **Migratsiyalar orqaga mos bo'lsin.** Orqaga qaytishda eski kod yangi sxemada ishlab qoladi (7-bo'lim), shuning uchun ustunni o'chirish yoki nomini o'zgartirishni ikki release'ga bo'ling: avval kod eski va yangi ustunni birga qo'llaydi, keyingi release'da eskisi o'chiriladi.
-- **Yangi imkoniyatni xavfsiz yoyish.** Katta o'zgarishni feature flag orqasida chiqaring (`docs/OPERATIONS.md`, 8-bo'lim): production'ga flag o'chiq holda tushadi, so'ng Superadmin > Feature flaglar da avval bitta restoranda, keyin boshqalarda yoqiladi. Muammo bo'lsa kod qaytarilmaydi, flag o'chiriladi.
+- **Yangi imkoniyatni xavfsiz yoyish.** Katta o'zgarishni feature flag orqasida chiqaring (`docs/OPERATIONS.md`, 8-bo'lim): production'ga flag o'chiq holda tushadi, so'ng boshqaruv markazida Tizim → Tizim sozlamalari → Funksiyalar da avval bitta restoranda, keyin boshqalarda yoqiladi. Muammo bo'lsa kod qaytarilmaydi, flag o'chiriladi.
 - **Orqaga qaytarish:** oldingi tegga `git checkout <eski-teg> && docker compose up -d --build` (7-bo'lim: migratsiya `down()` lari va zaxiradan tiklash).
 - Production'dan keyin tegni va commit'ni jamoaga yozib qo'ying (Sentry release nomi bilan bir xil), shunda xato qaysi release'dan boshlanganini topish oson bo'ladi.
 

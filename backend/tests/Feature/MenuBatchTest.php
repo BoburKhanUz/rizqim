@@ -218,29 +218,6 @@ class MenuBatchTest extends TestCase
         $this->assertNull($batch->fresh()->closed_at);
     }
 
-    public function test_the_batches_screen_in_the_store_panel(): void
-    {
-        $batch = $this->openBatch('7');
-
-        $this->panelAs($this->owner, 'menu-batches')->assertOk()->assertSee('Osh')->assertSee('7 / 7');
-        $this->panelAs($this->manager, 'menu-batches')->assertOk()->assertSee('Osh');
-
-        // A manager of another branch does not see this branch's batch
-        $otherManager = $this->makeStaff(UserRole::MANAGER, $this->otherBranch);
-        $this->panelAs($otherManager, 'menu-batches')->assertOk()->assertDontSee('1-qozon');
-
-        \Filament\Facades\Filament::setCurrentPanel('admin');
-        \Filament\Facades\Filament::setTenant($this->store);
-        $this->actingAs($this->owner, 'web');
-        \Livewire\Livewire::test(\App\Filament\Resources\MenuBatches\Pages\ManageMenuBatches::class)
-            ->assertCanSeeTableRecords([$batch])
-            ->callTableAction('adjust', $batch, ['add' => 3])
-            ->callTableAction('close', $batch);
-
-        $this->assertSame('10.000', $batch->fresh()->getRawOriginal('quantity_produced'));
-        $this->assertNotNull($batch->fresh()->closed_at);
-    }
-
     /**
      * @return array<string, mixed> the main branch's entry of GET /catalog/availability
      */

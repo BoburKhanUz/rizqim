@@ -26,7 +26,7 @@ use Illuminate\Support\Facades\DB;
  *    from `active`; a rejected application reopens at `application` or `review` only;
  *  - entering a stage sets its due date (today + the stage's default days, or what the member gives); an open
  *    application past its due date is overdue ("Diqqat talab qiladi");
- *  - convert: creates the store through StoreProvisioner (the Filament wizard's path) as `pending` and hidden, with
+ *  - convert: creates the store through StoreProvisioner as `pending` and hidden, with
  *    the application's name, owner and phone; the stage does not move by itself;
  *  - reject: with a reason; a converted application's store becomes `rejected` and hidden.
  */

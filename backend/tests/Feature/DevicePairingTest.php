@@ -305,14 +305,6 @@ class DevicePairingTest extends TestCase
         $list = $this->actingAs($this->owner, 'sanctum')->getJson('/api/v1/owner/devices')->assertOk()->json('data');
         $this->assertEqualsCanonicalizing([$ownerPhone->uuid, $otherManagerPhone->uuid, $terminal->uuid], array_column($list, 'uuid'));
         $this->actingAs($this->owner, 'sanctum')->postJson("/api/v1/owner/devices/{$otherManagerPhone->uuid}/revoke")->assertOk();
-
-        // The panel follows the same rule
-        $this->actingAs($storeWideManager, 'web');
-        \Filament\Facades\Filament::setCurrentPanel('admin');
-        \Filament\Facades\Filament::setTenant($this->store);
-        $this->assertFalse(\App\Filament\Resources\Devices\DeviceResource::canManage($ownerPhone->fresh()));
-        $this->assertTrue(\App\Filament\Resources\Devices\DeviceResource::canManage($terminal->fresh()));
-        $this->assertNotContains($ownerPhone->id, \App\Filament\Resources\Devices\DeviceResource::getEloquentQuery()->pluck('id')->all());
     }
 
     public function test_users_register_update_list_and_revoke_their_own_devices(): void

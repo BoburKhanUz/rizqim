@@ -10,17 +10,8 @@ use Illuminate\Notifications\Notifiable;
 
 use Laravel\Sanctum\HasApiTokens;
 
-use Filament\Models\Contracts\FilamentUser;
-use Filament\Models\Contracts\HasTenants;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Collection;
-use Filament\Panel;
-
 use App\Traits\Auditable;
-use Filament\Auth\MultiFactor\App\Concerns\InteractsWithAppAuthentication;
-use Filament\Auth\MultiFactor\App\Concerns\InteractsWithAppAuthenticationRecovery;
-use Filament\Auth\MultiFactor\App\Contracts\HasAppAuthentication;
-use Filament\Auth\MultiFactor\App\Contracts\HasAppAuthenticationRecovery;
+use RuntimeException;
 use SensitiveParameter;
 
 /**
@@ -39,13 +30,13 @@ use SensitiveParameter;
  * @property \Illuminate\Support\Carbon|null $platform_last_login_at
  * @property \Illuminate\Support\Carbon|null $two_factor_confirmed_at
  * @property int|null $two_factor_last_timestep
- * @property string|null $app_authentication_secret TOTP secret (encrypted cast from InteractsWithAppAuthentication)
+ * @property string|null $app_authentication_secret TOTP secret (encrypted cast)
  * @property array<int, string>|null $app_authentication_recovery_codes bcrypt hashes (encrypted:array cast)
  * @property \Illuminate\Support\Carbon|null $blocked_at P4-31: blocked from Mijozlar va yordam (no sign-in, no token works)
  * @property string|null $blocked_reason
  * @property int|null $blocked_by
  */
-class User extends Authenticatable implements FilamentUser, HasTenants, HasAppAuthentication, HasAppAuthenticationRecovery
+class User extends Authenticatable
 {
     // users.phone_verified_via (P1-34): the holder proved the phone with an SMS code, or a store owner/manager or the
     // super admin wrote it as a staff login phone (StaffPhoneLoginService::vouch)
@@ -54,11 +45,6 @@ class User extends Authenticatable implements FilamentUser, HasTenants, HasAppAu
 
     /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, Notifiable, \App\Traits\HasPublicUuid, Auditable;
-    // P4-11: the TOTP secret and hashed recovery codes (encrypted at rest, hidden), shared by the admin API
-    // (App\Services\Admin\TwoFactorService) and the old Filament panels' app authentication
-    use InteractsWithAppAuthentication, InteractsWithAppAuthenticationRecovery {
-        InteractsWithAppAuthentication::saveAppAuthenticationSecret as private saveFilamentAppAuthenticationSecret;
-    }
 
     /**
      * The attributes that are mass assignable.
@@ -98,13 +84,15 @@ class User extends Authenticatable implements FilamentUser, HasTenants, HasAppAu
         // An unclaimed staff invite: whoever holds it becomes that employee. Only the owner's employee list shows it
         // (OwnerEmployeeController::index makes it visible there)
         'telegram_invite_token',
-        // P4-11: team and 2FA bookkeeping, never in the store/customer APIs (the admin API shows members itself; the
-        // secret and recovery codes are hidden by their Filament traits)
+        // P4-11: team and 2FA bookkeeping, never in the store/customer APIs (the admin API shows members itself)
         'platform_role',
         'platform_disabled_at',
         'platform_last_login_at',
         'two_factor_confirmed_at',
         'two_factor_last_timestep',
+        // P4-11: the TOTP secret and the hashed recovery codes (TwoFactorService)
+        'app_authentication_secret',
+        'app_authentication_recovery_codes',
         // P4-31: who blocked the account and why is the platform's business (App\Services\Admin\Customers\UserBlocking
         // sets these; a blocked account gets no token anyway)
         'blocked_at',
@@ -133,6 +121,11 @@ class User extends Authenticatable implements FilamentUser, HasTenants, HasAppAu
             'platform_last_login_at' => 'datetime',
             'two_factor_confirmed_at' => 'datetime',
             'two_factor_last_timestep' => 'integer',
+            // P4-11: encrypted at rest with APP_KEY. P4-33: the same casts the old Filament app-authentication traits
+            // declared (`encrypted` = Crypt::encryptString of the secret, `encrypted:array` = of the JSON list of bcrypt
+            // hashes), so the secrets and codes of members enrolled before still read (UserTwoFactorStorageTest)
+            'app_authentication_secret' => 'encrypted',
+            'app_authentication_recovery_codes' => 'encrypted:array',
             // P4-31: never mass assignable, App\Services\Admin\Customers\UserBlocking sets it
             'blocked_at' => 'datetime',
         ];
@@ -236,14 +229,42 @@ class User extends Authenticatable implements FilamentUser, HasTenants, HasAppAu
         return filled($this->getAppAuthenticationSecret());
     }
 
+    // --- P4-11: 2FA storage (TwoFactorService is the only writer) ---------------------------------------------------
+
+    public function getAppAuthenticationSecret(): ?string
+    {
+        return $this->app_authentication_secret;
+    }
+
     /**
-     * Filament's set-up (and TwoFactorService) save the secret only once a code confirmed it.
+     * Saved only once a code confirmed it (TwoFactorService::enable); null turns 2FA off.
      */
     public function saveAppAuthenticationSecret(#[SensitiveParameter] ?string $secret): void
     {
         $this->two_factor_confirmed_at = $secret !== null ? now() : null;
         $this->two_factor_last_timestep = null;
-        $this->saveFilamentAppAuthenticationSecret($secret);
+        $this->app_authentication_secret = $secret;
+        $this->save();
+    }
+
+    /**
+     * @return array<int, string>|null bcrypt hashes of the unused recovery codes
+     */
+    public function getAppAuthenticationRecoveryCodes(): ?array
+    {
+        return $this->app_authentication_recovery_codes;
+    }
+
+    /**
+     * @param  array<int, string>|null  $codes  bcrypt hashes
+     */
+    public function saveAppAuthenticationRecoveryCodes(#[SensitiveParameter] ?array $codes): void
+    {
+        $this->app_authentication_recovery_codes = $codes;
+
+        if (!$this->save()) {
+            throw new RuntimeException('Failed to save app authentication recovery codes.');
+        }
     }
 
     public function hasPin(): bool
@@ -290,57 +311,5 @@ class User extends Authenticatable implements FilamentUser, HasTenants, HasAppAu
     public function addresses(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(Address::class);
-    }
-
-    public function canAccessPanel(Panel $panel): bool
-    {
-        // P4-31: a blocked account is out of the old panels too
-        if ($this->blocked_at !== null) {
-            return false;
-        }
-
-        // P4-11: a disabled superadmin is out of the old panels too; 2FA is required there (SuperadminPanelProvider)
-        if ($this->role === \App\Enums\UserRole::SUPER_ADMIN && $this->platform_disabled_at !== null) {
-            return false;
-        }
-
-        if ($panel->getId() === 'superadmin') {
-            return $this->role === \App\Enums\UserRole::SUPER_ADMIN;
-        }
-
-        // The store panel shares the session with /superadmin: a super admin enters it only with 2FA set up, so it is
-        // no way around the code (AdminPanelProvider asks for it at sign-in)
-        if ($this->role === \App\Enums\UserRole::SUPER_ADMIN && !$this->hasTwoFactorEnabled()) {
-            return false;
-        }
-
-        // Store staff must belong to a store (tenant); storeless staff accounts are invalid
-        if ($this->role !== \App\Enums\UserRole::SUPER_ADMIN && $this->store_id === null) {
-            return false;
-        }
-
-        return in_array($this->role, [
-            \App\Enums\UserRole::SUPER_ADMIN, 
-            \App\Enums\UserRole::OWNER, 
-            \App\Enums\UserRole::MANAGER
-        ]);
-    }
-
-    public function getTenants(Panel $panel): array|Collection
-    {
-        if ($this->role === \App\Enums\UserRole::SUPER_ADMIN) {
-            return Store::all();
-        }
-
-        return $this->store ? [$this->store] : [];
-    }
-
-    public function canAccessTenant(Model $tenant): bool
-    {
-        if ($this->role === \App\Enums\UserRole::SUPER_ADMIN) {
-            return true;
-        }
-
-        return $this->store_id === $tenant->getKey();
     }
 }

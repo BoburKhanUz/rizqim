@@ -101,8 +101,6 @@ class AdminSessionTest extends TestCase
         $token = $operator->createToken('mini-app')->plainTextToken;
         $this->bearerJson('GET', '/api/v1/user', $token)->assertUnauthorized();
         $this->assertSame([], app(\App\Services\Auth\PermissionService::class)->permissionsFor($operator));
-        $this->assertFalse($operator->canAccessPanel(\Filament\Facades\Filament::getPanel('superadmin')));
-        $this->assertFalse($operator->canAccessPanel(\Filament\Facades\Filament::getPanel('admin')));
     }
 
     public function test_sessions_are_listed_and_revoked_another_one_with_step_up(): void

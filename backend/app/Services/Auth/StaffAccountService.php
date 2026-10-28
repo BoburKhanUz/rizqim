@@ -104,7 +104,7 @@ class StaffAccountService
     }
 
     /**
-     * Whether $actor may edit $staff (the panel's UserPolicy::update): the owner everyone of the store's staff, a
+     * Whether $actor may edit $staff (the rule of the old store panel's employee form): the owner everyone of the store's staff, a
      * manager the staff below them of their own branch (a manager without a branch: the staff without one).
      */
     public function canEdit(User $actor, User $staff): bool
@@ -116,7 +116,7 @@ class StaffAccountService
             return false;
         }
         if ($actor->role === UserRole::MANAGER) {
-            // As UserPolicy::update: the same branch (a store-wide manager: the store-wide staff)
+            // The same branch (a store-wide manager: the store-wide staff)
             $own = $actor->branch_id !== null ? (int) $actor->branch_id : null;
             $theirs = $staff->branch_id !== null ? (int) $staff->branch_id : null;
 

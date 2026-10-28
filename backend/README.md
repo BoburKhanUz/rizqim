@@ -1,6 +1,6 @@
 # Rizqim backend
 
-Laravel 12 asosidagi REST API (`/api/v1`, Mini App uchun) va ikkita Filament paneli: `/admin` (do'kon paneli: `owner`, `manager`; `super_admin` istalgan do'konga kira oladi) hamda `/superadmin` (platforma boshqaruvi). Umumiy tavsif va biznes qoidalari: [../README.md](../README.md), deploy: [../docs/DEPLOY.md](../docs/DEPLOY.md).
+Laravel 12 asosidagi REST API (`/api/v1`): Mini App, hamkor veb-paneli (`partner/web`), RIZQIM boshqaruv markazi (`platform/admin`, `/api/v1/admin/*`), POS/KDS va mobil ilovalar uchun. Backend'ning o'zida veb-panel yo'q (P4-33 da Filament panellari olib tashlandi); `/` `PARTNER_WEB_URL` ga yo'naltiradi (bo'sh bo'lsa 404). Umumiy tavsif va biznes qoidalari: [../README.md](../README.md), deploy: [../docs/DEPLOY.md](../docs/DEPLOY.md).
 
 ## Talablar
 
@@ -8,7 +8,7 @@ Laravel 12 asosidagi REST API (`/api/v1`, Mini App uchun) va ikkita Filament pan
 - Composer 2.
 - PostgreSQL — majburiy, testlar uchun ham: kod PostgreSQL'ga xos SQL ishlatadi (`TRUNCATE ... CASCADE`, `payload->>'time'`, `CREATE INDEX CONCURRENTLY`). Docker'da 17, CI'da 16.
 - Redis (kesh, navbat, sessiya, rate-limit, bloklar). Redis'siz ishlash: `CACHE_STORE`, `QUEUE_CONNECTION`, `SESSION_DRIVER` ni `database` qiling (jadvallari migratsiyada bor).
-- Node.js kerak emas: `backend/package.json` Laravel'ning standart Vite sozlamasi, API va panellar uchun ishlatilmaydi. Filament aktivlarini `composer install` ichidagi `filament:upgrade` e'lon qiladi.
+- Node.js kerak emas: `backend/package.json` Laravel'ning standart Vite sozlamasi, API uchun ishlatilmaydi.
 
 ## Lokal ishga tushirish
 
@@ -18,6 +18,10 @@ cp .env.example .env
 composer install
 php artisan key:generate
 ```
+
+P4-33 dan oldingi checkout'ni yangilasangiz, bir marta `php artisan optimize:clear` (yoki kamida `view:clear`): eski
+kompilyatsiya qilingan Blade fayllari olib tashlangan Livewire'ga murojaat qiladi va `/docs/api` 500 beradi. Docker deploy
+buni o'zi qiladi (`view:cache` avval tozalaydi).
 
 `.env` da lokal uchun o'zgartiring: `APP_ENV=local`, `APP_DEBUG=true`, `APP_URL=http://127.0.0.1:8000`, `DB_*` (bo'sh PostgreSQL bazasi, masalan `createdb order_mini_app`) va `REDIS_*`. Postgres va Redis'ni o'zingizga o'rnating yoki `backend/compose.yaml` (Laravel Sail'ning standart fayli) dagi `pgsql` va `redis` xizmatlarini ishlating: `docker compose -f compose.yaml up -d pgsql redis` (portlar hostga chiqadi, `testing` bazasi ham yaratiladi). Bu fayl deploy uchun ishlatilmaydi. Ildizdagi `docker-compose.yml` esa Postgres/Redis portlarini tashqariga ochmaydi va production rejimini talab qiladi.
 
@@ -33,7 +37,7 @@ php artisan queue:work --queue=default,broadcasts,reports   # alohida terminalda
 php artisan schedule:work  # alohida terminalda: to'lanmagan buyurtmalarni bekor qilish va h.k.
 ```
 
-**Birinchi kirish tartibi.** Mini App'ga kirish (`POST /api/v1/auth/telegram`) kamida bitta `is_active` do'kon bo'lishini talab qiladi, aks holda 404 `Store not found or bot not configured.` qaytadi (mijoz ham, super admin ham kira olmaydi). Shuning uchun avval `/superadmin` ga email + parol bilan kiring va "Restoranlar" bo'limida birinchi do'konni yarating (egasi, birinchi filial, hudud; viloyat/tumanlar ro'yxati uchun `LocationSeeder` kerak). Mini App orqali super admin bo'lish uchun Mini App'ni bir marta oching va `php artisan user:assign-role <telegram_id> super_admin` ni bajaring.
+**Birinchi kirish tartibi.** Mini App'ga kirish (`POST /api/v1/auth/telegram`) kamida bitta `is_active` do'kon bo'lishini talab qiladi, aks holda 404 `Store not found or bot not configured.` qaytadi (mijoz ham, super admin ham kira olmaydi). Shuning uchun avval birinchi superadminni yarating (`php artisan rizqim:admin:create <email> "<ism>"`, taklif havolasi orqali parol va 2FA), boshqaruv markazida (`platform/admin`) Ovqatxonalar → Ulash jarayoni da birinchi do'konni yarating (egasi, birinchi filial, hudud; viloyat/tumanlar ro'yxati uchun `LocationSeeder` kerak). Superadmin va jamoa a'zolari Mini App'ga kirmaydi (`docs/AUTH.md`); Mini App'ni xodim sifatida sinash uchun `php artisan user:assign-role <telegram_id> owner --store=<id>`.
 
 **Telegramsiz sinash (oddiy brauzer).** `.env`: `APP_ENV=local`, `TELEGRAM_ALLOW_MOCK_AUTH=true`, `TELEGRAM_BOT_TOKEN` ga istalgan bo'sh bo'lmagan qiymat; Mini App'ni `npm run dev` bilan oching (u dev rejimida soxta foydalanuvchi yaratadi va uning id'sini brauzer `localStorage` dagi `mock_telegram_id` kalitiga yozadi). Xodim rolini sinash: `php artisan user:assign-role <mock_telegram_id> owner --store=<id>`. Haqiqiy botni webhooksiz sinash: `php artisan telegram:poll`.
 
@@ -42,9 +46,9 @@ php artisan schedule:work  # alohida terminalda: to'lanmagan buyurtmalarni bekor
 | Seeder | Nima qiladi | Eslatma |
 |---|---|---|
 | `DatabaseSeeder` | faqat `SettingSeeder` ni chaqiradi | qolganlarini `--class=` bilan ishga tushiring; Docker deploy hech qaysi seederni o'zi ishga tushirmaydi |
-| `SettingSeeder` | `settings` jadvaliga `sms_driver=log`, `eskiz_email`, `eskiz_password` (bo'sh), `eskiz_from=4546` yozadi (mavjudini o'zgartirmaydi) | bu qatorlar (bo'sh bo'lsa ham) `SMS_DRIVER`/`ESKIZ_*` env'dan ustun; SMS'ni Superadmin > Tizim Sozlamalari'dan yoqing |
-| `SuperAdminSeeder` | `SUPERADMIN_EMAIL`/`SUPERADMIN_PASSWORD` bilan `super_admin` yaratadi | `local`/`testing` dan boshqa muhitda ikkalasi majburiy, parol kamida 12 belgi; mavjud email'ning paroli va roli o'zgarmaydi |
-| `LocationSeeder` | 14 hudud (viloyatlar, Qoraqalpog'iston, Toshkent shahri) va ularning tumanlari | Idempotent: `firstOrCreate` bilan faqat yetishmaydigan hudud va tumanlarni qo'shadi, hech narsani o'chirmaydi va o'zgartirmaydi (`TRUNCATE` yo'q), shuning uchun ishlaydigan bazada ham xavfsiz. Faqat o'zi yaratgan qatorlar uchun Andijon viloyati/Asaka tumani faol bo'ladi; panelda yoqilgan/o'chirilgan holat saqlanadi, qolganini Superadmin > Viloyatlar/Tumanlar'da yoqing |
+| `SettingSeeder` | `settings` jadvaliga `sms_driver=log`, `eskiz_email`, `eskiz_password` (bo'sh), `eskiz_from=4546` yozadi (mavjudini o'zgartirmaydi) | bu qatorlar (bo'sh bo'lsa ham) `SMS_DRIVER`/`ESKIZ_*` env'dan ustun; SMS'ni boshqaruv markazida Tizim → Tizim sozlamalari dan yoqing |
+| `SuperAdminSeeder` | `SUPERADMIN_EMAIL`/`SUPERADMIN_PASSWORD` bilan `super_admin` yaratadi (ixtiyoriy; boshqaruv markaziga kirish uchun 2FA kerak: `rizqim:admin:invite <email>`; odatda `rizqim:admin:create` ishlatiladi) | `local`/`testing` dan boshqa muhitda ikkalasi majburiy, parol kamida 12 belgi; mavjud email'ning paroli va roli o'zgarmaydi |
+| `LocationSeeder` | 14 hudud (viloyatlar, Qoraqalpog'iston, Toshkent shahri) va ularning tumanlari | Idempotent: `firstOrCreate` bilan faqat yetishmaydigan hudud va tumanlarni qo'shadi, hech narsani o'chirmaydi va o'zgartirmaydi (`TRUNCATE` yo'q), shuning uchun ishlaydigan bazada ham xavfsiz. Faqat o'zi yaratgan qatorlar uchun Andijon viloyati/Asaka tumani faol bo'ladi; boshqaruv markazida yoqilgan/o'chirilgan holat saqlanadi, qolganini Tizim → Tizim sozlamalari → Viloyatlar va tumanlar'da yoqing |
 | `PaymentProviderSeeder` | `payme`, `click`, `uzum`, `paynet` qatorlarini bo'sh kalitlar bilan yaratadi | Idempotent (`firstOrCreate`): mavjud qatorga tegmaydi, qayta ishga tushirish kiritilgan kalitlar va yoqilgan holatni saqlaydi |
 | `PromoCodeSeeder` | demo promo-kodlar `TEZFOOD` (10%), `RIZQIM_81` (10%), `YANGI2026` (15%), har mijozga 1 marta | faqat ishlab chiqish uchun |
 
@@ -76,7 +80,7 @@ Namuna: [.env.example](.env.example). "Standart" ustunida `.env.example` qiymati
 | `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD` | `order_mini_app`, `postgres`, `postgres` | |
 | `CACHE_STORE` | `redis` (config: `database`) | kesh; rate-limit hisoblagichlari, geokod keshi, `setting()` keshi shu yerda |
 | `QUEUE_CONNECTION` | `redis` (config: `database`) | navbat; testlarda `sync` |
-| `SESSION_DRIVER` | `redis` (config: `database`) | faqat Filament panellari sessiyasi; `SESSION_LIFETIME=120` |
+| `SESSION_DRIVER` | `redis` (config: `database`) | veb sessiyasi (API tokenlar bilan ishlaydi, sessiya deyarli ishlatilmaydi); `SESSION_LIFETIME=120` |
 | `REDIS_CLIENT` | `phpredis` | |
 | `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD` | `127.0.0.1`, `6379`, `null` | |
 | `REDIS_DB`, `REDIS_CACHE_DB` | `0`, `1` | navbat/sessiya va kesh bazalari; farqli bo'lishi shart, chunki `cache:clear` kesh bazasini butunlay tozalaydi. `REDIS_URL` ni o'rnatmang (ikkalasini birlashtirib yuboradi) |
@@ -107,7 +111,7 @@ Namuna: [.env.example](.env.example). "Standart" ustunida `.env.example` qiymati
 | O'zgaruvchi | Standart | Ma'nosi |
 |---|---|---|
 | `CLICK_SECRET_KEY`, `PAYME_SECRET_KEY` | bo'sh | platforma merchant kalitlari; bo'sh bo'lsa webhooklar rad etadi |
-| `CLICK_SERVICE_ID`, `CLICK_MERCHANT_ID`, `PAYME_MERCHANT_ID` | namunaviy qiymatlar `config/services.php` da | o'zingiznikiga almashtiring. Superadmin > To'lov Tizimlari (`payment_providers`, shifrlangan) qiymati bo'sh bo'lmasa env'dan ustun |
+| `CLICK_SERVICE_ID`, `CLICK_MERCHANT_ID`, `PAYME_MERCHANT_ID` | namunaviy qiymatlar `config/services.php` da | o'zingiznikiga almashtiring. Boshqaruv markazidagi Tizim → To'lov tizimlari (`payment_providers`, shifrlangan) qiymati bo'sh bo'lmasa env'dan ustun |
 | `ORDERS_UNPAID_ONLINE_TTL_MINUTES` | `30` | to'lanmagan onlayn buyurtma shuncha daqiqadan keyin bekor qilinadi, `0` — o'chirilgan (scheduler kerak) |
 | `ORDERS_SETTLEMENT_RETRY_MAX_ATTEMPTS` | `12` | xato bergan settlement'ni `RetryFailedSettlementsJob` necha marta qayta urinadi; keyin `orders:retry-settlements` bilan qo'lda |
 | `ORDERS_REPORTS_QUEUE` | `reports` | hisobot eksporti navbati; shu navbatni tinglaydigan worker bo'lmasa eksportlar navbatda qoladi |
@@ -118,7 +122,7 @@ Namuna: [.env.example](.env.example). "Standart" ustunida `.env.example` qiymati
 | `NOMINATIM_BASE_URL` | `https://nominatim.openstreetmap.org` | productionda o'z serveringiz yoki shartnomali provayder |
 | `NOMINATIM_EMAIL` | bo'sh | `User-Agent` dagi aloqa e-pochtasi; bo'sh bo'lsa `APP_URL` |
 | `NOMINATIM_MIN_INTERVAL` | `1` | butun platforma bo'yicha so'rovlar orasidagi pauza (soniya); `0` faqat o'z serveringiz uchun |
-| `SMS_DRIVER`, `ESKIZ_EMAIL`, `ESKIZ_PASSWORD`, `ESKIZ_FROM` | `log`, bo'sh, bo'sh, `4546` | SMS (`log` yoki `eskiz`). `settings` jadvalidagi qiymat (Superadmin > Tizim Sozlamalari) ustun, env faqat u yerda qiymat bo'lmasa ishlatiladi. Driver `eskiz` bo'lsa Mini App telefonni SMS bilan tasdiqlashni talab qiladi |
+| `SMS_DRIVER`, `ESKIZ_EMAIL`, `ESKIZ_PASSWORD`, `ESKIZ_FROM` | `log`, bo'sh, bo'sh, `4546` | SMS (`log` yoki `eskiz`). `settings` jadvalidagi qiymat (boshqaruv markazi: Tizim → Tizim sozlamalari) ustun, env faqat u yerda qiymat bo'lmasa ishlatiladi. Driver `eskiz` bo'lsa Mini App telefonni SMS bilan tasdiqlashni talab qiladi |
 
 `MAIL_*`, `AWS_*`, `MEMCACHED_HOST`, `VITE_APP_NAME`, `BROADCAST_CONNECTION`, `FILESYSTEM_DISK` — Laravel skeletidan qolgan standart sozlamalar: loyiha pochta yubormaydi, S3 va broadcasting ishlatmaydi (yuklangan rasmlar `public` diskka yoziladi).
 
@@ -134,7 +138,7 @@ Namuna: [.env.example](.env.example). "Standart" ustunida `.env.example` qiymati
 | `queue:work --queue=reports --memory=512 --timeout=150 --tries=1 --max-time=3600` | `reports` navbati ishchisi (Docker'da `queue-reports` xizmati; PHP `memory_limit=768M` bilan). `SendOrderReport` shu navbatga qo'yiladi |
 | `schedule:work` / `schedule:run` | Scheduler: lokal/Docker'da `schedule:work` |
 | `queue:restart`, `queue:failed`, `queue:retry all` | Deploydan keyin ishchilarni yangilash (ikkala ishchini ham); muvaffaqiyatsiz joblarni ko'rish va qayta urinish |
-| `migrate --force`, `storage:link`, `filament:upgrade`, `config:cache`, `route:cache`, `view:cache` | Deploy qadamlari (tartibi [../docs/DEPLOY.md](../docs/DEPLOY.md) da) |
+| `migrate --force`, `storage:link`, `config:cache`, `route:cache`, `view:cache` | Deploy qadamlari (tartibi [../docs/DEPLOY.md](../docs/DEPLOY.md) da) |
 
 ## Navbat va scheduler
 
@@ -184,14 +188,13 @@ Larastan ilovani yuklaydi (bazaga ulanmaydi), shuning uchun `.env` bo'lishi kera
 | `Services/Finance/` | `LedgerService`: komissiya, hisob-kitob, top-up, yechib olish, qaytarish, bloklash |
 | `Services/Promo/`, `Services/Auth/` | `PromoCodeService`; `ReferralService` |
 | `Services/Telegram/`, `Services/Notifications/` | bot xabarlari va tugmalar (`TelegramMessageHandler`, `TelegramCallbackHandler`), navbatga qo'yuvchi `TelegramMessenger`, buyurtma kartochkalari, ilova ichidagi xabarnoma lentasi |
-| `Services/Geo/`, `Services/Sms/`, `Services/Ops/` | geokodlash (`GeocoderManager` > `CachedGeocoder` > `NominatimGeocoder`); Eskiz SMS; panel metrikalari (`Domain/Ops/` qiymat obyektlari bilan) |
+| `Services/Geo/`, `Services/Sms/` | geokodlash (`GeocoderManager` > `CachedGeocoder` > `NominatimGeocoder`); Eskiz SMS |
 | `Enums/` | `OrderStatus` (o'tish xaritasi), `OrderType`, `PaymentStatus`, `StoreStatus`, `UserRole`, `StoreTransactionType` va b. |
-| `Policies/` | `OrderPolicy` (rolga ko'ra holat o'zgartirish), `StorePolicy`, `BranchPolicy`, `ProductPolicy`, `UserPolicy`, ... |
-| `Http/Controllers/Api/V1/` | `Auth`, `Catalog`, `Order`, `Payment` (Click/Payme webhook), `Store` (`Owner*`), `Superadmin`, `Telegram`, `User`, `GeocodeController`, `PromoCodeController` |
+| `Policies/` | `OrderPolicy` (rolga ko'ra holat o'zgartirish); qolgan ruxsatlar `PermissionService` (do'kon) va `AdminPermissionService` (jamoa) orqali |
+| `Http/Controllers/Api/V1/` | `Admin` (boshqaruv markazi), `Auth`, `Catalog`, `Management` va `Menu` (hamkor paneli), `Order`, `Payment` (Click/Payme webhook), `Pos*`, `Store` (`Owner*`), `Telegram`, `User`, `GeocodeController`, `PromoCodeController` va b. |
 | `Http/Middleware/` | `EnsureUserHasRole` (`role:owner,manager`), `EnsureStaffHasStore` (`staff.store`), `VerifyTelegramSecretToken` |
 | `Jobs/`, `Events/`, `Listeners/` | yuqoridagi joblar; `OrderCreated`, `OrderStatusUpdated`, `OrderCancelled`, `PaymentPaid`, `StoreBalanceLow` va ularning listenerlari (avtomatik topiladi) |
 | `Console/Commands/` | `user:assign-role`, `app:check-production`, `telegram:set-webhook`, `telegram:poll` |
-| `Filament/` | `/admin` paneli (tenant — do'kon, slug `uuid`): `Resources/` (Orders, Products, Branches, Employees), `Pages/`, `Widgets/`; `Superadmin/` — `/superadmin` paneli; `Support/StorePanelScope` — panel so'rovlarini tenant do'kon (filial menejeri uchun filial) bilan cheklaydi. Kirish `CustomLogin`: email yoki telefon + parol |
 | `Models/`, `Traits/`, `Support/Money`, `Helpers/settings.php` | Eloquent modellar; `ApiResponse`, `Auditable` (super admin o'zgarishlari `audit_logs` ga), `HasPublicUuid`; aniq o'nli pul arifmetikasi; `setting()` yordamchisi |
 
 Qoidalar: holat faqat `OrderStatusService::transition` orqali o'zgaradi; qarz/hamyon faqat `LedgerService` orqali; pul — faqat `Money` (float emas); `env()` faqat `config/` ichida.
