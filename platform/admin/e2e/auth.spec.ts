@@ -109,7 +109,7 @@ test('the first sign-in sets up 2FA: QR code, key, recovery codes that must be s
   await expect(enter).toBeDisabled()
   await page.getByRole('checkbox', { name: "Saqlab qo'ydim" }).check()
   await enter.click()
-  await expect(page.getByRole('heading', { name: 'Buyurtmalar', level: 1 })).toBeVisible()
+  await expect(page.getByRole('heading', { name: "Ko'rsatkichlar", level: 1 })).toBeVisible()
   expect(api.member('madina@rizqim.uz').twoFactor).toBe(true)
   expect(api.callsTo('POST', '/auth/2fa/setup')).toHaveLength(1)
 })

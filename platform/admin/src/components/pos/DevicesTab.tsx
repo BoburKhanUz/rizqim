@@ -7,6 +7,7 @@ import { DEFAULT_DEVICE_FILTERS, DEVICE_STATES, useDevice, useDevices, useRevoke
 import { errorText, fieldError } from '@/lib/errors';
 import { when } from '@/lib/format';
 import { useCan } from '../AuthProvider';
+import { ExportButton } from '../ExportButton';
 import { useT } from '../I18nProvider';
 import { DEVICE_LABEL, DEVICE_TONE, minutesSince } from './posModel';
 import { BackButton, Chip, ChipRow, Facts, ListState, Pager, ReasonDialog } from './PosParts';
@@ -83,6 +84,7 @@ function DeviceList({ onSelect }: { onSelect: (uuid: string) => void }) {
           )}
         </Field>
       </div>
+      <ExportButton list="devices" query={{ state: filters.state, type: filters.type, outdated: filters.outdated, store_id: filters.store_id, q: filters.q }} />
 
       <ListState
         loading={!page}

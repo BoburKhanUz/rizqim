@@ -136,25 +136,13 @@ class CatalogController extends Controller
                 ->orderBy('sort_order')
                 ->get(['id', 'uuid', 'name', 'slug', 'parent_id', 'image', 'image_disk', 'image_thumbs']);
                 
+            // P4-31: banners switched on and inside their schedule (the control center's Marketing preview uses the same query)
             $promos = \App\Models\Promo::with(['store', 'product.store'])
-                ->where('is_active', true)
+                ->live()
                 ->orderBy('sort_order')
                 ->get()
-                ->map(function ($promo) {
-                    $storeUuid = $promo->store?->uuid;
-                    $productId = $promo->product_id;
-                    if ($promo->product && $promo->product->store) {
-                        $storeUuid = $promo->product->store->uuid;
-                    }
-                    return [
-                        'id' => $promo->id,
-                        'title' => $promo->title,
-                        'image_url' => $promo->image_url,
-                        'store_uuid' => $storeUuid,
-                        'product_id' => $productId,
-                    ];
-                });
-                
+                ->map(fn (\App\Models\Promo $promo) => $promo->toCatalogEntry());
+
             return $this->success([
                 'categories' => $categories,
                 'products' => $products,

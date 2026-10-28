@@ -33,7 +33,7 @@ test('the menu is a drawer, the search is one tap away and the pages do not scro
   await expect(nav).toBeHidden()
   await page.getByRole('button', { name: 'Menyuni ochish' }).click()
   await expect(nav).toBeVisible()
-  await expect(nav.getByRole('link')).toHaveCount(13)
+  await expect(nav.getByRole('link')).toHaveCount(15)
   await nav.getByRole('link', { name: 'Jamoa' }).click()
   await expect(page.getByRole('heading', { name: 'Jamoa', level: 1 })).toBeVisible()
   await expect(nav).toBeHidden()

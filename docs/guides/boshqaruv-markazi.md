@@ -17,6 +17,12 @@ keyingi to'lqinlarda qo'shiladi (menyuda ular bor, lekin hozircha "Bu bo'lim key
 9. [Bugun (bosh sahifa)](#bugun-bosh-sahifa)
 10. [Buyurtmalar](#buyurtmalar)
 11. [Monitoring](#monitoring)
+12. [Mijozlar va yordam](#mijozlar-va-yordam)
+13. [Marketing](#marketing)
+14. [Tizim sozlamalari](#tizim-sozlamalari)
+15. [Integratsiyalar](#integratsiyalar)
+16. [Ko'rsatkichlar](#ko-rsatkichlar)
+17. [Excel eksport](#excel-eksport)
 
 ## 1. Kirish
 
@@ -305,3 +311,263 @@ Tepada "Telegram guruhi sozlanmagan" deb yozilgan bo'lsa — texnik jamoa `TELEG
 | "Bu ogohlantirish allaqachon qabul qilingan yoki hal bo'lgan" | Boshqa xodim sizdan oldin bosdi. Ro'yxat yangilandi |
 | "Sabab kamida 3 belgi bo'lsin" | O'chirish va qoidani o'zgartirish uchun sabab yozing |
 | "Siz ko'rishingiz mumkin, o'zgartirishga ruxsat yo'q" | Rolingizda "Monitoring: fon vazifalari va ogohlantirishlar" ruxsati yo'q. Superadmin Rollar sahifasidan beradi |
+
+## Mijozlar va yordam
+
+**Mijozlar va yordam** — mijozlar, kuryerlar va ovqatxona xodimlari, ularning shikoyatlari va shubhali holatlar. Uch yorliq:
+**Foydalanuvchilar** ("Foydalanuvchilarni ko'rish" ruxsati), **Shikoyatlar** va **Shubhali holatlar** ("Murojaatlarni
+ko'rish"). O'zgartirish — "Murojaatlarni hal qilish" ruxsati bilan (standart: Yordam va Superadmin). "Faqat ko'rish" roli
+hammasini ko'radi, hech narsani o'zgartira olmaydi. RIZQIM jamoasi a'zolari bu yerda yo'q — ular Tizim → Jamoa'da.
+
+### Foydalanuvchilar va karta
+
+Tepadagi tugmalar — rol (Hammasi, Mijozlar, Kuryerlar, Ovqatxona xodimlari), yonida holat (Faol, Bloklangan). Qidiruv —
+ism yoki telefon. **Telefon bo'yicha faqat to'liq raqam topiladi** (`+998 90 123 45 67`, `90 123 45 67`): yarim yashirin
+raqamni raqamma-raqam topib bo'lmasin. To'liq raqamlarni ko'rish ruxsati bor xodim istalgan 4 ta raqam bilan topadi va u
+ko'rgan har bir raqam jurnalga yoziladi.
+
+Qatorni bosing — **foydalanuvchi kartasi** ochiladi (umumiy qidiruvdagi foydalanuvchi ham shu yerga olib keladi):
+
+- **Umumiy** — telefon, Telegram, kim taklif qilgan; buyurtmalar soni, yetkazilganlar summasi, o'rtacha chek, toifa
+  (Doimiy mijoz (VIP), Qaytgan, Yangi); xodim bo'lsa — ovqatxonasi, filiali, roli, SMS bilan kirishi, kassa PIN; shu
+  telefon yoki Telegramdagi boshqa hisoblar (bir odam mijoz ham, xodim ham bo'lishi mumkin).
+- **Buyurtmalar** — oxirgi 20 ta (bosilsa buyurtma kartasi) va pul qaytarish so'rovlari.
+- **Keshbek** — balans va harakatlar: buyurtma uchun to'lov, qaytarilgani, do'st taklifi bonusi.
+- **Shikoyatlar**, **Sessiyalar** (faol tokenlar, oxirgi foydalanish, qurilmalar), **Jurnal** (shu hisob bo'yicha amallar).
+
+**Bloklash** — firibgarlik yoki suiiste'molda. Sabab yoziladi va 6 xonali kod so'raladi. Bloklangan odam hech qayerga
+kira olmaydi (Mini App, ilova, hamkor paneli, kassa PIN), buyurtma bera olmaydi, hozirgi barcha sessiyalari darhol
+yopiladi; kartada kim, qachon, nima uchun bloklagani yoziladi. **Ovqatxona egasi bloklansa, ovqatxona ishlashda davom
+etadi** — ovqatxonani to'xtatish Ovqatxonalar bo'limida. **Blokdan chiqarish** — sabab va kod bilan, odam qaytadan
+kira oladi.
+
+**Sessiyalarni yopish** — telefon yo'qolganda yoki o'g'irlanganda: Mini App, ilova va kassadagi PIN sessiyalari yopiladi
+(sabab va kod bilan), odam qaytadan kirishi kerak bo'ladi. Kassaning o'zi ulanganicha qoladi.
+
+### Shikoyatlar qutisi
+
+Har shikoyatda ikki holat bor. **Yordam holati**: Yangi → Ko'rib chiqilmoqda → Javob berildi → Hal qilindi. Yonida
+ovqatxona bilan yozishma holati ("Ovqatxona javobini kutmoqda", "Ovqatxona javob berdi", "Mijoz RIZQIMga yubordi").
+**Ochiq** (Yangi va Ko'rib chiqilmoqda) birinchi chiqadi, eng uzoq kutgani tepada. Qizil **"Kutmoqda"** — 4 soatdan ko'p
+javobsiz turgan (ovqatxona javob bergan va mijoz qayta yubormagan bo'lsa — yo'q); ular "Bugun → Diqqat talab qiladi"da
+ham chiqadi. Filtrlar: holat tugmalari (qavsda soni), "Menga biriktirilgan" / "Hech kimga biriktirilmagan", "Faqat
+kutayotganlar", buyurtma kodi yoki matndagi so'z.
+
+Shikoyatni bosing:
+
+- **Olish** — shikoyat sizga biriktiriladi va "Ko'rib chiqilmoqda" bo'ladi. **Mas'ul xodim** ro'yxatidan boshqa
+  hamkasbga berish mumkin.
+- **Javob yozish** — mijozga RIZQIM boti orqali Telegramda boradi. **Tayyor javob**ni tanlasangiz, matn o'zi yoziladi,
+  uni o'zgartirib yuborish mumkin. Yuborilgach shikoyat "Javob berildi" bo'ladi va javob "RIZQIM javoblari"da qoladi.
+  Mijozning Telegrami bo'lmasa, tugma yo'q — hal qilish izohini u Mini App'da ko'radi.
+- **Hal qilish** — qanday hal qilinganini yozing. Izoh mijozga Mini App'dagi shikoyatlar ro'yxatida ko'rinadi.
+- **Qayta ochish** — hal qilingan shikoyat bo'yicha ish davom etsa.
+
+**Tayyor javoblar** tugmasi — tez-tez yoziladigan matnlar (masalan "Kechikish uchun uzr"). Qo'shish, tahrirlash va
+o'chirish — "Murojaatlarni hal qilish" ruxsati bilan; o'zgartirish oldin yuborilgan javoblarga ta'sir qilmaydi.
+
+### Shubhali holatlar
+
+Faqat ko'rish uchun ro'yxat — hech narsa avtomatik qilinmaydi. Har qator nima uchun shu yerda ekanini oddiy so'z bilan
+aytadi va foydalanuvchi kartasiga olib boradi:
+
+- **Ko'p bekor qilish** — 7 kunda 3 va undan ko'p buyurtmasi mijoz tufayli bekor qilingan (o'zi bekor qilgan, olib
+  ketmagan).
+- **Promo-kodni ko'p hisobdan ishlatish** — bitta promo-kod bir xil telefon raqamli yoki bitta Telegramga bog'langan bir
+  nechta hisobdan ishlatilgan (hamma hisoblar ko'rsatiladi).
+- **O'rtachadan ko'p qaytarish** — 30 kunda qaytarish so'rovlari o'rtacha qaytarishdan 3 baravar ko'p (va 100 000
+  so'mdan ortiq).
+
+Kerak bo'lsa, kartada tekshirib, **Bloklash** (sabab bilan).
+
+| Ko'ringan | Sabab va nima qilish kerak |
+|---|---|
+| "Mijozning Telegram akkaunti yo'q: javobni yuborib bo'lmaydi" | Mijoz botga ulanmagan. Hal qilish izohini yozing — u Mini App'da ko'radi |
+| "Telegram bot sozlanmagan" | Texnik jamoaga ayting (bot tokeni) |
+| "Shikoyat hal qilingan. Javob yozish uchun avval uni qayta oching" | **Qayta ochish**ni bosing |
+| "Hisob allaqachon bloklangan" | Boshqa xodim sizdan oldin bloklagan: sahifani yangilang |
+| "RIZQIM jamoasi a'zosi bu yerda boshqarilmaydi" | Jamoa a'zosini Tizim → Jamoa'da o'chiring |
+| "Bu xodimga shikoyat biriktirib bo'lmaydi" | U xodimda shikoyatlarni ko'rish ruxsati yo'q yoki u o'chirilgan |
+| Mijoz: "Hisobingiz bloklangan..." | Mijoz bloklangan. Blokdan chiqarish faqat sabab bilan |
+
+## Marketing
+
+**Marketing** — Mini App bosh sahifasidagi bannerlar, promo-kodlar va kategoriyalar. Uch yorliq: **Bannerlar va aksiyalar**,
+**Promo-kodlar**, **Kategoriyalar**. Ko'rish uchun "Marketingni ko'rish" ruxsati yetadi; qo'shish, o'zgartirish va tartiblash
+"Marketingni boshqarish" ruxsatini talab qiladi (standart: faqat Superadmin; boshqa rolga Rollar sahifasidan beriladi).
+**Har o'zgarish sabab so'raydi** (3–500 belgi) va jurnalga yoziladi; **o'chirish** bundan tashqari 2FA kodini ham so'raydi.
+Telefonda ham ishlaydi.
+
+### Bannerlar va aksiyalar
+
+Banner — Mini App bosh sahifasida chiqadigan rasm. Ro'yxatda har bannerning rasmi, sarlavhasi, holati va bosilganda nima
+ochilishi (ovqatxona yoki taom) turadi. Holat so'z bilan yoziladi:
+
+| Holat | Ma'nosi |
+|---|---|
+| **Ko'rinmoqda** | Yoqilgan va jadvali ichida: mijozlar hozir ko'radi |
+| **Rejalashtirilgan** | Yoqilgan, lekin boshlanish vaqti hali kelmagan |
+| **Tugagan** | Tugash vaqti o'tib ketgan |
+| **O'chiq** | Qo'lda o'chirib qo'yilgan |
+
+- **Yangi banner**: sarlavha, rasm (JPG, PNG yoki WebP, **4 MB gacha**), ixtiyoriy ravishda ovqatxona va taom (taom shu
+  ovqatxonaniki bo'lishi kerak), jadval (Toshkent vaqti; bo'sh qoldirsangiz yoqilgan paytda doim ko'rinadi) va sabab. Banner
+  ro'yxat oxiriga tushadi.
+- **Yoqish/o'chirish** — tugma (sabab so'raydi). **Tahrirlash** — kalamcha tugmasi; faqat o'zgargan maydonlar yuboriladi.
+- **Tartib**: strelkalar bannerni yuqoriga/pastga suradi. O'zgarish **darhol saqlanmaydi** — "Tartibni saqlash" bosilgach sabab
+  so'raladi va butun qator birdan saqlanadi. Holat bo'yicha filtr yoqilgan paytda strelkalar yashirin (qator to'liq ko'rinmasa
+  tartiblab bo'lmaydi). Tartibni saqlayotganda sahifa eskirgan bo'lsa ("Ro'yxat eskirgan...") yangilab qayta urining —
+  hamkasbingizning tartibi bosilib ketmaydi.
+- **Mini App'da ko'rinishi** — hozir bosh sahifada chiqadigan bannerlar, o'sha tartibda (mijoz ko'radigan so'rovning o'zi).
+  Bo'sh bo'lsa "Hozir bosh sahifada banner ko'rinmayapti".
+- **O'chirib tashlash** (chiqindi savati belgisi) — banner va rasmi butunlay o'chadi; jurnalda maydonlari qoladi.
+
+### Promo-kodlar
+
+Ro'yxatda kod, nima berishi (masalan "10 % (eng ko'pi 8 000 so'm)" yoki "5 000 so'm"), minimal buyurtma, ovqatxona, muddat va
+**ishlatilish**: necha marta (limit bilan: "12 / 100"), nechta turli mijoz, jami berilgan chegirma va shu buyurtmalarning
+jami summasi. Hisobga **bekor qilingan, rad etilgan va qaytarilgan buyurtmalar kirmaydi** (limit ham ularni sanamaydi).
+Holat: **Faol**, **O'chirilgan**, **Muddati tugagan**, **Limit tugagan**. Yuqorida qidiruv va holat tugmalari bor.
+**Batafsil** — kodning qoidalari va oxirgi 10 buyurtmasi (sana bosilsa buyurtma kartasi ochiladi).
+
+- **Yangi promo-kod**: kod (lotin harf, raqam, `-` va `_`, 3–50 belgi; bosh harfda saqlanadi), turi (**Foiz** yoki **Belgilangan
+  summa**), qiymat, foizda ixtiyoriy "Eng ko'p chegirma", minimal buyurtma, umumiy limit va bir mijoz uchun limit (bo'sh —
+  cheklanmagan), ovqatxona (bo'sh — hammasi), muddat. **Qoidalar buyurtma berishdagi bilan bir xil**: foiz 100 dan oshmaydi,
+  belgilangan summa butun so'm bo'ladi.
+- **Chegirmasi qulflanadi.** Kodni birorta buyurtma ishlatgan bo'lsa (bekor qilingani ham), uning **kodi, turi, qiymati,
+  "eng ko'p chegirma"si va ovqatxonasi o'zgarmaydi** — hisobotlar va buyurtmalar eski chegirmaga tayanadi. Oynada shu
+  maydonlar o'chirib qo'yilgan va sababi yozilgan. Boshqa chegirma kerak bo'lsa: **yangi promo-kod yarating, eskisini
+  o'chirib qo'ying**. Limitlar, minimal summa, muddat va yoqish/o'chirish esa har doim o'zgaradi.
+- **Yoqish/o'chirib qo'yish** darhol ta'sir qiladi (har buyurtmada tekshiriladi); berilgan buyurtmalar o'z chegirmasini saqlaydi.
+- **O'chirib tashlash** faqat hech bir buyurtmada ishlatilmagan kodda ko'rinadi (aks holda uni faqat o'chirib qo'yasiz).
+
+### Kategoriyalar
+
+Mini App'dagi kategoriyalar, ularning ketma-ketligi bilan. Har qatorda ikonka, nomi, qaysi kategoriya ichida turgani va
+nechta taomi borligi turadi. Kategoriyalar **ikki darajali**: asosiy va uning ichki kategoriyalari (ichki kategoriyasi borini
+boshqasining ichiga qo'yib bo'lmaydi).
+
+- **Yashirish** — tugma (sabab so'raydi): kategoriya katalogdan yo'qoladi, **taomlari o'chmaydi**. Qaytarish ham shu tugma.
+- **Tartib** — banner kabi: strelkalar, so'ng "Tartibni saqlash" (butun ro'yxat birdan saqlanadi, POS menyusi ham yangilanadi).
+- **Yangi kategoriya / tahrirlash**: nomi, asosiy kategoriya, ikonka (JPG, PNG yoki WebP, 4 MB gacha; "Ikonkani olib
+  tashlash" bilan olinadi).
+- **O'chirish** faqat taomi ham, ichki kategoriyasi ham yo'q kategoriyada (2FA kodi bilan). Boshqa holda uni yashiring.
+
+### Xatolar va yechimlar
+
+| Ko'ringan | Sabab va nima qilish kerak |
+|---|---|
+| "Rasm 4 MB dan katta bo'lmasligi kerak" / "Rasm JPG, PNG yoki WebP bo'lishi kerak" | Rasmni kichraytiring yoki boshqa formatda saqlang |
+| "Tugash vaqti boshlanish vaqtidan keyin bo'lishi kerak" | Jadvalni to'g'rilang |
+| "Mahsulot tanlangan ovqatxonaga tegishli emas" | Taomni shu ovqatxonaning menyusidan tanlang yoki ovqatxonani olib tashlang |
+| "Bu promo-koddan buyurtma berilgan, shuning uchun uning chegirmasini o'zgartirib bo'lmaydi" | Yangi promo-kod yarating, eskisini o'chirib qo'ying |
+| "Bunday promo-kod allaqachon bor" | Kodlar katta-kichik harfga qaramay takrorlanmaydi: boshqa kod tanlang |
+| "Foiz 0 dan katta va 100 dan oshmasligi kerak" / "Belgilangan chegirma butun so'm bo'lishi kerak" | Qiymatni turiga mos yozing |
+| "Ro'yxat eskirgan: sahifani yangilang va qayta urining" | Hamkasbingiz ro'yxatni o'zgartirgan. Sahifani yangilang, tartibni qaytadan qiling |
+| "Kategoriyada mahsulotlar yoki ichki kategoriyalar bor" | O'chirib bo'lmaydi: kategoriyani yashiring |
+| "Siz ko'rishingiz mumkin, o'zgartirishga ruxsat yo'q" | Rolingizda "Marketingni boshqarish" ruxsati yo'q. Superadmin Rollar sahifasidan beradi |
+
+## Tizim sozlamalari
+
+**Tizim** sahifasi (menyuda Tizim guruhidagi «Tizim sozlamalari») — platformaning umumiy sozlamalari. Faqat «Tizim sozlamalari»
+ruxsati bor xodim ochadi (standartda Superadmin). **Har o'zgarish sabab so'raydi va ilovadagi 6 xonali kodni** (oxirgi 10
+daqiqada kiritilmagan bo'lsa); hammasi harakatlar jurnaliga yoziladi. To'rtta bo'lim bor:
+
+- **Sozlamalar.** SMS: yuborish usuli («Log» — SMS ketmaydi, kod faqat server jurnaliga yoziladi; «Eskiz» — haqiqiy SMS),
+  Eskiz email, jo'natuvchi nomi va Eskiz paroli. Faqat o'zgargan maydonlar saqlanadi; bo'sh qoldirilgan maydon serverdagi
+  qiymatga yoki standartga qaytadi. Eskizga o'tish uchun email va parol kiritilgan bo'lishi kerak. Telegram va Umumiy
+  qatorlari serverdagi `.env` faylidan — ular faqat ko'rsatiladi, o'zgartirish uchun texnik jamoaga murojaat qiling.
+- **To'lov tizimlari.** Payme, Click, Uzum Bank, Paynet: «Faol» belgisi va rejim (Sinov / Ishchi), kalitlar. Har kalitning
+  yonida qayerdan olingani yoziladi: «Shu yerda saqlangan» yoki «Server sozlamasidan (.env)». «Faol» va rejim hozircha jamoa
+  uchun belgi: to'lov oqimi ularni hali tekshirmaydi.
+- **Viloyatlar va tumanlar.** Mini App manzil formasi, filiallar va arizalar shu ro'yxatdan tanlaydi. Qo'shish, nomini
+  o'zgartirish, yoqish/o'chirish va tartib («Tartibni o'zgartirish» → yuqoriga/pastga → «Tartibni saqlash»). Filial, mijoz
+  manzili yoki ariza ishlatayotgan viloyat/tuman **o'chirilmaydi** — uni «Faol emas» qiling. Tumanlari bor viloyat ham
+  o'chirilmaydi: avval tumanlarini o'chiring.
+- **Funksiyalar.** Kodda e'lon qilingan funksiyalar (feature flag): tavsifi, standart qiymati va nechta ovqatxonada
+  yoqilgani. Pastda ovqatxonalar ro'yxati: har funksiyani bitta ovqatxona uchun yoqish yoki o'chirish, «Standartga
+  qaytarish» — ovqatxonaning o'z qiymatlarini o'chirish.
+
+Pastda boshqa tizim sahifalariga havolalar: SLA chegaralari (Buyurtmalar sahifasidagi «SLA sozlamalari»), tariflar
+katalogi (POS va obunalar → Tariflar), Jamoa, Rollar, Harakatlar jurnali.
+
+**Maxfiy kalitlar** (parol, merchant kaliti, bot tokeni) hech qachon to'liq ko'rinmaydi: faqat «Kiritilgan, oxiri ••••1234».
+Kalitni almashtirish — alohida «Almashtirish» tugmasi: yangi qiymat bir marta yuboriladi, jurnalga qiymatning o'zi
+yozilmaydi. «O'chirish» shu yerda saqlangan qiymatni o'chiradi va serverdagi qiymat ishlay boshlaydi.
+
+| Xabar | Nima qilish kerak |
+|---|---|
+| "Eskiz uchun avval email va parolni kiriting" | Avval Eskiz paroli va emailini kiriting, keyin usulni «Eskiz»ga o'tkazing |
+| "SMS Eskiz orqali yuborilmoqda: parolni o'chirishdan oldin…" | Avval SMS usulini «Log»ga o'tkazing |
+| "Viloyat ishlatilmoqda…" / "Tuman ishlatilmoqda…" | O'chirib bo'lmaydi: «Faol emas» qiling |
+| "Tartib to'liq ro'yxat bo'lishi kerak" | Hamkasbingiz ro'yxatni o'zgartirgan: sahifani yangilang va tartibni qaytadan qiling |
+
+## Integratsiyalar
+
+**Integratsiyalar** — ovqatxonalarning tashqi tizimlarga ulanishi (iiko, Alipos, Yandex Eats, Uzum Tezkor, RIZQIM Partner
+API). Ulagichlar **5-bosqichda** qo'shiladi; hozir sahifa tayyor, lekin ro'yxatlar bo'sh va buni aytib turadi. Operator va
+«Faqat ko'rish» ko'radi; to'xtatish va qayta yoqish — «Integratsiyalarni boshqarish» ruxsati (standartda Superadmin).
+
+- **Ulanishlar.** Har ovqatxona (yoki filial) ulanishi: tizim, yo'nalish (RIZQIM → joyning POS'i yoki Agregator → Rizqim
+  POS), rejim (Sinov / Ishchi), holat va **sog'liq bahosi** (80 va yuqori — «Yaxshi», 50–79 — «E'tibor kerak», 50 dan past —
+  «Uzilgan»), oxirgi muvaffaqiyatli so'rov, bugungi xatolar. Kartada kalitlar (faqat nomi va oxirgi 4 belgisi), sozlamalar,
+  oxirgi hodisalar va menyu xaritasi soni. **To'xtatish** (sabab va kod bilan) — ulanish orqali hech narsa yuborilmaydi;
+  buyurtma baribir RIZQIM xodim ekranida va Telegramda chiqadi. **Qayta yoqish** oldingi holatga qaytaradi.
+- **Hodisalar jurnali.** Tashqi tizimga har so'rov va undan kelgan har webhook: turi, holati (Kutmoqda, Yuborildi,
+  Tasdiqlandi, Xato, O'lik), HTTP kodi, urinishlar. Hodisani ochsangiz so'rov va javob tanasi ko'rinadi — maxfiy maydonlar
+  `[redacted]`, telefon raqamlari qisman yashirilgan.
+- **Menyu xaritasi.** Tashqi taom ↔ RIZQIM taomi bog'lanishlari 5-bosqichda shu yerda bo'ladi.
+- **Qotib qolganlar.** Tashqi POS'ga yuborilgan, lekin 2 daqiqada tasdiqlanmagan ochiq buyurtmalar. Ular «Bugun → Diqqat
+  talab qiladi»da ham chiqadi. Buyurtma kodini bossangiz buyurtma kartasi ochiladi: ovqatxonaga qo'ng'iroq qiling yoki
+  buyurtmani u yerdan bekor qiling.
+
+## Ko'rsatkichlar
+
+Menyuda **Ko'rsatkichlar** ("Bugun"dan keyin). Moliya yoki ovqatxonalarni ko'rish ruxsati bor har bir xodim ochadi. Faqat o'qish:
+bu yerda hech narsa o'zgartirilmaydi. Tepada **Davr** (6, 12 yoki 24 oy) va **Yangilash** tugmasi: raqamlar 5 daqiqaga saqlanadi,
+tugma yangisini so'raydi. Oylar Toshkent vaqti bilan.
+
+### Kartalar
+
+- **MRR** — hozir pul to'layotgan ovqatxonalarning oylik obuna daromadi yig'indisi (yillik obuna 12 ga bo'linadi, tarifdan ortiq
+  kassa va oshxona ekranlari qo'shiladi). **Sinov davridagi ovqatxonalar kirmaydi.** Pastida: oy boshiga nisbatan o'zgarish.
+- **ARR** — MRR × 12. **Pullik ovqatxonalar** (sinovdagilar soni pastida). **ARPA** — bitta pullik ovqatxonadan o'rtacha.
+- **Faol ovqatxonalar** — holati "Faol" bo'lganlar. **Ketish** — oxirgi **tugagan** oy uchun (qaysi oy ekani yozilgan).
+- **GMV** va **Komissiya** — shu oyning, Telegram va mobil buyurtmalardan. Agar oyning ayrim kunlari hisoblanmagan bo'lsa,
+  kartada "raqamlar to'liq emas" deyiladi.
+
+### Grafiklar
+
+Har bir grafikda **Grafik / Jadval** tugmasi bor: jadval aynan o'sha raqamlarni to'liq beradi. Ustunning ustiga olib boring
+yoki unga Tab bilan o'ting — pastda o'qib beriladi. Och rangli ustun — tugamagan oy.
+
+- **MRR oylar bo'yicha** — har oy oxiridagi MRR.
+- **MRR harakati** — chiziqdan yuqorida **yangi** (to'lay boshlagan) va **o'sish** (tarif yoki qurilma ko'paygan), pastda
+  **kamayish** va **ketgan**. Jadvalda: boshida + yangi + o'sish − kamayish − ketgan = oxirida.
+- **Ketish (churn)** — oy boshida faol ovqatxonalardan nechtasi ketdi: faolligini yo'qotgan (to'xtatilgan, yopilgan) yoki obunasi
+  tugagan. Jadvalda har ikki sabab alohida va daromaddan foiz ham bor.
+- **Faol ovqatxonalar** — oy oxiridagi soni. **GMV** va **Komissiya** — oylar bo'yicha; hisoblanmagan kunlari bor oylar och rangda
+  va grafik tagida yozib qo'yiladi. Eski oylar uchun texnik xodim `php artisan admin:stats-backfill` ishga tushiradi.
+
+### Arizadan faol ovqatxonagacha
+
+Oxirgi N oyda tushgan arizalar: har bosqichga (ariza, tekshiruv, menyu, qurilmalar, o'qitish, sinov, faol) nechtasi yetgani, ulushi va
+arizalar o'sha bosqichda **o'rtacha (median) necha kun** turgani. Tepada **konversiya** (faol bo'lganlar ulushi) va "ariza → faol"
+medianasi. "Ariza va ovqatxonalar" havolasi ulash jarayoniga olib boradi. Median bosqichdan chiqqan arizalar bo'yicha hisoblanadi:
+"hali chiqqan yo'q" — hozircha hech kim o'tmagan.
+
+## Excel eksport
+
+Buyurtmalar, Ovqatxonalar, Ulash jarayoni (arizalar), Moliya (payoutlar, to'ldirishlar, balans va qarzlar), POS (hisob-fakturalar,
+qurilmalar) va Harakatlar jurnali ro'yxatlarida **Excel yuklab olish** tugmasi bor. Tugma faqat **Eksport** ruxsati borlarga
+ko'rinadi (standart: Moliya va Superadmin; rollar sahifasida o'zgartiriladi).
+
+- Fayl ekrandagi **filtrlar bo'yicha** tayyorlanadi: avval filtrni qo'ying, keyin yuklang. Fayl: birinchi varaq — ma'lumotlar,
+  ikkinchi "Ma'lumot" varag'i — qaysi ro'yxat, qachon, kim yuklagani va qaysi filtrlar.
+- **Eng ko'pi 50 000 qator.** Ro'yxat uzun bo'lsa, tugma tagida va faylda "kesildi" deyiladi: filtrni toraytiring (sana, ovqatxona,
+  holat) va qayta yuklang.
+- **Telefon raqamlari** ro'yxatdagidek yashirin; to'liq raqam faqat "to'liq telefon va karta" ruxsati borga (bu ham jurnalga yoziladi).
+  **Karta raqamlari faylda hamisha yashirin.**
+- Har bir eksport **harakatlar jurnaliga** yoziladi (kim, qaysi ro'yxat, filtrlar, nechta qator). Daqiqasiga 10 tadan ko'p eksport
+  qilib bo'lmaydi.
+- Matnlar katakda matn bo'lib qoladi (formula ishlamaydi); summalar son — Excel'da yig'ish mumkin.

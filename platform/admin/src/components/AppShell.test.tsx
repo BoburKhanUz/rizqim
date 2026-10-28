@@ -38,7 +38,7 @@ describe('AppShell', () => {
     renderShell();
     await screen.findByText('page content');
     expect(linkNames()).toEqual([
-      'Bugun', 'Buyurtmalar', 'Ovqatxonalar', 'POS va obunalar', 'Moliya', 'Mijozlar va yordam', 'Marketing', 'Monitoring', 'Integratsiyalar',
+      'Bugun', "Ko'rsatkichlar", 'Buyurtmalar', 'Ovqatxonalar', 'POS va obunalar', 'Moliya', 'Mijozlar va yordam', 'Marketing', 'Monitoring', 'Integratsiyalar',
       'Jamoa', 'Rollar', 'Harakatlar jurnali', 'Sessiyalarim',
     ]);
     expect(within(sidebar()).getByText('Tizim')).toBeInTheDocument();
@@ -50,7 +50,7 @@ describe('AppShell', () => {
     mockFetch({ 'GET /auth/me': () => json(meBody({ platform_role: 'operator', member: { id: 2, name: 'Sardor', email: 's@rizqim.uz', platform_role: 'operator' }, permissions: OPERATOR })) });
     renderShell();
     await screen.findByText('page content');
-    expect(linkNames()).toEqual(['Bugun', 'Buyurtmalar', 'Ovqatxonalar', 'POS va obunalar', 'Monitoring', 'Sessiyalarim']);
+    expect(linkNames()).toEqual(['Bugun', "Ko'rsatkichlar", 'Buyurtmalar', 'Ovqatxonalar', 'POS va obunalar', 'Monitoring', 'Sessiyalarim']);
     expect(screen.getByText('Operator')).toBeInTheDocument();
   });
 

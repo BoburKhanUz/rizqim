@@ -46,4 +46,16 @@ return [
         // 2FA can be set up only this long after an accepted invite or a 2FA reset (rizqim:admin:invite re-opens it)
         'setup_window_hours' => 24,
     ],
+
+    // P4-31 Ko'rsatkichlar: how long the metrics page's numbers are cached (MRR, churn: App\Services\Admin\Metrics)
+    'metrics' => [
+        'cache_seconds' => (int) env('ADMIN_METRICS_CACHE_SECONDS', 300),
+    ],
+
+    // P4-31 Excel export of the lists (App\Services\Admin\Export): the most rows one file holds, and how many exports
+    // one member may start a minute
+    'export' => [
+        'max_rows' => (int) env('ADMIN_EXPORT_MAX_ROWS', 50000),
+        'per_minute' => 10,
+    ],
 ];

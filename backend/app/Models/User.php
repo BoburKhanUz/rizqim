@@ -41,6 +41,9 @@ use SensitiveParameter;
  * @property int|null $two_factor_last_timestep
  * @property string|null $app_authentication_secret TOTP secret (encrypted cast from InteractsWithAppAuthentication)
  * @property array<int, string>|null $app_authentication_recovery_codes bcrypt hashes (encrypted:array cast)
+ * @property \Illuminate\Support\Carbon|null $blocked_at P4-31: blocked from Mijozlar va yordam (no sign-in, no token works)
+ * @property string|null $blocked_reason
+ * @property int|null $blocked_by
  */
 class User extends Authenticatable implements FilamentUser, HasTenants, HasAppAuthentication, HasAppAuthenticationRecovery
 {
@@ -102,6 +105,11 @@ class User extends Authenticatable implements FilamentUser, HasTenants, HasAppAu
         'platform_last_login_at',
         'two_factor_confirmed_at',
         'two_factor_last_timestep',
+        // P4-31: who blocked the account and why is the platform's business (App\Services\Admin\Customers\UserBlocking
+        // sets these; a blocked account gets no token anyway)
+        'blocked_at',
+        'blocked_reason',
+        'blocked_by',
     ];
 
     /**
@@ -125,6 +133,8 @@ class User extends Authenticatable implements FilamentUser, HasTenants, HasAppAu
             'platform_last_login_at' => 'datetime',
             'two_factor_confirmed_at' => 'datetime',
             'two_factor_last_timestep' => 'integer',
+            // P4-31: never mass assignable, App\Services\Admin\Customers\UserBlocking sets it
+            'blocked_at' => 'datetime',
         ];
     }
 
@@ -208,6 +218,14 @@ class User extends Authenticatable implements FilamentUser, HasTenants, HasAppAu
             || in_array($this->role, [\App\Enums\UserRole::SUPER_ADMIN, \App\Enums\UserRole::PLATFORM], true);
     }
 
+    /**
+     * P4-31: blocked in the Boshqaruv markazi (Mijozlar va yordam): signs in nowhere and no token of it works.
+     */
+    public function isBlocked(): bool
+    {
+        return $this->blocked_at !== null;
+    }
+
     public function isPlatformSuperadmin(): bool
     {
         return $this->platform_role === \App\Enums\PlatformRole::SUPERADMIN;
@@ -276,6 +294,11 @@ class User extends Authenticatable implements FilamentUser, HasTenants, HasAppAu
 
     public function canAccessPanel(Panel $panel): bool
     {
+        // P4-31: a blocked account is out of the old panels too
+        if ($this->blocked_at !== null) {
+            return false;
+        }
+
         // P4-11: a disabled superadmin is out of the old panels too; 2FA is required there (SuperadminPanelProvider)
         if ($this->role === \App\Enums\UserRole::SUPER_ADMIN && $this->platform_disabled_at !== null) {
             return false;

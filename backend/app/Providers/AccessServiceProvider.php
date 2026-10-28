@@ -88,7 +88,8 @@ class AccessServiceProvider extends ServiceProvider
             }
 
             $tokenable = $accessToken->tokenable;
-            if ($tokenable instanceof User && ($tokenable->isPlatformAccount() || $tokenable->platform_disabled_at !== null)) {
+            // P4-31: nor a token of an account blocked in Mijozlar va yordam
+            if ($tokenable instanceof User && ($tokenable->isPlatformAccount() || $tokenable->platform_disabled_at !== null || $tokenable->blocked_at !== null)) {
                 return false;
             }
 

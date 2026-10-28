@@ -5,13 +5,18 @@ import { I18nProvider } from './I18nProvider';
 import { Placeholder } from './Placeholder';
 
 describe('Placeholder', () => {
-  it.each(NAV_ITEMS.filter((item) => !item.built))('says calmly that "$key" comes in the next wave', (item) => {
+  // P4-31: every section is built now; the placeholder stays for a section added to the menu before its screen
+  it('says calmly that a section comes in the next wave', () => {
     render(
       <I18nProvider language="uz">
-        <Placeholder title={item.label} />
+        <Placeholder title="nav_integrations" />
       </I18nProvider>,
     );
-    expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Integratsiyalar');
     expect(screen.getByText("Bu bo'lim keyingi to'lqinda qo'shiladi")).toBeInTheDocument();
+  });
+
+  it('is no longer shown by any section of the menu', () => {
+    expect(NAV_ITEMS.filter((item) => !item.built).map((item) => item.key)).toEqual([]);
   });
 });

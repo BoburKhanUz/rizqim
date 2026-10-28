@@ -22,6 +22,7 @@ import { errorText } from '@/lib/errors';
 import { when } from '@/lib/format';
 import { OPS_EVENTS, usePlatformOps } from '@/lib/realtime';
 import { useCan } from '../AuthProvider';
+import { ExportButton } from '../ExportButton';
 import { useT } from '../I18nProvider';
 import { RegionSelect, StorePicker } from '../stores/StorePicker';
 import { SlaSettingsDialog } from './OrderDialogs';
@@ -150,6 +151,7 @@ export function OrdersView({ initial }: { initial?: Partial<Pick<OrderFilters, '
             {t('orders_slaSettings')}
           </Button>
         )}
+        <ExportButton list="orders" query={filters} className="sm:ml-auto" />
       </div>
 
       {can('orders.refund_approve') && queue.data && queue.data.data.length > 0 && (

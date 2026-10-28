@@ -521,6 +521,292 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/complaints": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Complaints
+         * @description Cursor pages (`cursor` from `next_cursor`, `per_page` 1–100, default 30). `status`: open (default: new and in
+         *     progress, the oldest first), new, in_progress, answered, resolved, all (newest first). `assigned`: me, none or a
+         *     member id; `type` (WRONG_ITEM, ORDER_NOT_RECEIVED, QUALITY_ISSUE, COURIER_ISSUE, PAYMENT_ISSUE, OTHER); `waiting=1`:
+         *     only the ones waiting longer than `waiting_hours` (open, not answered by the store); `q`: the order's code or a
+         *     word of the text. `counts` per support status plus `open` and `waiting`; `assignees`: the members a complaint
+         *     can be given to; `types` and `statuses`: the words.
+         */
+        get: operations["admin.support.complaints"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/complaints/{uuid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Complaint card
+         * @description The row plus the full `description`, the `customer` (phone masked unless admin.pii.view; a reveal is audited;
+         *     `telegram_linked` says whether a reply can reach them), the `order`, `store_reply` (the store's own answer),
+         *     `replies` (what support sent), `resolution` (note, by, at), `history` (its audit trail) and `actions` (reply,
+         *     resolve, reopen).
+         */
+        get: operations["admin.support.complaint"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Take or move a complaint
+         * @description `support_status` (new, in_progress, answered — `resolved` is the resolve action: 422 `use_resolve`) and/or
+         *     `assigned_to` (a team member with support.view, or null; 422 `assignee_invalid`). Moving to in_progress without
+         *     an assignee gives it to you; moving a resolved one back reopens it. Answers the card.
+         */
+        patch: operations["admin.support.complaint_updated"];
+        trace?: never;
+    };
+    "/v1/admin/complaints/{uuid}/reply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reply to the customer
+         * @description `text` (1–1000 characters, plain text) goes to the customer's Telegram through the RIZQIM bot, queued; kept in
+         *     the complaint's `replies`; the complaint becomes `answered` (and yours, if nobody had it). `canned_reply_id`: the
+         *     tayyor javob it started from (optional). 422 `no_recipient` (no Telegram), 503 `telegram_not_configured`, 409
+         *     `already_resolved`. Answers the card.
+         */
+        post: operations["admin.support.complaint_replied"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/complaints/{uuid}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resolve a complaint
+         * @description `note` (3–1000 characters): how it was solved. The complaint becomes `resolved`, and the store flow is closed
+         *     with the note as its resolution (the customer reads it in the Mini App). 409 `already_resolved`. Answers the card.
+         */
+        post: operations["admin.support.complaint_resolved"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/exports/audit-logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export the audit log
+         * @description The filters of GET /admin/audit-logs: `actor_id`, `action`, `store_id`, `subject_type`, `subject_id`, `from`, `to`,
+         *     `q`. Needs admin.export and admin.audit.view.
+         */
+        get: operations["admin.exports.audit_logs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/exports/finance/balances": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export store balances and debts
+         * @description The filters of GET /admin/finance/balances: `filter`, `q`. Needs admin.export and admin.finance.view.
+         */
+        get: operations["admin.exports.finance_balances"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/exports/finance/payouts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export payout requests
+         * @description The filters of GET /admin/finance/payouts: `status` (default `open`), `store_id`. Cards are always masked. Needs
+         *     admin.export and admin.finance.view.
+         */
+        get: operations["admin.exports.finance_payouts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/exports/finance/topups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export balance top-ups
+         * @description The filters of GET /admin/finance/topups: `status`, `provider`, `store_id`, `stuck`. Needs admin.export and
+         *     admin.finance.view.
+         */
+        get: operations["admin.exports.finance_topups"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/exports/orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export orders
+         * @description The filters of GET /admin/orders: `status` (group), `channel`, `region_id`, `store_id`, `sla`, `from`, `to`, `q`.
+         *     Needs admin.export and admin.orders.view.
+         */
+        get: operations["admin.exports.orders"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/exports/pos/devices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export devices
+         * @description The filters of GET /admin/pos/devices: `state`, `type`, `terminal`, `store_id`, `outdated`, `q`. Needs
+         *     admin.export and admin.devices.view.
+         */
+        get: operations["admin.exports.pos_devices"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/exports/pos/invoices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export subscription invoices
+         * @description The filters of GET /admin/pos/invoices: `status`, `store_id`, `period`, `dunning`, `q`. Needs admin.export and
+         *     admin.subscriptions.manage or admin.finance.view.
+         */
+        get: operations["admin.exports.pos_invoices"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/exports/store-applications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export store applications
+         * @description The filters of GET /admin/store-applications: `stage` (also `open`, `overdue`), `assignee_id` (or `me`), `source`,
+         *     `q`. Needs admin.export and admin.stores.view.
+         */
+        get: operations["admin.exports.store_applications"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/exports/stores": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export stores
+         * @description The filters of GET /admin/stores: `q`, `status`, `region_id`, `health`, `plan`, `debt`, `next_contact`. Needs
+         *     admin.export and admin.stores.view.
+         */
+        get: operations["admin.exports.stores"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/finance/adjustments": {
         parameters: {
             query?: never;
@@ -902,6 +1188,503 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/integrations/connections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Connections
+         * @description Pages (`page`, `per_page` 1-100, default 30), the least healthy first. Filters: `status` (configuring, active,
+         *     paused, disconnected), `provider` (iiko, alipos, yandex_eats, uzum_tezkor, partner_api, ...), `direction`
+         *     (rizqim_to_pos, aggregator_to_rizqim), `mode` (sandbox, production), `health` (good: score 80+, attention: 50-79,
+         *     disconnected: under 50, unknown: no score yet), `store_id`, `q` (store or branch name). `counts` ignore the
+         *     filters. Empty until phase 5 connects the first system.
+         */
+        get: operations["admin.integrations.connections"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/integrations/connections/{uuid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A connection
+         * @description The list row plus `credentials` (key names, `configured`, `last4`), `settings` (secret-looking keys
+         *     "[redacted]", phones masked), the last 10 events, the menu map counts (`external_refs` by type) and how many of
+         *     its orders are stuck.
+         */
+        get: operations["admin.integrations.connection"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/integrations/connections/{uuid}/pause": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pause a connection
+         * @description `reason`. Nothing is sent to or taken from the outside system while it is paused (phase 5 adapters check it).
+         *     Pausing a paused one changes nothing. Answers the card.
+         */
+        post: operations["admin.integrations.connection_paused"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/integrations/connections/{uuid}/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resume a connection
+         * @description `reason`. Back to the status it had before the pause. Resuming one that is not paused changes nothing.
+         */
+        post: operations["admin.integrations.connection_resumed"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/integrations/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Integration events
+         * @description Newest first, by cursor (`cursor` from `next_cursor`, `per_page` 1-100, default 25). Filters: `connection` (uuid),
+         *     `store_id`, `status` (pending, sent, acknowledged, failed, dead), `type` (order.push, menu.sync, webhook.status,
+         *     ...), `direction` (inbound, outbound), `from` / `to` (Y-m-d, Tashkent). The rows have no bodies; the event does.
+         */
+        get: operations["admin.integrations.events"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/integrations/events/{uuid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * An integration event
+         * @description The row plus the idempotency key, the signature check, the last attempt and the request and response bodies
+         *     (keys that look secret "[redacted]", phone numbers masked).
+         */
+        get: operations["admin.integrations.event"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/integrations/stuck-orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stuck orders
+         * @description Orders pushed to an outside POS and not confirmed for 2 minutes while still open, the oldest first (at most
+         *     100; `count` is all of them). Empty until phase 5.
+         */
+        get: operations["admin.integrations.stuck_orders"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/marketing/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Categories
+         * @description Every category (top-level and inner) in the Mini App's order (`sort_order`), with its product and sub-category
+         *     counts. `is_active` false = hidden from the catalog (its products stay). `image_preview` is the admin path of the
+         *     icon (GET, same session), `image_url` its public URL.
+         */
+        get: operations["admin.marketing.categories"];
+        put?: never;
+        /**
+         * New category
+         * @description multipart/form-data: `name` (2-255), `parent_id` (a top-level category; empty = top-level itself), `image` (the
+         *     icon: JPEG, PNG or WebP, up to 4 MB, optional), `is_active` (1/0, default 1), `reason`. It goes to the end of the
+         *     list. Answers the row (201). 422 `invalid_parent`.
+         */
+        post: operations["admin.marketing.categories.created"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/marketing/categories/order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Order the categories
+         * @description `ids`: every category id, once, in the new order (the whole list; one that is out of date is refused with 409
+         *     `order_stale`), and `reason`. Answers the list.
+         */
+        put: operations["admin.marketing.categories.reordered"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/marketing/categories/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Change a category
+         * @description POST (multipart/form-data or JSON). Any of `name`, `parent_id` (empty = top-level; a category with sub-categories
+         *     cannot become one), `is_active` (hide or show), `image` (a new icon replaces the old one), `remove_image` (1:
+         *     drop the icon), and `reason` (required). Answers the row.
+         */
+        post: operations["admin.marketing.categories.updated"];
+        /**
+         * Delete a category
+         * @description Only one with no products and no sub-categories (409 `category_in_use` otherwise: hide it instead). Needs a
+         *     step-up and a `reason`. Answers `{id}`.
+         */
+        delete: operations["admin.marketing.categories.deleted"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/marketing/categories/{id}/image": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Category icon
+         * @description The stored icon (JPEG, PNG or WebP) for the admin screens. 404 `no_image` when there is none.
+         */
+        get: operations["admin.marketing.categories.image"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/marketing/lookup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Store and product picker
+         * @description `q`: up to 20 stores whose name matches; `store_id` + `q`: up to 20 of that store's products by name;
+         *     `ids[]` / `product_ids[]`: those stores / products (to show a chosen value's name). Without anything: the first
+         *     20 stores by name.
+         */
+        get: operations["admin.marketing.lookup"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/marketing/promo-codes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Promo codes
+         * @description Pages (`page`, `per_page` 1-100, default 30). Filters: `q` (part of the code), `status` (active, inactive,
+         *     expired, exhausted), `store_id` (codes tied to that store). `sort`: newest (default), code, expiry. Money as
+         *     decimal strings; `value` is a percent for `percentage` codes and so'm for `fixed` ones.
+         *
+         *     `stats` counts the orders that use the code and are still standing (not cancelled, rejected or refunded, the
+         *     same orders the limits count): `uses`, `unique_customers`, `discount_total` (so'm given away) and `gmv` (the
+         *     orders' totals after the discount). `locked`: some order carries the code, so its value can no longer change.
+         */
+        get: operations["admin.marketing.promo_codes"];
+        put?: never;
+        /**
+         * New promo code
+         * @description `code` (3-50 letters, digits, `-` or `_`; stored upper case, one per code), `type` (`percentage` or `fixed`),
+         *     `value` (percentage: above 0, up to 100, two decimals; fixed: whole so'm above 0), `min_order_amount` (so'm,
+         *     default 0), `max_discount_amount` (a cap in so'm, only for `percentage`; ignored for `fixed`), `usage_limit`
+         *     (total uses, empty = unlimited), `per_user_limit` (uses per customer, empty = unlimited), `store_id` (empty = every
+         *     store), `is_active` (default true), `expires_at` (ISO 8601, in the future, empty = never), `reason`. Answers the
+         *     row (201). 422 `invalid_value` when the value does not fit the type.
+         */
+        post: operations["admin.marketing.promo_codes.created"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/marketing/promo-codes/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Promo code card
+         * @description The row and `recent_orders`: the last 10 orders that carry the code (uuid for the order card, status, discount
+         *     and total as decimal strings).
+         */
+        get: operations["admin.marketing.promo_code"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete a promo code
+         * @description Only a code no order ever carried; a used one is switched off instead (409 `promo_code_used`). Needs a step-up and
+         *     a `reason`. Answers `{id}`.
+         */
+        delete: operations["admin.marketing.promo_codes.deleted"];
+        options?: never;
+        head?: never;
+        /**
+         * Change a promo code
+         * @description Any field of the new code, and `reason` (required). Once an order carries the code, `code`, `type`, `value`,
+         *     `max_discount_amount` and `store_id` cannot change: 422 `promo_code_used` with `data.fields` (create a new code
+         *     and switch the old one off). The limits, `min_order_amount`, `expires_at` and `is_active` stay editable.
+         */
+        patch: operations["admin.marketing.promo_codes.updated"];
+        trace?: never;
+    };
+    "/v1/admin/marketing/promo-codes/{id}/activate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Switch a code on
+         * @description `reason` required. Answers the card.
+         */
+        post: operations["admin.marketing.promo_codes.activated"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/marketing/promo-codes/{id}/deactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Switch a code off
+         * @description The code stops working at once (the order flow checks it on every order); orders already placed keep it.
+         *     `reason` required. Answers the card.
+         */
+        post: operations["admin.marketing.promo_codes.deactivated"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/marketing/promos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Banners and promotions
+         * @description Every banner in the Mini App's order (`sort_order`), at most 200. Filters: `status` (live, scheduled, ended,
+         *     inactive), `q` (part of the title). `status` is computed now (Asia/Tashkent): inactive = switched off; scheduled =
+         *     `starts_at` still ahead; ended = `ends_at` passed; live = what the Mini App shows. `image_preview` is the admin
+         *     path of the image (GET, same session), `image_url` the public URL the Mini App uses.
+         */
+        get: operations["admin.marketing.promos"];
+        put?: never;
+        /**
+         * New banner
+         * @description multipart/form-data: `title` (2-255), `image` (JPEG, PNG or WebP, up to 4 MB, required), `store_id` and/or
+         *     `product_id` (what a tap opens; a product must belong to the store when both are given), `is_active` (1/0,
+         *     default 1), `starts_at` / `ends_at` (ISO 8601, `ends_at` after `starts_at`, else 422 `invalid_schedule`; both empty = always), `reason`. It
+         *     goes to the end of the row. Answers the banner (201).
+         */
+        post: operations["admin.marketing.promos.created"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/marketing/promos/order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Order the banners
+         * @description `ids`: every banner id, once, in the new order (the whole row; a list that is out of date is refused with 409
+         *     `order_stale` so nobody overwrites a colleague's order), and `reason`. Answers the list.
+         */
+        put: operations["admin.marketing.promos.reordered"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/marketing/promos/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What the Mini App shows
+         * @description The banners the home screen lists right now, in its order: the same query as `GET /catalog` without a store
+         *     (switched on and inside their schedule). `image_preview` as in the list.
+         */
+        get: operations["admin.marketing.promos.preview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/marketing/promos/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Change a banner
+         * @description POST (multipart/form-data or JSON; PHP does not read a multipart PATCH). Any of `title`, `image` (a new file
+         *     replaces the old one), `store_id`, `product_id` (empty clears), `is_active`, `starts_at`, `ends_at` (empty clears),
+         *     and `reason` (required). Answers the banner.
+         */
+        post: operations["admin.marketing.promos.updated"];
+        /**
+         * Delete a banner
+         * @description Needs a step-up and a `reason`. The banner and its stored image go; the audit entry keeps its fields. Answers
+         *     `{id}`.
+         */
+        delete: operations["admin.marketing.promos.deleted"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/marketing/promos/{id}/image": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Banner image
+         * @description The stored image itself (JPEG, PNG or WebP) for the admin screens, which cannot load the public storage URL.
+         *     404 `no_image` when there is none (or it is an outside URL).
+         */
+        get: operations["admin.marketing.promos.image"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/me": {
         parameters: {
             query?: never;
@@ -911,6 +1694,59 @@ export interface paths {
         };
         /** The signed-in member (alias of GET /admin/auth/me) */
         get: operations["admin.me"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Metrics
+         * @description `months` — how many months back (3–24, default 12; the last one is the month in progress, `partial: true`).
+         *     `cards`: `mrr` (monthly recurring revenue now: active subscriptions' monthly price, a yearly one divided by 12,
+         *     extra terminals included, trials left out) with `mrr_change` against the start of the month, `arr` (= MRR × 12),
+         *     `paying_stores`, `trialing_stores`, `arpa` (MRR per paying store), `active_stores`, `churn_rate` of the latest
+         *     finished month (`churn_month`), `gmv_month` and `commission_month` of the month so far. `series`: per month the
+         *     MRR at its end, paying, trialing and active stores. `movement`: per month `opening` → `new` / `expansion` /
+         *     `contraction` / `churned` (`mrr` and the number of `stores`) → `closing`. `churn`: per month the stores active at
+         *     the start, how many churned (went inactive, or their subscription ended), `rate` and `revenue_rate` in percent.
+         *     `revenue`: per month marketplace `orders`, `gmv`, `commission` and paid subscription invoices from the Bugun
+         *     aggregate, with `missing_days` / `complete` when the aggregate lacks days. Money is a decimal string. Cached a few
+         *     minutes (`generated_at`).
+         */
+        get: operations["admin.metrics.overview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/metrics/funnel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Conversion funnel
+         * @description Store applications created in the last `months` months (3–24, default 12) by pipeline stage: `reached` — how many
+         *     got to the stage or further, `share` of all applications in percent, `median_days` spent in the stage before
+         *     moving on (null while nobody has). Totals: `applications`, `active`, `rejected`, `open`, `conversion` (active ÷
+         *     all, percent) and `median_days_to_active`. Stage moves are read from the audit log.
+         */
+        get: operations["admin.metrics.funnel"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2326,6 +3162,414 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/support/canned-replies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Tayyor javoblar
+         * @description Every one, in `sort_order` then creation order.
+         */
+        get: operations["admin.support.canned_replies"];
+        put?: never;
+        /**
+         * Add a tayyor javob
+         * @description `title` (1–120), `body` (1–1000, plain text), `sort_order` (0–1000, optional). At most 200; 422 `limit_reached`.
+         */
+        post: operations["admin.support.canned_reply_created"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/support/canned-replies/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a tayyor javob
+         * @description Replies sent from it keep their text.
+         */
+        delete: operations["admin.support.canned_reply_deleted"];
+        options?: never;
+        head?: never;
+        /**
+         * Change a tayyor javob
+         * @description Any of `title`, `body`, `sort_order`.
+         */
+        patch: operations["admin.support.canned_reply_updated"];
+        trace?: never;
+    };
+    "/v1/admin/support/suspicious": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Suspicious cases
+         * @description Three `groups` (`kind`: cancellations, promo_sharing, refunds), each with its `label`, a `description` of the rule
+         *     and at most 50 `rows`: `user` (the account to open), `accounts` (promo_sharing: every account that shares the
+         *     phone or Telegram), `reason` (why, in words), `metric` (the count, or the refunded total as a decimal string),
+         *     `since` (the last event), `href` (/users/{id}). Thresholds: config/support.php.
+         */
+        get: operations["admin.support.suspicious"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/system/districts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a district
+         * @description `reason`. Only one nothing uses.
+         */
+        delete: operations["admin.system.district_deleted"];
+        options?: never;
+        head?: never;
+        /**
+         * Change a district
+         * @description `name`, `is_active` and/or `region_id` (move to another region: only a district nothing uses), `reason`.
+         */
+        patch: operations["admin.system.district_updated"];
+        trace?: never;
+    };
+    "/v1/admin/system/feature-flags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Feature flags
+         * @description Every flag with its description, the default (for a store without its own value) and how many stores have it on
+         *     and off.
+         */
+        get: operations["admin.system.feature_flags"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/system/feature-flags/stores": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stores and their flags
+         * @description Pages (`page`, `per_page` 1-100, default 30) of stores by name (`q`: part of the name). For each flag: `active`
+         *     and `stored` (the store has its own value; false = it follows the default).
+         */
+        get: operations["admin.system.feature_flag_stores"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/system/feature-flags/stores/{storeId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Back to the defaults
+         * @description `reason`. Forgets every own value of the store (the old panel's "Standartga qaytarish"). Answers the store's row.
+         */
+        delete: operations["admin.system.feature_flags_reset"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/system/feature-flags/{flag}/stores/{storeId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Switch a flag for a store
+         * @description `active` (true | false), `reason`. Answers the store's row.
+         */
+        put: operations["admin.system.feature_flag_set"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/system/payment-providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Payment providers
+         * @description Each with `is_active`, `mode` (test | production), `wired` (checkout and webhooks use it: Payme and Click) and its
+         *     credentials: `configured`, `last4` and `source` (`settings` — stored here, `env` — config/services.php, null).
+         */
+        get: operations["admin.system.payment_providers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/system/payment-providers/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Switch a provider
+         * @description `is_active` and/or `mode` (test | production), `reason`. Answers the provider.
+         */
+        patch: operations["admin.system.payment_provider_updated"];
+        trace?: never;
+    };
+    "/v1/admin/system/payment-providers/{slug}/credentials/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Replace a credential
+         * @description `value` (1-500 characters), `reason`. The key is one the provider's code knows (Payme: merchant_id, secret_key;
+         *     Click: service_id, merchant_id, secret_key, merchant_user_id; ...) or one already stored; else 422 `unknown_key`.
+         */
+        put: operations["admin.system.payment_credential_replaced"];
+        post?: never;
+        /**
+         * Clear a credential
+         * @description `reason`. The stored value goes; config/services.php (.env) applies again.
+         */
+        delete: operations["admin.system.payment_credential_cleared"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/system/regions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Regions and districts
+         * @description Every region (by `sort_order`, then name) with its districts and what uses them: `usage` (branches, addresses,
+         *     applications) and `deletable`.
+         */
+        get: operations["admin.system.regions"];
+        put?: never;
+        /**
+         * Add a region
+         * @description `name` (2-120, unique), `is_active` (default false), `reason`. It goes to the end of the order.⚠️ Cannot generate request documentation: Cannot evaluate validation rules (1 evaluators failed):
+         *       [NodeRulesEvaluator] Cannot access private constant App\Http\Controllers\Api\V1\Admin\AdminSystemLocationController::NAME (at /home/user/rizqim/backend/vendor/dedoc/scramble/src/Support/OperationExtensions/RulesEvaluator/ConstFetchEvaluator.php:42)
+         */
+        post: operations["admin.system.region_created"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/system/regions/order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Order the regions
+         * @description `ids`: every region id once, in the new order; `reason`. Else 422 `order_mismatch`. Answers the list.
+         */
+        put: operations["admin.system.regions_ordered"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/system/regions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a region
+         * @description `reason`. Only one nothing uses and without districts.
+         */
+        delete: operations["admin.system.region_deleted"];
+        options?: never;
+        head?: never;
+        /**
+         * Change a region
+         * @description `name` and/or `is_active`, `reason`.
+         */
+        patch: operations["admin.system.region_updated"];
+        trace?: never;
+    };
+    "/v1/admin/system/regions/{id}/districts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add a district
+         * @description `name` (2-120, unique in the region), `is_active` (default false), `reason`. It goes to the end of the region.⚠️ Cannot generate request documentation: Cannot evaluate validation rules (1 evaluators failed):
+         *       [NodeRulesEvaluator] Cannot access private constant App\Http\Controllers\Api\V1\Admin\AdminSystemLocationController::NAME (at /home/user/rizqim/backend/vendor/dedoc/scramble/src/Support/OperationExtensions/RulesEvaluator/ConstFetchEvaluator.php:42)
+         */
+        post: operations["admin.system.district_created"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/system/regions/{id}/districts/order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Order a region's districts
+         * @description `ids`: every district of the region once, in the new order; `reason`. Answers the region.
+         */
+        put: operations["admin.system.districts_ordered"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/system/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Settings
+         * @description Groups `sms`, `telegram`, `general`. `editable=false` items come from the server's configuration (.env) and only
+         *     show. `source`: `settings` (stored here), `env`, `default` (the code's own) or null (not set). A secret
+         *     (`secret=true`) has `value: null`, `configured` and `last4` (null for a value under 8 characters).
+         */
+        get: operations["admin.system.settings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change settings
+         * @description `values` {key: value} of the plain settings (`sms_driver`: log | eskiz, `eskiz_email`, `eskiz_from`), `reason`. An
+         *     empty value removes the stored one (the .env value or the default applies). A secret key here is 422
+         *     `secret_separate`; Eskiz without its email and password 422 `eskiz_not_configured`. Answers every group.
+         */
+        patch: operations["admin.system.settings_updated"];
+        trace?: never;
+    };
+    "/v1/admin/system/settings/secrets/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Replace a secret
+         * @description `value` (1-500 characters), `reason`. Only `eskiz_password` today. The answer and the audit entry never hold the
+         *     value: the entry says which setting and whether it was set before.
+         */
+        put: operations["admin.system.setting_secret_replaced"];
+        post?: never;
+        /**
+         * Clear a secret
+         * @description `reason`. The stored value goes; the .env value applies again (if there is one). The Eskiz password cannot be
+         *     cleared while SMS goes through Eskiz (422 `in_use`).
+         */
+        delete: operations["admin.system.setting_secret_cleared"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/team": {
         parameters: {
             query?: never;
@@ -2468,6 +3712,122 @@ export interface paths {
         get: operations["admin.today.attention"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Users
+         * @description Newest first, cursor pages (`cursor` from `next_cursor`, `per_page` 1–100, default 30). Filters: `role`
+         *     (customer, courier, staff — every store role but the courier —, owner, manager, cashier, waiter, cook),
+         *     `status` (active, blocked), `store_id`, `q`: a part of the name, or a phone — without admin.pii.view only the
+         *     whole number (`+998901234567`, `90 123 45 67`...), with it any 4+ digits. `roles`: the role filter's words.
+         */
+        get: operations["admin.users"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/users/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * User card
+         * @description `profile` (phone masked unless admin.pii.view; a reveal is audited), `block` (blocked, when, by whom, why),
+         *     `stats` (orders, delivered, cancelled, delivered total, average check, last order, segment), `orders` (the last
+         *     20, links to /orders/{uuid}) and `refunds` (refund requests for their orders) — null without admin.orders.view;
+         *     `keshbek` (`balance` and its movements read back from payments and referral rewards), `complaints` (null without
+         *     admin.support.view), `sessions` (live tokens — never an admin session —, refresh sessions, last use, the
+         *     person's devices), `membership` (a store staff account's store, branch, role, login phone; null for customers),
+         *     `linked_accounts` (other accounts with the same phone or Telegram), `audit` (entries about this account; null
+         *     without admin.audit.view), `actions` (block, unblock, close_sessions: admin.support.manage). A RIZQIM team account
+         *     is 404 here.
+         */
+        get: operations["admin.users.user"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/users/{id}/block": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Block a user
+         * @description The account signs in nowhere (Telegram, SMS code, refresh, staff PIN: 403 `account_blocked`), its tokens stop
+         *     working and every session ends now, so it cannot order; a blocked staff member's Telegram order buttons stop too.
+         *     A blocked owner's store keeps working (suspend the store in Ovqatxonalar). `reason` is required and shown on the
+         *     card. Answers the card. 409 `already_blocked`, 403 `platform_account`.
+         */
+        post: operations["admin.users.blocked"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/users/{id}/close-sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Close all sessions
+         * @description Ends every session of the account: Mini App and app tokens, refresh tokens, staff PIN sessions on terminals (a
+         *     terminal's own pairing stays); its devices stop getting pushes. The person can sign in again (unless blocked).
+         *     `reason` is required. Answers the card; the counts are in the audit entry.
+         */
+        post: operations["admin.users.sessions_closed"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/users/{id}/unblock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Unblock a user
+         * @description Clears the block; the person signs in again. `reason` is required. Answers the card. 409 `not_blocked`.
+         */
+        post: operations["admin.users.unblocked"];
         delete?: never;
         options?: never;
         head?: never;
@@ -7063,10 +8423,40 @@ export interface components {
             created_at: string | null;
             /** Format: date-time */
             updated_at: string | null;
+            support_status: components["schemas"]["ComplaintSupportStatus"];
+            /** Format: date-time */
+            support_status_changed_at: string | null;
+            /** Format: date-time */
+            answered_at: string | null;
+            /** Format: date-time */
+            resolved_at: string | null;
             order?: components["schemas"]["Order"];
             user?: components["schemas"]["User"];
             resolver?: components["schemas"]["User"] | null;
+            assignee?: components["schemas"]["User"] | null;
+            replies?: components["schemas"]["ComplaintReply"][];
         };
+        /** ComplaintReply */
+        ComplaintReply: {
+            id: number;
+            complaint_id: number;
+            author_id: number | null;
+            body: string;
+            canned_reply_id: number | null;
+            channel: string;
+            /** Format: date-time */
+            created_at: string | null;
+            /** Format: date-time */
+            updated_at: string | null;
+            complaint?: components["schemas"]["Complaint"];
+            author?: components["schemas"]["User"] | null;
+        };
+        /**
+         * ComplaintSupportStatus
+         * @description P4-31: where a complaint is on the RIZQIM support side (complaints.support_status, Mijozlar va yordam → Shikoyatlar): new → in_progress (someone took it) → answered (support wrote to the customer) → resolved (closed with a note). The customer ↔ store flow (complaints.status: pending, owner_replied, in_review, closed) runs beside it.
+         * @enum {string}
+         */
+        ComplaintSupportStatus: "new" | "in_progress" | "answered" | "resolved";
         /**
          * CourierType
          * @description Whose courier it is: the restaurant's own staff or the platform's fleet. Dispatch by type comes in phase 4.
@@ -7183,6 +8573,7 @@ export interface components {
             created_at: string | null;
             /** Format: date-time */
             updated_at: string | null;
+            sort_order: number;
             region?: components["schemas"]["Region"];
         };
         /**
@@ -7224,6 +8615,42 @@ export interface components {
             branch?: components["schemas"]["Branch"];
             tables?: components["schemas"]["DiningTable"][];
         };
+        /**
+         * IntegrationConnectionStatus
+         * @description P4-31: a connection's state. `paused` is set by the team (Integratsiyalar, with a reason); `disconnected` by the health check when the outside system stops answering (phase 5).
+         * @enum {string}
+         */
+        IntegrationConnectionStatus: "configuring" | "active" | "paused" | "disconnected";
+        /**
+         * IntegrationDirection
+         * @description P4-31: which way a connection carries orders (docs/PHASE5_PLAN.md 3): A — a RIZQIM marketplace order goes to the venue's own POS; B — an aggregator's order (Yandex Eats, Uzum Tezkor) comes to Rizqim POS.
+         * @enum {string}
+         */
+        IntegrationDirection: "rizqim_to_pos" | "aggregator_to_rizqim";
+        /**
+         * IntegrationEventDirection
+         * @description P4-31: whether a journaled call came to RIZQIM (a webhook, an aggregator's request) or went out from it.
+         * @enum {string}
+         */
+        IntegrationEventDirection: "inbound" | "outbound";
+        /**
+         * IntegrationEventStatus
+         * @description P4-31: a journaled call's state (docs/PHASE5_PLAN.md 4.4): waiting, sent, confirmed by the other side, failed (it will be retried: 1, 2, 4 ... 32 minutes) and dead (out of retries; an alert).
+         * @enum {string}
+         */
+        IntegrationEventStatus: "pending" | "sent" | "acknowledged" | "failed" | "dead";
+        /**
+         * IntegrationMode
+         * @description P4-31: a sandbox connection never touches a real kitchen or real money (docs/PHASE5_PLAN.md 4.6).
+         * @enum {string}
+         */
+        IntegrationMode: "sandbox" | "production";
+        /**
+         * IntegrationProvider
+         * @description P4-31: the outside systems an IntegrationConnection can point at (docs/PHASE5_PLAN.md 3, 4.3). Phase 5 adds adapters for them; adding a provider later is adding a case here.
+         * @enum {string}
+         */
+        IntegrationProvider: "iiko" | "alipos" | "r_keeper" | "clopos" | "poster" | "mison" | "regos" | "yandex_eats" | "uzum_tezkor" | "partner_api" | "fake";
         /**
          * InvoiceKind
          * @description P4-21: what a subscription invoice bills. monthly: a month that ended (base fee, extra devices, discount; for a yearly subscription only its extra devices); yearly: a yearly term in advance; upgrade: the prorated difference of an immediate upgrade of a yearly subscription.
@@ -7460,6 +8887,7 @@ export interface components {
             discount_by: number | null;
             commission_channel: string | null;
             commission_rate: string | null;
+            fiscalized_by: string | null;
             type: string;
             address: string | null;
             store?: components["schemas"]["Store"];
@@ -7897,6 +9325,7 @@ export interface components {
             is_active: boolean;
             created_at: string | null;
             updated_at: string | null;
+            sort_order: number;
             districts?: components["schemas"]["District"][];
         };
         /**
@@ -9686,6 +11115,561 @@ export interface operations {
             422: components["responses"]["ValidationException"];
         };
     };
+    "admin.support.complaints": {
+        parameters: {
+            query?: {
+                status?: "open" | "new" | "in_progress" | "answered" | "resolved" | "all" | null;
+                assigned?: string | null;
+                type?: "WRONG_ITEM" | "ORDER_NOT_RECEIVED" | "QUALITY_ISSUE" | "COURIER_ISSUE" | "PAYMENT_ISSUE" | "OTHER" | null;
+                waiting?: boolean | null;
+                q?: string | null;
+                per_page?: number | null;
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            data: {
+                                uuid: string;
+                                type: string;
+                                type_label: string;
+                                description: string | null;
+                                support_status: string;
+                                support_status_label: string;
+                                store_flow: string;
+                                store_flow_label: string;
+                                escalated: boolean;
+                                store_replied: boolean;
+                                waiting: boolean;
+                                customer: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                order: {
+                                    uuid: string;
+                                    short_code: string | null;
+                                } | null;
+                                store: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                assignee: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                created_at: string | null;
+                                answered_at: string | null;
+                                resolved_at: string | null;
+                            }[];
+                            next_cursor: string | null;
+                            per_page: number;
+                            counts: {
+                                [key: string]: number;
+                            };
+                            waiting_hours: number;
+                            assignees: {
+                                id: number;
+                                name: string;
+                            }[];
+                            types: {
+                                [key: string]: string;
+                            };
+                            statuses: {
+                                [key: string]: string;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.support.complaint": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.support.complaint_updated": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    support_status?: "new" | "in_progress" | "answered" | "resolved";
+                    assigned_to?: number | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resolve needs a note (use_resolve), or the assignee cannot take complaints (assignee_invalid) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.support.complaint_replied": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    text: string;
+                    canned_reply_id?: number | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Already resolved (already_resolved) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The customer has no Telegram (no_recipient) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.support.complaint_resolved": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    note: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Already resolved (already_resolved) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.exports.audit_logs": {
+        parameters: {
+            query?: {
+                actor_id?: number | null;
+                action?: string | null;
+                store_id?: number | null;
+                subject_type?: string | null;
+                subject_id?: number | null;
+                from?: string | null;
+                to?: string | null;
+                q?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description An .xlsx file: sheet "Jurnal" and the info sheet */
+            200: {
+                headers: {
+                    /** @example attachment; filename=.xlsx */
+                    "Content-Disposition": string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": string;
+                    "application/json": string;
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "admin.exports.finance_balances": {
+        parameters: {
+            query?: {
+                filter?: "all" | "debt" | "over_limit" | "subscription_debt" | "wallet" | null;
+                q?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description An .xlsx file: sheet "Balanslar" and the info sheet */
+            200: {
+                headers: {
+                    /** @example attachment; filename=.xlsx */
+                    "Content-Disposition": string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": string;
+                    "application/json": string;
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "admin.exports.finance_payouts": {
+        parameters: {
+            query?: {
+                status?: "open" | "pending" | "awaiting_second" | "completed" | "rejected" | "all" | null;
+                store_id?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description An .xlsx file: sheet "Payoutlar" and the info sheet */
+            200: {
+                headers: {
+                    /** @example attachment; filename=.xlsx */
+                    "Content-Disposition": string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": string;
+                    "application/json": string;
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "admin.exports.finance_topups": {
+        parameters: {
+            query?: {
+                status?: "pending" | "paid" | "cancelled" | "all" | null;
+                provider?: "click" | "payme" | null;
+                store_id?: number | null;
+                stuck?: boolean | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description An .xlsx file: sheet "Balans to'ldirishlar" and the info sheet */
+            200: {
+                headers: {
+                    /** @example attachment; filename=.xlsx */
+                    "Content-Disposition": string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": string;
+                    "application/json": string;
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "admin.exports.orders": {
+        parameters: {
+            query?: {
+                status?: "active" | "new" | "kitchen" | "en_route" | "done" | "canceled" | null;
+                channel?: "telegram" | "mobile" | null;
+                region_id?: number | null;
+                store_id?: number | null;
+                sla?: "late" | "warning" | null;
+                from?: string | null;
+                to?: string | null;
+                q?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description An .xlsx file: sheet "Buyurtmalar" and the info sheet "Ma'lumot" */
+            200: {
+                headers: {
+                    /** @example attachment; filename=.xlsx */
+                    "Content-Disposition": string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": string;
+                    "application/json": string;
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "admin.exports.pos_devices": {
+        parameters: {
+            query?: {
+                state?: "online" | "offline" | "never" | "revoked" | "all" | null;
+                type?: components["schemas"]["DeviceType"] | null;
+                terminal?: boolean | null;
+                store_id?: number | null;
+                outdated?: boolean | null;
+                q?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description An .xlsx file: sheet "Qurilmalar" and the info sheet */
+            200: {
+                headers: {
+                    /** @example attachment; filename=.xlsx */
+                    "Content-Disposition": string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": string;
+                    "application/json": string;
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "admin.exports.pos_invoices": {
+        parameters: {
+            query?: {
+                status?: "issued" | "paid" | "void" | "overdue" | null;
+                store_id?: number | null;
+                period?: string | null;
+                dunning?: "reminder_1" | "reminder_3" | "reminder_7" | "locked" | "unlocked" | null;
+                q?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description An .xlsx file: sheet "Hisob-fakturalar" and the info sheet */
+            200: {
+                headers: {
+                    /** @example attachment; filename=.xlsx */
+                    "Content-Disposition": string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": string;
+                    "application/json": string;
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "admin.exports.store_applications": {
+        parameters: {
+            query?: {
+                stage?: "application" | "review" | "menu" | "devices" | "training" | "trial" | "active" | "rejected" | "open" | "overdue" | null;
+                assignee_id?: string | null;
+                source?: "website" | "telegram" | "admin" | null;
+                q?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description An .xlsx file: sheet "Arizalar" and the info sheet */
+            200: {
+                headers: {
+                    /** @example attachment; filename=.xlsx */
+                    "Content-Disposition": string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": string;
+                    "application/json": string;
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "admin.exports.stores": {
+        parameters: {
+            query?: {
+                q?: string | null;
+                status?: components["schemas"]["StoreStatus"] | null;
+                region_id?: number | null;
+                health?: "good" | "attention" | "churn_risk" | "none" | null;
+                plan?: string | null;
+                debt?: "has_debt" | "over_limit" | null;
+                next_contact?: "due" | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description An .xlsx file: sheet "Ovqatxonalar" and the info sheet */
+            200: {
+                headers: {
+                    /** @example attachment; filename=.xlsx */
+                    "Content-Disposition": string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": string;
+                    "application/json": string;
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
     "admin.finance.adjustments": {
         parameters: {
             query?: {
@@ -11024,6 +13008,1770 @@ export interface operations {
             422: components["responses"]["ValidationException"];
         };
     };
+    "admin.integrations.connections": {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["IntegrationConnectionStatus"] | null;
+                provider?: components["schemas"]["IntegrationProvider"] | null;
+                direction?: components["schemas"]["IntegrationDirection"] | null;
+                mode?: components["schemas"]["IntegrationMode"] | null;
+                health?: "good" | "attention" | "disconnected" | "unknown" | null;
+                store_id?: number | null;
+                q?: string | null;
+                per_page?: number | null;
+                page?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            data: {
+                                uuid: string;
+                                store: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                branch: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                provider: string;
+                                provider_label: string;
+                                direction: string;
+                                direction_label: string;
+                                mode: string;
+                                mode_label: string;
+                                status: string;
+                                status_label: string;
+                                health: {
+                                    score: number | null;
+                                    verdict: string;
+                                    last_success_at: string | null;
+                                    last_webhook_at: string | null;
+                                    last_error_at: string | null;
+                                    last_error: string | null;
+                                    errors_today: number;
+                                    checked_at: string | null;
+                                };
+                                paused: {
+                                    at: string | null;
+                                    by: {
+                                        id: number;
+                                        name: string;
+                                    } | null;
+                                    reason: string | null;
+                                } | null;
+                                created_at: string | null;
+                            }[];
+                            current_page: number;
+                            last_page: number;
+                            per_page: number;
+                            total: number;
+                            counts: {
+                                total: number;
+                                configuring: number;
+                                active: number;
+                                paused: number;
+                                disconnected: number;
+                                attention: number;
+                            };
+                            stuck_orders: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.integrations.connection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            store: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            branch: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            provider: string;
+                            provider_label: string;
+                            direction: string;
+                            direction_label: string;
+                            mode: string;
+                            mode_label: string;
+                            status: string;
+                            status_label: string;
+                            health: {
+                                score: number | null;
+                                verdict: string;
+                                last_success_at: string | null;
+                                last_webhook_at: string | null;
+                                last_error_at: string | null;
+                                last_error: string | null;
+                                errors_today: number;
+                                checked_at: string | null;
+                            };
+                            paused: {
+                                at: string | null;
+                                by: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                reason: string | null;
+                            } | null;
+                            created_at: string | null;
+                        } & {
+                            credentials: {
+                                key: string;
+                                configured: boolean;
+                                last4: string | null;
+                            }[];
+                            settings: {
+                                [key: string]: unknown;
+                            };
+                            recent_events: {
+                                uuid: string;
+                                connection: {
+                                    uuid: string;
+                                    provider: string;
+                                    provider_label: string;
+                                    store: {
+                                        id: number;
+                                        name: string;
+                                    } | null;
+                                } | null;
+                                direction: string;
+                                direction_label: string;
+                                type: string;
+                                status: string;
+                                status_label: string;
+                                http_status: number | null;
+                                attempts: number;
+                                next_attempt_at: string | null;
+                                error: string | null;
+                                subject: {
+                                    type: string;
+                                    id: number | null;
+                                } | null;
+                                duration_ms: number | null;
+                                created_at: string | null;
+                            }[];
+                            menu_map: {
+                                total: number;
+                                by_type: {
+                                    [key: string]: number;
+                                };
+                            };
+                            stuck_orders: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description No such connection (not_found) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.integrations.connection_paused": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            store: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            branch: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            provider: string;
+                            provider_label: string;
+                            direction: string;
+                            direction_label: string;
+                            mode: string;
+                            mode_label: string;
+                            status: string;
+                            status_label: string;
+                            health: {
+                                score: number | null;
+                                verdict: string;
+                                last_success_at: string | null;
+                                last_webhook_at: string | null;
+                                last_error_at: string | null;
+                                last_error: string | null;
+                                errors_today: number;
+                                checked_at: string | null;
+                            };
+                            paused: {
+                                at: string | null;
+                                by: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                reason: string | null;
+                            } | null;
+                            created_at: string | null;
+                        } & {
+                            credentials: {
+                                key: string;
+                                configured: boolean;
+                                last4: string | null;
+                            }[];
+                            settings: {
+                                [key: string]: unknown;
+                            };
+                            recent_events: {
+                                uuid: string;
+                                connection: {
+                                    uuid: string;
+                                    provider: string;
+                                    provider_label: string;
+                                    store: {
+                                        id: number;
+                                        name: string;
+                                    } | null;
+                                } | null;
+                                direction: string;
+                                direction_label: string;
+                                type: string;
+                                status: string;
+                                status_label: string;
+                                http_status: number | null;
+                                attempts: number;
+                                next_attempt_at: string | null;
+                                error: string | null;
+                                subject: {
+                                    type: string;
+                                    id: number | null;
+                                } | null;
+                                duration_ms: number | null;
+                                created_at: string | null;
+                            }[];
+                            menu_map: {
+                                total: number;
+                                by_type: {
+                                    [key: string]: number;
+                                };
+                            };
+                            stuck_orders: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.integrations.connection_resumed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            store: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            branch: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            provider: string;
+                            provider_label: string;
+                            direction: string;
+                            direction_label: string;
+                            mode: string;
+                            mode_label: string;
+                            status: string;
+                            status_label: string;
+                            health: {
+                                score: number | null;
+                                verdict: string;
+                                last_success_at: string | null;
+                                last_webhook_at: string | null;
+                                last_error_at: string | null;
+                                last_error: string | null;
+                                errors_today: number;
+                                checked_at: string | null;
+                            };
+                            paused: {
+                                at: string | null;
+                                by: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                reason: string | null;
+                            } | null;
+                            created_at: string | null;
+                        } & {
+                            credentials: {
+                                key: string;
+                                configured: boolean;
+                                last4: string | null;
+                            }[];
+                            settings: {
+                                [key: string]: unknown;
+                            };
+                            recent_events: {
+                                uuid: string;
+                                connection: {
+                                    uuid: string;
+                                    provider: string;
+                                    provider_label: string;
+                                    store: {
+                                        id: number;
+                                        name: string;
+                                    } | null;
+                                } | null;
+                                direction: string;
+                                direction_label: string;
+                                type: string;
+                                status: string;
+                                status_label: string;
+                                http_status: number | null;
+                                attempts: number;
+                                next_attempt_at: string | null;
+                                error: string | null;
+                                subject: {
+                                    type: string;
+                                    id: number | null;
+                                } | null;
+                                duration_ms: number | null;
+                                created_at: string | null;
+                            }[];
+                            menu_map: {
+                                total: number;
+                                by_type: {
+                                    [key: string]: number;
+                                };
+                            };
+                            stuck_orders: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.integrations.events": {
+        parameters: {
+            query?: {
+                connection?: string | null;
+                store_id?: number | null;
+                status?: components["schemas"]["IntegrationEventStatus"] | null;
+                type?: string | null;
+                direction?: components["schemas"]["IntegrationEventDirection"] | null;
+                from?: string | null;
+                to?: string | null;
+                cursor?: string | null;
+                per_page?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            data: {
+                                uuid: string;
+                                connection: {
+                                    uuid: string;
+                                    provider: string;
+                                    provider_label: string;
+                                    store: {
+                                        id: number;
+                                        name: string;
+                                    } | null;
+                                } | null;
+                                direction: string;
+                                direction_label: string;
+                                type: string;
+                                status: string;
+                                status_label: string;
+                                http_status: number | null;
+                                attempts: number;
+                                next_attempt_at: string | null;
+                                error: string | null;
+                                subject: {
+                                    type: string;
+                                    id: number | null;
+                                } | null;
+                                duration_ms: number | null;
+                                created_at: string | null;
+                            }[];
+                            next_cursor: string | null;
+                            per_page: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.integrations.event": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            connection: {
+                                uuid: string;
+                                provider: string;
+                                provider_label: string;
+                                store: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                            } | null;
+                            direction: string;
+                            direction_label: string;
+                            type: string;
+                            status: string;
+                            status_label: string;
+                            http_status: number | null;
+                            attempts: number;
+                            next_attempt_at: string | null;
+                            error: string | null;
+                            subject: {
+                                type: string;
+                                id: number | null;
+                            } | null;
+                            duration_ms: number | null;
+                            created_at: string | null;
+                            idempotency_key: string | null;
+                            signature_valid: boolean | null;
+                            last_attempt_at: string | null;
+                            request_body: {
+                                [key: string]: unknown;
+                            } | null;
+                            response_body: {
+                                [key: string]: unknown;
+                            } | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description No such event (not_found) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.integrations.stuck_orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            count: number;
+                            data: {
+                                event_uuid: string;
+                                connection: {
+                                    uuid: string;
+                                    provider: string;
+                                    provider_label: string;
+                                    store: {
+                                        id: number;
+                                        name: string;
+                                    } | null;
+                                } | null;
+                                order: {
+                                    uuid: string;
+                                    code: string | null;
+                                    status: string;
+                                } | null;
+                                status: string;
+                                status_label: string;
+                                attempts: number;
+                                error: string | null;
+                                since: string | null;
+                                waiting_minutes: number;
+                            }[];
+                            stuck_after_minutes: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "admin.marketing.categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            data: {
+                                id: number;
+                                uuid: string;
+                                name: string;
+                                slug: string;
+                                parent: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                image_url: string | null;
+                                image_preview: string | null;
+                                sort_order: number;
+                                is_active: boolean;
+                                products_count: number;
+                                children_count: number;
+                                updated_at: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "admin.marketing.categories.created": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    name: string;
+                    parent_id?: number | null;
+                    /**
+                     * Format: binary
+                     * @description Maximum file size: 4096 kilobytes.
+                     */
+                    image?: string | null;
+                    remove_image?: boolean;
+                    is_active?: boolean;
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string;
+                };
+            };
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            uuid: string;
+                            name: string;
+                            slug: string;
+                            parent: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            image_url: string | null;
+                            image_preview: string | null;
+                            sort_order: number;
+                            is_active: boolean;
+                            products_count: number;
+                            children_count: number;
+                            updated_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description A rule refused it (invalid_parent) or a field is wrong */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.marketing.categories.reordered": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    ids: number[];
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            data: {
+                                id: number;
+                                uuid: string;
+                                name: string;
+                                slug: string;
+                                parent: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                image_url: string | null;
+                                image_preview: string | null;
+                                sort_order: number;
+                                is_active: boolean;
+                                products_count: number;
+                                children_count: number;
+                                updated_at: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description The list changed meanwhile (order_stale) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.marketing.categories.updated": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    name?: string;
+                    parent_id?: number | null;
+                    /**
+                     * Format: binary
+                     * @description Maximum file size: 4096 kilobytes.
+                     */
+                    image?: string | null;
+                    remove_image?: boolean;
+                    is_active?: boolean;
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            uuid: string;
+                            name: string;
+                            slug: string;
+                            parent: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            image_url: string | null;
+                            image_preview: string | null;
+                            sort_order: number;
+                            is_active: boolean;
+                            products_count: number;
+                            children_count: number;
+                            updated_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description No such category (not_found) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description A rule refused it (invalid_parent) or a field is wrong */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.marketing.categories.deleted": {
+        parameters: {
+            query: {
+                reason: string;
+            };
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description It has products or sub-categories (category_in_use) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.marketing.categories.image": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, max-age=300";
+                    "X-Content-Type-Options"?: "nosniff";
+                    "Content-Security-Policy"?: "default-src 'none'";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string;
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.marketing.lookup": {
+        parameters: {
+            query: {
+                q?: string | null;
+                store_id?: number | null;
+                "ids[]": number[];
+                "product_ids[]": number[];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            stores: {
+                                id: number;
+                                name: string;
+                            }[];
+                            products: {
+                                id: number;
+                                name: string;
+                                store_id: number;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.marketing.promo_codes": {
+        parameters: {
+            query?: {
+                q?: string | null;
+                status?: "active" | "inactive" | "expired" | "exhausted" | null;
+                store_id?: number | null;
+                sort?: "newest" | "code" | "expiry" | null;
+                per_page?: number | null;
+                page?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            data: {
+                                id: number;
+                                code: string;
+                                type: string;
+                                type_label: string;
+                                value: string;
+                                min_order_amount: string;
+                                max_discount_amount: string | null;
+                                usage_limit: number | null;
+                                per_user_limit: number | null;
+                                store: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                is_active: boolean;
+                                expires_at: string | null;
+                                status: string;
+                                status_label: string;
+                                stats: {
+                                    uses: number;
+                                    unique_customers: number;
+                                    discount_total: string;
+                                    gmv: string;
+                                };
+                                locked: boolean;
+                                created_at: string | null;
+                                updated_at: string | null;
+                            }[];
+                            current_page: number;
+                            last_page: number;
+                            per_page: number;
+                            total: number;
+                            statuses: {
+                                [key: string]: string;
+                            };
+                            types: {
+                                [key: string]: string;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.marketing.promo_codes.created": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    code: string;
+                    /** @enum {string} */
+                    type: "percentage" | "fixed";
+                    value: number;
+                    min_order_amount?: number | null;
+                    max_discount_amount?: number | null;
+                    usage_limit?: number | null;
+                    per_user_limit?: number | null;
+                    store_id?: number | null;
+                    is_active?: boolean;
+                    /** Format: date-time */
+                    expires_at?: string | null;
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string;
+                };
+            };
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            code: string;
+                            type: string;
+                            type_label: string;
+                            value: string;
+                            min_order_amount: string;
+                            max_discount_amount: string | null;
+                            usage_limit: number | null;
+                            per_user_limit: number | null;
+                            store: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            is_active: boolean;
+                            expires_at: string | null;
+                            status: string;
+                            status_label: string;
+                            stats: {
+                                uses: number;
+                                unique_customers: number;
+                                discount_total: string;
+                                gmv: string;
+                            };
+                            locked: boolean;
+                            created_at: string | null;
+                            updated_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description A rule refused it (invalid_value) or a field is wrong */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.marketing.promo_code": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description No such code (not_found) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.marketing.promo_codes.deleted": {
+        parameters: {
+            query: {
+                reason: string;
+            };
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The code was used (promo_code_used) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.marketing.promo_codes.updated": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    code?: string;
+                    /** @enum {string} */
+                    type?: "percentage" | "fixed";
+                    value?: number;
+                    min_order_amount?: number | null;
+                    max_discount_amount?: number | null;
+                    usage_limit?: number | null;
+                    per_user_limit?: number | null;
+                    store_id?: number | null;
+                    is_active?: boolean;
+                    /** Format: date-time */
+                    expires_at?: string | null;
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description No such code (not_found) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The code was used (promo_code_used) or a field is wrong */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.marketing.promo_codes.activated": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.marketing.promo_codes.deactivated": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.marketing.promos": {
+        parameters: {
+            query?: {
+                status?: "live" | "scheduled" | "ended" | "inactive" | null;
+                q?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            data: {
+                                id: number;
+                                title: string;
+                                image_url: string | null;
+                                image_preview: string | null;
+                                store: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                product: {
+                                    id: number;
+                                    name: string;
+                                    store_id: number;
+                                } | null;
+                                is_active: boolean;
+                                starts_at: string | null;
+                                ends_at: string | null;
+                                sort_order: number;
+                                status: string;
+                                status_label: string;
+                                created_at: string | null;
+                                updated_at: string | null;
+                            }[];
+                            statuses: {
+                                [key: string]: string;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.marketing.promos.created": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    title: string;
+                    /**
+                     * Format: binary
+                     * @description Maximum file size: 4096 kilobytes.
+                     */
+                    image: string;
+                    store_id?: number | null;
+                    product_id?: number | null;
+                    is_active?: boolean;
+                    /** Format: date-time */
+                    starts_at?: string | null;
+                    /** Format: date-time */
+                    ends_at?: string | null;
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string;
+                };
+            };
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            title: string;
+                            image_url: string | null;
+                            image_preview: string | null;
+                            store: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            product: {
+                                id: number;
+                                name: string;
+                                store_id: number;
+                            } | null;
+                            is_active: boolean;
+                            starts_at: string | null;
+                            ends_at: string | null;
+                            sort_order: number;
+                            status: string;
+                            status_label: string;
+                            created_at: string | null;
+                            updated_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description A rule refused it (product_store_mismatch, invalid_schedule) or a field is wrong */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.marketing.promos.reordered": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    ids: number[];
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            data: {
+                                id: number;
+                                title: string;
+                                image_url: string | null;
+                                image_preview: string | null;
+                                store: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                product: {
+                                    id: number;
+                                    name: string;
+                                    store_id: number;
+                                } | null;
+                                is_active: boolean;
+                                starts_at: string | null;
+                                ends_at: string | null;
+                                sort_order: number;
+                                status: string;
+                                status_label: string;
+                                created_at: string | null;
+                                updated_at: string | null;
+                            }[];
+                            statuses: {
+                                [key: string]: string;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description The list changed meanwhile (order_stale) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.marketing.promos.preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            data: {
+                                id: number;
+                                title: string;
+                                image_url: string | null;
+                                image_preview: string | null;
+                                store_uuid: string | null;
+                                product_id: number | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "admin.marketing.promos.updated": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    title?: string;
+                    /**
+                     * Format: binary
+                     * @description Maximum file size: 4096 kilobytes.
+                     */
+                    image?: string | null;
+                    store_id?: number | null;
+                    product_id?: number | null;
+                    is_active?: boolean;
+                    /** Format: date-time */
+                    starts_at?: string | null;
+                    /** Format: date-time */
+                    ends_at?: string | null;
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            title: string;
+                            image_url: string | null;
+                            image_preview: string | null;
+                            store: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            product: {
+                                id: number;
+                                name: string;
+                                store_id: number;
+                            } | null;
+                            is_active: boolean;
+                            starts_at: string | null;
+                            ends_at: string | null;
+                            sort_order: number;
+                            status: string;
+                            status_label: string;
+                            created_at: string | null;
+                            updated_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description No such banner (not_found) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.marketing.promos.deleted": {
+        parameters: {
+            query: {
+                reason: string;
+            };
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description No such banner (not_found) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.marketing.promos.image": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, max-age=300";
+                    "X-Content-Type-Options"?: "nosniff";
+                    "Content-Security-Policy"?: "default-src 'none'";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string;
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     "admin.me": {
         parameters: {
             query?: never;
@@ -11073,6 +14821,154 @@ export interface operations {
                 };
             };
             401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "admin.metrics.overview": {
+        parameters: {
+            query?: {
+                months?: number | null;
+                refresh?: boolean | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            timezone: string;
+                            generated_at: string;
+                            months: number;
+                            cards: {
+                                mrr: string;
+                                mrr_change: {
+                                    direction: string;
+                                    amount: string;
+                                    percent: string | null;
+                                };
+                                arr: string;
+                                paying_stores: number;
+                                trialing_stores: number;
+                                arpa: string | null;
+                                active_stores: number;
+                                churn_rate: string | null;
+                                churn_month: string | null;
+                                gmv_month: string;
+                                commission_month: string;
+                                revenue_complete: boolean;
+                            };
+                            series: {
+                                month: string;
+                                partial: boolean;
+                                mrr: string;
+                                paying_stores: number;
+                                trialing_stores: number;
+                                active_stores: number;
+                            }[];
+                            movement: {
+                                month: string;
+                                partial: boolean;
+                                opening: string;
+                                closing: string;
+                                new: {
+                                    mrr: string;
+                                    stores: number;
+                                };
+                                expansion: {
+                                    mrr: string;
+                                    stores: number;
+                                };
+                                contraction: {
+                                    mrr: string;
+                                    stores: number;
+                                };
+                                churned: {
+                                    mrr: string;
+                                    stores: number;
+                                };
+                                net_new: string;
+                                paying_stores: number;
+                                trialing_stores: number;
+                            }[];
+                            churn: {
+                                month: string;
+                                partial: boolean;
+                                active_at_start: number;
+                                active_at_end: number;
+                                churned: number;
+                                went_inactive: number;
+                                subscription_ended: number;
+                                rate: string | null;
+                                revenue_rate: string | null;
+                            }[];
+                            revenue: {
+                                month: string;
+                                partial: boolean;
+                                orders: number;
+                                gmv: string;
+                                commission: string;
+                                subscription_revenue: string;
+                                missing_days: number;
+                                complete: boolean;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.metrics.funnel": {
+        parameters: {
+            query?: {
+                months?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            months: number;
+                            from: string;
+                            applications: number;
+                            active: number;
+                            rejected: number;
+                            open: number;
+                            conversion: string | null;
+                            median_days_to_active: number | null;
+                            stages: {
+                                stage: string;
+                                label: string;
+                                reached: number;
+                                share: string | null;
+                                median_days: number | null;
+                                samples: number;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
         };
     };
     "admin.monitoring.alerts": {
@@ -14907,6 +18803,1409 @@ export interface operations {
             };
         };
     };
+    "admin.support.canned_replies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            title: string;
+                            body: string;
+                            sort_order: number;
+                            updated_by: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            updated_at: string | null;
+                        }[];
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "admin.support.canned_reply_created": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    title: string;
+                    body: string;
+                    sort_order?: number;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            title: string;
+                            body: string;
+                            sort_order: number;
+                            updated_by: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            updated_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.support.canned_reply_deleted": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            deleted: boolean;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.support.canned_reply_updated": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    title?: string;
+                    body?: string;
+                    sort_order?: number;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            title: string;
+                            body: string;
+                            sort_order: number;
+                            updated_by: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            updated_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.support.suspicious": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            generated_at: string | null;
+                            groups: {
+                                kind: string;
+                                label: string;
+                                description: string;
+                                rows: {
+                                    kind: string;
+                                    user: {
+                                        id: number;
+                                        name: string;
+                                        role_label: string | null;
+                                        blocked: boolean;
+                                    };
+                                    accounts: {
+                                        id: number;
+                                        name: string;
+                                        role_label: string | null;
+                                        blocked: boolean;
+                                    }[];
+                                    reason: string;
+                                    metric: number | string;
+                                    since: string | null;
+                                    href: string;
+                                    promo_code?: string;
+                                    shared_by?: string;
+                                }[];
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "admin.system.district_deleted": {
+        parameters: {
+            query: {
+                reason: string;
+            };
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            deleted: boolean;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Used (in_use, data.usage) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.system.district_updated": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name?: string;
+                    is_active?: boolean;
+                    region_id?: number;
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            region_id: number;
+                            name: string;
+                            is_active: boolean;
+                            sort_order: number;
+                            usage: {
+                                branches: number;
+                                addresses: number;
+                            };
+                            deletable: boolean;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description No such district (not_found) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.system.feature_flags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            flags: {
+                                name: string;
+                                label: string;
+                                description: string;
+                                default: boolean;
+                                stores_on: number;
+                                stores_off: number;
+                                stores_total: number;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "admin.system.feature_flag_stores": {
+        parameters: {
+            query?: {
+                q?: string | null;
+                per_page?: number | null;
+                page?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            data: {
+                                store: {
+                                    id: number;
+                                    name: string;
+                                    status: string | null;
+                                };
+                                flags: {
+                                    [key: string]: {
+                                        active: boolean;
+                                        stored: boolean;
+                                    };
+                                };
+                            }[];
+                            current_page: number;
+                            last_page: number;
+                            per_page: number;
+                            total: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.system.feature_flags_reset": {
+        parameters: {
+            query: {
+                reason: string;
+            };
+            header?: never;
+            path: {
+                storeId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            store: {
+                                id: number;
+                                name: string;
+                                status: string | null;
+                            };
+                            flags: {
+                                [key: string]: {
+                                    active: boolean;
+                                    stored: boolean;
+                                };
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description No such store (not_found) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.system.feature_flag_set": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                flag: string;
+                storeId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    active: boolean;
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            store: {
+                                id: number;
+                                name: string;
+                                status: string | null;
+                            };
+                            flags: {
+                                [key: string]: {
+                                    active: boolean;
+                                    stored: boolean;
+                                };
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description No such flag or store (not_found) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.system.payment_providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            slug: string;
+                            name: string;
+                            is_active: boolean;
+                            mode: string;
+                            wired: boolean;
+                            credentials: {
+                                key: string;
+                                label: string;
+                                known: boolean;
+                                configured: boolean;
+                                last4: string | null;
+                                source: string | null;
+                            }[];
+                            updated_at: string | null;
+                        }[];
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "admin.system.payment_provider_updated": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    is_active?: boolean;
+                    /** @enum {string} */
+                    mode?: "test" | "production";
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            slug: string;
+                            name: string;
+                            is_active: boolean;
+                            mode: string;
+                            wired: boolean;
+                            credentials: {
+                                key: string;
+                                label: string;
+                                known: boolean;
+                                configured: boolean;
+                                last4: string | null;
+                                source: string | null;
+                            }[];
+                            updated_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description No such provider (not_found) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.system.payment_credential_replaced": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    value: string;
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            slug: string;
+                            name: string;
+                            is_active: boolean;
+                            mode: string;
+                            wired: boolean;
+                            credentials: {
+                                key: string;
+                                label: string;
+                                known: boolean;
+                                configured: boolean;
+                                last4: string | null;
+                                source: string | null;
+                            }[];
+                            updated_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description A key the provider does not have (unknown_key) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.system.payment_credential_cleared": {
+        parameters: {
+            query: {
+                reason: string;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            slug: string;
+                            name: string;
+                            is_active: boolean;
+                            mode: string;
+                            wired: boolean;
+                            credentials: {
+                                key: string;
+                                label: string;
+                                known: boolean;
+                                configured: boolean;
+                                last4: string | null;
+                                source: string | null;
+                            }[];
+                            updated_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.system.regions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            name: string;
+                            is_active: boolean;
+                            sort_order: number;
+                            districts_count: number;
+                            active_districts: number;
+                            usage: {
+                                branches: number;
+                                addresses: number;
+                                applications: number;
+                            };
+                            deletable: boolean;
+                            districts: {
+                                id: number;
+                                region_id: number;
+                                name: string;
+                                is_active: boolean;
+                                sort_order: number;
+                                usage: {
+                                    branches: number;
+                                    addresses: number;
+                                };
+                                deletable: boolean;
+                            }[];
+                        }[];
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "admin.system.region_created": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string;
+                };
+            };
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            name: string;
+                            is_active: boolean;
+                            sort_order: number;
+                            districts_count: number;
+                            active_districts: number;
+                            usage: {
+                                branches: number;
+                                addresses: number;
+                                applications: number;
+                            };
+                            deletable: boolean;
+                            districts: {
+                                id: number;
+                                region_id: number;
+                                name: string;
+                                is_active: boolean;
+                                sort_order: number;
+                                usage: {
+                                    branches: number;
+                                    addresses: number;
+                                };
+                                deletable: boolean;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description The name is taken (name_taken) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.system.regions_ordered": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    ids: number[];
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            name: string;
+                            is_active: boolean;
+                            sort_order: number;
+                            districts_count: number;
+                            active_districts: number;
+                            usage: {
+                                branches: number;
+                                addresses: number;
+                                applications: number;
+                            };
+                            deletable: boolean;
+                            districts: {
+                                id: number;
+                                region_id: number;
+                                name: string;
+                                is_active: boolean;
+                                sort_order: number;
+                                usage: {
+                                    branches: number;
+                                    addresses: number;
+                                };
+                                deletable: boolean;
+                            }[];
+                        }[];
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description Not the full list (order_mismatch) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.system.region_deleted": {
+        parameters: {
+            query: {
+                reason: string;
+            };
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            deleted: boolean;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Used (in_use, data.usage) or has districts (has_districts) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.system.region_updated": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name?: string;
+                    is_active?: boolean;
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            name: string;
+                            is_active: boolean;
+                            sort_order: number;
+                            districts_count: number;
+                            active_districts: number;
+                            usage: {
+                                branches: number;
+                                addresses: number;
+                                applications: number;
+                            };
+                            deletable: boolean;
+                            districts: {
+                                id: number;
+                                region_id: number;
+                                name: string;
+                                is_active: boolean;
+                                sort_order: number;
+                                usage: {
+                                    branches: number;
+                                    addresses: number;
+                                };
+                                deletable: boolean;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description No such region (not_found) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.system.district_created": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string;
+                };
+            };
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            region_id: number;
+                            name: string;
+                            is_active: boolean;
+                            sort_order: number;
+                            usage: {
+                                branches: number;
+                                addresses: number;
+                            };
+                            deletable: boolean;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The name is taken in the region (name_taken) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.system.districts_ordered": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    ids: number[];
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            name: string;
+                            is_active: boolean;
+                            sort_order: number;
+                            districts_count: number;
+                            active_districts: number;
+                            usage: {
+                                branches: number;
+                                addresses: number;
+                                applications: number;
+                            };
+                            deletable: boolean;
+                            districts: {
+                                id: number;
+                                region_id: number;
+                                name: string;
+                                is_active: boolean;
+                                sort_order: number;
+                                usage: {
+                                    branches: number;
+                                    addresses: number;
+                                };
+                                deletable: boolean;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not the full list (order_mismatch) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.system.settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            groups: {
+                                key: string;
+                                label: string;
+                                items: {
+                                    key: string;
+                                    label: string;
+                                    description: string;
+                                    type: string;
+                                    editable: boolean;
+                                    secret: boolean;
+                                    value: string | null;
+                                    configured: boolean;
+                                    last4: string | null;
+                                    source: string | null;
+                                    default: string | null;
+                                    options: {
+                                        value: string;
+                                        label: string;
+                                    }[] | null;
+                                    updated_at: string | null;
+                                }[];
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "admin.system.settings_updated": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    values: {
+                        /** @enum {string|null} */
+                        sms_driver?: "log" | "eskiz" | null;
+                        /** Format: email */
+                        eskiz_email?: string | null;
+                        eskiz_from?: string | null;
+                    };
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            groups: {
+                                key: string;
+                                label: string;
+                                items: {
+                                    key: string;
+                                    label: string;
+                                    description: string;
+                                    type: string;
+                                    editable: boolean;
+                                    secret: boolean;
+                                    value: string | null;
+                                    configured: boolean;
+                                    last4: string | null;
+                                    source: string | null;
+                                    default: string | null;
+                                    options: {
+                                        value: string;
+                                        label: string;
+                                    }[] | null;
+                                    updated_at: string | null;
+                                }[];
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description A secret sent here (secret_separate), an unknown key (unknown_setting), Eskiz not set up (eskiz_not_configured) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.system.setting_secret_replaced": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    value: string;
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            groups: {
+                                key: string;
+                                label: string;
+                                items: {
+                                    key: string;
+                                    label: string;
+                                    description: string;
+                                    type: string;
+                                    editable: boolean;
+                                    secret: boolean;
+                                    value: string | null;
+                                    configured: boolean;
+                                    last4: string | null;
+                                    source: string | null;
+                                    default: string | null;
+                                    options: {
+                                        value: string;
+                                        label: string;
+                                    }[] | null;
+                                    updated_at: string | null;
+                                }[];
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description Not a secret setting (not_found) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.system.setting_secret_cleared": {
+        parameters: {
+            query: {
+                reason: string;
+            };
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            groups: {
+                                key: string;
+                                label: string;
+                                items: {
+                                    key: string;
+                                    label: string;
+                                    description: string;
+                                    type: string;
+                                    editable: boolean;
+                                    secret: boolean;
+                                    value: string | null;
+                                    configured: boolean;
+                                    last4: string | null;
+                                    source: string | null;
+                                    default: string | null;
+                                    options: {
+                                        value: string;
+                                        label: string;
+                                    }[] | null;
+                                    updated_at: string | null;
+                                }[];
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description Still used (in_use) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     "admin.team": {
         parameters: {
             query?: never;
@@ -15407,6 +20706,257 @@ export interface operations {
                 };
             };
             401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.users": {
+        parameters: {
+            query?: {
+                q?: string | null;
+                role?: "customer" | "courier" | "staff" | "owner" | "manager" | "cashier" | "waiter" | "cook" | null;
+                status?: "active" | "blocked" | null;
+                store_id?: number | null;
+                per_page?: number | null;
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            data: {
+                                id: number;
+                                name: string;
+                                role: string;
+                                role_label: string;
+                                phone: string | null;
+                                telegram_linked: boolean;
+                                store: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                branch: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                orders_count: number;
+                                blocked: boolean;
+                                blocked_at: string | null;
+                                created_at: string | null;
+                            }[];
+                            next_cursor: string | null;
+                            per_page: number;
+                            roles: {
+                                [key: string]: string;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.users.user": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description No such user, or a RIZQIM team account (not_found) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.users.blocked": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description A RIZQIM team account (platform_account) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Already blocked (already_blocked) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.users.sessions_closed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.users.unblocked": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not blocked (not_blocked) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             422: components["responses"]["ValidationException"];
         };
     };

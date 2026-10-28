@@ -178,6 +178,9 @@ export async function del<T>(path: string, options: CallOptions = {}): Promise<T
 export interface DownloadedFile {
   blob: Blob;
   name: string;
+  // P4-31: an Excel export says how many rows it holds and whether the list was cut at the cap (X-Export-* headers)
+  rows?: number;
+  truncated?: boolean;
 }
 
 // The file name of a Content-Disposition header (filename*=UTF-8'' first, then filename=)
@@ -217,7 +220,9 @@ export async function download(path: string, query: CallOptions['query'], fallba
     if (error.status === 401) endedListeners.forEach((listener) => listener());
     throw error;
   }
-  return { blob: await response.blob(), name: fileNameOf(response.headers.get('content-disposition'), fallbackName) };
+  const rows = Number(response.headers.get('x-export-rows'));
+  const exported = response.headers.has('x-export-rows') && Number.isInteger(rows) ? { rows, truncated: response.headers.get('x-export-truncated') === '1' } : {};
+  return { blob: await response.blob(), name: fileNameOf(response.headers.get('content-disposition'), fallbackName), ...exported };
 }
 
 // Hands a downloaded file to the browser to save

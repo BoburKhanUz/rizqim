@@ -8,6 +8,7 @@ import { EMPTY_AUDIT_FILTERS, type AuditEntry, type AuditFilters } from '@/lib/a
 import { errorText } from '@/lib/errors';
 import { when } from '@/lib/format';
 import { useCan } from '../AuthProvider';
+import { ExportButton } from '../ExportButton';
 import { useT } from '../I18nProvider';
 import { AuditDetail } from './AuditDetail';
 
@@ -76,6 +77,7 @@ export function AuditView() {
             {more ? t('audit_less') : t('audit_more')}
           </Button>
         </div>
+        <ExportButton list="audit" query={applied} />
       </form>
 
       {log.isError ? (

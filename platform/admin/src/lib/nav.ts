@@ -1,5 +1,6 @@
 import {
   Activity,
+  ChartLine,
   ClipboardList,
   Cpu,
   HandCoins,
@@ -8,6 +9,7 @@ import {
   Megaphone,
   MonitorSmartphone,
   Plug,
+  Settings,
   ShieldCheck,
   Store,
   Users,
@@ -25,6 +27,7 @@ import type { MessageKey } from '@/i18n';
 // sidebar entries, permissions and routes are already here.
 export type NavKey =
   | 'today'
+  | 'metrics'
   | 'orders'
   | 'stores'
   | 'pos'
@@ -33,6 +36,7 @@ export type NavKey =
   | 'marketing'
   | 'monitoring'
   | 'integrations'
+  | 'system'
   | 'team'
   | 'roles'
   | 'audit'
@@ -52,23 +56,27 @@ export interface NavItem {
 
 export const NAV_ITEMS: readonly NavItem[] = [
   { key: 'today', href: '/today', label: 'nav_today', anyOf: ['today.view'], icon: LayoutDashboard, built: true },
+  // P4-31 Ko'rsatkichlar: MRR, churn, conversion; finance.view or stores.view
+  { key: 'metrics', href: '/metrics', label: 'nav_metrics', anyOf: ['finance.view', 'stores.view'], icon: ChartLine, built: true },
   { key: 'orders', href: '/orders', label: 'nav_orders', anyOf: ['orders.view'], icon: ClipboardList, built: true },
   { key: 'stores', href: '/stores', label: 'nav_stores', anyOf: ['stores.view'], icon: Store, built: true },
   { key: 'pos', href: '/pos', label: 'nav_pos', anyOf: ['subscriptions.manage', 'finance.view', 'devices.view'], icon: MonitorSmartphone, built: true },
   { key: 'finance', href: '/finance', label: 'nav_finance', anyOf: ['finance.view'], icon: HandCoins, built: true },
-  { key: 'customers', href: '/customers', label: 'nav_customers', anyOf: ['users.view', 'support.view'], icon: UsersRound, alsoPaths: ['/users'], built: false },
-  { key: 'marketing', href: '/marketing', label: 'nav_marketing', anyOf: ['marketing.view'], icon: Megaphone, built: false },
+  { key: 'customers', href: '/customers', label: 'nav_customers', anyOf: ['users.view', 'support.view'], icon: UsersRound, alsoPaths: ['/users'], built: true },
+  { key: 'marketing', href: '/marketing', label: 'nav_marketing', anyOf: ['marketing.view'], icon: Megaphone, built: true },
   { key: 'monitoring', href: '/monitoring', label: 'nav_monitoring', anyOf: ['monitoring.view'], icon: Activity, built: true },
-  { key: 'integrations', href: '/integrations', label: 'nav_integrations', anyOf: ['integrations.view'], icon: Plug, built: false },
+  { key: 'integrations', href: '/integrations', label: 'nav_integrations', anyOf: ['integrations.view'], icon: Plug, built: true },
   // Tizim
+  // P4-31 Tizim sozlamalari: settings, payment providers, regions, feature flags (system.manage)
+  { key: 'system', href: '/system', label: 'system_navLabel', anyOf: ['system.manage'], icon: Settings, built: true },
   { key: 'team', href: '/team', label: 'nav_team', anyOf: ['team.manage'], icon: Users, built: true },
   { key: 'roles', href: '/roles', label: 'nav_roles', anyOf: ['team.manage'], icon: ShieldCheck, built: true },
   { key: 'audit', href: '/audit', label: 'nav_audit', anyOf: ['audit.view'], icon: History, built: true },
   { key: 'sessions', href: '/sessions', label: 'nav_sessions', anyOf: [], icon: Cpu, built: true },
 ];
 
-// The last four items are the "Tizim" group
-export const SYSTEM_KEYS: readonly NavKey[] = ['team', 'roles', 'audit', 'sessions'];
+// The last five items are the "Tizim" group
+export const SYSTEM_KEYS: readonly NavKey[] = ['system', 'team', 'roles', 'audit', 'sessions'];
 
 // Where a signed-in member always can go
 export const FALLBACK_HOME = '/sessions';

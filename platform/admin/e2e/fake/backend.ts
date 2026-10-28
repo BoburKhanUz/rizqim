@@ -3,11 +3,16 @@
 // email + password, TOTP (any member's code is VALID_CODE), recovery codes, lockout, challenge expiry and reuse, step-up
 // (`admin.recent`), team, roles, audit log, search, sessions.
 import { fail, ok, validation, type FakeRequest, type RecordedCall, type Reply } from './types'
+import { FakeCustomers } from './customers'
 import { FakeFinance } from './finance'
+import { FakeIntegrations } from './integrations'
+import { FakeMarketing } from './marketing'
+import { FakeMetrics } from './metrics'
 import { FakeMonitoring } from './monitoring'
 import { FakeOrders } from './orders'
 import { FakePos } from './pos'
 import { FakeStores } from './stores'
+import { FakeSystem } from './system'
 import { FakeToday } from './today'
 
 export const VALID_CODE = '123456'
@@ -38,10 +43,12 @@ export const PERMISSIONS: Array<{ key: string; label: string; group: string }> =
   { key: 'admin.monitoring.manage', label: 'Monitoringni boshqarish', group: 'Tizim' },
   { key: 'admin.users.view', label: "Foydalanuvchilarni ko'rish", group: 'Mijozlar' },
   { key: 'admin.support.view', label: "Shikoyatlarni ko'rish", group: 'Mijozlar' },
+  { key: 'admin.support.manage', label: 'Shikoyatlarni hal qilish', group: 'Mijozlar' },
   { key: 'admin.subscriptions.manage', label: 'Obunalarni boshqarish', group: 'POS va obunalar' },
   { key: 'admin.marketing.view', label: "Marketingni ko'rish", group: 'Marketing' },
   { key: 'admin.marketing.manage', label: 'Marketingni boshqarish', group: 'Marketing' },
   { key: 'admin.integrations.view', label: "Integratsiyalarni ko'rish", group: 'Integratsiyalar' },
+  { key: 'admin.integrations.manage', label: 'Integratsiyalarni boshqarish', group: 'Integratsiyalar' },
   { key: 'admin.audit.view', label: "Jurnalni ko'rish", group: 'Tizim' },
   { key: 'admin.team.manage', label: 'Jamoani boshqarish', group: 'Tizim' },
   { key: 'admin.system.manage', label: 'Tizim sozlamalari', group: 'Tizim' },
@@ -53,7 +60,7 @@ const VIEWS = ALL.filter((key) => key.endsWith('.view'))
 const DEFAULT_GRANTS: Record<PlatformRole, string[]> = {
   superadmin: ALL,
   operator: ['admin.today.view', 'admin.orders.view', 'admin.orders.intervene', 'admin.orders.refund_request', 'admin.stores.view', 'admin.monitoring.view', 'admin.monitoring.manage', 'admin.devices.view'],
-  support: ['admin.orders.view', 'admin.orders.refund_request', 'admin.users.view', 'admin.stores.view'],
+  support: ['admin.orders.view', 'admin.orders.refund_request', 'admin.users.view', 'admin.stores.view', 'admin.support.view', 'admin.support.manage'],
   finance: ['admin.finance.view', 'admin.payouts.approve', 'admin.orders.view', 'admin.orders.refund_approve', 'admin.stores.view', 'admin.finance.manage', 'admin.subscriptions.manage', 'admin.export'],
   sales: ['admin.stores.view', 'admin.stores.manage', 'admin.subscriptions.manage', 'admin.devices.view'],
   viewer: VIEWS,
@@ -142,6 +149,16 @@ export class FakeBackend {
   pos = new FakePos()
   /** Moliya (P4-23): e2e/fake/finance.ts */
   finance = new FakeFinance()
+  /** Marketing (P4-31): e2e/fake/marketing.ts */
+  marketing = new FakeMarketing()
+  /** Ko'rsatkichlar and the Excel exports (P4-31): e2e/fake/metrics.ts */
+  metrics = new FakeMetrics()
+  /** Mijozlar va yordam (P4-31): e2e/fake/customers.ts */
+  customers = new FakeCustomers()
+  /** Tizim (P4-31): e2e/fake/system.ts */
+  system = new FakeSystem()
+  /** Integratsiyalar (P4-31): e2e/fake/integrations.ts */
+  integrations = new FakeIntegrations()
   /** The code a challenge accepts as the TOTP (any 6 digits equal to this) */
   readonly code = VALID_CODE
   /** Milliseconds a challenge lives; tests shorten it to see it expire */
@@ -424,6 +441,26 @@ export class FakeBackend {
     // --- Moliya (finance.*, payouts.approve, export; every action needs the step-up and a reason)
     const finance = this.finance.route(req, path, body, can, needsRecent, { id: member.id, name: member.name }, req.headers)
     if (finance) return finance
+
+    // --- Marketing (marketing.view / marketing.manage; every change needs a reason, deleting also the step-up)
+    const marketing = this.marketing.route(req, path, body, can, needsRecent)
+    if (marketing) return marketing
+
+    // --- Mijozlar va yordam (users.view, support.*; block, unblock and closing sessions need the step-up and a reason)
+    const customers = this.customers.route(req, path, body, can, needsRecent, { id: member.id, name: member.name })
+    if (customers) return customers
+
+    // --- Tizim (system.manage; every change needs the step-up and a reason)
+    const system = this.system.route(req, path, body, can, needsRecent)
+    if (system) return system
+
+    // --- Integratsiyalar (integrations.view; pause/resume: integrations.manage, the step-up and a reason)
+    const integrations = this.integrations.route(req, path, body, can, needsRecent, { id: member.id, name: member.name })
+    if (integrations) return integrations
+
+    // --- Ko'rsatkichlar (finance.view or stores.view) and the Excel exports of the lists (export + the list's view permission)
+    const metrics = this.metrics.route(req, path, can)
+    if (metrics) return metrics
 
     // --- Bugun (today.view)
     const today = this.today.route(req, path, can)

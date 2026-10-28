@@ -2896,3 +2896,455 @@ e'lon qilingan `Content-Length` limitdan oshsa — 413; tana oqim bilan o'qiladi
 `100300` (`order_ledger_reversals`), `100400` (`finance_adjustments`), `100500` (ledger'larda `(order_id, type)` indekslari,
 CONCURRENTLY), `100600` (`subscription_invoices.void_requested_by/at`, `void_request_reason` — ikki kishilik bekor qilish). Testlar: `tests/Feature/AdminFinance/*` (netting, payoutlar, qisman qaytarish, tuzatishlar, ro'yxatlar,
 hisobot, hisob-fakturani bekor qilish).
+
+## Mijozlar va yordam (P4-31)
+
+Boshqaruv markazining **Mijozlar va yordam** bo'limi: foydalanuvchilar (mijozlar, kuryerlar, ovqatxona xodimlari) va
+foydalanuvchi kartasi, bloklash va sessiyalarni yopish, shikoyatlar qutisi va tayyor javoblar, shubhali holatlar. Kod:
+`routes/api_admin_customers.php`, `App\Http\Controllers\Api\V1\Admin\AdminCustomer*`, `AdminComplaintController`,
+`AdminSupport*`, `App\Services\Admin\Customers`, `App\Providers\AdminCustomersServiceProvider`, sozlamalar
+`config/support.php`. **RIZQIM jamoasi a'zolari bu yerda yo'q**: ro'yxatga kirmaydi, kartasi 404, amal 403
+`platform_account` (ularni Tizim → Jamoa boshqaradi). Eski paneldagi "Foydalanuvchilar" va "E'tirozlar" shu yerga ko'chdi.
+
+### Ruxsatlar
+
+| Endpoint | Ruxsat | Step-up | `reason` |
+|---|---|---|---|
+| `GET /admin/users`, `GET /admin/users/{id}` | `users.view` | — | — |
+| `POST /admin/users/{id}/block`, `/unblock`, `/close-sessions` | `support.manage` | ha | ha |
+| `GET /admin/complaints`, `/complaints/{uuid}`, `/support/canned-replies`, `/support/suspicious` | `support.view` | — | — |
+| `PATCH /admin/complaints/{uuid}`, `POST .../reply`, `POST .../resolve`; `POST/PATCH/DELETE /admin/support/canned-replies` | `support.manage` | — | — |
+
+Standart rollarda: **Yordam** — hammasi; **Faqat ko'rish** — o'qiydi, o'zgartira olmaydi; Moliya, Savdo, Operator — yo'q.
+Har bir yozish jurnalga yoziladi (amal nomi — route nomi): `admin.users.blocked`, `admin.users.unblocked`,
+`admin.users.sessions_closed` (yopilgan tokenlar soni bilan), `admin.support.complaint_updated`,
+`admin.support.complaint_replied` (matn bilan), `admin.support.complaint_resolved`,
+`admin.support.canned_reply_created|updated|deleted`. Telefonlar `AdminPii` orqali: `pii.view` siz niqoblangan
+(`+998 90 *** ** 67`), `pii.view` bilan to'liq va har bir ko'rsatish `admin.pii.revealed` bo'lib yoziladi.
+
+### Foydalanuvchilar
+
+`GET /admin/users?role=&status=active|blocked&store_id=&q=&cursor=&per_page=` → `{data, next_cursor, per_page, roles}`,
+yangilari birinchi, kursor bilan. `role`: `customer`, `courier`, `staff` (kuryerdan boshqa barcha ovqatxona rollari),
+`owner`, `manager`, `cashier`, `waiter`, `cook`. `q` — ismning bir qismi yoki telefon: **`pii.view` siz faqat to'liq raqam**
+(`+998901234567`, `90 123 45 67`...) topiladi — niqoblangan raqamni raqamma-raqam o'qib bo'lmasin (umumiy qidiruvdagi
+qoida); `pii.view` bilan istalgan 4+ raqam. Qator: `id`, `name`, `role`, `role_label`, `phone`, `telegram_linked`,
+`store`, `branch`, `orders_count`, `blocked`, `blocked_at`, `created_at`.
+
+`GET /admin/users/{id}` — karta:
+
+- `profile` (telefon, SMS bilan tasdiqlanganmi, Telegram, kuryer turi, kim taklif qilgan, nechta odamni taklif qilgan),
+  `block` (`blocked`, `at`, `reason`, `by`);
+- `stats`: buyurtmalar soni, yetkazilgan, bekor qilingan, yetkazilganlar summasi, o'rtacha chek, oxirgi buyurtma, toifa
+  (`segment`: 10+ buyurtma — doimiy mijoz (VIP), 2+ — qaytgan, 1 — yangi, 0 — buyurtma bermagan; eski paneldagi
+  "Mood");
+- `orders` (oxirgi 20, `href: /orders/{uuid}`) va `refunds` (uning buyurtmalariga pul qaytarish so'rovlari) —
+  `orders.view` bo'lmasa `null`;
+- `keshbek`: `balance` (users.balance — asosiy qiymat) va `entries`. Keshbek uchun alohida ledger jadvali yo'q, harakatlar
+  yozilgan joyidan tiklanadi: keshbek bilan to'lov (minus), qisman qaytarishlar va bekor qilishda qaytgani (plus), do'st
+  taklifi bonusi 5 000 (plus);
+- `complaints` (oxirgi 20) — `support.view` bo'lmasa `null`;
+- `sessions`: faol tokenlar (Mini App / Telegram, ilova, kassa PIN sessiyasi; admin sessiyasi hech qachon), ilova
+  sessiyalari (refresh), oxirgi foydalanish, shaxsiy qurilmalari;
+- `membership` — xodim hisobining ovqatxonasi, filiali, roli, SMS bilan kirish (sms / ega kiritgan), kassa PIN (mijozda
+  `null`); `linked_accounts` — shu telefon yoki shu Telegramdagi boshqa hisoblar (bir odam mijoz va xodim, yoki ikki
+  ovqatxonada);
+- `audit` — shu hisob haqidagi jurnal yozuvlari (`audit.view` bo'lmasa `null`), `actions` (`block`, `unblock`,
+  `close_sessions`), `links.audit`.
+
+### Bloklash va sessiyalarni yopish (`support.manage`, step-up, `reason`)
+
+- `POST .../block` — `users.blocked_at`, `blocked_by`, `blocked_reason` yoziladi va **barcha sessiyalar darhol yopiladi**.
+  Bloklangan hisob hech qayerga kira olmaydi: Telegram (Mini App, bot), SMS kod, refresh, kassa PIN — hammasi 403
+  `account_blocked` ("Hisobingiz bloklangan..."); oldin berilgan token ham ishlamaydi (Sanctum tekshiruvi), shuning uchun
+  buyurtma bera olmaydi. Bloklangan xodim Telegram'dagi buyurtma tugmalari bilan ham ishlay olmaydi, eski `/admin`
+  paneliga ham kirmaydi. **Ovqatxona egasi bloklansa, ovqatxona ishlashda davom etadi** — to'xtatish Ovqatxonalar
+  bo'limida. 409 `already_blocked`.
+- `POST .../unblock` — blok olib tashlanadi, odam qaytadan kira oladi. 409 `not_blocked`.
+- `POST .../close-sessions` — Mini App va ilova tokenlari, refresh tokenlar, terminaldagi PIN sessiyalari o'chiriladi,
+  qurilmalarga push ketmaydi. Kassaning o'z ulanishi (terminal tokeni) saqlanadi, admin sessiyalariga tegilmaydi;
+  `sanctum:prune-expired` ishlatilmaydi. Odam qaytadan kira oladi (bloklanmagan bo'lsa).
+- Javob — yangilangan karta.
+
+### Shikoyatlar qutisi
+
+Shikoyatning ikki tomoni bor: **mijoz ↔ ovqatxona** (`complaints.status`: `pending` → ovqatxona javob berdi
+`owner_replied` → mijoz RIZQIMga yubordi `in_review` → `closed`; Mini App va hamkor paneli shuni ishlatadi) va **RIZQIM
+yordam xizmati** (`support_status`): `new` (Yangi) → `in_progress` (Ko'rib chiqilmoqda) → `answered` (Javob berildi) →
+`resolved` (Hal qilindi), mas'ul xodim (`assigned_to`).
+
+- `GET /admin/complaints?status=open|new|in_progress|answered|resolved|all&assigned=me|none|<id>&type=&waiting=1&q=&cursor=`
+  → `{data, next_cursor, counts, waiting_hours, assignees, types, statuses}`. `open` (standart) — yangi va ko'rib
+  chiqilayotganlar, eng eskisi birinchi; boshqalari yangilari birinchi. `q` — buyurtma kodi yoki matndagi so'z.
+- **Kutayotgan** (`waiting`): yordam tomonida ochiq, ovqatxona javob bermagan (yoki mijoz baribir RIZQIMga yuborgan) va
+  `support.complaint_waiting_hours` (standart 4, `SUPPORT_COMPLAINT_WAITING_HOURS`) soatdan eski. Ovqatxona javob bergan
+  va mijoz yubormagan shikoyat kutayotganlarga kirmaydi.
+- `GET /admin/complaints/{uuid}` — qator + to'liq matn, `customer` (telefon `AdminPii` orqali, `telegram_linked`,
+  `href: /users/{id}`), `order`, `store_reply` (ovqatxona javobi), `replies` (RIZQIM javoblari), `resolution`, `history`
+  (jurnaldan), `actions` (`reply`, `resolve`, `reopen`).
+- `PATCH .../{uuid} {support_status?, assigned_to?}` — holat (`resolved` emas: 422 `use_resolve`) va mas'ul (`support.view`
+  li faol jamoa a'zosi yoki `null`; 422 `assignee_invalid`). Mas'ulsiz `in_progress` ga o'tkazgan xodimga biriktiriladi;
+  hal qilinganini qaytarish — qayta ochish (ovqatxona tomoni `in_review` ga qaytadi).
+- `POST .../reply {text, canned_reply_id?}` — 1–1000 belgi oddiy matn mijozning Telegramiga RIZQIM boti orqali, navbat
+  bilan (buyurtma aralashuvlaridagi yo'l): "📣 RIZQIM yordam xizmati / Shikoyatingiz bo'yicha (buyurtma #KOD): ...".
+  Javob saqlanadi (`complaint_replies`), holat `answered`. Telegram yo'q — 422 `no_recipient`, bot sozlanmagan — 503
+  `telegram_not_configured` (ikkalasida hech narsa saqlanmaydi), hal qilingan — 409 `already_resolved`.
+- `POST .../resolve {note}` — 3–1000 belgi. `resolved`, ovqatxona tomoni `closed`, izoh `resolution_comment` ga
+  (mijoz Mini App'dagi shikoyatlar ro'yxatida ko'radi), `resolved_by` — xodim (eski paneldagi "Hal qilish" bilan bir
+  xil). 409 `already_resolved`.
+
+### Tayyor javoblar
+
+`GET /admin/support/canned-replies` → `[{id, title, body, sort_order, updated_by, updated_at}]`; `POST {title ≤ 120, body
+≤ 1000, sort_order?}` (ko'pi bilan 200 ta, 422 `limit_reached`), `PATCH /{id}`, `DELETE /{id}`. Javob matnning o'z
+nusxasini saqlaydi: tayyor javobni o'zgartirish yoki o'chirish yuborilgan javoblarga ta'sir qilmaydi.
+
+### Shubhali holatlar (faqat ko'rish)
+
+`GET /admin/support/suspicious` → `{generated_at, groups: [{kind, label, description, rows}]}`. Hech narsa avtomatik hal
+qilinmaydi; har qator nima uchun shu yerda ekanini so'z bilan aytadi (`reason`) va foydalanuvchi kartasiga olib boradi
+(`href`). Har signal — bitta indeksli vaqt oralig'i, ko'pi bilan 50 qator; chegaralar `config/support.php` da:
+
+| `kind` | Qoida | Misol |
+|---|---|---|
+| `cancellations` | 7 kunda kamida 3 ta buyurtmasi mijoz tufayli bekor qilingan (o'zi bekor qilgan, uning so'rovi bilan, olib ketmagan) | "7 kunda 4 ta buyurtma bekor qilindi: 3 tasini o'zi bekor qildi, 1 tasini olib ketmadi." |
+| `promo_sharing` | 30 kunda bitta promo-kod bir xil telefon raqami yoki bitta Telegram akkauntiga ega 2+ hisobdan ishlatilgan (`accounts` — hammasi) | "BIRINCHI kodi 30 kunda bir xil telefon raqamli 2 ta hisobdan 3 marta ishlatildi." |
+| `refunds` | 30 kunda qaytarish so'rovlari (kutilayotgan va tasdiqlangan) jami o'rtacha so'rovdan kamida 3 baravar ko'p va 100 000 so'mdan ortiq | "30 kunda 2 ta qaytarish, jami 300 000 so'm — o'rtacha qaytarishdan (48 889 so'm) 6.1 baravar ko'p." |
+
+Qurilma bo'yicha signal hozircha yo'q: ilova qurilmasi bitta hisobga bog'lanadi (`devices.uuid` noyob, push token oxirgi
+kirgan hisobga o'tadi), shuning uchun "bir qurilmadan ko'p hisob"ni o'qib bo'lmaydi.
+
+### "Diqqat talab qiladi" manbasi (`support.view`)
+
+| `kind` | Nima | `severity` | `href` |
+|---|---|---|---|
+| `complaint_waiting` | kutayotgan shikoyatlar (yuqoridagi qoida), eng eskisi birinchi; mijoz RIZQIMga yuborgani `warning` | `warning` | `/customers?tab=complaints&complaint={uuid}` |
+
+### Eski paneldan
+
+Superadmin panelidagi **Foydalanuvchilar** (GlobalUsers): ro'yxat, rol filtri, qidiruv, ko'rish (profil, analitika,
+oxirgi buyurtmalar) — shu yerda. O'chirish o'rniga **bloklash** (buyurtmalar, ledger va jurnal tarixi saqlanadi).
+Yaratish va tahrirlash ko'chirilmadi: mijozlar o'zi ro'yxatdan o'tadi (Telegram, SMS), ovqatxona xodimlarini egasi hamkor
+panelida qo'shadi va tahrirlaydi (rol, filial, telefon, PIN), ega ovqatxona yaratilganda paydo bo'ladi (Ovqatxonalar →
+ulash jarayoni), jamoa a'zolari — Tizim → Jamoa. Xodimning Telegram taklif havolasi — hamkor panelidagi xodimlar ro'yxatida,
+egasiniki — Ovqatxonalar kartasida (`telegram-link`). "SMS bilan kirishni yoqish" (eski xodim telefonini tasdiqlash) —
+ega yoki menejer hamkor panelida qiladi (`StaffAccountService`), egasiniki ovqatxona yaratishda (`StoreProvisioner`);
+jonli ovqatxonalar hali yo'q, eski ma'lumot ham yo'q. Kuryer turini (`fleet`) o'zgartirish — RIZQIM kuryerlari tarmog'i
+bilan (keyingi bosqich). **E'tirozlar** (Complaints): ro'yxat, ko'rish, holat va hal qilish izohi — Shikoyatlar qutisida.
+
+### Migratsiyalar va testlar
+
+`2026_11_06_100100` (`users.blocked_at`, `blocked_reason`, `blocked_by`), `100200` (`complaints.support_status`,
+`assigned_to`, `support_status_changed_at`, `answered_at`, `resolved_at`, indekslar; yopilganlar `resolved` bo'ladi),
+`100300` (`support_canned_replies`), `100400` (`complaint_replies`). Testlar: `tests/Feature/AdminCustomers/*`.
+
+## Marketing (P4-31)
+
+Boshqaruv markazining **Marketing** bo'limi (`platform/admin`, `/marketing`): Mini App bosh sahifasidagi bannerlar va
+aksiyalar, promo-kodlar (ishlatilish statistikasi bilan) va kategoriyalar tartibi. Eski `/superadmin` panelidagi
+`PromoResource`, `PromoCodeResource` va `Categories` o'rnini bosadi. Kod: `routes/api_admin_marketing.php`
+(`/admin/marketing`, nomlar `admin.marketing.*`), `Admin/AdminMarketing*Controller`, `app/Services/Admin/Marketing/*`
+(`PromoBanners`, `PromoCodes`, `MarketingCategories`). Pul — o'nlik satr (`"5000.00"`), vaqt — ISO 8601 (Asia/Tashkent,
+bazada UTC). Har o'zgarish `reason` (3–500 belgi) talab qiladi va jurnalga yoziladi (amal = route nomi, obyekt, oldin/keyin,
+sabab); **step-up faqat o'chirishda** (egasi qarori: marketing tuzatishlari pul ushlamaydi, qaytarib bo'ladi).
+
+### Ruxsatlar
+
+| Endpoint | Ruxsat | Step-up |
+|---|---|---|
+| `GET /admin/marketing/promos`, `/promos/preview`, `/promos/{id}/image`, `/promo-codes`, `/promo-codes/{id}`, `/categories`, `/categories/{id}/image`, `/lookup` | `marketing.view` | — |
+| `POST /admin/marketing/promos`, `/promos/{id}`; `PUT /promos/order` | `marketing.manage` + `reason` | — |
+| `POST /admin/marketing/promo-codes`; `PATCH /promo-codes/{id}`; `POST /promo-codes/{id}/activate`, `/deactivate` | `marketing.manage` + `reason` | — |
+| `POST /admin/marketing/categories`, `/categories/{id}`; `PUT /categories/order` | `marketing.manage` + `reason` | — |
+| `DELETE /admin/marketing/promos/{id}`, `/promo-codes/{id}`, `/categories/{id}` | `marketing.manage` + `reason` | **ha** (`admin.recent`) |
+
+Standart rollarda `marketing.manage` faqat superadminda; «Faqat ko'rish» roli o'qiydi; boshqa rollarga superadmin Rollar
+sahifasida beradi. Rasm yuklanadigan so'rovlar `multipart/form-data` (PHP multipart `PATCH`ni o'qimaydi, shuning uchun
+o'zgartirish ham `POST`); mantiqiy qiymatlar `1`/`0`. Rasm: JPG, PNG yoki WebP, **4 MB gacha** (SVG yo'q).
+
+### Bannerlar va aksiyalar (`promos`)
+
+Banner — Mini App bosh sahifasi (`GET /catalog`, `store_id`siz) ro'yxatidagi qator: sarlavha, rasm, bosilganda ochiladigan
+ovqatxona (`store_id`) yoki taom (`product_id`; ikkalasi berilsa taom shu ovqatxonaniki bo'lishi shart —
+`product_store_mismatch`), tartib (`sort_order`), yoqilgan/o'chiq va **jadval** (`starts_at`, `ends_at`; ikkalasi ham bo'sh —
+yoqilgan paytda doim ko'rinadi, mavjud bannerlar shunday ishlashda qoladi). Rasm eski panel kabi `public` diskning `promos/`
+papkasiga tushadi (`Promo::image_url` shu yerdan quradi).
+
+- `GET /admin/marketing/promos?status=&q=` — hamma banner `sort_order` bo'yicha (ko'pi bilan 200). `status` hozir
+  hisoblanadi: `inactive` (o'chiq) → `scheduled` (`starts_at` oldinda) → `ended` (`ends_at` o'tgan) → `live`. Qatorda
+  `image_url` (jamoat URL) va `image_preview` (admin yo'li, `GET`, shu sessiya bilan; veb-ilova rasmni shu orqali ko'rsatadi).
+- `GET /admin/marketing/promos/preview` — Mini App **hozir** ko'rsatadigan bannerlar, tartibi bilan: `GET /catalog`
+  bilan bir xil so'rov (`Promo::live()` va `toCatalogEntry()`), shuning uchun «Mini App'da ko'rinishi» ko'rgazmasi aniq.
+- `POST /admin/marketing/promos` — `title` (2–255), `image` (majburiy), `store_id`, `product_id`, `is_active`,
+  `starts_at`, `ends_at` (`ends_at` > `starts_at`, aks holda 422 `invalid_schedule`), `reason`. Oxiriga qo'shiladi. 201.
+- `POST /admin/marketing/promos/{id}` — shu maydonlardan istalgani (`store_id`, `product_id`, jadval bo'sh yuborilsa
+  tozalanadi; yangi `image` eskisini almashtiradi va eski fayl o'chadi). O'zgarmasa jurnalga yozilmaydi.
+- `PUT /admin/marketing/promos/order` — `ids`: **hamma** banner, har biri bir marta, yangi tartibda; ro'yxat eskirgan
+  bo'lsa (yangi banner qo'shilgan/o'chirilgan) 409 `order_stale` — hamkasbning tartibi bosib ketilmaydi.
+- `DELETE /admin/marketing/promos/{id}` — step-up + `reason`; banner va rasmi o'chadi, jurnalda maydonlari qoladi.
+
+### Promo-kodlar (`promo-codes`)
+
+Qoidalar **buyurtma berishdagi bilan bir xil** (`PromoCodeService`, `CreateOrderAction`): kod bosh harfda, kesilgan
+holda saqlanadi (harf, raqam, `-`, `_`; 3–50 belgi; katta-kichik farqsiz yagona); `percentage` — 0 dan katta va 100 gacha
+(2 kasr), ixtiyoriy `max_discount_amount` (so'm) chegarasi; `fixed` — 0 dan katta **butun so'm** (buyurtma oqimi uni butun
+so'mga yaxlitlaydi va chegarani e'tiborsiz qoldiradi, shuning uchun `fixed`da chegara saqlanmaydi). Minimal summa
+(`min_order_amount`), umumiy va mijoz uchun limitlar (`usage_limit`, `per_user_limit`, bo'sh — cheklanmagan), muddat
+(`expires_at`, yaratishda kelajakda bo'lishi shart) va ovqatxona (`store_id`, bo'sh — hamma) buyurtma paytida tekshiriladi.
+
+- `GET /admin/marketing/promo-codes?q=&status=&store_id=&sort=&page=&per_page=` — sahifalab (30; ko'pi 100). `status`:
+  `active`, `inactive` (o'chirilgan), `expired` (muddati o'tgan), `exhausted` (limit tugagan). `sort`: `newest`, `code`, `expiry`.
+- Har qatorda `stats` — **limitga sanaladigan** buyurtmalar bo'yicha (bekor qilingan, rad etilgan va qaytarilgan emas;
+  `PromoCode::RELEASED_ORDER_STATUSES`):
+
+  | Maydon | Ma'nosi |
+  |---|---|
+  | `uses` | kodni ishlatgan buyurtmalar soni (limit shuni sanaydi) |
+  | `unique_customers` | shu buyurtmalardagi turli mijozlar |
+  | `discount_total` | berilgan chegirma yig'indisi (`orders.discount`) |
+  | `gmv` | shu buyurtmalarning jami summasi (`orders.total_price`, chegirmadan keyin) |
+
+  Statistika bir so'rovda, sahifadagi kodlar uchun, `(promo_code_id, user_id)` indeksi ustida hisoblanadi.
+- `GET /admin/marketing/promo-codes/{id}` — qator va `recent_orders` (oxirgi 10 buyurtma: `uuid`, `status`, `discount`, `total`).
+- `POST /admin/marketing/promo-codes` — maydonlar yuqoridagidek (`code`, `type`, `value` majburiy), `reason`. 201.
+  Qiymat turiga mos kelmasa 422 `invalid_value`.
+- `PATCH /admin/marketing/promo-codes/{id}` — istalgan maydon. **Bu koddan bitta bo'lsa ham buyurtma berilgan bo'lsa**
+  (`locked: true`; bekor qilingani ham sanaladi — hisobotlar va buyurtmalar eski chegirmaga tayanadi) `code`, `type`, `value`,
+  `max_discount_amount` va `store_id` o'zgarmaydi: 422 `promo_code_used`, `data.fields` — qaysi maydonlar. **Yangi promo-kod
+  yaratib, eskisini o'chirib qo'ying.** Limitlar, `min_order_amount`, `expires_at` va yoqish/o'chirish erkin; o'sha qiymatni
+  qayta yuborish o'zgarish emas.
+- `POST /admin/marketing/promo-codes/{id}/activate`, `/deactivate` — yoqish/o'chirib qo'yish (buyurtma oqimi har buyurtmada
+  tekshiradi, shuning uchun darhol ta'sir qiladi; berilgan buyurtmalar o'z chegirmasini saqlaydi).
+- `DELETE /admin/marketing/promo-codes/{id}` — faqat hech bir buyurtmada **ishlatilmagan** kod (aks holda 409
+  `promo_code_used`: o'chirib qo'ying). Eski paneldagi «o'chirish» ishlatilgan kodlarda buyurtmadagi havolani bo'shatardi;
+  endi bunday kod faqat faolsizlantiriladi.
+
+Jurnalda kod `promo` kaliti bilan yoziladi (umumiy tozalagich `code` kalitini maxfiy deb yashirar edi, promo-kod esa maxfiy emas).
+
+### Kategoriyalar (`categories`)
+
+Kategoriyalar butun marketplace uchun umumiy, **ikki daraja**: asosiy va uning ichki kategoriyalari (`parent_id` asosiy
+kategoriya bo'lishi shart; ichki kategoriyasi borini boshqasining ichiga qo'yib bo'lmaydi — 422 `invalid_parent`). Ikonka —
+kategoriyaning `image`i: `MenuImageService` orqali (menyu rasmlari diski, WebP, kichik rasmlarni navbatdagi vazifa yasaydi).
+«Yashirish» — `is_active: false`: kategoriya katalogdan yo'qoladi, taomlari qoladi.
+
+- `GET /admin/marketing/categories` — hamma kategoriya `sort_order` bo'yicha; `products_count`, `children_count`, `parent`.
+- `POST /admin/marketing/categories` — `name` (2–255), `parent_id`, `image` (ixtiyoriy), `is_active`, `reason`; oxiriga
+  qo'shiladi (slug nomdan). 201.
+- `POST /admin/marketing/categories/{id}` — `name` (slug ham yangilanadi), `parent_id` (bo'sh — asosiy), `is_active`,
+  `image`, `remove_image`, `reason`.
+- `PUT /admin/marketing/categories/order` — `ids`: **hamma** kategoriya, har biri bir marta, yangi tartibda (bir
+  so'rovda butun ro'yxat; bitta kategoriya modelidagi «qo'shnilarni siljitish» qoidasi ketma-ket ko'chirishga mos emas, shuning
+  uchun tartib to'g'ridan-to'g'ri yoziladi). `updated_at` o'zgaradi — POS menyu versiyasi ham yangilanadi. Ro'yxat eskirgan
+  bo'lsa 409 `order_stale`.
+- `DELETE /admin/marketing/categories/{id}` — step-up; faqat taomsiz va ichki kategoriyasiz (aks holda 409
+  `category_in_use`: yashiring); yumshoq o'chirish (eski panel kabi).
+
+### Tanlagich
+
+`GET /admin/marketing/lookup?q=&store_id=&ids[]=&product_ids[]=` (`marketing.view`): `q` bo'yicha 20 tagacha ovqatxona;
+`store_id` + `q` — shu ovqatxonaning 20 tagacha taomi; `ids[]` / `product_ids[]` — tanlangan qiymat nomi uchun. Marketing
+xodimi uchun alohida `stores.view` kerak emas.
+
+### Migratsiya va testlar (P4-31)
+
+`2026_11_06_200000_add_schedule_to_promos_table` — `promos.starts_at`, `promos.ends_at` (NULL = doim). `GET /catalog`
+endi faqat jadval ichidagi yoqilgan bannerlarni beradi. Testlar: `tests/Feature/AdminMarketing/*` (ruxsat har endpoint va
+rolda, step-up, `reason`, jurnal, rasm cheklovlari, jadval, buyurtma oqimi bilan moslik, statistika, qulf).
+
+## Tizim (P4-31)
+
+Boshqaruv markazining **Tizim** sahifasi (`platform/admin`, `/system`, menyuda «Tizim sozlamalari»): platforma
+sozlamalari, to'lov tizimlari, viloyatlar va tumanlar, funksiyalar (feature flag'lar). Eski `/superadmin`dagi «Tizim
+Sozlamalari», «To'lov Tizimlari», «Regions», «Districts» va «Feature flaglar» shu yerga ko'chdi. Kod:
+`routes/api_admin_system.php` (`/admin/system`, nomlar `admin.system.*`), `Admin/AdminSystem*Controller`,
+`app/Services/Admin/System/*`. Hammasi **`system.manage`** (faqat Superadmin, rol sozlamasi o'zgarmagan bo'lsa); har
+o'zgarish step-up (`admin.recent`) va `reason` (3–500 belgi) talab qiladi va harakatlar jurnaliga route nomi bilan
+yoziladi. Hech narsani o'zgartirmagan takroriy so'rov jurnalga yozilmaydi. SLA chegaralari (`PUT /admin/orders/sla`) va
+tariflar katalogi (`/admin/billing/plans`) o'z bo'limlarida qoladi; Tizim sahifasi ularga havola beradi.
+
+**Maxfiy kalitlar hech qachon to'liq qaytmaydi:** javobda faqat `configured` (kiritilganmi) va `last4` (oxirgi 4 belgi;
+8 belgidan qisqa qiymatda `null`). Maxfiy kalit oddiy forma bilan o'zgartirilmaydi — alohida «almashtirish» amali bor.
+Jurnal yozuvida qiymatning o'zi yo'q: faqat qaysi kalit, avval kiritilganmi va o'chirildimi.
+
+| Endpoint | Nima |
+|---|---|
+| `GET /admin/system/settings` | Guruhlar: `sms`, `telegram`, `general`. Har qatorda `key`, `label`, `description`, `type` (`select`, `email`, `text`, `secret`), `editable`, `secret`, `value` (maxfiyda `null`), `configured`, `last4`, `source`, `default`, `options`, `updated_at` |
+| `PATCH /admin/system/settings` | `values: {key: qiymat}` + `reason`. Faqat oddiy SMS sozlamalari: `sms_driver` (`log` / `eskiz`), `eskiz_email`, `eskiz_from`. Bo'sh qiymat saqlanganini o'chiradi (`.env` yoki standart ishlaydi). Maxfiy kalit yuborilsa 422 `secret_separate`, noma'lum kalit 422 `unknown_setting`, Eskiz email yoki paroli yo'q bo'lib Eskizga o'tish (yoki Eskiz ishlab turganda emailni bo'shatish) 422 `eskiz_not_configured`. Javob — hamma guruhlar |
+| `PUT /admin/system/settings/secrets/{key}` | `value` (1–500) + `reason`. Hozir faqat `eskiz_password`; boshqasi 404 `not_found` |
+| `DELETE /admin/system/settings/secrets/{key}` | `reason`. Saqlangan qiymat o'chadi (`.env` dagisi ishlaydi). SMS Eskiz orqali ketayotganda parolni o'chirish 422 `in_use` |
+| `GET /admin/system/payment-providers` | Payme, Click, Uzum Bank, Paynet: `is_active`, `mode` (`test` / `production`), `wired` (to'lov havolasi va webhooklar ishlatadimi: Payme, Click), `credentials` — har kalit uchun `label`, `known`, `configured`, `last4`, `source` |
+| `PATCH /admin/system/payment-providers/{slug}` | `is_active` va/yoki `mode` + `reason` |
+| `PUT /admin/system/payment-providers/{slug}/credentials/{key}` | `value` + `reason`. Kalit tizim kodi biladiganlardan (Payme: `merchant_id`, `secret_key`; Click: `service_id`, `merchant_id`, `secret_key`, `merchant_user_id`; Uzum: `terminal_id`, `secret_key`; Paynet: `merchant_id`, `secret_key`) yoki allaqachon saqlangan bo'lishi kerak, aks holda 422 `unknown_key` |
+| `DELETE /admin/system/payment-providers/{slug}/credentials/{key}` | `reason`. Saqlangan kalit o'chadi, `config/services.php` (`.env`) qiymati ishlaydi |
+| `GET /admin/system/regions` | Hamma viloyatlar (`sort_order`, keyin nom bo'yicha) va ichida tumanlari. `usage`: viloyatda `branches`, `addresses` (mijoz manzillari), `applications` (ovqatxona arizalari); tumanda `branches`, `addresses`. `deletable` |
+| `POST /admin/system/regions` | `name` (2–120, takrorlanmas), `is_active` (standart `false`), `reason`. Ro'yxat oxiriga qo'shiladi. 201 |
+| `PATCH /admin/system/regions/{id}` | `name` va/yoki `is_active` + `reason` |
+| `DELETE /admin/system/regions/{id}` | `reason`. Tumanlari bor viloyat 422 `has_districts`; filial, manzil yoki ariza ishlatayotgani 422 `in_use` (`data.usage`) |
+| `PUT /admin/system/regions/order` | `ids` — **hamma** viloyatlar yangi tartibda, har biri bir marta, + `reason`; aks holda 422 `order_mismatch`. Javob — ro'yxat |
+| `POST /admin/system/regions/{id}/districts` | Tuman qo'shish: `name` (viloyat ichida takrorlanmas), `is_active`, `reason`. 201 |
+| `PUT /admin/system/regions/{id}/districts/order` | Viloyat tumanlarining to'liq tartibi (`ids`) + `reason` |
+| `PATCH /admin/system/districts/{id}` | `name`, `is_active`, `region_id` (boshqa viloyatga ko'chirish — faqat hech narsa ishlatmayotgan tuman, aks holda 422 `in_use`) + `reason` |
+| `DELETE /admin/system/districts/{id}` | `reason`. Filial yoki manzil ishlatayotgan tuman 422 `in_use` |
+| `GET /admin/system/feature-flags` | Kodda e'lon qilingan funksiyalar (`App\Features\Features`): `name`, `label`, `description`, `default`, `stores_on`, `stores_off`, `stores_total` |
+| `GET /admin/system/feature-flags/stores?q=&page=&per_page=` | Ovqatxonalar (nom bo'yicha) va har funksiya uchun `active` hamda `stored` (o'z qiymati bormi; `false` — standartga amal qiladi). O'qish hech narsa saqlamaydi |
+| `PUT /admin/system/feature-flags/{flag}/stores/{storeId}` | `active` (true / false) + `reason`. Pennant orqali (eski sahifadagi kabi) |
+| `DELETE /admin/system/feature-flags/stores/{storeId}` | `reason`. Ovqatxonaning o'z qiymatlari unutiladi (eski «Standartga qaytarish») |
+
+Qoidalar va izohlar:
+- Sozlama qiymati `setting()` yordamchisi bilan bir xil tartibda aniqlanadi: `settings` jadvalidagi (bo'sh satr ham)
+  qiymat, keyin `config/settings.php` (`.env`), keyin kodning standarti. `source`: `settings`, `env`, `default` yoki
+  `null`. Saqlangandan keyin `setting()` keshi tozalanadi. Telegram (bot tokeni, bot nomi, Mini App manzili, webhook kaliti,
+  superadmin chati, navbatchi guruhi) va Umumiy (ilova nomi, manzili, muhit, vaqt mintaqasi) qatorlari `.env` dan olinadi
+  va faqat ko'rsatiladi (`editable: false`).
+- To'lov kaliti `PaymentProvider::platformCredential()` kabi aniqlanadi: shu yerda saqlangani, bo'lmasa
+  `config/services.php`. `is_active` va `mode` hozircha **faqat jamoa uchun belgi**: buyurtma oqimi ularni hali
+  tekshirmaydi (Click va Payme kalit bor bo'lsa ishlaydi). Yangi `payment_providers.mode` ustuni eski `test_mode`
+  kalitidan to'ldirildi. «Ulanishni tekshirish» yo'q: hech bir provayderda kalitni yon ta'sirsiz tekshiradigan so'rov yo'q.
+- Viloyatlar va tumanlar tartibi Mini App'ning `GET /locations` javobiga ham ta'sir qiladi (`sort_order`, keyin nom).
+- Eski paneldagi to'lov tizimi yaratish/o'chirish va ikonka yuklash ko'chirilmadi: yangi provayder kodsiz ishlamaydi,
+  ikonka hech qayerda ko'rsatilmaydi.
+
+### Migratsiyalar va testlar (Tizim)
+
+`2026_11_06_300100` (`regions.sort_order`, `districts.sort_order`), `2026_11_06_300200` (`payment_providers.mode`).
+Testlar: `tests/Feature/AdminSystem/*`.
+
+## Integratsiyalar (P4-31)
+
+Boshqaruv markazining **Integratsiyalar** sahifasi (`/integrations`) va 5-bosqich ulagichlari uchun ma'lumot modeli
+(`docs/PHASE5_PLAN.md` 4.3). Ulagichlar, fon vazifalari va «qayta yuborish» hali yo'q: hamma ro'yxat bo'sh turadi va buni
+tinch matn bilan aytadi. Kod: `routes/api_admin_integrations.php` (`/admin/integrations`, nomlar `admin.integrations.*`),
+`Admin/AdminIntegration*Controller`, `app/Services/Admin/Integrations/*`, modellar `app/Domain/Integrations`.
+
+**Ma'lumot modeli:**
+
+| Jadval / maydon | Nima |
+|---|---|
+| `integration_connections` | Ovqatxona (va ixtiyoriy filial) ↔ tashqi tizim: `provider` (`iiko`, `alipos`, `r_keeper`, `clopos`, `poster`, `mison`, `regos`, `yandex_eats`, `uzum_tezkor`, `partner_api`, `fake`), `direction` (`rizqim_to_pos` — A, `aggregator_to_rizqim` — B), `mode` (`sandbox` / `production`), `status` (`configuring`, `active`, `paused`, `disconnected`), `credentials` (Laravel shifrlangan JSON, modelda `hidden`, hech qachon serializatsiya qilinmaydi), `settings` (JSON), sog'liq: `last_success_at`, `last_webhook_at`, `last_error_at`, `last_error`, `errors_today`, `health_score` (0–100), `health_checked_at`; pauza: `paused_at`, `paused_by`, `pause_reason`, `status_before_pause` |
+| `integration_events` | Jurnal: ulanish (topilmagan kiruvchi so'rov uchun `null`), `direction` (`inbound` / `outbound`), `type` (`order.push`, `menu.sync`, `webhook.status`...), `idempotency_key` (ulanish + yo'nalish ichida yagona), `subject_type` + `subject_id`, `request_body`, `response_body`, `http_status`, `signature_valid`, `attempts`, `last_attempt_at`, `next_attempt_at`, `status` (`pending`, `sent`, `acknowledged`, `failed`, `dead`), `error`, `duration_ms` |
+| `external_refs` | Ulanish ichida RIZQIM obyekti (`branch`, `category`, `product`, `variant`, `modifier`, `order`) ↔ tashqi ID, ikki tomonga yagona |
+| `orders.fiscalized_by` | `venue_pos`, `payment_provider`, `aggregator`, `rizqim_marketplace` (zaxira); bo'sh — «fiskal ko'rib chiqish kerak». Hamma mavjud buyurtma bo'sh, 5-bosqichgacha hech narsa o'qimaydi |
+
+Modellar: `IntegrationConnection`, `IntegrationEvent`, `ExternalRef` va enumlar (`IntegrationProvider`,
+`IntegrationDirection`, `IntegrationMode`, `IntegrationConnectionStatus`, `IntegrationEventDirection`,
+`IntegrationEventStatus`, `ExternalRefEntity`, `FiscalizedBy`); factory'lar `database/factories/Integrations`.
+Jurnalga yozuvchilar (5-bosqich) tanaga token va secret qo'ymaydi; o'qishda baribir `AuditRedactor` ishlaydi.
+
+| Endpoint | Ruxsat | Nima |
+|---|---|---|
+| `GET /admin/integrations/connections?status=&provider=&direction=&mode=&health=&store_id=&q=` | `integrations.view` | Sahifalangan (`page`, `per_page` 1–100, 30), eng kasal birinchi. `health`: `good` (80+), `attention` (50–79), `disconnected` (50 dan past), `unknown` (baho yo'q). Qatorda `health.verdict`, xato matnida telefon yashirilgan. `counts` (filtrsiz) va `stuck_orders` |
+| `GET /admin/integrations/connections/{uuid}` | shu | Karta: qator + `credentials` (faqat kalit nomi, `configured`, `last4`), `settings` (maxfiy ko'rinadigan kalitlar `[redacted]`, telefonlar yashirilgan), oxirgi 10 hodisa, `menu_map` (`external_refs` turlari bo'yicha), `stuck_orders` |
+| `POST /admin/integrations/connections/{uuid}/pause` | `integrations.manage` + step-up + `reason` | To'xtatish (`status_before_pause` eslab qolinadi). To'xtatilganni qayta to'xtatish hech narsa qilmaydi |
+| `POST /admin/integrations/connections/{uuid}/resume` | shu | Pauzadan oldingi holatga qaytarish (noma'lum bo'lsa `configuring`) |
+| `GET /admin/integrations/events?connection=&store_id=&status=&type=&direction=&from=&to=` | `integrations.view` | Jurnal, eng yangisi birinchi, kursor bilan (`cursor`, `per_page` 1–100, 25; `from`/`to` — Toshkent sanasi). Qatorlarda tana yo'q |
+| `GET /admin/integrations/events/{uuid}` | shu | Hodisa: `idempotency_key`, `signature_valid`, `request_body`, `response_body` — `AuditRedactor` orqali (pii.view bo'lsa ham) |
+| `GET /admin/integrations/stuck-orders` | shu | Qotib qolganlar: `order.push` (chiquvchi) 2 daqiqada (`stuck_after_minutes`) tasdiqlanmagan va buyurtma hali ochiq (yetkazilgan, bekor, rad etilgan, qaytarilgan emas); shu buyurtmaning keyingi urinishi bo'lsa hisoblanmaydi. Eng eskisi birinchi, 100 tagacha, `count` — hammasi |
+
+Rollar: Operator (`integrations.view`) va «Faqat ko'rish» ko'radi, o'zgartira olmaydi; to'xtatish/yoqish
+`integrations.manage` (standartda Superadmin). Yordam, Moliya va Savdo bo'limni ko'rmaydi.
+
+«Bugun → Diqqat talab qiladi»: yangi manba `integration_order_stuck` («Tashqi POS qabul qilmagan buyurtmalar», `critical`,
+`integrations.view`), havola `/integrations?tab=stuck`. 5-bosqichgacha bo'sh.
+
+### Migratsiyalar va testlar (Integratsiyalar)
+
+`2026_11_06_300300` (`integration_connections`), `2026_11_06_300400` (`integration_events`), `2026_11_06_300500`
+(`external_refs`), `2026_11_06_300600` (`orders.fiscalized_by`); hammasi orqaga qaytadi. Testlar:
+`tests/Feature/AdminIntegrations/*` (model va migratsiyalar, ulanishlar, jurnal, qotib qolganlar).
+
+## Ko'rsatkichlar va Excel eksport (P4-31)
+
+Boshqaruv markazining "Ko'rsatkichlar" sahifasi (`/metrics`) va ro'yxatlarning Excel eksporti. Hammasi `/api/v1/admin` ostida,
+`routes/api_admin_metrics.php`. Oylar — **Toshkent oylari** (`Asia/Tashkent`); pul — o'nlik satr (`"831166.67"`), foiz — bir
+kasrli satr (`"4.2"`).
+
+### Ruxsatlar
+
+| Endpoint | Ruxsat |
+|---|---|
+| `GET /admin/metrics`, `GET /admin/metrics/funnel` | `finance.view` **yoki** `stores.view` (faqat o'qish) |
+| `GET /admin/exports/*` | `export` **va** ro'yxatning o'z ko'rish ruxsati (pastdagi jadval) |
+
+### Ta'riflar (oddiy so'zlar bilan)
+
+- **MRR** — oylik takrorlanuvchi daromad: hozir pul to'layotgan obunalarning oylik narxi yig'indisi. Obunaning narxi: tarifning
+  oylik narxi (yillik obuna — yillik narx ÷ 12), shuningdek tarifga kirgan kassa va oshxona ekranlaridan ortiq har bir qurilma
+  uchun qo'shimcha to'lov (qurilmalar shu paytda ulangan va bekor qilinmagan bo'lishi kerak). Eski (P1-23) tarif: oylik narx +
+  kiritilgan terminallardan ortiq terminallar × terminal narxi. **Sinov davridagi** obuna hisobga olinmaydi; to'lovi
+  kechikkan (`past_due`, `locked`) obuna hisobga olinadi — ovqatxona hali mijoz. Narxlar ro'yxat bo'yicha: 50% chegirma,
+  "narx qulfi" va tarif oshirilgan oydagi proratsiya bir martalik hisob-faktura qatorlari, takrorlanuvchi daromad emas. O'tgan
+  oylar uchun tarifning **hozirgi** narxi olinadi (narx o'zgarishi oylar bo'yicha saqlanmaydi).
+- **ARR** — MRR × 12. **ARPA** — MRR ÷ pul to'layotgan ovqatxonalar soni.
+- **MRR harakati** (har oy uchun, oy boshi va oxiridagi MRR ovqatxona bo'yicha solishtiriladi):
+  **yangi** — oldin 0, endi bor (to'lay boshlagan, sinovi tugagan yoki qaytgan ovqatxona); **o'sish** — ikkalasida ham bor, oxirida
+  ko'p (yuqori tarif, qo'shimcha qurilma); **kamayish** — ikkalasida ham bor, oxirida kam; **ketgan** — oldin bor, endi 0.
+  `boshida + yangi + o'sish − kamayish − ketgan = oxirida` (tiyingacha).
+- **Faol ovqatxonalar** — holati `active` bo'lganlar; o'tgan oylar uchun holatlar tarixidan (`store_status_logs`) tiklanadi.
+- **Ketish (churn)** — oy boshida faol bo'lgan ovqatxonalardan nechtasi oy davomida (1) faol holatdan chiqdi (to'xtatildi, yopildi,
+  o'chirildi) yoki (2) oy boshida pul to'lagan bo'lib, oy oxirida to'lamaydi (obunasi tugadi). Foiz = ketganlar ÷ oy boshidagi faollar
+  (`rate`; oy boshida faol ovqatxona bo'lmasa `null`). `revenue_rate` — obunasi tugaganlarning MRR'i ÷ oy boshidagi MRR.
+  Tugamagan oy (`partial: true`) uchun — o'tgan kunlar bo'yicha.
+- **Konversiya (arizadan faolgacha)** — oxirgi N oyda tushgan arizalar: har bosqichga yetganlar soni (oldinga o'tish orada turgan
+  bosqichlarni ham o'tadi), ularning hammasiga ulushi, har bosqichda **median necha kun** turgani (bosqichdan chiqqanlar uchun) va
+  "ariza → faol" medianasi. Bosqich o'tishlari harakatlar jurnalidan (`admin.stores.applications.*`), birinchi bosqich — ariza vaqtidan
+  o'qiladi; jurnali yo'q ariza joriy bosqichi va `stage_changed_at` bo'yicha hisoblanadi. `conversion` = faol ÷ barcha ariza.
+- **GMV va komissiya** — Bugun yig'ma jadvalidan (`platform_daily_stats`, P4-13): faqat marketpleys kanallari (Telegram, mobil),
+  Bugun hisoblaydigan buyurtmalar; buyurtmalar skanerlanmaydi. Jadvalda hisoblanmagan kun bo'lsa, oy `complete: false` va
+  `missing_days` bilan keladi (eski kunlar uchun `php artisan admin:stats-backfill`).
+
+### `GET /admin/metrics?months=12&refresh=1`
+
+`months` 3–24 (standart 12; oxirgisi — tugamagan joriy oy). Javob (5 daqiqa keshlanadi, `generated_at`; `refresh=1` keshni tashlaydi):
+
+- `cards`: `mrr`, `mrr_change` (`direction`, `amount`, `percent` — oy boshiga nisbatan), `arr`, `paying_stores`, `trialing_stores`,
+  `arpa`, `active_stores`, `churn_rate` va `churn_month` (oxirgi **tugagan** oy), `gmv_month`, `commission_month`, `revenue_complete`;
+- `series[]`: `month`, `partial`, `mrr` (oy oxirida), `paying_stores`, `trialing_stores`, `active_stores`;
+- `movement[]`: `opening`, `new` / `expansion` / `contraction` / `churned` (`mrr`, `stores`), `net_new`, `closing`;
+- `churn[]`: `active_at_start`, `active_at_end`, `churned`, `went_inactive`, `subscription_ended`, `rate`, `revenue_rate`;
+- `revenue[]`: `orders`, `gmv`, `commission`, `subscription_revenue`, `missing_days`, `complete`.
+
+### `GET /admin/metrics/funnel?months=12`
+
+`applications`, `active`, `rejected`, `open`, `conversion`, `median_days_to_active` va `stages[]` (`stage`, `label`, `reached`, `share`,
+`median_days`, `samples`).
+
+### Excel eksport (`GET /admin/exports/...`)
+
+Har bir endpoint ro'yxatning **o'sha filtrlarini** oladi (sahifalashsiz) va `.xlsx` fayl qaytaradi (`Content-Disposition`:
+`rizqim-<ro'yxat>-YYYYMMDD-HHMM.xlsx`). `X-Export-Rows` — qatorlar soni, `X-Export-Truncated: 1` — ro'yxat chegarada kesilgan.
+
+| Endpoint | Filtrlar (ro'yxatniki) | Ko'rish ruxsati |
+|---|---|---|
+| `/exports/orders` | `status`, `channel`, `region_id`, `store_id`, `sla`, `from`, `to`, `q` | `orders.view` |
+| `/exports/stores` | `q`, `status`, `region_id`, `health`, `plan`, `debt`, `next_contact` | `stores.view` |
+| `/exports/store-applications` | `stage`, `assignee_id`, `source`, `q` | `stores.view` |
+| `/exports/finance/payouts` | `status`, `store_id` | `finance.view` |
+| `/exports/finance/topups` | `status`, `provider`, `store_id`, `stuck` | `finance.view` |
+| `/exports/finance/balances` | `filter`, `q` | `finance.view` |
+| `/exports/pos/invoices` | `status`, `store_id`, `period`, `dunning`, `q` | `subscriptions.manage` yoki `finance.view` |
+| `/exports/pos/devices` | `state`, `type`, `terminal`, `store_id`, `outdated`, `q` | `devices.view` |
+| `/exports/audit-logs` | `actor_id`, `action`, `store_id`, `subject_type`, `subject_id`, `from`, `to`, `q` | `audit.view` |
+
+(Oylik daromad hisoboti eksporti avvalgidek: `GET /admin/finance/reports/monthly/export`.)
+
+Qoidalar (hammasi uchun bitta yordamchi, `App\Services\Admin\Export\XlsxExporter`):
+
+- **Oqim bilan yoziladi** (ro'yxat 1000 qatordan sahifalab o'qiladi, xotira o'smaydi) va **eng ko'pi 50 000 qator**
+  (`admin.export.max_rows`). Ro'yxat uzun bo'lsa fayl buni aytadi: ma'lumotlar tagida va "Ma'lumot" varag'ida
+  "Ro'yxat 50 000 qatordan keyin kesildi: filtrni toraytiring".
+- **Formula in'ektsiyasi yo'q:** har bir matn katagi satr katagi (`=HYPERLINK(...)` kabi matn formulaga aylanmaydi); summalar va sonlar —
+  son (Excel yig'a oladi). Vaqt — Toshkent vaqti (`YYYY-MM-DD HH:MM:SS`).
+- **Telefon raqamlari** `AdminPii` qoidasi bilan: `pii.view`siz — yashirin (`+998 90 *** ** 67`); `pii.view` bilan — to'liq, va butun fayl
+  uchun **bitta** `admin.pii.revealed` yozuvi. Karta raqami eksportda **hamisha** yashirin.
+- **Jurnalga yoziladi:** `admin.exports.<ro'yxat>` (`orders`, `stores`, `store_applications`, `finance_payouts`, `finance_topups`,
+  `finance_balances`, `pos_invoices`, `pos_devices`, `audit_logs`) — kim, qaysi ro'yxat, filtrlar (qidiruvdagi telefon yashiriladi),
+  qatorlar soni, `truncated`, `phones_shown`, IP.
+- Bir xodim daqiqasiga 10 tagacha eksport boshlay oladi (`admin.export.per_minute`, 429).
+- Fayl 2 varaqdan iborat: ma'lumot (sarlavhalar qalin) va "Ma'lumot" (ro'yxat nomi, vaqt, kim, qatorlar, filtrlar).
+
+### Migratsiya va testlar
+
+`2026_11_06_400100_add_metrics_indexes` — `store_status_logs (store_id, id)` va `audit_logs (model_type, model_id)` indekslari.
+Testlar: `tests/Feature/AdminMetrics` (MRR, harakat, churn, GMV, konversiya, ruxsatlar; eksport: har ro'yxat, filtrlar, yashirish,
+formula, kesish, jurnal, throttle). Veb: `components/metrics`, `components/ExportButton.tsx`, `e2e/metrics.spec.ts`.

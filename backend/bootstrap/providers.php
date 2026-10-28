@@ -32,4 +32,10 @@ return [
     App\Providers\AdminStoresServiceProvider::class,
     // P4-23: Moliya: attention sources (payouts and adjustments waiting for a second approval)
     App\Providers\AdminFinanceServiceProvider::class,
+    // P4-31: Ko'rsatkichlar and Excel exports: the export rate limit
+    App\Providers\AdminMetricsServiceProvider::class,
+    // P4-31: Mijozlar va yordam: the attention source of complaints waiting for the support team
+    App\Providers\AdminCustomersServiceProvider::class,
+    // P4-31: Tizim and Integratsiyalar: the attention source of orders an outside POS has not confirmed
+    App\Providers\AdminSystemServiceProvider::class,
 ];

@@ -16,10 +16,11 @@ export const sessionCookieName = (): string => (secureCookies() ? SECURE_SESSION
 const BACKEND_TIMEOUT_MS = 20_000;
 const MAX_BODY_BYTES = 256 * 1024;
 // P4-23: the only calls that send a file (multipart/form-data, raw bytes passed on) and how big it may be
-const UPLOAD_PATHS = /^v1\/admin\/finance\/adjustments$/;
+const UPLOAD_PATHS = /^v1\/admin\/(?:finance\/adjustments|marketing\/(?:promos|categories)(?:\/\d{1,18})?)$/;
 const MAX_UPLOAD_BYTES = 11 * 1024 * 1024;
 // P4-23: the only answers passed on as a file (the monthly report's Excel, an adjustment's document), and their types
-const DOWNLOAD_PATHS = /^v1\/admin\/finance\/(?:reports\/monthly\/export|adjustments\/\d{1,18}\/document)$/;
+// P4-31: the Excel exports of the lists (/exports/<list>); their X-Export-Rows / X-Export-Truncated headers are passed on too
+const DOWNLOAD_PATHS = /^v1\/admin\/(?:finance\/(?:reports\/monthly\/export|adjustments\/\d{1,18}\/document)|exports\/[a-z-]{1,30}(?:\/[a-z-]{1,30})?|marketing\/(?:promos|categories)\/\d{1,18}\/image)$/;
 const DOWNLOAD_TYPES = /^(?:application\/vnd\.openxmlformats-officedocument\.spreadsheetml\.sheet|application\/pdf|image\/(?:jpeg|png|webp))(?:;|$)/i;
 // Cookie lifetime when the backend sends no expiry: the absolute session limit
 const FALLBACK_MAX_AGE_S = 12 * 60 * 60;
@@ -174,6 +175,10 @@ async function forwardCall(request: NextRequest, segments: string[]): Promise<Ne
     file.headers.set('Content-Type', upstreamType);
     const disposition = upstream.headers.get('content-disposition');
     if (disposition) file.headers.set('Content-Disposition', disposition);
+    const exportRows = upstream.headers.get('x-export-rows');
+    if (exportRows && /^\d{1,9}$/.test(exportRows)) file.headers.set('X-Export-Rows', exportRows);
+    const exportTruncated = upstream.headers.get('x-export-truncated');
+    if (exportTruncated === '0' || exportTruncated === '1') file.headers.set('X-Export-Truncated', exportTruncated);
     file.headers.set('Cache-Control', 'private, no-store');
     file.headers.set('X-Content-Type-Options', 'nosniff');
     return file;

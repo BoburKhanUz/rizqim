@@ -16,6 +16,7 @@ class Region {
     required this.isActive,
     required this.createdAt,
     required this.updatedAt,
+    required this.sortOrder,
     this.districts,
   });
 
@@ -30,6 +31,8 @@ class Region {
   final String? createdAt;
   @JsonKey(name: 'updated_at')
   final String? updatedAt;
+  @JsonKey(name: 'sort_order')
+  final int sortOrder;
   final List<District>? districts;
 
   Map<String, Object?> toJson() => _$RegionToJson(this);

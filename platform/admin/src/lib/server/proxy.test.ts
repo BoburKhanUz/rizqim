@@ -292,5 +292,25 @@ describe('admin proxy', () => {
       const html = await forward(request('GET', 'v1/admin/finance/adjustments/3/document', { cookie: 'tok' }), ['v1', 'admin', 'finance', 'adjustments', '3', 'document']);
       expect((await html.json()).data.reason).toBe('bad_gateway');
     });
+
+    it('passes the list exports (P4-31) on as files with their row count, and nothing else under /exports', async () => {
+      const xlsx = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      stubBackend(() => new Response(new Uint8Array([80, 75, 3, 4]), { status: 200, headers: { 'Content-Type': xlsx, 'Content-Disposition': 'attachment; filename=rizqim-orders-20261028-1200.xlsx', 'X-Export-Rows': '1250', 'X-Export-Truncated': '1', 'X-Secret': 'no' } }));
+      for (const path of [['exports', 'orders'], ['exports', 'finance', 'payouts'], ['exports', 'audit-logs']]) {
+        const file = await forward(request('GET', `v1/admin/${path.join('/')}?status=new`, { cookie: 'tok' }), ['v1', 'admin', ...path]);
+        expect(file.status).toBe(200);
+        expect(file.headers.get('Content-Disposition')).toContain('rizqim-orders-');
+        expect(file.headers.get('X-Export-Rows')).toBe('1250');
+        expect(file.headers.get('X-Export-Truncated')).toBe('1');
+        expect(file.headers.get('X-Secret')).toBeNull();
+      }
+
+      // A header that is not a count is dropped; a deeper path is no export
+      stubBackend(() => new Response(new Uint8Array([80, 75]), { status: 200, headers: { 'Content-Type': xlsx, 'X-Export-Rows': 'many' } }));
+      const odd = await forward(request('GET', 'v1/admin/exports/orders', { cookie: 'tok' }), ['v1', 'admin', 'exports', 'orders']);
+      expect(odd.headers.get('X-Export-Rows')).toBeNull();
+      const deep = await forward(request('GET', 'v1/admin/exports/a/b/c', { cookie: 'tok' }), ['v1', 'admin', 'exports', 'a', 'b', 'c']);
+      expect((await deep.json()).data.reason).toBe('bad_gateway');
+    });
   });
 });
