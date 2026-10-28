@@ -2,11 +2,10 @@
 
 import { useEffect, useState, type FormEvent } from 'react';
 import { Check, Copy, RefreshCw } from 'lucide-react';
-import { Button, Dialog, Field, fieldClass, formatTime } from '@rizqim/ui';
+import { Button, Dialog, Field, fieldClass, formatTime, FormError } from '@rizqim/ui';
 import { getApiFieldError, useCreatePairingCode, useMenuBranches, type PairingCode } from '@rizqim/staff';
 import { useI18n } from '../I18nProvider';
 import { errorText } from './errors';
-import { FormError } from './Notice';
 
 type TerminalType = 'pos' | 'kds';
 const TYPES: readonly TerminalType[] = ['pos', 'kds'];

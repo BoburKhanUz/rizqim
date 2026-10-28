@@ -2,17 +2,14 @@
 
 import { useMemo, useState } from 'react';
 import { KeyRound, Pencil, Search, ShieldCheck, Trash2, UserCog, UserPlus, Users } from 'lucide-react';
-import { Button, Card, CardSkeletons, EmptyState, IconButton, InlineError, cx, fieldClass } from '@rizqim/ui';
+import { Button, Card, CardSkeletons, EmptyState, IconButton, InlineError, cx, fieldClass, PageHeader, Notice, Pill } from '@rizqim/ui';
 import { useMenuBranches, useManagedStaff, useRemoveManagedStaff, type CreatedStaff, type StaffMember } from '@rizqim/staff';
 import { roleLabel } from '@/lib/labels';
 import { useI18n } from '../I18nProvider';
-import { PageHeader } from '../PageHeader';
 import { useCan } from './access';
 import { ConfirmDialog } from './ConfirmDialog';
 import { errorText } from './errors';
 import { InviteDialog } from './InviteDialog';
-import { Notice } from './Notice';
-import { Pill } from './Pill';
 import { StaffFormDialog, ASSIGNABLE_ROLES } from './StaffFormDialog';
 import { StaffPinDialog } from './StaffPinDialog';
 import { StaffRoleDialog } from './StaffRoleDialog';

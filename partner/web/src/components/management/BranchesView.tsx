@@ -2,17 +2,14 @@
 
 import { useState } from 'react';
 import { Clock, MapPin, Pencil, Phone, Plus, Store, Trash2 } from 'lucide-react';
-import { Button, Card, CardSkeletons, EmptyState, IconButton, InlineError } from '@rizqim/ui';
+import { Button, Card, CardSkeletons, EmptyState, IconButton, InlineError, PageHeader, Notice, Pill, type PillTone } from '@rizqim/ui';
 import { useDeleteBranch, useMenuBranches, useUpdateBranch, type ManagedBranch } from '@rizqim/staff';
 import { useI18n } from '../I18nProvider';
-import { PageHeader } from '../PageHeader';
 import { useCan } from './access';
 import { BranchFormDialog } from './BranchFormDialog';
 import { ConfirmDialog } from './ConfirmDialog';
 import { errorText, reasonOf } from './errors';
 import { hoursText } from './hours';
-import { Notice } from './Notice';
-import { Pill, type PillTone } from './Pill';
 
 type Dialog = { kind: 'form'; branch: ManagedBranch | null } | { kind: 'delete'; branch: ManagedBranch };
 

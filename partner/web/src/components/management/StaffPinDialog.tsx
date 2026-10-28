@@ -2,11 +2,10 @@
 
 import { useState, type FormEvent } from 'react';
 import { KeyRound } from 'lucide-react';
-import { Button, Dialog, Field, fieldClass } from '@rizqim/ui';
+import { Button, Dialog, Field, fieldClass, FormError } from '@rizqim/ui';
 import { getApiFieldError, useClearManagedStaffPin, useSetManagedStaffPin, type StaffMember } from '@rizqim/staff';
 import { useI18n } from '../I18nProvider';
 import { errorText } from './errors';
-import { FormError } from './Notice';
 
 // PUT /owner/staff/{id}/pin sets (or replaces) the 4 to 6 digit PIN a terminal login uses; DELETE clears it. The backend
 // refuses PINs that are too easy (0000, 1234 ...) with a message in Uzbek, shown under the field. The first PIN gives the

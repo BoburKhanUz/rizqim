@@ -22,6 +22,8 @@ enum UserRole {
   waiter('waiter'),
   @JsonValue('cook')
   cook('cook'),
+  @JsonValue('platform')
+  platform('platform'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

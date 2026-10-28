@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { CheckCircle2, Save, Search, TriangleAlert } from 'lucide-react';
-import { Button, Card, EmptyState, Field, fieldClass } from '@rizqim/ui';
+import { Button, Card, EmptyState, Field, fieldClass, Notice, Pill } from '@rizqim/ui';
 import {
   isMxik,
   isPackageCode,
@@ -16,8 +16,6 @@ import {
 } from '@rizqim/staff';
 import { useI18n } from '../I18nProvider';
 import { errorText } from '../management/errors';
-import { Notice } from '../management/Notice';
-import { Pill } from '../management/Pill';
 import { Gate } from '../pos/Gate';
 import { DataTable, Td, Th } from '../reports/ui';
 import { labelFor } from '../reports/format';

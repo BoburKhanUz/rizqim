@@ -162,7 +162,8 @@ class HealthReport
         return ['status' => $status, 'default_backlog' => $default, 'reports_backlog' => $reports];
     }
 
-    private function backlog(string $queue): ?int
+    /** Jobs waiting in a queue, null if the size could not be read (also P4-15: Monitoring → Holat). */
+    public function backlog(string $queue): ?int
     {
         try {
             return Queue::size($queue);

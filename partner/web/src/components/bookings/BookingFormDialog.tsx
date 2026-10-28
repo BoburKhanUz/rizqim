@@ -1,12 +1,11 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
-import { Button, Dialog } from '@rizqim/ui';
+import { Button, Dialog, FormError } from '@rizqim/ui';
 import { BOOKING_EVENT_TYPES, BOOKING_SOURCES, isStaffApiError, useCreateBooking, useUpdateBooking, type Booking, type BookingCalendar, type BookingPatch } from '@rizqim/staff';
 import { addDays, inZone, localDateTime } from '@/lib/storeTime';
 import { useI18n } from '../I18nProvider';
 import { Check, NumberField, parseDecimal, PhoneField, phoneToE164, phoneToInput } from '../management/fields';
-import { FormError } from '../management/Notice';
 import { DateField, SelectField, TextField, TimeField } from '../pos/fields';
 import { NO_ERRORS, sortServerErrors, type FormErrors } from '../pos/serverErrors';
 import { labelFor } from '../reports/format';

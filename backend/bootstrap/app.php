@@ -22,9 +22,10 @@ return Application::configure(basePath: dirname(__DIR__))
     // Real-time updates (Laravel Reverb): POST /api/broadcasting/auth signs private channel subscriptions for a Sanctum
     // Bearer token (60 per minute per user, AppServiceProvider); who may join which channel is in routes/channels.php
     // P2-11: a paired POS/KDS terminal's own token (auth:device) too, for its branch's pos-branch.{id} channel only
+    // P4-11: an admin session token (`admin` guard) too, for the platform.ops channel only
     ->withBroadcasting(__DIR__.'/../routes/channels.php', [
         'prefix' => 'api',
-        'middleware' => ['auth:sanctum,device', 'throttle:broadcast-auth'],
+        'middleware' => ['auth:sanctum,device,admin', 'throttle:broadcast-auth'],
     ])
     ->withSchedule(function (Schedule $schedule) {
         $schedule->job(new \App\Jobs\CheckUnacceptedAssignmentsJob)->everyMinute();
@@ -76,6 +77,17 @@ return Application::configure(basePath: dirname(__DIR__))
             // An offline batch the till must fix or resend (409 sync_in_progress, op_id_conflict, seq_reused)
             $e instanceof \App\Domain\Pos\Sync\PosSyncException => true,
             default => false,
+        });
+
+        // P4-11: an admin sign-in or team rule refusing a request: {success: false, message, code, data: {reason}}
+        $exceptions->dontReport(\App\Services\Admin\AdminAuthException::class);
+        $exceptions->render(function (\App\Services\Admin\AdminAuthException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+                'code' => $e->reason,
+                'data' => ['reason' => $e->reason, ...$e->data],
+            ], $e->status, $e->headers);
         });
 
         $exceptions->shouldRenderJsonWhen(function ($request, $e) {

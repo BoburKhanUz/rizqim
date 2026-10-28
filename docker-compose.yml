@@ -1,5 +1,5 @@
 # Rizqim: postgres + redis + backend (nginx/php-fpm) + queue + queue-reports + scheduler + reverb (WebSocket) + frontend (nginx)
-# + partner-web (hamkor veb-panel, Next.js).
+# + partner-web (hamkor veb-panel, Next.js) + platform-admin (RIZQIM boshqaruv markazi, Next.js).
 # Ishga tushirish va yangilash: docker compose up -d --build
 # Monitoring: GET /health (JSON), loglar JSON/stderr'da, zaxira `backup` xizmatida: docs/OPERATIONS.md.
 # Deploy qadamlari (migratsiya, app:check-production, telegram:set-webhook, queue:restart) backend/docker/entrypoint.sh da;
@@ -104,8 +104,13 @@ services:
     environment:
       <<: *backend-environment
       RUN_MIGRATIONS: "true"
+    # Faqat 127.0.0.1 da (partner-web va platform-admin kabi): /admin, /superadmin va /up ni shu xostdagi tashqi proksi
+    # oladi. Backend xususiy tarmoqdan kelgan X-Forwarded-For ga ishonadi (bootstrap/app.php trustProxies): port
+    # internetga ochiq bo'lsa, Docker userland proksisi orqali kelgan so'rov (masalan IPv6) ichki manzildan kelgandek
+    # ko'rinib, soxta IP bilan kirish limitlarini aylanib o'tardi. Proksi boshqa xostda bo'lsa BACKEND_BIND (va firewall).
+    # docs/OPERATIONS.md, 10-bo'lim
     ports:
-      - "${BACKEND_PORT:-8000}:80"
+      - "${BACKEND_BIND:-127.0.0.1}:${BACKEND_PORT:-8000}:80"
     depends_on:
       postgres:
         condition: service_healthy
@@ -264,6 +269,34 @@ services:
     ports:
       - "${PARTNER_WEB_BIND:-127.0.0.1}:${PARTNER_WEB_PORT:-3000}:3000"
     # Kirish sahifasi (Next serveri ishlayapti); backend'ga ulanishni frontend healthcheck'i tekshiradi
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/login || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  # RIZQIM boshqaruv markazi (platform/admin, Next.js): platforma jamoasi uchun. Brauzer backend'ga to'g'ridan-to'g'ri
+  # murojaat qilmaydi: hamma so'rov ilovaning o'z /api/backend/... manzilidan o'tadi (token httpOnly cookie'da), shuning
+  # uchun CORS sozlash va PUBLIC_API_BASE_URL kerak emas. docs/DEPLOY.md (4-bo'lim, «RIZQIM boshqaruv markazi»), platform/admin/README.md
+  platform-admin:
+    build:
+      # Ildiz: ilova packages/ts/ui va api-client ga bog'liq. Image'ga nimalar kirishi: platform/admin/Dockerfile.dockerignore
+      context: .
+      dockerfile: platform/admin/Dockerfile
+    restart: unless-stopped
+    environment:
+      API_BASE_URL: http://backend/api
+      # Sessiya cookie'si faqat HTTPS orqali (production). false faqat http:// orqali sinash uchun
+      SESSION_COOKIE_SECURE: ${ADMIN_SESSION_COOKIE_SECURE:-true}
+    depends_on:
+      backend:
+        condition: service_healthy
+    # Faqat 127.0.0.1 da (partner-web kabi): ilova mijoz IP manzilini (X-Forwarded-For) backend'ga uzatadi va uni tashqi
+    # proksi yozgan oxirgi yozuvdan oladi; portga proksini chetlab kelgan kishi IP'sini soxtalashtirib kirish limitlarini
+    # aylanib o'tardi. Proksi boshqa xostda bo'lsa ADMIN_WEB_BIND. docs/DEPLOY.md, 4-bo'lim, «RIZQIM boshqaruv markazi»
+    ports:
+      - "${ADMIN_WEB_BIND:-127.0.0.1}:${ADMIN_WEB_PORT:-3100}:3000"
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/login || exit 1"]
       interval: 30s

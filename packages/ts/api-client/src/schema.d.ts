@@ -63,6 +63,965 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/audit-logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Audit log (whole platform)
+         * @description Newest first, cursor pages (`cursor` from `next_cursor`, `per_page` 1–100, default 50). Filters: `actor_id`,
+         *     `action` (a prefix: `admin.team` or `admin.team.*`; an exact action matches itself), `store_id`,
+         *     `subject_type` (Order, User, Store...) + `subject_id`, `from` / `to` (dates, inclusive), `q` (text in the action
+         *     and its details, at least 2 characters).
+         */
+        get: operations["admin.audit_logs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/auth/2fa/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm the 2FA set-up
+         * @description The first code from the authenticator app turns 2FA on and opens the session. `recovery_codes` (10) are shown
+         *     only here, once: each one signs in once when the phone is lost; only their hashes are kept.
+         */
+        post: operations["admin.auth.2fa_confirm"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/auth/2fa/recovery-codes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * New recovery codes
+         * @description Replaces every recovery code with 10 new ones, shown only in this answer. Needs a step-up confirmation.
+         */
+        post: operations["admin.auth.recovery_codes_regenerated"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/auth/2fa/setup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start the 2FA set-up
+         * @description Only for a `setup_required` challenge. Returns the new secret (for manual entry), the `otpauth://` URI and the
+         *     QR code as inline SVG. The same challenge gives the same secret again; it is saved only when `2fa/confirm`
+         *     accepts a code from it, and never shown again afterwards. 409 `two_factor_already_enabled` once 2FA is on.
+         */
+        post: operations["admin.auth.2fa_setup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/auth/2fa/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Second step: the 2FA code
+         * @description Send `code` (6 digits from the app) or `recovery_code` (one of the saved recovery codes: it is burnt). A code
+         *     already used, or one older than the last used, is refused (replay). Opens the session: `token` (Bearer, the
+         *     admin API only), absolute `expires_at` (12 hours); 60 minutes without a request also end it.
+         */
+        post: operations["admin.auth.2fa_verify"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/auth/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Step-up: confirm with a fresh code
+         * @description A current TOTP code marks this session confirmed for 10 minutes. Actions behind it (team and role changes,
+         *     2FA resets, new recovery codes, revoking another session; later money and order interventions) answer 403
+         *     `reauth_required` without it: ask for the code, call this, retry once.
+         */
+        post: operations["admin.auth.reauthenticated"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/auth/invite/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Accept an invite
+         * @description The invite link's token and the new password (at least 12 characters, not the email). Answers with a
+         *     `setup_required` challenge: the member goes straight on to the 2FA set-up. 422 `invite_invalid` for an
+         *     unknown, used, re-issued or expired (72 hours) link.
+         */
+        post: operations["admin.auth.invite_accept"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Admin sign-in: email and password
+         * @description Returns a challenge for the second step (5 minutes, single use): `otp_required` (send the app's code to
+         *     `2fa/verify`) or `setup_required` (2FA not set up yet: `2fa/setup`, then `2fa/confirm`). An unknown email and a
+         *     wrong password get the same 422 `invalid_credentials`; a disabled member 403 `member_disabled`; too many bad
+         *     tries 429 `locked`.
+         */
+        post: operations["admin.auth.login"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Log out (this session) */
+        post: operations["admin.auth.logged_out"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/auth/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The signed-in member
+         * @description Who is signed in, their platform role and effective admin permissions (the admin app shows only the sections
+         *     these allow), 2FA state and the current session (`reauthenticated_until`: the step-up confirmation, if any).
+         */
+        get: operations["admin.auth.me"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/auth/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My admin sessions
+         * @description Live sessions only (not past their 12 hours, used in the last 60 minutes), newest first; `current` is this one.
+         */
+        get: operations["admin.auth.sessions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/auth/sessions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * End one of my sessions
+         * @description Ending this session is a log-out; ending another one needs a step-up confirmation (403 `reauth_required`).
+         */
+        delete: operations["admin.auth.session_revoked"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The signed-in member (alias of GET /admin/auth/me) */
+        get: operations["admin.me"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/monitoring/alerts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Alerts
+         * @description `state`: `active` (default: open and acknowledged together), `open`, `acknowledged`, `resolved` or `all`.
+         *     Unresolved alerts come whole (up to 200): open before acknowledged, critical before warning, newest first. With
+         *     `resolved` or `all` the history is paged, newest first (`cursor` from `next_cursor`, `per_page` 1–100, default
+         *     25). Filters: `kind`, `severity`, `store_id`. `counts`: open, acknowledged and resolved in the last 7 days.
+         */
+        get: operations["admin.monitoring.alerts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/monitoring/alerts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One alert */
+        get: operations["admin.monitoring.alert"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/monitoring/alerts/{id}/acknowledge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Acknowledge an alert
+         * @description "I am on it": the alert leaves the Bugun attention list and stays open for everyone else with the member's name
+         *     on it. Optional `note` (up to 500 characters). Only an `open` alert can be acknowledged (409 `alert_not_open`).
+         */
+        post: operations["admin.monitoring.alert_acknowledged"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/monitoring/alerts/{id}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resolve an alert
+         * @description Marks it done by hand; optional `note`. If the problem is still there the next minute's check opens a new alert.
+         *     The ops group is told (when its open message went out). 409 `alert_resolved` if it is already resolved.
+         */
+        post: operations["admin.monitoring.alert_resolved"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/monitoring/failed-jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Failed jobs
+         * @description Newest first, cursor pages (`cursor` from `next_cursor`, `per_page` 1–100, default 25). Each row: the job's short
+         *     name and class, queue, the exception's first line (redacted) and when it failed. Filters: `queue`, `q` (part of
+         *     the job class name), `from` / `to` (dates, inclusive). `total` counts all failed jobs.
+         */
+        get: operations["admin.monitoring.failed_jobs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/monitoring/failed-jobs/{uuid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One failed job
+         * @description The full exception text with the stack trace and the job's payload as plain data, both redacted: keys that hold
+         *     secrets (tokens, passwords, codes, keys, card data) show `[redacted]`, tokens and phone numbers inside text are
+         *     masked. The job is read without running any of its code. The exception beyond its first line and the payload's
+         *     data (the serialized job: texts, names, addresses) are returned only to members with `admin.monitoring.manage`
+         *     or `admin.pii.view`; everyone else gets `details_hidden: true`, the job class, queue and the first line.
+         */
+        get: operations["admin.monitoring.failed_job"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete a failed job
+         * @description Removes it for good. Needs step-up and a `reason`; the audit entry keeps the job name, queue and uuid, not the
+         *     payload.
+         */
+        delete: operations["admin.monitoring.failed_job_deleted"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/monitoring/failed-jobs/{uuid}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retry a failed job
+         * @description Puts the job back on its queue with its attempts reset and removes it from the list (like
+         *     `php artisan queue:retry`). Optional `reason`. 404 if it is no longer there (retried or deleted meanwhile).
+         */
+        post: operations["admin.monitoring.failed_job_retried"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/monitoring/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * System health
+         * @description `status` is `ok`, `degraded` (the app works, something needs a look: a stale scheduler, a long queue, Reverb
+         *     down, an old backup) or `fail` (database or Redis). `database`, `redis`, `queue` (the `/health` report's numbers
+         *     plus every queue with its size and the age of its oldest waiting job, and failed job counts) and `scheduler` come
+         *     from the same report as `GET /health`. `reverb`: `ok`, `fail` or `not_configured` (real-time is switched off).
+         *     `backup`: `ok`, `stale` (older than the backup rule's hours) or `missing` (the backup service never reported).
+         *     `app` (version, commit), `sentry` (`configured`, link to the project from the config; no Sentry API calls) and
+         *     `alerts` (open, acknowledged, critical unresolved counts).
+         */
+        get: operations["admin.monitoring.health"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/monitoring/rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Alert rules
+         * @description One rule per kind (failed_jobs_spike, queue_backlog, pos_device_offline, fiscal_failures, settlement_failures,
+         *     backup_stale, scheduler_stale). `fields` says what each threshold means (label, unit, allowed range) and is null
+         *     for a threshold the kind does not use; `defaults` are the built-in values. `telegram_configured`: whether an ops
+         *     (or superadmin) chat is set, i.e. whether `telegram: true` reaches anyone.
+         */
+        get: operations["admin.monitoring.rules"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/monitoring/rules/{kind}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Change a rule
+         * @description Any of `enabled`, `telegram`, `threshold`, `threshold_secondary`, `window_minutes` (only the thresholds the kind
+         *     uses, within its range: see `fields` in the list) plus a required `reason`. Switching a rule off resolves its
+         *     alerts. Needs step-up. Answers with all the rules.
+         */
+        put: operations["admin.monitoring.rule_updated"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Orders (all stores)
+         * @description Newest first, cursor pages (`cursor` from `next_cursor`, `per_page` 1–100, default 30). Filters: `status` — a
+         *     status group: `active` (not finished), `new`, `kitchen` (accepted, preparing, ready), `en_route` (courier
+         *     assigned, on the way), `done` (delivered, refunded), `canceled` (canceled, rejected); `channel` (telegram,
+         *     mobile); `region_id` (the branch's region); `store_id`; `sla` — `late` or `warning` (the running
+         *     stage at 80–100% of its limit); `from` / `to` (dates in Asia/Tashkent, inclusive); `q` — the short code (with or
+         *     without #), the start of the uuid, or the customer's phone: 4+ of its digits with admin.pii.view, otherwise only
+         *     the whole number (+998 and nine digits, or the nine digits). `counts` has every group under the same filters
+         *     (done and canceled count today only when no from/to is given). `sla` on each row: null when no stage runs
+         *     (waiting for an online payment, ready, with a courier not yet on the way, finished). `manual_refund_required`:
+         *     a cancelled, rejected or refunded order with money still to give back (`refunds.refundable` > 0 on the card).
+         */
+        get: operations["admin.orders"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/orders/sla": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * SLA limits
+         * @description Minutes for each stage: `accept` (checkout → accepted), `prepare` (accepted → ready), `deliver` (on the way →
+         *     delivered); `warning_ratio` — a stage is "warning" from this share of its limit, "late" from the limit.
+         */
+        get: operations["admin.orders.sla"];
+        /**
+         * Change the SLA limits
+         * @description Any of `accept` (1–120), `prepare` (5–300), `deliver` (5–300) minutes, and `reason`. admin.system.manage and a
+         *     step-up. Takes effect at once: the list, the attention rows and the next watcher run use the new limits.
+         */
+        put: operations["admin.orders.sla.updated"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/orders/store-quality": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Store quality (last 30 days)
+         * @description Per store: `orders` that reached the store (not an unpaid online order, not one the customer cancelled while new),
+         *     `acceptance_rate` (0–1), `avg_accept_minutes` (cash and keshbek orders, checkout → accepted by staff),
+         *     `avg_prep_minutes` (accepted → ready), `cancel_rate` (0–1), the store's `rating` and the ratings given in the
+         *     period. With `store_id`: that store; without: up to 50 stores with orders in the period, the weakest first.
+         *     Cached 5 minutes.
+         */
+        get: operations["admin.orders.store_quality"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/orders/{uuid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Order card
+         * @description Everything about one marketplace order: status history with who did it, items, totals, payments and refund
+         *     requests (`refunds.refundable` = paid − refunded), courier, customer, store and branch (phones masked unless
+         *     admin.pii.view; every reveal is audited), fiscal receipts, the running SLA, the SLA timeline per stage and the
+         *     recorded SLA crossings, the audit entries about the order, and `actions` — what this member may do now.
+         */
+        get: operations["admin.orders.order"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/orders/{uuid}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel an order
+         * @description `cancel_reason`: one of the store-side reasons (customer_request, no_show — a pickup order already accepted only,
+         *     out_of_stock, store_closed, courier_unavailable, other); `note` (optional, the customer sees it); `reason` (the
+         *     team's own, in the audit log and the status history). Paid money follows the cancel rules: keshbek goes back to
+         *     the balance, Click/Payme (or collected cash) is flagged for a manual refund — ask for it with a refund request.
+         *     The store hears about it in its order chats. Answers the order card.
+         */
+        post: operations["admin.orders.cancelled"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/orders/{uuid}/message": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Message the store or the customer
+         * @description `to`: `store` (the store's order chats: its admin chat and the managers who get order cards) or `customer` (the
+         *     RIZQIM bot); `text` (1–1000 characters, sent as plain text); `reason`. Queued like every Telegram message. 422
+         *     `no_recipient` when there is nobody to send it to; 503 `telegram_not_configured` without the bot.
+         */
+        post: operations["admin.orders.messaged"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/orders/{uuid}/refund-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask for a refund
+         * @description `amount` (so'm, up to 2 decimals; more than 0 and at most the card's `refunds.refundable`: paid − refunded) and
+         *     `reason`. Only for a finished order (delivered, canceled, rejected, refunded: 422 `order_active` otherwise), one
+         *     pending request per order (409 `refund_request_pending`). The request waits for another member's approval.
+         */
+        post: operations["admin.orders.refund_requested"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/orders/{uuid}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Fix an order's status
+         * @description `status`: a status the lifecycle allows from the current one (the card's `actions.transitions`), never canceled
+         *     or rejected (use cancel) nor refunded (use a refund request). There is no forced move: anything else is 422
+         *     `illegal`. `courier_id` (optional) for a move to a courier: one of the store's couriers; without it the least
+         *     busy one is picked, as for the store. `reason` is required. Answers the order card.
+         */
+        post: operations["admin.orders.status_fixed"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/refund-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Refund requests
+         * @description For the approval queue: `status` (pending — the default —, approved, rejected, all), `store_id`; newest first,
+         *     cursor pages (`per_page` 1–100, default 30). Each with its order (uuid, short code, store, status, total).
+         */
+        get: operations["admin.refund_requests"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/refund-requests/{id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve a refund request
+         * @description By a member other than the one who asked (403 `four_eyes`). Runs the refund: a delivered order refunded in full
+         *     with nothing of it given back before becomes `refunded` (commission and settlement reversed, keshbek back to the
+         *     balance; mode `order_refunded`); otherwise (a part, the rest after a part, a cancelled order) the amount is
+         *     spread over the payments still paid (`execution.allocations`): a keshbek share goes back to the customer's
+         *     balance at once, exactly that amount (mode `balance` when all of it did), any other share is a manual refund
+         *     (mode `manual`). `execution.manual_amount` is what the approver returns by hand in the provider's cabinet or in
+         *     cash (no provider refund API is called). The amount is checked again against what is refundable now (a payment
+         *     the provider refunded since counts in full): 422 `amount_exceeds_refundable`. `reason` required.
+         *     Idempotent: a repeat (or the same Idempotency-Key) answers the same result; a request already decided otherwise
+         *     is 409 `refund_request_decided`.
+         */
+        post: operations["admin.refund_requests.approved"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/refund-requests/{id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reject a refund request
+         * @description By a member other than the one who asked (403 `four_eyes`); `reason` (why) is required. A repeat answers the
+         *     same result.
+         */
+        post: operations["admin.refund_requests.rejected"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/roles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Roles and permissions
+         * @description `roles` in display order (`editable`: false for superadmin), `permissions` with their section (`group`),
+         *     `grants`: role => the permissions it holds now, and `defaults`: role => the built-in set before the
+         *     superadmin's changes (a cell differing from it is "O'zgartirilgan"; PUT with `allowed: null` resets it).
+         */
+        get: operations["admin.roles"];
+        /**
+         * Change a role's permission
+         * @description `allowed`: true grants, false takes away, null resets to the role's default. Only a superadmin changes the
+         *     matrix (403 `superadmin_only` for any other team.manage holder). The superadmin role cannot be changed (422
+         *     `role_not_editable`). Needs step-up. Answers with the whole matrix.
+         */
+        put: operations["admin.roles.updated"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search everything
+         * @description `q` at least 2 characters. Each hit: `type` (store, order, user, member), `id`, `title`, `subtitle` and `href`,
+         *     the admin app path to open (`/stores/{id}`, `/orders/{uuid}`, `/users/{id}`, `/team/{id}`). Types the member
+         *     has no permission for (stores.view, orders.view, users.view, team.manage) are left out. By phone: with
+         *     admin.pii.view any 4+ digits of the number (each number shown is an audited reveal); without it only the whole
+         *     number (`+998901234567`, `90 123 45 67`...).
+         */
+        get: operations["admin.search"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/team": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The team
+         * @description Every team member: role, `status` (`invited`: has not accepted the invite yet, `active`, `disabled`), 2FA, last
+         *     sign-in and live sessions.
+         */
+        get: operations["admin.team"];
+        put?: never;
+        /**
+         * Invite a team member
+         * @description Creates the member (they cannot sign in until they accept) and a one-time invite link valid 72 hours:
+         *     `invite_url` is shown only in this answer. Only a superadmin may invite a superadmin, or into a role that holds
+         *     team.manage, pii.view, system.manage, orders.refund_approve or payouts.approve (403 `superadmin_only`). Accepting
+         *     opens a 24 hour window for the 2FA set-up. Needs step-up.
+         */
+        post: operations["admin.team.invited"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/team/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One team member */
+        get: operations["admin.team_member"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change a member's role or disable / enable them
+         * @description `platform_role` and/or `disabled`. Disabling ends all of the member's sessions. Nobody changes their own role or
+         *     disables themselves (`cannot_change_self`), the last superadmin somebody can sign in as (active, password, 2FA
+         *     on) stays (`last_superadmin`), and only a superadmin changes a superadmin or a member in a privileged role
+         *     (team.manage, pii.view, system.manage, refund or payout approval), or gives such a role (`superadmin_only`).
+         *     Needs step-up.
+         */
+        patch: operations["admin.team.updated"];
+        trace?: never;
+    };
+    "/v1/admin/team/{id}/invite": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Re-issue the invite
+         * @description A new link for a member who has not accepted yet (409 `invite_already_accepted` otherwise); the older links stop
+         *     working. A member in a superadmin or privileged role: superadmin only (403 `superadmin_only`). Needs step-up.
+         */
+        post: operations["admin.team.invite_reissued"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/team/{id}/reset-2fa": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reset a member's 2FA
+         * @description For a lost phone: 2FA and the recovery codes are removed and every session of the member ends; they set 2FA up
+         *     again at a sign-in within 24 hours (after that the set-up is refused, `setup_not_allowed`: reset again). Not for
+         *     yourself; a superadmin or a member in a privileged role: superadmin only. Needs step-up.
+         */
+        post: operations["admin.team.2fa_reset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/today": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Today's numbers
+         * @description Asia/Tashkent day so far. `kpis`: `gmv`, `orders`, `commission`, `subscription_revenue`, `canceled_orders`, each
+         *     with `value` (today until now), `yesterday_same_time` and `last_week_same_time` (the same day of last week, up
+         *     to the same time of day), `yesterday` and `last_week` (whole days) and `vs_yesterday` / `vs_last_week`
+         *     (`direction`: up, down, same; `percent` of the earlier value, null when it was 0). Money as decimal strings.
+         *     GMV, orders and commission count marketplace orders only (channels telegram and mobile, not canceled, rejected
+         *     or refunded, by creation time); subscription revenue: invoices paid today. `channels`: every channel today
+         *     (POS too, `marketplace: false`). `regions`: orders and GMV today and active stores per region (`region_id`
+         *     null: not set). `stats_computed_at`: the aggregate job's last run for today; from `live_from` on the numbers
+         *     are counted live.
+         */
+        get: operations["admin.today.summary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/today/attention": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Needs attention
+         * @description One group per problem kind the member may see (each section's sources, each with its own permission),
+         *     critical first: `kind`, `label`, `count` (all of them), `severity` (critical, warning, info) and at most
+         *     `limit` rows (1–20, default 5), each with `title`, `subtitle`, `href` (the admin app path of its card),
+         *     `since` (when the problem started) and `store_id`. Kinds with nothing to show are left out: an empty list
+         *     means "Hammasi joyida".
+         */
+        get: operations["admin.today.attention"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/auth/logout": {
         parameters: {
             query?: never;
@@ -4340,6 +5299,12 @@ export interface components {
             district?: components["schemas"]["District"] | null;
         };
         /**
+         * AdminPermission
+         * @description P4-11: what a RIZQIM team member may do in the Boshqaruv markazi (admin API /api/v1/admin, `admin.can:` middleware). Separate from the store-level App\Enums\Permission: an admin permission never lets anyone act inside a store as its staff. Defaults per platform role: App\Services\Admin\PlatformRolePermissions; the superadmin may change them. Stage B sections (Bugun, Buyurtmalar, Monitoring...) use the entries that are already here.
+         * @enum {string}
+         */
+        AdminPermission: "admin.today.view" | "admin.orders.view" | "admin.orders.intervene" | "admin.orders.refund_request" | "admin.orders.refund_approve" | "admin.stores.view" | "admin.stores.manage" | "admin.stores.impersonate" | "admin.finance.view" | "admin.finance.manage" | "admin.payouts.approve" | "admin.subscriptions.manage" | "admin.devices.view" | "admin.monitoring.view" | "admin.monitoring.manage" | "admin.support.view" | "admin.support.manage" | "admin.users.view" | "admin.marketing.view" | "admin.marketing.manage" | "admin.integrations.view" | "admin.integrations.manage" | "admin.system.manage" | "admin.team.manage" | "admin.audit.view" | "admin.pii.view" | "admin.export";
+        /**
          * BillStatus
          * @description order_bills.status: `open` when made, `printed` once handed to the guest (the order is locked from then on), `paid` when its payments cover it AND its sale receipt is issued, `void` when the order was billed again or cancelled.
          * @enum {string}
@@ -5257,6 +6222,12 @@ export interface components {
          * @enum {string}
          */
         Permission: "orders.view" | "orders.manage" | "orders.cancel" | "orders.discount" | "orders.void_item" | "orders.assign_courier" | "orders.refund" | "kitchen.manage" | "deliveries.manage" | "tables.manage" | "menu.view" | "menu.manage" | "stoplist.manage" | "batches.manage" | "staff.view" | "staff.manage" | "staff.pin" | "devices.view" | "devices.manage" | "reports.view" | "finance.view" | "finance.manage" | "settings.manage" | "zones.manage" | "audit.view" | "permissions.manage" | "pos.open_shift" | "pos.close_shift" | "pos.cash_in_out" | "pos.take_payment" | "pos.reprint_bill" | "branches.manage" | "bookings.manage" | "customer_accounts.manage" | "pos.refund";
+        /**
+         * PlatformRole
+         * @description P4-11: the RIZQIM team's roles in the Boshqaruv markazi (platform/admin, docs/PHASE4_PLAN.md §5). A user is platform staff when users.platform_role is set. What each role may do is App\Services\Admin\PlatformRolePermissions (defaults) with the superadmin's overrides (platform_role_permissions); `superadmin` is fixed: everything. Only `superadmin` is also users.role = super_admin (the old store-level super admin, the old Filament panels); the other roles are users.role = platform, which holds no store-level permission at all.
+         * @enum {string}
+         */
+        PlatformRole: "superadmin" | "operator" | "support" | "finance" | "sales" | "viewer";
         /** PosShift */
         PosShift: {
             id: number;
@@ -5692,6 +6663,7 @@ export interface components {
             pin_set_at: string | null;
             staff_code: string | null;
             courier_type: components["schemas"]["CourierType"];
+            two_factor_setup_allowed_until: string | null;
             devices?: components["schemas"]["Device"][];
             store?: components["schemas"]["Store"] | null;
             branch?: components["schemas"]["Branch"] | null;
@@ -5702,7 +6674,7 @@ export interface components {
          * UserRole
          * @enum {string}
          */
-        UserRole: "super_admin" | "owner" | "manager" | "customer" | "courier" | "cashier" | "waiter" | "cook";
+        UserRole: "super_admin" | "owner" | "manager" | "customer" | "courier" | "cashier" | "waiter" | "cook" | "platform";
     };
     responses: {
         /** @description Unauthenticated */
@@ -5918,6 +6890,2685 @@ export interface operations {
                 };
             };
             401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "admin.audit_logs": {
+        parameters: {
+            query?: {
+                actor_id?: number | null;
+                action?: string | null;
+                store_id?: number | null;
+                subject_type?: string | null;
+                subject_id?: number | null;
+                from?: string | null;
+                to?: string | null;
+                q?: string | null;
+                per_page?: number | null;
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            data: {
+                                id: number;
+                                action: string;
+                                actor: {
+                                    id: number;
+                                    name: string;
+                                    role: string;
+                                    platform_role: string | null;
+                                } | null;
+                                store: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                branch_id: number | null;
+                                device: {
+                                    uuid: string;
+                                    name: string | null;
+                                    type: string;
+                                } | null;
+                                subject_type: string | null;
+                                subject_id: number | null;
+                                before: {
+                                    [key: string]: unknown;
+                                } | null;
+                                after: {
+                                    [key: string]: unknown;
+                                } | null;
+                                meta: {
+                                    [key: string]: unknown;
+                                } | null;
+                                reason: string | null;
+                                ip: string | null;
+                                user_agent: string | null;
+                                created_at: string;
+                            }[];
+                            next_cursor: string | null;
+                            prev_cursor: string | null;
+                            per_page: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.auth.2fa_confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    challenge_token: string;
+                    code: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            token: string;
+                            expires_at: string;
+                            member: {
+                                id: number;
+                                name: string;
+                                email: string | null;
+                                platform_role: string | null;
+                                platform_role_label: string | null;
+                                permissions: string[];
+                                two_factor_enabled: boolean;
+                                recovery_codes_left: number;
+                                last_login_at: string | null;
+                            };
+                            recovery_codes: string[];
+                        };
+                    };
+                };
+            };
+            /** @description Set-up not started or 2FA already on */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Wrong code (invalid_code) or challenge (challenge_invalid) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Locked for 15 minutes (locked) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.auth.recovery_codes_regenerated": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            recovery_codes: string[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description Step-up needed (reauth_required) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.auth.2fa_setup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    challenge_token: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            secret: string;
+                            otpauth_uri: string;
+                            qr_svg: string;
+                        };
+                    };
+                };
+            };
+            /** @description 2FA is already on (two_factor_already_enabled) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unknown, used or expired challenge (challenge_invalid) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.auth.2fa_verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    challenge_token: string;
+                    code?: string | null;
+                    recovery_code?: string | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            token: string;
+                            expires_at: string;
+                            member: {
+                                id: number;
+                                name: string;
+                                email: string | null;
+                                platform_role: string | null;
+                                platform_role_label: string | null;
+                                permissions: string[];
+                                two_factor_enabled: boolean;
+                                recovery_codes_left: number;
+                                last_login_at: string | null;
+                            };
+                        };
+                    };
+                };
+            };
+            /** @description The account must set 2FA up first (setup_required) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Wrong code (invalid_code, invalid_recovery_code) or challenge (challenge_invalid) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Locked for 15 minutes (locked) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.auth.reauthenticated": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    code: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            reauthenticated_until: string;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description Wrong code (invalid_code) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Locked for 15 minutes (locked) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.auth.invite_accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    token: string;
+                    password: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            status: string;
+                            challenge_token: string;
+                            expires_at: string;
+                        };
+                    };
+                };
+            };
+            /** @description Invalid invite (invite_invalid) or password */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.auth.login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: email */
+                    email: string;
+                    password: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            status: string;
+                            challenge_token: string;
+                            expires_at: string;
+                        };
+                    };
+                };
+            };
+            /** @description Disabled member (member_disabled), or no 2FA and the set-up window (24 h after an invite or a 2FA reset) closed (setup_not_allowed) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Wrong email or password (invalid_credentials) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Locked for 15 minutes (locked) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.auth.logged_out": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            [key: string]: Record<string, never>;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "admin.auth.me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            member: {
+                                id: number;
+                                name: string;
+                                email: string | null;
+                                platform_role: string | null;
+                                platform_role_label: string | null;
+                                permissions: string[];
+                                two_factor_enabled: boolean;
+                                recovery_codes_left: number;
+                                last_login_at: string | null;
+                            };
+                            platform_role: string | null;
+                            permissions: string[];
+                            two_factor_enabled: boolean;
+                            recovery_codes_left: number;
+                            last_login_at: string | null;
+                            session: {
+                                id: number;
+                                ip: string | null;
+                                user_agent: string | null;
+                                created_at: string | null;
+                                last_used_at: string | null;
+                                expires_at: string | null;
+                                reauthenticated_until: string | null;
+                                current: boolean;
+                            } | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "admin.auth.sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            ip: string | null;
+                            user_agent: string | null;
+                            created_at: string | null;
+                            last_used_at: string | null;
+                            expires_at: string | null;
+                            reauthenticated_until: string | null;
+                            current: boolean;
+                        }[];
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "admin.auth.session_revoked": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            [key: string]: Record<string, never>;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description Step-up needed for another session (reauth_required) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such live session of mine */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            member: {
+                                id: number;
+                                name: string;
+                                email: string | null;
+                                platform_role: string | null;
+                                platform_role_label: string | null;
+                                permissions: string[];
+                                two_factor_enabled: boolean;
+                                recovery_codes_left: number;
+                                last_login_at: string | null;
+                            };
+                            platform_role: string | null;
+                            permissions: string[];
+                            two_factor_enabled: boolean;
+                            recovery_codes_left: number;
+                            last_login_at: string | null;
+                            session: {
+                                id: number;
+                                ip: string | null;
+                                user_agent: string | null;
+                                created_at: string | null;
+                                last_used_at: string | null;
+                                expires_at: string | null;
+                                reauthenticated_until: string | null;
+                                current: boolean;
+                            } | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "admin.monitoring.alerts": {
+        parameters: {
+            query?: {
+                state?: "active" | "all" | "open" | "acknowledged" | "resolved" | null;
+                kind?: "failed_jobs_spike" | "queue_backlog" | "pos_device_offline" | "fiscal_failures" | "settlement_failures" | "backup_stale" | "scheduler_stale" | null;
+                severity?: "critical" | "warning" | "info" | null;
+                store_id?: number | null;
+                per_page?: number | null;
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            data: {
+                                id: number;
+                                kind: string;
+                                kind_label: string;
+                                severity: string;
+                                state: string;
+                                title: string;
+                                details: {
+                                    [key: string]: unknown;
+                                } | null;
+                                store: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                first_seen_at: string;
+                                last_seen_at: string;
+                                count: number;
+                                acknowledged: {
+                                    by: {
+                                        id: number;
+                                        name: string;
+                                    } | null;
+                                    at: string;
+                                    note: string | null;
+                                } | null;
+                                resolved: {
+                                    by: {
+                                        id: number;
+                                        name: string;
+                                    } | null;
+                                    at: string;
+                                    note: string | null;
+                                    resolution: string | null;
+                                } | null;
+                            }[];
+                            next_cursor: string | null;
+                            prev_cursor: string | null;
+                            per_page: number;
+                            counts: {
+                                open: number;
+                                acknowledged: number;
+                                resolved_7d: number;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.monitoring.alert": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            kind: string;
+                            kind_label: string;
+                            severity: string;
+                            state: string;
+                            title: string;
+                            details: {
+                                [key: string]: unknown;
+                            } | null;
+                            store: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            first_seen_at: string;
+                            last_seen_at: string;
+                            count: number;
+                            acknowledged: {
+                                by: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                at: string;
+                                note: string | null;
+                            } | null;
+                            resolved: {
+                                by: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                at: string;
+                                note: string | null;
+                                resolution: string | null;
+                            } | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description No such alert */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.monitoring.alert_acknowledged": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    note?: string | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            kind: string;
+                            state: string;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The alert is not open any more (alert_not_open) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.monitoring.alert_resolved": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    note?: string | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            kind: string;
+                            state: string;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Already resolved (alert_resolved) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.monitoring.failed_jobs": {
+        parameters: {
+            query?: {
+                queue?: string | null;
+                q?: string | null;
+                from?: string | null;
+                to?: string | null;
+                per_page?: number | null;
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            data: {
+                                id: number;
+                                uuid: string;
+                                job: string;
+                                job_class: string;
+                                queue: string;
+                                connection: string;
+                                exception_line: string;
+                                failed_at: string | null;
+                            }[];
+                            next_cursor: string | null;
+                            prev_cursor: string | null;
+                            per_page: number;
+                            total: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.monitoring.failed_job": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            uuid: string;
+                            job: string;
+                            job_class: string;
+                            queue: string;
+                            connection: string;
+                            exception_line: string;
+                            failed_at: string | null;
+                            attempts: number | null;
+                            max_tries: number | null;
+                            details_hidden: boolean;
+                            exception: string;
+                            payload: {
+                                [key: string]: unknown;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description No such failed job */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.monitoring.failed_job_deleted": {
+        parameters: {
+            query: {
+                reason: string;
+            };
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            job: string;
+                            queue: string;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description Step-up needed (reauth_required) or no permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such failed job */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.monitoring.failed_job_retried": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    reason?: string | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            job: string;
+                            queue: string;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description No such failed job */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.monitoring.health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            status: string;
+                            checked_at: string;
+                            database: {
+                                status: string;
+                                latency_ms?: number;
+                            };
+                            redis: {
+                                status: string;
+                                latency_ms?: number;
+                            };
+                            queue: {
+                                status: string;
+                                queues: {
+                                    name: string;
+                                    size: number | null;
+                                    oldest_age_seconds: number | null;
+                                }[];
+                                failed_jobs: {
+                                    total: number;
+                                    last_24h: number;
+                                    latest_failed_at: string | null;
+                                };
+                            };
+                            scheduler: {
+                                status: string;
+                                last_heartbeat_age_seconds: number | null;
+                                max_age_seconds: number;
+                            };
+                            reverb: {
+                                status: string;
+                                latency_ms: number | null;
+                            };
+                            backup: {
+                                status: string;
+                                last_backup_at: string | null;
+                                age_hours: number | null;
+                                max_age_hours: number;
+                            };
+                            app: {
+                                version: string | null;
+                                commit: string | null;
+                                environment: string;
+                            };
+                            sentry: {
+                                configured: boolean;
+                                environment: string | null;
+                                project_url: string | null;
+                            };
+                            alerts: {
+                                open: number;
+                                acknowledged: number;
+                                critical_unresolved: number;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "admin.monitoring.rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            rules: {
+                                kind: string;
+                                label: string;
+                                description: string;
+                                severity: string;
+                                enabled: boolean;
+                                telegram: boolean;
+                                threshold: number;
+                                threshold_secondary: number | null;
+                                window_minutes: number | null;
+                                fields: {
+                                    [key: string]: unknown;
+                                };
+                                defaults: {
+                                    [key: string]: number | null;
+                                };
+                                unresolved_alerts: number;
+                                updated_at: string | null;
+                                updated_by: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                            }[];
+                            telegram_configured: boolean;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "admin.monitoring.rule_updated": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kind: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    enabled?: boolean;
+                    telegram?: boolean;
+                    threshold?: string;
+                    threshold_secondary?: string;
+                    window_minutes?: string;
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            rules: {
+                                kind: string;
+                                label: string;
+                                description: string;
+                                severity: string;
+                                enabled: boolean;
+                                telegram: boolean;
+                                threshold: number;
+                                threshold_secondary: number | null;
+                                window_minutes: number | null;
+                                fields: {
+                                    [key: string]: unknown;
+                                };
+                                defaults: {
+                                    [key: string]: number | null;
+                                };
+                                unresolved_alerts: number;
+                                updated_at: string | null;
+                                updated_by: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                            }[];
+                            telegram_configured: boolean;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description No such rule kind */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Value outside the kind's range, or a threshold the kind does not use */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.orders": {
+        parameters: {
+            query?: {
+                status?: "active" | "new" | "kitchen" | "en_route" | "done" | "canceled" | null;
+                channel?: "telegram" | "mobile" | null;
+                region_id?: number | null;
+                store_id?: number | null;
+                sla?: "late" | "warning" | null;
+                from?: string | null;
+                to?: string | null;
+                q?: string | null;
+                per_page?: number | null;
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            data: {
+                                uuid: string;
+                                short_code: string | null;
+                                status: string;
+                                status_label: string;
+                                status_group: string;
+                                type: string;
+                                channel: string;
+                                channel_label: string;
+                                store: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                branch: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                region: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                customer_name: string | null;
+                                total: string;
+                                payment_method: string;
+                                payment_status: string;
+                                courier: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                sla: {
+                                    stage: string;
+                                    stage_label: string;
+                                    state: string;
+                                    limit_minutes: number;
+                                    started_at: string;
+                                    warning_at: string;
+                                    due_at: string;
+                                    late_by_minutes: number;
+                                    minutes_left: number;
+                                } | null;
+                                refund_pending: boolean;
+                                manual_refund_required: boolean;
+                                created_at: string | null;
+                                updated_at: string | null;
+                            }[];
+                            next_cursor: string | null;
+                            per_page: number;
+                            counts: {
+                                active: number;
+                                new: number;
+                                kitchen: number;
+                                en_route: number;
+                                done: number;
+                                canceled: number;
+                            };
+                            sla_limits: {
+                                accept: number;
+                                prepare: number;
+                                deliver: number;
+                            };
+                            server_time: string;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.orders.sla": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            limits: {
+                                accept: number;
+                                prepare: number;
+                                deliver: number;
+                            };
+                            defaults: {
+                                accept: number;
+                                prepare: number;
+                                deliver: number;
+                            };
+                            bounds: {
+                                [key: string]: [
+                                    number,
+                                    number
+                                ];
+                            };
+                            warning_ratio: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "admin.orders.sla.updated": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            limits: {
+                                accept: number;
+                                prepare: number;
+                                deliver: number;
+                            };
+                            defaults: {
+                                accept: number;
+                                prepare: number;
+                                deliver: number;
+                            };
+                            bounds: {
+                                [key: string]: [
+                                    number,
+                                    number
+                                ];
+                            };
+                            warning_ratio: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.orders.store_quality": {
+        parameters: {
+            query?: {
+                store_id?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            period: {
+                                from: string;
+                                to: string;
+                                days: number;
+                            };
+                            stores: {
+                                store: {
+                                    id: number;
+                                    name: string;
+                                };
+                                orders: number;
+                                accepted: number;
+                                acceptance_rate: number | null;
+                                avg_accept_minutes: number | null;
+                                avg_prep_minutes: number | null;
+                                canceled: number;
+                                cancel_rate: number | null;
+                                rating: string | null;
+                                review_count: number;
+                                ratings_in_period: number;
+                                rating_in_period: number | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.orders.order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description Not a marketplace order */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.orders.cancelled": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    cancel_reason: "customer_request" | "no_show" | "out_of_stock" | "store_closed" | "courier_unavailable" | "other";
+                    note?: string | null;
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description Step-up needed (reauth_required) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Cannot be cancelled now (illegal, stale) or the reason does not apply (reason) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.orders.messaged": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    to: "store" | "customer";
+                    text: string;
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            recipients: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Nobody to send it to (no_recipient) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.orders.refund_requested": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    amount: number;
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string;
+                };
+            };
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            uuid: string;
+                            amount: string;
+                            status: string;
+                            status_label: string;
+                            reason: string;
+                            requested_by: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            requested_at: string | null;
+                            decided_by: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            decided_at: string | null;
+                            decision_note: string | null;
+                            execution: {
+                                [key: string]: unknown;
+                            } | null;
+                            mine: boolean;
+                            can_decide: boolean;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Another request is pending (refund_request_pending) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too much (amount_exceeds_refundable, data.refundable) or the order is still in progress (order_active) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.orders.status_fixed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    status: components["schemas"]["OrderStatus"];
+                    courier_id?: number | null;
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not allowed from the current status (illegal, stale, use_cancel, use_refund_request) or no courier (courier) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.refund_requests": {
+        parameters: {
+            query?: {
+                status?: "pending" | "approved" | "rejected" | "all" | null;
+                store_id?: number | null;
+                per_page?: number | null;
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            data: {
+                                [key: string]: unknown;
+                            }[];
+                            next_cursor: string | null;
+                            per_page: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.refund_requests.approved": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            uuid: string;
+                            amount: string;
+                            status: string;
+                            status_label: string;
+                            reason: string;
+                            requested_by: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            requested_at: string | null;
+                            decided_by: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            decided_at: string | null;
+                            decision_note: string | null;
+                            execution: {
+                                [key: string]: unknown;
+                            } | null;
+                            mine: boolean;
+                            can_decide: boolean;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description The requester cannot decide (four_eyes) or step-up needed (reauth_required) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Already decided (refund_request_decided) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.refund_requests.rejected": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            uuid: string;
+                            amount: string;
+                            status: string;
+                            status_label: string;
+                            reason: string;
+                            requested_by: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            requested_at: string | null;
+                            decided_by: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            decided_at: string | null;
+                            decision_note: string | null;
+                            execution: {
+                                [key: string]: unknown;
+                            } | null;
+                            mine: boolean;
+                            can_decide: boolean;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.roles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            roles: {
+                                key: string;
+                                label: string;
+                                editable: boolean;
+                            }[];
+                            permissions: {
+                                key: string;
+                                label: string;
+                                group: string;
+                            }[];
+                            grants: {
+                                [key: string]: string[];
+                            };
+                            defaults: {
+                                [key: string]: string[];
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "admin.roles.updated": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    role: components["schemas"]["PlatformRole"];
+                    permission: components["schemas"]["AdminPermission"];
+                    allowed: boolean | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            roles: {
+                                key: string;
+                                label: string;
+                                editable: boolean;
+                            }[];
+                            permissions: {
+                                key: string;
+                                label: string;
+                                group: string;
+                            }[];
+                            grants: {
+                                [key: string]: string[];
+                            };
+                            defaults: {
+                                [key: string]: string[];
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description Step-up needed (reauth_required) or superadmin only (superadmin_only) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Superadmin is fixed (role_not_editable) or invalid input */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.search": {
+        parameters: {
+            query: {
+                q: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            type: string;
+                            id: number | string;
+                            title: string;
+                            subtitle: string | null;
+                            href: string;
+                        }[];
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.team": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            name: string;
+                            email: string | null;
+                            platform_role: string | null;
+                            platform_role_label: string | null;
+                            status: string;
+                            disabled: boolean;
+                            two_factor_enabled: boolean;
+                            last_login_at: string | null;
+                            active_sessions: number;
+                            invite_expires_at: string | null;
+                            created_at: string | null;
+                        }[];
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "admin.team.invited": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name: string;
+                    /** Format: email */
+                    email: string;
+                    platform_role: components["schemas"]["PlatformRole"];
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            member: {
+                                id: number;
+                                name: string;
+                                email: string | null;
+                                platform_role: string | null;
+                                platform_role_label: string | null;
+                                status: string;
+                                disabled: boolean;
+                                two_factor_enabled: boolean;
+                                last_login_at: string | null;
+                                active_sessions: number;
+                                invite_expires_at: string | null;
+                                created_at: string | null;
+                            };
+                            invite_url: string;
+                            invite_token: string;
+                            invite_expires_at: string;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description Step-up needed (reauth_required) or superadmin only (superadmin_only) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Email taken (email_taken) or invalid input */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.team_member": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            name: string;
+                            email: string | null;
+                            platform_role: string | null;
+                            platform_role_label: string | null;
+                            status: string;
+                            disabled: boolean;
+                            two_factor_enabled: boolean;
+                            last_login_at: string | null;
+                            active_sessions: number;
+                            invite_expires_at: string | null;
+                            created_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description Not a team member */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.team.updated": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    platform_role?: components["schemas"]["PlatformRole"];
+                    disabled?: boolean;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            name: string;
+                            email: string | null;
+                            platform_role: string | null;
+                            platform_role_label: string | null;
+                            status: string;
+                            disabled: boolean;
+                            two_factor_enabled: boolean;
+                            last_login_at: string | null;
+                            active_sessions: number;
+                            invite_expires_at: string | null;
+                            created_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description Step-up needed (reauth_required) or superadmin only (superadmin_only) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description cannot_change_self, last_superadmin or invalid input */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.team.invite_reissued": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            invite_url: string;
+                            invite_token: string;
+                            invite_expires_at: string;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description Step-up needed (reauth_required) or superadmin only (superadmin_only) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Already accepted (invite_already_accepted) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.team.2fa_reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            name: string;
+                            email: string | null;
+                            platform_role: string | null;
+                            platform_role_label: string | null;
+                            status: string;
+                            disabled: boolean;
+                            two_factor_enabled: boolean;
+                            last_login_at: string | null;
+                            active_sessions: number;
+                            invite_expires_at: string | null;
+                            created_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description Step-up needed (reauth_required) or superadmin only (superadmin_only) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.today.summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            date: string;
+                            timezone: string;
+                            generated_at: string;
+                            stats_computed_at: string | null;
+                            live_from: string;
+                            kpis: {
+                                gmv: {
+                                    value: string;
+                                    yesterday_same_time: string;
+                                    yesterday: string;
+                                    last_week_same_time: string;
+                                    last_week: string;
+                                    vs_yesterday: {
+                                        direction: string;
+                                        percent: string | null;
+                                    };
+                                    vs_last_week: {
+                                        direction: string;
+                                        percent: string | null;
+                                    };
+                                };
+                                orders: {
+                                    value: number;
+                                    yesterday_same_time: number;
+                                    yesterday: number;
+                                    last_week_same_time: number;
+                                    last_week: number;
+                                    vs_yesterday: {
+                                        direction: string;
+                                        percent: string | null;
+                                    };
+                                    vs_last_week: {
+                                        direction: string;
+                                        percent: string | null;
+                                    };
+                                };
+                                commission: {
+                                    value: string;
+                                    yesterday_same_time: string;
+                                    yesterday: string;
+                                    last_week_same_time: string;
+                                    last_week: string;
+                                    vs_yesterday: {
+                                        direction: string;
+                                        percent: string | null;
+                                    };
+                                    vs_last_week: {
+                                        direction: string;
+                                        percent: string | null;
+                                    };
+                                };
+                                subscription_revenue: {
+                                    value: string;
+                                    yesterday_same_time: string;
+                                    yesterday: string;
+                                    last_week_same_time: string;
+                                    last_week: string;
+                                    vs_yesterday: {
+                                        direction: string;
+                                        percent: string | null;
+                                    };
+                                    vs_last_week: {
+                                        direction: string;
+                                        percent: string | null;
+                                    };
+                                };
+                                canceled_orders: {
+                                    value: number;
+                                    yesterday_same_time: number;
+                                    yesterday: number;
+                                    last_week_same_time: number;
+                                    last_week: number;
+                                    vs_yesterday: {
+                                        direction: string;
+                                        percent: string | null;
+                                    };
+                                    vs_last_week: {
+                                        direction: string;
+                                        percent: string | null;
+                                    };
+                                };
+                            };
+                            channels: {
+                                channel: string;
+                                label: string;
+                                marketplace: boolean;
+                                orders: number;
+                                gmv: string;
+                            }[];
+                            regions: {
+                                region_id: number | null;
+                                name: string;
+                                orders: number;
+                                gmv: string;
+                                active_stores: number;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "admin.today.attention": {
+        parameters: {
+            query?: {
+                limit?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            groups: {
+                                kind: string;
+                                label: string;
+                                count: number;
+                                severity: string;
+                                items: {
+                                    kind: string;
+                                    severity: string;
+                                    title: string;
+                                    subtitle: string | null;
+                                    href: string;
+                                    since: string | null;
+                                    store_id: number | null;
+                                }[];
+                            }[];
+                            generated_at: string;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
         };
     };
     "token.logout": {

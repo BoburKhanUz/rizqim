@@ -263,7 +263,8 @@ class BroadcastOrderEventsTest extends TestCase
         app(OrderStatusService::class)->transition($order, OrderStatus::COURIER_ASSIGNED, $this->manager, ['courier_id' => $this->courier->id]);
 
         $names = Queue::pushed(BroadcastEvent::class)->map(fn (BroadcastEvent $job) => $job->event->broadcastAs())->sort()->values()->all();
-        $this->assertSame(['order.assigned', 'order.status_changed'], $names);
+        // P4-14: the team's platform.ops hint goes the same way, next to the store's events
+        $this->assertSame(['ops.order.updated', 'order.assigned', 'order.status_changed'], $names);
         // Their own queue, tried once: an outage never piles retries in front of the Telegram jobs on `default`
         Queue::assertPushedOn(OrderBroadcast::QUEUE, BroadcastEvent::class);
         Queue::assertPushed(BroadcastEvent::class, fn (BroadcastEvent $job) => $job->tries === 1);
@@ -324,6 +325,11 @@ class BroadcastOrderEventsTest extends TestCase
         $order = $this->checkout($this->customer);
         app(OrderStatusService::class)->transition($order, OrderStatus::ACCEPTED, $this->manager);
         $order->refresh();
+
+        // P4-14: the team's platform.ops events (ops.order.*) are their own contract (AdminOrderSlaTest); the store's here
+        $ops = array_values(array_filter($sent, fn (array $row) => str_starts_with($row[0], 'ops.')));
+        $this->assertSame([['ops.order.created', ['private-platform.ops']], ['ops.order.updated', ['private-platform.ops']]], array_map(fn (array $row) => [$row[0], $row[1]], $ops));
+        $sent = array_values(array_filter($sent, fn (array $row) => !str_starts_with($row[0], 'ops.')));
 
         $this->assertSame(['order.created', 'order.status_changed'], array_column($sent, 0));
         $this->assertSame(["private-store.{$this->store->id}", "private-branch.{$this->branch->id}", "private-pos-branch.{$this->branch->id}"], $sent[0][1]);

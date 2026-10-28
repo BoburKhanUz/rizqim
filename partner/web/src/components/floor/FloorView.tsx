@@ -2,13 +2,11 @@
 
 import { useState } from 'react';
 import { Armchair } from 'lucide-react';
-import { EmptyState, InlineError, CardSkeletons } from '@rizqim/ui';
+import { EmptyState, InlineError, CardSkeletons, PageHeader, Tabs } from '@rizqim/ui';
 import { useI18n } from '../I18nProvider';
-import { PageHeader } from '../PageHeader';
 import { useCan } from '../management/access';
 import { errorText } from '../management/errors';
 import { BranchSelect, useBranchChoice } from '../menu/BranchChoice';
-import { Tabs } from '../menu/Tabs';
 import { GuestItemsPanel } from './GuestItemsPanel';
 import { HallsPanel } from './HallsPanel';
 import { LayoutEditor } from './LayoutEditor';

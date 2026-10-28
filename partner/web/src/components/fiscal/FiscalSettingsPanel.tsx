@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from 'react';
 import { Info, Save } from 'lucide-react';
-import { Button, Card, Field, fieldClass } from '@rizqim/ui';
+import { Button, Card, Field, fieldClass, FormError, Notice } from '@rizqim/ui';
 import {
   FISCAL_CHARGES,
   isMxik,
@@ -15,7 +15,6 @@ import {
 } from '@rizqim/staff';
 import { useI18n } from '../I18nProvider';
 import { Check, TextFieldInline } from './formBits';
-import { FormError, Notice } from '../management/Notice';
 import { Gate } from '../pos/Gate';
 import { NO_ERRORS, sortServerErrors, type FormErrors } from '../pos/serverErrors';
 import { labelFor } from '../reports/format';

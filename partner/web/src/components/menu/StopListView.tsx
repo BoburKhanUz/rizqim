@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { Ban, Clock, PackageX, Search, Undo2 } from 'lucide-react';
-import { Button, Card, CardSkeletons, Dialog, EmptyState, Field, fieldClass, formatDateTime, IconButton, InlineError } from '@rizqim/ui';
+import { Button, Card, CardSkeletons, Dialog, EmptyState, Field, fieldClass, formatDateTime, IconButton, InlineError, PageHeader } from '@rizqim/ui';
 import {
   useAddStopListEntry,
   useEmployees,
@@ -14,7 +14,6 @@ import {
   type StopListInput,
 } from '@rizqim/staff';
 import { useI18n } from '../I18nProvider';
-import { PageHeader } from '../PageHeader';
 import { useMenuAccess } from './access';
 import { BranchSelect, useBranchChoice } from './BranchChoice';
 import { ErrorBanner } from './ErrorBanner';

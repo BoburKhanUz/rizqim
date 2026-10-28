@@ -10,6 +10,7 @@ Restoran xodimlari uchun oddiy tilda yozilgan qo'llanmalar (o'zbekcha, lotin). T
 | [ofitsiant.md](ofitsiant.md) | Ofitsiant | Telefon ilovasi: ulash va PIN, "Mening xonalarim", xonani ochish, taom qo'shish va yuborish, "Berildi", schyot so'rash, boshqa ofitsiantning buyurtmasi, aloqa yo'qolganda |
 | [ega-pos-sozlash.md](ega-pos-sozlash.md) | Ega (va buxgalter) | Kassa tizimini birinchi sozlash: zal xaritasi, xona tariflari va bayramlar, choy-non, xizmat haqi (oldindan e'lon qilish), fiskal sozlamalar (STIR, soliq rejimi, MXIK), sexlar va printerlar, terminallar, xodimlar va PIN, smenalar va Z, bron, nasiya; **"Ikki marta hisoblamaslik"** |
 | [mini-app-xodim.md](mini-app-xodim.md) | Ega, menejer, kuryer | Telegram Mini App: buyurtmalar, stop-list va qozon, xodimlar va PIN, filial ish vaqti, kuryer qadamlari |
+| [boshqaruv-markazi.md](boshqaruv-markazi.md) | RIZQIM jamoasi (superadmin, operator, yordam, moliya, savdo) | Boshqaruv markaziga kirish, 2FA va tiklash kodlari, `Ctrl+K` qidiruv, jamoa (taklif, rol, o'chirish, 2FA tiklash), rollar jadvali, harakatlar jurnali, sessiyalar, xatolar |
 
 ## Qaysi qo'llanmadan boshlash kerak
 
@@ -23,6 +24,7 @@ Restoran xodimlari uchun oddiy tilda yozilgan qo'llanmalar (o'zbekcha, lotin). T
 - **Ofitsiant**: [ofitsiant.md](ofitsiant.md).
 - **Oshxona planshetini birinchi marta ulaydigan odam**: [oshxona-ekrani.md](oshxona-ekrani.md) (1-bo'lim) va [hamkor-panel.md](hamkor-panel.md) (8-bo'lim).
 - **Kuryer**: [mini-app-xodim.md](mini-app-xodim.md) (10-bo'lim).
+- **RIZQIM jamoasi a'zosi** (operator, yordam, moliya, savdo, superadmin): [boshqaruv-markazi.md](boshqaruv-markazi.md).
 
 ## Qisqa lug'at
 

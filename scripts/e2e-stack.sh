@@ -10,10 +10,14 @@
 #   Reverb        (php artisan reverb:start)           $E2E_REVERB_PORT   18080
 #   Partner web   (next start, the production build)   $E2E_PARTNER_PORT  13000
 #   Mini App      (vite preview of a production build, /api proxied to the backend)  $E2E_MINIAPP_PORT 14173
-# then runs Playwright from e2e/stack (customer order -> partner web board -> kitchen bump -> Mini App manager screen).
+#   Control center (platform/admin, next start, the production build)   $E2E_ADMIN_PORT    13300
+# then runs Playwright from e2e/stack (customer order -> partner web board -> kitchen bump -> Mini App manager screen; and the
+# control center journey, tests/admin-journey.spec.ts: the first superadmin made by `php artisan rizqim:admin:create`
+# accepts the invite link, sets up 2FA with TOTP codes the test computes itself, invites and re-roles a second member
+# behind step-up, and finds it in the audit log and the search).
 #
 # Needs: PHP 8.3 with pdo_pgsql and `composer install` done in backend/, Node 22 with `npm ci` done in partner/web,
-# customer/miniapp, e2e/stack and packages/ts/api-client (built: npm run build), a reachable Postgres, and a Chromium for
+# platform/admin, customer/miniapp, e2e/stack and packages/ts/api-client (built: npm run build), a reachable Postgres, and a Chromium for
 # Playwright (`npx playwright install chromium` in e2e/stack, or PW_CHROMIUM_PATH=/path/to/chrome). Redis is not needed:
 # the stack uses the database for cache and the sync queue.
 #
@@ -27,7 +31,8 @@
 # config/route/event caches under e2e/stack/.run, so a developer's cached backend/bootstrap/cache/config.php is never
 # read) and refuses unless that is APP_ENV=e2e on exactly this database.
 # Other variables: E2E_SKIP_BUILD=1 reuses the builds of the last run; E2E_BACKEND_PORT, E2E_REVERB_PORT,
-# E2E_PARTNER_PORT, E2E_MINIAPP_PORT move the servers.
+# E2E_PARTNER_PORT, E2E_MINIAPP_PORT, E2E_ADMIN_PORT move the servers. The control center test waits for the next 30 s TOTP time
+# step before each sensitive action (the backend takes every code once), so it needs about two minutes of wall clock.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -38,6 +43,7 @@ BACKEND_PORT="${E2E_BACKEND_PORT:-18000}"
 REVERB_PORT="${E2E_REVERB_PORT:-18080}"
 PARTNER_PORT="${E2E_PARTNER_PORT:-13000}"
 MINIAPP_PORT="${E2E_MINIAPP_PORT:-14173}"
+ADMIN_PORT="${E2E_ADMIN_PORT:-13300}"
 
 DB_HOST="${E2E_DB_HOST:-127.0.0.1}"
 DB_PORT="${E2E_DB_PORT:-5432}"
@@ -89,7 +95,7 @@ command -v php > /dev/null || die "php is not installed"
 command -v node > /dev/null || die "node is not installed"
 command -v curl > /dev/null || die "curl is not installed"
 [ -f "$ROOT/backend/vendor/autoload.php" ] || die "run: cd backend && composer install"
-for dir in partner/web customer/miniapp e2e/stack; do
+for dir in partner/web platform/admin customer/miniapp e2e/stack; do
   [ -d "$ROOT/$dir/node_modules" ] || die "run: cd $dir && npm ci"
 done
 [ -f "$ROOT/packages/ts/api-client/dist/index.js" ] || die "run: cd packages/ts/api-client && npm ci && npm run build"
@@ -99,7 +105,7 @@ case "$DB_NAME" in
   *) die "refusing to wipe database '$DB_NAME': its name must contain 'e2e' or 'testing' (E2E_DB_DATABASE)" ;;
 esac
 
-for port in "$BACKEND_PORT" "$REVERB_PORT" "$PARTNER_PORT" "$MINIAPP_PORT"; do
+for port in "$BACKEND_PORT" "$REVERB_PORT" "$PARTNER_PORT" "$MINIAPP_PORT" "$ADMIN_PORT"; do
   if (exec 3<> "/dev/tcp/127.0.0.1/$port") 2> /dev/null; then
     die "port $port is already in use (another stack still running? scripts/e2e-stack.sh --stop)"
   fi
@@ -148,6 +154,8 @@ BACKEND_ENV=(
   # The partner web calls the API straight from the browser: its origin must be allowed
   CORS_ALLOWED_ORIGINS="http://127.0.0.1:$PARTNER_PORT,http://127.0.0.1:$MINIAPP_PORT"
   E2E_SEED_FILE="$RUN/seed.json"
+  # The control center: invite links point to it (the browser never calls the backend itself, the app's server does: no CORS)
+  ADMIN_APP_URL="http://127.0.0.1:$ADMIN_PORT"
   # The Reverb socket, the board's polls and the tests' own calls arrive together: more than one PHP worker (php artisan
   # serve honours it only with --no-reload, below)
   PHP_CLI_SERVER_WORKERS=4
@@ -195,11 +203,21 @@ log "migrating and seeding $DB_NAME"
 artisan migrate:fresh --force --no-interaction > "$RUN/migrate.log" 2>&1 || { tail -n 30 "$RUN/migrate.log" >&2; die "migrate:fresh failed"; }
 artisan db:seed --class=E2EStackSeeder --force --no-interaction > "$RUN/seed.log" 2>&1 || { tail -n 30 "$RUN/seed.log" >&2; die "seeding failed"; }
 
+# The first superadmin of the control center, the way the operators make it (docs/OPERATIONS.md): the command prints the one-time
+# invite link; the test opens it in the browser
+log "creating the first superadmin of the control center"
+artisan rizqim:admin:create e2e-admin@rizqim.test "E2E Superadmin" > "$RUN/admin-create.log" 2>&1 || { tail -n 20 "$RUN/admin-create.log" >&2; die "rizqim:admin:create failed"; }
+grep -Eo "http://127\.0\.0\.1:$ADMIN_PORT/invite/[A-Za-z0-9_-]+" "$RUN/admin-create.log" | head -n 1 > "$RUN/admin-invite.url"
+[ -s "$RUN/admin-invite.url" ] || { cat "$RUN/admin-create.log" >&2; die "no invite link in the output of rizqim:admin:create"; }
+
 # --- Builds ----------------------------------------------------------------------------------------------------------
 
-if [ "${E2E_SKIP_BUILD:-0}" != 1 ] || [ ! -d "$ROOT/partner/web/.next" ] || [ ! -d "$RUN/miniapp-dist" ]; then
+if [ "${E2E_SKIP_BUILD:-0}" != 1 ] || [ ! -d "$ROOT/partner/web/.next" ] || [ ! -d "$ROOT/platform/admin/.next" ] || [ ! -d "$RUN/miniapp-dist" ]; then
   log "building the partner web"
   (cd "$ROOT/partner/web" && npm run build > "$RUN/partner-build.log" 2>&1) || { tail -n 30 "$RUN/partner-build.log" >&2; die "partner web build failed"; }
+
+  log "building the control center"
+  (cd "$ROOT/platform/admin" && npm run build > "$RUN/admin-build.log" 2>&1) || { tail -n 30 "$RUN/admin-build.log" >&2; die "control center build failed"; }
 
   # The Mini App is built for this stack: API on its own origin (proxied), Reverb straight on its port. They are build
   # variables (Vite), so the build goes to .run and never touches customer/miniapp/dist.
@@ -216,16 +234,20 @@ log "starting the backend (:$BACKEND_PORT) and Reverb (:$REVERB_PORT)"
 (cd "$ROOT/backend" && start backend env "${BACKEND_ENV[@]}" php artisan serve --host=127.0.0.1 --port="$BACKEND_PORT" --no-reload)
 (cd "$ROOT/backend" && start reverb env "${BACKEND_ENV[@]}" php artisan reverb:start --host=127.0.0.1 --port="$REVERB_PORT")
 
-log "starting the partner web (:$PARTNER_PORT) and the Mini App (:$MINIAPP_PORT)"
+log "starting the partner web (:$PARTNER_PORT), the control center (:$ADMIN_PORT) and the Mini App (:$MINIAPP_PORT)"
 (cd "$ROOT/partner/web" && start partner-web env \
   API_BASE_URL="http://127.0.0.1:$BACKEND_PORT/api" PUBLIC_API_BASE_URL="http://127.0.0.1:$BACKEND_PORT/api" \
   SESSION_COOKIE_SECURE=false REVERB_APP_KEY="$REVERB_KEY" REVERB_HOST=127.0.0.1 REVERB_PORT="$REVERB_PORT" REVERB_SCHEME=http \
   npx next start -H 127.0.0.1 -p "$PARTNER_PORT")
+(cd "$ROOT/platform/admin" && start admin env \
+  API_BASE_URL="http://127.0.0.1:$BACKEND_PORT/api" SESSION_COOKIE_SECURE=false \
+  npx next start -H 127.0.0.1 -p "$ADMIN_PORT")
 (cd "$ROOT/customer/miniapp" && start miniapp env API_PROXY_TARGET="http://127.0.0.1:$BACKEND_PORT" \
   npx vite preview --outDir "$RUN/miniapp-dist" --host 127.0.0.1 --port "$MINIAPP_PORT" --strictPort)
 
 wait_for backend "http://127.0.0.1:$BACKEND_PORT/api/v1/health" 60
 wait_for partner-web "http://127.0.0.1:$PARTNER_PORT/login" 60
+wait_for admin "http://127.0.0.1:$ADMIN_PORT/login" 60
 wait_for miniapp "http://127.0.0.1:$MINIAPP_PORT/" 60
 # Reverb answers 404 on a plain GET but is up when it answers at all
 wait_for_reverb() {
@@ -245,7 +267,7 @@ log "running the tests"
 status=0
 (cd "$ROOT/e2e/stack" && env \
   E2E_BACKEND_URL="http://127.0.0.1:$BACKEND_PORT" E2E_PARTNER_URL="http://127.0.0.1:$PARTNER_PORT" \
-  E2E_MINIAPP_URL="http://127.0.0.1:$MINIAPP_PORT" E2E_LOG_FILE="$RUN/backend.log" E2E_SEED_FILE="$RUN/seed.json" \
+  E2E_MINIAPP_URL="http://127.0.0.1:$MINIAPP_PORT" E2E_ADMIN_URL="http://127.0.0.1:$ADMIN_PORT" E2E_ADMIN_INVITE_FILE="$RUN/admin-invite.url" E2E_LOG_FILE="$RUN/backend.log" E2E_SEED_FILE="$RUN/seed.json" \
   E2E_BOT_TOKEN="$BOT_TOKEN" E2E_BOT_USERNAME="$BOT_USERNAME" \
   npx playwright test ${PLAYWRIGHT_ARGS[@]+"${PLAYWRIGHT_ARGS[@]}"}) || status=$?
 

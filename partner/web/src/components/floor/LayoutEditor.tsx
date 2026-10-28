@@ -2,11 +2,10 @@
 
 import { useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { Armchair, MoveDiagonal2, Save, TriangleAlert, Undo2 } from 'lucide-react';
-import { Button, Card, EmptyState, Field, cx, fieldClass } from '@rizqim/ui';
+import { Button, Card, EmptyState, Field, cx, fieldClass, FormError, Notice } from '@rizqim/ui';
 import { useHalls, useSaveFloorLayout, type FloorRect, type Hall } from '@rizqim/staff';
 import { useI18n } from '../I18nProvider';
 import { errorText } from '../management/errors';
-import { FormError, Notice } from '../management/Notice';
 import { Gate } from '../pos/Gate';
 import { labelFor } from '../reports/format';
 import { clampRect, GRID, hallRects, layoutOf, moveRect, overlappingIds, pixelsToUnits, resizeRect, sameRect, toLayoutInput } from './layoutModel';

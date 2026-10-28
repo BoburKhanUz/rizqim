@@ -2,13 +2,12 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Button, Card, EmptyState, InlineError, CardSkeletons, buttonClasses } from '@rizqim/ui';
+import { Button, Card, EmptyState, InlineError, CardSkeletons, buttonClasses, Switch } from '@rizqim/ui';
 import { Layers } from 'lucide-react';
 import { useModifierGroups, useSyncProductModifierGroups, type Product } from '@rizqim/staff';
 import { useI18n } from '../I18nProvider';
 import { ErrorBanner, SuccessNote } from './ErrorBanner';
 import { describeError } from './serverError';
-import { Switch } from './Switch';
 
 // Which modifier groups a product offers. The groups themselves are made on the "Modifikatorlar" tab; here they are
 // attached to (or taken off) this product. The product keeps each group's own rules.

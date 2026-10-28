@@ -1,10 +1,9 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { Card, cx, formatDateTime, formatMoney } from '@rizqim/ui';
+import { Card, cx, formatDateTime, formatMoney, Pill } from '@rizqim/ui';
 import type { Shift, ShiftReport } from '@rizqim/staff';
 import { useI18n } from '../I18nProvider';
-import { Pill } from '../management/Pill';
 import { labelFor } from '../reports/format';
 import { DataTable, Td, Th } from '../reports/ui';
 

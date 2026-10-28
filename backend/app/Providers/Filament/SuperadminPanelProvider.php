@@ -28,6 +28,9 @@ class SuperadminPanelProvider extends PanelProvider
             ->path('superadmin')
             ->brandName('RIZQIM')
             ->login(\App\Filament\Pages\Auth\CustomLogin::class)
+            // P4-11: the same TOTP 2FA as the Boshqaruv markazi (same secret, recovery codes and replay rule), required:
+            // a superadmin without it sets it up before anything else
+            ->multiFactorAuthentication([\App\Filament\Auth\PlatformAppAuthentication::make()], isRequired: true)
             ->colors([
                 'primary' => Color::Amber,
             ])

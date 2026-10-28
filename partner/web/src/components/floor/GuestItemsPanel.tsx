@@ -2,14 +2,12 @@
 
 import { useMemo, useState, type FormEvent } from 'react';
 import { Plus, Trash2, Soup } from 'lucide-react';
-import { Button, Card, Dialog, EmptyState, IconButton } from '@rizqim/ui';
+import { Button, Card, Dialog, EmptyState, IconButton, FormError, Notice, Switch } from '@rizqim/ui';
 import { useAutoGuestItems, useCreateAutoGuestItem, useDeleteAutoGuestItem, useHalls, useOwnerProducts, useUpdateAutoGuestItem } from '@rizqim/staff';
 import { useI18n } from '../I18nProvider';
 import { ConfirmDialog } from '../management/ConfirmDialog';
 import { errorText } from '../management/errors';
 import { NumberField, parseDecimal } from '../management/fields';
-import { FormError, Notice } from '../management/Notice';
-import { Switch } from '../menu/Switch';
 import { Gate } from '../pos/Gate';
 import { SelectField } from '../pos/fields';
 import { NO_ERRORS, sortServerErrors, type FormErrors } from '../pos/serverErrors';

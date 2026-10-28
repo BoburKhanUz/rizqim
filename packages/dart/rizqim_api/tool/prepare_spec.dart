@@ -7,6 +7,9 @@
 // A nullable type (`anyOf: [X, {type: null}]`) is not a union and is kept as is; so is everything else: all other
 // models and endpoints are generated unchanged. The apps read the few free-form fields they need.
 //
+// The control center's admin API (/v1/admin/*) is left out: no Dart app calls it, and its inline enums would
+// renumber the anonymous models (Status6 -> Status8) the hand-written services use.
+//
 // Enum fields of multipart/form-data bodies become plain strings: Retrofit writes `field.toJson()` (a `String?` for
 // swagger_parser enums) into the form, which does not compile.
 import 'dart:convert';
@@ -14,6 +17,7 @@ import 'dart:io';
 
 int _replaced = 0;
 int _formEnums = 0;
+int _adminPaths = 0;
 
 bool _isNull(Object? schema) =>
     schema is Map<String, Object?> && schema['type'] == 'null';
@@ -93,6 +97,11 @@ void main(List<String> args) {
   // Response bodies first (their root differs), then everything else
   final Map<String, Object?> paths =
       (spec['paths'] as Map<String, Object?>?) ?? <String, Object?>{};
+  paths.removeWhere((String path, Object? _) {
+    final bool admin = path.startsWith('/v1/admin/');
+    if (admin) _adminPaths++;
+    return admin;
+  });
   for (final Object? item in paths.values) {
     if (item is! Map<String, Object?>) continue;
     for (final Object? operation in item.values) {
@@ -121,6 +130,7 @@ void main(List<String> args) {
     ..writeAsStringSync(const JsonEncoder.withIndent('  ').convert(walked));
   stdout.writeln(
     'prepare_spec: $_replaced union(s) replaced by free-form values, '
-    '$_formEnums form enum(s) made plain strings -> $target',
+    '$_formEnums form enum(s) made plain strings, '
+    '$_adminPaths admin path(s) left out -> $target',
   );
 }

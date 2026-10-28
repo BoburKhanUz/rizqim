@@ -1,12 +1,11 @@
 'use client';
 
-import { Card, CardSkeletons, InlineError } from '@rizqim/ui';
+import { Card, CardSkeletons, InlineError, Switch } from '@rizqim/ui';
 import { useBranchVariants, useSaveBranchVariant, type Product } from '@rizqim/staff';
 import { useI18n } from '../I18nProvider';
 import { BranchSelect, useBranchChoice } from './BranchChoice';
 import { ErrorBanner } from './ErrorBanner';
 import { describeError } from './serverError';
-import { Switch } from './Switch';
 
 // Which variants of a product a branch sells (GET/POST /owner/branch-variants). Switching one off here also puts it on
 // that branch's stop-list.

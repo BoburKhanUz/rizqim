@@ -2,13 +2,12 @@
 
 import { useState, type FormEvent } from 'react';
 import { Lock } from 'lucide-react';
-import { Button, Dialog, Field, fieldClass } from '@rizqim/ui';
+import { Button, Dialog, Field, fieldClass, FormError } from '@rizqim/ui';
 import { getApiFieldError, useCreateManagedStaff, useUpdateManagedStaff, type AssignableRole, type CreatedStaff, type ManagedBranch, type StaffMember } from '@rizqim/staff';
 import { roleLabel } from '@/lib/labels';
 import { useI18n } from '../I18nProvider';
 import { errorText } from './errors';
 import { PhoneField, phoneToE164, phoneToInput } from './fields';
-import { FormError } from './Notice';
 
 export const ASSIGNABLE_ROLES: readonly AssignableRole[] = ['manager', 'cashier', 'waiter', 'cook', 'courier'];
 

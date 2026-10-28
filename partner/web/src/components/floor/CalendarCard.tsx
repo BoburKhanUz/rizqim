@@ -2,11 +2,10 @@
 
 import { useState } from 'react';
 import { X } from 'lucide-react';
-import { Button, Card, formatDate } from '@rizqim/ui';
+import { Button, Card, formatDate, FormError, Notice } from '@rizqim/ui';
 import { useSaveTariffCalendar, type TariffCalendar } from '@rizqim/staff';
 import { useI18n } from '../I18nProvider';
 import { Check } from '../management/fields';
-import { FormError, Notice } from '../management/Notice';
 import { DateField } from '../pos/fields';
 import { useServerDraft } from '../pos/serverDraft';
 import { NO_ERRORS, sortServerErrors, type FormErrors } from '../pos/serverErrors';

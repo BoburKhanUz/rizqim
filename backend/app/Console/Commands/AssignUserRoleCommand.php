@@ -48,6 +48,12 @@ class AssignUserRoleCommand extends Command
             return self::FAILURE;
         }
 
+        // P4-11: team roles come with users.platform_role, from an invite (rizqim:admin:create, Tizim → Jamoa)
+        if ($role === UserRole::PLATFORM) {
+            $this->error("'platform' roli jamoa taklifi orqali beriladi: php artisan rizqim:admin:create {email} {name} --role=...");
+            return self::FAILURE;
+        }
+
         $needsStore = in_array($role, UserRole::storeRoles(), true);
         $store = null;
         $branch = null;

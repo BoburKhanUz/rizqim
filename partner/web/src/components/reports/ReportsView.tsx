@@ -2,12 +2,11 @@
 
 import { useMemo, useState } from 'react';
 import { ChartColumn } from 'lucide-react';
-import { Card, CardSkeletons, cx, EmptyState, InlineError, Skeleton, formatMoney, formatNumber } from '@rizqim/ui';
+import { Card, CardSkeletons, cx, EmptyState, InlineError, Skeleton, formatMoney, formatNumber, PageHeader } from '@rizqim/ui';
 import { getApiErrorMessage, getApiErrorStatus, useOwnerAnalytics, useSalesReport, useTopProducts, type TopProductsSort } from '@rizqim/staff';
 import { orderTypeLabel, paymentLabel } from '@/lib/labels';
 import { useAccess } from '../AuthProvider';
 import { useI18n } from '../I18nProvider';
-import { PageHeader } from '../PageHeader';
 import { useBranchScope } from '../shell/BranchScope';
 import { Breakdown } from './Breakdown';
 import { ExportButton } from './ExportButton';

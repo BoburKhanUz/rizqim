@@ -20,7 +20,8 @@ class AuditLogger
      * @param  array<string, mixed>  $before  the subject's fields before the change
      * @param  array<string, mixed>  $after  the same fields after it (only the differing keys are kept)
      * @param  array<string, mixed>  $meta  extra context (reason, note, ...)
-     * @param  array{store_id?: ?int, branch_id?: ?int, actor?: ?User, device?: ?Device}  $context
+     * @param  array{store_id?: ?int, branch_id?: ?int, actor?: ?User, device?: ?Device, ip?: ?string, user_agent?: ?string}  $context
+     *   ip / user_agent (P4-11, admin API): the client's, also when nobody is signed in yet (a failed admin sign-in)
      */
     public function record(string $action, ?Model $subject = null, array $before = [], array $after = [], array $meta = [], array $context = []): AuditLog
     {
@@ -45,7 +46,8 @@ class AuditLogger
             'before' => $before ? AuditRedactor::clean($before) : null,
             'after' => $after ? AuditRedactor::clean($after) : null,
             'payload_json' => $meta ? AuditRedactor::clean($meta) : null,
-            'ip' => $this->ipOf($actor, $device),
+            'ip' => array_key_exists('ip', $context) ? $context['ip'] : $this->ipOf($actor, $device),
+            'user_agent' => isset($context['user_agent']) ? mb_substr($context['user_agent'], 0, 255) : null,
         ]);
     }
 

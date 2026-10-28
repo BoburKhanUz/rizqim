@@ -25,6 +25,8 @@ return [
         'webapp_url' => env('TELEGRAM_WEBAPP_URL'),
         // Platform alerts for superadmins (e.g. a delivered order whose ledger booking failed); none when unset
         'superadmin_chat_id' => env('TELEGRAM_SUPERADMIN_CHAT_ID'),
+        // P4-15: the ops group that hears about monitoring alerts (opened and resolved); the superadmin chat when unset
+        'ops_chat_id' => env('TELEGRAM_OPS_CHAT_ID'),
     ],
 
     'resend' => [

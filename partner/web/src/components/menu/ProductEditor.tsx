@@ -3,10 +3,9 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, UtensilsCrossed } from 'lucide-react';
-import { buttonClasses, CardSkeletons, EmptyState, InlineError, Section } from '@rizqim/ui';
+import { buttonClasses, CardSkeletons, EmptyState, InlineError, Section, PageHeader } from '@rizqim/ui';
 import { useOwnerCategories, useOwnerProducts } from '@rizqim/staff';
 import { useI18n } from '../I18nProvider';
-import { PageHeader } from '../PageHeader';
 import { useMenuAccess } from './access';
 import { BranchOverrides } from './BranchOverrides';
 import { ChannelPrices } from './ChannelPrices';

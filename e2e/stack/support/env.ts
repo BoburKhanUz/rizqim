@@ -7,6 +7,9 @@ export const stack = {
   backend: read('E2E_BACKEND_URL', 'http://127.0.0.1:18000'),
   partnerWeb: read('E2E_PARTNER_URL', 'http://127.0.0.1:13000'),
   miniApp: read('E2E_MINIAPP_URL', 'http://127.0.0.1:14173'),
+  // The control center (platform/admin) and the file with the invite link `php artisan rizqim:admin:create` printed
+  admin: read('E2E_ADMIN_URL', 'http://127.0.0.1:13300'),
+  adminInviteFile: read('E2E_ADMIN_INVITE_FILE', '.run/admin-invite.url'),
   // The backend's laravel.log: the SMS "driver" of the stack is `log`, so the sign-in codes are read from it
   logFile: read('E2E_LOG_FILE', '../../backend/storage/logs/laravel.log'),
   seedFile: read('E2E_SEED_FILE', '.run/seed.json'),

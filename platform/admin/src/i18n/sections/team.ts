@@ -1,0 +1,63 @@
+import { defineSection } from './define';
+
+// Tizim → Jamoa
+export const team = defineSection({
+  uz: {
+    team_title: 'Jamoa',
+    team_subtitle: 'RIZQIM xodimlari: kim nima qila oladi, 2 bosqichli tasdiqlash holati va oxirgi kirish.',
+    team_invite: 'Xodim taklif qilish',
+    team_empty: "Jamoada hali hech kim yo'q",
+    team_loadError: "Jamoa ro'yxati yuklanmadi",
+    team_you: 'Siz',
+    team_lastLogin: 'Oxirgi kirish',
+    team_sessions: 'Faol seanslar',
+    team_twoFactorOn: '2FA yoqilgan',
+    team_twoFactorOff: '2FA yoqilmagan',
+    team_active: 'Faol',
+    team_disabledPill: "O'chirilgan",
+    team_invitePending: 'Taklif kutilmoqda',
+    team_changeRole: "Rolni o'zgartirish",
+    team_disable: "Hisobni o'chirish",
+    team_enable: 'Hisobni yoqish',
+    team_resetTwoFactor: '2FA ni tiklash',
+    team_reissue: 'Taklifni qayta yuborish',
+    team_selfNote: "O'zingizni o'zgartira olmaysiz.",
+
+    team_inviteTitle: 'Yangi xodim taklif qilish',
+    team_inviteName: 'Ism',
+    team_inviteEmail: 'Email',
+    team_inviteRole: 'Roli',
+    team_inviteRoleHint: "Rolni keyinroq o'zgartirish mumkin.",
+    team_inviteSend: 'Taklif havolasini yaratish',
+    team_inviteInvalid: "Ism va to'g'ri email kiriting.",
+    team_linkTitle: 'Taklif havolasi',
+    team_linkText: "Havolani {{name}} ga yuboring. U faqat hozir ko'rsatiladi va {{time}} gacha amal qiladi.",
+    team_linkTextNoTime: "Havolani {{name}} ga yuboring. U faqat hozir ko'rsatiladi.",
+    team_linkLabel: 'Taklif havolasi',
+    team_linkCopy: 'Havoladan nusxa olish',
+    team_linkMissing: 'Server havolani yubormadi. Taklifni qayta yuboring.',
+    team_linkDone: 'Tayyor',
+
+    team_roleTitle: "Rolni o'zgartirish",
+    team_roleText: "{{name}} uchun yangi rolni tanlang. Ruxsatlar darhol o'zgaradi.",
+    team_roleSaved: '{{name}} endi «{{role}}».',
+
+    team_disableTitle: "{{name}} hisobini o'chirasizmi?",
+    team_disableText: "Xodim tizimga kira olmaydi va barcha seanslari tugaydi. Keyin qayta yoqish mumkin.",
+    team_disableConfirm: "Ha, o'chirish",
+    team_disabledDone: "{{name}} hisobi o'chirildi.",
+    team_enableTitle: '{{name}} hisobini yoqasizmi?',
+    team_enableText: 'Xodim yana kira oladi.',
+    team_enableConfirm: 'Ha, yoqish',
+    team_enabledDone: '{{name}} hisobi yoqildi.',
+
+    team_resetTitle: "{{name}} uchun 2FA ni tiklaysizmi?",
+    team_resetText: "Eski telefon va tiklash kodlari ishlamay qoladi. Xodim keyingi kirishda 2FA ni qaytadan sozlaydi.",
+    team_resetConfirm: 'Ha, tiklash',
+    team_resetDone: '{{name}} uchun 2FA tiklandi. Keyingi kirishda qaytadan sozlaydi.',
+
+    team_reissueTitle: '{{name}} uchun yangi havola yaratasizmi?',
+    team_reissueText: 'Eski havola ishlamay qoladi.',
+    team_reissueConfirm: 'Ha, yangi havola',
+  },
+});

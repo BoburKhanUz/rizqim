@@ -31,6 +31,8 @@ class FeatureFlagsTest extends TestCase
         $this->otherStore = Store::create(['name' => 'Other Store', 'slug' => 'other-store', 'commission_rate' => 10, 'status' => 'active']);
         $this->owner = User::create(['name' => 'Owner', 'telegram_id' => '6000001', 'store_id' => $this->store->id, 'role' => UserRole::OWNER]);
         $this->superAdmin = User::create(['name' => 'Platform Admin', 'email' => 'root@rizqim.uz', 'password' => Hash::make('a-strong-password'), 'role' => UserRole::SUPER_ADMIN]);
+        // P4-11: the superadmin panel requires 2FA
+        $this->superAdmin->saveAppAuthenticationSecret(app(\App\Services\Admin\TwoFactorService::class)->generateSecret());
     }
 
     public function test_flag_is_off_by_default_and_can_be_enabled_for_one_store_only(): void

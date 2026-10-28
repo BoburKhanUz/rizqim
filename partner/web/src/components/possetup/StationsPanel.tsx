@@ -2,14 +2,12 @@
 
 import { useState, type FormEvent } from 'react';
 import { ChefHat, Pencil, Plus, Trash2 } from 'lucide-react';
-import { Button, Card, Dialog, EmptyState, IconButton } from '@rizqim/ui';
+import { Button, Card, Dialog, EmptyState, IconButton, FormError, Notice, Switch } from '@rizqim/ui';
 import { useCreateKitchenStation, useDeleteKitchenStation, useKitchenStations, useUpdateKitchenStation, type KitchenStation, type StationKind } from '@rizqim/staff';
 import { useI18n } from '../I18nProvider';
 import { ConfirmDialog } from '../management/ConfirmDialog';
 import { errorText } from '../management/errors';
 import { Check } from '../management/fields';
-import { FormError, Notice } from '../management/Notice';
-import { Switch } from '../menu/Switch';
 import { Gate } from '../pos/Gate';
 import { SelectField, TextField } from '../pos/fields';
 import { NO_ERRORS, sortServerErrors, type FormErrors } from '../pos/serverErrors';

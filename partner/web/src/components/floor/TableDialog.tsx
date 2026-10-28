@@ -1,11 +1,10 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
-import { Button, Dialog } from '@rizqim/ui';
+import { Button, Dialog, FormError } from '@rizqim/ui';
 import { MIN_SPEND_MODES, TABLE_KINDS, useCreateDiningTable, useUpdateDiningTable, type DiningTable, type Hall, type MinSpendMode, type TableKind } from '@rizqim/staff';
 import { useI18n } from '../I18nProvider';
 import { Check, NumberField, parseDecimal } from '../management/fields';
-import { FormError } from '../management/Notice';
 import { SelectField, TextField } from '../pos/fields';
 import { NO_ERRORS, sortServerErrors, type FormErrors } from '../pos/serverErrors';
 import { labelFor } from '../reports/format';

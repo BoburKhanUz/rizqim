@@ -2,11 +2,10 @@
 
 import { useState, type FormEvent } from 'react';
 import { Save, X } from 'lucide-react';
-import { Button, Card, Field, fieldClass, formatDate } from '@rizqim/ui';
+import { Button, Card, Field, fieldClass, formatDate, FormError, Notice } from '@rizqim/ui';
 import { ALERT_KEYS, CANCEL_POLICY_MAX, POS_MODES, useBranchPosSettings, useSaveBranchPosSettings, useStoreDevices, type AlertKey, type BranchPosSettings, type BranchPosSettingsPatch, type PosMode } from '@rizqim/staff';
 import { useI18n } from '../I18nProvider';
 import { Check, NumberField, parseDecimal } from '../management/fields';
-import { FormError, Notice } from '../management/Notice';
 import { Gate } from '../pos/Gate';
 import { DateField, SelectField, TimeField } from '../pos/fields';
 import { changedKeys, useServerDraft } from '../pos/serverDraft';

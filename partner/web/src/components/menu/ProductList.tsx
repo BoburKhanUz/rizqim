@@ -3,13 +3,12 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Pencil, Search, Trash2, UtensilsCrossed } from 'lucide-react';
-import { buttonClasses, Button, CardSkeletons, Card, Dialog, EmptyState, fieldClass, formatMoney, IconButton, InlineError } from '@rizqim/ui';
+import { buttonClasses, Button, CardSkeletons, Card, Dialog, EmptyState, fieldClass, formatMoney, IconButton, InlineError, Switch } from '@rizqim/ui';
 import { unitLabel, useDeleteProduct, useOwnerProducts, useToggleProductActive, type Language, type Product } from '@rizqim/staff';
 import { useI18n } from '../I18nProvider';
 import { ErrorBanner } from './ErrorBanner';
 import { ProductThumb } from './ProductThumb';
 import { describeError } from './serverError';
-import { Switch } from './Switch';
 
 type StatusFilter = 'all' | 'active' | 'inactive';
 

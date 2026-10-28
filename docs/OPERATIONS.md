@@ -204,3 +204,89 @@ Yangi imkoniyatni hamma restoranga birdan emas, avval bitta restoranda yoqish uc
 ## 9. Tokenlarni tozalash
 
 Eski tokenlarni scheduler `auth:prune-tokens` buyrug'i bilan o'zi tozalaydi (u POS/KDS terminal tokenlarini o'chirmaydi). **`php artisan sanctum:prune-expired` ni qo'lda ishga tushirmang:** u `SANCTUM_TOKEN_EXPIRATION` dan eski barcha tokenlarni, shu jumladan terminal tokenlarini o'chiradi va har bir POS/KDS terminal ulanishdan chiqib, qayta ulash kodini talab qiladi. Token muddatlari (`AUTH_*`) `backend/.env.example` va `docs/AUTH.md` da.
+
+## 10. Boshqaruv markazi: birinchi superadmin va yo'qolgan 2FA (P4-11)
+
+**Birinchi superadmin** (yoki boshqa jamoa a'zosi) serverda yaratiladi:
+
+```bash
+cd backend
+php artisan rizqim:admin:create boss@rizqim.uz "Bosh admin"            # superadmin
+php artisan rizqim:admin:create op@rizqim.uz "Navbatchi" --role=operator
+```
+
+Buyruq bir martalik taklif havolasini chiqaradi (`{ADMIN_APP_URL}/invite/...`, 72 soat). Uni egasiga xavfsiz
+yo'l bilan bering: havolani ochgan odam parol (kamida 12 belgi) qo'yadi va Google Authenticator'da 2FA ni yoqadi
+(24 soat ichida, pastda).
+Havola faqat bir marta ko'rsatiladi; yo'qolsa, boshqa superadmin Tizim → Jamoa'da "Taklifni qayta berish" qiladi.
+Keyingi a'zolarni superadmin markazning o'zidan taklif qiladi. Yaratish jurnalga `admin.cli.member_created` bo'lib
+yoziladi. `ADMIN_APP_URL` `.env` da admin ilova manzili bo'lishi kerak.
+
+**2FA o'rnatish oynasi.** 2FA'si yo'q a'zo uni faqat **24 soatlik oyna** ichida o'rnatadi: oynani taklifni qabul
+qilish yoki 2FA'ni tiklash ochadi, 2FA yoqilganda yopiladi (`users.two_factor_setup_allowed_until`). Oynadan tashqarida
+to'g'ri parolning o'zi hech narsa ochmaydi: markaz `403 setup_not_allowed` qaytaradi, `/superadmin` panel esa 2FA
+o'rnatish o'rniga shu yo'riqni ko'rsatadi. Sabab: parolni topib olgan odam o'z telefonidagi ilovani hisobga ulab
+olmasin. Oyna o'tib ketsa — taklifni qayta berish yoki 2FA'ni qayta tiklash.
+
+**Mavjud superadmin'lar (eski `super_admin`) va 2FA'siz a'zolar.** Ular jamoaga avtomatik o'tgan, lekin endi faqat
+parol bilan 2FA o'rnatolmaydi. Deploydan keyin ro'yxatni oling va har biriga yangi taklif havolasi bering:
+
+```bash
+php artisan rizqim:admin:invite --without-2fa                # 2FA'siz faol a'zolar ro'yxati
+php artisan rizqim:admin:invite boss@rizqim.uz --reason="2FA ni yoqish"
+```
+
+Havola (72 soat, bir marta ko'rsatiladi) yangi parol qo'ydiradi, a'zoning barcha sessiyalarini yopadi va 2FA
+o'rnatishga olib boradi (24 soat ichida). Uni egasiga xavfsiz yo'l bilan bering; jurnalga `admin.cli.member_reinvited`
+yoziladi. Boshqa superadmin markazda Tizim → Jamoa → "2FA ni tiklash" ni ham bosishi mumkin: u ham 24 soatlik oynani
+ochadi (a'zo eski paroli bilan kiradi). Shu buyruq unutilgan parol uchun ham (2FA'si bor a'zoda 2FA o'zgarmaydi). Eski
+`/superadmin` panel ham shu 2FA ni so'raydi.
+
+**Telefon va zaxira kodlari yo'qolgan bo'lsa:** avval boshqa superadmin Tizim → Jamoa → "2FA ni tiklash" qiladi.
+Hech kim qolmagan bo'lsa (yagona superadmin), serverda:
+
+```bash
+php artisan rizqim:admin:reset-2fa boss@rizqim.uz --reason="Telefon yo'qoldi"
+```
+
+Bu 2FA kaliti va zaxira kodlarini o'chiradi, a'zoning barcha sessiyalarini yopadi, 24 soatlik o'rnatish oynasini ochadi
+va jurnalga `admin.cli.2fa_reset` (sabab bilan) yozadi. A'zo shu 24 soat ichida kirib, 2FA ni qaytadan o'rnatadi. Buni
+faqat egasining shaxsini boshqa yo'l bilan (qo'ng'iroq, uchrashuv) tekshirgandan keyin qiling.
+
+**Kirishni bloklash.** Bitta hisob + bitta manzil (IPv6 da butun `/64` tarmoq) dan 5 ta noto'g'ri parol yoki kod —
+15 daqiqa; hisob bo'yicha barcha manzillardan jami 15 ta noto'g'ri parol (yoki 15 ta kod) — hisob 15 daqiqaga hamma
+joydan bloklanadi (to'g'ri parol bilan ham). Markaz va eski `/superadmin` panel bitta hisoblagichni ishlatadi. Qo'lda
+ochish kerak bo'lsa: kesh (Redis) dagi `admin-login:*` kalitlari. Jamoa a'zosiga tegishli bo'lmagan email bilan
+urinishlar jurnalga emas, ilova logiga yoziladi (daqiqasiga ko'pi bilan 30 qator, emailsiz).
+
+**Backend porti.** `BACKEND_PORT` standart bo'yicha faqat `127.0.0.1` da ochiladi (`BACKEND_BIND`, ildiz `.env`):
+`/admin`, `/superadmin` va `/up` ni shu xostdagi tashqi proksi oladi. Backend ichki tarmoqdan kelgan `X-Forwarded-For`
+ga ishonadi, shuning uchun port internetga ochiq bo'lsa (Docker userland proksisi orqali, masalan IPv6 so'rovlar)
+kishi IP'sini soxtalashtirib bloklashni aylanib o'tardi. Proksi boshqa xostda bo'lsa `BACKEND_BIND` ni o'zgartiring va
+portni firewall bilan yoping.
+
+Jurnal (`audit_logs`) o'zgarmaydi: PostgreSQL trigger yozuvni yangilash va o'chirishni rad etadi. Zaxiradan
+tiklash (`pg_restore`) bunga ta'sir qilmaydi.
+
+## 11. Boshqaruv markazi: monitoring va ogohlantirishlar (P4-15)
+
+Boshqaruv markazining **Monitoring** bo'limi (`docs/guides/boshqaruv-markazi.md`, "Monitoring") bu hujjatdagi tekshiruvlarni
+bitta joyga yig'adi va ularga ogohlantirish qoidalarini qo'shadi.
+
+- **Ops guruhi.** `backend/.env` da `TELEGRAM_OPS_CHAT_ID` (bo'sh bo'lsa `TELEGRAM_SUPERADMIN_CHAT_ID`) — ogohlantirishlar
+  ochilganda va hal bo'lganda xabar boradigan guruh. Botni guruhga qo'shing. Bir xil muammo `MONITORING_TELEGRAM_COOLDOWN`
+  (15) daqiqada bir martadan ko'p, jami soatiga `MONITORING_TELEGRAM_HOURLY_LIMIT` (20) tadan ortiq yuborilmaydi.
+- **Qoidalar har daqiqada tekshiriladi** (`EvaluateAlertsJob`, scheduler). Chegaralarni markazdan o'zgartirasiz (Monitoring →
+  Qoidalar), env kerak emas. Scheduler butunlay to'xtasa qoidalar ham to'xtaydi: shuning uchun 5-bo'limdagi tashqi uptime
+  monitor (`/health`) baribir kerak.
+- **Zaxira vaqti.** `scripts/backup.sh` tekshirilgan dump'dan va (sozlangan bo'lsa) tashqi nusxadan (`BACKUP_OFFSITE_CMD`, S3)
+  **keyin** `monitoring_markers` jadvaliga (`key = backup`) vaqt yozadi (`psql` orqali, `backup` konteynerida bor). Tashqi nusxa
+  xato bersa mahalliy dump saqlanadi, skript `2` kodi bilan tugaydi, lekin vaqt **yozilmaydi**: belgi eskirib, 26 soatdan keyin
+  "Zaxira nusxa eskirgan" ogohlantirishi chiqadi (log: `tashqi nusxa bajarilmadi`). Vaqtni yozib bo'lmasa zaxira baribir
+  saqlanadi, logda "OGOHLANTIRISH" chiqadi. Yangilangandan keyin `docker compose up -d --build backup` qiling; migratsiya bajarilgan bo'lishi kerak. Shundan
+  keyin Holat → "Zaxira nusxa" va "Zaxira nusxa eskirgan" qoidasi (26 soat) ishlaydi.
+- **Versiya va Sentry havolasi.** Build vaqtida `APP_VERSION` va `APP_COMMIT` (masalan `git rev-parse --short HEAD`), Sentry
+  loyihasi manzili `SENTRY_PROJECT_URL`. Bo'sh bo'lsa versiya o'rniga `SENTRY_RELEASE` ko'rsatiladi.
+- **Yiqilgan vazifalar** shu yerdan ham ko'riladi, qayta uriladi va o'chiriladi (`php artisan queue:failed` o'rniga); har amal
+  harakatlar jurnaliga yoziladi. Maxfiy qiymatlar yashiriladi.
+- **Real-time.** Ogohlantirishlar `platform.ops` kanalida (`ops.alert.*`). Reverb ishlamasa sahifa 30 soniyada yangilanadi.

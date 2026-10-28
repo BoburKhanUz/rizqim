@@ -17,6 +17,11 @@ use Illuminate\Support\Collection;
 use Filament\Panel;
 
 use App\Traits\Auditable;
+use Filament\Auth\MultiFactor\App\Concerns\InteractsWithAppAuthentication;
+use Filament\Auth\MultiFactor\App\Concerns\InteractsWithAppAuthenticationRecovery;
+use Filament\Auth\MultiFactor\App\Contracts\HasAppAuthentication;
+use Filament\Auth\MultiFactor\App\Contracts\HasAppAuthenticationRecovery;
+use SensitiveParameter;
 
 /**
  * Cast attributes, declared because Larastan does not read casts from the casts() method:
@@ -29,8 +34,15 @@ use App\Traits\Auditable;
  * @property string|null $pin_hash
  * @property string|null $staff_code
  * @property \App\Enums\CourierType $courier_type
+ * @property \App\Enums\PlatformRole|null $platform_role
+ * @property \Illuminate\Support\Carbon|null $platform_disabled_at
+ * @property \Illuminate\Support\Carbon|null $platform_last_login_at
+ * @property \Illuminate\Support\Carbon|null $two_factor_confirmed_at
+ * @property int|null $two_factor_last_timestep
+ * @property string|null $app_authentication_secret TOTP secret (encrypted cast from InteractsWithAppAuthentication)
+ * @property array<int, string>|null $app_authentication_recovery_codes bcrypt hashes (encrypted:array cast)
  */
-class User extends Authenticatable implements FilamentUser, HasTenants
+class User extends Authenticatable implements FilamentUser, HasTenants, HasAppAuthentication, HasAppAuthenticationRecovery
 {
     // users.phone_verified_via (P1-34): the holder proved the phone with an SMS code, or a store owner/manager or the
     // super admin wrote it as a staff login phone (StaffPhoneLoginService::vouch)
@@ -39,6 +51,11 @@ class User extends Authenticatable implements FilamentUser, HasTenants
 
     /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, Notifiable, \App\Traits\HasPublicUuid, Auditable;
+    // P4-11: the TOTP secret and hashed recovery codes (encrypted at rest, hidden), shared by the admin API
+    // (App\Services\Admin\TwoFactorService) and the old Filament panels' app authentication
+    use InteractsWithAppAuthentication, InteractsWithAppAuthenticationRecovery {
+        InteractsWithAppAuthentication::saveAppAuthenticationSecret as private saveFilamentAppAuthenticationSecret;
+    }
 
     /**
      * The attributes that are mass assignable.
@@ -78,6 +95,13 @@ class User extends Authenticatable implements FilamentUser, HasTenants
         // An unclaimed staff invite: whoever holds it becomes that employee. Only the owner's employee list shows it
         // (OwnerEmployeeController::index makes it visible there)
         'telegram_invite_token',
+        // P4-11: team and 2FA bookkeeping, never in the store/customer APIs (the admin API shows members itself; the
+        // secret and recovery codes are hidden by their Filament traits)
+        'platform_role',
+        'platform_disabled_at',
+        'platform_last_login_at',
+        'two_factor_confirmed_at',
+        'two_factor_last_timestep',
     ];
 
     /**
@@ -94,6 +118,13 @@ class User extends Authenticatable implements FilamentUser, HasTenants
             'pin_set_at' => 'datetime',
             'phone_verified_at' => 'datetime',
             'courier_type' => \App\Enums\CourierType::class,
+            // P4-11: platform_role, platform_disabled_at and the 2FA columns are never mass assignable:
+            // App\Services\Admin\PlatformTeamService and TwoFactorService set them
+            'platform_role' => \App\Enums\PlatformRole::class,
+            'platform_disabled_at' => 'datetime',
+            'platform_last_login_at' => 'datetime',
+            'two_factor_confirmed_at' => 'datetime',
+            'two_factor_last_timestep' => 'integer',
         ];
     }
 
@@ -112,6 +143,26 @@ class User extends Authenticatable implements FilamentUser, HasTenants
                 $user->phone_verified_at = null;
             }
 
+            // P4-11: users.role super_admin and platform_role superadmin go together, whichever path sets one of them
+            // (the seeder, user:assign-role, the old panel's user form, PlatformTeamService)
+            if ($user->isDirty('platform_role')) {
+                if ($user->platform_role === \App\Enums\PlatformRole::SUPERADMIN) {
+                    $user->role = \App\Enums\UserRole::SUPER_ADMIN;
+                } elseif ($user->platform_role !== null) {
+                    $user->role = \App\Enums\UserRole::PLATFORM;
+                } elseif (in_array($user->role, [\App\Enums\UserRole::SUPER_ADMIN, \App\Enums\UserRole::PLATFORM], true)) {
+                    $user->role = \App\Enums\UserRole::CUSTOMER;
+                }
+            } elseif ($user->isDirty('role')) {
+                if ($user->role === \App\Enums\UserRole::SUPER_ADMIN) {
+                    $user->platform_role = \App\Enums\PlatformRole::SUPERADMIN;
+                } elseif ($user->role !== \App\Enums\UserRole::PLATFORM && $user->platform_role !== null) {
+                    $user->platform_role = null;
+                }
+            } elseif ($user->role === \App\Enums\UserRole::SUPER_ADMIN && $user->platform_role === null) {
+                $user->platform_role = \App\Enums\PlatformRole::SUPERADMIN;
+            }
+
             // How it was verified goes with the verification; one set without saying how came from an SMS code
             if ($user->phone_verified_at === null) {
                 $user->phone_verified_via = null;
@@ -127,6 +178,44 @@ class User extends Authenticatable implements FilamentUser, HasTenants
     public function devices(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(Device::class);
+    }
+
+    // --- P4-11: the RIZQIM team -----------------------------------------------------------------------------------
+
+    /**
+     * A RIZQIM team member (users.platform_role set), disabled or not.
+     */
+    public function isPlatformStaff(): bool
+    {
+        return $this->platform_role !== null;
+    }
+
+    /**
+     * A team member who may use the admin API (not disabled; an invited member without a password cannot sign in).
+     */
+    public function isActivePlatformStaff(): bool
+    {
+        return $this->platform_role !== null && $this->platform_disabled_at === null;
+    }
+
+    public function isPlatformSuperadmin(): bool
+    {
+        return $this->platform_role === \App\Enums\PlatformRole::SUPERADMIN;
+    }
+
+    public function hasTwoFactorEnabled(): bool
+    {
+        return filled($this->getAppAuthenticationSecret());
+    }
+
+    /**
+     * Filament's set-up (and TwoFactorService) save the secret only once a code confirmed it.
+     */
+    public function saveAppAuthenticationSecret(#[SensitiveParameter] ?string $secret): void
+    {
+        $this->two_factor_confirmed_at = $secret !== null ? now() : null;
+        $this->two_factor_last_timestep = null;
+        $this->saveFilamentAppAuthenticationSecret($secret);
     }
 
     public function hasPin(): bool
@@ -177,8 +266,19 @@ class User extends Authenticatable implements FilamentUser, HasTenants
 
     public function canAccessPanel(Panel $panel): bool
     {
+        // P4-11: a disabled superadmin is out of the old panels too; 2FA is required there (SuperadminPanelProvider)
+        if ($this->role === \App\Enums\UserRole::SUPER_ADMIN && $this->platform_disabled_at !== null) {
+            return false;
+        }
+
         if ($panel->getId() === 'superadmin') {
             return $this->role === \App\Enums\UserRole::SUPER_ADMIN;
+        }
+
+        // The store panel shares the session with /superadmin: a super admin enters it only with 2FA set up, so it is
+        // no way around the code (AdminPanelProvider asks for it at sign-in)
+        if ($this->role === \App\Enums\UserRole::SUPER_ADMIN && !$this->hasTwoFactorEnabled()) {
+            return false;
         }
 
         // Store staff must belong to a store (tenant); storeless staff accounts are invalid

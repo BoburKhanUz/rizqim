@@ -2,13 +2,11 @@
 
 import { useState } from 'react';
 import { Printer } from 'lucide-react';
-import { CardSkeletons, EmptyState, InlineError } from '@rizqim/ui';
+import { CardSkeletons, EmptyState, InlineError, PageHeader, Tabs } from '@rizqim/ui';
 import { useI18n } from '../I18nProvider';
-import { PageHeader } from '../PageHeader';
 import { useCan } from '../management/access';
 import { errorText } from '../management/errors';
 import { BranchSelect, useBranchChoice } from '../menu/BranchChoice';
-import { Tabs } from '../menu/Tabs';
 import { BranchSettingsPanel } from './BranchSettingsPanel';
 import { PrintersPanel } from './PrintersPanel';
 import { RoutesPanel } from './RoutesPanel';

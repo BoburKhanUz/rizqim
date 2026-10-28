@@ -84,6 +84,11 @@ services:
     mem_limit: 256m
     cpus: 0.5
 
+  # RIZQIM boshqaruv markazi: kirish email, parol va 2FA kodi bilan
+  platform-admin:
+    mem_limit: 256m
+    cpus: 0.5
+
   backup:
     mem_limit: 128m
     cpus: 0.25

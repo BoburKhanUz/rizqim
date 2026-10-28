@@ -12,7 +12,9 @@ final class AuditRedactor
 
     // Matched against a key's parts (split on _ - . and camelCase): pin_hash, card_number, initData, code, ...
     private const SECRET_PARTS = ['pin', 'password', 'passwd', 'secret', 'token', 'otp', 'pan', 'cvv', 'cvc', 'hash',
-        'card', 'remember', 'credential', 'credentials', 'initdata', 'init', 'apikey', 'key', 'code', 'signature'];
+        'card', 'remember', 'credential', 'credentials', 'initdata', 'init', 'apikey', 'key', 'code', 'signature',
+        // P4-11: 2FA (app_authentication_recovery_codes, totp...), challenge and invite tokens
+        'codes', 'recovery', 'totp', 'challenge'];
 
     // ... except these, which only name or number a record (an order's short code, a terminal staff code)
     private const NOT_SECRET = ['short_code', 'staff_code'];
@@ -20,7 +22,8 @@ final class AuditRedactor
     private const PHONE_PARTS = ['phone', 'mobile', 'tel', 'telephone'];
 
     // +998 90 123 45 67 in any spacing, or a bare 9-12 digit run (a local number)
-    private const PHONE_TEXT = '/(\+?998[\s\-]?\d{2}[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2})|(?<!\d)\d{9,12}(?!\d)/';
+    // Not inside a longer token: a UUID or hex id ("…-b8e989345737") holds digit runs that are no phone numbers
+    private const PHONE_TEXT = '/(?<![\w\-])(?:\+?998[\s\-]?\d{2}[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}|\d{9,12})(?![\w\-])/';
 
     /**
      * @param  array<array-key, mixed>  $data

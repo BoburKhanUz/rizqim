@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from 'react';
 import { Link2, MonitorSmartphone, Pencil, Ban } from 'lucide-react';
-import { Button, Card, CardSkeletons, Dialog, EmptyState, Field, IconButton, InlineError, fieldClass, formatDateTime } from '@rizqim/ui';
+import { Button, Card, CardSkeletons, Dialog, EmptyState, Field, IconButton, InlineError, fieldClass, formatDateTime, FormError, Notice, Pill } from '@rizqim/ui';
 import { useMenuBranches, useRenameStoreDevice, useRevokeStoreDevice, useStoreDevices, type StoreDevice } from '@rizqim/staff';
 import { isMessageKey } from '@/i18n';
 import { roleLabel } from '@/lib/labels';
@@ -11,9 +11,7 @@ import { useCan } from './access';
 import { ConfirmDialog } from './ConfirmDialog';
 import { errorText } from './errors';
 import { Check } from './fields';
-import { FormError, Notice } from './Notice';
 import { PairingCodeDialog } from './PairingCodeDialog';
-import { Pill } from './Pill';
 
 type Dialog = { kind: 'pair' } | { kind: 'rename'; device: StoreDevice } | { kind: 'revoke'; device: StoreDevice };
 

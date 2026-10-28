@@ -2,12 +2,11 @@
 
 import { useState } from 'react';
 import { Ban, CalendarCheck, Pencil, UserX } from 'lucide-react';
-import { Button, Dialog, InlineError, Skeleton, formatDateTime, formatMoney } from '@rizqim/ui';
+import { Button, Dialog, InlineError, Skeleton, formatDateTime, formatMoney, Pill } from '@rizqim/ui';
 import { useBooking, useCancelBooking, useConfirmBooking, useMarkBookingNoShow, type Booking, type BookingCalendar } from '@rizqim/staff';
 import { inZone } from '@/lib/storeTime';
 import { useI18n } from '../I18nProvider';
 import { errorText } from '../management/errors';
-import { Pill } from '../management/Pill';
 import { TextField } from '../pos/fields';
 import { labelFor } from '../reports/format';
 import { DataTable, Td, Th } from '../reports/ui';

@@ -2,12 +2,11 @@
 
 import { useMemo, useState } from 'react';
 import { Search } from 'lucide-react';
-import { Button, Card, CardSkeletons, fieldClass, InlineError } from '@rizqim/ui';
+import { Button, Card, CardSkeletons, fieldClass, InlineError, Switch } from '@rizqim/ui';
 import { useModifierGroups, useOwnerProducts, useSyncProductModifierGroups, type ModifierGroup } from '@rizqim/staff';
 import { useI18n } from '../I18nProvider';
 import { ErrorBanner, SuccessNote } from './ErrorBanner';
 import { describeError } from './serverError';
-import { Switch } from './Switch';
 
 // The products that offer a group. The API attaches groups per product (it replaces a product's list), so a change here
 // sends, for each product that changed, that product's whole list with this group put in or taken out.

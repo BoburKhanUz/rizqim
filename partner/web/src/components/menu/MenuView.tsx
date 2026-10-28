@@ -3,13 +3,11 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { Plus } from 'lucide-react';
-import { buttonClasses } from '@rizqim/ui';
+import { buttonClasses, PageHeader, Tabs } from '@rizqim/ui';
 import { useI18n } from '../I18nProvider';
-import { PageHeader } from '../PageHeader';
 import { useMenuAccess } from './access';
 import { ModifierGroupList } from './ModifierGroupList';
 import { ProductList } from './ProductList';
-import { Tabs } from './Tabs';
 
 type MenuTab = 'products' | 'groups';
 
