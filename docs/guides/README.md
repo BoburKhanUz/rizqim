@@ -10,7 +10,7 @@ Restoran xodimlari uchun oddiy tilda yozilgan qo'llanmalar (o'zbekcha, lotin). T
 | [ofitsiant.md](ofitsiant.md) | Ofitsiant | Telefon ilovasi: ulash va PIN, "Mening xonalarim", xonani ochish, taom qo'shish va yuborish, "Berildi", schyot so'rash, boshqa ofitsiantning buyurtmasi, aloqa yo'qolganda |
 | [ega-pos-sozlash.md](ega-pos-sozlash.md) | Ega (va buxgalter) | Kassa tizimini birinchi sozlash: zal xaritasi, xona tariflari va bayramlar, choy-non, xizmat haqi (oldindan e'lon qilish), fiskal sozlamalar (STIR, soliq rejimi, MXIK), sexlar va printerlar, terminallar, xodimlar va PIN, smenalar va Z, bron, nasiya; **"Ikki marta hisoblamaslik"** |
 | [mini-app-xodim.md](mini-app-xodim.md) | Ega, menejer, kuryer | Telegram Mini App: buyurtmalar, stop-list va qozon, xodimlar va PIN, filial ish vaqti, kuryer qadamlari |
-| [boshqaruv-markazi.md](boshqaruv-markazi.md) | RIZQIM jamoasi (superadmin, operator, yordam, moliya, savdo) | Boshqaruv markaziga kirish, 2FA va tiklash kodlari, `Ctrl+K` qidiruv, jamoa (taklif, rol, o'chirish, 2FA tiklash), rollar jadvali, harakatlar jurnali, sessiyalar, xatolar |
+| [boshqaruv-markazi.md](boshqaruv-markazi.md) | RIZQIM jamoasi (superadmin, operator, yordam, moliya, savdo) | Birinchi ishga tushirish (birinchi superadmin, 2FA, jamoa), kirish va 2FA, `Ctrl+K` qidiruv; Bugun, Ko'rsatkichlar, Buyurtmalar (aralashish, pul qaytarish), Ovqatxonalar (karta, ulash jarayoni, CRM), POS va obunalar, Moliya (payout, ikki kishilik qoida, tuzatish), Mijozlar va yordam (bloklash, shikoyatlar), Marketing, Monitoring, Integratsiyalar, Tizim sozlamalari, jamoa, rollar, jurnal, Excel eksport; kundalik ishlar qadamma-qadam; qaysi amal kod va sabab so'rashi; telefonlarni kim ko'rishi |
 
 ## Qaysi qo'llanmadan boshlash kerak
 

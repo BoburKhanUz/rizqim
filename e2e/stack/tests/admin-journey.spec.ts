@@ -1,5 +1,7 @@
 import { readFileSync } from 'node:fs'
+import { readFile } from 'node:fs/promises'
 import { expect, test, type Browser, type Page } from '@playwright/test'
+import { telegramSignIn } from '../support/backend'
 import { loadSeed, stack } from '../support/env'
 import { Authenticator } from '../support/totp'
 
@@ -15,12 +17,28 @@ import { Authenticator } from '../support/totp'
 //   5. signs out, and the session is really gone.
 //
 // The backend takes every TOTP code once, so the waits for the next time step make this one slow test (about two minutes).
+//
+// Wave 3 (P4-32): a second test in the same file (serial: it reuses the first test's "phone" and recovery codes) signs the
+// superadmin in again in a fresh browser and walks the new sections against the same backend:
+//
+//   1. Mijozlar: finds the seeded customer, blocks them behind step-up with a reason (the Mini App's own sign-in is then really
+//      refused with 403 account_blocked), unblocks them (sign-in works again); opens the customer's complaint and resolves it;
+//   2. Marketing: creates a promo code and switches it off;
+//   3. Tizim: switches a feature flag on for the seeded store and off again;
+//   4. Ko'rsatkichlar loads; one export (the stores list) downloads a real .xlsx (a zip: it starts with "PK\x03\x04");
+//   5. the audit log holds the block, unblock, promo code and flag changes with their reasons.
 
 const PASSWORD = 'e2e-Superadmin-password-1'
 const OPERATOR_PASSWORD = 'e2e-Operator-password-22'
 const ADMIN_EMAIL = 'e2e-admin@rizqim.test'
 const OPERATOR_EMAIL = 'e2e-operator@rizqim.test'
 const OPERATOR_NAME = 'E2E Operator'
+
+// The first test creates the superadmin and keeps the "phone" and the recovery codes; the second test signs in again with them
+let phone!: Authenticator
+let recoveryCodes: string[] = []
+
+test.describe.configure({ mode: 'serial' })
 
 const inviteUrl = (): string => readFileSync(stack.adminInviteFile, 'utf8').trim()
 
@@ -59,8 +77,6 @@ async function newPage(browser: Browser): Promise<Page> {
 test('the control center: invite, 2FA, step-up, team, audit, search, sign-out - on the real backend', async ({ page, browser, context }) => {
   test.setTimeout(420_000)
   const seed = loadSeed()
-  let phone: Authenticator
-  let recoveryCodes: string[]
 
   await test.step('the invited superadmin chooses a password, sets up 2FA and saves the recovery codes', async () => {
     ;({ phone, recoveryCodes } = await acceptInvite(page, inviteUrl(), PASSWORD))
@@ -204,5 +220,197 @@ test('the control center: invite, 2FA, step-up, team, audit, search, sign-out - 
     expect(me.status()).toBe(401)
     await page.goto(`${stack.admin}/audit`)
     await expect(page).toHaveURL(/\/login$/)
+  })
+})
+
+// Wave 3 (P4-32): the sections added after the first journey, on the same real backend. A new browser, a new session: it is
+// not step-up confirmed, so the first sensitive action asks for a fresh code again.
+test('the control center: customers, complaints, promo codes, feature flags, metrics, export - on the real backend', async ({ page, context }) => {
+  test.setTimeout(420_000)
+  const seed = loadSeed()
+  const customer = seed.complainer
+  const menu = page.getByRole('navigation', { name: 'Asosiy menyu' })
+  // The text a dialog asks for before the backend does the work
+  const REASON = 'E2E: tekshiruv uchun sabab'
+  const PROMO = 'E2EPROMO10'
+  const stepUp = page.getByRole('alertdialog', { name: 'Amalni tasdiqlang' })
+  const confirmWithCode = async () => {
+    await expect(stepUp).toBeVisible()
+    await stepUp.getByLabel('6 xonali kod').fill(await phone.next())
+    await stepUp.getByRole('button', { name: 'Tasdiqlash' }).click()
+    await expect(stepUp).toBeHidden()
+  }
+
+  await test.step('the superadmin signs in again (recovery code) and sees the new sections in the menu', async () => {
+    expect(recoveryCodes.length, 'the first test must have run before this one').toBeGreaterThan(2)
+    await page.goto(`${stack.admin}/login`)
+    await page.getByLabel('Email').fill(ADMIN_EMAIL)
+    await page.getByLabel('Parol', { exact: true }).fill(PASSWORD)
+    await page.getByRole('button', { name: 'Kirish' }).click()
+    await page.getByRole('button', { name: 'Tiklash kodidan foydalanish' }).click()
+    await page.getByLabel('Tiklash kodi').fill(recoveryCodes[2]!)
+    await page.getByRole('button', { name: 'Tasdiqlash' }).click()
+    await expect(page.getByRole('heading', { name: 'Bugun', level: 1 })).toBeVisible()
+    for (const name of ["Ko'rsatkichlar", 'Mijozlar va yordam', 'Marketing', 'Tizim sozlamalari']) {
+      await expect(menu.getByRole('link', { name })).toBeVisible()
+    }
+  })
+
+  await test.step('Mijozlar: the seeded customer is found by name and the card opens', async () => {
+    await menu.getByRole('link', { name: 'Mijozlar va yordam' }).click()
+    await expect(page.getByRole('heading', { name: 'Mijozlar va yordam', level: 1 })).toBeVisible()
+    const panel = page.getByRole('tabpanel')
+    await panel.getByLabel('Qidirish', { exact: true }).fill('Komila')
+    await page.getByRole('link', { name: `${customer.name} kartasini ochish` }).click()
+    await expect(page).toHaveURL(new RegExp(`/users/${customer.id}$`))
+    await expect(page.getByRole('heading', { name: customer.name, level: 1 })).toBeVisible()
+    await expect(page.getByText('Faol', { exact: true }).first()).toBeVisible()
+    // The phone is masked even on the superadmin's card unless it is revealed on purpose (it is in the audit log then)
+    await expect(page.getByText(customer.phone)).toHaveCount(0)
+    expect((await telegramSignIn({ id: customer.telegram_id, first_name: customer.name })).status).toBe(200)
+  })
+
+  await test.step('blocking asks for a reason and a fresh code; the Mini App sign-in is then really refused', async () => {
+    await page.getByRole('group', { name: 'Amallar' }).getByRole('button', { name: 'Bloklash' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Hisobni bloklash' })
+    const confirm = dialog.getByRole('button', { name: 'Ha, bloklash' })
+    // No reason, no block
+    await expect(confirm).toBeDisabled()
+    await dialog.getByLabel('Sabab').fill(REASON)
+    await confirm.click()
+    // The backend: reauth_required (this session was never confirmed). The page: the step-up dialog.
+    await confirmWithCode()
+    await expect(page.getByText('Foydalanuvchi bloklandi. Uning barcha sessiyalari yopildi.')).toBeVisible()
+    await expect(page.getByText(`Sabab: ${REASON}`)).toBeVisible()
+    await expect(page.getByText('Bloklangan', { exact: true }).first()).toBeVisible()
+
+    const refused = await telegramSignIn({ id: customer.telegram_id, first_name: customer.name })
+    expect(refused.status).toBe(403)
+    expect(refused.code).toBe('account_blocked')
+  })
+
+  await test.step('unblocking (the confirmation still holds) lets the customer sign in again', async () => {
+    await page.getByRole('group', { name: 'Amallar' }).getByRole('button', { name: 'Blokdan chiqarish' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Blokdan chiqarish' })
+    await dialog.getByLabel('Sabab').fill('E2E: blok xato edi')
+    await dialog.getByRole('button', { name: 'Blokdan chiqarish' }).click()
+    await expect(page.getByText('Blok olib tashlandi.')).toBeVisible()
+    await expect(page.getByText('Faol', { exact: true }).first()).toBeVisible()
+    expect((await telegramSignIn({ id: customer.telegram_id, first_name: customer.name })).status).toBe(200)
+  })
+
+  await test.step('Shikoyatlar: the complaint is opened, taken and resolved with a note', async () => {
+    await menu.getByRole('link', { name: 'Mijozlar va yordam' }).click()
+    await page.getByRole('tab', { name: 'Shikoyatlar' }).click()
+    const row = page.getByRole('button', { name: new RegExp(`${customer.name} shikoyatini ochish$`) })
+    await row.click()
+    const dialog = page.getByRole('dialog', { name: /^Shikoyat:/ })
+    await expect(dialog).toContainText('Lavash sovuq keldi')
+    await dialog.getByRole('button', { name: 'Olish' }).click()
+    await expect(page.getByText("Shikoyat sizga biriktirildi: «Ko'rib chiqilmoqda».")).toBeVisible()
+
+    await dialog.getByRole('button', { name: 'Hal qilish' }).click()
+    const resolve = page.getByRole('dialog', { name: 'Shikoyatni hal qilish' })
+    await resolve.getByLabel('Qanday hal qilindi').fill("E2E: ovqat almashtirildi, uzr so'raldi")
+    await resolve.getByRole('button', { name: 'Hal qilindi', exact: true }).click()
+    await expect(page.getByText('Shikoyat hal qilindi.')).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+
+    // It is no longer among the open ones; it is under "Hal qilindi"
+    await expect(row).toHaveCount(0)
+    await page.getByRole('button', { name: /^Hal qilindi/ }).click()
+    await expect(row).toBeVisible()
+  })
+
+  await test.step('Marketing: a promo code is created and then switched off', async () => {
+    await menu.getByRole('link', { name: 'Marketing' }).click()
+    await expect(page.getByRole('heading', { name: 'Marketing', level: 1 })).toBeVisible()
+    await page.getByRole('tab', { name: 'Promo-kodlar' }).click()
+    await page.getByRole('button', { name: 'Yangi promo-kod' }).click()
+    const form = page.getByRole('dialog', { name: 'Yangi promo-kod' })
+    await form.getByLabel('Promo-kod', { exact: true }).fill(PROMO)
+    await form.getByLabel('Chegirma (%)').fill('10')
+    await form.getByLabel('Sabab').fill(REASON)
+    await form.getByRole('button', { name: 'Saqlash' }).click()
+    await expect(page.getByText('Promo-kod yaratildi.')).toBeVisible()
+
+    const toggle = page.getByRole('switch', { name: `${PROMO} promo-kodi yoqilgan` })
+    await expect(toggle).toHaveAttribute('aria-checked', 'true')
+    await toggle.click()
+    const off = page.getByRole('dialog', { name: "Promo-kodni o'chirish" })
+    await off.getByLabel('Sabab').fill('E2E: aksiya tugadi')
+    await off.getByRole('button', { name: "O'chirish" }).click()
+    await expect(page.getByText("Promo-kod o'chirib qo'yildi.")).toBeVisible()
+    await expect(page.getByRole('switch', { name: `${PROMO} promo-kodi yoqilgan` })).toHaveAttribute('aria-checked', 'false')
+  })
+
+  await test.step('Tizim: a feature flag is switched on for the seeded store and off again', async () => {
+    await menu.getByRole('link', { name: 'Tizim sozlamalari' }).click()
+    await expect(page.getByRole('heading', { name: 'Tizim', level: 1 })).toBeVisible()
+    await page.getByRole('tab', { name: 'Funksiyalar' }).click()
+    await page.getByLabel('Ovqatxona', { exact: true }).fill(seed.store.name.slice(0, 6))
+    const flag = page.getByRole('switch', { name: `Yangi buyurtma matni: ${seed.store.name}` })
+    await expect(flag).toHaveAttribute('aria-checked', 'false')
+
+    await flag.click()
+    const on = page.getByRole('dialog', { name: new RegExp(`yoqilsinmi\\?$`) })
+    await on.getByLabel('Sabab').fill(REASON)
+    await on.getByRole('button', { name: 'Yoqish' }).click()
+    await expect(page.getByText(`${seed.store.name}: «Yangi buyurtma matni» yoqildi.`)).toBeVisible()
+    await expect(page.getByRole('switch', { name: `Yangi buyurtma matni: ${seed.store.name}` })).toHaveAttribute('aria-checked', 'true')
+
+    await page.getByRole('switch', { name: `Yangi buyurtma matni: ${seed.store.name}` }).click()
+    const offDialog = page.getByRole('dialog', { name: new RegExp(`o'chirilsinmi\\?$`) })
+    await offDialog.getByLabel('Sabab').fill('E2E: tajriba tugadi')
+    await offDialog.getByRole('button', { name: "O'chirish" }).click()
+    await expect(page.getByText(`${seed.store.name}: «Yangi buyurtma matni» o'chirildi.`)).toBeVisible()
+    await expect(page.getByRole('switch', { name: `Yangi buyurtma matni: ${seed.store.name}` })).toHaveAttribute('aria-checked', 'false')
+  })
+
+  await test.step("Ko'rsatkichlar loads (an empty platform: zeros, no error)", async () => {
+    await menu.getByRole('link', { name: "Ko'rsatkichlar" }).click()
+    await expect(page.getByRole('heading', { name: "Ko'rsatkichlar", level: 1 })).toBeVisible()
+    await expect(page.getByRole('list', { name: "Asosiy ko'rsatkichlar" })).toBeVisible()
+    await expect(page.getByText('MRR (oylik obuna daromadi)')).toBeVisible()
+    await expect(page.getByText("Ko'rsatkichlar yuklanmadi")).toHaveCount(0)
+  })
+
+  await test.step('an export downloads a real .xlsx file (a zip: it starts with PK 03 04)', async () => {
+    await menu.getByRole('link', { name: 'Ovqatxonalar' }).click()
+    await expect(page.getByRole('heading', { name: 'Ovqatxonalar', level: 1 })).toBeVisible()
+    const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Excel yuklab olish' }).click()])
+    expect(download.suggestedFilename()).toMatch(/\.xlsx$/)
+    const file = await readFile(await download.path())
+    expect(file.length).toBeGreaterThan(200)
+    expect([...file.subarray(0, 4)]).toEqual([0x50, 0x4b, 0x03, 0x04])
+    await expect(page.getByText(/^Fayl tayyor/)).toBeVisible()
+  })
+
+  await test.step('the audit log holds the block, the unblock, the promo code and the flag with their reasons', async () => {
+    await menu.getByRole('link', { name: 'Harakatlar jurnali' }).click()
+    const list = page.getByRole('list', { name: 'Jurnal yozuvlari' })
+    for (const [action, reason] of [
+      ['admin.users.blocked', REASON],
+      ['admin.users.unblocked', 'E2E: blok xato edi'],
+      ['admin.marketing.promo_codes.created', REASON],
+      // Newest first: the switch-off came after the switch-on, and both are in the log
+      ['admin.system.feature_flag_set', 'E2E: tajriba tugadi'],
+      ['admin.exports.stores', null],
+    ] as const) {
+      await page.getByLabel('Amal', { exact: true }).fill(action)
+      await page.getByRole('button', { name: "Qo'llash" }).click()
+      await list.getByRole('button', { name: `${action}: batafsil` }).first().click()
+      const detail = page.getByRole('dialog', { name: 'Yozuv tafsiloti' })
+      await expect(detail).toContainText('E2E Superadmin')
+      if (reason) await expect(detail).toContainText(reason)
+      await page.keyboard.press('Escape')
+    }
+  })
+
+  await test.step('signing out leaves nothing behind', async () => {
+    await page.getByRole('button', { name: 'Chiqish' }).first().click()
+    await expect(page).toHaveURL(/\/login$/)
+    expect((await context.cookies()).find((c) => c.name === 'rz_admin')?.value ?? '').toBe('')
   })
 })

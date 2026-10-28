@@ -53,6 +53,18 @@ export function signedInitData(user: { id: number | string; first_name: string }
   return new URLSearchParams({ ...fields, hash }).toString()
 }
 
+// What the Mini App's first call answers for this Telegram user: the HTTP status and the body's `reason`/`code` when there is one.
+// A blocked account is refused with 403 `account_blocked`; an unblocked one gets a token (200).
+export async function telegramSignIn(user: { id: number | string; first_name: string }): Promise<{ status: number; code: string | null }> {
+  const response = await fetch(`${stack.backend}/api/v1/auth/telegram`, {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ initData: signedInitData(user), bot_username: stack.botUsername }),
+  })
+  const body = (await response.json().catch(() => null)) as { code?: string; data?: { reason?: string } } | null
+  return { status: response.status, code: body?.code ?? body?.data?.reason ?? null }
+}
+
 export interface PlacedOrder {
   uuid: string
   // The number the apps show ("#A1B2"), without the hash

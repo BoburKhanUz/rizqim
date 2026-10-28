@@ -14,7 +14,9 @@
 # then runs Playwright from e2e/stack (customer order -> partner web board -> kitchen bump -> Mini App manager screen; and the
 # control center journey, tests/admin-journey.spec.ts: the first superadmin made by `php artisan rizqim:admin:create`
 # accepts the invite link, sets up 2FA with TOTP codes the test computes itself, invites and re-roles a second member
-# behind step-up, and finds it in the audit log and the search).
+# behind step-up, and finds it in the audit log and the search; then, in a second test, the new sections: block and unblock a
+# customer with a reason behind step-up, resolve a complaint, create and switch off a promo code, toggle a feature flag, load
+# Ko'rsatkichlar, download an .xlsx export).
 #
 # Needs: PHP 8.3 with pdo_pgsql and `composer install` done in backend/, Node 22 with `npm ci` done in partner/web,
 # platform/admin, customer/miniapp, e2e/stack and packages/ts/api-client (built: npm run build), a reachable Postgres, and a Chromium for
