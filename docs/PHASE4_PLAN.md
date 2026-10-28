@@ -225,6 +225,7 @@ To'lqin 1  "Kundalik nazorat"                                                   
 To'lqin 2  "B2B mijozlar va pul"
            P4-21 Billing v2          P4-22 Ovqatxonalar (ulash va 360° karta)
            P4-23 Moliya (netting)    P4-24 POS va obunalar
+           P4-25 Superadmin faqat boshqaruv markazi orqali
 
 To'lqin 3  "To'liq almashtirish"
            P4-31 Mijozlar, yordam, marketing, tizim   P4-32 Moslik va e2e   P4-33 Qo'llanma, eski panellarni o'chirish
@@ -270,6 +271,10 @@ Ish tartibi 1-to'lqindagidek: avval backend kelishuvi (endpointlar, ruxsatlar), 
 - Oylik hisobot: RIZQIM daromadi (komissiya + obuna), ovqatxonalar bo'yicha; Excel eksport.
 - 1-to'lqindan qolganlar: yetkazilgan buyurtma qisman qaytarilganda komissiya va hisob-kitobni ham qaytarish;
   Click qaytarish API'si (`payment/reversal`) bo'lsa — avtomatik qaytarish.
+
+**P4-25 Superadmin faqat boshqaruv markazi orqali** (egasi qarori, 28.10.2026)
+- Superadmin akkaunti Telegram yoki telefon orqali Mini App / hamkor paneli tokenini olmaydi; Mini App'dagi
+  superadmin ekranlari va eski `/superadmin/*` JSON endpointlari olib tashlanadi.
 
 **P4-24 POS va obunalar**
 - Obunalar ro'yxati (sinov, faol, qarzdor, bekor), sinovi tugayotganlar, tarif almashtirish va bekor qilish.
@@ -324,17 +329,19 @@ Ish tartibi 1-to'lqindagidek: avval backend kelishuvi (endpointlar, ruxsatlar), 
 - Jamoa rollari — 5-bo'limdagi oltita, har rol ruxsatini superadmin o'zgartiradi (27.10.2026). Bajarildi.
 - Egasi nomidan kirish — **kerak emas** (28.10.2026).
 - Obuna to'lovi — payoutdan avtomatik ushlab qolinadi (netting) (28.10.2026). 2-to'lqinda (P4-23).
+- Superadmin Telegram / Mini App orqali kirmaydi (2FA'siz kirish yopiladi); Mini App'dagi superadmin ekranlari va
+  eski `/superadmin/*` JSON endpointlari olib tashlanadi (28.10.2026). 2-to'lqinda (P4-25).
+- To'lanmagan obuna: to'lov muddatidan keyin 1, 3 va 7-kun eslatma, 7 kundan keyin yangi sozlamalar va tarifda yo'q
+  funksiyalar yopiladi; kassa hech qachon to'xtamaydi. Mini App buyurtmalarini to'xtatadigan qarz chegarasiga faqat
+  komissiya qarzi kiradi, obuna qarzi kirmaydi (28.10.2026).
+- Qo'lda tuzatishda ikkinchi xodim tasdig'i 1 000 000 so'mdan boshlab (28.10.2026).
+- Didox — hozircha yo'q (28.10.2026).
+- Ogohlantirishlar — guruh ochilguncha superadmin chatiga (28.10.2026).
 
 **Hali kerak:**
-1. Superadminning Telegram / Mini App orqali kirishi (u yerda 2FA yo'q): yopish (tavsiya) yoki 3-to'lqingacha
-   qoldirish.
-2. Ogohlantirishlar uchun Telegram guruhi ("RIZQIM navbatchi") va uning ID'si (`TELEGRAM_OPS_CHAT_ID`).
-3. Admin manzili (masalan `admin.rizqim.uz`) va server (O'zbekistondagi server tavsiya: soliq API va Marketpleys
+1. Ogohlantirishlar uchun Telegram guruhi ("RIZQIM navbatchi") ochilsa — uning ID'si (`TELEGRAM_OPS_CHAT_ID`).
+2. Admin manzili (masalan `admin.rizqim.uz`) va server (O'zbekistondagi server tavsiya: soliq API va Marketpleys
    talabi).
-4. Mavjud superadminlar uchun serverda `php artisan rizqim:admin:invite <email>` (birinchi kirish).
-5. To'lanmagan obuna uchun muhlat (taklif: 7 kun, keyin yangi sozlamalar yopiladi) va qarz chegarasi: chegaradan
-   oshgan qarz Mini App buyurtmalarini to'xtatadi — obuna qarzi ham shunga kirsinmi yoki faqat komissiya qarzi?
-6. Qo'lda tuzatishda ikkinchi xodim tasdig'i qaysi summadan (taklif: 1 mln so'm).
-7. Ovqatxonalar uchun Didox elektron hisob-faktura kerakmi (taklif: hozircha yo'q).
-8. Yangi markaz tayyor bo'lgach, ikkala eski Filament panelni (`/superadmin` va `/admin`) o'chirishga rozilik.
-9. Integratsiyalar bo'yicha muzokaralar: [PHASE5_PLAN.md](PHASE5_PLAN.md), "Egasidan kerak".
+3. Mavjud superadminlar uchun serverda `php artisan rizqim:admin:invite <email>` (birinchi kirish).
+4. Yangi markaz tayyor bo'lgach, ikkala eski Filament panelni (`/superadmin` va `/admin`) o'chirishga rozilik.
+5. Integratsiyalar bo'yicha muzokaralar: [PHASE5_PLAN.md](PHASE5_PLAN.md), "Egasidan kerak".
