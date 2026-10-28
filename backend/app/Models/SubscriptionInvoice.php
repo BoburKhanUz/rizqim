@@ -40,6 +40,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property \App\Enums\InvoiceKind $kind
  * @property int $sequence
  * @property numeric-string $paid_amount what the ledger has paid of it (subscription_debt is the rest)
+ *
+ * Review W2: the first member's request to void an invoice of the four-eyes threshold or more
+ * @property int|null $void_requested_by
+ * @property \Illuminate\Support\Carbon|null $void_requested_at
+ * @property string|null $void_request_reason
  */
 class SubscriptionInvoice extends Model
 {
@@ -67,7 +72,19 @@ class SubscriptionInvoice extends Model
             'kind' => \App\Enums\InvoiceKind::class,
             'sequence' => 'integer',
             'paid_amount' => 'decimal:2',
+            'void_requested_by' => 'integer',
+            'void_requested_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Review W2: the member who asked to void it (the first of two).
+     *
+     * @return BelongsTo<User, $this>
+     */
+    public function voidRequester(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'void_requested_by');
     }
 
     public function getRouteKeyName(): string

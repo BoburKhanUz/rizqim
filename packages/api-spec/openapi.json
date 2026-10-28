@@ -14504,7 +14504,7 @@
         "/v1/admin/pos/invoices/{uuid}/void": {
             "post": {
                 "operationId": "admin.pos.invoice_voided",
-                "description": "`reason`. The invoice no longer counts as income and its unpaid amount comes off the store's debt (a reversal row\nin the ledger). Voiding one again changes nothing.",
+                "description": "`reason`. Only an unpaid invoice: a paid or partly paid one is refused (422 `invoice_paid`; money goes back by a\nmanual adjustment). The invoice no longer counts as income and its amount comes off the store's debt (a reversal\nrow in the ledger). From 1 000 000 so'm (`config('finance.four_eyes_threshold')`) two members: the first call is a\nrequest (the invoice stays `issued`, `invoice.void_request` shows who asked, audited as\n`admin.pos.invoice_void_requested`), the same member again changes nothing, a different member's call voids it.\nVoiding one again changes nothing.",
                 "summary": "Void an invoice",
                 "tags": [
                     "Admin"
@@ -14594,7 +14594,14 @@
                         }
                     },
                     "422": {
-                        "$ref": "#/components/responses/ValidationException"
+                        "description": "A paid or partly paid invoice (invoice_paid)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
                     },
                     "401": {
                         "$ref": "#/components/responses/AuthenticationException"
@@ -20327,7 +20334,7 @@
         "/v1/admin/stores/{id}/telegram-link": {
             "post": {
                 "operationId": "admin.stores.telegram_link_regenerated",
-                "description": "A new one-time bot link binding the owner's Telegram to their account; the old link stops working. Shown only in\nthis answer (`invite_link`). `owner_linked`: the owner already joined — opening the new link moves the account to\nthe Telegram that opens it. `reason` is required. 422 `no_owner`.",
+                "description": "A new one-time bot link binding a Telegram account to the owner's account; the old link stops working. It is a\ncredential, so it goes to the owner's own phone by SMS (`delivered_via: \"sms\"`, `invite_link: null`). When no SMS\ncan be sent, the link comes back in `invite_link` only to a member with `stores.impersonate` (superadmin by\ndefault); anyone else gets 422 `link_not_deliverable` and the old link stays. An owner already on Telegram is\nnever relinked: 409 `owner_already_linked`. `reason` is required. 422 `no_owner`.",
                 "summary": "New Telegram link for the owner",
                 "tags": [
                     "Admin"
@@ -20380,7 +20387,16 @@
                                             "type": "object",
                                             "properties": {
                                                 "invite_link": {
-                                                    "type": "string"
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "delivered_via": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
                                                 },
                                                 "owner_linked": {
                                                     "type": "boolean"
@@ -20388,6 +20404,7 @@
                                             },
                                             "required": [
                                                 "invite_link",
+                                                "delivered_via",
                                                 "owner_linked"
                                             ]
                                         }
@@ -20412,7 +20429,7 @@
                         }
                     },
                     "422": {
-                        "description": "The store has no owner (no_owner)",
+                        "description": "No owner (no_owner) or the link cannot be delivered (link_not_deliverable)",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -20423,6 +20440,16 @@
                     },
                     "401": {
                         "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "409": {
+                        "description": "The owner is already on Telegram (owner_already_linked)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
                     }
                 },
                 "security": [
@@ -28611,7 +28638,7 @@
         "/v1/owner/billing/entitlements": {
             "get": {
                 "operationId": "ownerBilling.entitlements",
-                "description": "P4-21 (docs/BILLING.md, \"Funksiyalar va cheklovlar\"): `plan` (null without a subscription), `legacy` (true: every\nfeature, the store is not on a v2 plan yet), `period` monthly|yearly, `status` none|trialing|active|past_due|locked,\n`trial_ends_at`, `current_period`, `term_ends_at` (yearly), `locked_since`, `lock_at` (when an overdue invoice locks\nit), `settings_locked`, `features` (every App\\Enums\\PlanFeature: on or off), `required_plans` (the cheapest plan\nwith each gated feature: show \"Asosiy tarifda bor\"), `devices` (pos and kds: included, active, extra, extra_price\nas a decimal string, can_add; waiter phones unlimited and free), `notice` (the overdue invoice reminder or the lock\nmessage for a banner, null when none). Any member of the store and the terminals read it.",
+                "description": "P4-21 (docs/BILLING.md, \"Funksiyalar va cheklovlar\"): `plan` (null without a subscription), `legacy` (true: every\nfeature, the store is not on a v2 plan yet), `period` monthly|yearly, `status` none|trialing|active|past_due|locked,\n`trial_ends_at`, `current_period`, `term_ends_at` (yearly), `locked_since`, `lock_at` (when an overdue invoice locks\nit), `settings_locked`, `features` (every App\\Enums\\PlanFeature: on or off), `required_plans` (the cheapest plan\nwith each gated feature: show \"Asosiy tarifda bor\"), `devices` (pos and kds: included, active, extra, extra_price\nas a decimal string, can_add; waiter phones unlimited and free), `notice` (the overdue invoice reminder or the lock\nmessage for a banner, null when none; its `invoice` — uuid, number, amounts — only for a member with finance.view on\ntheir own sign-in, null for other staff and terminal PIN sessions, whose `message` does not name it either). Any\nmember of the store and the terminals read it.",
                 "summary": "What the plan lets the store use",
                 "tags": [
                     "Owner: billing"
@@ -28855,7 +28882,10 @@
                                                             ]
                                                         },
                                                         "invoice": {
-                                                            "type": "object",
+                                                            "type": [
+                                                                "object",
+                                                                "null"
+                                                            ],
                                                             "properties": {
                                                                 "uuid": {
                                                                     "type": "string"
@@ -86979,7 +87009,7 @@
         "/v1/store-applications": {
             "post": {
                 "operationId": "store_applications.store",
-                "description": "`name` (the place), `format` (restaurant, cafe, fast_food, canteen, coffee_shop, bakery, teahouse, catering,\nother), `source` (website — default — or telegram), `region_id` (GET /locations: an active region) or `city`, `owner_name`, `phone` (+998 XX XXX XX XX, spaces\nand dashes allowed), `tin` (STIR, 9 digits, optional), `comment` (optional, up to 1000). `website` must stay\nempty (a hidden field for bots). The same phone within 24 hours is taken once. Limited to 5 an hour and 20 a day\nper IP address, 3 a day per phone (429). Answers 201 without any data about the application.",
+                "description": "`name` (the place), `format` (restaurant, cafe, fast_food, canteen, coffee_shop, bakery, teahouse, catering,\nother), `source` (website — default — or telegram), `region_id` (GET /locations: an active region) or `city`, `owner_name`, `phone` (+998 XX XXX XX XX, spaces\nand dashes allowed), `tin` (STIR, 9 digits, optional), `comment` (optional, up to 1000). `website` must stay\nempty (a hidden field for bots). The same phone within 24 hours is taken once. Limited to 5 an hour and 20 a day\nper IP address (429); a phone is taken once a day, however many requests name it. Answers 201 without any data about the application.",
                 "summary": "Leave an application to join RIZQIM",
                 "tags": [
                     "Ovqatxona arizasi"
@@ -94228,6 +94258,35 @@
                     "paid_amount": {
                         "type": "string"
                     },
+                    "void_requested_by": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ]
+                    },
+                    "void_requested_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date-time"
+                    },
+                    "void_request_reason": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "void_requester": {
+                        "anyOf": [
+                            {
+                                "$ref": "#/components/schemas/User"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    },
                     "store": {
                         "$ref": "#/components/schemas/Store"
                     },
@@ -94281,7 +94340,10 @@
                     "updated_at",
                     "kind",
                     "sequence",
-                    "paid_amount"
+                    "paid_amount",
+                    "void_requested_by",
+                    "void_requested_at",
+                    "void_request_reason"
                 ],
                 "title": "SubscriptionInvoice"
             },

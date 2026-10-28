@@ -80,6 +80,8 @@ export const billing = defineSection({
     billing_bannerLocked: "Sozlamalar yopiq — to'lov qiling",
     billing_bannerReminderText: "{{number}} hisob-faktura, qoldiq {{amount}}. Kassa ishlashda davom etadi.",
     billing_bannerLockedText: "{{number}} hisob-faktura, qoldiq {{amount}}. To'lov qilinishi bilan darhol ochiladi. Kassa to'lov qabul qilishda davom etadi.",
+    billing_bannerReminderTextNoInvoice: "Kassa ishlashda davom etadi.",
+    billing_bannerLockedTextNoInvoice: "To'lov qilinishi bilan darhol ochiladi. Kassa to'lov qabul qilishda davom etadi.",
     billing_bannerLink: "To'lash",
     billing_bannerAria: "To'lanmagan hisob-faktura haqida",
 
@@ -176,6 +178,8 @@ export const billing = defineSection({
     billing_bannerLocked: 'Настройки закрыты — оплатите счёт',
     billing_bannerReminderText: 'Счёт {{number}}, остаток {{amount}}. Касса продолжает работать.',
     billing_bannerLockedText: 'Счёт {{number}}, остаток {{amount}}. После оплаты откроется сразу. Касса продолжает принимать оплату.',
+    billing_bannerReminderTextNoInvoice: 'Касса продолжает работать.',
+    billing_bannerLockedTextNoInvoice: 'После оплаты откроется сразу. Касса продолжает принимать оплату.',
     billing_bannerLink: 'Оплатить',
     billing_bannerAria: 'О неоплаченном счёте',
 
@@ -272,6 +276,8 @@ export const billing = defineSection({
     billing_bannerLocked: 'Settings are locked — please pay',
     billing_bannerReminderText: 'Invoice {{number}}, outstanding {{amount}}. The till keeps working.',
     billing_bannerLockedText: 'Invoice {{number}}, outstanding {{amount}}. Paying opens them at once. The till keeps taking payments.',
+    billing_bannerReminderTextNoInvoice: 'The till keeps working.',
+    billing_bannerLockedTextNoInvoice: 'Paying opens them at once. The till keeps taking payments.',
     billing_bannerLink: 'Pay',
     billing_bannerAria: 'About an unpaid invoice',
 

@@ -3,12 +3,16 @@
 namespace App\Services\Finance\Billing;
 
 use App\Enums\DeviceType;
+use App\Enums\Permission;
 use App\Enums\PlanFeature;
 use App\Enums\SubscriptionStatus;
+use App\Models\Device;
 use App\Models\Store;
 use App\Models\StoreSubscription;
 use App\Models\SubscriptionInvoice;
 use App\Models\TariffPlan;
+use App\Models\User;
+use App\Services\Auth\PermissionService;
 use App\Services\Finance\TerminalCounter;
 use App\Support\Money;
 use Carbon\CarbonInterface;
@@ -38,6 +42,7 @@ class Entitlements
     public function __construct(
         protected SubscriptionStatusResolver $statuses,
         protected TerminalCounter $terminals,
+        protected PermissionService $permissions,
     ) {}
 
     public function allows(Store|int $store, PlanFeature $feature): bool
@@ -109,11 +114,26 @@ class Entitlements
     }
 
     /**
+     * Whether the notice may name the overdue invoice (uuid, number, amounts) to this caller: only a member with
+     * finance.view on their own sign-in; a terminal (a PIN session, the till's bootstrap) and other staff get the level,
+     * the days, the lock date and a message without them.
+     */
+    public function showsInvoiceTo(User $user, ?Device $device = null): bool
+    {
+        return $device === null
+            && !$this->permissions->isStaffSession($user)
+            && $this->permissions->actingBranchId($user) !== PermissionService::NO_BRANCH
+            && $this->permissions->has($user, Permission::FINANCE_VIEW);
+    }
+
+    /**
      * The payload of GET /owner/billing/entitlements and of the POS bootstrap's `entitlements` (docs/BILLING.md).
+     * $withInvoice: the notice names the overdue invoice (showsInvoiceTo; the admin billing card); otherwise its
+     * `invoice` is null and the message does not name it.
      *
      * @return array<string, mixed>
      */
-    public function toArray(Store|int $store, ?CarbonInterface $now = null): array
+    public function toArray(Store|int $store, ?CarbonInterface $now = null, bool $withInvoice = false): array
     {
         $context = $this->context($store, $now);
         /** @var TariffPlan|null $plan */
@@ -148,7 +168,9 @@ class Entitlements
             'features' => $features,
             'required_plans' => $required,
             'devices' => $this->devices($store),
-            'notice' => $context['notice'],
+            'notice' => $context['overdue'] !== null
+                ? $this->notice($context['overdue'], $context['status'], $context['lock_at'] !== null ? Carbon::parse($context['lock_at']) : null, $context['now'], $withInvoice)
+                : null,
         ];
     }
 
@@ -200,7 +222,7 @@ class Entitlements
     }
 
     /**
-     * @return array{store_id: int, subscription: StoreSubscription|null, plan: TariffPlan|null, all_features: bool, status: string, locked_since: string|null, lock_at: string|null, notice: array<string, mixed>|null}
+     * @return array{store_id: int, subscription: StoreSubscription|null, plan: TariffPlan|null, all_features: bool, status: string, locked_since: string|null, lock_at: string|null, overdue: SubscriptionInvoice|null, now: Carbon}
      */
     protected function context(Store|int $store, ?CarbonInterface $now = null): array
     {
@@ -225,7 +247,9 @@ class Entitlements
         }
 
         $overdue = $subscription !== null ? $this->statuses->oldestOverdue($storeId, $now) : null;
-        $lockAt = $overdue !== null && $plan?->isV2() ? $this->statuses->lockAt($overdue) : null;
+        // Only a v2 plan's invoice locks (SubscriptionStatusResolver): an old P1-23 one has no lock date
+        $lockable = $overdue !== null && $plan?->isV2() ? $this->statuses->oldestLockable($storeId, $now) : null;
+        $lockAt = $lockable !== null ? $this->statuses->lockAt($lockable) : null;
 
         $context = [
             'store_id' => $storeId,
@@ -235,28 +259,33 @@ class Entitlements
             'status' => $status,
             'locked_since' => $status === SubscriptionStatus::LOCKED->value && $lockAt !== null ? $lockAt->toIso8601String() : null,
             'lock_at' => $lockAt?->toIso8601String(),
-            'notice' => $overdue !== null ? $this->notice($overdue, $status, $lockAt, $now) : null,
+            'overdue' => $overdue,
+            'now' => $now,
         ];
 
         return $this->context[$storeId] = $context;
     }
 
     /**
-     * The partner web's (and the till's) notice about an overdue invoice.
+     * The partner web's (and the till's) notice about an overdue invoice; $withInvoice: it names the invoice (number,
+     * amounts), else `invoice` is null and the message speaks of "the invoice" only.
      *
      * @return array<string, mixed>
      */
-    protected function notice(SubscriptionInvoice $invoice, string $status, ?Carbon $lockAt, CarbonInterface $now): array
+    protected function notice(SubscriptionInvoice $invoice, string $status, ?Carbon $lockAt, CarbonInterface $now, bool $withInvoice): array
     {
         $days = $this->statuses->daysOverdue($invoice, $now);
         $amount = number_format($invoice->outstanding()->roundTo(0)->toFloat(), 0, '.', ' ');
         $locked = $status === SubscriptionStatus::LOCKED->value;
         $lockDate = $lockAt?->copy()->setTimezone($this->statuses->timezone())->format('d.m.Y');
+        $named = $withInvoice ? "{$invoice->number} hisob-faktura ({$amount} so'm)" : "To'lanmagan hisob-faktura";
 
         $message = match (true) {
-            $locked => "{$invoice->number} hisob-faktura ({$amount} so'm) to'lanmagan: yangi sozlamalar va tarifdagidan ortiq imkoniyatlar yopildi. To'lov qilinishi bilan darhol ochiladi. Kassa ishlashda davom etadi.",
-            $lockDate !== null => "{$invoice->number} hisob-faktura ({$amount} so'm) muddati {$days} kun o'tdi. {$lockDate} dan yangi sozlamalar yopiladi. Kassa ishlashda davom etadi.",
-            default => "{$invoice->number} hisob-faktura ({$amount} so'm) muddati {$days} kun o'tdi.",
+            $locked => $withInvoice
+                ? "{$named} to'lanmagan: yangi sozlamalar va tarifdagidan ortiq imkoniyatlar yopildi. To'lov qilinishi bilan darhol ochiladi. Kassa ishlashda davom etadi."
+                : "{$named} sababli yangi sozlamalar va tarifdagidan ortiq imkoniyatlar yopildi. To'lov qilinishi bilan darhol ochiladi. Kassa ishlashda davom etadi.",
+            $lockDate !== null => "{$named} muddati {$days} kun o'tdi. {$lockDate} dan yangi sozlamalar yopiladi. Kassa ishlashda davom etadi.",
+            default => "{$named} muddati {$days} kun o'tdi.",
         };
 
         return [
@@ -264,13 +293,13 @@ class Entitlements
             'message' => $message,
             'days_overdue' => $days,
             'lock_at' => $lockAt?->toIso8601String(),
-            'invoice' => [
+            'invoice' => $withInvoice ? [
                 'uuid' => $invoice->uuid,
                 'number' => $invoice->number,
                 'amount' => Money::of($invoice->amount)->toString(),
                 'outstanding' => $invoice->outstanding()->toString(),
                 'due_date' => $invoice->due_date->toDateString(),
-            ],
+            ] : null,
         ];
     }
 

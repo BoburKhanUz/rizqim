@@ -1547,8 +1547,12 @@ export interface paths {
         put?: never;
         /**
          * Void an invoice
-         * @description `reason`. The invoice no longer counts as income and its unpaid amount comes off the store's debt (a reversal row
-         *     in the ledger). Voiding one again changes nothing.
+         * @description `reason`. Only an unpaid invoice: a paid or partly paid one is refused (422 `invoice_paid`; money goes back by a
+         *     manual adjustment). The invoice no longer counts as income and its amount comes off the store's debt (a reversal
+         *     row in the ledger). From 1 000 000 so'm (`config('finance.four_eyes_threshold')`) two members: the first call is a
+         *     request (the invoice stays `issued`, `invoice.void_request` shows who asked, audited as
+         *     `admin.pos.invoice_void_requested`), the same member again changes nothing, a different member's call voids it.
+         *     Voiding one again changes nothing.
          */
         post: operations["admin.pos.invoice_voided"];
         delete?: never;
@@ -2309,9 +2313,11 @@ export interface paths {
         put?: never;
         /**
          * New Telegram link for the owner
-         * @description A new one-time bot link binding the owner's Telegram to their account; the old link stops working. Shown only in
-         *     this answer (`invite_link`). `owner_linked`: the owner already joined — opening the new link moves the account to
-         *     the Telegram that opens it. `reason` is required. 422 `no_owner`.
+         * @description A new one-time bot link binding a Telegram account to the owner's account; the old link stops working. It is a
+         *     credential, so it goes to the owner's own phone by SMS (`delivered_via: "sms"`, `invite_link: null`). When no SMS
+         *     can be sent, the link comes back in `invite_link` only to a member with `stores.impersonate` (superadmin by
+         *     default); anyone else gets 422 `link_not_deliverable` and the old link stays. An owner already on Telegram is
+         *     never relinked: 409 `owner_already_linked`. `reason` is required. 422 `no_owner`.
          */
         post: operations["admin.stores.telegram_link_regenerated"];
         delete?: never;
@@ -3325,7 +3331,9 @@ export interface paths {
          *     it), `settings_locked`, `features` (every App\Enums\PlanFeature: on or off), `required_plans` (the cheapest plan
          *     with each gated feature: show "Asosiy tarifda bor"), `devices` (pos and kds: included, active, extra, extra_price
          *     as a decimal string, can_add; waiter phones unlimited and free), `notice` (the overdue invoice reminder or the lock
-         *     message for a banner, null when none). Any member of the store and the terminals read it.
+         *     message for a banner, null when none; its `invoice` — uuid, number, amounts — only for a member with finance.view on
+         *     their own sign-in, null for other staff and terminal PIN sessions, whose `message` does not name it either). Any
+         *     member of the store and the terminals read it.
          */
         get: operations["ownerBilling.entitlements"];
         put?: never;
@@ -6486,7 +6494,7 @@ export interface paths {
          *     other), `source` (website — default — or telegram), `region_id` (GET /locations: an active region) or `city`, `owner_name`, `phone` (+998 XX XXX XX XX, spaces
          *     and dashes allowed), `tin` (STIR, 9 digits, optional), `comment` (optional, up to 1000). `website` must stay
          *     empty (a hidden field for bots). The same phone within 24 hours is taken once. Limited to 5 an hour and 20 a day
-         *     per IP address, 3 a day per phone (429). Answers 201 without any data about the application.
+         *     per IP address (429); a phone is taken once a day, however many requests name it. Answers 201 without any data about the application.
          */
         post: operations["store_applications.store"];
         delete?: never;
@@ -8112,6 +8120,11 @@ export interface components {
             kind: components["schemas"]["InvoiceKind"];
             sequence: number;
             paid_amount: string;
+            void_requested_by: number | null;
+            /** Format: date-time */
+            void_requested_at: string | null;
+            void_request_reason: string | null;
+            void_requester?: components["schemas"]["User"] | null;
             store?: components["schemas"]["Store"];
             subscription?: components["schemas"]["StoreSubscription"] | null;
             plan?: components["schemas"]["TariffPlan"] | null;
@@ -12856,7 +12869,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            422: components["responses"]["ValidationException"];
+            /** @description A paid or partly paid invoice (invoice_paid) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     "admin.pos.overview": {
@@ -14850,7 +14871,8 @@ export interface operations {
                         success: boolean;
                         message: string;
                         data: {
-                            invite_link: string;
+                            invite_link: string | null;
+                            delivered_via: string | null;
                             owner_linked: boolean;
                         };
                     };
@@ -14865,7 +14887,16 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description The store has no owner (no_owner) */
+            /** @description The owner is already on Telegram (owner_already_linked) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No owner (no_owner) or the link cannot be delivered (link_not_deliverable) */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -17856,7 +17887,7 @@ export interface operations {
                                     amount: string;
                                     outstanding: string;
                                     due_date: string;
-                                };
+                                } | null;
                             } | null;
                         };
                     };

@@ -26,8 +26,8 @@ export function HallFeeDialog({ hall, onClose, onSaved }: { hall: Hall; onClose:
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    const parsedPercent = parseDecimal(percent);
-    const percentValue = !serviceCharge.allowed && parsedPercent === null ? 0 : parsedPercent;
+    // A plan without the service charge sends 0: the server refuses any percent above 0 (403), even the one stored from before
+    const percentValue = serviceCharge.allowed ? parseDecimal(percent) : 0;
     const amountValue = parseDecimal(amount);
     const problems: Record<string, string> = {};
     if (percentValue === undefined || percentValue === null) problems.service_charge_percent = t('mgmt_numberInvalid');
@@ -47,7 +47,7 @@ export function HallFeeDialog({ hall, onClose, onSaved }: { hall: Hall; onClose:
         <NumberField
           label={t('floor_fee_percent')}
           hint={serviceCharge.allowed ? t('floor_fee_percentHint') : t(serviceCharge.planName ? 'billing_serviceChargeLocked' : 'billing_serviceChargeLockedNoPlan', { plan: serviceCharge.planName ?? '' })}
-          value={percent}
+          value={serviceCharge.allowed ? percent : '0'}
           onChange={setPercent}
           suffix="%"
           disabled={!serviceCharge.allowed}

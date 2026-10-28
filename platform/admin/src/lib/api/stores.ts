@@ -359,7 +359,7 @@ export const activateStore = (id: number, reason: string) => data<StoreCard>(cal
 export const setCreditLimit = (id: number, creditLimit: string, reason: string) => data<StoreCard>(call('PUT', `/stores/${id}/credit-limit`, { body: { credit_limit: creditLimit, reason } }));
 export const setDisplay = (id: number, flags: { is_premium?: boolean; is_featured?: boolean }, reason: string) =>
   data<StoreCard>(call('PUT', `/stores/${id}/display`, { body: { ...flags, reason } }));
-export const newTelegramLink = (id: number, reason: string) => data<{ invite_link: string; owner_linked: boolean }>(call('POST', `/stores/${id}/telegram-link`, { body: { reason } }));
+export const newTelegramLink = (id: number, reason: string) => data<{ invite_link: string | null; delivered_via: 'sms' | null; owner_linked: boolean }>(call('POST', `/stores/${id}/telegram-link`, { body: { reason } }));
 export const messageOwner = (id: number, text: string, reason: string) => data<{ recipients: number }>(call('POST', `/stores/${id}/message`, { body: { text, reason } }));
 
 export const addStoreNote = (id: number, body: string) => data<Note>(call('POST', `/stores/${id}/notes`, { body: { body } }));

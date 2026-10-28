@@ -110,6 +110,42 @@ describe('service charge on the Start plan', () => {
     expect(await calls.find((call) => call.method === 'PUT')!.json()).toMatchObject({ service_charge_percent: 0, place_fee_amount: 5000 });
   });
 
+  // Review F3-4: a store that had a service charge before it moved to a plan without the feature must still save its place fee
+  it('does not send the stored percent of a locked field (the server answers 403 for any percent above 0)', async () => {
+    const typing = userEvent.setup();
+    const stored = { id: 1, branch_id: null, hall_id: null, service_charge_percent: '10.00', service_charge_channels: ['pos_hall'], place_fee_amount: '0.00', place_fee_mode: 'per_person', place_fee_channels: ['pos_hall'] };
+    const { calls } = mockFetch({
+      ...feeRoutes(() => okPos({ id: 1 })),
+      'GET /api/v1/owner/service-fees': () => okPos({ settings: [stored], channels: ['pos_hall', 'telegram'] }),
+      ...entitlements(startPlan()),
+    });
+    renderPage(<ServiceFeesForm />);
+    await screen.findByText("Xizmat haqi Asosiy tarifda bor. Hozir faqat joy puli sozlanadi.");
+    expect(screen.getByLabelText('Foiz')).toBeDisabled();
+    await typing.clear(screen.getByLabelText('Miqdori'));
+    await typing.type(screen.getByLabelText('Miqdori'), '5000');
+    await typing.click(screen.getByRole('button', { name: 'Saqlash' }));
+    await screen.findByText('Xizmat haqi saqlandi.');
+    expect(await calls.find((call) => call.method === 'PUT')!.json()).toMatchObject({ service_charge_percent: 0, place_fee_amount: 5000 });
+  });
+
+  it('lets the owner set the percent to 0 on a plan that has the feature', async () => {
+    const typing = userEvent.setup();
+    const stored = { id: 1, branch_id: null, hall_id: null, service_charge_percent: '10.00', service_charge_channels: ['pos_hall'], place_fee_amount: '0.00', place_fee_mode: 'per_person', place_fee_channels: ['pos_hall'] };
+    const { calls } = mockFetch({
+      ...feeRoutes(() => okPos({ id: 1 })),
+      'GET /api/v1/owner/service-fees': () => okPos({ settings: [stored], channels: ['pos_hall', 'telegram'] }),
+      ...entitlements(asosiyPlan()),
+    });
+    renderPage(<ServiceFeesForm />);
+    await waitFor(() => expect(screen.getByLabelText('Foiz')).toBeEnabled());
+    await typing.clear(screen.getByLabelText('Foiz'));
+    await typing.type(screen.getByLabelText('Foiz'), '0');
+    await typing.click(screen.getByRole('button', { name: 'Saqlash' }));
+    await screen.findByText('Xizmat haqi saqlandi.');
+    expect(await calls.find((call) => call.method === 'PUT')!.json()).toMatchObject({ service_charge_percent: 0 });
+  });
+
   it('leaves the percent open on the Asosiy plan', async () => {
     mockFetch({ ...feeRoutes(() => okPos({ id: 1 })), ...entitlements(asosiyPlan()) });
     renderPage(<ServiceFeesForm />);

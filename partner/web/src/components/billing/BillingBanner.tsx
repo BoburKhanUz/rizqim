@@ -28,8 +28,11 @@ export function BillingBanner({ canPay }: { canPay: boolean }) {
       : days <= 0
         ? t('billing_bannerReminderToday')
         : t('billing_bannerReminder', { days });
-  const amount = formatMoney(notice.invoice.outstanding, language);
-  const text = t(locked ? 'billing_bannerLockedText' : 'billing_bannerReminderText', { number: notice.invoice.number, amount });
+  // The invoice's number and amount come only to people with finance.view (null for other staff)
+  const invoice = notice.invoice;
+  const text = invoice
+    ? t(locked ? 'billing_bannerLockedText' : 'billing_bannerReminderText', { number: invoice.number, amount: formatMoney(invoice.outstanding, language) })
+    : t(locked ? 'billing_bannerLockedTextNoInvoice' : 'billing_bannerReminderTextNoInvoice');
   const Icon = locked ? Lock : TriangleAlert;
 
   return (

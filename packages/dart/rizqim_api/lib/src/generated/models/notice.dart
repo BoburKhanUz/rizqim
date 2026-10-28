@@ -26,7 +26,7 @@ class Notice {
   final int daysOverdue;
   @JsonKey(name: 'lock_at')
   final String? lockAt;
-  final Invoice invoice;
+  final Invoice? invoice;
 
   Map<String, Object?> toJson() => _$NoticeToJson(this);
 }

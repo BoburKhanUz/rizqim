@@ -80,12 +80,26 @@ class SubscriptionInvoiceResource extends Resource
                     ->icon('heroicon-o-no-symbol')
                     ->color('danger')
                     ->visible(fn (SubscriptionInvoice $record) => $record->status !== SubscriptionInvoiceStatus::VOID)
-                    ->modalDescription("Hisob-faktura bekor qilinadi va uning summasi do'kon qarzidan ayriladi (ledger'da teskari yozuv).")
+                    ->modalDescription("Hisob-faktura bekor qilinadi va uning summasi do'kon qarzidan ayriladi (ledger'da teskari yozuv). To'langanini bekor qilib bo'lmaydi; 1 000 000 so'm va undan kattasini Boshqaruv markazida ikki xodim bekor qiladi.")
                     ->schema([
                         Textarea::make('reason')->label('Sabab')->required()->maxLength(500),
                     ])
                     ->action(function (SubscriptionInvoice $record, array $data): void {
-                        app(SubscriptionService::class)->voidInvoice($record, self::actor(), (string) $data['reason']);
+                        // Review W2: a void of the four-eyes threshold or more takes two members: only in the
+                        // Boshqaruv markazi (a paid invoice is refused by voidInvoice itself)
+                        $threshold = \App\Services\Finance\Payouts\PayoutService::threshold();
+                        if ($record->total()->isGreaterThanOrEqualTo($threshold) && Money::of($record->paid_amount ?? 0)->isZero() && $record->status === SubscriptionInvoiceStatus::ISSUED) {
+                            Notification::make()->title(\App\Services\Finance\Payouts\PayoutService::uzs($threshold) . " va undan katta hisob-fakturani Boshqaruv markazida ikki xodim bekor qiladi.")->danger()->send();
+
+                            return;
+                        }
+                        try {
+                            app(SubscriptionService::class)->voidInvoice($record, self::actor(), (string) $data['reason']);
+                        } catch (\App\Services\Finance\InvoiceVoidException $e) {
+                            Notification::make()->title($e->getMessage())->danger()->send();
+
+                            return;
+                        }
                         Notification::make()->title('Hisob-faktura bekor qilindi')->success()->send();
                     }),
             ]);

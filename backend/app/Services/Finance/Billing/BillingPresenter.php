@@ -157,7 +157,7 @@ class BillingPresenter
         return [
             'store' => ['id' => (int) $store->id, 'name' => (string) $store->name, 'status' => $store->status->value],
             'subscription' => $current ? $this->subscription($current) : null,
-            'entitlements' => $this->entitlements->toArray($store),
+            'entitlements' => $this->entitlements->toArray($store, null, true),
             'debt' => [
                 'debt_balance' => Money::of($store->debt_balance)->toString(),
                 'subscription_debt' => Money::of($store->subscription_debt)->toString(),

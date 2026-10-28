@@ -9,6 +9,7 @@ use App\Models\Store;
 use App\Models\StoreApplication;
 use App\Models\StoreStatusLog;
 use App\Models\User;
+use App\Services\Sms\SmsServiceInterface;
 use App\Services\Telegram\TelegramMessenger;
 use App\Support\Money;
 use Illuminate\Support\Facades\DB;
@@ -29,13 +30,15 @@ use Illuminate\Support\Str;
  *    then the same block rule LedgerService applies: over the limit an active store becomes payment_required, back
  *    within it a payment_required store becomes active;
  *  - display flags: premium, recommended (is_featured);
- *  - Telegram link: a new one-time invite for the owner (the old link stops working);
+ *  - Telegram link: a new one-time invite for an owner who is not on Telegram yet (the old link stops working),
+ *    sent to the owner's phone by SMS, never handed to the member (review F3-1);
  *  - message the owner: a queued Telegram message, plain text.
  */
 class StoreActions
 {
     public function __construct(
         private readonly TelegramMessenger $telegram,
+        private readonly SmsServiceInterface $sms,
     ) {}
 
     /**
@@ -125,21 +128,63 @@ class StoreActions
     /**
      * A new one-time invite link for the owner's Telegram; the old link stops working.
      *
-     * @return array{invite_link: string, owner: User, owner_linked: bool}
+     * Review F3-1: whoever opens the link binds their Telegram to the owner's account, so it is a credential:
+     *  - an owner already on Telegram is never relinked (409 owner_already_linked): the link would take their account;
+     *  - otherwise it goes to the owner's own phone by SMS (a phone the platform or an SMS code vouched for) and
+     *    nowhere else; when that cannot be done the member sees the link only with stores.impersonate
+     *    ($mayReveal; nobody has it by default except the superadmin), else 422 link_not_deliverable and the old
+     *    link is left as it was.
+     *
+     * @return array{owner: User, owner_linked: false, delivered_via: 'sms'|null, invite_link: string|null}
      *
      * @throws StoreAdminException
      */
-    public function regenerateTelegramLink(Store $store): array
+    public function regenerateTelegramLink(Store $store, bool $mayReveal = false): array
     {
         $owner = self::owner($store);
         if ($owner === null) {
             throw new StoreAdminException("Ovqatxonaning egasi topilmadi.", 'no_owner');
         }
+        if (self::telegramChat($owner) !== null) {
+            throw new StoreAdminException(
+                "Egasi Telegramga allaqachon ulangan: yangi havola uning hisobini boshqa Telegramga o'tkazib yuborardi. Egasiga «Xabar yuborish» orqali yozing.",
+                'owner_already_linked',
+                409,
+            );
+        }
 
+        $previous = $owner->telegram_invite_token;
         $token = Str::uuid()->toString();
         $owner->forceFill(['telegram_invite_token' => $token])->save();
+        $link = StoreProvisioner::inviteLink($token);
 
-        return ['invite_link' => StoreProvisioner::inviteLink($token), 'owner' => $owner, 'owner_linked' => self::telegramChat($owner) !== null];
+        $delivered = $this->sendBySms($owner, $link);
+        if (!$delivered && !$mayReveal) {
+            $owner->forceFill(['telegram_invite_token' => $previous])->save();
+
+            throw new StoreAdminException(
+                "Havolani egasining telefoniga SMS bilan yuborib bo'lmadi (tasdiqlangan telefon yo'q yoki SMS ketmadi). Havolani ko'rish uchun alohida ruxsat kerak.",
+                'link_not_deliverable',
+            );
+        }
+
+        return ['owner' => $owner, 'owner_linked' => false, 'delivered_via' => $delivered ? 'sms' : null, 'invite_link' => $delivered ? null : $link];
+    }
+
+    private function sendBySms(User $owner, string $link): bool
+    {
+        $phone = trim((string) $owner->phone);
+        if ($phone === '' || $owner->phone_verified_at === null) {
+            return false;
+        }
+
+        try {
+            return $this->sms->send($phone, "RIZQIM: Telegram hisobingizni ulash havolasi (bir marta ishlaydi, hech kimga bermang): {$link}");
+        } catch (\Throwable $e) {
+            report($e);
+
+            return false;
+        }
     }
 
     /**

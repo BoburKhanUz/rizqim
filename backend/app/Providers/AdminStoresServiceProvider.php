@@ -43,14 +43,14 @@ class AdminStoresServiceProvider extends ServiceProvider
                 ->withoutOverlapping(50);
         });
 
-        // The public form: 5 an hour and 20 a day per address, 3 a day per phone
+        // The public form: 5 an hour and 20 a day per address. There is no per-phone request limit (review F3-3): the phone
+        // is only what the request claims, so anyone could use up a victim's allowance (or one shared bucket for every
+        // invalid phone); the phone is bound by what was accepted for it instead, one application a day
+        // (ApplicationPipeline::submit)
         RateLimiter::for('store-applications', function (Request $request) {
-            $phone = ApplicationPipeline::normalizePhone((string) $request->input('phone', '')) ?? 'none';
-
             return [
                 Limit::perHour(5)->by('store-app:ip:' . $request->ip()),
                 Limit::perDay(20)->by('store-app:ip-day:' . $request->ip()),
-                Limit::perDay(3)->by('store-app:phone:' . $phone),
             ];
         });
 

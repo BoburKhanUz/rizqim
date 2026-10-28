@@ -153,13 +153,15 @@ class FinanceNettingTest extends TestCase
         $this->assertNotSame(SubscriptionStatus::ACTIVE, StoreSubscription::where('store_id', $store->id)->latest('id')->first()->status);
     }
 
-    public function test_a_voided_invoice_is_not_reopened_its_share_returns_as_commission_debt(): void
+    public function test_a_voided_invoice_is_not_reopened_the_invoice_its_credit_paid_is(): void
     {
         $store = $this->storeWithTwoInvoices();
         $order = $this->platformOrder($store, 'payme', '149000.00');
         $this->ledger()->settlePlatformOrder($order);
         [$september] = $this->invoicesOf($store);
-        $this->billing()->voidInvoice($september->fresh(), null, 'Xato');
+        // Voided after it was paid: refused since review W2 (invoice_paid), so written as such a void did it before
+        $september->forceFill(['status' => SubscriptionInvoiceStatus::VOID, 'voided_at' => now(), 'void_reason' => 'Xato'])->save();
+        $this->ledger()->reverseSubscriptionCharge($september->fresh(), null, 'Xato');
         $before = $store->fresh();
 
         $this->ledger()->reverseDeliveredOrder($order->fresh());
@@ -167,6 +169,9 @@ class FinanceNettingTest extends TestCase
         $this->assertSame(SubscriptionInvoiceStatus::VOID, $september->fresh()->status);
         $store->refresh();
         $this->assertSame(\App\Support\Money::of($before->debt_balance)->plus('149000.00')->toString(), $store->debt_balance);
-        $this->assertSame($before->subscription_debt, $store->subscription_debt);
+        // Review W2 (F1 item 7): the void's credit had paid October; that invoice is reopened instead of the void one
+        [, $october] = $this->invoicesOf($store);
+        $this->assertSame(SubscriptionInvoiceStatus::ISSUED, $october->status);
+        $this->assertSame(\App\Support\Money::of($before->subscription_debt)->plus('149000.00')->toString(), $store->subscription_debt);
     }
 }

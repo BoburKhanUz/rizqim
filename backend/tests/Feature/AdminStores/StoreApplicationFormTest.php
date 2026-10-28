@@ -87,19 +87,39 @@ class StoreApplicationFormTest extends TestCase
         $this->assertSame(0, StoreApplication::count());
     }
 
-    public function test_it_is_rate_limited_per_address_and_per_phone(): void
+    public function test_it_is_rate_limited_per_address(): void
     {
-        // 3 a day per phone
-        for ($i = 0; $i < 3; $i++) {
-            $this->postJson('/api/v1/store-applications', $this->form())->assertCreated();
-        }
-        $this->postJson('/api/v1/store-applications', $this->form())->assertStatus(429);
-
         // 5 an hour per address, whatever the phone
-        $this->travel(2)->days();
         for ($i = 0; $i < 5; $i++) {
             $this->postJson('/api/v1/store-applications', $this->form(['phone' => '+99893000000' . $i]))->assertCreated();
         }
         $this->postJson('/api/v1/store-applications', $this->form(['phone' => '+998930000009']))->assertStatus(429);
+    }
+
+    /**
+     * Review F3-3: the phone is in the request, so anyone could use up a victim's phone allowance and make their real
+     * application a 429. A phone is limited by what was accepted for it (one application a day), not by what was sent.
+     */
+    public function test_someone_elses_requests_cannot_block_a_phone(): void
+    {
+        $from = fn (string $ip) => $this->withServerVariables(['REMOTE_ADDR' => $ip]);
+
+        foreach (['10.1.0.1', '10.1.0.2', '10.1.0.3', '10.1.0.4'] as $ip) {
+            $from($ip)->postJson('/api/v1/store-applications', $this->form(['phone' => '90 123-45-67', 'website' => 'http://spam.example']))->assertCreated();
+        }
+        $from('10.1.0.5')->postJson('/api/v1/store-applications', $this->form())->assertCreated();
+        $this->assertSame(1, StoreApplication::count());
+    }
+
+    public function test_invalid_phones_do_not_share_one_bucket(): void
+    {
+        $from = fn (string $ip) => $this->withServerVariables(['REMOTE_ADDR' => $ip]);
+
+        foreach (['10.2.0.1', '10.2.0.2', '10.2.0.3', '10.2.0.4'] as $ip) {
+            $from($ip)->postJson('/api/v1/store-applications', $this->form(['phone' => '12345']))->assertStatus(422);
+        }
+        // Not 429: garbage from other addresses is no reason to refuse a valid form
+        $from('10.2.0.9')->postJson('/api/v1/store-applications', $this->form())->assertCreated();
+        $from('10.2.0.10')->postJson('/api/v1/store-applications', $this->form(['phone' => 'x']))->assertStatus(422);
     }
 }

@@ -2,11 +2,15 @@
 
 namespace Tests\Feature\AdminStores;
 
+use App\Enums\AdminPermission;
 use App\Enums\PlatformRole;
 use App\Enums\StoreStatus;
 use App\Jobs\SendTelegramRequest;
 use App\Models\AuditLog;
 use App\Models\StoreStatusLog;
+use App\Models\User;
+use App\Services\Admin\AdminPermissionService;
+use App\Services\Sms\SmsServiceInterface;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
@@ -105,30 +109,124 @@ class AdminStoreActionTest extends TestCase
         $this->assertSame(['payment_required', 'active'], StoreStatusLog::where('store_id', $store->id)->orderBy('id')->pluck('to_status')->all());
     }
 
-    public function test_display_flags_and_the_owner_telegram_link(): void
+    public function test_display_flags(): void
     {
-        config(['services.telegram.bot_username' => 'rizqim_test_bot']);
         $store = $this->makeStore();
-        $owner = $this->makeOwner($store);
-        $oldToken = $owner->telegram_invite_token;
         $token = $this->confirmedSession($this->makeMember(PlatformRole::SALES));
 
         $this->adminJson('PUT', "/stores/{$store->id}/display", $token, ['is_featured' => true, 'reason' => 'Aksiya haftasi'])
             ->assertOk()->assertJsonPath('data.profile.is_featured', true)->assertJsonPath('data.profile.is_premium', false);
         $this->assertSame(['is_featured' => true], AuditLog::where('action', 'admin.stores.display_changed')->sole()->after);
+    }
 
-        $link = $this->adminJson('POST', "/stores/{$store->id}/telegram-link", $token, ['reason' => 'Egasi havolani yo\'qotdi'])
-            ->assertOk()->assertJsonPath('data.owner_linked', false)->json('data.invite_link');
+    /**
+     * Review F3-1: the link binds whoever opens it to the owner's account, so it never reaches the member that asked
+     * for it unless the member holds stores.impersonate.
+     */
+    public function test_a_linked_owner_is_never_relinked(): void
+    {
+        config(['services.telegram.bot_username' => 'rizqim_test_bot']);
+        $store = $this->makeStore();
+        $owner = $this->makeOwner($store, '+998901112233', '777001');
+        $owner->forceFill(['telegram_invite_token' => 'old-token'])->save();
+        $sms = $this->mock(SmsServiceInterface::class);
+        $sms->shouldNotReceive('send');
+        $token = $this->confirmedSession($this->makeMember(PlatformRole::SALES));
+
+        $this->adminJson('GET', "/stores/{$store->id}", $token)->assertOk()->assertJsonPath('data.actions.telegram_link', false)->assertJsonPath('data.actions.message_owner', true);
+        $this->adminJson('POST', "/stores/{$store->id}/telegram-link", $token, ['reason' => 'Egasi havolani yo\'qotdi'])
+            ->assertStatus(409)->assertJsonPath('code', 'owner_already_linked')->assertJsonMissingPath('data.invite_link');
+
+        $owner->refresh();
+        $this->assertSame('777001', $owner->telegram_id);
+        $this->assertSame('old-token', $owner->telegram_invite_token);
+        $this->assertSame(0, AuditLog::where('action', 'admin.stores.telegram_link_regenerated')->count());
+
+        // Not even a superadmin takes over a linked owner
+        $this->adminJson('POST', "/stores/{$store->id}/telegram-link", $this->confirmedSession($this->makeMember(PlatformRole::SUPERADMIN)), ['reason' => 'Egasi havolani yo\'qotdi'])
+            ->assertStatus(409)->assertJsonPath('code', 'owner_already_linked');
+        $this->assertSame('old-token', $owner->fresh()->telegram_invite_token);
+    }
+
+    public function test_the_link_for_an_unlinked_owner_goes_to_their_vouched_phone_not_the_response(): void
+    {
+        config(['services.telegram.bot_username' => 'rizqim_test_bot']);
+        $store = $this->makeStore();
+        $owner = $this->makeOwner($store, '+998901112233');
+        $owner->forceFill(['phone_verified_at' => now(), 'phone_verified_via' => User::PHONE_VIA_VOUCHED])->save();
+        $oldToken = $owner->telegram_invite_token;
+        $sent = [];
+        $this->mock(SmsServiceInterface::class)->shouldReceive('send')->once()->andReturnUsing(function (string $phone, string $message) use (&$sent) {
+            $sent = [$phone, $message];
+
+            return true;
+        });
+        $token = $this->confirmedSession($this->makeMember(PlatformRole::SALES));
+
+        $response = $this->adminJson('POST', "/stores/{$store->id}/telegram-link", $token, ['reason' => 'Egasi havolani yo\'qotdi'])
+            ->assertOk()->assertJsonPath('data.owner_linked', false)->assertJsonPath('data.delivered_via', 'sms')->assertJsonPath('data.invite_link', null);
+
         $owner->refresh();
         $this->assertNotSame($oldToken, $owner->telegram_invite_token);
-        $this->assertSame('https://t.me/rizqim_test_bot?start=invite_' . $owner->telegram_invite_token, $link);
+        $this->assertSame('+998901112233', $sent[0]);
+        $this->assertStringContainsString('https://t.me/rizqim_test_bot?start=invite_' . $owner->telegram_invite_token, $sent[1]);
+        $this->assertStringNotContainsString((string) $owner->telegram_invite_token, $response->getContent());
         // The link is a credential: never in the audit log
         $audit = AuditLog::where('action', 'admin.stores.telegram_link_regenerated')->sole();
         $this->assertStringNotContainsString((string) $owner->telegram_invite_token, json_encode([$audit->before, $audit->after, $audit->payload_json]));
+        $this->assertSame('sms', $audit->payload_json['delivered_via']);
+    }
 
+    public function test_without_a_deliverable_phone_only_stores_impersonate_sees_the_link(): void
+    {
+        config(['services.telegram.bot_username' => 'rizqim_test_bot']);
         $ownerless = $this->makeStore();
-        $this->adminJson('POST', "/stores/{$ownerless->id}/telegram-link", $token, ['reason' => 'Egasi yo\'q'])
+        $store = $this->makeStore();
+        $owner = $this->makeOwner($store);
+        $oldToken = $owner->telegram_invite_token;
+        $this->mock(SmsServiceInterface::class)->shouldNotReceive('send');
+        $sales = $this->confirmedSession($this->makeMember(PlatformRole::SALES));
+
+        $this->adminJson('POST', "/stores/{$ownerless->id}/telegram-link", $sales, ['reason' => 'Egasi yo\'q'])
             ->assertStatus(422)->assertJsonPath('code', 'no_owner');
+
+        // No phone, no SMS, no impersonate: refused and the old link is left alone
+        $this->adminJson('POST', "/stores/{$store->id}/telegram-link", $sales, ['reason' => 'Egasi havolani yo\'qotdi'])
+            ->assertStatus(422)->assertJsonPath('code', 'link_not_deliverable')->assertJsonMissingPath('data.invite_link');
+        $this->assertSame($oldToken, $owner->fresh()->telegram_invite_token);
+
+        $super = $this->confirmedSession($this->makeMember(PlatformRole::SUPERADMIN));
+        $link = $this->adminJson('POST', "/stores/{$store->id}/telegram-link", $super, ['reason' => 'Egasi havolani yo\'qotdi'])
+            ->assertOk()->assertJsonPath('data.delivered_via', null)->json('data.invite_link');
+        $owner->refresh();
+        $this->assertNotSame($oldToken, $owner->telegram_invite_token);
+        $this->assertSame('https://t.me/rizqim_test_bot?start=invite_' . $owner->telegram_invite_token, $link);
+        $audit = AuditLog::where('action', 'admin.stores.telegram_link_regenerated')->sole();
+        $this->assertStringNotContainsString((string) $owner->telegram_invite_token, json_encode([$audit->before, $audit->after, $audit->payload_json]));
+    }
+
+    public function test_a_failed_sms_falls_back_to_stores_impersonate(): void
+    {
+        $store = $this->makeStore();
+        $owner = $this->makeOwner($store, '+998901112244');
+        $owner->forceFill(['phone_verified_at' => now(), 'phone_verified_via' => User::PHONE_VIA_VOUCHED])->save();
+        $oldToken = $owner->telegram_invite_token;
+        $this->mock(SmsServiceInterface::class)->shouldReceive('send')->twice()->andReturn(false);
+
+        $this->adminJson('POST', "/stores/{$store->id}/telegram-link", $this->confirmedSession($this->makeMember(PlatformRole::SALES)), ['reason' => 'Egasi havolani yo\'qotdi'])
+            ->assertStatus(422)->assertJsonPath('code', 'link_not_deliverable');
+        $this->assertSame($oldToken, $owner->fresh()->telegram_invite_token);
+
+        $this->adminJson('POST', "/stores/{$store->id}/telegram-link", $this->confirmedSession($this->makeMember(PlatformRole::SUPERADMIN)), ['reason' => 'Egasi havolani yo\'qotdi'])
+            ->assertOk()->assertJsonPath('data.delivered_via', null)->assertJsonStructure(['data' => ['invite_link']]);
+    }
+
+    public function test_stores_impersonate_is_a_privileged_permission(): void
+    {
+        $this->assertContains(AdminPermission::STORES_IMPERSONATE, AdminPermissionService::PRIVILEGED);
+        foreach ([PlatformRole::SALES, PlatformRole::OPERATOR, PlatformRole::SUPPORT, PlatformRole::FINANCE, PlatformRole::VIEWER] as $role) {
+            $this->assertNotContains(AdminPermission::STORES_IMPERSONATE, app(AdminPermissionService::class)->forRole($role));
+        }
     }
 
     public function test_message_the_owner_through_the_queued_bot(): void

@@ -7,6 +7,7 @@ import { makeBranch } from '../management/testSupport';
 import { product, variant } from '../menu/menuFixtures';
 import type { Hall } from '@rizqim/staff';
 import { hall, ok, ownerAnswer, signIn, table } from '../pos/testSupport';
+import { startPlan } from '../billing/testSupport';
 import { FloorView } from './FloorView';
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ replace: vi.fn(), refresh: vi.fn() }) }));
@@ -157,6 +158,24 @@ describe('Zallar va joylar', () => {
     await typing.click(screen.getByRole('button', { name: 'Asosiy zal: xizmat haqi' }));
     await typing.click(screen.getByRole('button', { name: "Filialnikini qo'llash" }));
     await waitFor(() => expect(calls.some((call) => call.method === 'DELETE')).toBe(true));
+  });
+
+  // Review F3-4: the hall's stored percent must not be sent again when the plan has no service charge (403 plan_feature_missing)
+  it("saves a hall's place fee without its stored percent when the plan has no service charge", async () => {
+    const { calls } = base({
+      'GET /api/v1/owner/halls': () => ok([hall({ service_fee: { service_charge_percent: '15.00', place_fee_amount: '0.00', place_fee_mode: 'per_person' } })]),
+      'GET /api/v1/owner/billing/entitlements': () => ok(startPlan()),
+      'PUT /api/v1/owner/service-fees': () => ok({ branch_id: 1, hall_id: 1, service_charge_percent: '0.00', place_fee_amount: '3000.00', place_fee_mode: 'per_person' }),
+    });
+    const typing = userEvent.setup();
+    renderPage(<FloorView />);
+    await typing.click(await screen.findByRole('button', { name: 'Asosiy zal: xizmat haqi' }));
+    await waitFor(() => expect(screen.getByLabelText('Xizmat haqi')).toBeDisabled());
+    await typing.clear(screen.getByLabelText('Joy puli'));
+    await typing.type(screen.getByLabelText('Joy puli'), '3000');
+    await typing.click(screen.getByRole('button', { name: 'Saqlash' }));
+    await waitFor(() => expect(calls.some((call) => call.method === 'PUT')).toBe(true));
+    expect(await lastOf(calls, 'PUT').json()).toEqual({ hall_id: 1, branch_id: 1, service_charge_percent: 0, place_fee_amount: 3000, place_fee_mode: 'per_person' });
   });
 
   it("shows a hall's own service charge on the hall once it is saved (the halls are read again)", async () => {

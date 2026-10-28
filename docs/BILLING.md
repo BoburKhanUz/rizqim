@@ -55,6 +55,11 @@ Hamma tekshiruv `App\Services\Finance\Billing\Entitlements` orqali:
   12 oy davom etadi (birinchi oy qisman bo'lsa ham to'liq oy hisoblanadi). Hisob-faktura muddat boshlanganda chiqadi
   (`OBY-YYYYMM-<id>`, to'lov muddati chiqqandan 10 kun), summa — tarifning `yearly_fee` (standart 10 × oylik).
   Muddat tugaganda keyingisi avtomatik chiqadi.
+- Yillik obuna darhol bekor qilinib, **o'sha oyda** yana yillik olinsa (masalan Start → bekor → Pro), yangi muddat o'z
+  hisob-fakturasini oladi: `OBY-YYYYMM-<id>-2` (keyingi tartib raqami). Shu 12 oy uchun avval chiqqan va bekor
+  qilinmagan yillik va `OBU` hisob-fakturalar summasi kredit qatori (`yearly_credit`) bilan ayiriladi (Pro 4 490 000 −
+  Start 1 490 000 = 3 000 000); bekor qilingan (`void`) hisob-faktura kredit bermaydi va yangi muddatga hech qachon
+  qaytarilmaydi. Kredit narxdan katta yoki teng bo'lsa (o'sha yoki arzonroq tarif) yangi hisob-faktura chiqmaydi.
 - **Qo'shimcha qurilmalar yillik obunada ham har oy** (oy tugagach) alohida oylik hisob-fakturada (`OB-...`, faqat
   qo'shimcha qurilma qatorlari) hisoblanadi: qurilmalar soni yil davomida o'zgaradi, oldindan bilib bo'lmaydi.
 - 50% chegirma faqat oylik asosiy narxga; yillik narx allaqachon chegirmali.
@@ -66,7 +71,10 @@ Hamma tekshiruv `App\Services\Finance\Billing\Entitlements` orqali:
 - **Yuqoriga (upgrade), darhol:** oylik obunada joriy oy yangi tarif bilan hisoblanadi, oy boshidan o'zgarishgacha bo'lgan
   kunlar uchun kredit qatori: `−(yangi − eski) × kunlar / oy kunlari` (masalan 11-oktyabrda Start → Asosiy:
   249 000 − 100 000 × 10/31 = 216 741,94). Bir oyda ikki marta oshirilsa, ikkinchisi faqat bevosita oldingi tarifga nisbatan
-  hisoblanadi. Yillik obunada darhol `OBU-YYYYMM-<id>-<n>` hisob-faktura: `(yangi yillik − eski yillik) × qolgan oylar / 12`
+  hisoblanadi. O'sha oyda 50% chegirma bo'lsa, kredit ham chegirmali narxdan: `× (1 − 50%)` (masalan 11-noyabrda
+  Start → Asosiy, 30 kunli oy: 249 000 − 124 500 − 100 000 × 10/30 × 50% = 107 833,33 = 149 000 × 10/30 × 50% +
+  249 000 × 20/30 × 50%; egasi uchun adolatli, chegirmasiz oyda o'zgarish yo'q). Yillik obunada darhol
+  `OBU-YYYYMM-<id>-<n>` hisob-faktura: `(yangi yillik − eski yillik) × qolgan oylar / 12`
   (joriy oy ham qolgan oyga kiradi); muddat tugashi o'zgarmaydi.
 - **Yuqoriga, keyingi davrdan:** oylikda oy oxirida, yillikda muddat oxirida.
 - **Pastga (downgrade):** har doim davr oxirida (oylik — oy, yillik — to'langan muddat), "darhol" so'ralsa ham.
@@ -86,9 +94,14 @@ extra_kds  = max(0, KDS − tarifdagi) × 29 000
 price_lock = migratsiyadan keyingi birinchi oy eski narxdan qimmat bo'lmasin (farq minus qilinadi)
 ```
 
+- `price_lock` faqat migratsiya tanlagan tarif (yoki undan pastroq) uchun: admin darhol yuqoriroq tarifga o'tkazsa,
+  narx qulfi tushadi va oy yangi tarif narxida (proratsiya bilan) hisoblanadi.
+
 - Kassa va KDS **turi bo'yicha alohida**: oy davomida bir vaqtda faol bo'lgan eng ko'p soni (`TerminalCounter`).
 - Chegirma: "oldingi oy" — hisob-faktura oyidan oldingi Toshkent oyi; **ledger'dan**: o'sha oyda yozilgan barcha `COMMISSION`
-  yozuvlari (qarzga va hamyondan), keyinchalik qaytarilgan (`refund`) buyurtmalarniki va referal mukofoti chiqmaydi.
+  yozuvlari (qarzga va hamyondan), shu buyurtmalar bo'yicha keyinchalik qaytarilgan komissiya ayiriladi (to'liq
+  qaytarishda — hammasi, qisman qaytarishda — faqat qaytarilgan ulushi, buyurtma butunlay chiqarilmaydi); referal
+  mukofoti komissiya emas.
   Aynan 1 000 000 — chegirma yo'q, 1 000 000,01 — bor. Faqat asosiy narxga (qo'shimcha qurilmalarga emas).
 - Sinov = hisob-faktura yo'q; summa 0 bo'lsa ham chiqmaydi.
 
@@ -128,13 +141,19 @@ hisoblaydi. Obuna hisob-fakturasi do'konni hech qachon bloklamaydi — uning o'r
   online va qo'lda to'ldirish (`reduceDebt`, `creditTopup`), RIZQIM yig'gan buyurtma puli (keshbek, Click, Payme) va
   payoutdan ushlash (P4-23, "Netting") ham shu yo'ldan. To'liq yopilgan hisob-faktura darhol `paid`, obuna `past_due` / `locked` dan chiqadi.
 - Hisob-faktura chiqqanda do'konda kredit (manfiy qarz) bo'lsa, u darhol hisob-fakturani yopadi.
-- Obuna qismi qarzdan oshmaydi: komissiya qaytarilganda yoki qisman to'langan hisob-faktura bekor qilinganda hosil bo'lgan
-  kredit eng eski hisob-fakturalarni yopadi.
+- Obuna qismi qarzdan oshmaydi: komissiya qaytarilganda hosil bo'lgan kredit eng eski hisob-fakturalarni yopadi. To'langan
+  yoki qisman to'langan hisob-faktura endi bekor qilinmaydi (review W2, quyida "Netting" 6-band); oldin shunday bekor
+  qilinganlarning to'langan qismi kreditga aylangan.
 - "To'landi" (qo'lda belgi, ledger o'zgarmaydi) eslatmani to'xtatadi; ledger to'lamagan qismi `subscription_debt` da qoladi
   va keyingi to'ldirish uni yopadi.
 - P4-23: RIZQIM yig'gan pul (keshbek, Click, Payme) yoki payout bilan yopilgan qarz keyin qaytarilsa (buyurtma
   qaytarilganda), u yopgan **hisob-faktura qayta ochiladi** (`paid` → `issued`, obuna holati qayta hisoblanadi); bekor
   qilingan hisob-faktura ochilmaydi. Batafsil — quyida "Netting".
+  - Qayta ochilgan hisob-faktura `issued` ga faqat uni ledger to'liq to'lagan bo'lsa qaytadi (`paid_amount ≥ amount`).
+    Qo'lda "To'landi" belgilangani `paid` bo'lib qoladi: faqat `paid_amount` kamayadi va qolgani `subscription_debt` da.
+  - Pul yopgan hisob-faktura keyin bekor qilingan bo'lsa (uning to'langan puli kreditga aylanib, boshqa hisob-fakturalarni
+    yopgan), o'rniga bekor qilinganidan keyin to'langan hisob-fakturalar (eng oxirgisi birinchi) qayta ochiladi — qarz
+    obuna qismidan ortiq bo'lgan miqdorgacha. Shunday qilib bu ulush komissiya qarziga (kredit limitiga) o'tmaydi.
 - Migratsiyagacha `subscription_debt = 0` (eskicha: butun qarz limitga kiradi); `billing:migrate-plans` har do'konning
   qarzini ikkiga ajratadi va faqat hisob-faktura tufayli bloklangan do'konni ochadi. Deploydan keyin chiqqan yangi
   hisob-fakturalar darhol ajratiladi.
@@ -152,9 +171,20 @@ RIZQIM ovqatxona uchun yig'gan pul ovqatxonaga yetishidan oldin uning qarzini yo
    kartaga).
 4. **Qaytarish:** buyurtma to'liq yoki qisman qaytarilsa, o'sha ulushda qarzga qaytadi va tegishli hisob-faktura qayta ochiladi.
    Qisman qaytarish (qaytarish so'rovlari) komissiya va hisob-kitobni pro-rata qaytaradi, har so'rov bir marta
-   (`order_ledger_reversals`).
+   (`order_ledger_reversals`). Yetkazilgan buyurtmaning hisob-kitobi yozilmay qolgan paytda (`settlement_failed_at`)
+   tasdiqlangan qism ledger'da qaytaradigan narsa topmaydi (`execution.ledger_reversal_deferred`): hisob-kitobni yozgan
+   qayta urinish (`SettlementRecoveryService`) o'sha zahoti shunday har qismni qaytaradi — jamlanib, har so'rov bir marta,
+   go'yo u hisob-kitobdan keyin tasdiqlangandek (`execution.ledger_reversal_on_retry`).
 5. **Qo'lda to'lov** (hisob raqami, naqd) — Moliya → Qo'lda tuzatish → "To'lov qabul qilindi": xuddi shu tartibda yopadi.
-   1 000 000 so'm va undan katta tuzatish yoki payoutni ikki xil xodim tasdiqlaydi.
+   1 000 000 so'm va undan katta tuzatish yoki payoutni ikki xil xodim tasdiqlaydi. Bo'lib yuborish yordam bermaydi: oxirgi
+   24 soatda bitta xodim tasdig'i bilan qo'llangan tuzatishlar (shu xodimniki — istalgan do'konda, shu do'konniki —
+   istalgan xodimdan; eski superadmin panelidagi qo'lda to'ldirishlar ham) yangisi bilan qo'shib sanaladi.
+6. **Hisob-fakturani bekor qilish** pulni bir xodim so'zi bilan siljitmaydi: to'langan yoki qisman to'langan (yoki
+   "To'landi" belgili) hisob-faktura bekor qilinmaydi (422 `invoice_paid`) — aks holda to'langan pul kreditga aylanardi;
+   pul qaytarilsa — Qo'lda tuzatish orqali. To'lanmagan 1 000 000 so'm va undan kattasini ikki xil xodim bekor qiladi
+   (birinchisi so'rov, ikkinchisi bekor qiladi). Eski superadmin paneli bunday hisob-fakturani bekor qilmaydi va
+   1 000 000 so'm dan (24 soat ichidagi bo'laklar bilan) qo'lda to'ldirishni rad etadi: "Boshqaruv markazida ikki xodim
+   tasdiqlaydi".
 
 API va ekranlar: [API.md](API.md), "Moliya (P4-23)".
 
@@ -163,10 +193,13 @@ API va ekranlar: [API.md](API.md), "Moliya (P4-23)".
 `SendBillingRemindersJob` har kuni 10:05 (Toshkent), `App\Services\Finance\Billing\DunningService`:
 
 - to'lov muddatidan keyin **1, 3 va 7-kuni** eslatma: do'konning admin chatiga va egalarga Telegram (navbat orqali), hamkor
-  paneli uchun `entitlements.notice` (jonli hisoblanadi);
+  paneli uchun `entitlements.notice` (jonli hisoblanadi; hisob-faktura raqami va summasi faqat `finance.view` li a'zoga,
+  boshqa xodimlar va terminallar faqat darajani, kunlarni va cheklov sanasini ko'radi);
 - **8-kundan** (muddat + 7 kundan keyingi kunning 00:00 i, Toshkent) v2 obuna `locked`: yangi sozlamalar va tarifdan
   ortiq imkoniyatlar yopiladi, egaga bir marta xabar. Masalan, muddat 11.11 — eslatmalar 12, 14, 18.11, cheklov 19.11 dan.
-  Eski P1-23 tarif faqat `past_due` bo'ladi (eslatmalar bor, cheklov yo'q).
+  Eski P1-23 tarif faqat `past_due` bo'ladi (eslatmalar bor, cheklov yo'q). Cheklovni faqat **v2 tarif bo'yicha chiqqan**
+  hisob-faktura beradi: migratsiyadan oldingi P1-23 hisob-faktura to'lanmay qolsa, do'kon v2 tarifga o'tgan bo'lsa ham
+  faqat `past_due` (eslatma bor, `lock_at` yo'q).
 - Cheklangan do'konda rad etiladi (403 `subscription_locked`): xizmat haqi va joy puli, zal va stollar, xona narxlari,
   choy-non sozlamalari, sexlar; tarifdagidan ortiq yangi terminal (403 `device_limit`; eskisini o'chirib o'rniga ulash
   mumkin — buzilgan kassa almashtiriladi). **Ochiq qoladi:** to'lov, schyot, chek, smena, qaytarish, printerlar,

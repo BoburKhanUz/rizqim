@@ -14,7 +14,7 @@ use Illuminate\Http\Request;
 
 /**
  * P4-22: the public "become a partner" form (the website, later the bot): no token, no captcha, rate limited per IP
- * and per phone (throttle:store-applications) with a honeypot field. The application lands in the Boshqaruv
+ * (throttle:store-applications; a phone is bound by the one-application-a-day dedupe, not by a request limit) with a honeypot field. The application lands in the Boshqaruv
  * markazi's pipeline (Ovqatxonalar → Ulash jarayoni, "Yangi arizalar" in Bugun).
  */
 #[Group('Ovqatxona arizasi', 'Hamkor bo\'lish uchun ariza (sayt va bot).')]
@@ -33,7 +33,7 @@ class StoreApplicationController extends Controller
      * other), `source` (website — default — or telegram), `region_id` (GET /locations: an active region) or `city`, `owner_name`, `phone` (+998 XX XXX XX XX, spaces
      * and dashes allowed), `tin` (STIR, 9 digits, optional), `comment` (optional, up to 1000). `website` must stay
      * empty (a hidden field for bots). The same phone within 24 hours is taken once. Limited to 5 an hour and 20 a day
-     * per IP address, 3 a day per phone (429). Answers 201 without any data about the application.
+     * per IP address (429); a phone is taken once a day, however many requests name it. Answers 201 without any data about the application.
      */
     #[ApiDocResponse(201, type: 'array{success: true, message: string, data: array{received: true}}')]
     public function store(Request $request): JsonResponse

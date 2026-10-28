@@ -141,7 +141,16 @@ class PosInvoices
         $invoice->loadMissing('plan:id,code,name');
 
         return [
-            'invoice' => [...$this->row($invoice, $store?->name, $latest), ...$this->presenter->invoice($invoice), 'void_reason' => $invoice->void_reason],
+            'invoice' => [...$this->row($invoice, $store?->name, $latest), ...$this->presenter->invoice($invoice), 'void_reason' => $invoice->void_reason,
+                // Review W2: the first member's request to void an invoice of the four-eyes threshold or more
+                'void_request' => $invoice->void_requested_by !== null ? [
+                    'by' => ($requester = $invoice->voidRequester()->first(['id', 'name'])) ? ['id' => (int) $requester->id, 'name' => (string) $requester->name] : null,
+                    'at' => $invoice->void_requested_at?->toIso8601String(),
+                    'reason' => $invoice->void_request_reason,
+                ] : null,
+                'void_needs_second_approval' => $invoice->status === SubscriptionInvoiceStatus::ISSUED
+                    && $invoice->total()->isGreaterThanOrEqualTo(\App\Services\Finance\Payouts\PayoutService::threshold()),
+            ],
             'store' => $store === null ? null : [
                 'id' => (int) $store->id,
                 'name' => (string) $store->name,

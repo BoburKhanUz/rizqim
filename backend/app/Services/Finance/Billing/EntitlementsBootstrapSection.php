@@ -20,6 +20,7 @@ final class EntitlementsBootstrapSection implements PosBootstrapContributor
 
     public function contribute(User $user, Branch $branch, ?Device $device): array
     {
-        return ['entitlements' => $this->entitlements->toArray((int) $branch->store_id)];
+        // A terminal never sees the overdue invoice's number and amounts (Entitlements::showsInvoiceTo)
+        return ['entitlements' => $this->entitlements->toArray((int) $branch->store_id, null, $this->entitlements->showsInvoiceTo($user, $device))];
     }
 }

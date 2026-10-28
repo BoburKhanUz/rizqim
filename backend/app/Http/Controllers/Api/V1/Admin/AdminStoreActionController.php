@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers\Api\V1\Admin;
 
+use App\Enums\AdminPermission;
 use App\Http\Requests\Admin\AdminRules;
 use App\Models\Store;
 use App\Services\Admin\AdminAudit;
+use App\Services\Admin\AdminPermissionService;
 use App\Services\Admin\Stores\StoreActions;
 use App\Services\Admin\Stores\StoreAdminException;
 use App\Services\Admin\Stores\StorePresenter;
@@ -101,12 +103,15 @@ class AdminStoreActionController extends AdminController
     /**
      * New Telegram link for the owner
      *
-     * A new one-time bot link binding the owner's Telegram to their account; the old link stops working. Shown only in
-     * this answer (`invite_link`). `owner_linked`: the owner already joined — opening the new link moves the account to
-     * the Telegram that opens it. `reason` is required. 422 `no_owner`.
+     * A new one-time bot link binding a Telegram account to the owner's account; the old link stops working. It is a
+     * credential, so it goes to the owner's own phone by SMS (`delivered_via: "sms"`, `invite_link: null`). When no SMS
+     * can be sent, the link comes back in `invite_link` only to a member with `stores.impersonate` (superadmin by
+     * default); anyone else gets 422 `link_not_deliverable` and the old link stays. An owner already on Telegram is
+     * never relinked: 409 `owner_already_linked`. `reason` is required. 422 `no_owner`.
      */
-    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{invite_link: string, owner_linked: bool}}')]
-    #[ApiDocResponse(422, 'The store has no owner (no_owner)', type: self::ERROR)]
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{invite_link: string|null, delivered_via: string|null, owner_linked: bool}}')]
+    #[ApiDocResponse(409, 'The owner is already on Telegram (owner_already_linked)', type: self::ERROR)]
+    #[ApiDocResponse(422, 'No owner (no_owner) or the link cannot be delivered (link_not_deliverable)', type: self::ERROR)]
     public function telegramLink(Request $request, int $id): JsonResponse
     {
         $request->validate(['reason' => AdminRules::reason()], UzValidation::messages());
@@ -115,16 +120,24 @@ class AdminStoreActionController extends AdminController
             return $this->refuse('Ovqatxona topilmadi.', 'not_found', 404);
         }
 
+        $member = $this->member($request);
         try {
-            $result = $this->actions->regenerateTelegramLink($store);
+            $result = $this->actions->regenerateTelegramLink($store, app(AdminPermissionService::class)->has($member, AdminPermission::STORES_IMPERSONATE));
         } catch (StoreAdminException $e) {
             return $this->refuse($e->getMessage(), $e->reason, $e->status, $e->data);
         }
 
         // The link itself never reaches the audit log: it is a credential
-        AdminAudit::for($request)->subject($store)->store((int) $store->id)->meta(['owner_id' => (int) $result['owner']->id, 'owner_linked' => $result['owner_linked']]);
+        AdminAudit::for($request)->subject($store)->store((int) $store->id)->meta([
+            'owner_id' => (int) $result['owner']->id,
+            'delivered_via' => $result['delivered_via'],
+            'link_shown_to_member' => $result['invite_link'] !== null,
+        ]);
 
-        return $this->success(['invite_link' => $result['invite_link'], 'owner_linked' => $result['owner_linked']], 'Yangi Telegram havola tayyor. Uni egasiga yuboring.');
+        return $this->success(
+            ['invite_link' => $result['invite_link'], 'delivered_via' => $result['delivered_via'], 'owner_linked' => false],
+            $result['delivered_via'] === 'sms' ? "Yangi Telegram havola egasining telefoniga SMS bilan yuborildi." : 'Yangi Telegram havola tayyor. Uni egasiga yuboring.',
+        );
     }
 
     /**

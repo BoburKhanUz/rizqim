@@ -172,6 +172,9 @@ function InvoiceCardView({ uuid, onBack }: { uuid: string; onBack: () => void })
             [t('pos_inv_issuedAt'), when(invoice.issued_at)],
             ...(invoice.paid_at ? ([[t('pos_inv_paidAt'), when(invoice.paid_at)]] as const) : []),
             ...(invoice.voided_at ? ([[t('pos_inv_voidedAt'), `${when(invoice.voided_at)}${invoice.void_reason ? ` · ${invoice.void_reason}` : ''}`]] as const) : []),
+            ...(invoice.status !== 'void' && invoice.void_request
+              ? ([[t('pos_inv_voidPending'), [invoice.void_request.by?.name, when(invoice.void_request.at), invoice.void_request.reason].filter(Boolean).join(' · ')]] as const)
+              : []),
           ]}
         />
       </Card>
@@ -265,7 +268,16 @@ function InvoiceActionDialog({ kind, uuid, onDone, onClose }: { kind: Action; uu
       error={run.error ? errorText(run.error, t) : null}
       reasonError={fieldError(run.error, 'reason')}
       onClose={onClose}
-      onSubmit={(reason) => run.mutate({ uuid, reason }, { onSuccess: () => onDone(t(kind === 'paid' ? 'pos_inv_paidDone' : 'pos_inv_voidDone')) })}
+      onSubmit={(reason) =>
+        run.mutate(
+          { uuid, reason },
+          {
+            // A large void only records the request until a second member confirms it
+            onSuccess: (result) =>
+              onDone(t(kind === 'paid' ? 'pos_inv_paidDone' : result.invoice.status === 'void' ? 'pos_inv_voidDone' : 'pos_inv_voidRequested')),
+          },
+        )
+      }
     />
   );
 }

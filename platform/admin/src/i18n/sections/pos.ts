@@ -224,6 +224,8 @@ export const pos = defineSection({
     pos_inv_voidText: "Hisob-faktura daromadga kirmaydi va to'lanmagan qismi ovqatxona qarzidan ayriladi (ledger'da teskari yozuv).",
     pos_inv_voidConfirm: 'Ha, bekor qilish',
     pos_inv_voidDone: 'Hisob-faktura bekor qilindi.',
+    pos_inv_voidRequested: "Bekor qilish so'raldi: summa katta, uni boshqa xodim tasdiqlashi kerak.",
+    pos_inv_voidPending: "Bekor qilish so'ralgan",
     pos_dun_reminder_1: '1-kun eslatmasi',
     pos_dun_reminder_3: '3-kun eslatmasi',
     pos_dun_reminder_7: '7-kun eslatmasi',

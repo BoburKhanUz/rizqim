@@ -245,7 +245,13 @@ export interface InvoiceCounts {
 }
 
 export interface InvoiceCard {
-  invoice: InvoiceRow & BillingInvoice & { void_reason: string | null };
+  invoice: InvoiceRow &
+    BillingInvoice & {
+      void_reason: string | null;
+      // A void from the threshold up waits for a second member (four-eyes): who asked, when and why
+      void_request?: { by: { id: number; name: string } | null; at: string | null; reason: string | null } | null;
+      void_needs_second_approval?: boolean;
+    };
   store: { id: number; name: string; status: string; debt_balance: string; subscription_debt: string; commission_debt: string } | null;
 }
 

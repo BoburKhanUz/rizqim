@@ -155,6 +155,55 @@ class FinancePartialRefundTest extends TestCase
         $this->assertSame(['223000.00', '223000.00'], [$this->store->fresh()->debt_balance, $this->store->fresh()->subscription_debt]);
     }
 
+    /**
+     * Review W2: a part approved while delivery's booking had failed found nothing on the ledger to reverse; the retry
+     * then booked the whole order. The successful retry now reverses every such part (cumulative, each once).
+     */
+    public function test_parts_approved_while_the_booking_failed_are_reversed_when_the_retry_books_it(): void
+    {
+        $order = $this->platformOrder($this->store, 'click', '100000.00', '15000.00');
+        $order->forceFill(['settlement_failed_at' => now(), 'settlement_attempts' => 1])->save();
+        [$requester, $approver] = $this->members();
+
+        $first = $this->refund($order->refresh(), '20000', $requester, $approver);
+        $this->refund($order->refresh(), '30000', $requester, $approver);
+        $this->assertSame(0, StoreTransaction::count() + StoreWalletTransaction::count());
+        $this->assertTrue($first['execution']['ledger_reversal_deferred']);
+
+        $recovery = app(\App\Services\Finance\SettlementRecoveryService::class);
+        $this->assertTrue($recovery->retry($order->id));
+
+        // Half went back to the customer: the store keeps half of 100 000 − 15 000
+        $store = $this->store->fresh();
+        $this->assertSame('42500.00', Money::of($store->wallet_balance)->minus($store->debt_balance)->toString());
+        $this->assertSame('7500.00', $this->commissionReversed($order)->toString());
+        $this->assertSame(2, OrderLedgerReversal::where('order_id', $order->id)->count());
+        $this->assertNull($order->fresh()->settlement_failed_at);
+        $this->assertSame('3000.00', \App\Models\OrderRefundRequest::find($first['id'])->execution['ledger_reversal']['commission']);
+
+        // Asking again changes nothing; a later part still reverses only its own share
+        $rows = StoreTransaction::count() + StoreWalletTransaction::count();
+        $this->assertFalse($recovery->retry($order->id));
+        $this->assertSame($rows, StoreTransaction::count() + StoreWalletTransaction::count());
+        $this->refund($order->refresh(), '10000', $requester, $approver);
+        $store = $this->store->fresh();
+        $this->assertSame('34000.00', Money::of($store->wallet_balance)->minus($store->debt_balance)->toString());
+    }
+
+    public function test_a_part_approved_after_the_retry_booked_the_order_is_reversed_at_once(): void
+    {
+        $order = $this->platformOrder($this->store, 'click', '100000.00', '15000.00');
+        $order->forceFill(['settlement_failed_at' => now(), 'settlement_attempts' => 1])->save();
+        $this->assertTrue(app(\App\Services\Finance\SettlementRecoveryService::class)->retry($order->id));
+        [$requester, $approver] = $this->members();
+
+        $approved = $this->refund($order->refresh(), '50000', $requester, $approver);
+
+        $this->assertSame('7500.00', $approved['execution']['ledger_reversal']['commission']);
+        $store = $this->store->fresh();
+        $this->assertSame('42500.00', Money::of($store->wallet_balance)->minus($store->debt_balance)->toString());
+    }
+
     public function test_a_cancelled_order_refund_touches_no_ledger(): void
     {
         $order = $this->platformOrder($this->store, 'click', '50000.00');

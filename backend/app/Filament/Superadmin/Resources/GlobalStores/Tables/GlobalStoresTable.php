@@ -67,11 +67,34 @@ class GlobalStoresTable
                             ->maxLength(255),
                     ])
                     ->action(function (\App\Models\Store $record, array $data) {
-                        $amount = (float) $data['amount'];
+                        $amount = \App\Support\Money::of((string) $data['amount']);
                         $notes = $data['notes'] ?? 'Manual top-up';
+                        $member = auth()->user();
+                        if (!$member instanceof \App\Models\User) {
+                            return;
+                        }
 
-                        // Same ledger entry and credit-limit unblock rule as online top-ups
-                        app(\App\Services\Finance\LedgerService::class)->reduceDebt($record, $amount, $notes, null, auth()->id());
+                        // Review W2: four eyes, as for adjustments and payouts: what reaches the threshold (at once or
+                        // with this member's or this store's one-member adjustments of the last 24 hours) is only done
+                        // in the Boshqaruv markazi (Moliya → Qo'lda tuzatish), where a second member approves it
+                        $done = \Illuminate\Support\Facades\DB::transaction(function () use ($record, $amount, $notes, $member) {
+                            if (app(\App\Services\Finance\Adjustments\AdjustmentService::class)->needsSecondApproval($record, $member, $amount)) {
+                                return false;
+                            }
+                            // Same ledger entry and credit-limit unblock rule as online top-ups
+                            app(\App\Services\Finance\LedgerService::class)->reduceDebt($record, $amount, $notes, null, $member->id);
+
+                            return true;
+                        });
+                        if (!$done) {
+                            \Filament\Notifications\Notification::make()
+                                ->title(\App\Services\Finance\Payouts\PayoutService::uzs(\App\Services\Finance\Payouts\PayoutService::threshold())
+                                    . " va undan katta tuzatishni Boshqaruv markazida ikki xodim tasdiqlaydi.")
+                                ->danger()
+                                ->send();
+
+                            return;
+                        }
 
                         \Filament\Notifications\Notification::make()
                             ->title('Balans to\'ldirildi')

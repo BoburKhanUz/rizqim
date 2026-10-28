@@ -93,35 +93,94 @@ class SubscriptionDebt
 
     /**
      * P4-23: money that had paid this invoice was taken back (a refunded order whose settlement paid it): up to what
-     * was paid of it becomes unpaid again — `issued` once it is no longer paid in full, the subscription part grows
-     * and the subscription's status is worked out again (past_due / locked when it is late). A void invoice is not
-     * reopened. Runs under the caller's lock on the store row, debt_balance already raised by $amount. Returns what
-     * was reopened (the rest stays commission debt).
+     * was paid of it becomes unpaid again, the subscription part grows and the subscription's status is worked out
+     * again (past_due / locked when it is late). Runs under the caller's lock on the store row, debt_balance already
+     * raised by $amount. Returns what was reopened (the rest stays commission debt).
+     *
+     * - It goes back to `issued` only when the ledger had paid it in full (paid_amount ≥ amount before); one marked
+     *   "To'landi" by hand (markPaid) stays paid, only its paid_amount drops (the subscription part shows the rest).
+     * - A void invoice is not reopened. When it was voided after it was paid, its money became credit that paid the
+     *   store's other invoices: those are reopened instead, the most recently paid first (since the void), never more
+     *   than the debt holds beyond the subscription part, so the share never turns into commission debt.
      */
     public function reopen(Store $store, int $invoiceId, Money $amount, CarbonInterface $now): Money
     {
         $invoice = SubscriptionInvoice::whereKey($invoiceId)->where('store_id', $store->id)->lockForUpdate()->first();
-        if ($invoice === null || $invoice->status === SubscriptionInvoiceStatus::VOID || !$amount->isPositive()) {
+        if ($invoice === null || !$amount->isPositive()) {
             return Money::zero();
         }
 
-        $take = Money::min($amount, Money::of($invoice->paid_amount ?? 0));
+        if ($invoice->status === SubscriptionInvoiceStatus::VOID) {
+            $reopened = $this->reopenInsteadOfVoid($store, $invoice, $amount);
+        } else {
+            $reopened = $this->unpay($invoice, $amount);
+        }
+        if (!$reopened->isPositive()) {
+            return Money::zero();
+        }
+
+        $this->recompute($store);
+        $this->statuses->refresh((int) $store->id, $now);
+
+        return $reopened;
+    }
+
+    /**
+     * Take up to $amount off what was paid of a (not void) invoice. Returns what was taken.
+     */
+    protected function unpay(SubscriptionInvoice $invoice, Money $amount): Money
+    {
+        $paidBefore = Money::of($invoice->paid_amount ?? 0);
+        $take = Money::min($amount, $paidBefore);
         if (!$take->isPositive()) {
             return Money::zero();
         }
 
-        $paid = Money::of($invoice->paid_amount)->minus($take);
-        $update = ['paid_amount' => $paid->toString()];
-        if ($invoice->status === SubscriptionInvoiceStatus::PAID && $paid->isLessThan($invoice->total())) {
+        $update = ['paid_amount' => $paidBefore->minus($take)->toString()];
+        // Paid by the ledger (in full), not by a manual "To'landi" on a partly paid one
+        if ($invoice->status === SubscriptionInvoiceStatus::PAID && $paidBefore->isGreaterThanOrEqualTo($invoice->total())) {
             $update['status'] = SubscriptionInvoiceStatus::ISSUED;
             $update['paid_at'] = null;
         }
         $invoice->update($update);
 
-        $this->recompute($store);
-        $this->statuses->refresh((int) $store->id, $now);
-
         return $take;
+    }
+
+    /**
+     * The money that had paid $void came back as debt: reopen the invoices its void credit paid (paid since the void,
+     * most recently first), up to what the debt holds beyond the subscription part.
+     */
+    protected function reopenInsteadOfVoid(Store $store, SubscriptionInvoice $void, Money $amount): Money
+    {
+        $this->recompute($store);
+        $room = Money::max(Money::zero(), Money::of($store->debt_balance))->minus($this->part($store));
+        $left = Money::min($amount, $room);
+        if (!$left->isPositive()) {
+            return Money::zero();
+        }
+
+        $candidates = SubscriptionInvoice::where('store_id', $store->id)
+            ->where('status', '!=', SubscriptionInvoiceStatus::VOID->value)
+            ->where('paid_amount', '>', 0)
+            ->when($void->voided_at !== null, fn ($query) => $query->where('updated_at', '>=', $void->voided_at))
+            ->orderByDesc('updated_at')
+            ->orderByDesc('due_date')
+            ->orderByDesc('id')
+            ->lockForUpdate()
+            ->get();
+
+        $reopened = Money::zero();
+        foreach ($candidates as $invoice) {
+            if (!$left->isPositive()) {
+                break;
+            }
+            $take = $this->unpay($invoice, $left);
+            $reopened = $reopened->plus($take);
+            $left = $left->minus($take);
+        }
+
+        return $reopened;
     }
 
     /**

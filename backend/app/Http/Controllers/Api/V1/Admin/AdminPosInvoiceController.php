@@ -8,6 +8,8 @@ use App\Models\SubscriptionInvoice;
 use App\Services\Admin\AdminAudit;
 use App\Services\Admin\Pos\PosInvoices;
 use App\Services\Admin\Pos\PosPage;
+use App\Services\Finance\InvoiceVoidException;
+use App\Services\Finance\Payouts\PayoutService;
 use App\Services\Finance\SubscriptionService;
 use App\Support\UzValidation;
 use Dedoc\Scramble\Attributes\Group;
@@ -20,6 +22,7 @@ use Illuminate\Validation\Rule;
  * P4-24 Hisob-fakturalar: the subscription invoices of every store. Reading: admin.subscriptions.manage or
  * admin.finance.view. Marking paid and voiding: admin.finance.manage, a step-up and a `reason`, through
  * SubscriptionService (the same code as the Filament panel), audited with the invoice's status before and after.
+ * Review W2: a paid or partly paid invoice is never voided, and a void of 1 000 000 so'm or more takes two members.
  */
 #[Group('Admin')]
 class AdminPosInvoiceController extends AdminController
@@ -101,10 +104,15 @@ class AdminPosInvoiceController extends AdminController
     /**
      * Void an invoice
      *
-     * `reason`. The invoice no longer counts as income and its unpaid amount comes off the store's debt (a reversal row
-     * in the ledger). Voiding one again changes nothing.
+     * `reason`. Only an unpaid invoice: a paid or partly paid one is refused (422 `invoice_paid`; money goes back by a
+     * manual adjustment). The invoice no longer counts as income and its amount comes off the store's debt (a reversal
+     * row in the ledger). From 1 000 000 so'm (`config('finance.four_eyes_threshold')`) two members: the first call is a
+     * request (the invoice stays `issued`, `invoice.void_request` shows who asked, audited as
+     * `admin.pos.invoice_void_requested`), the same member again changes nothing, a different member's call voids it.
+     * Voiding one again changes nothing.
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{invoice: array<string, mixed>, store: array<string, mixed>|null}}')]
+    #[ApiDocResponse(422, 'A paid or partly paid invoice (invoice_paid)', type: self::ERROR)]
     public function void(Request $request, string $uuid): JsonResponse
     {
         $data = $request->validate(['reason' => AdminRules::reason()], UzValidation::messages());
@@ -114,7 +122,24 @@ class AdminPosInvoiceController extends AdminController
         }
 
         $before = $invoice->status->value;
-        $invoice = $this->subscriptions->voidInvoice($invoice, $this->member($request), (string) $data['reason']);
+        $requestedBefore = $invoice->void_requested_by;
+        try {
+            $invoice = $this->subscriptions->voidInvoice($invoice, $this->member($request), (string) $data['reason']);
+        } catch (InvoiceVoidException $e) {
+            return $this->refuse($e->getMessage(), $e->reason, $e->status);
+        }
+
+        if ($invoice->status !== SubscriptionInvoiceStatus::VOID && $invoice->void_requested_by !== null) {
+            $audit = AdminAudit::for($request)->action('admin.pos.invoice_void_requested')->subject($invoice)->store((int) $invoice->store_id)
+                ->changes(['void_requested_by' => $requestedBefore], ['void_requested_by' => $invoice->void_requested_by])
+                ->meta(['number' => $invoice->number, 'amount' => $invoice->total()->toString()]);
+            if ($requestedBefore !== null) {
+                $audit->skip();
+            }
+
+            return $this->success($this->invoices->detail($invoice->refresh()),
+                "Bekor qilish so'raldi: " . PayoutService::uzs(PayoutService::threshold()) . " va undan katta hisob-fakturani ikkinchi xodim tasdiqlashi kerak.");
+        }
 
         return $this->changed($request, $invoice, $before, 'Hisob-faktura bekor qilindi.');
     }

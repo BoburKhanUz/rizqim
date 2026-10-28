@@ -153,11 +153,19 @@ function TelegramLinkDialog({ store, onClose }: { store: StoreCard; onClose: () 
   const t = useT();
   const link = useTelegramLink(store.profile.id);
   const [copied, setCopied] = useState(false);
-  if (link.data) {
+  if (link.data && link.data.invite_link === null) {
+    return (
+      <Dialog open title={t('stores_linkSentTitle')} description={t('stores_linkSent')} closeLabel={t('close')} onClose={onClose}>
+        <Button onClick={onClose}>{t('stores_close')}</Button>
+      </Dialog>
+    );
+  }
+  if (link.data?.invite_link) {
+    const inviteLink = link.data.invite_link;
     return (
       <Dialog open title={t('stores_linkReady')} closeLabel={t('close')} onClose={onClose}>
         <div className="flex flex-col gap-4">
-          <Field label={t('stores_telegramLink')}>{(control) => <input {...control} readOnly className={fieldClass} value={link.data.invite_link} onFocus={(event) => event.target.select()} />}</Field>
+          <Field label={t('stores_telegramLink')}>{(control) => <input {...control} readOnly className={fieldClass} value={inviteLink} onFocus={(event) => event.target.select()} />}</Field>
           <Notice message={copied ? t('stores_linkCopied') : null} />
           <div className="flex gap-2 [&>*]:flex-1">
             <Button variant="secondary" onClick={onClose}>
@@ -166,7 +174,7 @@ function TelegramLinkDialog({ store, onClose }: { store: StoreCard; onClose: () 
             <Button
               icon={copied ? Check : Copy}
               onClick={() => {
-                void copyText(link.data.invite_link).then((done) => setCopied(done));
+                void copyText(inviteLink).then((done) => setCopied(done));
               }}
             >
               {t('stores_linkCopy')}
@@ -179,7 +187,7 @@ function TelegramLinkDialog({ store, onClose }: { store: StoreCard; onClose: () 
   return (
     <ReasonForm
       title={t('stores_linkTitle')}
-      text={store.profile.telegram.owner_linked ? `${t('stores_linkText')} ${t('stores_linkLinkedWarning')}` : t('stores_linkText')}
+      text={t('stores_linkText')}
       submitLabel={t('stores_linkCreate')}
       busy={link.isPending}
       error={link.error ? errorText(link.error, t) : null}

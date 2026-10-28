@@ -158,7 +158,12 @@ export class FakeStores {
         if (typeof body.is_featured === 'boolean') store.is_featured = body.is_featured
         return ok(this.card(store, can))
       }
-      if (req.method === 'POST' && sub === 'telegram-link') return ok({ invite_link: `https://t.me/rizqim_test_bot?start=invite_e2e-${++this.nextId}`, owner_linked: store.owner?.telegram ?? false })
+      if (req.method === 'POST' && sub === 'telegram-link') {
+        if (store.owner?.telegram) return fail(409, "Egasi Telegramga allaqachon ulangan.", { reason: 'owner_already_linked' })
+        return ok(can('admin.stores.impersonate')
+          ? { invite_link: `https://t.me/rizqim_test_bot?start=invite_e2e-${++this.nextId}`, delivered_via: null, owner_linked: false }
+          : { invite_link: null, delivered_via: 'sms', owner_linked: false })
+      }
       if (req.method === 'POST' && sub === 'message') {
         if (!store.owner?.telegram) return fail(422, "Ovqatxona egasining Telegram akkaunti ulanmagan. Telegram havolasini yuboring.", { reason: 'no_recipient' })
         this.messages.push({ store: store.id, text: String(body.text), reason: text })
@@ -370,7 +375,7 @@ export class FakeStores {
       audit: [],
       actions: {
         manage, suspend: manage && store.status !== 'suspended', activate: manage && store.status !== 'active' && application === null, credit_limit: manage, display: manage,
-        telegram_link: manage && store.owner !== null, message_owner: manage && Boolean(store.owner?.telegram), commission_override: can('admin.subscriptions.manage'),
+        telegram_link: manage && store.owner !== null && !store.owner.telegram, message_owner: manage && Boolean(store.owner?.telegram), commission_override: can('admin.subscriptions.manage'),
       },
       links: { orders: `/orders?store_id=${store.id}`, audit: `/audit?store_id=${store.id}`, subscription: `/pos?store=${store.id}` },
     }

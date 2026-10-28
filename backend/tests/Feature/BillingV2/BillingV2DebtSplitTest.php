@@ -103,7 +103,11 @@ class BillingV2DebtSplitTest extends TestCase
         $this->assertSame(['-51000.00', '0.00'], [$store->debt_balance, $store->subscription_debt]);
     }
 
-    public function test_voiding_a_partly_paid_invoice_turns_the_paid_part_into_credit_for_the_next(): void
+    /**
+     * Review W2: a partly paid invoice is no longer voided (its paid part would turn into credit on one member's word);
+     * the unpaid one next to it is, and only its own amount leaves the subscription part of the debt.
+     */
+    public function test_a_partly_paid_invoice_is_not_voided_and_voiding_the_unpaid_one_takes_only_its_amount(): void
     {
         $store = $this->v2Store();
         $this->billing()->assignPlan($store, $this->v2('start'), false, null, $this->at('2026-09-01 00:00'));
@@ -112,13 +116,24 @@ class BillingV2DebtSplitTest extends TestCase
         [$september, $october] = SubscriptionInvoice::orderBy('period')->get()->all();
         $this->assertSame('100000.00', $september->paid_amount);
 
-        $this->billing()->voidInvoice($september, null, 'Xato hisoblandi');
-
-        // 298 000 - 100 000 paid - 149 000 voided = 49 000 owed, all of it October's remaining part
+        try {
+            $this->billing()->voidInvoice($september, null, 'Xato hisoblandi');
+            $this->fail('A partly paid invoice was voided');
+        } catch (\App\Services\Finance\InvoiceVoidException $e) {
+            $this->assertSame('invoice_paid', $e->reason);
+        }
         $store->refresh();
+        $this->assertSame(SubscriptionInvoiceStatus::ISSUED, $september->fresh()->status);
+        $this->assertSame(['198000.00', '198000.00'], [$store->debt_balance, $store->subscription_debt]);
+
+        $this->billing()->voidInvoice($october, null, 'Xato hisoblandi');
+
+        // 298 000 - 100 000 paid - 149 000 voided = 49 000 owed, all of it September's remaining part
+        $store->refresh();
+        $this->assertSame(SubscriptionInvoiceStatus::VOID, $october->fresh()->status);
         $this->assertSame('49000.00', $store->debt_balance);
         $this->assertSame('49000.00', $store->subscription_debt);
-        $this->assertSame('100000.00', $october->fresh()->paid_amount);
+        $this->assertSame('100000.00', $september->fresh()->paid_amount);
         $this->assertSame('0.00', $store->commissionDebt()->toString());
     }
 

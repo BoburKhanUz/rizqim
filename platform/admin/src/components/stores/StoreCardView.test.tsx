@@ -82,15 +82,35 @@ describe('StoreCardView', () => {
     expect(await within(dialog).findAllByText('Limit juda katta.')).not.toHaveLength(0);
   });
 
-  it('a new Telegram link is shown once, to copy', async () => {
-    const { user } = setup({ 'POST /stores/12/telegram-link': () => ok({ invite_link: 'https://t.me/rizqim_bot?start=invite_abc', owner_linked: true }) });
+  it('a new Telegram link goes to the owner by SMS and is not shown', async () => {
+    const { user } = setup({ 'POST /stores/12/telegram-link': () => ok({ invite_link: null, delivered_via: 'sms', owner_linked: false }) });
     await user.click(await screen.findByRole('button', { name: 'Telegram havola' }));
     const dialog = screen.getByRole('dialog', { name: 'Yangi Telegram havola' });
-    expect(within(dialog).getByText(/allaqachon ulangan/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/SMS bilan yuboriladi/)).toBeInTheDocument();
+    await user.type(within(dialog).getByLabelText('Sabab'), "Egasi havolani yo'qotdi");
+    await user.click(within(dialog).getByRole('button', { name: 'Havola yaratish' }));
+    const sent = await screen.findByRole('dialog', { name: 'Havola yuborildi' });
+    expect(within(sent).getByText(/telefoniga SMS bilan yuborildi/)).toBeInTheDocument();
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+  });
+
+  it('shows the link, once, only when the server hands it over', async () => {
+    const { user } = setup({ 'POST /stores/12/telegram-link': () => ok({ invite_link: 'https://t.me/rizqim_bot?start=invite_abc', delivered_via: null, owner_linked: false }) });
+    await user.click(await screen.findByRole('button', { name: 'Telegram havola' }));
+    const dialog = screen.getByRole('dialog', { name: 'Yangi Telegram havola' });
     await user.type(within(dialog).getByLabelText('Sabab'), "Egasi havolani yo'qotdi");
     await user.click(within(dialog).getByRole('button', { name: 'Havola yaratish' }));
     const ready = await screen.findByRole('dialog', { name: 'Havola tayyor' });
     expect(within(ready).getByDisplayValue('https://t.me/rizqim_bot?start=invite_abc')).toBeInTheDocument();
+  });
+
+  it('says why when the link cannot be made', async () => {
+    const { user } = setup({ 'POST /stores/12/telegram-link': () => refusal(409, 'Egasi Telegramga allaqachon ulangan.', { reason: 'owner_already_linked' }) });
+    await user.click(await screen.findByRole('button', { name: 'Telegram havola' }));
+    const dialog = screen.getByRole('dialog', { name: 'Yangi Telegram havola' });
+    await user.type(within(dialog).getByLabelText('Sabab'), "Egasi havolani yo'qotdi");
+    await user.click(within(dialog).getByRole('button', { name: 'Havola yaratish' }));
+    expect(await within(dialog).findAllByText('Egasi Telegramga allaqachon ulangan.')).not.toHaveLength(0);
   });
 
   it('hides the actions from a member who may only look', async () => {

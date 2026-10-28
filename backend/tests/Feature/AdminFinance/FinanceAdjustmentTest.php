@@ -153,6 +153,40 @@ class FinanceAdjustmentTest extends TestCase
         $this->assertSame(1, FinanceAdjustment::count());
     }
 
+    /**
+     * Review W2: four eyes cannot be dodged by splitting. Adjustments one member applied alone in the last 24 hours —
+     * by this member (any store) or on this store (any member) — count with the new one: reaching the threshold, it waits.
+     */
+    public function test_splitting_under_the_threshold_still_needs_a_second_member(): void
+    {
+        $this->travelTo($this->at('2026-10-20 10:00'));
+        $store = $this->v2Store('Bo\'lak');
+        $other = $this->v2Store('Boshqa');
+        $maker = $this->makeMember(PlatformRole::FINANCE);
+        $colleague = $this->makeMember(PlatformRole::FINANCE);
+        $make = fn ($member, $target, string $amount, string $kind = 'wallet_credit') => $this->financeJson('POST', '/finance/adjustments', $this->confirmedSession($member), [
+            'store_id' => $target->id, 'kind' => $kind, 'amount' => $amount, 'reason' => "Bo'lib-bo'lib",
+        ])->assertCreated()->json('data');
+
+        // The same member, the same store: 600 000 + 399 999,99 stays under, one tiyin more reaches it
+        $this->assertSame('applied', $make($maker, $store, '600000')['status']);
+        $this->assertSame('applied', $make($maker, $store, '399999.99', 'debt_credit')['status']);
+        $third = $make($maker, $store, '0.01');
+        $this->assertSame('pending', $third['status']);
+        $this->assertTrue($third['needs_second_approval']);
+        $this->assertSame('600000.00', $store->fresh()->wallet_balance);
+
+        // The same member on another store, and another member on the same store: both count
+        $this->assertSame('pending', $make($maker, $other, '1000')['status']);
+        $this->assertSame('pending', $make($colleague, $store, '1000')['status']);
+        // A pending or rejected one moves no money and does not count; another member on another store is free
+        $this->assertSame('applied', $make($colleague, $other, '999999.99')['status']);
+
+        // A day later the window is empty again
+        $this->travelTo($this->at('2026-10-21 10:30'));
+        $this->assertSame('applied', $make($maker, $store, '999999')['status']);
+    }
+
     public function test_a_document_is_kept_privately_and_only_finance_members_download_it(): void
     {
         Storage::fake('local');

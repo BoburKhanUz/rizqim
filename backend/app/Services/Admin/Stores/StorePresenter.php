@@ -193,7 +193,8 @@ class StorePresenter
                     && StoreActions::openApplication($store) === null,
                 'credit_limit' => $canManage,
                 'display' => $canManage,
-                'telegram_link' => $canManage && $owner !== null,
+                // An owner already on Telegram is never relinked (review F3-1): the action is for an owner still to join
+                'telegram_link' => $canManage && $owner !== null && StoreActions::telegramChat($owner) === null,
                 'message_owner' => $canManage && $owner !== null && StoreActions::telegramChat($owner) !== null,
                 // P4-21's endpoint (admin.subscriptions.manage); the POS va obunalar screens use it in stage B
                 'commission_override' => $this->permissions->has($member, AdminPermission::SUBSCRIPTIONS_MANAGE),

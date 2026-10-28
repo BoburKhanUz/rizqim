@@ -32,7 +32,9 @@ use Illuminate\Support\Facades\DB;
  *    is called: the code base has none (Payme's refunds arrive as its CancelTransaction webhook, Click and Uzum have
  *    no refund call here), see docs/API.md "Buyurtmalar".
  * P4-23: a part of a delivered order also reverses the same share of the store's ledger booking (commission,
- * settlement, debt payoff; LedgerService::reverseDeliveredOrderShare), recorded as `execution.ledger_reversal`.
+ * settlement, debt payoff; LedgerService::reverseDeliveredOrderShare), recorded as `execution.ledger_reversal`. While
+ * delivery's booking has failed (settlement_failed_at) there is nothing to take back yet: the part is marked
+ * `execution.ledger_reversal_deferred` and the retry that books the order reverses it (SettlementRecoveryService).
  * Each approval records how it was spread (`execution.allocations`: payment, amount, kind). What is refundable
  * (balanceOf): paid = payments paid or refunded; refunded = the full amount of every refunded payment (keshbek
  * returned on cancel, a Payme cancel — whether or not an approval covered a part of it before) + the approved shares
@@ -309,6 +311,9 @@ class RefundRequestService
                     'provider_refund' => $manual->isPositive() ? 'manual' : 'none',
                     // P4-23: what this part took back from the store (null: the order's own refund path did it all)
                     'ledger_reversal' => $ledgerReversal ?? null,
+                    // Review W2: delivery's booking had failed, nothing was on the ledger to take back yet; the retry
+                    // that books the order reverses this part then (SettlementRecoveryService)
+                    'ledger_reversal_deferred' => $statusBefore === OrderStatus::DELIVERED && $order->settlement_failed_at !== null,
                     'allocations' => array_map(fn (array $share) => [
                         'payment_id' => (int) $share['payment']->id,
                         'provider' => (string) $share['payment']->provider,

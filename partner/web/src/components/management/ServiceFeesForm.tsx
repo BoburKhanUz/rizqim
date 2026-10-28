@@ -71,7 +71,8 @@ function FeeForm({ branchId, base, channels }: { branchId: number | null; base: 
     event.preventDefault();
     setSaved(null);
     setFormError(null);
-    const percentValue = parseDecimal(percent);
+    // A plan without the service charge sends 0: the server refuses any percent above 0 (403), even one stored from before
+    const percentValue = serviceCharge.allowed ? parseDecimal(percent) : 0;
     const amountValue = parseDecimal(amount);
     const problems: Record<string, string> = {};
     if (percentValue === undefined || percentValue === null) problems.service_charge_percent = t('mgmt_numberInvalid');
@@ -111,7 +112,7 @@ function FeeForm({ branchId, base, channels }: { branchId: number | null; base: 
         <Card className="flex flex-col gap-3">
           <NumberField
             label={t('settings_serviceChargePercent')}
-            value={percent}
+            value={serviceCharge.allowed ? percent : '0'}
             onChange={setPercent}
             error={errors.service_charge_percent}
             suffix="%"

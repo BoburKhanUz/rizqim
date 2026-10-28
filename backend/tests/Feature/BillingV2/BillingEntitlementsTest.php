@@ -171,6 +171,44 @@ class BillingEntitlementsTest extends TestCase
         $this->assertSame(DeviceType::KDS, DeviceType::from('kds'));
     }
 
+    public function test_the_notice_names_the_invoice_only_to_members_with_finance_view_on_their_own_sign_in(): void
+    {
+        $this->withoutTrials();
+        $this->billing()->assignPlan($this->store, $this->v2('start'), false, null, $this->at('2026-10-01 00:00'));
+        $this->billing()->run($this->at('2026-11-01 00:15'));   // October's invoice, due 11 November
+        $this->travelTo($this->at('2026-11-14 12:00'));
+        $number = \App\Models\SubscriptionInvoice::sole()->number;
+
+        // The owner (finance.view) sees which invoice and how much
+        $owner = $this->ownerGet()->assertOk();
+        $owner->assertJsonPath('data.notice.level', 'reminder')->assertJsonPath('data.notice.days_overdue', 3)
+            ->assertJsonPath('data.notice.invoice.number', $number)->assertJsonPath('data.notice.invoice.outstanding', '149000.00');
+        $this->assertStringContainsString($number, $owner->json('data.notice.message'));
+
+        // A manager (no finance.view), a cashier's PIN session, the owner's own PIN session and the till's bootstrap:
+        // the level, the days, the lock date and a message that names neither the invoice nor the amount
+        app(Entitlements::class)->forget();
+        $this->app['auth']->forgetGuards();
+        $this->flushHeaders();
+        $manager = $this->actingAs($this->manager, 'sanctum')->getJson('/api/v1/owner/billing/entitlements')->assertOk();
+        $responses = [$manager->json('data.notice')];
+        // One PIN session at a time on the till
+        foreach ([[$this->cashier, '4831'], [$this->owner, '7391']] as [$member, $pin]) {
+            $token = $this->pinSession($this->till, $member, $pin);
+            $responses[] = $this->withBearer($token)->getJson('/api/v1/owner/billing/entitlements')->assertOk()->json('data.notice');
+            $responses[] = $this->withBearer($token)->getJson('/api/v1/pos/bootstrap')->assertOk()->json('data.entitlements.notice');
+        }
+        foreach ($responses as $notice) {
+            $this->assertSame('reminder', $notice['level']);
+            $this->assertSame(3, $notice['days_overdue']);
+            $this->assertSame($this->at('2026-11-19 00:00')->toIso8601String(), $notice['lock_at']);
+            $this->assertNull($notice['invoice']);
+            $this->assertStringNotContainsString($number, $notice['message']);
+            $this->assertStringNotContainsString('149', $notice['message']);
+            $this->assertStringContainsString("muddati 3 kun o'tdi", $notice['message']);
+        }
+    }
+
     private function ownerGet(): \Illuminate\Testing\TestResponse
     {
         app(Entitlements::class)->forget();

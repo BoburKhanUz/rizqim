@@ -37,9 +37,11 @@ class OwnerBillingController extends Controller
      * it), `settings_locked`, `features` (every App\Enums\PlanFeature: on or off), `required_plans` (the cheapest plan
      * with each gated feature: show "Asosiy tarifda bor"), `devices` (pos and kds: included, active, extra, extra_price
      * as a decimal string, can_add; waiter phones unlimited and free), `notice` (the overdue invoice reminder or the lock
-     * message for a banner, null when none). Any member of the store and the terminals read it.
+     * message for a banner, null when none; its `invoice` — uuid, number, amounts — only for a member with finance.view on
+     * their own sign-in, null for other staff and terminal PIN sessions, whose `message` does not name it either). Any
+     * member of the store and the terminals read it.
      */
-    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{plan: array{code: string, name: string, tier: string|null, version: int}|null, legacy: bool, period: string|null, status: string, trial_ends_at: string|null, current_period: array{start: string, end: string}|null, term_ends_at: string|null, locked_since: string|null, lock_at: string|null, settings_locked: bool, features: array<string, bool>, required_plans: array<string, string|null>, devices: array{pos: array{included: int|null, active: int, extra: int, extra_price: string|null, can_add: bool}, kds: array{included: int|null, active: int, extra: int, extra_price: string|null, can_add: bool}, waiter: array{included: null, unlimited: bool, extra_price: string, can_add: bool}}, notice: array{level: string, message: string, days_overdue: int, lock_at: string|null, invoice: array{uuid: string, number: string, amount: string, outstanding: string, due_date: string}}|null}}')]
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{plan: array{code: string, name: string, tier: string|null, version: int}|null, legacy: bool, period: string|null, status: string, trial_ends_at: string|null, current_period: array{start: string, end: string}|null, term_ends_at: string|null, locked_since: string|null, lock_at: string|null, settings_locked: bool, features: array<string, bool>, required_plans: array<string, string|null>, devices: array{pos: array{included: int|null, active: int, extra: int, extra_price: string|null, can_add: bool}, kds: array{included: int|null, active: int, extra: int, extra_price: string|null, can_add: bool}, waiter: array{included: null, unlimited: bool, extra_price: string, can_add: bool}}, notice: array{level: string, message: string, days_overdue: int, lock_at: string|null, invoice: array{uuid: string, number: string, amount: string, outstanding: string, due_date: string}|null}|null}}')]
     public function entitlements(Request $request): JsonResponse
     {
         /** @var User $user */
@@ -49,7 +51,7 @@ class OwnerBillingController extends Controller
             return $this->error('Do\'kon topilmadi.', [], 404);
         }
 
-        return $this->success($this->entitlements->toArray((int) $user->store_id));
+        return $this->success($this->entitlements->toArray((int) $user->store_id, null, $this->entitlements->showsInvoiceTo($user)));
     }
 
     /**

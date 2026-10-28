@@ -48,8 +48,11 @@ use Throwable;
  *   old plan's price (the month costs old × days before / days + new × the rest).
  * - Yearly: 12 billing months are billed in advance when the term starts (the first month the trial does not touch),
  *   at the plan's yearly fee; the months of the term bill only their extra devices; the next term is billed when it
- *   ends. Cancelling, changing the period or moving to a lower plan waits for the term's end.
- * - A change to a lower plan always waits for the period's end; a higher plan may apply now (prorated).
+ *   ends. Cancelling, changing the period or moving to a lower plan waits for the term's end. A term started again in
+ *   the month an earlier one began (cancelled, then taken again) gets its own invoice (`OBY-...-2`) less what the live
+ *   yearly and upgrade invoices of those 12 months already charge.
+ * - A change to a lower plan always waits for the period's end; a higher plan may apply now (prorated; with the
+ *   month's discount the credit is discounted too) and drops billing:migrate-plans' price lock.
  * - A P1-23 plan keeps its formula and rules exactly.
  */
 class SubscriptionService
@@ -152,6 +155,10 @@ class SubscriptionService
 
             $trialEndsAt = $current->trial_ends_at?->greaterThan($now) ? $current->trial_ends_at : null;
             $periodEnd = $current->current_period_end;
+            // billing:migrate-plans' price lock keeps the plan it moved the store to (or a lower one) at the old price;
+            // a move above it (the current v2 plan, or the v2 plan the migration scheduled) pays the new plan's price
+            $lockedFor = $currentPlan->isV2() ? $currentPlan : ($current->nextPlan?->isV2() ? $current->nextPlan : null);
+            $keepsLock = !$plan->isV2() || $lockedFor === null || $plan->rank() <= $lockedFor->rank();
             $current->update(['status' => SubscriptionStatus::CANCELLED, 'cancelled_at' => $now, 'next_tariff_plan_id' => null, 'cancel_at_period_end' => false]);
 
             $subscription = $this->open($store->id, $plan, $now, $trialEndsAt, $periodEnd, $actor, $now, [
@@ -160,8 +167,8 @@ class SubscriptionService
                 'term_ends_at' => $current->term_ends_at,
                 // The month's credit for the days before the upgrade (a monthly v2 subscription out of its trial)
                 'prorate_from_plan_id' => $bothV2 && !$current->isYearly() && $trialEndsAt === null ? $currentPlan->id : null,
-                'price_lock_plan_id' => $current->price_lock_plan_id,
-                'price_locked_until' => $current->price_locked_until,
+                'price_lock_plan_id' => $keepsLock ? $current->price_lock_plan_id : null,
+                'price_locked_until' => $keepsLock ? $current->price_locked_until : null,
             ]);
             $this->audit->record('subscription.plan_changed', $subscription, ['plan' => $from], ['plan' => $plan->code], [], ['actor' => $actor, 'store_id' => $store->id]);
 
@@ -405,18 +412,22 @@ class SubscriptionService
 
             // The month after one with more than the threshold in commission: the base fee at 50% off
             $previous = Carbon::instance($from)->setTimezone($this->timezone())->startOfMonth()->subMonthNoOverflow()->format('Y-m');
+            $percent = null;
             if ($this->commissions->earnsDiscount($subscription->store_id, $previous)) {
                 $percent = (string) config('billing.commission_discount.percent', '50');
                 $discount = $base->percent($percent);
                 $add('discount', "Chegirma {$this->percentLabel($percent)}%: {$previous} oyida komissiya " . number_format((float) config('billing.commission_discount.threshold', 1000000), 0, '.', ' ') . " so'mdan ko'p", 1, $discount->negated(), $discount->negated());
             }
 
-            // The first month after an immediate upgrade: the days before it at the old plan's price
+            // The first month after an immediate upgrade: the days before it at the old plan's price (with the
+            // month's discount, the discounted price: the credit is scaled by 1 - discount%)
             if ($subscription->prorate_from_plan_id !== null && $subscription->started_at->equalTo($from) && ($old = TariffPlan::find($subscription->prorate_from_plan_id)) !== null) {
                 [$daysBefore, $days] = $this->daysBefore($from);
                 $difference = $base->minus($old->baseFee());
                 if ($daysBefore > 0 && $difference->isPositive()) {
-                    $credit = Money::of(BigDecimal::of($difference->toString())->multipliedBy($daysBefore)->dividedBy($days, Money::SCALE, RoundingMode::HalfUp));
+                    $share = BigDecimal::of(100)->minus($percent ?? '0');
+                    $credit = Money::of(BigDecimal::of($difference->toString())->multipliedBy($daysBefore)->multipliedBy($share)
+                        ->dividedBy(BigDecimal::of($days)->multipliedBy(100), Money::SCALE, RoundingMode::HalfUp));
                     $add('proration', "Tarif oshirilgunga qadar {$daysBefore} kun {$old->name} narxida", $daysBefore, $credit->negated(), $credit->negated());
                 }
             }
@@ -519,6 +530,16 @@ class SubscriptionService
 
     /**
      * Void an invoice: its ledger charge is reversed (debt down) and it no longer counts as income.
+     *
+     * Review W2 — a void never moves money on one member's word:
+     *  - a paid or partly paid invoice (status paid, or the ledger paid any of it) is refused (`invoice_paid`): its
+     *    reversal would turn the money paid into credit; money is given back by a manual adjustment (four eyes);
+     *  - from config('finance.four_eyes_threshold') (1 000 000 so'm) the first member's void is only a request
+     *    (void_requested_by/at, void_request_reason; the invoice stays issued, the ledger untouched; the same member
+     *    again changes nothing) and a DIFFERENT member's void completes it. Without a member it is refused (`four_eyes`).
+     * Whether it was voided or only requested: the returned invoice's status (and void_requested_by).
+     *
+     * @throws \App\Services\Finance\InvoiceVoidException
      */
     public function voidInvoice(SubscriptionInvoice $invoice, ?User $actor = null, ?string $reason = null, ?CarbonInterface $now = null): SubscriptionInvoice
     {
@@ -528,6 +549,33 @@ class SubscriptionService
             $invoice = SubscriptionInvoice::whereKey($invoice->id)->lockForUpdate()->firstOrFail();
             if ($invoice->status === SubscriptionInvoiceStatus::VOID) {
                 return $invoice;
+            }
+
+            if ($invoice->status === SubscriptionInvoiceStatus::PAID || Money::of($invoice->paid_amount ?? 0)->isPositive()) {
+                throw new \App\Services\Finance\InvoiceVoidException(
+                    "To'langan yoki qisman to'langan hisob-fakturani bekor qilib bo'lmaydi: pulni qaytarish uchun Moliya → Qo'lda tuzatish.",
+                    'invoice_paid',
+                );
+            }
+
+            $threshold = \App\Services\Finance\Payouts\PayoutService::threshold();
+            if ($invoice->total()->isGreaterThanOrEqualTo($threshold)) {
+                if ($actor === null) {
+                    throw new \App\Services\Finance\InvoiceVoidException(
+                        \App\Services\Finance\Payouts\PayoutService::uzs($threshold) . ' va undan katta hisob-fakturani ikki xodim bekor qiladi.',
+                        'four_eyes',
+                        403,
+                    );
+                }
+                if ($invoice->void_requested_by === null) {
+                    $invoice->update(['void_requested_by' => $actor->id, 'void_requested_at' => $now, 'void_request_reason' => $reason !== null ? mb_substr($reason, 0, 500) : null]);
+                    $this->audit->record('subscription_invoice.void_requested', $invoice, ['void_requested_by' => null], ['void_requested_by' => $actor->id], ['number' => $invoice->number, 'amount' => $invoice->total()->toString(), 'reason' => $reason], ['actor' => $actor]);
+
+                    return $invoice;
+                }
+                if ((int) $invoice->void_requested_by === (int) $actor->id) {
+                    return $invoice;
+                }
             }
 
             $before = $invoice->status->value;
@@ -735,9 +783,28 @@ class SubscriptionService
         }
 
         $months = (int) config('billing.yearly_months_charged', 10);
-        $invoice = $this->createInvoice($subscription, $plan, InvoiceKind::YEARLY, $start, $termEnds, [
+        $lines = [
             ['type' => 'yearly', 'label' => "Yillik to'lov: {$plan->name}, 12 oy ({$months} oy narxida)", 'quantity' => 1, 'unit_price' => $fee->toString(), 'amount' => $fee->toString()],
-        ], $fee, 0, $now, $this->dueFrom($now));
+        ];
+
+        // The same 12 months started again (cancelled and taken again in the month the term began): what the store's
+        // live yearly and upgrade invoices of that term already charge is credited (a void one charges nothing)
+        $charged = Money::of((string) SubscriptionInvoice::where('store_id', $subscription->store_id)
+            ->whereIn('kind', [InvoiceKind::YEARLY->value, InvoiceKind::UPGRADE->value])
+            ->where('status', '!=', SubscriptionInvoiceStatus::VOID->value)
+            ->where('store_subscription_id', '!=', $subscription->id)
+            ->where('period_end', $termEnds)
+            ->sum('amount'));
+        $credit = Money::min($fee, $charged);
+        if ($credit->isPositive()) {
+            $lines[] = ['type' => 'yearly_credit', 'label' => "Shu yillik muddat uchun avval hisoblangan to'lov", 'quantity' => 1, 'unit_price' => $credit->negated()->toString(), 'amount' => $credit->negated()->toString()];
+        }
+        $amount = $fee->minus($credit);
+        if (!$amount->isPositive()) {
+            return false;
+        }
+
+        $invoice = $this->createInvoice($subscription, $plan, InvoiceKind::YEARLY, $start, $termEnds, $lines, $amount, 0, $now, $this->dueFrom($now));
 
         return $invoice->wasRecentlyCreated;
     }
@@ -777,6 +844,10 @@ class SubscriptionService
     }
 
     /**
+     * A monthly invoice is one per store and month. A yearly one is one per subscription and term: a term started again
+     * in the same month by another subscription (cancelled, then taken again) gets the next sequence (`OBY-...-2`),
+     * never the earlier subscription's invoice (a void one least of all). Upgrades are sequenced too.
+     *
      * @param  list<array<string, mixed>>  $lines
      */
     protected function createInvoice(StoreSubscription $subscription, TariffPlan $plan, InvoiceKind $kind, CarbonInterface $start, CarbonInterface $end, array $lines, Money $amount, int $terminals, CarbonInterface $now, string $dueDate): SubscriptionInvoice
@@ -784,17 +855,21 @@ class SubscriptionService
         $period = $this->periodKey($start);
         $invoice = null;
         $sequence = 1;
+        $ofMonth = fn () => SubscriptionInvoice::where('store_id', $subscription->store_id)->where('period', $period)->where('kind', $kind->value);
 
-        if ($kind === InvoiceKind::UPGRADE) {
-            $sequence = (int) SubscriptionInvoice::where('store_id', $subscription->store_id)->where('period', $period)->where('kind', $kind->value)->max('sequence') + 1;
-        } else {
-            $invoice = SubscriptionInvoice::where('store_id', $subscription->store_id)->where('period', $period)->where('kind', $kind->value)->lockForUpdate()->first();
+        if ($kind === InvoiceKind::MONTHLY) {
+            $invoice = $ofMonth()->lockForUpdate()->first();
+        } elseif ($kind === InvoiceKind::YEARLY) {
+            $invoice = $ofMonth()->where('store_subscription_id', $subscription->id)->lockForUpdate()->first();
+        }
+        if (!$invoice && $kind !== InvoiceKind::MONTHLY) {
+            $sequence = (int) $ofMonth()->max('sequence') + 1;
         }
 
         if (!$invoice) {
             $number = match ($kind) {
                 InvoiceKind::MONTHLY => sprintf('%s-%s-%06d', config('billing.invoice_prefix', 'OB'), str_replace('-', '', $period), $subscription->store_id),
-                InvoiceKind::YEARLY => sprintf('%s-%s-%06d', config('billing.yearly_invoice_prefix', 'OBY'), str_replace('-', '', $period), $subscription->store_id),
+                InvoiceKind::YEARLY => sprintf('%s-%s-%06d', config('billing.yearly_invoice_prefix', 'OBY'), str_replace('-', '', $period), $subscription->store_id) . ($sequence > 1 ? "-{$sequence}" : ''),
                 InvoiceKind::UPGRADE => sprintf('%s-%s-%06d-%d', config('billing.upgrade_invoice_prefix', 'OBU'), str_replace('-', '', $period), $subscription->store_id, $sequence),
             };
 

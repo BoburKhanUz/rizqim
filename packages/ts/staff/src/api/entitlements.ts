@@ -41,7 +41,8 @@ export interface BillingNotice {
   message: string;
   days_overdue: number;
   lock_at: string | null;
-  invoice: { uuid: string; number: string; amount: string; outstanding: string; due_date: string };
+  // Which invoice and how much: only for a member with finance.view on their own sign-in; null for other staff and terminals
+  invoice: { uuid: string; number: string; amount: string; outstanding: string; due_date: string } | null;
 }
 
 export interface Entitlements {

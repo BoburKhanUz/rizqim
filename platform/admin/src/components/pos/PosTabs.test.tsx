@@ -77,6 +77,22 @@ describe('InvoicesTab', () => {
     expect(screen.queryByRole('button', { name: 'Bekor qilish' })).not.toBeInTheDocument();
   });
 
+  it('says a large void waits for a second member instead of calling it done', async () => {
+    const pending = invoiceCard();
+    pending.invoice = { ...pending.invoice, status: 'issued', void_request: { by: { id: 3, name: 'Moliya Aziza' }, at: '2026-11-05T10:00:00+05:00', reason: 'Xato yozilgan' }, void_needs_second_approval: true };
+    mockFetch({
+      ...ME(['finance.view', 'finance.manage']),
+      [`GET /pos/invoices/${INVOICE}`]: () => ok(invoiceCard()),
+      [`POST /pos/invoices/${INVOICE}/void`]: () => ok(pending),
+    });
+    const user = userEvent.setup();
+    renderPage(<InvoicesTab selected={INVOICE} onSelect={() => {}} />);
+    await user.click(await screen.findByRole('button', { name: 'Bekor qilish' }));
+    await reasonDialog(user, 'Hisob-fakturani bekor qilish', 'Xato yozilgan', 'Ha, bekor qilish');
+    expect(await screen.findByText("Bekor qilish so'raldi: summa katta, uni boshqa xodim tasdiqlashi kerak.")).toBeInTheDocument();
+    expect(screen.queryByText('Hisob-faktura bekor qilindi.')).not.toBeInTheDocument();
+  });
+
   it('shows the answer of a refused void inside the dialog', async () => {
     mockFetch({
       ...ME(['finance.view', 'finance.manage']),

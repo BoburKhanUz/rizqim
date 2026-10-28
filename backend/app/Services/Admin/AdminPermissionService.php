@@ -21,7 +21,7 @@ class AdminPermissionService
 
     /**
      * Review F1: what makes a role's holder able to widen access or move money on their own (manage the team, see
-     * personal data in full, change the system, approve refunds or payouts). Only a superadmin gives a member a role
+     * personal data in full, change the system, approve refunds or payouts, see an owner's Telegram link). Only a superadmin gives a member a role
      * carrying any of these, or changes such a member (PlatformTeamService), and only a superadmin edits the role
      * matrix at all (AdminRoleController).
      */
@@ -31,6 +31,8 @@ class AdminPermissionService
         AdminPermission::SYSTEM_MANAGE,
         AdminPermission::ORDERS_REFUND_APPROVE,
         AdminPermission::PAYOUTS_APPROVE,
+        // Review F3-1: sees the owner's Telegram invite link, which signs whoever opens it in as the owner
+        AdminPermission::STORES_IMPERSONATE,
     ];
 
     /**

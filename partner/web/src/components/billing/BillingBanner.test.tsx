@@ -34,6 +34,16 @@ describe('the unpaid-invoice banner', () => {
     expect(screen.getByRole('link', { name: "To'lash" })).toHaveAttribute('href', '/billing');
   });
 
+  it('names no invoice nor amount to staff without finance.view (the server leaves them out)', async () => {
+    mockFetch({ 'GET /api/v1/owner/billing/entitlements': () => ok(startPlan({ status: 'past_due', notice: reminder({ invoice: null }), lock_at: reminder().lock_at })) });
+    renderPage(<BillingBanner canPay={false} />);
+    const banner = await screen.findByRole('status');
+    expect(banner).toHaveTextContent("To'lov muddati o'tdi — 5 kundan keyin sozlamalar yopiladi");
+    expect(banner).toHaveTextContent('Kassa ishlashda davom etadi');
+    expect(banner).not.toHaveTextContent('OB-202610-1');
+    expect(banner).not.toHaveTextContent('249 000');
+  });
+
   it('turns into the locked message a week past the due date', async () => {
     mockFetch({ 'GET /api/v1/owner/billing/entitlements': () => ok(startPlan({ status: 'locked', settings_locked: true, locked_since: '2026-11-19T00:00:00+05:00', notice: locked() })) });
     renderPage(<BillingBanner canPay />);

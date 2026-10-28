@@ -74,6 +74,35 @@ function jsonError(status: number, message: string, code: string): NextResponse 
   return NextResponse.json({ success: false, message, data: { reason: code } }, { status });
 }
 
+// Reads a request body up to `max` bytes; null when it is over (a declared Content-Length over the cap is refused
+// without reading anything, and the count goes on while streaming, so a missing or false header changes nothing).
+async function readCapped(request: NextRequest, max: number): Promise<Uint8Array | null> {
+  const declared = Number(request.headers.get('content-length') ?? '0');
+  if (Number.isFinite(declared) && declared > max) return null;
+  if (!request.body) return new Uint8Array(0);
+
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > max) {
+      await reader.cancel().catch(() => undefined);
+      return null;
+    }
+    chunks.push(value);
+  }
+  const all = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    all.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return all;
+}
+
 // Forwards one call. `segments` are the path parts after /api/backend. A session cookie under the old bare name (from
 // before the __Host- prefix) is never read and is cleared on the way back.
 export async function forward(request: NextRequest, segments: string[]): Promise<NextResponse> {
@@ -89,24 +118,29 @@ async function forwardCall(request: NextRequest, segments: string[]): Promise<Ne
   const write = request.method !== 'GET' && request.method !== 'HEAD';
   if (write && !isSameOrigin(request)) return jsonError(403, 'Ruxsat etilmagan so\'rov.', 'cross_origin');
 
+  // Review F3: nothing of a write's body is read before the cheap checks. A write without a session cookie is refused
+  // outright (only the sign-in steps are made without one), and a body is read as a stream that stops at its cap, so a
+  // declared, a missing or a false Content-Length cannot make this server buffer a huge body first.
+  const token = request.cookies.get(sessionCookieName())?.value;
+  if (write && !token && !PUBLIC_PATHS.has(path)) return jsonError(401, 'Sessiya tugagan. Qaytadan kiring.', 'unauthenticated');
+
   let body: string | ArrayBuffer | undefined;
   let contentType: string | null = null;
   const multipart = /^multipart\/form-data;\s*boundary=/i.test(request.headers.get('content-type') ?? '');
   if (write && multipart) {
     // P4-23: a file goes only to the paths that take one, as it came (the boundary is in its Content-Type)
     if (!UPLOAD_PATHS.test(path)) return jsonError(415, "Bu so'rov fayl qabul qilmaydi.", 'unsupported_media_type');
-    const declared = Number(request.headers.get('content-length') ?? '0');
-    if (declared > MAX_UPLOAD_BYTES) return jsonError(413, 'Fayl juda katta.', 'too_large');
-    body = await request.arrayBuffer();
-    if (body.byteLength > MAX_UPLOAD_BYTES) return jsonError(413, 'Fayl juda katta.', 'too_large');
+    const bytes = await readCapped(request, MAX_UPLOAD_BYTES);
+    if (bytes === null) return jsonError(413, 'Fayl juda katta.', 'too_large');
+    body = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
     contentType = request.headers.get('content-type');
   } else if (write) {
-    body = await request.text();
-    if (body.length > MAX_BODY_BYTES) return jsonError(413, 'So\'rov juda katta.', 'too_large');
+    const bytes = await readCapped(request, MAX_BODY_BYTES);
+    if (bytes === null) return jsonError(413, "So'rov juda katta.", 'too_large');
+    body = new TextDecoder().decode(bytes);
     if (body) contentType = 'application/json';
   }
 
-  const token = request.cookies.get(sessionCookieName())?.value;
   const ip = clientIp(request);
   // P4-14: a money action's Idempotency-Key (1-255 visible characters, docs/API.md section 5) reaches the backend
   const idempotencyKey = request.headers.get('idempotency-key');

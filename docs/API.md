@@ -2415,7 +2415,8 @@ faol ovqatxonagacha), CRM-lite, ovqatxonaga amallar va egalarga ommaviy e'lon. K
 `routes/api_store_applications.php` (ommaviy forma), `App\Http\Controllers\Api\V1\Admin\AdminStore*`,
 `App\Http\Controllers\Api\V1\Onboarding\StoreApplicationController`, `App\Services\Admin\Stores`,
 `App\Providers\AdminStoresServiceProvider`. **Egasi nomidan kirish yo'q** (egasi qarori, 28.10.2026): yordam xodimi
-ma'lumotni kartadan ko'radi, sozlashni egasi o'zi qiladi (`admin.stores.impersonate` ruxsati ishlatilmaydi).
+ma'lumotni kartadan ko'radi, sozlashni egasi o'zi qiladi. `admin.stores.impersonate` ruxsati faqat egasining Telegram havolasini
+ko'rish uchun (pastda, `telegram-link`); u `PRIVILEGED` ro'yxatida: standart rollarda yo'q, faqat superadmin beradi.
 
 ### Ruxsatlar
 
@@ -2451,7 +2452,9 @@ obunalar" havolasi.
 - `website` — **yashirin maydon (honeypot)**: saytda ko'rinmaydigan input. To'ldirilgan bo'lsa, javob xuddi shunday 201,
   lekin hech narsa saqlanmaydi.
 - Bir telefon 24 soat ichida bir marta qabul qilinadi (takroriy yuborish o'sha arizani qoldiradi). Cheklov: bitta IP dan
-  soatiga 5 ta va kuniga 20 ta, bitta telefondan kuniga 3 ta — keyin 429 (`Retry-After`).
+  soatiga 5 ta va kuniga 20 ta — keyin 429 (`Retry-After`). Telefon bo'yicha so'rov cheklovi yo'q: telefon
+  so'rovda aytilgan raqam xolos, shuning uchun begona odam boshqaning telefonini "band" qila olmasligi kerak; telefon faqat
+  qabul qilingan ariza bilan cheklanadi (24 soatda bitta).
 - Javobda ariza haqida ma'lumot yo'q (telefonni bilgan odam ariza borligini bilib olmasin).
 - Telegram bot buyrug'i hozircha yo'q: bot suhbat holatini saqlamaydi, ko'p qadamli forma uchun alohida ish kerak.
   Bot uchun eng oddiy yo'l — Mini App yoki sayt formasi shu endpointga `source: "telegram"` bilan yuboradi.
@@ -2548,8 +2551,14 @@ Buyurtma trendi va faollik faqat ulash jarayonidan o'tgan ovqatxonaga (`active`,
 - `PUT .../credit-limit {credit_limit}` — 0–100 000 000 so'm; ledger qoidasi darhol qo'llanadi (limitdan oshsa `active` →
   `payment_required`, limit ichiga qaytsa aksincha), holat tarixiga yoziladi.
 - `PUT .../display {is_premium?, is_featured?}` — premium va "tavsiya etilgan".
-- `POST .../telegram-link` — egasi uchun yangi bir martalik bot havolasi (eskisi ishlamaydi), faqat javobda;
-  `owner_linked: true` — egasi allaqachon ulangan, yangi havolani ochgan Telegram hisobi egasiga bog'lanadi. 422 `no_owner`.
+- `POST .../telegram-link` — Telegramga hali ulanmagan egasi uchun yangi bir martalik bot havolasi (eskisi ishlamaydi).
+  Havolani ochgan Telegram hisobi egasi hisobiga bog'lanadi, shuning uchun u **parol kabi** sir: xodimga ko'rsatilmaydi,
+  egasining tasdiqlangan telefoniga SMS bilan yuboriladi (`delivered_via: "sms"`, `invite_link: null`). SMS ketmasa
+  (telefon yo'q/tasdiqlanmagan yoki SMS xizmati javob bermasa) havola `invite_link` da faqat `admin.stores.impersonate`
+  ruxsati bor xodimga qaytadi; boshqalarga 422 `link_not_deliverable` va eski havola o'zgarmaydi. Egasi Telegramga
+  allaqachon ulangan bo'lsa — 409 `owner_already_linked` (hisobni boshqa Telegramga o'tkazib bo'lmaydi; egasiga
+  `message` bilan yozing). Auditda havola yo'q (`delivered_via`, `link_shown_to_member` bor). Karta:
+  `actions.telegram_link` ulangan egada `false`. 422 `no_owner`.
 - `POST .../message {text}` — egasining Telegramiga (navbat orqali, oddiy matn). 422 `no_recipient`, 503
   `telegram_not_configured`.
 
@@ -2627,8 +2636,12 @@ Do'konning istalgan xodimi (ega, menejer, kassir, ofitsiant, oshpaz) va terminal
   `devices.*.included` `null`.
 - `required_plans` — har bir yopiq funksiya qaysi eng arzon tarifda bor: ekranda "Asosiy tarifda bor" deb ko'rsatish uchun.
 - `notice` — muddati o'tgan hisob-faktura bo'lsa banner uchun: `{level: reminder|locked, message, days_overdue, lock_at,
-  invoice: {uuid, number, amount, outstanding, due_date}}`.
-- `lock_at` — to'lanmasa qachondan cheklanadi; `locked_since` — cheklangan bo'lsa, qachondan.
+  invoice: {uuid, number, amount, outstanding, due_date} | null}`. `invoice` (raqam va summalar) faqat o'z kirishidagi
+  `finance.view` li a'zoga (odatda ega); boshqa xodimlar, terminaldagi PIN sessiya (ega ham) va `GET /pos/bootstrap` da
+  `invoice: null`, `message` da ham raqam va summa yo'q (faqat daraja, kunlar va cheklov sanasi).
+- `lock_at` — to'lanmasa qachondan cheklanadi; `locked_since` — cheklangan bo'lsa, qachondan. Faqat v2 tarif bo'yicha
+  chiqqan hisob-faktura cheklaydi: eski P1-23 hisob-faktura (migratsiyadan oldingi) do'kon v2 tarifda bo'lsa ham faqat
+  `past_due` beradi, `lock_at: null`.
 
 ### Rad javoblari (403)
 
@@ -2704,7 +2717,7 @@ sana (`business_date`, `due_date`) — `Y-m-d`.
 | `GET /admin/pos/invoices?status=&store_id=&period=&dunning=&q=` | `subscriptions.manage` yoki `finance.view` | Hamma ovqatxonalarning hisob-fakturalari. `status`: `issued`, `paid`, `void` yoki `overdue` (to'lov muddatidan keyin to'lanmagan, Toshkent sanasi bilan). Qatorda `overdue_days`, oxirgi eslatma (`dunning_stage`). `counts`: `issued`, `overdue`, `paid`, `void`, `outstanding` |
 | `GET /admin/pos/invoices/{uuid}` | shu | Hisob-faktura (qatorlar, to'langan va qolgan qism, eslatmalar tarixi) va ovqatxona qarzi (`subscription_debt` va `commission_debt` alohida) |
 | `POST /admin/pos/invoices/{uuid}/paid` | `finance.manage` + step-up + `reason` | «To'langan» deb belgilash (`SubscriptionService::markPaid`). Balans o'zgarmaydi: pulning o'zi balansni to'ldirish sifatida yoziladi va eng eski hisob-fakturalarni yopadi. Bekor qilinganga 422 `invoice_void` |
-| `POST /admin/pos/invoices/{uuid}/void` | shu | Bekor qilish (`SubscriptionService::voidInvoice`): to'lanmagan qismi qarzdan ayriladi (ledger'da teskari yozuv) |
+| `POST /admin/pos/invoices/{uuid}/void` | shu | Bekor qilish (`SubscriptionService::voidInvoice`): summasi qarzdan ayriladi (ledger'da teskari yozuv). Faqat to'lanmagan: `paid` yoki qisman to'langan hisob-fakturaga 422 `invoice_paid` (pul Moliya → Qo'lda tuzatish bilan qaytariladi). 1 000 000 so'm (`finance.four_eyes_threshold`) va undan kattasini ikki xil xodim: birinchi chaqiruv — so'rov (hisob-faktura `issued` qoladi, ledger o'zgarmaydi, `invoice.void_request {by, at, reason}`, jurnalda `admin.pos.invoice_void_requested`), o'sha xodim takrorlasa — o'sha javob, boshqa xodimning chaqiruvi bekor qiladi (`voided_by`). Kartada `void_needs_second_approval` |
 | `GET /admin/pos/devices?state=&type=&terminal=&store_id=&outdated=&q=` | `devices.view` | Do'konga tegishli hamma qurilmalar. `state`: `online` (oxirgi 10 daqiqada aloqa), `offline`, `never`, `revoked`, `all`; bo'sh bo'lsa o'chirilmaganlar. Eng uzoq aloqasizlar birinchi. `outdated=1` — shu turdagi faol qurilmalardagi eng yangi versiyadan eskilar (versiyalar reyestri yo'q, «eng yangi» — ko'rilgan eng katta versiya; `latest_versions`). Qatorda kassaning oflayn navbati (`sync`) |
 | `GET /admin/pos/devices/{uuid}` | shu | Qurilma (Bugun'dagi `/pos?device=` havolasi) |
 | `POST /admin/pos/devices/{uuid}/revoke` | `stores.manage` + step-up + `reason` | Qurilmani o'chirish (`DeviceService::revoke`): tokenlar va sessiyalar darhol to'xtaydi |
@@ -2761,7 +2774,11 @@ o'sha javobni qaytaradi, hech narsa ikki marta bajarilmaydi va jurnal ikki marta
 
 **Ikki kishilik tasdiq (egasi qarori, 28.10.2026):** `config('finance.four_eyes_threshold')` = **1 000 000 so'm** va undan
 katta payout yoki qo'lda tuzatishni ikki xil xodim tasdiqlaydi: payoutda birinchi tasdiqlovchi, tuzatishda uni yaratgan
-xodim yakunlay olmaydi (403 `four_eyes`, superadmin ham). 999 999,99 — bitta tasdiq yetadi.
+xodim yakunlay olmaydi (403 `four_eyes`, superadmin ham). 999 999,99 — bitta tasdiq yetadi. Tuzatishni bo'lib yuborib
+chetlab bo'lmaydi: oxirgi `config('finance.four_eyes_window_hours')` (24) soatda **bitta xodim tasdig'i bilan** qo'llangan
+tuzatishlar — shu xodimniki (istalgan do'kon) va shu do'konniki (istalgan xodim), eski paneldagi qo'lda to'ldirishlar ham —
+yangisi bilan qo'shiladi; ikkalasidan biri chegaraga yetsa yangi tuzatish `pending`. Ikki kishi tasdiqlagan, kutilayotgan
+va rad etilganlar sanalmaydi. Hisob-fakturani bekor qilish ham shu chegarada ikki xodim (POS va obunalar, `.../void`).
 
 ### Netting: payoutdan va RIZQIM yig'gan puldan avval qarz
 
@@ -2802,7 +2819,9 @@ hisob-faktura yozuvida `subscription_invoice_id` va izohda raqami, komissiya qis
   `netting` (qatorlar), `first_approved_by`.
 - Egasining so'rovi (`POST /owner/payouts`) va javob shakli o'zgarmagan: `awaiting_second` egaga `pending` bo'lib ko'rinadi.
   Eski superadmin paneli (Filament) ham shu `PayoutService::complete` orqali o'tkazadi (qarz ushlanadi), lekin 1 mln va
-  undan kattasini o'tkazmaydi ("Boshqaruv markazida ikki xodim tasdiqlaydi").
+  undan kattasini o'tkazmaydi ("Boshqaruv markazida ikki xodim tasdiqlaydi"). Xuddi shunday eski paneldagi "To'lov qabul
+  qilish" (qarzni kamaytirish) 1 mln dan (24 soatdagi bo'laklar va bitta tasdiqli tuzatishlar bilan) va 1 mln dan katta yoki
+  to'langan hisob-fakturani bekor qilish rad etiladi.
 
 ### To'ldirishlar, hisob-kitob xatolari, balans va qarzlar
 
@@ -2812,6 +2831,9 @@ hisob-faktura yozuvida `subscription_invoice_id` va izohda raqami, komissiya qis
 - `GET /admin/finance/settlement-failures` — hisob-kitobi yozilmagan yetkazilgan buyurtmalar (`attempts`, `max_attempts`,
   `gave_up`, `error`); `POST .../{uuid}/retry {reason}` — `SettlementRecoveryService::retry` (har 10 daqiqadagi ish bilan bir
   yo'l, urinishlar tugagan bo'lsa ham): `{booked, order}` (`order: null` — yozildi yoki endi yetkazilgan emas).
+  Hisob-kitob yozilmagan paytda tasdiqlangan qisman qaytarishlar (`execution.ledger_reversal_deferred: true`) shu yozuv
+  bilan bir tranzaksiyada qaytariladi (jamlanib, har so'rov bir marta; so'rovning `execution.ledger_reversal` i yangilanadi,
+  `ledger_reversal_on_retry: true`).
 - `GET /admin/finance/balances?filter=all|debt|over_limit|subscription_debt|wallet&q=&page=&per_page=` — `wallet_balance,
   debt_balance, subscription_debt, commission_debt, credit_limit, over_limit` (faqat **komissiya qarzi** limitdan oshsa),
   `is_order_locked, pending_payouts`; `totals` — hamma do'konlar bo'yicha.
@@ -2843,7 +2865,8 @@ commission_refunded, subscription, total}`, `channels[]` (`rizqim_courier`, `own
 kattasi birinchi, `commission_by_channel`). Komissiya: shu oyda yetkazilgan (birinchi `delivered` yozuvi) va hali yetkazilgan
 holatdagi buyurtmalarning `commission_amount` i, **qisman qaytarishlar ayirilgan** (`order_ledger_reversals`); to'liq
 qaytarilgan buyurtma kirmaydi. Obuna: oyning bekor qilinmagan hisob-fakturalari. `.../export` — xuddi shu `.xlsx`
-("Umumiy", "Ovqatxonalar"; summalar son).
+("Umumiy", "Ovqatxonalar"; summalar son, matnlar — ovqatxona nomi ham — doim matn katakchasi: `=` bilan boshlangan nom
+formula bo'lib qolmaydi).
 
 ### "Diqqat talab qiladi" manbalari
 
@@ -2861,10 +2884,15 @@ Bugun'ning `payout_pending` manbasi endi faqat hali tasdiqlanmaganlarni sanaydi.
 `.../adjustments/{id}/document` javobidagi fayl (faqat xlsx, pdf, jpeg, png, webp turlari; boshqa javob JSON bo'lmasa —
 `bad_gateway`).
 
+Proksi yozuvlarda (POST/PUT/PATCH/DELETE) tanani **o'qishdan oldin** tekshiradi: sessiya cookie'si bo'lmasa — 401
+`unauthenticated` (faqat kirish bosqichlari cookie'siz: `auth/login`, `auth/invite/accept`, `auth/2fa/setup|verify|confirm`);
+e'lon qilingan `Content-Length` limitdan oshsa — 413; tana oqim bilan o'qiladi va limitga yetganda to'xtatiladi
+(`Content-Length` yo'q yoki yolg'on bo'lsa ham): JSON 256 KB, multipart 11 MB.
+
 ### Migratsiyalar va testlar
 
 `2026_11_05_100100` (`payout_requests`: `first_approved_by/at/note`, `netted_amount`, `transferred_amount`, `netting`),
 `100200` (`store_transactions.subscription_invoice_id`, `payout_request_id`; `store_wallet_transactions.payout_request_id`),
 `100300` (`order_ledger_reversals`), `100400` (`finance_adjustments`), `100500` (ledger'larda `(order_id, type)` indekslari,
-CONCURRENTLY). Testlar: `tests/Feature/AdminFinance/*` (netting, payoutlar, qisman qaytarish, tuzatishlar, ro'yxatlar,
-hisobot).
+CONCURRENTLY), `100600` (`subscription_invoices.void_requested_by/at`, `void_request_reason` — ikki kishilik bekor qilish). Testlar: `tests/Feature/AdminFinance/*` (netting, payoutlar, qisman qaytarish, tuzatishlar, ro'yxatlar,
+hisobot, hisob-fakturani bekor qilish).

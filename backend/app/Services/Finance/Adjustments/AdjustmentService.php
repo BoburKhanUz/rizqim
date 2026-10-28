@@ -24,7 +24,9 @@ use Illuminate\Support\Str;
  * P4-23: manual adjustments (Moliya → Qo'lda tuzatish; docs/API.md "Moliya"). A member with admin.finance.manage
  * makes one with a reason and, optionally, a document. Under config('finance.four_eyes_threshold') (1 000 000 so'm)
  * it is applied at once; from it, it waits (`pending`) until a DIFFERENT member with admin.finance.manage approves it
- * (owner decision 28.10.2026; a superadmin is no exception), and only then is its ledger row written. Rejecting
+ * (owner decision 28.10.2026; a superadmin is no exception), and only then is its ledger row written. Splitting does
+ * not get under it: what one member applied alone in the last 24 hours, and what was applied alone on the store,
+ * counts with the new amount (needsSecondApproval). Rejecting
  * leaves the ledger alone (the one who made it may withdraw it this way).
  *
  * Every decision runs under the adjustment's row lock; the same decision repeated by the same member answers the
@@ -57,7 +59,6 @@ class AdjustmentService
             throw new AdjustmentException("Summa 0 dan katta bo'lishi kerak.", 'invalid_amount');
         }
 
-        $needsTwo = $amount->isGreaterThanOrEqualTo(PayoutService::threshold());
         if ($kind === AdjustmentKind::WALLET_DEBIT) {
             $this->assertWalletCovers($store, $amount);
         }
@@ -65,7 +66,8 @@ class AdjustmentService
         $stored = $document !== null ? $this->storeDocument($document) : null;
 
         try {
-            return DB::transaction(function () use ($store, $member, $kind, $amount, $reason, $stored, $needsTwo) {
+            return DB::transaction(function () use ($store, $member, $kind, $amount, $reason, $stored) {
+                $needsTwo = $this->needsSecondApproval($store, $member, $amount);
                 $adjustment = FinanceAdjustment::create([
                     'store_id' => $store->id,
                     'kind' => $kind->value,
@@ -148,6 +150,39 @@ class AdjustmentService
 
             return ['adjustment' => $adjustment->refresh(), 'replayed' => false];
         });
+    }
+
+    /**
+     * Review W2 (four eyes cannot be dodged by splitting): the amount alone, or with what was applied on one member's
+     * word in the last config('finance.four_eyes_window_hours') (24) — by this member on any store, or on this store
+     * by any member — reaches the threshold. Adjustments a second member approved, pending and rejected ones do not
+     * count; the legacy superadmin panel's manual top-ups (LedgerService::reduceDebt with a member and no reference)
+     * do, and that panel asks the same before one (GlobalStoresTable). Under the store's and the member's row locks
+     * (store first, like every ledger path): callers run it in a transaction, so two requests at once cannot both pass.
+     */
+    public function needsSecondApproval(Store $store, User $member, Money $amount): bool
+    {
+        $threshold = PayoutService::threshold();
+        if ($amount->isGreaterThanOrEqualTo($threshold)) {
+            return true;
+        }
+
+        Store::withTrashed()->whereKey($store->id)->lockForUpdate()->value('id');
+        User::whereKey($member->id)->lockForUpdate()->value('id');
+
+        $since = now()->subHours(max(1, (int) config('finance.four_eyes_window_hours', 24)));
+        $alone = fn () => FinanceAdjustment::query()->where('status', FinanceAdjustment::APPLIED)
+            ->where('needs_second_approval', false)->where('applied_at', '>=', $since);
+        $legacy = fn () => StoreTransaction::query()->where('type', StoreTransactionType::TOPUP->value)->whereNotNull('performed_by')
+            ->whereNull('reference_id')->whereNull('order_id')->whereNull('payout_request_id')->whereNull('subscription_invoice_id')
+            ->where('created_at', '>=', $since);
+        $byMember = Money::of((string) $alone()->where('requested_by', $member->id)->sum('amount'))
+            ->plus(Money::of((string) $legacy()->where('performed_by', $member->id)->sum('amount'))->negated());
+        $onStore = Money::of((string) $alone()->where('store_id', $store->id)->sum('amount'))
+            ->plus(Money::of((string) $legacy()->where('store_id', $store->id)->sum('amount'))->negated());
+
+        return $byMember->plus($amount)->isGreaterThanOrEqualTo($threshold)
+            || $onStore->plus($amount)->isGreaterThanOrEqualTo($threshold);
     }
 
     public function canApprove(FinanceAdjustment $adjustment, User $member): bool

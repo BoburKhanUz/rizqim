@@ -8,6 +8,7 @@ use App\Enums\SubscriptionStatus;
 use App\Models\StoreSubscription;
 use App\Models\SubscriptionDunningEvent;
 use App\Models\SubscriptionInvoice;
+use App\Models\TariffPlan;
 use App\Services\Audit\AuditLogger;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
@@ -15,7 +16,8 @@ use Illuminate\Support\Carbon;
 /**
  * P1-23 / P4-21: a current subscription's status from its store's invoices (docs/BILLING.md):
  * - locked: a v2 plan's invoice still unpaid more than config('billing.dunning.lock_after_days') days after its due
- *   date (from the start of the next day, Asia/Tashkent); a P1-23 plan is never locked, only past_due;
+ *   date (from the start of the next day, Asia/Tashkent), the subscription on a v2 plan; a P1-23 plan is never
+ *   locked, and an invoice billed under one (left from before billing:migrate-plans) gives past_due only;
  * - past_due: an unpaid invoice past its due date;
  * - trialing: during the trial; otherwise active.
  *
@@ -41,9 +43,11 @@ class SubscriptionStatusResolver
 
         $oldest = $this->oldestOverdue($subscription->store_id, $now);
         $isV2 = $subscription->plan()->value('version') >= 2;
+        // Only a v2 plan's invoice locks (as DunningService): an old P1-23 one left unpaid gives past_due only
+        $lockable = $oldest !== null && $isV2 ? $this->oldestLockable($subscription->store_id, $now) : null;
 
         return match (true) {
-            $oldest !== null && $isV2 && $this->lockAt($oldest)->lessThanOrEqualTo($now) => SubscriptionStatus::LOCKED,
+            $lockable !== null && $this->lockAt($lockable)->lessThanOrEqualTo($now) => SubscriptionStatus::LOCKED,
             $oldest !== null => SubscriptionStatus::PAST_DUE,
             $subscription->trial_ends_at !== null && $subscription->trial_ends_at->greaterThan($now) => SubscriptionStatus::TRIALING,
             default => SubscriptionStatus::ACTIVE,
@@ -58,6 +62,20 @@ class SubscriptionStatusResolver
         return SubscriptionInvoice::where('store_id', $storeId)
             ->where('status', SubscriptionInvoiceStatus::ISSUED->value)
             ->where('due_date', '<', $this->today($now))
+            ->orderBy('due_date')
+            ->orderBy('id')
+            ->first();
+    }
+
+    /**
+     * The store's oldest overdue invoice that can lock it: one billed under a v2 plan (null when none is late).
+     */
+    public function oldestLockable(int $storeId, CarbonInterface $now): ?SubscriptionInvoice
+    {
+        return SubscriptionInvoice::where('store_id', $storeId)
+            ->where('status', SubscriptionInvoiceStatus::ISSUED->value)
+            ->where('due_date', '<', $this->today($now))
+            ->whereIn('tariff_plan_id', TariffPlan::where('version', '>=', 2)->select('id'))
             ->orderBy('due_date')
             ->orderBy('id')
             ->first();
