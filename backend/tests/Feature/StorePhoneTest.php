@@ -49,28 +49,6 @@ class StorePhoneTest extends TestCase
         $this->district = District::create(['region_id' => $this->region->id, 'name_uz' => 'Chilonzor tumani', 'is_active' => true]);
     }
 
-    public function test_a_store_created_from_the_mini_app_keeps_its_phone(): void
-    {
-        $created = $this->actingAs($this->admin, 'sanctum')->postJson('/api/v1/superadmin/stores', [
-            'name' => 'Osh Markazi',
-            'phone' => '+998712001122',
-            'commission_rate' => 10,
-            'owner_name' => 'Aziz',
-            'branch_region_id' => $this->region->id,
-            'branch_district_id' => $this->district->id,
-            'branch_address' => 'Chilonzor 1-kvartal',
-            'branch_lat' => 41.285,
-            'branch_lng' => 69.204,
-            'branch_radius' => 5,
-        ])->assertOk();
-
-        $this->assertSame('+998712001122', Store::findOrFail($created->json('data.store_id'))->phone);
-
-        $listed = collect($this->actingAs($this->admin, 'sanctum')->getJson('/api/v1/superadmin/stores')->assertOk()->json('data'))
-            ->firstWhere('id', $created->json('data.store_id'));
-        $this->assertSame('+998712001122', $listed['phone']);
-    }
-
     public function test_a_store_created_with_the_panel_wizard_keeps_its_phone(): void
     {
         $this->actingAs($this->admin);

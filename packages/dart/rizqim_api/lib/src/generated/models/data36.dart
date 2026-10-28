@@ -4,55 +4,34 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'working_hours.dart';
+import 'variants.dart';
 
 part 'data36.g.dart';
 
 @JsonSerializable()
 class Data36 {
   const Data36({
-    required this.id,
+    required this.productId,
     required this.name,
-    required this.phone,
-    required this.address,
-    required this.regionId,
-    required this.districtId,
-    required this.latitude,
-    required this.longitude,
-    required this.radiusKm,
-    required this.status,
-    required this.isActive,
-    required this.workingHours,
-    required this.isOpenNow,
-    required this.createdAt,
-    required this.updatedAt,
+    required this.description,
+    required this.imageUrl,
+    required this.batchTracked,
+    required this.variants,
   });
 
   factory Data36.fromJson(Map<String, Object?> json) => _$Data36FromJson(json);
 
-  final int id;
+  @JsonKey(name: 'product_id')
+  final int productId;
   final String name;
-  final String? phone;
-  final String? address;
-  @JsonKey(name: 'region_id')
-  final int? regionId;
-  @JsonKey(name: 'district_id')
-  final int? districtId;
-  final num? latitude;
-  final num? longitude;
-  @JsonKey(name: 'radius_km')
-  final num radiusKm;
-  final String status;
-  @JsonKey(name: 'is_active')
-  final bool isActive;
-  @JsonKey(name: 'working_hours')
-  final WorkingHours workingHours;
-  @JsonKey(name: 'is_open_now')
-  final bool isOpenNow;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
-  @JsonKey(name: 'updated_at')
-  final String? updatedAt;
+  final String? description;
+  @JsonKey(name: 'image_url')
+  final String? imageUrl;
+
+  /// P2-30: sold from a batch (kazan): without an open batch on the branch it is sold out (docs/MENU.md §4)
+  @JsonKey(name: 'batch_tracked')
+  final bool batchTracked;
+  final List<Variants> variants;
 
   Map<String, Object?> toJson() => _$Data36ToJson(this);
 }

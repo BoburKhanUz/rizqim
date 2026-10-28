@@ -44,6 +44,8 @@ Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->group(functi
     // Service charge and place fee (store default and branch overrides): settings, so never from a terminal PIN session
     Route::middleware('not-staff-session')->group(function () {
         Route::get('/owner/service-fees', [ServiceFeeController::class, 'index'])->middleware('permission:settings.manage');
-        Route::put('/owner/service-fees', [ServiceFeeController::class, 'update'])->middleware('permission:settings.manage');
+        // P4-21: a service charge needs the plan's service_charge (checked in the controller); a locked subscription
+        // changes no fees (billing.unlocked)
+        Route::put('/owner/service-fees', [ServiceFeeController::class, 'update'])->middleware(['permission:settings.manage', 'billing.unlocked']);
     });
 });

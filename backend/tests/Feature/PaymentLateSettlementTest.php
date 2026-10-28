@@ -92,13 +92,14 @@ class PaymentLateSettlementTest extends TestCase
             'sign_string' => md5('42' . '1' . 'platform-click-key' . $order->uuid . $order->id . '50000' . '1' . '2026-10-18 12:00:00'),
         ])->assertJson(['error' => 0]);
 
-        $this->assertEquals(50000, (float) $this->store->fresh()->wallet_balance);
-        $this->assertEquals(5000, (float) $this->store->fresh()->debt_balance);
+        // P4-23 (netting): the money pays the 5 000 commission debt first, the rest reaches the wallet
+        $this->assertEquals(45000, (float) $this->store->fresh()->wallet_balance);
+        $this->assertEquals(0, (float) $this->store->fresh()->debt_balance);
         $this->assertSame(OrderStatus::DELIVERED, $order->fresh()->status);
 
         event(new PaymentPaid(Payment::where('provider', 'click')->firstOrFail()));
         $this->assertSame(1, $this->settlements($order));
-        $this->assertEquals(50000, (float) $this->store->fresh()->wallet_balance);
+        $this->assertEquals(45000, (float) $this->store->fresh()->wallet_balance);
     }
 
     public function test_payme_late_payment_settles_and_is_then_refused_a_refund(): void
@@ -111,7 +112,7 @@ class PaymentLateSettlementTest extends TestCase
         $this->payme('PerformTransaction', ['id' => 'late-1'])->assertJsonPath('result.state', 2);
 
         $this->assertSame(1, $this->settlements($order));
-        $this->assertEquals(50000, (float) $this->store->fresh()->wallet_balance);
+        $this->assertEquals(45000, (float) $this->store->fresh()->wallet_balance); // P4-23: 5 000 commission debt netted
 
         // The store has been credited, so the platform cannot hand the money back through Payme.
         $this->payme('CancelTransaction', ['id' => 'late-1', 'reason' => 5])->assertJsonPath('error.code', -31007);

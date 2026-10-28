@@ -25,9 +25,9 @@ export const staffKeys = {
   finance: ['ownerFinance'] as const,
   subscription: ['owner', 'subscription'] as const,
   invoices: (query?: object) => ['owner', 'invoices', query ?? null] as const,
+  entitlements: ['owner', 'billing', 'entitlements'] as const,
 
   analytics: ['owner', 'analytics'] as const,
   analyticsPeriod: (period: string, from?: string | null, to?: string | null) => ['owner', 'analytics', period, from ?? null, to ?? null] as const,
 
-  superadmin: ['superadmin'] as const,
 };

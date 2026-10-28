@@ -361,14 +361,20 @@ class AuthStaffPhoneLoginTest extends TestCase
             ->assertUnprocessable();
     }
 
-    public function test_a_super_admin_or_a_storeless_account_is_not_a_staff_login(): void
+    public function test_a_storeless_account_is_not_a_staff_login(): void
     {
-        $admin = User::create(['name' => 'Admin', 'role' => UserRole::SUPER_ADMIN, 'email' => 'root@example.uz', 'password' => bcrypt('x')]);
-        $admin->forceFill(['phone' => self::PHONE, 'phone_verified_at' => now()])->save();
         $storeless = User::create(['name' => 'Lost', 'role' => UserRole::MANAGER]);
         $storeless->forceFill(['phone' => self::PHONE, 'phone_verified_at' => now()])->save();
 
         $this->staffLogin($this->sendCode())->assertForbidden()->assertJsonPath('data.reason', 'staff_account_not_found');
+    }
+
+    public function test_a_super_admin_is_not_a_staff_login_and_is_sent_to_the_control_center(): void
+    {
+        $admin = User::create(['name' => 'Admin', 'role' => UserRole::SUPER_ADMIN, 'email' => 'root@example.uz', 'password' => bcrypt('x')]);
+        $admin->forceFill(['phone' => self::PHONE, 'phone_verified_at' => now()])->save();
+
+        $this->staffLogin($this->sendCode())->assertForbidden()->assertJsonPath('data.reason', 'platform_account');
     }
 
     public function test_vouching_only_takes_a_staff_account_and_a_proper_number(): void

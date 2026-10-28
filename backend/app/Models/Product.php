@@ -79,7 +79,8 @@ class Product extends Model
      */
     public function variants(): HasMany
     {
-        return $this->hasMany(ProductVariant::class);
+        // In the order they were added: Postgres returns unordered rows in any order, and menus, APIs and tests rely on it
+        return $this->hasMany(ProductVariant::class)->orderBy('id');
     }
 
     /**

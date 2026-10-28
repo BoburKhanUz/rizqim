@@ -4,50 +4,36 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'modifiers.dart';
-import 'product_rules.dart';
-
 part 'data81.g.dart';
 
 @JsonSerializable()
 class Data81 {
   const Data81({
     required this.id,
-    required this.uuid,
+    required this.branchId,
     required this.name,
-    required this.nameI18n,
-    required this.minSelect,
-    required this.maxSelect,
-    required this.isRequired,
+    required this.kind,
+    required this.kindLabel,
     required this.sortOrder,
     required this.isActive,
-    required this.modifiers,
-    required this.productIds,
-    required this.productRules,
+    required this.showOnKds,
   });
 
   factory Data81.fromJson(Map<String, Object?> json) => _$Data81FromJson(json);
 
   final int id;
-  final String uuid;
+  @JsonKey(name: 'branch_id')
+  final int branchId;
   final String name;
-  @JsonKey(name: 'name_i18n')
-  final Map<String, String>? nameI18n;
-  @JsonKey(name: 'min_select')
-  final int minSelect;
-  @JsonKey(name: 'max_select')
-  final int? maxSelect;
-  @JsonKey(name: 'is_required')
-  final bool isRequired;
+  final String kind;
+  @JsonKey(name: 'kind_label')
+  final String kindLabel;
   @JsonKey(name: 'sort_order')
   final int sortOrder;
   @JsonKey(name: 'is_active')
   final bool isActive;
-  final List<Modifiers> modifiers;
-  @JsonKey(name: 'product_ids')
-  final List<int> productIds;
-  @JsonKey(name: 'product_rules')
-  final ProductRules productRules;
+  @JsonKey(name: 'show_on_kds')
+  final bool showOnKds;
 
   Map<String, Object?> toJson() => _$Data81ToJson(this);
 }

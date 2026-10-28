@@ -18,7 +18,7 @@ Data38 _$Data38FromJson(Map<String, dynamic> json) => Data38(
   radiusKm: json['radius_km'] as num,
   status: json['status'] as String,
   isActive: json['is_active'] as bool,
-  workingHours: WorkingHours3.fromJson(
+  workingHours: WorkingHours2.fromJson(
     json['working_hours'] as Map<String, dynamic>,
   ),
   isOpenNow: json['is_open_now'] as bool,

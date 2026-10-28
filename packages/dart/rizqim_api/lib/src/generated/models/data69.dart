@@ -5,8 +5,8 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'tax_regime.dart';
-import 'fiscal_settings2.dart';
-import 'tax_regimes2.dart';
+import 'fiscal_settings.dart';
+import 'tax_regimes.dart';
 
 part 'data69.g.dart';
 
@@ -26,10 +26,10 @@ class Data69 {
   @JsonKey(name: 'tax_regime')
   final TaxRegime? taxRegime;
   @JsonKey(name: 'fiscal_settings')
-  final FiscalSettings2 fiscalSettings;
+  final FiscalSettings fiscalSettings;
   final List<String> drivers;
   @JsonKey(name: 'tax_regimes')
-  final List<TaxRegimes2> taxRegimes;
+  final List<TaxRegimes> taxRegimes;
 
   Map<String, Object?> toJson() => _$Data69ToJson(this);
 }

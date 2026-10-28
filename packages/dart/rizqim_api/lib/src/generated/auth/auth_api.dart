@@ -57,6 +57,9 @@ abstract class AuthApi {
   /// `web`, `partner_mobile` or `courier` is required: 403 `staff_account_not_found` when there is none; 409.
   /// `account_selection_required` with `selection_token` and `accounts` when the phone holds several (the same person.
   /// in two stores), and the client then calls POST /auth/phone/select-account.
+  ///
+  /// P4-25: a phone that only a superadmin / RIZQIM team account holds never signs in here, in either mode: 403.
+  /// `platform_account` ("Boshqaruv markazidan kiring"). A customer or staff account with the same phone signs in as usual.
   @POST('/v1/auth/phone/verify')
   Future<PostV1AuthPhoneVerifyResponse> phoneLoginVerify({
     @Body() required V1AuthPhoneVerifyRequestBody body,

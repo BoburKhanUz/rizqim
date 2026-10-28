@@ -19,6 +19,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property numeric-string $discount
  * @property numeric-string $total_price
  * @property numeric-string $commission_amount
+ * @property string|null $commission_channel P4-21: App\Enums\CommissionChannel value at checkout (null before Billing v2)
+ * @property numeric-string|null $commission_rate P4-21: the percent charged at checkout
  * @property \Illuminate\Support\Carbon|null $settlement_failed_at
  * @property int $settlement_attempts
  * @property \App\Enums\CancelReason|null $cancel_reason
@@ -111,6 +113,7 @@ class Order extends Model
             'discount' => 'decimal:2',
             'total_price' => 'decimal:2',
             'commission_amount' => 'decimal:2',
+            'commission_rate' => 'decimal:2', // P4-21
             // A delivered order whose ledger booking failed and is retried (SettlementRecoveryService)
             'settlement_failed_at' => 'datetime',
             'settlement_attempts' => 'integer',

@@ -19,6 +19,11 @@ use App\Traits\Auditable;
  * @property numeric-string $min_payout_reserve
  * @property numeric-string $min_order_amount
  *
+ * P4-21: Billing v2 (docs/BILLING.md)
+ * @property numeric-string $subscription_debt the part of debt_balance that is unpaid subscription invoices
+ * @property array<string, mixed>|null $commission_overrides the store's own commission per App\Enums\CommissionChannel
+ * @property \App\Enums\CourierType $delivery_courier who delivers its Mini App delivery orders
+ *
  * P3-11: the store as a taxpayer (App\Domain\Fiscal)
  * @property string|null $tin STIR, 9 digits
  * @property string|null $tax_regime vat | vat_simplified | turnover (App\Domain\Fiscal\TaxRegime); null: not chosen
@@ -35,7 +40,7 @@ class Store extends Model
     use Auditable;
     
     // Ledger balances change only through LedgerService (explicit forceFill), never via mass assignment.
-    protected $guarded = ['id', 'debt_balance', 'wallet_balance'];
+    protected $guarded = ['id', 'debt_balance', 'wallet_balance', 'subscription_debt'];
 
     protected $hidden = ['telegram_bot_token'];
 
@@ -50,6 +55,7 @@ class Store extends Model
         'commission_rate', 'payment_account_type', 'settlement_type',
         'legal_name', 'tax_number', 'bank_account', 'moderation_note', 'telegram_admin_chat_id',
         'fiscal_settings', // P3-11: shown through GET /owner/settings and /owner/fiscal/settings only
+        'subscription_debt', 'commission_overrides', 'delivery_courier', // P4-21
     ];
 
     /**
@@ -80,8 +86,20 @@ class Store extends Model
      */
     public function exceedsCreditLimit(\App\Support\Money|string|int|float|null $debt = null): bool
     {
-        return \App\Support\Money::of(func_num_args() > 0 ? $debt : $this->debt_balance)
+        return $this->commissionDebt(func_num_args() > 0 ? $debt : $this->debt_balance)
             ->isGreaterThan(\App\Support\Money::of($this->credit_limit)->abs());
+    }
+
+    /**
+     * P4-21 (owner decision 28.10.2026): the part of a debt (the store's own debt_balance by default) the credit limit
+     * counts: everything but the unpaid subscription invoices (subscription_debt), which never stop Mini App orders.
+     * A store read without the subscription_debt column counts its whole debt, as before Billing v2.
+     */
+    public function commissionDebt(\App\Support\Money|string|int|float|null $debt = null): \App\Support\Money
+    {
+        $subscription = array_key_exists('subscription_debt', $this->attributes) ? ($this->attributes['subscription_debt'] ?? 0) : 0;
+
+        return \App\Support\Money::of(func_num_args() > 0 ? $debt : $this->debt_balance)->minus($subscription);
     }
 
     /**
@@ -401,6 +419,10 @@ class Store extends Model
             'min_payout_reserve' => 'decimal:2',
             'min_order_amount' => 'decimal:2',
             'fiscal_settings' => 'array', // P3-11
+            // P4-21
+            'subscription_debt' => 'decimal:2',
+            'commission_overrides' => 'array',
+            'delivery_courier' => \App\Enums\CourierType::class,
         ];
     }
     
@@ -514,23 +536,16 @@ class Store extends Model
     // --- P1-23: tariffs and subscription billing (docs/BILLING.md) ---
 
     /**
-     * The commission percentage charged on this store's online orders: the current tariff plan's when the plan sets
-     * one, otherwise the store's own commission_rate (10 when unset), exactly as before plans existed.
-     * CreateOrderAction snapshots it on each order and the ledger charges that snapshot.
+     * The commission percentage of this store's own-delivery online orders (P4-21: App\Services\Finance\Billing\
+     * CommissionPolicy, by channel). Kept for the screens that show one rate (GET /owner/finance, /owner/subscription):
+     * a legacy flat rate or plan rate when the store has one, else its own-delivery rate. CreateOrderAction snapshots
+     * the order's own channel rate and the ledger charges that snapshot.
      *
      * @return numeric-string
      */
     public function commissionRate(): string
     {
-        $planRate = $this->exists
-            ? TariffPlan::query()
-                ->whereIn('id', StoreSubscription::query()->current()->where('store_id', $this->id)->select('tariff_plan_id'))
-                ->value('commission_percent')
-            : null;
-
-        $rate = (string) ($planRate ?? $this->commission_rate ?? 10);
-
-        return is_numeric($rate) ? $rate : '10';
+        return app(\App\Services\Finance\Billing\CommissionPolicy::class)->rateFor($this, \App\Enums\CommissionChannel::OWN_DELIVERY);
     }
 
     /**

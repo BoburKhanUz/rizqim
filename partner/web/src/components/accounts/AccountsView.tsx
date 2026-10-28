@@ -5,6 +5,7 @@ import { BookUser, Pencil, Plus, ScrollText, Search } from 'lucide-react';
 import { Button, Card, EmptyState, Field, InlineError, Skeleton, cx, fieldClass, formatMoney, PageHeader, Notice, Pill } from '@rizqim/ui';
 import { useCustomerAccounts, useDebtors, type CustomerAccount } from '@rizqim/staff';
 import { useI18n } from '../I18nProvider';
+import { PlanButton, PlanNotice } from '../billing/PlanGate';
 import { useCan } from '../management/access';
 import { errorText } from '../management/errors';
 import { DataTable, Pager, Td, Th } from '../reports/ui';
@@ -50,12 +51,14 @@ export function AccountsView() {
         title={t('nav_accounts')}
         subtitle={t('acct_subtitle')}
         action={
-          <Button icon={Plus} onClick={() => setDialog({ account: null })}>
+          <PlanButton feature="customer_accounts" icon={Plus} onClick={() => setDialog({ account: null })}>
             {t('acct_add')}
-          </Button>
+          </PlanButton>
         }
       />
       <Notice message={notice} />
+      {/* P4-21: a new nasiya account is the plan's customer_accounts; the accounts that exist, their statements and repayments stay */}
+      <PlanNotice feature="customer_accounts" />
 
       <div className="mb-4 grid gap-3 sm:grid-cols-2">
         <Card className="flex flex-col gap-1">

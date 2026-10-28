@@ -10,6 +10,7 @@ import '../features/order/kitchen_tickets.dart';
 import '../services.dart';
 import 'destinations.dart';
 import 'limited_mode.dart';
+import 'plan_gate.dart';
 import 'pos_scope.dart';
 import 'top_bar.dart';
 
@@ -49,6 +50,7 @@ class _HomeShellState extends State<HomeShell> {
   final Set<CashierDestination> _visited = <CashierDestination>{};
   final List<StreamSubscription<Object?>> _subs =
       <StreamSubscription<Object?>>[];
+  late final PlanRefresher _plan = PlanRefresher(widget.services.session);
 
   PosSession get _session => widget.services.session;
 
@@ -57,6 +59,8 @@ class _HomeShellState extends State<HomeShell> {
     super.initState();
     _visited.add(_current);
     _subs.add(_session.changes.listen((_) => _rebuild()));
+    // P4-21: the plan is read again now and then, so paying the invoice opens the locks and removes the notice
+    _plan.start();
     final PosOffline? offline = widget.services.data.offline;
     if (offline != null) {
       _subs.add(
@@ -93,6 +97,7 @@ class _HomeShellState extends State<HomeShell> {
 
   @override
   void dispose() {
+    _plan.dispose();
     for (final StreamSubscription<Object?> s in _subs) {
       unawaited(s.cancel());
     }
@@ -200,6 +205,8 @@ class _HomeShellState extends State<HomeShell> {
           );
           final Widget pages = Column(
             children: <Widget>[
+              // P4-21: an unpaid invoice, in plain words; the till keeps working
+              const PlanNoticeBanner(),
               const LimitedModeBanner(),
               if (_priceNotices.isNotEmpty)
                 SyncPriceBanner(

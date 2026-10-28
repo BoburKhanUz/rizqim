@@ -52,6 +52,13 @@ Muammolar:
 **Ekran qulfi.** Telefonga bir necha daqiqa (filial sozlamasi, standart 5 daqiqa) tegilmasa, ilova PIN so'raydi. Tepada
 qulf tugmasi bor — ishdan ketayotganda uni bosing. (Menejer yoki ega kirsa, tepada menyu (⋮) ham chiqadi: **Terminalni uzish**. Ofitsiantda bu tugma yo'q.)
 
+### Tarif va to'lov lentasi
+
+"Mening xonalarim" tepasida rangli lenta chiqishi mumkin: **To'lov muddati o'tdi — X kundan keyin sozlamalar yopiladi** (sariq) yoki
+**Sozlamalar yopiq — to'lov qiling** (qizil). Bu do'kon hisob-fakturasi to'lanmaganini bildiradi. **Ofitsiant uchun hech narsa
+o'zgarmaydi**: xonani ochish, taom qo'shish, oshxonaga yuborish, "Berildi" va schyot so'rash ishlayveradi. To'lovni ega qiladi,
+to'lov tushgach lenta o'zi yo'qoladi. Ofitsiant telefonlari soni cheklanmagan va bepul.
+
 ## 2. Mening xonalarim
 
 Bosh ekran. Tepada uchta yorliq, har birida soni yoziladi:
@@ -258,3 +265,4 @@ Muhim:
 | "Buyurtmani boshqa qurilma o'zgartirdi" | Ro'yxat yangilandi; amalni qayta bajaring |
 | "Bu buyurtmaning schyoti to'lana boshlagan" | Schyotning bir qismi to'langan, o'zgarish unga tegadi. Kassirga ayting: u avval to'lovni qaytaradi ([8-bo'lim](#8-mehmonlar-soni-va-kochirish)) |
 | Ekran qulflanib qoldi | PIN bilan oching. Yuborilmagan savat yo'qolgan bo'lishi mumkin: qayta qo'shing |
+| Tepada sariq yoki qizil lenta (**To'lov muddati o'tdi**, **Sozlamalar yopiq**) | Do'kon hisob-fakturasi to'lanmagan. Ishlashda davom eting, egaga ayting ([lenta haqida](#tarif-va-tolov-lentasi)) |

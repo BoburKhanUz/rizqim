@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from 'react';
 import { Button, Dialog, FormError } from '@rizqim/ui';
-import { useDeleteHallServiceFee, useSaveServiceFee, type Hall, type PlaceFeeMode } from '@rizqim/staff';
+import { useDeleteHallServiceFee, useFeature, useSaveServiceFee, type Hall, type PlaceFeeMode } from '@rizqim/staff';
 import { useI18n } from '../I18nProvider';
 import { errorText } from '../management/errors';
 import { NumberField, parseDecimal } from '../management/fields';
@@ -21,10 +21,13 @@ export function HallFeeDialog({ hall, onClose, onSaved }: { hall: Hall; onClose:
   const save = useSaveServiceFee();
   const remove = useDeleteHallServiceFee();
   const busy = save.isPending || remove.isPending;
+  // P4-21: a service charge above 0 is the plan's `service_charge`; without it only the place fee is set
+  const serviceCharge = useFeature('service_charge');
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    const percentValue = parseDecimal(percent);
+    // A plan without the service charge sends 0: the server refuses any percent above 0 (403), even the one stored from before
+    const percentValue = serviceCharge.allowed ? parseDecimal(percent) : 0;
     const amountValue = parseDecimal(amount);
     const problems: Record<string, string> = {};
     if (percentValue === undefined || percentValue === null) problems.service_charge_percent = t('mgmt_numberInvalid');
@@ -41,7 +44,15 @@ export function HallFeeDialog({ hall, onClose, onSaved }: { hall: Hall; onClose:
   return (
     <Dialog open title={t('floor_fee_title', { name: hall.name })} description={t('floor_fee_intro')} busy={busy} closeLabel={t('mgmt_close')} onClose={onClose}>
       <form onSubmit={submit} noValidate className="flex flex-col gap-4">
-        <NumberField label={t('floor_fee_percent')} hint={t('floor_fee_percentHint')} value={percent} onChange={setPercent} suffix="%" error={local.service_charge_percent ?? errors.fields.service_charge_percent} />
+        <NumberField
+          label={t('floor_fee_percent')}
+          hint={serviceCharge.allowed ? t('floor_fee_percentHint') : t(serviceCharge.planName ? 'billing_serviceChargeLocked' : 'billing_serviceChargeLockedNoPlan', { plan: serviceCharge.planName ?? '' })}
+          value={serviceCharge.allowed ? percent : '0'}
+          onChange={setPercent}
+          suffix="%"
+          disabled={!serviceCharge.allowed}
+          error={local.service_charge_percent ?? errors.fields.service_charge_percent}
+        />
         <NumberField label={t('floor_fee_place')} value={amount} onChange={setAmount} suffix="so'm" error={local.place_fee_amount ?? errors.fields.place_fee_amount} />
         <SelectField
           label={t('floor_fee_mode')}

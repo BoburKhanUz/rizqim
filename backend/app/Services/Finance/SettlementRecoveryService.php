@@ -4,7 +4,12 @@ namespace App\Services\Finance;
 
 use App\Enums\OrderStatus;
 use App\Models\Order;
+use App\Models\OrderLedgerReversal;
+use App\Models\OrderRefundRequest;
+use App\Models\Payment;
+use App\Services\Admin\Orders\RefundRequestService;
 use App\Services\Notifications\SuperadminAlertService;
+use App\Support\Money;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -17,6 +22,10 @@ use Throwable;
  * (settlement_failed_at, settlement_error, settlement_attempts), the failure is logged as critical and superadmins are
  * alerted. RetryFailedSettlementsJob books such orders again every 10 minutes, clearing the marker once it succeeds,
  * until config('orders.settlement_retry_max_attempts') bookings failed: then it gives up with a louder alert.
+ *
+ * Review W2: a part of the order refunded (an approved refund request) while the booking had failed found nothing on
+ * the ledger to take back; the booking that succeeds later reverses those parts in the same savepoint
+ * (reverseDeferredParts: cumulative, each request once, as if each had been approved after the booking).
  */
 class SettlementRecoveryService
 {
@@ -37,7 +46,12 @@ class SettlementRecoveryService
     public function book(Order $order, ?int $performedBy = null): bool
     {
         try {
-            DB::transaction(fn () => $this->ledger->processOrderDelivered($order, $performedBy));
+            DB::transaction(function () use ($order, $performedBy) {
+                $this->ledger->processOrderDelivered($order, $performedBy);
+                if ($order->settlement_failed_at !== null) {
+                    $this->reverseDeferredParts($order, $performedBy);
+                }
+            });
 
             return true;
         } catch (Throwable $e) {
@@ -79,6 +93,39 @@ class SettlementRecoveryService
 
             return true;
         });
+    }
+
+    /**
+     * The approved parts of a delivered order without a ledger reversal (approved while nothing was booked), in the
+     * order they were approved: each takes back its share of what is booked now, pro-rata of everything given back up to
+     * it (RefundRequestService::balanceOf), exactly as its approval would have after the booking. Records what it took
+     * back on the request (`execution.ledger_reversal`, `ledger_reversal_on_retry`).
+     */
+    protected function reverseDeferredParts(Order $order, ?int $performedBy): void
+    {
+        if ($order->status !== OrderStatus::DELIVERED) {
+            return;
+        }
+
+        $approved = RefundRequestService::approvedRequests([(int) $order->id])->get();
+        $reversed = OrderLedgerReversal::where('order_id', $order->id)->whereNotNull('order_refund_request_id')
+            ->pluck('order_refund_request_id')->map(fn ($id) => (int) $id)->all();
+        $deferred = $approved->filter(fn (OrderRefundRequest $request) => ($request->execution['order_status_before'] ?? null) === OrderStatus::DELIVERED->value
+            && !in_array((int) $request->id, $reversed, true));
+        if ($deferred->isEmpty()) {
+            return;
+        }
+
+        $payments = Payment::where('order_id', $order->id)->orderBy('id')->get(['id', 'provider', 'amount', 'status', 'payload']);
+        foreach ($deferred as $request) {
+            $upTo = RefundRequestService::balanceOf($payments, $approved->filter(fn (OrderRefundRequest $other) => (int) $other->id <= (int) $request->id));
+            $taken = $this->ledger->reverseDeliveredOrderShare($order, (int) $request->id, $upTo['refunded'], $upTo['paid'], $performedBy);
+
+            $request->forceFill(['execution' => array_merge($request->execution ?? [], [
+                'ledger_reversal' => array_map(fn (Money $value) => $value->toString(), $taken),
+                'ledger_reversal_on_retry' => true,
+            ])])->save();
+        }
     }
 
     /**

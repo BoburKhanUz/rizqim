@@ -40,13 +40,19 @@ class AdminPii
         return PiiMask::formatPhone($phone);
     }
 
-    public function card(?User $viewer, ?string $card, string $type, int|string|null $id): ?string
+    /**
+     * @param  AdminPermission|null  $orWith  a permission that also reveals this one card (a payout approver needs the
+     *                                        number to transfer to); the reveal is audited the same way
+     */
+    public function card(?User $viewer, ?string $card, string $type, int|string|null $id, ?AdminPermission $orWith = null): ?string
     {
         if ($card === null || trim($card) === '') {
             return $card;
         }
 
-        if (!$this->canReveal($viewer)) {
+        $allowed = $this->canReveal($viewer)
+            || ($orWith !== null && $viewer !== null && $this->permissions->has($viewer, $orWith));
+        if (!$allowed) {
             return PiiMask::card($card);
         }
 

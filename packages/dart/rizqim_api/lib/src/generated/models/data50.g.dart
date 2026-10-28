@@ -7,29 +7,33 @@ part of 'data50.dart';
 // **************************************************************************
 
 Data50 _$Data50FromJson(Map<String, dynamic> json) => Data50(
-  id: (json['id'] as num).toInt(),
-  branchId: (json['branch_id'] as num).toInt(),
-  hallId: (json['hall_id'] as num).toInt(),
+  uuid: json['uuid'] as String,
+  type: json['type'] as String,
   name: json['name'] as String,
-  kind: json['kind'] as String,
-  seats: (json['seats'] as num?)?.toInt(),
-  layout: Layout.fromJson(json['layout'] as Map<String, dynamic>),
-  sortOrder: (json['sort_order'] as num).toInt(),
-  isActive: json['is_active'] as bool,
-  minSpend: json['min_spend'] as String?,
-  minSpendMode: json['min_spend_mode'] as String,
+  platform: json['platform'] as String?,
+  appVersion: json['app_version'] as String?,
+  storeId: (json['store_id'] as num?)?.toInt(),
+  branchId: (json['branch_id'] as num?)?.toInt(),
+  user: json['user'] == null
+      ? null
+      : User13.fromJson(json['user'] as Map<String, dynamic>),
+  hasPushToken: json['has_push_token'] as bool,
+  lastSeenAt: json['last_seen_at'] as String?,
+  revokedAt: json['revoked_at'] as String?,
+  createdAt: json['created_at'] as String?,
 );
 
 Map<String, dynamic> _$Data50ToJson(Data50 instance) => <String, dynamic>{
-  'id': instance.id,
-  'branch_id': instance.branchId,
-  'hall_id': instance.hallId,
+  'uuid': instance.uuid,
+  'type': instance.type,
   'name': instance.name,
-  'kind': instance.kind,
-  'seats': instance.seats,
-  'layout': instance.layout,
-  'sort_order': instance.sortOrder,
-  'is_active': instance.isActive,
-  'min_spend': instance.minSpend,
-  'min_spend_mode': instance.minSpendMode,
+  'platform': instance.platform,
+  'app_version': instance.appVersion,
+  'store_id': instance.storeId,
+  'branch_id': instance.branchId,
+  'user': instance.user,
+  'has_push_token': instance.hasPushToken,
+  'last_seen_at': instance.lastSeenAt,
+  'revoked_at': instance.revokedAt,
+  'created_at': instance.createdAt,
 };

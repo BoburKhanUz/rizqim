@@ -27,7 +27,7 @@ describe('getRootPaths', () => {
   });
 
   it('is a subset of the paths that are a tab of anybody', () => {
-    for (const role of ['owner', 'manager', 'courier', 'super_admin', 'customer'] as const) {
+    for (const role of ['owner', 'manager', 'courier', 'customer'] as const) {
       for (const path of getRootPaths(role)) expect(ROOT_PATHS.has(path)).toBe(true);
     }
   });

@@ -193,7 +193,8 @@ test('the control center: invite, 2FA, step-up, team, audit, search, sign-out - 
     await expect(store).toContainText(seed.store.name)
     await store.click()
     await expect(page).toHaveURL(new RegExp(`/stores/${seed.store.id}$`))
-    await expect(page.getByText("Bu bo'lim keyingi to'lqinda qo'shiladi")).toBeVisible()
+    // Wave 2 (P4-22): the search opens the store's 360-degree card
+    await expect(page.getByRole('heading', { name: seed.store.name, level: 1 })).toBeVisible()
   })
 
   await test.step('signing out leaves nothing behind', async () => {

@@ -85,6 +85,7 @@ class TokenService
             // The answer to a refresh got lost on the way (network drop) and the app retries with the token it just
             // spent: rotate once more, ending the pair the app never received, instead of logging it out
             if ($current->used_at !== null && $current->revoked_at === null && $device && $rightDevice && $current->user
+                && !$current->user->isPlatformAccount()
                 && ($successor = $this->unclaimedSuccessor($current)) !== null) {
                 $this->revokeToken($successor);
                 $current->forceFill(['grace_used_at' => now()])->save();
@@ -111,6 +112,13 @@ class TokenService
                 $current->forceFill(['revoked_at' => now()])->save();
 
                 return 'expired';
+            }
+
+            // P4-25: a superadmin / platform account holds no app session; a refresh token it got earlier mints nothing
+            if ($current->user->isPlatformAccount()) {
+                $this->revokeFamily($current->family_id);
+
+                return 'invalid';
             }
 
             $current->forceFill(['used_at' => now()])->save();

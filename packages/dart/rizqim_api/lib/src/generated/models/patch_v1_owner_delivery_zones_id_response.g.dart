@@ -11,7 +11,7 @@ _$PatchV1OwnerDeliveryZonesIdResponseFromJson(Map<String, dynamic> json) =>
     PatchV1OwnerDeliveryZonesIdResponse(
       success: json['success'] as bool,
       message: json['message'] as String,
-      data: Data45.fromJson(json['data'] as Map<String, dynamic>),
+      data: Data46.fromJson(json['data'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$PatchV1OwnerDeliveryZonesIdResponseToJson(

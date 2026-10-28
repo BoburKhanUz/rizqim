@@ -120,6 +120,10 @@ class StoreDeviceController extends Controller
             return $this->error("Noto'g'ri filial tanlandi.", [], 422);
         }
 
+        // P4-21: a KDS needs the plan's kds; while the subscription is locked only up to the plan's terminals (a
+        // broken till is still replaced). 403 plan_feature_missing / device_limit
+        app(\App\Services\Finance\Billing\Entitlements::class)->assertCanPair($store, DeviceType::from($data['type']));
+
         try {
             $result = $this->pairing->createCode($store, $branch, DeviceType::from($data['type']), $data['name'] ?? null, $user);
         } catch (AuthTokenException $e) {

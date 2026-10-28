@@ -8,7 +8,7 @@ part of 'subscription_invoice.dart';
 
 SubscriptionInvoice _$SubscriptionInvoiceFromJson(Map<String, dynamic> json) =>
     SubscriptionInvoice(
-      id: (json['id'] as num).toInt(),
+      baseFee: json['base_fee'] as String,
       uuid: json['uuid'] as String,
       number: json['number'] as String,
       storeId: (json['store_id'] as num).toInt(),
@@ -19,7 +19,7 @@ SubscriptionInvoice _$SubscriptionInvoiceFromJson(Map<String, dynamic> json) =>
       periodEnd: DateTime.parse(json['period_end'] as String),
       terminalsCount: (json['terminals_count'] as num).toInt(),
       includedTerminals: (json['included_terminals'] as num).toInt(),
-      baseFee: json['base_fee'] as String,
+      id: (json['id'] as num).toInt(),
       feePerTerminal: json['fee_per_terminal'] as String,
       lines: (json['lines'] as List<dynamic>)
           .map((e) => e as Map<String, dynamic>)
@@ -37,13 +37,24 @@ SubscriptionInvoice _$SubscriptionInvoiceFromJson(Map<String, dynamic> json) =>
       voidedBy: json['voided_by'],
       voidReason: json['void_reason'] as String?,
       ledgerTransactionId: (json['ledger_transaction_id'] as num?)?.toInt(),
-      voidTransactionId: (json['void_transaction_id'] as num?)?.toInt(),
+      voidRequestReason: json['void_request_reason'] as String?,
       createdAt: json['created_at'] == null
           ? null
           : DateTime.parse(json['created_at'] as String),
       updatedAt: json['updated_at'] == null
           ? null
           : DateTime.parse(json['updated_at'] as String),
+      kind: InvoiceKind.fromJson(json['kind'] as String),
+      sequence: (json['sequence'] as num).toInt(),
+      paidAmount: json['paid_amount'] as String,
+      voidRequestedBy: (json['void_requested_by'] as num?)?.toInt(),
+      voidRequestedAt: json['void_requested_at'] == null
+          ? null
+          : DateTime.parse(json['void_requested_at'] as String),
+      voidTransactionId: (json['void_transaction_id'] as num?)?.toInt(),
+      voidRequester: json['void_requester'] == null
+          ? null
+          : User.fromJson(json['void_requester'] as Map<String, dynamic>),
       store: json['store'] == null
           ? null
           : Store.fromJson(json['store'] as Map<String, dynamic>),
@@ -86,6 +97,13 @@ Map<String, dynamic> _$SubscriptionInvoiceToJson(
   'void_transaction_id': instance.voidTransactionId,
   'created_at': instance.createdAt?.toIso8601String(),
   'updated_at': instance.updatedAt?.toIso8601String(),
+  'kind': instance.kind,
+  'sequence': instance.sequence,
+  'paid_amount': instance.paidAmount,
+  'void_requested_by': instance.voidRequestedBy,
+  'void_requested_at': instance.voidRequestedAt?.toIso8601String(),
+  'void_request_reason': instance.voidRequestReason,
+  'void_requester': instance.voidRequester,
   'store': instance.store,
   'subscription': instance.subscription,
   'plan': instance.plan,

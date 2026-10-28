@@ -10,7 +10,7 @@ Data41 _$Data41FromJson(Map<String, dynamic> json) => Data41(
   branchId: (json['branch_id'] as num).toInt(),
   timezone: json['timezone'] as String,
   businessDayStartsAt: json['business_day_starts_at'] as String,
-  posSettings: PosSettings2.fromJson(
+  posSettings: PosSettings.fromJson(
     json['pos_settings'] as Map<String, dynamic>,
   ),
 );

@@ -292,7 +292,7 @@ class BillingSubscriptionInvoiceTest extends TestCase
         $this->assertSame(0, StoreTransaction::count());
     }
 
-    public function test_voiding_reverses_the_ledger_charge_once_and_unblocks_the_store(): void
+    public function test_voiding_reverses_the_ledger_charge_once_and_an_invoice_never_blocks_the_store(): void
     {
         $store = $this->billingStore('Tight Cafe', ['credit_limit' => -100000]);
         $admin = User::create(['name' => 'Admin', 'phone' => '+998901110001', 'password' => bcrypt('x'), 'role' => 'super_admin']);
@@ -300,10 +300,14 @@ class BillingSubscriptionInvoiceTest extends TestCase
 
         $this->billing->run($this->tashkent('2026-11-01 00:15'));
 
-        // Over the credit limit, the invoice blocks the store like a commission would
+        // P4-21 (owner decision 28.10.2026): over the credit limit, an invoice no longer blocks the store; only the
+        // commission debt counts (the invoice goes through the dunning routine instead)
         $store->refresh();
         $this->assertSame('300000.50', $store->debt_balance);
-        $this->assertSame(StoreStatus::PAYMENT_REQUIRED, $store->status);
+        $this->assertSame('300000.50', $store->subscription_debt);
+        $this->assertSame(StoreStatus::ACTIVE, $store->status);
+        // A store blocked by its commission debt before is unblocked once the void brings that back within the limit
+        $store->forceFill(['status' => StoreStatus::PAYMENT_REQUIRED->value])->save();
 
         $invoice = SubscriptionInvoice::sole();
         $this->billing->voidInvoice($invoice, $admin, 'Xato hisoblandi', $this->tashkent('2026-11-02 10:00'));
@@ -322,6 +326,7 @@ class BillingSubscriptionInvoiceTest extends TestCase
 
         $store->refresh();
         $this->assertSame('0.00', $store->debt_balance);
+        $this->assertSame('0.00', $store->subscription_debt);
         $this->assertSame(StoreStatus::ACTIVE, $store->status);
         $this->assertDatabaseHas('audit_logs', ['action' => 'subscription_invoice.voided', 'store_id' => $store->id, 'user_id' => $admin->id]);
     }

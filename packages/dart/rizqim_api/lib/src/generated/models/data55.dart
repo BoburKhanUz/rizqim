@@ -4,9 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'user_role.dart';
-import 'courier_type.dart';
-import 'branch7.dart';
+import 'layout6.dart';
 
 part 'data55.g.dart';
 
@@ -14,72 +12,37 @@ part 'data55.g.dart';
 class Data55 {
   const Data55({
     required this.id,
-    required this.uuid,
-    required this.storeId,
-    required this.name,
-    required this.email,
-    required this.telegramId,
-    required this.telegramUsername,
-    required this.telegramPhotoUrl,
-    required this.phone,
-    required this.role,
-    required this.emailVerifiedAt,
-    required this.createdAt,
-    required this.updatedAt,
-    required this.deletedAt,
-    required this.address,
-    required this.phoneVerifiedAt,
     required this.branchId,
-    required this.referredBy,
-    required this.balance,
-    required this.pinSetAt,
-    required this.staffCode,
-    required this.courierType,
-    required this.branch,
-    required this.telegramInviteToken,
+    required this.hallId,
+    required this.name,
+    required this.kind,
+    required this.seats,
+    required this.layout,
+    required this.sortOrder,
+    required this.isActive,
+    required this.minSpend,
+    required this.minSpendMode,
   });
 
   factory Data55.fromJson(Map<String, Object?> json) => _$Data55FromJson(json);
 
   final int id;
-  final String uuid;
-  @JsonKey(name: 'store_id')
-  final int? storeId;
-  final String name;
-  final String? email;
-  @JsonKey(name: 'telegram_id')
-  final String? telegramId;
-  @JsonKey(name: 'telegram_username')
-  final String? telegramUsername;
-  @JsonKey(name: 'telegram_photo_url')
-  final String? telegramPhotoUrl;
-  final String? phone;
-  final UserRole role;
-  @JsonKey(name: 'email_verified_at')
-  final String? emailVerifiedAt;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
-  @JsonKey(name: 'updated_at')
-  final String? updatedAt;
-  @JsonKey(name: 'deleted_at')
-  final String? deletedAt;
-  final String? address;
-  @JsonKey(name: 'phone_verified_at')
-  final String? phoneVerifiedAt;
   @JsonKey(name: 'branch_id')
-  final int? branchId;
-  @JsonKey(name: 'referred_by')
-  final int? referredBy;
-  final String balance;
-  @JsonKey(name: 'pin_set_at')
-  final String? pinSetAt;
-  @JsonKey(name: 'staff_code')
-  final String? staffCode;
-  @JsonKey(name: 'courier_type')
-  final CourierType courierType;
-  final Branch7? branch;
-  @JsonKey(name: 'telegram_invite_token')
-  final String? telegramInviteToken;
+  final int branchId;
+  @JsonKey(name: 'hall_id')
+  final int hallId;
+  final String name;
+  final String kind;
+  final int? seats;
+  final Layout6 layout;
+  @JsonKey(name: 'sort_order')
+  final int sortOrder;
+  @JsonKey(name: 'is_active')
+  final bool isActive;
+  @JsonKey(name: 'min_spend')
+  final String? minSpend;
+  @JsonKey(name: 'min_spend_mode')
+  final String minSpendMode;
 
   Map<String, Object?> toJson() => _$Data55ToJson(this);
 }

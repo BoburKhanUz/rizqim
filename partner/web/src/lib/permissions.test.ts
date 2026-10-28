@@ -10,7 +10,7 @@ const OWNER = [
 describe('visibleNav', () => {
   it('shows every section to an owner, zones included', () => {
     expect(visibleNav(OWNER).map((item) => item.key)).toEqual([
-      'dashboard', 'orders', 'bookings', 'floor', 'menu', 'stoplist', 'batches', 'shifts', 'accounts', 'staff', 'branches', 'zones', 'settings', 'possetup', 'permissions', 'fiscal', 'reports', 'finance',
+      'dashboard', 'orders', 'bookings', 'floor', 'menu', 'stoplist', 'batches', 'shifts', 'accounts', 'staff', 'branches', 'zones', 'settings', 'possetup', 'permissions', 'fiscal', 'reports', 'finance', 'billing',
     ]);
   });
 

@@ -7,21 +7,23 @@ part of 'data63.dart';
 // **************************************************************************
 
 Data63 _$Data63FromJson(Map<String, dynamic> json) => Data63(
-  enabled: json['enabled'] as bool,
-  tinSet: json['tin_set'] as bool,
-  taxRegime: json['tax_regime'] as String?,
-  productsMissingMxik: (json['products_missing_mxik'] as List<dynamic>)
-      .map((e) => ProductsMissingMxik.fromJson(e as Map<String, dynamic>))
+  data: (json['data'] as List<dynamic>)
+      .map((e) => Data62.fromJson(e as Map<String, dynamic>))
       .toList(),
-  chargesMissingMxik: (json['charges_missing_mxik'] as List<dynamic>)
-      .map((e) => e as String)
-      .toList(),
+  currentPage: (json['current_page'] as num).toInt(),
+  lastPage: (json['last_page'] as num).toInt(),
+  perPage: (json['per_page'] as num).toInt(),
+  total: (json['total'] as num).toInt(),
+  from: (json['from'] as num?)?.toInt(),
+  to: (json['to'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$Data63ToJson(Data63 instance) => <String, dynamic>{
-  'enabled': instance.enabled,
-  'tin_set': instance.tinSet,
-  'tax_regime': instance.taxRegime,
-  'products_missing_mxik': instance.productsMissingMxik,
-  'charges_missing_mxik': instance.chargesMissingMxik,
+  'data': instance.data,
+  'current_page': instance.currentPage,
+  'last_page': instance.lastPage,
+  'per_page': instance.perPage,
+  'total': instance.total,
+  'from': instance.from,
+  'to': instance.to,
 };

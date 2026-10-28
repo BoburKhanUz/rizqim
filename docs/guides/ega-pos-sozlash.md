@@ -253,6 +253,11 @@ bosishlik tugma bo'lib chiqadi. Choy, non uchun mos.
 
 **Qayerda:** **Sozlamalar** → **Xizmat haqi** ([panel qo'llanmasi](hamkor-panel.md#xizmat-haqi)). Filialga alohida sozlash mumkin.
 
+**Tarif:** xizmat haqi foizi **Asosiy** tarifdan boshlab bor. Start tarifda **Foiz** maydoni o'chiq turadi ("Xizmat haqi Asosiy
+tarifda bor"); joy narxini esa o'zgartirish mumkin. Kassada ham xizmat haqini **Olib tashlash** doim mumkin, olib tashlanganini
+**Qaytarish** esa tarifda xizmat haqi bo'lsagina. To'lanmagan hisob-faktura sababli sozlamalar yopilganda (muddatdan 7 kun o'tgach)
+xizmat haqi va joy narxi o'zgartirilmaydi; to'lov tushishi bilan darhol ochiladi. Batafsil: [Tarif va to'lov](hamkor-panel.md#tarif-va-tolov-sahifasi).
+
 **Zal bo'yicha:** **Zal va xonalar** → zal qatoridagi **Xizmat haqi** tugmasi: shu zalning o'z foizi (**Xizmat haqi**) va joy puli (**Joy puli**, **Joy puli qanday olinadi**).
 Masalan, VIP — 15%, o'z-o'ziga xizmat zonasi — 0%. **Filialnikini qo'llash** zalning o'z qoidasini olib tashlaydi.
 
@@ -377,6 +382,11 @@ bron avansi qaytarilsa yoki ushlab qolinsa; katta nasiya (standart 500 000 so'md
 Tartib: **Turi** → **Filial** → **Nomi** (masalan, "Kassa 1", "Ofitsiant Botir", "Oshxona 1") → **Kod yaratish**. `ABCD-EFGH` kodi
 10 daqiqa amal qiladi va bir marta ishlaydi. Bir do'konda bir vaqtda ko'pi bilan 5 ta faol kod bo'ladi. Qurilma ulangach, u **Qurilmalar**
 ro'yxatida paydo bo'ladi. Qurilma yo'qolsa yoki almashtirilsa: **O'chirish** (shunda u darhol tizimdan chiqadi).
+
+**Tarif va qurilmalar:** tarifga kassa va oshxona ekrani soni kiradi (Start — 1 kassa; Asosiy — 1 kassa va 1 oshxona ekrani; Pro — 2 kassa
+va 1 oshxona ekrani). Ortiqchasi har oy qo'shimcha to'lanadi (kassa 59 000, oshxona ekrani 29 000 so'm); ofitsiant telefonlari cheksiz va bepul.
+Start tarifda oshxona ekrani ulanmaydi (**Asosiy tarifda bor**). To'lanmagan hisob-faktura muddatidan 7 kun o'tgach tarifdagidan ortiq
+qurilma ulanmaydi (eskisini o'chirib, o'rniga yangisini ulash mumkin).
 
 Pilot uchun tavsiya: bitta Android planshet yoki Sunmi (kassa), bitta LAN printer (arzon, batareyali qurilmalar uzilishga chidamli),
 ofitsiantlar uchun 1–2 Android telefon, oshxonaga bitta planshet. Windows kassa uchun UPS shart. Kassa va oshxona terminallari soni oylik
@@ -514,6 +524,10 @@ uchun kompyuter kerak emas ([Mini App qo'llanmasi](mini-app-xodim.md)).
 **Bronlar** bo'limi (ega, menejer, kassir): xonalar bo'yicha taqvim, **Kun** yoki **Hafta** ko'rinishi, bekor qilinganlarni ham ko'rsatish.
 Bron qo'shish, tahrirlash, tasdiqlash, "Kelmadi", bekor qilish shu yerda ham, kassada ham mumkin. Bir xona bir vaqtda ikki marta band qilinmaydi.
 
+**Tarif:** yangi bron va yangi avans **Asosiy** tarifdan boshlab bor. Start tarifda **Bron qo'shish** (panelda) va **Yangi bron**,
+**Avans olish** (kassada) o'chiq turadi va yonida **Asosiy tarifda bor** yoziladi; mavjud bronlar, ularni tasdiqlash, "Keldi", bekor
+qilish va olingan avansni qaytarish yoki ushlab qolish ishlayveradi ([Tarif va to'lov](hamkor-panel.md#tarif-va-tolov-sahifasi)).
+
 **Avans olish, qaytarish va ushlab qolish — faqat kassada** (menejer tasdig'i bilan): veb-panelda avanslar faqat ko'rsatiladi
 (**Avans jami**, **Avans qoldig'i**, **Avans hal qilinmagan**, fiskal chek). Sababi: avans bo'nak cheki bilan bog'liq.
 
@@ -579,6 +593,9 @@ Kerak bo'lsa, qayta yuborish mumkin.
 
 **Nasiya** bo'limi (ega, menejer): kim qancha qarz, qanday limit bilan.
 
+**Tarif:** yangi nasiya hisobi **Asosiy** tarifdan boshlab ochiladi. Start tarifda **Hisob ochish** o'chiq turadi (**Asosiy tarifda
+bor**), lekin mavjud hisoblar, ko'chirma, qarz to'lovi va schyotni mavjud hisobga nasiyaga yozish ishlayveradi.
+
 **Hisob ochish:** **Hisob ochish** → **Ismi yoki guruh nomi**, **Guruh** (masalan, kompaniya nomi), **Telefon**, **Nasiya limiti**:
 
 - **Cheksiz**,
@@ -622,4 +639,6 @@ Telefonda: Mini App → **Profil** → **Qarzdorlar**: kim qancha qarz (eng katt
 | Eski kassa bilan ikki marta chek chiqyapti | Darhol to'xtating: [Ikki marta hisoblamaslik](#ikki-marta-hisoblamaslik). Buxgalterga ayting |
 | Chekda "Bu fiskal chek emas" | Hozir fiskal ulanish sinov rejimida (3-bo'lim). Bu normal |
 | Zal xaritasi kassada bo'sh | **Zal va xonalar** da zal va joylar qo'shilmagan yoki zal yopiq (**Zal ochiq** o'chiq) |
+| Tugma o'chiq, yonida **Asosiy tarifda bor** (bron, avans, nasiya, xizmat haqi, oshxona ekrani) | Tarifda bu imkoniyat yo'q. [Tarif va to'lov](hamkor-panel.md#tarif-va-tolov-sahifasi) sahifasida tarifni ko'ring; o'zgartirishni Rizqim jamoasi qiladi |
+| Kassa va panel tepasida sariq yoki qizil lenta | Hisob-faktura to'lanmagan. Moliya → **Balansni to'ldirish**; to'lov tushishi bilan darhol yo'qoladi. Kassa to'lov qabul qilishda davom etadi |
 | Internet uzildi | Kassa [Internet uzilsa](kassa.md#20-internet-uzilsa) bo'limida yozilganidek ishlaydi; ofitsiant telefoni faqat ko'rish rejimida |

@@ -7,27 +7,13 @@ part of 'data147.dart';
 // **************************************************************************
 
 Data147 _$Data147FromJson(Map<String, dynamic> json) => Data147(
-  account: Account4.fromJson(json['account'] as Map<String, dynamic>),
-  from: json['from'] as String,
-  to: json['to'] as String,
-  openingBalance: json['opening_balance'] as String,
-  closingBalance: json['closing_balance'] as String,
-  chargesTotal: json['charges_total'] as String,
-  repaymentsTotal: json['repayments_total'] as String,
-  adjustmentsTotal: json['adjustments_total'] as String,
-  entries: (json['entries'] as List<dynamic>)
-      .map((e) => Entries3.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  account: Account3.fromJson(json['account'] as Map<String, dynamic>),
+  entry: Entry2.fromJson(json['entry'] as Map<String, dynamic>),
+  fiscal: Fiscal8.fromJson(json['fiscal'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data147ToJson(Data147 instance) => <String, dynamic>{
   'account': instance.account,
-  'from': instance.from,
-  'to': instance.to,
-  'opening_balance': instance.openingBalance,
-  'closing_balance': instance.closingBalance,
-  'charges_total': instance.chargesTotal,
-  'repayments_total': instance.repaymentsTotal,
-  'adjustments_total': instance.adjustmentsTotal,
-  'entries': instance.entries,
+  'entry': instance.entry,
+  'fiscal': instance.fiscal,
 };

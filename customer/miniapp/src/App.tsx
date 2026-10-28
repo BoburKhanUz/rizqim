@@ -25,7 +25,7 @@ import type { User } from './types';
 
 // The customer's landing page is part of the entry bundle; every other page is its own chunk that is
 // downloaded when its route is first visited (see lazyWithRetry), so a courier never downloads the
-// owner screens and a customer never downloads the superadmin ones.
+// owner screens and a customer never downloads the staff ones.
 import Home from './pages/Home';
 
 const loadStoreDetail = () => import('./pages/StoreDetail');
@@ -57,9 +57,6 @@ const OwnerPayments = lazyWithRetry(() => import('./pages/OwnerPayments'));
 const OwnerSettings = lazyWithRetry(() => import('./pages/OwnerSettings'));
 const ShiftSummary = lazyWithRetry(() => import('./pages/ShiftSummary'));
 const Debtors = lazyWithRetry(() => import('./pages/Debtors'));
-const SuperadminDashboard = lazyWithRetry(() => import('./pages/SuperadminDashboard'));
-const SuperadminStores = lazyWithRetry(() => import('./pages/SuperadminStores'));
-const SuperadminCreateStore = lazyWithRetry(() => import('./pages/SuperadminCreateStore'));
 
 // Other modules (including pages owned by other people) still import these from here.
 export { FullScreenLoader, ErrorFallback };
@@ -109,7 +106,6 @@ const CART_BAR_HIDDEN_PREFIXES = ['/cart', '/success', '/orders', '/profile', '/
 const isCartBarHidden = (pathname: string) =>
   CART_BAR_HIDDEN_PREFIXES.some((prefix) => pathname.startsWith(prefix)) ||
   pathname.includes('/admin') ||
-  pathname.includes('/superadmin') ||
   pathname === '/courier' ||
   pathname === '/manager';
 
@@ -245,9 +241,6 @@ function AppContent() {
         <Suspense fallback={<RouteFallback />}>
           <Routes>
             <Route path="/" element={<HomeRoute />} />
-            <Route path="/superadmin/dashboard" element={<SuperadminDashboard />} />
-            <Route path="/superadmin/stores" element={<SuperadminStores />} />
-            <Route path="/superadmin/stores/create" element={<SuperadminCreateStore />} />
             <Route path="/store/:id" element={<StoreDetail />} />
             <Route path="/courier" element={<CourierDashboard />} />
             <Route path="/manager" element={<ManagerDashboard />} />

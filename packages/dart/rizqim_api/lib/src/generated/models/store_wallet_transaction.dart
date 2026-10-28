@@ -25,6 +25,7 @@ class StoreWalletTransaction {
     required this.notes,
     required this.createdAt,
     required this.updatedAt,
+    required this.payoutRequestId,
     this.store,
     this.order,
   });
@@ -54,6 +55,8 @@ class StoreWalletTransaction {
   final DateTime? createdAt;
   @JsonKey(name: 'updated_at')
   final DateTime? updatedAt;
+  @JsonKey(name: 'payout_request_id')
+  final int? payoutRequestId;
   final Store? store;
   final Order? order;
 

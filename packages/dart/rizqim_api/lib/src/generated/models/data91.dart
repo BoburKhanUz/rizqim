@@ -4,47 +4,23 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'role.dart';
+
 part 'data91.g.dart';
 
 @JsonSerializable()
 class Data91 {
   const Data91({
-    required this.id,
-    required this.branchId,
-    required this.name,
-    required this.purpose,
-    required this.connection,
-    required this.address,
-    required this.port,
-    required this.paperWidth,
-    required this.stationId,
-    required this.deviceId,
-    required this.isActive,
-    required this.encoding,
-    required this.printAsImage,
+    required this.role,
+    required this.permission,
+    required this.allowed,
   });
 
   factory Data91.fromJson(Map<String, Object?> json) => _$Data91FromJson(json);
 
-  final int id;
-  @JsonKey(name: 'branch_id')
-  final int branchId;
-  final String name;
-  final String purpose;
-  final String connection;
-  final String? address;
-  final int? port;
-  @JsonKey(name: 'paper_width')
-  final int paperWidth;
-  @JsonKey(name: 'station_id')
-  final int? stationId;
-  @JsonKey(name: 'device_id')
-  final String? deviceId;
-  @JsonKey(name: 'is_active')
-  final bool isActive;
-  final String? encoding;
-  @JsonKey(name: 'print_as_image')
-  final bool printAsImage;
+  final Role role;
+  final String permission;
+  final bool allowed;
 
   Map<String, Object?> toJson() => _$Data91ToJson(this);
 }

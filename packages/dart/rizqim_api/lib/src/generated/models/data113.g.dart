@@ -7,15 +7,13 @@ part of 'data113.dart';
 // **************************************************************************
 
 Data113 _$Data113FromJson(Map<String, dynamic> json) => Data113(
-  id: (json['id'] as num).toInt(),
-  name: json['name'] as String,
-  role: UserRole.fromJson(json['role'] as String),
-  branchId: (json['branch_id'] as num?)?.toInt(),
+  userId: (json['user_id'] as num).toInt(),
+  staffCode: json['staff_code'] as String?,
+  pinSetAt: json['pin_set_at'] as String?,
 );
 
 Map<String, dynamic> _$Data113ToJson(Data113 instance) => <String, dynamic>{
-  'id': instance.id,
-  'name': instance.name,
-  'role': instance.role,
-  'branch_id': instance.branchId,
+  'user_id': instance.userId,
+  'staff_code': instance.staffCode,
+  'pin_set_at': instance.pinSetAt,
 };

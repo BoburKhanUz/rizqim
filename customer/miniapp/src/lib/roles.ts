@@ -8,8 +8,6 @@ export function isCustomerRole(role: string | null | undefined): boolean {
 // Where "/" sends a staff member. Customers (and unknown roles) stay on the catalog.
 export function getRoleHomePath(role: string | null | undefined): string | null {
   switch (role) {
-    case 'super_admin':
-      return '/superadmin/dashboard';
     case 'courier':
       return '/courier';
     case 'owner':

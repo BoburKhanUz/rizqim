@@ -4,6 +4,7 @@
 library;
 
 export 'src/testing/fake_cashier_backend.dart';
+export 'src/testing/fake_entitlements.dart';
 export 'src/testing/fake_pos_adapter.dart';
 export 'src/testing/fake_pos_server.dart';
 export 'src/testing/fake_pos_state.dart';

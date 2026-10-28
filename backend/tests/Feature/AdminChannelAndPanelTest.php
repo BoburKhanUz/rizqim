@@ -57,11 +57,11 @@ class AdminChannelAndPanelTest extends TestCase
         $this->join($this->signIn($viewer))->assertOk();
         $this->join($this->signIn($support))->assertForbidden();
 
-        // Store and customer tokens, and a superadmin's store-level token, never join
+        // Store and customer tokens never join; a superadmin's store-level token is dead altogether (P4-25: 401)
         $this->join($this->owner->createToken('mini-app')->plainTextToken)->assertForbidden();
         $this->join($this->customer->createToken('mini-app')->plainTextToken)->assertForbidden();
         $superadmin = $this->makeMember();
-        $this->join($superadmin->createToken('mini-app')->plainTextToken)->assertForbidden();
+        $this->join($superadmin->createToken('mini-app')->plainTextToken)->assertUnauthorized();
         $this->join(null)->assertUnauthorized();
 
         // An admin token joins no store channel either

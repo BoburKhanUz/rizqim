@@ -5,6 +5,7 @@ namespace App\Actions\Auth;
 use App\Models\User;
 use App\Models\Store;
 use App\Enums\UserRole;
+use App\Services\Auth\PlatformAccountSignInException;
 use App\Services\Auth\ReferralService;
 
 class AuthenticateTelegramUserAction
@@ -16,6 +17,11 @@ class AuthenticateTelegramUserAction
     /**
      * $botStore: the store whose OWN bot token signed the initData. Its owner holds that token and can sign any
      * Telegram id, so such logins are limited to customers and that store's staff (null = refused).
+     *
+     * P4-25: a superadmin / platform account never signs in here. When the Telegram id also holds a customer or store
+     * account, that one signs in; when only the platform account holds it, nothing is created and the call throws.
+     *
+     * @throws PlatformAccountSignInException
      */
     public function execute(array $telegramUser, Store $store, ?string $startParam = null, ?Store $botStore = null): ?User
     {
@@ -76,14 +82,15 @@ class AuthenticateTelegramUserAction
         }
 
         // 2. Fallback to normal login (never changes a stored role; staff roles come from invites or `user:assign-role`)
-        // Fetch the user globally by telegram_id, prioritizing staff roles
+        // Fetch the user globally by telegram_id, prioritizing staff roles. P4-25: platform accounts are not candidates
         $user = User::where('telegram_id', $telegramId)
+            ->whereNull('platform_role')
+            ->whereNotIn('role', [UserRole::SUPER_ADMIN->value, UserRole::PLATFORM->value])
             ->when($botStore, fn ($query) => $query->where(function ($q) use ($botStore) {
                 $q->where('store_id', $botStore->id)
                     ->orWhere(fn ($q) => $q->whereNull('store_id')->where('role', UserRole::CUSTOMER->value));
             }))
             ->orderByRaw("CASE
-                WHEN role = 'super_admin' THEN 1
                 WHEN role = 'owner' THEN 2
                 WHEN role = 'manager' THEN 3
                 WHEN role = 'courier' THEN 4
@@ -91,9 +98,18 @@ class AuthenticateTelegramUserAction
                 ELSE 5 END")
             ->first();
 
-        // Only super admins / other stores' staff exist for this id: refuse instead of creating a shadow account
-        if (!$user && $botStore && User::where('telegram_id', $telegramId)->exists()) {
-            return null;
+        if (!$user) {
+            $holders = User::where('telegram_id', $telegramId)->get(['id', 'role', 'platform_role']);
+
+            // Other stores' staff exist for this id (a store's own bot): refuse instead of creating a shadow account
+            if ($botStore && $holders->contains(fn (User $holder) => !$holder->isPlatformAccount())) {
+                return null;
+            }
+
+            // Only a superadmin / platform account holds this id: they use the control center, no token and no new account
+            if ($holders->isNotEmpty() && $holders->every(fn (User $holder) => $holder->isPlatformAccount())) {
+                throw new PlatformAccountSignInException();
+            }
         }
 
         if ($user) {

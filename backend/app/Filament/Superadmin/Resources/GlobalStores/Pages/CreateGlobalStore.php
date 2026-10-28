@@ -12,9 +12,7 @@ use Filament\Forms\Components\Textarea;
 use Filament\Schemas\Components\Section;
 use Filament\Forms\Components\Hidden;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\DB;
 use App\Models\User;
-use App\Models\Branch;
 
 class CreateGlobalStore extends CreateRecord
 {
@@ -36,11 +34,14 @@ class CreateGlobalStore extends CreateRecord
                         ->label("Do'kon telefoni")
                         ->tel()
                         ->maxLength(255),
+                    // P4-21/P4-22: empty = the per-channel commission policy (RIZQIM courier 15%, own delivery 10%,
+                    // pickup 5%, hall 0%); a value is a flat rate for every online channel
                     TextInput::make('commission_rate')
                         ->label('Commission Rate (%)')
                         ->numeric()
-                        ->default(10)
-                        ->required(),
+                        ->minValue(0)
+                        ->maxValue(100)
+                        ->helperText("Bo'sh qoldiring: kanal bo'yicha komissiya (15/10/5/0%). Qiymat — barcha onlayn kanallar uchun bitta foiz."),
                     Select::make('payment_account_type')
                         ->options(\App\Enums\PaymentAccountType::class)
                         ->default(\App\Enums\PaymentAccountType::PLATFORM_ACCOUNT->value)
@@ -130,84 +131,41 @@ class CreateGlobalStore extends CreateRecord
         ];
     }
 
+    /**
+     * P4-22: the same creation as the Boshqaruv markazi's "convert an application" (StoreProvisioner): store, owner with
+     * a vouched login phone and a Telegram invite, main branch; the superadmins hear about it on Telegram.
+     */
     protected function handleRecordCreation(array $data): Model
     {
-        return DB::transaction(function () use ($data) {
-            $paymentSettings = \App\Models\Store::initialPaymentSettings(['cash', 'click', 'payme']);
-
-            $store = \App\Models\Store::create([
+        try {
+            return app(\App\Services\Admin\Stores\StoreProvisioner::class)->create([
                 'name' => $data['name'],
                 'phone' => $data['phone'] ?? null,
-                'commission_rate' => $data['commission_rate'],
+                'commission_rate' => filled($data['commission_rate'] ?? null) ? $data['commission_rate'] : null,
                 'payment_account_type' => $data['payment_account_type'],
-                'payment_settings' => $paymentSettings,
+                'payment_methods' => ['cash', 'click', 'payme'],
                 'status' => $data['status'],
-                'is_active' => $data['is_active'],
-            ]);
-
-            $ownerToken = \Illuminate\Support\Str::uuid()->toString();
-            $owner = User::create([
-                'name' => $data['owner_name'],
-                'password' => bcrypt($data['owner_password']),
-                'role' => \App\Enums\UserRole::OWNER->value,
-                'store_id' => $store->id,
-                'telegram_invite_token' => $ownerToken,
-            ]);
-            // The platform vouches for the owner's login phone: SMS sign-in to the partner panel (docs/AUTH.md)
-            app(\App\Services\Auth\StaffPhoneLoginService::class)->vouch($owner, $data['owner_phone']);
-
-            Branch::create([
-                'store_id' => $store->id,
-                'region_id' => $data['branch_region_id'],
-                'district_id' => $data['branch_district_id'],
-                'name' => 'Asosiy Filial',
-                'address' => $data['branch_address'],
-                'phone' => $data['branch_phone'],
-                'latitude' => $data['branch_lat'],
-                'longitude' => $data['branch_lng'],
-                'radius_km' => $data['branch_radius'],
-                'open_time' => $data['branch_open_time'] ?? null,
-                'close_time' => $data['branch_close_time'] ?? null,
-                'is_active' => true,
-            ]);
-
-            return $store;
-        });
+                'is_active' => (bool) $data['is_active'],
+                'owner_name' => $data['owner_name'],
+                'owner_phone' => $data['owner_phone'],
+                'owner_password' => $data['owner_password'],
+                'branch_region_id' => (int) $data['branch_region_id'],
+                'branch_district_id' => (int) $data['branch_district_id'],
+                'branch_address' => $data['branch_address'],
+                'branch_phone' => $data['branch_phone'] ?? null,
+                'branch_lat' => $data['branch_lat'],
+                'branch_lng' => $data['branch_lng'],
+                'branch_radius' => $data['branch_radius'],
+                'branch_open_time' => $data['branch_open_time'] ?? null,
+                'branch_close_time' => $data['branch_close_time'] ?? null,
+            ], 'Filament')['store'];
+        } catch (\App\Services\Admin\Stores\StoreAdminException $e) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['data.owner_phone' => $e->getMessage()]);
+        }
     }
 
   protected function getRedirectUrl(): string
     {
         return $this->getResource()::getUrl('edit', ['record' => $this->record]);
-    }
-
-    protected function afterCreate(): void
-    {
-        $store = $this->record;
-        if (!$store instanceof \App\Models\Store) {
-            return;
-        }
-
-        $owner = User::where('store_id', $store->id)->where('role', 'owner')->first();
-        $branch = Branch::where('store_id', $store->id)->first();
-        
-        $botUsername = config('services.telegram.bot_username');
-        $telegram = app(\App\Services\Telegram\TelegramMessenger::class);
-        
-        if ($owner && $telegram->isConfigured()) {
-            $inviteLink = "https://t.me/{$botUsername}?start=invite_{$owner->telegram_invite_token}";
-            
-            $superAdmins = User::where('role', \App\Enums\UserRole::SUPER_ADMIN)
-                ->whereNotNull('telegram_id')
-                ->get();
-
-            foreach ($superAdmins as $admin) {
-                $telegram->sendMessage($admin->telegram_id, "🏢 <b>Yangi do'kon qo'shildi (Filament)!</b>\n\n" .
-                    "Nomi: <b>" . htmlspecialchars($store->name) . "</b>\n" .
-                    "Komissiya: <b>{$store->commission_rate}%</b>\n" .
-                    "Egasi: <b>" . htmlspecialchars($owner->name) . "</b> (" . htmlspecialchars($owner->phone) . ")\n" .
-                    "Filial: <b>" . htmlspecialchars($branch->address) . "</b>\n\n" .
-                    "🔗 <b>Egasi uchun taklifnoma havolasi:</b>\n{$inviteLink}", ['parse_mode' => 'HTML']);
-            }
-        }
     }
 }

@@ -26,4 +26,10 @@ return [
     App\Providers\AdminTodayServiceProvider::class,
     // P4-14: Buyurtmalar: order attention sources (unaccepted, late, no courier), platform.ops order events
     App\Providers\AdminOrdersServiceProvider::class,
+    // P4-21: Billing v2: entitlements (plan features), plan.feature / billing.unlocked middleware, dunning schedule
+    App\Providers\BillingServiceProvider::class,
+    // P4-22: Ovqatxonalar: attention sources (applications, churn risk, CRM tasks), health refresh, public application form
+    App\Providers\AdminStoresServiceProvider::class,
+    // P4-23: Moliya: attention sources (payouts and adjustments waiting for a second approval)
+    App\Providers\AdminFinanceServiceProvider::class,
 ];

@@ -4,7 +4,6 @@ namespace App\Providers;
 
 use App\Auth\AdminTokenGuard;
 use App\Auth\DeviceTokenGuard;
-use App\Enums\UserRole;
 use App\Enums\Permission;
 use App\Models\Device;
 use App\Models\ProductVariant;
@@ -80,15 +79,16 @@ class AccessServiceProvider extends ServiceProvider
         });
 
         // A token bound to a device (staff PIN session, refreshable app session, terminal) dies with the device.
-        // P4-11: the `sanctum` and `device` guards never accept an admin session token, nor any token of a team member
-        // other than the superadmin (users.role = platform holds no store-level or customer powers), nor a disabled one's
+        // P4-11: the `sanctum` and `device` guards never accept an admin session token, nor a disabled member's token.
+        // P4-25: nor any token of a superadmin or platform account: they act only through the control center (an admin
+        // token, AdminTokenGuard), so tokens they got earlier from a Telegram / phone sign-in stop working
         Sanctum::authenticateAccessTokensUsing(function ($accessToken, bool $isValid) {
             if (!$isValid || ($accessToken instanceof PersonalAccessToken && AdminTokenGuard::isAdminToken($accessToken))) {
                 return false;
             }
 
             $tokenable = $accessToken->tokenable;
-            if ($tokenable instanceof User && ($tokenable->role === UserRole::PLATFORM || $tokenable->platform_disabled_at !== null)) {
+            if ($tokenable instanceof User && ($tokenable->isPlatformAccount() || $tokenable->platform_disabled_at !== null)) {
                 return false;
             }
 

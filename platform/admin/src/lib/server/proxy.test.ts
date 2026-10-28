@@ -113,6 +113,89 @@ describe('admin proxy', () => {
     expect(calls).toHaveLength(0);
   });
 
+  describe('review F3: nothing is read before the session and size checks', () => {
+    // A body that counts how many chunks the proxy pulled from it
+    function streamed(chunks: number, chunkBytes: number, headers: Record<string, string> = {}, path = 'v1/admin/team') {
+      let pulled = 0;
+      const body = new ReadableStream<Uint8Array>(
+        {
+          pull(controller) {
+            if (pulled >= chunks) return controller.close();
+            pulled += 1;
+            controller.enqueue(new Uint8Array(chunkBytes).fill(97));
+          },
+        },
+        { highWaterMark: 0 },
+      );
+      const req = new NextRequest(`http://localhost:3100/api/backend/${path}`, {
+        method: 'POST',
+        headers: { Host: 'localhost:3100', Origin: 'http://localhost:3100', ...headers },
+        body,
+        // Node's fetch needs it for a streamed body
+        duplex: 'half',
+      });
+      return { req, pulled: () => pulled };
+    }
+
+    it('refuses a write without a session cookie before reading its body', async () => {
+      const calls = stubBackend(() => reply({}));
+      const { req, pulled } = streamed(50, 64 * 1024, { 'Content-Type': 'application/json' });
+      const response = await forward(req, ['v1', 'admin', 'team']);
+      expect(response.status).toBe(401);
+      expect(pulled()).toBe(0);
+      expect(calls).toHaveLength(0);
+    });
+
+    it('still lets the public sign-in calls through without a cookie', async () => {
+      const calls = stubBackend(() => reply({ success: true, data: {} }));
+      for (const path of ['v1/admin/auth/login', 'v1/admin/auth/invite/accept', 'v1/admin/auth/2fa/setup', 'v1/admin/auth/2fa/verify']) {
+        expect((await forward(request('POST', path, { body: { a: 1 } }), path.split('/'))).status).toBe(200);
+      }
+      expect(calls).toHaveLength(4);
+    });
+
+    it('stops reading a JSON body at the cap, even without a Content-Length', async () => {
+      const calls = stubBackend(() => reply({}));
+      const { req, pulled } = streamed(200, 64 * 1024, { 'Content-Type': 'application/json', Cookie: `${SESSION_COOKIE}=tok` });
+      const response = await forward(req, ['v1', 'admin', 'team']);
+      expect(response.status).toBe(413);
+      expect(pulled()).toBeLessThan(20);
+      expect(calls).toHaveLength(0);
+    });
+
+    it('refuses a declared oversize body without reading it', async () => {
+      stubBackend(() => reply({}));
+      const { req, pulled } = streamed(10, 1024, { 'Content-Type': 'application/json', 'Content-Length': String(5 * 1024 * 1024), Cookie: `${SESSION_COOKIE}=tok` });
+      expect((await forward(req, ['v1', 'admin', 'team'])).status).toBe(413);
+      expect(pulled()).toBe(0);
+    });
+
+    it('stops reading a multipart upload at the upload cap, even when Content-Length lies or is missing', async () => {
+      const calls = stubBackend(() => reply({}));
+      const headers = { 'Content-Type': 'multipart/form-data; boundary=xyz', Cookie: `${SESSION_COOKIE}=tok` };
+      const { req, pulled } = streamed(400, 256 * 1024, headers, 'v1/admin/finance/adjustments');
+      const response = await forward(req, ['v1', 'admin', 'finance', 'adjustments']);
+      expect(response.status).toBe(413);
+      expect(pulled()).toBeLessThan(60);
+      expect(calls).toHaveLength(0);
+
+      const lying = streamed(400, 256 * 1024, { ...headers, 'Content-Length': '100' }, 'v1/admin/finance/adjustments');
+      expect((await forward(lying.req, ['v1', 'admin', 'finance', 'adjustments'])).status).toBe(413);
+      expect(lying.pulled()).toBeLessThan(60);
+    });
+
+    it('refuses a multipart body on a path that takes no file before reading it, and a cookie-less upload too', async () => {
+      stubBackend(() => reply({}));
+      const headers = { 'Content-Type': 'multipart/form-data; boundary=xyz' };
+      const noFile = streamed(10, 1024, { ...headers, Cookie: `${SESSION_COOKIE}=tok` }, 'v1/admin/team');
+      expect((await forward(noFile.req, ['v1', 'admin', 'team'])).status).toBe(415);
+      expect(noFile.pulled()).toBe(0);
+      const noSession = streamed(10, 1024, headers, 'v1/admin/finance/adjustments');
+      expect((await forward(noSession.req, ['v1', 'admin', 'finance', 'adjustments'])).status).toBe(401);
+      expect(noSession.pulled()).toBe(0);
+    });
+  });
+
   it('clears the cookie when the backend says the session is over, and when the member logs out', async () => {
     stubBackend(() => reply({ message: 'Unauthenticated.' }, 401));
     const ended = await forward(request('GET', 'v1/admin/auth/me', { cookie: 'old' }), ['v1', 'admin', 'auth', 'me']);
@@ -164,5 +247,50 @@ describe('admin proxy', () => {
     const page = await forward(request('GET', 'v1/admin/auth/me'), ['v1', 'admin', 'auth', 'me']);
     expect(page.status).toBe(502);
     expect(JSON.stringify(await page.json())).not.toContain('html');
+  });
+
+  describe('P4-23 files', () => {
+    it('passes a multipart upload of an adjustment on as it came, and refuses it anywhere else', async () => {
+      const calls: { contentType: string | null; size: number }[] = [];
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (_input: string | URL, init: RequestInit) => {
+          calls.push({ contentType: new Headers(init.headers).get('Content-Type'), size: (init.body as ArrayBuffer).byteLength });
+          return reply({ success: true, data: { id: 1 } }, 201);
+        }),
+      );
+      const form = new FormData();
+      form.set('reason', 'Akt');
+      form.set('document', new Blob(['%PDF-1.4'], { type: 'application/pdf' }), 'akt.pdf');
+      const upload = (path: string) =>
+        new NextRequest(`http://localhost:3100/api/backend/${path}`, { method: 'POST', headers: { Host: 'localhost:3100', Origin: 'http://localhost:3100', Cookie: `${SESSION_COOKIE}=tok` }, body: form });
+
+      const ok = await forward(upload('v1/admin/finance/adjustments'), ['v1', 'admin', 'finance', 'adjustments']);
+      expect(ok.status).toBe(201);
+      expect(calls[0]?.contentType).toMatch(/^multipart\/form-data; ?boundary=/);
+      expect(calls[0]?.size).toBeGreaterThan(8);
+
+      const elsewhere = await forward(upload('v1/admin/team'), ['v1', 'admin', 'team']);
+      expect(elsewhere.status).toBe(415);
+      expect(calls).toHaveLength(1);
+    });
+
+    it('passes the Excel export on as a file, but never a file from another path or of another type', async () => {
+      const xlsx = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      stubBackend(() => new Response(new Uint8Array([80, 75, 3, 4]), { status: 200, headers: { 'Content-Type': xlsx, 'Content-Disposition': 'attachment; filename=rizqim-daromad-2026-10.xlsx' } }));
+      const file = await forward(request('GET', 'v1/admin/finance/reports/monthly/export?period=2026-10', { cookie: 'tok' }), ['v1', 'admin', 'finance', 'reports', 'monthly', 'export']);
+      expect(file.status).toBe(200);
+      expect(file.headers.get('Content-Type')).toBe(xlsx);
+      expect(file.headers.get('Content-Disposition')).toContain('rizqim-daromad-2026-10.xlsx');
+      expect(new Uint8Array(await file.arrayBuffer())).toEqual(new Uint8Array([80, 75, 3, 4]));
+
+      // Not a download path: the bytes never pass (said as a bad gateway answer)
+      const other = await forward(request('GET', 'v1/admin/team', { cookie: 'tok' }), ['v1', 'admin', 'team']);
+      expect((await other.json()).data.reason).toBe('bad_gateway');
+
+      stubBackend(() => new Response('<html>', { status: 200, headers: { 'Content-Type': 'text/html' } }));
+      const html = await forward(request('GET', 'v1/admin/finance/adjustments/3/document', { cookie: 'tok' }), ['v1', 'admin', 'finance', 'adjustments', '3', 'document']);
+      expect((await html.json()).data.reason).toBe('bad_gateway');
+    });
   });
 });

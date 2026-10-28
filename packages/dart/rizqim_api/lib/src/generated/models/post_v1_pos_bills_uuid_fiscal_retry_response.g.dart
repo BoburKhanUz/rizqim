@@ -11,7 +11,7 @@ _$PostV1PosBillsUuidFiscalRetryResponseFromJson(Map<String, dynamic> json) =>
     PostV1PosBillsUuidFiscalRetryResponse(
       success: json['success'] as bool,
       message: json['message'] as String,
-      data: Data118.fromJson(json['data'] as Map<String, dynamic>),
+      data: Data119.fromJson(json['data'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$PostV1PosBillsUuidFiscalRetryResponseToJson(

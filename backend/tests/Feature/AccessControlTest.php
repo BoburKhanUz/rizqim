@@ -89,8 +89,6 @@ class AccessControlTest extends TestCase
             ['GET', 'api/v1/owner/products', 'permission:menu.view'],
             ['POST', 'api/v1/owner/branch-variants', 'role:owner,manager'],
             ['POST', 'api/v1/owner/categories', 'role:super_admin'],
-            ['GET', 'api/v1/superadmin/dashboard', 'role:super_admin'],
-            ['POST', 'api/v1/superadmin/stores', 'role:super_admin'],
         ];
 
         foreach ($expected as [$method, $uri, $middleware]) {
@@ -153,19 +151,6 @@ class AccessControlTest extends TestCase
         $this->actingAs($this->member(UserRole::COURIER), 'sanctum')
             ->getJson('/api/v1/owner/branch-variants')
             ->assertForbidden();
-    }
-
-    public function test_only_super_admin_can_use_superadmin_endpoints(): void
-    {
-        foreach ([UserRole::CUSTOMER, UserRole::OWNER, UserRole::MANAGER, UserRole::COURIER] as $role) {
-            $this->actingAs($this->member($role), 'sanctum')
-                ->getJson('/api/v1/superadmin/dashboard')
-                ->assertForbidden();
-        }
-
-        $this->actingAs($this->member(UserRole::SUPER_ADMIN), 'sanctum')
-            ->getJson('/api/v1/superadmin/dashboard')
-            ->assertOk();
     }
 
     public function test_filament_panels_are_limited_to_intended_staff_roles(): void

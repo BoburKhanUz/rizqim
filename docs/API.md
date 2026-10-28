@@ -140,6 +140,7 @@ ga aylantiradi; boshqa klientlar (Dart) ham shunday qilishi kerak.
 | `store_required` | 403 | `/owner/permissions`, menyu xodim endpointlari | do'konsiz hisob (masalan superadmin) |
 | `phone_linked_to_another_account` | 409 | `/phone/verify-code` | raqam boshqa mijozga tegishli, birlashtirib bo'lmaydi |
 | `phone_linked_to_several_accounts` | 409 | `/auth/phone/verify` | bir raqamda bir nechta mijoz |
+| `platform_account` | 403 | `/auth/telegram`, `/auth/phone/verify` | Telegram id yoki raqam faqat superadmin/RIZQIM jamoasi hisobida: token berilmaydi, "Boshqaruv markazidan kiring" (P4-25) |
 | `outside_zone` | 422 | `/delivery/quote` | nuqta hech qaysi hududda emas |
 | `zones_not_configured` | 422 | `/delivery/quote` | do'konda faol hudud yo'q |
 | `branch_closed` | 422 | `/delivery/quote` | hududga xizmat qiladigan filial yopiq |
@@ -300,7 +301,6 @@ Barchasi `/api/v1` ostida. To'liq ro'yxat, parametrlar va javob shakllari — Op
 | POS: bron va nasiya (P3-17) | `/pos/bookings` (+ `calendar`, `{uuid}/confirm`, `/cancel`, `/no-show`, `/arrive`, `/items`, `/deposits`, `.../refund`, `.../retain`), `/pos/customer-accounts` (+ `debtors`, `{uuid}/statement`, `/repayments`, `/adjustments`) | bron taqvimi va to'qnashuv, oldindan buyurtma, avans (bo'nak cheki), "Keldi", nasiya hisoblari va qarz to'lovi (kredit cheki) ("Bron, avans va nasiya (P3-17)" bo'limi) |
 | POS: schyot, to'lov va smena (P3-18) | `/pos/orders/{uuid}/bills`, `/pos/bills/{uuid}/print`, `/pos/bills/{uuid}/payments`, `/pos/bills/{uuid}/fiscal-retry`, `POST /pos/orders/{uuid}/close`, `POST /pos/refunds`, `/pos/shifts` (+ `current`, `{uuid}`, `/x-report`, `/cash-movements`, `/close`), `POST /pos/approvals` | schyot va bo'lish, aralash to'lov, sotuv cheki, smena ichida qaytarish, smena, X va Z, menejer PIN tasdig'i ("Schyot, to'lov va smena (P3-18)" bo'limi) |
 | Feature flag'lar | `GET /features` | do'kon bo'yicha yoqilgan imkoniyatlar |
-| Superadmin | `/superadmin/dashboard`, `/superadmin/stores`, `/superadmin/locations` | Mini App'dagi superadmin ekranlari (asosiy boshqaruv Filament'da) |
 | Webhooklar | `POST /payments/click/webhook`, `/payments/payme/webhook`, `/telegram/webhook` | serverdan serverga, imzo bilan |
 | Xizmat | `GET /health` (va `/api/v1/health`), `POST /api/broadcasting/auth` | monitoring, real-time obuna |
 
@@ -2181,9 +2181,13 @@ tasdiqdan keyin Payme butun tranzaksiyani bekor qilsa, qaytariladigan 0 bo'ladi 
 so'rov tasdiqlanayotganda ham qayta tekshiriladi (422 `amount_exceeds_refundable`). Bir nechta to'lovli buyurtmada har bir
 to'lov alohida hisoblanadi. Xabarlar va kartadagi summalar tiyin bo'lsa uni ham ko'rsatadi ("50 000,50 so'm").
 
-Hali yo'q (keyingi bosqich): yetkazilgan buyurtmaning **qismlarga bo'lib** qaytarilishida (qismlar jami to'langanga teng
-bo'lsa ham) ovqatxona komissiyasi va hisob-kitobi o'zgarmaydi, buyurtma `delivered` qoladi; naqd buyurtmada to'lov
-"to'langan" deb belgilanmagan bo'lsa qaytarib bo'lmaydi (qaytariladigan 0).
+**Qismlarga bo'lib qaytarish va ledger (P4-23):** yetkazilgan buyurtmaning bir qismi tasdiqlanganda ovqatxona
+komissiyasi, o'tkazilgan pul va qarz yopilgani ham **shu ulushda** qaytariladi (`LedgerService::reverseDeliveredOrderShare`,
+ulush = shu paytgacha qaytarilgan jami / to'langan, tiyingacha half-up), `execution.ledger_reversal {commission, settlement,
+added_to_debt}`. Har so'rov bir marta (`order_ledger_reversals`, so'rov bo'yicha yagona); qismlar jami to'langanga yetsa,
+to'liq qaytarishdagi summalarning aynan o'zi qaytgan bo'ladi, keyin buyurtmaning o'z qaytarish yo'li hech narsa qaytarmaydi;
+qismdan keyingi to'liq qaytarish faqat qolganini qaytaradi. Buyurtma `delivered` qoladi. Naqd buyurtmada to'lov "to'langan"
+deb belgilanmagan bo'lsa qaytarib bo'lmaydi (qaytariladigan 0).
 
 **Buyurtmani qaytarish yo'li va oldingi qismlar:** `OrderStatusService::refund` (Filament superadmin panelidagi
 "Qaytarish" tugmasi, Payme qaytarishi va boshqa har qanday chaqiruvchi) keshbekni `refundKeshbek` orqali qaytaradi: har
@@ -2403,3 +2407,492 @@ orqali "Bugun → Diqqat talab qiladi"ga tushadi (`kind: alert`, havola `/monito
 `2026_11_02_300100` (`alert_rules`), `300200` (`alerts`, qisman yagona indeks), `300300` (`monitoring_markers`), `300400`
 (`failed_jobs(failed_at)`, CONCURRENTLY). Testlar: `tests/Feature/AdminMonitoringApiTest.php`,
 `AdminMonitoringEvaluatorTest.php`, `AdminMonitoringReviewFixesTest.php` (1-to'lqin tekshiruv tuzatishlari), `AdminMonitoringBackupScriptTest.php`.
+
+## Ovqatxonalar (P4-22)
+
+Boshqaruv markazining **Ovqatxonalar** bo'limi: B2B mijozlar ro'yxati, 360° karta, sog'liq bahosi, ulash jarayoni (arizadan
+faol ovqatxonagacha), CRM-lite, ovqatxonaga amallar va egalarga ommaviy e'lon. Kod: `routes/api_admin_stores.php`,
+`routes/api_store_applications.php` (ommaviy forma), `App\Http\Controllers\Api\V1\Admin\AdminStore*`,
+`App\Http\Controllers\Api\V1\Onboarding\StoreApplicationController`, `App\Services\Admin\Stores`,
+`App\Providers\AdminStoresServiceProvider`. **Egasi nomidan kirish yo'q** (egasi qarori, 28.10.2026): yordam xodimi
+ma'lumotni kartadan ko'radi, sozlashni egasi o'zi qiladi. `admin.stores.impersonate` ruxsati faqat egasining Telegram havolasini
+ko'rish uchun (pastda, `telegram-link`); u `PRIVILEGED` ro'yxatida: standart rollarda yo'q, faqat superadmin beradi.
+
+### Ruxsatlar
+
+| Endpoint | Ruxsat | Step-up | `reason` |
+|---|---|---|---|
+| `GET /admin/stores`, `/stores/{id}`, `/store-applications`, `/store-applications/{uuid}`, `/store-tasks`, `/store-broadcasts` | `stores.view` | — | — |
+| `GET /admin/stores/lookup` | `stores.view` yoki `orders.view` | — | — |
+| `POST /admin/store-applications`, `PATCH .../{uuid}`, `POST .../{uuid}/stage`, `/checklist`, `/notes` | `stores.manage` | `faol` ga o'tish uchun ha | `faol` ga o'tish uchun ha |
+| `POST /admin/stores/{id}/notes`, `PUT .../next-contact`, `POST /admin/store-tasks`, `PATCH .../{id}`, `POST /admin/store-broadcasts/preview` | `stores.manage` | — | — |
+| `POST .../{uuid}/convert`, `/reject`; `POST /admin/stores/{id}/suspend`, `/activate`, `/telegram-link`, `/message`; `PUT .../credit-limit`, `/display`; `POST /admin/store-broadcasts` | `stores.manage` | ha | ha |
+
+Har bir yozish amali jurnalga yoziladi (amal nomi — route nomi): `admin.stores.suspended`, `admin.stores.activated`,
+`admin.stores.credit_limit_changed`, `admin.stores.display_changed`, `admin.stores.telegram_link_regenerated` (havolaning
+o'zi jurnalga yozilmaydi — u kalit), `admin.stores.owner_messaged`, `admin.stores.broadcast_sent`,
+`admin.stores.applications.created|updated|stage_changed|checklist_updated|converted|rejected|note_added`,
+`admin.stores.note_added`, `admin.stores.next_contact_set`, `admin.stores.tasks.created|updated`. Holat o'zgarishi
+qo'shimcha `store_status_logs` ga (kim, qachon, sabab) yoziladi — kartaning "Holat tarixi". Komissiyani alohida
+o'zgartirish — P4-21 endpointi `PUT /admin/billing/stores/{id}/commission` (`subscriptions.manage`); kartada "POS va
+obunalar" havolasi.
+
+### Ommaviy ariza formasi (sayt va bot uchun)
+
+`POST /api/v1/store-applications` — **token kerak emas**, captcha yo'q, lekin cheklangan:
+
+```
+{ name, format, region_id?, city?, owner_name, phone, tin?, comment?, source?: "website" | "telegram", website: "" }
+→ 201 {success: true, message: "Arizangiz qabul qilindi...", data: {received: true}}
+```
+
+- `format`: `restaurant`, `cafe`, `fast_food`, `canteen`, `coffee_shop`, `bakery`, `teahouse`, `catering`, `other`;
+  `region_id` — faol viloyat (`GET /api/v1/locations`); `phone` — `+998 90 123 45 67` (bo'shliq, chiziqcha, qavs, +998
+  siz 9 raqam ham bo'ladi), `+998XXXXXXXXX` bo'lib saqlanadi; `tin` — 9 raqam.
+- `website` — **yashirin maydon (honeypot)**: saytda ko'rinmaydigan input. To'ldirilgan bo'lsa, javob xuddi shunday 201,
+  lekin hech narsa saqlanmaydi.
+- Bir telefon 24 soat ichida bir marta qabul qilinadi (takroriy yuborish o'sha arizani qoldiradi). Cheklov: bitta IP dan
+  soatiga 5 ta va kuniga 20 ta — keyin 429 (`Retry-After`). Telefon bo'yicha so'rov cheklovi yo'q: telefon
+  so'rovda aytilgan raqam xolos, shuning uchun begona odam boshqaning telefonini "band" qila olmasligi kerak; telefon faqat
+  qabul qilingan ariza bilan cheklanadi (24 soatda bitta).
+- Javobda ariza haqida ma'lumot yo'q (telefonni bilgan odam ariza borligini bilib olmasin).
+- Telegram bot buyrug'i hozircha yo'q: bot suhbat holatini saqlamaydi, ko'p qadamli forma uchun alohida ish kerak.
+  Bot uchun eng oddiy yo'l — Mini App yoki sayt formasi shu endpointga `source: "telegram"` bilan yuboradi.
+
+### Ulash jarayoni (`/admin/store-applications`)
+
+Bosqichlar (`App\Enums\StoreApplicationStage`): `application` (Ariza) → `review` (Tekshiruv) → `menu` (Menyu) →
+`devices` (Qurilmalar) → `training` (O'qitish) → `trial` (Sinov) → `active` (Faol); alohida `rejected` (Rad etildi).
+
+| Bosqich | Ro'yxat (majburiy — *) | Standart muddat |
+|---|---|---|
+| Ariza | egasi bilan bog'lanildi* | 1 kun |
+| Tekshiruv | STIR*, yuridik nom*, bank hisobi*, hujjatlar | 2 kun |
+| Menyu | menyu kiritildi* (aniqlanadi: taom bor), rasmlar, narxlar* | 2 kun |
+| Qurilmalar | kassa ulandi* (aniqlanadi), oshxona ekrani (aniqlanadi), printer, fiskal (aniqlanadi) | 2 kun |
+| O'qitish | xodimlar o'qitildi*, egasi hamkor paneliga kirdi* (aniqlanadi: egasi/menejer tokeni bor) | 1 kun |
+| Sinov | birinchi buyurtma* (aniqlanadi: bekor qilinmagan istalgan kanal buyurtmasi), egasi tasdiqladi* | 3 kun |
+
+- Band **belgilanadi** (`POST .../checklist {item, done}`) yoki ovqatxonadan **aniqlanadi** (`detected: true`).
+- `POST .../stage {stage, note?, due_on?, reason?}`: oldinga — o'tilayotgan har bosqichning majburiy bandlari bajarilgan
+  bo'lsin (422 `checklist_incomplete`, `data.stage`, `data.missing`); `menu` va keyingilar uchun ovqatxona yaratilgan
+  bo'lsin (422 `store_required`); `active` — step-up (403 `reauth_required`) va `reason`, ovqatxona `active` va
+  marketpleysda ko'rinadigan bo'ladi. Orqaga — erkin (`active` dan emas: 422 `already_active`). Rad etilgan ariza faqat
+  `application` yoki `review` da qayta ochiladi (422 `reopen_only`). `rejected` ga — faqat `reject` orqali (`use_reject`).
+- Bosqichga kirganda muddat = bugun (Toshkent) + standart kun (yoki `due_on`). Ochiq, muddati o'tgan ariza — `overdue`.
+- `POST .../convert` (step-up, `reason`): ovqatxona **Filament superadmin ustasi bilan bir xil yo'l**dan yaratiladi
+  (`App\Services\Admin\Stores\StoreProvisioner`, `CreateGlobalStore` ham shuni chaqiradi): do'kon, egasi (SMS bilan kirish
+  telefoni tasdiqlangan, bir martalik Telegram taklif tokeni), "Asosiy Filial". Maydonlar: `branch_district_id`,
+  `branch_address`, `branch_lat`, `branch_lng` (majburiy), `branch_region_id` (standart — arizaniki), `branch_radius` (5),
+  `branch_phone`, `branch_open_time`/`branch_close_time`, `name`, `owner_name`, `owner_phone` (standart — arizaniki), `phone`,
+  `tin`, `legal_name`, `commission_rate` (berilmasa `null` yoziladi — Billing v2 kanal stavkalari 15/10/5/0%; qiymat —
+  barcha onlayn kanallar uchun yagona foiz), `payment_account_type`. Filament ustasida ham komissiya maydoni endi
+  majburiy emas va standart 10 yo'q: bo'sh qoldirilsa `null`. Ovqatxona
+  `pending` va **marketpleysda ko'rinmaydi** (`is_active = false`), ariza `faol` bo'lguncha; kassa ishlayveradi.
+  Javobda `invite_link` (faqat shu yerda). 409 `already_converted`, 409 `owner_phone_taken`, 422 `owner_phone_invalid`.
+- `POST .../reject {reason}` (step-up): ariza yopiladi; yaratilgan ovqatxona `rejected` va yashirin bo'ladi.
+- `GET /admin/store-applications?stage=open|overdue|<bosqich>&assignee_id=me|<id>&source=&q=` → `{data, stage_counts,
+  stages, formats}`; muddati o'tganlar birinchi. Karta: maydonlar, `phone` (`pii.view` siz niqoblangan), `checklist`,
+  `crm`, `audit`, `actions`.
+- Mas'ul (`assignee_id`) — `stores.manage` li faol jamoa a'zosi.
+
+### Ro'yxat va 360° karta
+
+`GET /admin/stores?q=&status=&region_id=&health=good|attention|churn_risk|none&plan=<kod>|none&debt=has_debt|over_limit&next_contact=due&sort=newest|name|debt|health&page=&per_page=`
+→ `{data, current_page, last_page, per_page, total, health_counts, statuses}`. Qatorda telefon yo'q. `q` — nom, STIR,
+do'kon yoki egasining **to'liq** telefoni, uuid boshi. Qatorda `debt_balance`, `subscription_debt`, `commission_debt`,
+`credit_limit` (ruxsat etilgan qarz, musbat), `over_limit` — komissiya qarzi limitdan oshgan (P4-21: obuna qarzi kirmaydi;
+`debt=over_limit` filtri ham shu qoida). Ro'yxatdagi tarif — joriy obuna qatoridan (sahifa uchun bitta so'rov);
+`Entitlements` faqat kartada ishlaydi.
+
+`GET /admin/stores/{id}`: `profile`, `application`, `contacts` (ega, menejerlar, ariza qoldirgan — telefonlar
+`AdminPii` orqali), `branches`, `status_history`, `plan` (`source: "billing_v2"` — P4-21 ning do'kon billingi, `GET /admin/billing/stores/{id}`
+bilan bir xil: `subscription`, `entitlements` (`Entitlements`: tarif, davr, jonli holat — `locked` ham, funksiyalar,
+qurilma limitlari), `debt`, `commission` (kanal bo'yicha stavkalar), `history`, `invoices`; hammasi
+`App\Services\Admin\Stores\StorePlanReader` orqali), `devices` (oxirgi 10 daqiqada aloqa — onlayn), `fiscal`, `finance`
+(`debt_balance`, `subscription_debt` — to'lanmagan obuna hisob-fakturalari, `commission_debt` = qarz − obuna qarzi,
+`credit_limit`, `over_limit` — faqat komissiya qarzi limitdan oshganmi; hamyon, payoutlar — karta niqoblangan, oxirgi
+ledger yozuvlari), `orders` (30 kunlik sifat — P4-14
+`StoreQualityService`, kanallar, oxirgilari), `complaints`, `health` (shu so'rovda qayta hisoblanadi), `crm`, `audit`
+(oxirgi 50), `actions`, `links`.
+
+`GET /admin/stores/lookup?q=&ids[]=&districts_of=` → `{stores (≤20), regions, districts}` — Buyurtmalar filtrlari va
+e'lon uchun tanlash ro'yxati.
+
+### Sog'liq bahosi
+
+`App\Services\Admin\Stores\StoreHealthCalculator`, `store_health_scores` jadvali (har soat `RefreshStoreHealthJob`,
+qo'lda `php artisan admin:store-health [--store=ID]`; karta ochilganda ham yangilanadi). 100 balldan sabablar ayriladi:
+
+| Sabab (`key`) | E'tibor kerak | Ketish xavfi |
+|---|---|---|
+| `orders_dropped` — 14 kun oldingi 14 kunga nisbatan (oldin 10+ buyurtma) | 25% kam (−15) | 50% kam (−30) |
+| `no_orders` — 14 kundan beri buyurtma yo'q (14 kundan eski, oldin buyurtmasi bo'lgan) | | −35 |
+| `no_first_order` — hali birorta buyurtma yo'q (14 kundan eski) | −10 | |
+| `devices_silent` — kassa/KDS 3+ kun aloqasiz | bir qismi (−10) | hammasi (−25) |
+| `fiscal_failed` — 7 kunda yiqilgan fiskal chek | 1+ (−10), 10+ (−20) | |
+| `debt_over_limit` — komissiya qarzi (qarz − obuna qarzi) kredit limitidan oshgan | | −25 |
+| `invoice_overdue` — muddati o'tgan to'lanmagan hisob-faktura | 1+ kun (−10) | 7+ kun (−20) |
+| `complaints` — 30 kundagi shikoyatlar | 3+ (−10) | 6+ (−20) |
+| `owner_inactive` — ega va menejerlarning oxirgi kirishi (token) | 14+ kun (−10) | 30+ kun (−20) |
+| `status` — to'xtatilgan, qarz limiti, moliyaviy tekshiruv | −10 | |
+
+Daraja: ketish xavfi sababi yoki < 50 ball — `churn_risk`; boshqa sabab yoki < 80 — `attention`; aks holda `good`.
+Buyurtma trendi va faollik faqat ulash jarayonidan o'tgan ovqatxonaga (`active`, `payment_required`, `finance_hold`,
+`suspended`) qo'llanadi.
+
+### Amallar (`stores.manage`, step-up, `reason`)
+
+- `POST .../suspend` — `suspended`, marketpleysdan yashiriladi (yangi Mini App buyurtmasi yo'q). **Kassa to'xtamaydi.**
+  409 `already_suspended`.
+- `POST .../activate` — `active` va ko'rinadi (suspended, pending, under_review, rejected dan). `payment_required` /
+  `finance_hold` — 422 `finance_status` (qarz qoidalari hal qiladi); ulash jarayonidagi ovqatxona — 422 `use_pipeline`;
+  409 `already_active`.
+- `PUT .../credit-limit {credit_limit}` — 0–100 000 000 so'm; ledger qoidasi darhol qo'llanadi (limitdan oshsa `active` →
+  `payment_required`, limit ichiga qaytsa aksincha), holat tarixiga yoziladi.
+- `PUT .../display {is_premium?, is_featured?}` — premium va "tavsiya etilgan".
+- `POST .../telegram-link` — Telegramga hali ulanmagan egasi uchun yangi bir martalik bot havolasi (eskisi ishlamaydi).
+  Havolani ochgan Telegram hisobi egasi hisobiga bog'lanadi, shuning uchun u **parol kabi** sir: xodimga ko'rsatilmaydi,
+  egasining tasdiqlangan telefoniga SMS bilan yuboriladi (`delivered_via: "sms"`, `invite_link: null`). SMS ketmasa
+  (telefon yo'q/tasdiqlanmagan yoki SMS xizmati javob bermasa) havola `invite_link` da faqat `admin.stores.impersonate`
+  ruxsati bor xodimga qaytadi; boshqalarga 422 `link_not_deliverable` va eski havola o'zgarmaydi. Egasi Telegramga
+  allaqachon ulangan bo'lsa — 409 `owner_already_linked` (hisobni boshqa Telegramga o'tkazib bo'lmaydi; egasiga
+  `message` bilan yozing). Auditda havola yo'q (`delivered_via`, `link_shown_to_member` bor). Karta:
+  `actions.telegram_link` ulangan egada `false`. 422 `no_owner`.
+- `POST .../message {text}` — egasining Telegramiga (navbat orqali, oddiy matn). 422 `no_recipient`, 503
+  `telegram_not_configured`.
+
+### CRM-lite
+
+Izohlar (`POST /admin/stores/{id}/notes`, `POST /admin/store-applications/{uuid}/notes`, `body` ≤ 2000), vazifalar
+(`POST /admin/store-tasks {title, due_on ≥ bugun, assignee_id?, store_id | application_uuid}`, `PATCH /admin/store-tasks/{id}
+{done?, title?, due_on?, assignee_id?}`; `GET /admin/store-tasks?assignee_id=me&due=today&done=1` → `{tasks, counts}`),
+keyingi aloqa sanasi (`PUT /admin/stores/{id}/next-contact {next_contact_on | null}`). Arizaning izoh va vazifalari
+ovqatxona yaratilgach uning kartasida ham ko'rinadi.
+
+### Ommaviy e'lon
+
+1. `POST /admin/store-broadcasts/preview {audience: "all" | "selected", store_ids?, statuses?, region_id?}` →
+   `{stores, recipients, without_telegram, sample}` (jurnalga yozilmaydi). `recipients` — botga ulangan egalar, har biri bir
+   marta.
+2. `POST /admin/store-broadcasts {...auditoriya, text (≤ 2000), recipients, reason}` (step-up): `recipients` ko'rib
+   chiqishdagi son bilan bir xil bo'lsin — o'zgargan bo'lsa 409 `count_changed` va yangi `data.preview`. Har bir egaga
+   navbat orqali "📣 RIZQIM e'loni" (`SendStoreBroadcastJob`). Cheklov: a'zoga soatiga 5 urinish
+   (`throttle:admin-store-broadcast`), platformaga kuniga 10 ta e'lon (429 `daily_limit`). 422 `no_recipient`.
+3. `GET /admin/store-broadcasts` → oxirgi 50 ta, `limit_per_day`, `sent_today`.
+
+### "Diqqat talab qiladi" manbalari (`stores.view`)
+
+| `kind` | Nima | `severity` | `href` |
+|---|---|---|---|
+| `store_application_new` | "Ariza" bosqichidagi, mas'uli yo'q arizalar | `info` | `/stores/applications/{uuid}` |
+| `store_application_overdue` | muddati o'tgan ochiq arizalar | `warning` | `/stores/applications/{uuid}` |
+| `store_churn_risk` | ketish xavfidagi faol ovqatxonalar (asosiy sabab bilan) | `warning` | `/stores/{id}` |
+| `store_task_due` | bugun yoki oldin muddati kelgan ochiq vazifalar (kechikkani `warning`) va aloqa kuni kelgan ovqatxonalar | `info` | `/stores/{id}?tab=crm` |
+
+### Migratsiyalar va testlar
+
+`2026_11_04_200100` (`store_applications`), `200200` (`store_notes`, `store_tasks`, `store_crm_profiles`), `200300`
+(`store_broadcasts`), `200400` (`store_health_scores`). Testlar: `tests/Feature/AdminStores/*`.
+
+## Billing v2 (P4-21)
+
+Tariflar, funksiya cheklovlari, kanal komissiyasi va obunalar. Qoidalarning to'liq tavsifi: [BILLING.md](BILLING.md)
+("Billing v2" bo'limi). Bu bo'limdagi barcha pul summalari — ikki xonali satr (`"149000.00"`).
+
+### Ega va terminallar: `GET /owner/billing/entitlements`
+
+Do'konning istalgan xodimi (ega, menejer, kassir, ofitsiant, oshpaz) va terminal PIN sessiyasi o'qiydi (`auth:sanctum`,
+`staff.store`). Xuddi shu ma'lumot `GET /pos/bootstrap` javobida `entitlements` kaliti ostida keladi.
+
+```json
+{
+  "plan": {"code": "start", "name": "Start", "tier": "start", "version": 2},
+  "legacy": false,
+  "period": "monthly",
+  "status": "trialing",
+  "trial_ends_at": "2026-11-08T05:00:00+00:00",
+  "current_period": {"start": "2026-10-25T05:00:00+00:00", "end": "2026-10-31T19:00:00+00:00"},
+  "term_ends_at": null,
+  "locked_since": null,
+  "lock_at": null,
+  "settings_locked": false,
+  "features": {"hall": true, "room_fee": true, "guest_items": true, "shifts": true, "rizqim_orders": true,
+               "bookings": false, "deposits": false, "customer_accounts": false, "kds": false, "service_charge": false,
+               "multi_branch_reports": false, "aggregator_orders": false, "banquet": false},
+  "required_plans": {"bookings": "asosiy", "deposits": "asosiy", "customer_accounts": "asosiy", "kds": "asosiy",
+                     "service_charge": "asosiy", "multi_branch_reports": "pro", "aggregator_orders": "pro", "banquet": "pro"},
+  "devices": {
+    "pos": {"included": 1, "active": 2, "extra": 1, "extra_price": "59000.00", "can_add": true},
+    "kds": {"included": 0, "active": 0, "extra": 0, "extra_price": "29000.00", "can_add": false},
+    "waiter": {"included": null, "unlimited": true, "extra_price": "0.00", "can_add": true}
+  },
+  "notice": null
+}
+```
+
+- `status`: `none` (obuna yo'q), `trialing`, `active`, `past_due` (muddati o'tgan hisob-faktura), `locked` (muddatdan 7
+  kundan ko'p o'tgan). `legacy: true` — do'kon hali v2 tarifda emas (yoki eski P1-23 tarifda): hamma funksiya ochiq,
+  `devices.*.included` `null`.
+- `required_plans` — har bir yopiq funksiya qaysi eng arzon tarifda bor: ekranda "Asosiy tarifda bor" deb ko'rsatish uchun.
+- `notice` — muddati o'tgan hisob-faktura bo'lsa banner uchun: `{level: reminder|locked, message, days_overdue, lock_at,
+  invoice: {uuid, number, amount, outstanding, due_date} | null}`. `invoice` (raqam va summalar) faqat o'z kirishidagi
+  `finance.view` li a'zoga (odatda ega); boshqa xodimlar, terminaldagi PIN sessiya (ega ham) va `GET /pos/bootstrap` da
+  `invoice: null`, `message` da ham raqam va summa yo'q (faqat daraja, kunlar va cheklov sanasi).
+- `lock_at` — to'lanmasa qachondan cheklanadi; `locked_since` — cheklangan bo'lsa, qachondan. Faqat v2 tarif bo'yicha
+  chiqqan hisob-faktura cheklaydi: eski P1-23 hisob-faktura (migratsiyadan oldingi) do'kon v2 tarifda bo'lsa ham faqat
+  `past_due` beradi, `lock_at: null`.
+
+### Rad javoblari (403)
+
+```json
+{"success": false, "message": "Bu imkoniyat (Bron) Asosiy tarifida bor.", "code": "plan_feature_missing",
+ "feature": "bookings", "required_plan": "asosiy",
+ "data": {"reason": "plan_feature_missing", "feature": "bookings", "feature_label": "Bron", "required_plan": "asosiy", "required_plan_name": "Asosiy"}}
+```
+
+| `code` | Qachon |
+|---|---|
+| `plan_feature_missing` | `POST /pos/bookings` (bookings), `POST /pos/bookings/{uuid}/deposits` (deposits), `POST /pos/customer-accounts` (customer_accounts), `PUT /owner/service-fees` xizmat haqi > 0 bilan (service_charge), `POST /owner/devices/pairing-codes` `type: kds` (kds) |
+| `subscription_locked` | obuna cheklangan (`data.locked_since`): `PUT /owner/service-fees`, zal va stollar (`/owner/halls`, `/owner/dining-tables` o'zgartirish), `/owner/room-tariffs`, `/owner/auto-guest-items`, `DELETE /owner/service-fees/halls/{id}`, sexlar (`/owner/kitchen-stations`, `/owner/kitchen-station-routes`) yozuvlari |
+| `device_limit` | obuna cheklangan va tarifdagi terminallar soni band: yangi terminal ulash kodi (`data.device_type`, `included`, `active`). Eskisini o'chirib, o'rniga ulash mumkin |
+
+**Hech qachon cheklanmaydi:** to'lov qabul qilish, schyot yaratish va yopish, chek chop etish va fiskal chek, smena (ochish,
+X/Z, yopish, kassa harakati), qaytarish, avansni qaytarish, nasiyani to'lash, oflayn sinxron, printerlar, menyu va
+stop-list. Mavjud bron va avanslar ham (tasdiqlash, kelish, bekor qilish) ishlayveradi.
+
+### Boshqaruv markazi: `/admin/billing` (`routes/api_admin_billing.php`)
+
+| Endpoint | Ruxsat | Nima qiladi |
+|---|---|---|
+| `GET /admin/billing/plans?all=` | `subscriptions.manage` yoki `finance.view` | Tariflar katalogi (`all=1` — eski P1-23 tariflar ham) va `feature_catalog` |
+| `PUT /admin/billing/plans/{code}` | `system.manage` + step-up + `reason` | v2 tarifni o'zgartirish: `name`, `description`, `is_active`, `monthly_fee`, `yearly_fee`, `included_pos`, `included_kds`, `extra_pos_fee`, `extra_kds_fee`, `trial_days`, `sort_order`, `features` (yopiq funksiyalar ro'yxati) |
+| `GET /admin/billing/subscriptions?status=&plan=&period=&trial_ends_within=&store_id=&cursor=&per_page=` | `subscriptions.manage` yoki `finance.view` | Obunalar ro'yxati (cursor), `counts` holatlar bo'yicha |
+| `GET /admin/billing/stores/{id}` | `subscriptions.manage` yoki `finance.view` | Do'kon billing kartasi: `subscription`, `entitlements`, `debt` (`debt_balance`, `subscription_debt`, `commission_debt`, `credit_limit`, `over_credit_limit`), `commission`, `history`, `invoices` (eslatmalar tarixi `dunning` bilan) |
+| `POST /admin/billing/stores/{id}/subscription` | `subscriptions.manage` + step-up + `reason` | `plan`, `period` (monthly/yearly), `immediately`: tarif biriktirish yoki almashtirish |
+| `POST /admin/billing/stores/{id}/subscription/period` | shu | `period`: oylik ↔ yillik |
+| `POST /admin/billing/stores/{id}/subscription/cancel` | shu | `immediately`: bekor qilish (darhol yoki davr oxirida) |
+| `POST /admin/billing/stores/{id}/subscription/trial` | shu | `trial_ends_at` yoki `days`: sinov davrini uzaytirish (ko'pi bilan 90 kun) |
+| `PUT /admin/billing/stores/{id}/commission` | shu | `overrides` (`{kanal: foiz|null}`), `flat_rate` (null — kanal stavkalari), `delivery_courier` (own/fleet) |
+
+Har bir o'zgarish harakatlar jurnaliga yoziladi (amal = route nomi: `admin.billing.plan_updated`,
+`admin.billing.subscription_assigned`, `admin.billing.period_changed`, `admin.billing.subscription_cancelled`,
+`admin.billing.trial_extended`, `admin.billing.commission_updated`; holat oldin va keyin, `reason`). Xizmat ham o'z
+yozuvlarini qo'shadi (`subscription.started`, `subscription.plan_changed`, `subscription.trial_extended`,
+`subscription.locked`, `subscription.unlocked`, ...). Qoida buzilsa 422 `billing_rule` (masalan, eski tarifga yillik davr),
+do'kon yo'q — 404 `not_found`, obuna yo'q — 422 `no_subscription`.
+
+Obuna (`subscription`) shakli: `id`, `store_id`, `status`, `status_label`, `plan {code, name, version}`, `billing_period`,
+`next_billing_period`, `next_plan`, `cancel_at_period_end`, `started_at`, `trial_ends_at`, `current_period {start, end}`,
+`term_ends_at`, `changes_at` (rejalashtirilgan o'zgarish qachon amal qiladi), `price_locked_until`, `locked_at`,
+`cancelled_at`. Hisob-faktura: `uuid`, `number`, `kind` (monthly/yearly/upgrade), `period`, `lines` (`type`: base, discount,
+proration, extra_pos, extra_kds, price_lock, yearly, upgrade; P1-23: terminals), `amount`, `paid_amount`, `outstanding`,
+`status`, `due_date`, `dunning`.
+
+Ega endpointlariga qo'shilganlar: `GET /owner/subscription` → `subscription.billing_period`, `next_billing_period`,
+`term_ends_at`; `GET /owner/invoices` → har bir hisob-fakturada `kind` va `paid_amount` (satr).
+
+### Migratsiyalar, buyruqlar, testlar
+
+`2026_11_04_100100` (tarif v2 ustunlari va Start/Asosiy/Pro), `100200` (obuna: davr, yillik muddat, proratsiya, narx
+qulfi, `locked_at`), `100300` (hisob-faktura: `kind`, `sequence`, `paid_amount`), `100400` (do'kon: `subscription_debt`,
+`commission_overrides`, `delivery_courier`, `commission_rate` bo'sh bo'lishi mumkin), `100500` (buyurtma:
+`commission_channel`, `commission_rate`), `100600` (`subscription_dunning_events`). Buyruq: `billing:migrate-plans
+[--dry-run] [--store=]`. Har kuni 10:05 (Toshkent) `SendBillingRemindersJob`. Testlar: `tests/Feature/BillingV2/*`.
+
+## POS va obunalar (P4-24)
+
+Boshqaruv markazining «POS va obunalar» bo'limi (`platform/admin`, `/pos`). Obunalar ro'yxati, tariflar katalogi va
+ovqatxonaning obunasi P4-21'ning `/admin/billing` endpointlariga tayanadi (yuqorida). Bu bo'lim faqat yetishmaganini
+qo'shadi: `routes/api_admin_pos.php` (`/admin/pos`, nomlar `admin.pos.*`, controllerlar `Admin/AdminPos*`, xizmatlar
+`app/Services/Admin/Pos/*`). Hamma o'zgarish step-up (`admin.recent`) va `reason` (3–500 belgi) talab qiladi va
+harakatlar jurnaliga yoziladi (amal = route nomi; holat oldin va keyin). Takroriy bosish hech narsani o'zgartirmaydi va
+jurnalga ikkinchi yozuv qo'shmaydi. Ro'yxatlar sahifalanadi: `page`, `per_page` 1–100 (30), javobda `current_page`,
+`last_page`, `per_page`, `total` va filtrlarga qaramaydigan `counts`. Pul — o'nlik satr (`"249000.00"`), vaqt — ISO 8601,
+sana (`business_date`, `due_date`) — `Y-m-d`.
+
+| Endpoint | Ruxsat | Nima qiladi |
+|---|---|---|
+| `GET /admin/pos/overview` | `subscriptions.manage`, `finance.view` yoki `devices.view` | Tablardagi raqamlar: `subscriptions` (holat bo'yicha, `trial_ending` — 3 kunda tugaydigan sinovlar), `invoices`, `devices`, `shifts` (oxirgi 30 kun), `fiscal` (`by_driver`), `sync_errors`. Ruxsat bo'lmagan guruh `null` |
+| `GET /admin/pos/invoices?status=&store_id=&period=&dunning=&q=` | `subscriptions.manage` yoki `finance.view` | Hamma ovqatxonalarning hisob-fakturalari. `status`: `issued`, `paid`, `void` yoki `overdue` (to'lov muddatidan keyin to'lanmagan, Toshkent sanasi bilan). Qatorda `overdue_days`, oxirgi eslatma (`dunning_stage`). `counts`: `issued`, `overdue`, `paid`, `void`, `outstanding` |
+| `GET /admin/pos/invoices/{uuid}` | shu | Hisob-faktura (qatorlar, to'langan va qolgan qism, eslatmalar tarixi) va ovqatxona qarzi (`subscription_debt` va `commission_debt` alohida) |
+| `POST /admin/pos/invoices/{uuid}/paid` | `finance.manage` + step-up + `reason` | «To'langan» deb belgilash (`SubscriptionService::markPaid`). Balans o'zgarmaydi: pulning o'zi balansni to'ldirish sifatida yoziladi va eng eski hisob-fakturalarni yopadi. Bekor qilinganga 422 `invoice_void` |
+| `POST /admin/pos/invoices/{uuid}/void` | shu | Bekor qilish (`SubscriptionService::voidInvoice`): summasi qarzdan ayriladi (ledger'da teskari yozuv). Faqat to'lanmagan: `paid` yoki qisman to'langan hisob-fakturaga 422 `invoice_paid` (pul Moliya → Qo'lda tuzatish bilan qaytariladi). 1 000 000 so'm (`finance.four_eyes_threshold`) va undan kattasini ikki xil xodim: birinchi chaqiruv — so'rov (hisob-faktura `issued` qoladi, ledger o'zgarmaydi, `invoice.void_request {by, at, reason}`, jurnalda `admin.pos.invoice_void_requested`), o'sha xodim takrorlasa — o'sha javob, boshqa xodimning chaqiruvi bekor qiladi (`voided_by`). Kartada `void_needs_second_approval` |
+| `GET /admin/pos/devices?state=&type=&terminal=&store_id=&outdated=&q=` | `devices.view` | Do'konga tegishli hamma qurilmalar. `state`: `online` (oxirgi 10 daqiqada aloqa), `offline`, `never`, `revoked`, `all`; bo'sh bo'lsa o'chirilmaganlar. Eng uzoq aloqasizlar birinchi. `outdated=1` — shu turdagi faol qurilmalardagi eng yangi versiyadan eskilar (versiyalar reyestri yo'q, «eng yangi» — ko'rilgan eng katta versiya; `latest_versions`). Qatorda kassaning oflayn navbati (`sync`) |
+| `GET /admin/pos/devices/{uuid}` | shu | Qurilma (Bugun'dagi `/pos?device=` havolasi) |
+| `POST /admin/pos/devices/{uuid}/revoke` | `stores.manage` + step-up + `reason` | Qurilmani o'chirish (`DeviceService::revoke`): tokenlar va sessiyalar darhol to'xtaydi |
+| `GET /admin/pos/shifts?kind=&store_id=&from=&to=` | `devices.view` | Smenalar (faqat o'qish). `kind`: `difference` (yopilgan va kassa farqi bor; farq = sanalgan − hisobdagi, manfiy — pul yetishmaydi), `force_closed`, `open` |
+| `GET /admin/pos/shifts/{uuid}` | shu | Smena: Z-hisobot (`summary`), sanalgan pullar, kim majburan yopgani, kassaga qo'lda kirim-chiqim |
+| `GET /admin/pos/fiscal-receipts?status=&driver=&store_id=&from=&to=&q=` | `devices.view` | Fiskal cheklar. `status`: `open` (yiqilgan va kutilayotgan, odatda; eskilari ham), `failed`, `pending`, `issued`, `all`. `driver` — so'ralgan fiskal provayder. `summary.by_driver` — provayder bo'yicha xatolar va oxirgi xato. `retryable=false`: Payme/Click o'zi ro'yxatdan o'tkazgan chek (`driver=external`) |
+| `GET /admin/pos/fiscal-receipts/{uuid}` | shu | Chek: to'liq xato, qatorlar va to'lovlar. Provayderning xom javobi ko'rsatilmaydi |
+| `POST /admin/pos/fiscal-receipts/{uuid}/retry` | `stores.manage` + step-up + `reason` | Hoziroq qayta yuborish (`FiscalService::retryNow`, egasining «Qayta yuborish»i bilan bir xil). Javob — chek; provayder yana rad etsa `status` o'zgarmaydi va `message` sababni aytadi. Ro'yxatdan o'tgan yoki `external` chekka 422 `already_issued` |
+| `GET /admin/pos/sync-errors?state=&status=&type=&store_id=&device=&from=&to=` | `devices.view` | Oflayn sinxron xatolari: qabul qilinmagan (`rejected`) va farq bilan qabul qilingan (`conflict`) amallar. `state`: `open` (hal qilinmagan, odatda), `resolved`, `all` |
+| `GET /admin/pos/sync-errors/{opId}` | shu | Xato kartasi: kassa yuborgan `payload` (kaliti telefon, karta, PIN, token, parol yoki maxfiy bo'lsa `***`) va serverdagi natija (`refs`) |
+| `POST /admin/pos/sync-errors/{opId}/resolve` | `stores.manage` + step-up + `reason` | `resolution`: `resolved` (qo'lda hal qilindi) yoki `dismissed` (hech narsa qilish kerak emas). `reason` hal qilish izohiga yoziladi. Hal qilingan qabul qilinmagan amal kassaning smenasi yopilishiga endi to'sqinlik qilmaydi |
+
+Bugun'ning diqqat havolalari ochiladigan joy: `/pos?invoice=<uuid>`, `/pos?device=<uuid>`, `/pos?fiscal=<uuid>` mos
+tabni va qatorni ochadi; `/pos?store=<id>` (ovqatxona kartasidagi «Obuna») shu ovqatxonaning obunasini ochadi;
+qo'shimcha `?tab=` (`subscriptions`, `plans`, `invoices`, `devices`, `shifts`, `fiscal`, `sync`), `?shift=`, `?sync=`.
+
+Ruxsatlar: Savdo/ulash roli (`stores.manage`, `subscriptions.manage`, `devices.view`) hamma tabni ko'radi, obunalarni
+boshqaradi, qurilmani o'chiradi, chekni qayta yuboradi, lekin hisob-fakturani belgilay yoki bekor qila olmaydi
+(`finance.manage` kerak); Operator (`devices.view`)
+qurilma, smena, fiskal chek va sinxron xatolarini faqat ko'radi; Moliya hisob-fakturalarni belgilaydi/bekor qiladi;
+Faqat ko'rish hammasini ko'radi, hech narsani o'zgartirmaydi.
+
+### Do'kon to'xtatilganda buyurtma (P4-24, topilgan xato)
+
+To'xtatilgan (`suspended`), rad etilgan (`rejected`) yoki o'chirilgan (`is_active=false`) ovqatxona Mini App
+buyurtmasini qabul qilmaydi: `POST /orders` 400 «Restoran hozircha buyurtma qabul qilmayapti.» (avval to'xtatish faqat
+katalogdan yashirar edi, eskirgan savat yoki to'g'ridan-to'g'ri so'rov o'tib ketardi). Kassa (POS) buyurtmalari, to'lov
+olish va chek chiqarish bunga bog'liq emas.
+
+### Migratsiyalar va testlar (P4-24)
+
+Migratsiya yo'q. Testlar: `tests/Feature/AdminPos/*` (hisob-fakturalar, qurilmalar, smenalar, fiskal cheklar, sinxron
+xatolari, tab raqamlari va ruxsatlar), `tests/Feature/OrderStoreStatusTest.php`.
+
+## Moliya (P4-23)
+
+Boshqaruv markazining **Moliya** bo'limi (`platform/admin`, `/finance`): payout navbati va ikki kishilik tasdiq, qarzni
+ushlab qolish (netting), balans to'ldirishlar, hisob-kitob xatolari, ovqatxonalar balansi va qarzi, qo'lda tuzatish, oylik
+hisobot va Excel. Kod: `routes/api_admin_finance.php` (`/admin/finance`, nomlar `admin.finance.*`),
+`Admin/AdminFinance*Controller`, `app/Services/Finance/{Netting,Payouts,Adjustments,Reports}`, `config/finance.php`.
+Pul — o'nlik satr (`"400000.00"`), vaqt — ISO 8601. Har amal step-up (`admin.recent`), `reason` (3–500 belgi) talab qiladi
+va jurnalga yoziladi (amal = route nomi, obyekt, oldin/keyin, sabab); pul amallari `Idempotency-Key` oladi — takroriy so'rov
+o'sha javobni qaytaradi, hech narsa ikki marta bajarilmaydi va jurnal ikki marta yozilmaydi.
+
+### Ruxsatlar
+
+| Endpoint | Ruxsat | Step-up + `reason` |
+|---|---|---|
+| `GET /admin/finance/summary`, `/payouts`, `/payouts/{id}`, `/topups`, `/settlement-failures`, `/balances`, `/stores/{id}/ledger`, `/adjustments`, `/adjustments/{id}`, `/adjustments/{id}/document`, `/reports/monthly` | `finance.view` | — |
+| `GET /admin/finance/reports/monthly/export` | `finance.view` + `export` | — (jurnalga `admin.finance.report_exported`) |
+| `POST /admin/finance/payouts/{id}/approve`, `/reject` | `payouts.approve` | ha |
+| `POST /admin/finance/settlement-failures/{uuid}/retry` | `finance.manage` | ha |
+| `POST /admin/finance/adjustments`, `/adjustments/{id}/approve`, `/reject` | `finance.manage` | ha |
+
+**Ikki kishilik tasdiq (egasi qarori, 28.10.2026):** `config('finance.four_eyes_threshold')` = **1 000 000 so'm** va undan
+katta payout yoki qo'lda tuzatishni ikki xil xodim tasdiqlaydi: payoutda birinchi tasdiqlovchi, tuzatishda uni yaratgan
+xodim yakunlay olmaydi (403 `four_eyes`, superadmin ham). 999 999,99 — bitta tasdiq yetadi. Tuzatishni bo'lib yuborib
+chetlab bo'lmaydi: oxirgi `config('finance.four_eyes_window_hours')` (24) soatda **bitta xodim tasdig'i bilan** qo'llangan
+tuzatishlar — shu xodimniki (istalgan do'kon) va shu do'konniki (istalgan xodim), eski paneldagi qo'lda to'ldirishlar ham —
+yangisi bilan qo'shiladi; ikkalasidan biri chegaraga yetsa yangi tuzatish `pending`. Ikki kishi tasdiqlagan, kutilayotgan
+va rad etilganlar sanalmaydi. Hisob-fakturani bekor qilish ham shu chegarada ikki xodim (POS va obunalar, `.../void`).
+
+### Netting: payoutdan va RIZQIM yig'gan puldan avval qarz
+
+`App\Services\Finance\Netting\NettingService` (do'kon qatorini qulflagan holda): pul ovqatxonaga yetishidan oldin uning
+qarzi yopiladi — **avval eng eski obuna hisob-fakturalari** (to'lov muddati, keyin oy; `SubscriptionDebt::pay`), **keyin
+komissiya qarzi**. Har yopilgan narsa qarz ledger'ida **alohida yozuv** (`store_transactions`, tur `topup`, manfiy):
+hisob-faktura yozuvida `subscription_invoice_id` va izohda raqami, komissiya qismi alohida.
+
+- **Payout** tasdiqlanganda: hamyon so'rov summasiga kamayadi (ikki `payout` yozuvi, `payout_request_id` bilan: qarzga
+  ushlangan va kartaga o'tgan), qarz yozuvlari `payout_request_id` bilan. Payout kartasi: **Hisoblangan** (so'ralgan) —
+  **Ushlangan qarz** (har hisob-faktura va komissiya qatori) — **O'tkaziladi**. Qarz payoutdan katta bo'lsa hammasi
+  ushlanadi, kartaga 0.
+- **Click, Payme, keshbek** (RIZQIM yig'gan buyurtma puli, `LedgerService::settlePlatformOrder`): avvalgidek faqat keshbek
+  emas — har qanday provayder puli avval qarzni yopadi (buyurtmaning o'z komissiyasi qarzga yozilgan bo'lsa, uni ham),
+  qolgani hamyonga (`settlement`). Qarz bo'lmasa — hammasi hamyonga, avvalgidek.
+- **Qaytarilganda** (`reverseDeliveredOrder`): qarzni yopgan pul qaytib qarzga yoziladi va u yopgan **hisob-faktura qayta
+  ochiladi** (`SubscriptionDebt::reopen`: `paid_amount` kamayadi, `paid` → `issued`, obuna holati qayta hisoblanadi —
+  muddati o'tgan bo'lsa `past_due` / `locked`). Bekor qilingan hisob-faktura ochilmaydi (ulushi komissiya qarziga). P4-23
+  dan oldingi keshbek yozuvlarida hisob-faktura belgisi yo'q: ular komissiya qarzi sifatida qaytadi.
+
+### Payoutlar
+
+- `GET /admin/finance/payouts?status=open|pending|awaiting_second|completed|rejected|all&store_id=&cursor=&per_page=` —
+  `open` (odatda) — kutilayotganlar, eng eskisi birinchi; `counts {pending, awaiting_second, open_amount}`, `threshold`.
+  Qator: `id, store, amount, card` (doim niqoblangan), `status` (`pending` — tasdiq yo'q, `awaiting_second` — bitta tasdiq
+  bor, `completed`, `rejected`), `status_label, needs_second_approval, first_approval {by, at, note}, netted_amount,
+  transferred_amount, created_at, processed_at`.
+- `GET /admin/finance/payouts/{id}` — qator + `breakdown {accrued, netted, transfer, preview, lines[]}` (ochiq payoutda
+  hozir tasdiqlansa nima bo'lishi, `preview: true`; `lines[]`: `kind` invoice|commission, `label`, `amount`, `invoice
+  {id, uuid, number, period}`, `transaction_id`), `balances {wallet, debt, subscription_debt, commission_debt,
+  credit_limit}`, `notes`, `resolution_notes`, `processed_by`, `actions {can_approve, can_reject, approve_completes}`. Karta
+  raqami `pii.view` bilan to'liq (`admin.pii.revealed` yoziladi), aks holda niqoblangan.
+- `POST .../approve {reason}` — 1 mln dan kam: darhol o'tkaziladi. 1 mln dan: birinchi tasdiq yoziladi (`awaiting_second`,
+  pul harakatlanmaydi), boshqa xodimning tasdig'i o'tkazadi. Hamyon yetmasa 422 `insufficient_wallet` (hech narsa
+  yozilmaydi). Ko'rib chiqilgan payout — 409 `payout_decided`; o'sha xodim o'sha qarorni takrorlasa — o'sha javob.
+- `POST .../reject {reason}` — ochiq payout (birinchi tasdiqdan keyin ham); sabab egasiga `resolution_notes` bo'lib boradi.
+- Jurnal: `admin.finance.payouts.approved` / `.rejected`, `before/after.status`, `meta`: `amount`, `netted`, `transferred`,
+  `netting` (qatorlar), `first_approved_by`.
+- Egasining so'rovi (`POST /owner/payouts`) va javob shakli o'zgarmagan: `awaiting_second` egaga `pending` bo'lib ko'rinadi.
+  Eski superadmin paneli (Filament) ham shu `PayoutService::complete` orqali o'tkazadi (qarz ushlanadi), lekin 1 mln va
+  undan kattasini o'tkazmaydi ("Boshqaruv markazida ikki xodim tasdiqlaydi"). Xuddi shunday eski paneldagi "To'lov qabul
+  qilish" (qarzni kamaytirish) 1 mln dan (24 soatdagi bo'laklar va bitta tasdiqli tuzatishlar bilan) va 1 mln dan katta yoki
+  to'langan hisob-fakturani bekor qilish rad etiladi.
+
+### To'ldirishlar, hisob-kitob xatolari, balans va qarzlar
+
+- `GET /admin/finance/topups?status=pending|paid|cancelled|all&provider=click|payme&store_id=&stuck=1` — egalarning
+  Click/Payme to'ldirishlari; `stuck` — 3 kun ichida 30 daqiqadan beri to'lanmagan; `transaction_id` — to'langanining qarz
+  yozuvi; `counts {pending, stuck}`.
+- `GET /admin/finance/settlement-failures` — hisob-kitobi yozilmagan yetkazilgan buyurtmalar (`attempts`, `max_attempts`,
+  `gave_up`, `error`); `POST .../{uuid}/retry {reason}` — `SettlementRecoveryService::retry` (har 10 daqiqadagi ish bilan bir
+  yo'l, urinishlar tugagan bo'lsa ham): `{booked, order}` (`order: null` — yozildi yoki endi yetkazilgan emas).
+  Hisob-kitob yozilmagan paytda tasdiqlangan qisman qaytarishlar (`execution.ledger_reversal_deferred: true`) shu yozuv
+  bilan bir tranzaksiyada qaytariladi (jamlanib, har so'rov bir marta; so'rovning `execution.ledger_reversal` i yangilanadi,
+  `ledger_reversal_on_retry: true`).
+- `GET /admin/finance/balances?filter=all|debt|over_limit|subscription_debt|wallet&q=&page=&per_page=` — `wallet_balance,
+  debt_balance, subscription_debt, commission_debt, credit_limit, over_limit` (faqat **komissiya qarzi** limitdan oshsa),
+  `is_order_locked, pending_payouts`; `totals` — hamma do'konlar bo'yicha.
+- `GET /admin/finance/stores/{id}/ledger?ledger=debt|wallet&cursor=` — do'kon ledger'i (eng yangisi birinchi), har yozuvda
+  `order`, `subscription_invoice` (nima yopilgan yoki qayta ochilgan), `payout_request_id`; izohdagi karta raqamlari niqoblangan.
+- `GET /admin/finance/summary` — tablar va "Bugun" uchun sonlar.
+
+### Qo'lda tuzatish
+
+- `POST /admin/finance/adjustments` (JSON yoki multipart) `{store_id, kind, amount, reason, document?}`. `kind`:
+  `debt_charge` (qarz oshadi — komissiya qismi, kredit limitiga kiradi, limitdan oshsa do'kon bloklanadi), `debt_credit`
+  (komissiya qarzi kamayadi), `debt_payment` (hisob raqami yoki naqd to'lov — eng eski hisob-fakturalarni yopadi, har biri
+  alohida yozuv), `wallet_credit`, `wallet_debit` (hamyon manfiy bo'lmaydi: 422 `insufficient_wallet`). `amount` — so'm,
+  0 dan katta, ko'pi bilan 2 kasr. `document` — pdf/jpg/png/webp, 10 MB gacha, yopiq diskda (`config('finance.adjustments')`),
+  `GET .../{id}/document` bilan yuklab olinadi. 1 mln dan kam — darhol `applied`; 1 mln dan — `pending`, ledger o'zgarmaydi.
+- `POST .../{id}/approve {reason}` — yaratgan xodim emas (403 `four_eyes`); ledger yozuvi (`adjustment` turi, `reference_id`
+  = tuzatish uuid) shu paytda. `POST .../{id}/reject {reason}` — kutilayotganini (yaratgan ham qaytarib olishi mumkin).
+  Qaror qilingan — 409 `adjustment_decided`.
+- Javob: `id, uuid, store, kind, kind_label, ledger, amount, signed_amount, reason, status` (`pending|applied|rejected`),
+  `needs_second_approval, requested_by, approved_by, rejected_by` (vaqtlari bilan), `document {name, mime, size}`,
+  `transactions[]` (yozilgan ledger qatorlari), `mine, can_approve, can_reject`.
+- Jurnal: `admin.finance.adjustments.created` / `.approved` / `.rejected`.
+
+### Oylik hisobot
+
+`GET /admin/finance/reports/monthly?period=YYYY-MM` (Toshkent oyi, odatda joriy) — `totals {orders, gmv, commission,
+commission_refunded, subscription, total}`, `channels[]` (`rizqim_courier`, `own_delivery`, `pickup`, `pos`, `aggregator`,
+`unknown` — kanal yozilmagan eski buyurtmalar), `subscriptions {invoices, invoiced, paid, outstanding}`, `stores[]` (eng
+kattasi birinchi, `commission_by_channel`). Komissiya: shu oyda yetkazilgan (birinchi `delivered` yozuvi) va hali yetkazilgan
+holatdagi buyurtmalarning `commission_amount` i, **qisman qaytarishlar ayirilgan** (`order_ledger_reversals`); to'liq
+qaytarilgan buyurtma kirmaydi. Obuna: oyning bekor qilinmagan hisob-fakturalari. `.../export` — xuddi shu `.xlsx`
+("Umumiy", "Ovqatxonalar"; summalar son, matnlar — ovqatxona nomi ham — doim matn katakchasi: `=` bilan boshlangan nom
+formula bo'lib qolmaydi).
+
+### "Diqqat talab qiladi" manbalari
+
+| `kind` | Nima | Ruxsat | `href` |
+|---|---|---|---|
+| `payout_second_approval` | birinchi tasdig'i bor, ikkinchisini kutayotgan payoutlar | `payouts.approve` | `/finance?tab=payouts&payout={id}` |
+| `adjustment_second_approval` | tasdiq kutayotgan qo'lda tuzatishlar | `finance.manage` | `/finance?tab=adjustments&adjustment={id}` |
+
+Bugun'ning `payout_pending` manbasi endi faqat hali tasdiqlanmaganlarni sanaydi.
+
+### Boshqaruv markazi proksisi: fayllar
+
+`platform/admin` proksisi (`lib/server/proxy.ts`) JSON'dan tashqari faqat ikki narsani o'tkazadi: `POST
+/admin/finance/adjustments` ga multipart (11 MB gacha, boshqa yo'lga 415) va `GET .../reports/monthly/export`,
+`.../adjustments/{id}/document` javobidagi fayl (faqat xlsx, pdf, jpeg, png, webp turlari; boshqa javob JSON bo'lmasa —
+`bad_gateway`).
+
+Proksi yozuvlarda (POST/PUT/PATCH/DELETE) tanani **o'qishdan oldin** tekshiradi: sessiya cookie'si bo'lmasa — 401
+`unauthenticated` (faqat kirish bosqichlari cookie'siz: `auth/login`, `auth/invite/accept`, `auth/2fa/setup|verify|confirm`);
+e'lon qilingan `Content-Length` limitdan oshsa — 413; tana oqim bilan o'qiladi va limitga yetganda to'xtatiladi
+(`Content-Length` yo'q yoki yolg'on bo'lsa ham): JSON 256 KB, multipart 11 MB.
+
+### Migratsiyalar va testlar
+
+`2026_11_05_100100` (`payout_requests`: `first_approved_by/at/note`, `netted_amount`, `transferred_amount`, `netting`),
+`100200` (`store_transactions.subscription_invoice_id`, `payout_request_id`; `store_wallet_transactions.payout_request_id`),
+`100300` (`order_ledger_reversals`), `100400` (`finance_adjustments`), `100500` (ledger'larda `(order_id, type)` indekslari,
+CONCURRENTLY), `100600` (`subscription_invoices.void_requested_by/at`, `void_request_reason` — ikki kishilik bekor qilish). Testlar: `tests/Feature/AdminFinance/*` (netting, payoutlar, qisman qaytarish, tuzatishlar, ro'yxatlar,
+hisobot, hisob-fakturani bekor qilish).

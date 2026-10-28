@@ -4,17 +4,19 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'invoice_kind.dart';
 import 'store.dart';
 import 'store_subscription.dart';
 import 'subscription_invoice_status.dart';
 import 'tariff_plan.dart';
+import 'user.dart';
 
 part 'subscription_invoice.g.dart';
 
 @JsonSerializable()
 class SubscriptionInvoice {
   const SubscriptionInvoice({
-    required this.id,
+    required this.baseFee,
     required this.uuid,
     required this.number,
     required this.storeId,
@@ -25,7 +27,7 @@ class SubscriptionInvoice {
     required this.periodEnd,
     required this.terminalsCount,
     required this.includedTerminals,
-    required this.baseFee,
+    required this.id,
     required this.feePerTerminal,
     required this.lines,
     required this.amount,
@@ -37,9 +39,16 @@ class SubscriptionInvoice {
     required this.voidedBy,
     required this.voidReason,
     required this.ledgerTransactionId,
-    required this.voidTransactionId,
+    required this.voidRequestReason,
     required this.createdAt,
     required this.updatedAt,
+    required this.kind,
+    required this.sequence,
+    required this.paidAmount,
+    required this.voidRequestedBy,
+    required this.voidRequestedAt,
+    required this.voidTransactionId,
+    this.voidRequester,
     this.store,
     this.subscription,
     this.plan,
@@ -93,6 +102,18 @@ class SubscriptionInvoice {
   final DateTime? createdAt;
   @JsonKey(name: 'updated_at')
   final DateTime? updatedAt;
+  final InvoiceKind kind;
+  final int sequence;
+  @JsonKey(name: 'paid_amount')
+  final String paidAmount;
+  @JsonKey(name: 'void_requested_by')
+  final int? voidRequestedBy;
+  @JsonKey(name: 'void_requested_at')
+  final DateTime? voidRequestedAt;
+  @JsonKey(name: 'void_request_reason')
+  final String? voidRequestReason;
+  @JsonKey(name: 'void_requester')
+  final User? voidRequester;
   final Store? store;
   final StoreSubscription? subscription;
   final TariffPlan? plan;

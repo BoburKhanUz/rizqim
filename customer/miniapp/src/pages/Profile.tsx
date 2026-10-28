@@ -178,7 +178,7 @@ export default function Profile() {
     );
   }
 
-  const roleLabel = user?.role === 'courier' ? (uz ? 'Kuryer' : 'Курьер') : user?.role === 'manager' ? (uz ? 'Menejer' : 'Менеджер') : user?.role === 'super_admin' ? 'Superadmin' : null;
+  const roleLabel = user?.role === 'courier' ? (uz ? 'Kuryer' : 'Курьер') : user?.role === 'manager' ? (uz ? 'Menejer' : 'Менеджер') : null;
   const readOnlyLook = !isEditing && 'border-transparent text-fg';
 
   return (

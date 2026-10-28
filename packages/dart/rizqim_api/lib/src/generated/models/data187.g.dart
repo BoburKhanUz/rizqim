@@ -20,7 +20,7 @@ Data187 _$Data187FromJson(Map<String, dynamic> json) => Data187(
   itemsTotal: (json['items_total'] as num).toInt(),
   itemsReady: (json['items_ready'] as num).toInt(),
   items: (json['items'] as List<dynamic>)
-      .map((e) => Items46.fromJson(e as Map<String, dynamic>))
+      .map((e) => Items45.fromJson(e as Map<String, dynamic>))
       .toList(),
   createdAt: json['created_at'] as String?,
   acceptedAt: json['accepted_at'] as String?,

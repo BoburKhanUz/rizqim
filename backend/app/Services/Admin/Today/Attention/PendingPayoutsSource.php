@@ -7,7 +7,7 @@ use App\Models\PayoutRequest;
 use App\Services\Admin\Attention\AttentionItem;
 
 /**
- * Stores' payout requests waiting for Moliya (payout_requests.status = pending), oldest first. The card number is
+ * Stores' payout requests waiting for Moliya (payout_requests.status = pending, no approval yet), oldest first. The card number is
  * not shown here (it is on the request's card, masked by AdminPii).
  */
 class PendingPayoutsSource extends TodayAttentionSource
@@ -34,7 +34,8 @@ class PendingPayoutsSource extends TodayAttentionSource
 
     public function collect(int $limit): array
     {
-        $query = PayoutRequest::query()->where('status', 'pending');
+        // P4-23: one approved once and waiting for a second member is PayoutSecondApprovalSource's row
+        $query = PayoutRequest::query()->where('status', 'pending')->whereNull('first_approved_by');
 
         $items = (clone $query)
             ->with(['store' => fn ($store) => $store->withTrashed()->select(['id', 'name'])])

@@ -4,18 +4,17 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'customer5.dart';
-import 'delivery8.dart';
-import 'courier5.dart';
-import 'items44.dart';
-import 'status_history.dart';
+import 'customer4.dart';
+import 'delivery7.dart';
+import 'courier4.dart';
+import 'items43.dart';
 
 part 'data185.g.dart';
 
 @JsonSerializable()
 class Data185 {
   const Data185({
-    required this.discount,
+    required this.subtotal,
     required this.shortCode,
     required this.status,
     required this.statusLabel,
@@ -26,8 +25,8 @@ class Data185 {
     required this.branchName,
     required this.paymentMethod,
     required this.paymentStatus,
-    required this.subtotal,
     required this.uuid,
+    required this.discount,
     required this.deliveryPrice,
     required this.serviceChargeAmount,
     required this.placeFeeAmount,
@@ -38,8 +37,8 @@ class Data185 {
     required this.tableRef,
     required this.cancelReason,
     required this.cancelNote,
-    required this.customer,
-    required this.statusHistory,
+    required this.waitingSeconds,
+    required this.delivery,
     required this.courier,
     required this.itemsTotal,
     required this.itemsReady,
@@ -50,8 +49,7 @@ class Data185 {
     required this.preparingAt,
     required this.readyAt,
     required this.closedAt,
-    required this.waitingSeconds,
-    required this.delivery,
+    required this.customer,
   });
 
   factory Data185.fromJson(Map<String, Object?> json) =>
@@ -96,14 +94,14 @@ class Data185 {
   final String? cancelReason;
   @JsonKey(name: 'cancel_note')
   final String? cancelNote;
-  final Customer5? customer;
-  final Delivery8? delivery;
-  final Courier5? courier;
+  final Customer4? customer;
+  final Delivery7? delivery;
+  final Courier4? courier;
   @JsonKey(name: 'items_total')
   final int itemsTotal;
   @JsonKey(name: 'items_ready')
   final int itemsReady;
-  final List<Items44> items;
+  final List<Items43> items;
   @JsonKey(name: 'created_at')
   final String? createdAt;
   @JsonKey(name: 'updated_at')
@@ -118,8 +116,6 @@ class Data185 {
   final String? closedAt;
   @JsonKey(name: 'waiting_seconds')
   final int waitingSeconds;
-  @JsonKey(name: 'status_history')
-  final List<StatusHistory> statusHistory;
 
   Map<String, Object?> toJson() => _$Data185ToJson(this);
 }

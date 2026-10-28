@@ -19,6 +19,19 @@ yozilishini tushuntiradi (P1-12). Barcha endpointlar `/api/v1` ostida.
 **Telegram.** `POST /auth/telegram` `{initData, bot_username, start_param?}`. Javob o'zgarmagan:
 `{token, user, store, sms_verification_required}`. Mini App hech narsa o'zgartirmaydi.
 
+**Superadmin va RIZQIM jamoasi Telegram yoki SMS bilan kirmaydi (P4-25).** Superadmin (`users.role = super_admin`) va
+jamoa a'zolari (`platform`, `users.platform_role` belgilangan) faqat Boshqaruv markazi orqali kiradi (`/admin/auth/*`,
+yuqoridagi jadval). `POST /auth/telegram` va `POST /auth/phone/verify` (mijoz ham, `account: staff` ham) ularga hech qachon
+token, refresh token yoki yangi hisob bermaydi:
+- Telegram id yoki raqam boshqa hisobda ham bo'lsa (mijoz yoki do'kon xodimi), o'sha hisobga kiriladi (Telegram id'da ega >
+  menejer > ... > mijoz tartibi o'zgarmagan, superadmin hisobga olinmaydi);
+- faqat superadmin/jamoa hisobida bo'lsa — **403** `data.reason = platform_account`, xabar "Bu hisob uchun Telegram yoki
+  telefon orqali kirish yopiq. Boshqaruv markazidan kiring.". Hech narsa yaratilmaydi yoki o'zgarmaydi;
+- ularning avvalgi oddiy tokenlari (Mini App, mobil, qurilma tokenlari) ishlamaydi (`sanctum` guard rad etadi, 401), refresh
+  token yangi token bermaydi (`refresh_invalid`). Faqat `admin` tokeni (`AdminTokenGuard`) ishlaydi.
+- Eski `/superadmin/dashboard|stores|locations` endpointlari va Mini App'dagi superadmin ekranlari olib tashlangan; do'kon
+  yaratish va platforma ko'rsatkichlari — Boshqaruv markazida (va Filament `/superadmin` panelida, P4-33 gacha).
+
 **Qurilmani ro'yxatdan o'tkazish (ixtiyoriy).** So'rovga `device` obyekti qo'shilsa
 (`{type, uuid?, name?, platform?, app_version?, push_token?}`, `type`: `customer_mobile`, `partner_mobile`,
 `courier`, `web`), javobga qo'shimcha maydonlar keladi: `token_expires_at`, `refresh_token`,
@@ -46,7 +59,7 @@ Kod cheklovlari (5 urinish, sutkasiga 30 ta, kod bir martalik) xuddi yuqoridagid
 
 - Kirish raqami — `users.phone_verified_at` belgilangan raqam: xodim uni o'zi SMS kod bilan tasdiqlagan (Mini App yoki
   ilovada `POST /phone/verify-code`), yoki hisob ustidan vakolati borlar yozgan: superadmin egani yaratganda ("Phone
-  Number (Login)", `POST /superadmin/stores` dagi `+998…` ko'rinishidagi `owner_phone`), Superadmin > Foydalanuvchilar >
+  Number (Login)", do'kon yaratish ustasidagi `+998…` ko'rinishidagi egasi raqami), Superadmin > Foydalanuvchilar >
   "SMS bilan kirishni yoqish", ega yoki menejer do'kon panelidagi Xodimlar formasida ("Telefon (SMS bilan kirish)", menejer —
   o'zidan pastdagilarga). Bir do'konda bitta raqam bitta xodimga. Profilda kodsiz o'zgartirilgan raqam kirish raqami
   bo'lmaydi.
@@ -63,7 +76,7 @@ Kod cheklovlari (5 urinish, sutkasiga 30 ta, kod bir martalik) xuddi yuqoridagid
   - menejer o'zidan pastdagi xodimning (ega yoki menejer yozgan, `vouched`) raqamini baribir o'zgartira oladi — bu uning
     vakolati. Shuning uchun har bir o'zgarish jurnalga yoziladi (pastda) va ega uni ko'radi.
 - Kirish raqami qo'yilsa, o'zgarsa yoki o'chirilsa (xodimlar formasi, superadmin "SMS bilan kirishni yoqish", do'kon
-  yaratish ustasi va `POST /superadmin/stores`, superadmin foydalanuvchini tahrirlaganda raqam yoki rol o'zgarib kirish
+  yaratish ustasi, superadmin foydalanuvchini tahrirlaganda raqam yoki rol o'zgarib kirish
   raqami yo'qolsa) — jurnalga `staff.login_phone_set` / `staff.login_phone_changed` / `staff.login_phone_cleared` yoziladi
   (raqam niqoblangan, `via` va `previous_via` bilan). O'zgarsa yoki o'chirilsa, xodimning **ilovadagi barcha sessiyalari**
   (refresh token oilalari va ularning access tokenlari, barcha qurilmalarda; push tokenlar ham tozalanadi) darhol
@@ -77,7 +90,8 @@ Kod cheklovlari (5 urinish, sutkasiga 30 ta, kod bir martalik) xuddi yuqoridagid
   xabari). Bunday xodim raqamsiz qo'shiladi va taklif havolasi orqali kirib raqamini o'zi tasdiqlaydi, yoki superadmin
   "SMS bilan kirishni yoqish" bilan yoqadi. Faqat `vouched` raqam uchun bu cheklov yo'q (egasi uni hali isbotlamagan).
 - Raqam hech qaysi xodimniki bo'lmasa (faqat mijozniki yoki hech kimniki) — **403** `data.reason = staff_account_not_found`,
-  hech narsa o'zgarmaydi. Superadmin va do'konsiz hisoblar bu yo'l bilan kirmaydi.
+  hech narsa o'zgarmaydi. Do'konsiz hisoblar bu yo'l bilan kirmaydi. Raqam faqat superadmin/jamoa hisobida bo'lsa —
+  **403** `data.reason = platform_account` (yuqorida, P4-25).
 - Raqam bir nechta xodim hisobida bo'lsa (bir odam ikki do'konda) — **409** `data.reason = account_selection_required`,
   `data.accounts` (`user_id`, `name`, `role`, `role_label`, `store {id, name}`, `branch`) va `data.selection_token`
   (5 daqiqa, bir martalik — bir vaqtda yuborilgan ikki so'rovdan ham faqat bittasi o'tadi; serverda faqat xeshi saqlanadi). Kod shu bilan sarflangan. Ilova hisobni tanlab

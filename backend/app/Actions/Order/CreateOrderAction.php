@@ -66,6 +66,13 @@ class CreateOrderAction
 
             // 1. Store Status & Working Hours Validation
             $storeStatus = $store->status->value ?? $store->status;
+            // A suspended or rejected store, or one switched off, takes no Mini App orders (suspending only hid it from
+            // the catalog, so a stale cart or a direct request still got through)
+            if (!$store->is_active
+                || $storeStatus === \App\Enums\StoreStatus::SUSPENDED->value
+                || $storeStatus === \App\Enums\StoreStatus::REJECTED->value) {
+                throw new Exception("Restoran hozircha buyurtma qabul qilmayapti.");
+            }
             if ($storeStatus === \App\Enums\StoreStatus::PAYMENT_REQUIRED->value) {
                 throw new Exception("Restoran vaqtincha to'lov qabul qilmayapti (Qarz limitidan oshgan).");
             }
@@ -347,8 +354,13 @@ class CreateOrderAction
                 ->plus($diningFees['service_charge'])
                 ->plus($diningFees['place_fee']);
 
-            // Same base and rounding the ledger settles on, so the stored snapshot is exactly what gets charged
-            $commissionAmount = $totalPrice->percent($store->commissionRate()); // P1-23: the tariff plan's rate, else the store's own
+            // Same base and rounding the ledger settles on, so the stored snapshot is exactly what gets charged.
+            // P4-21: the rate of the order's channel (courier, own delivery, pickup; docs/BILLING.md "Komissiya"),
+            // snapshotted with the channel, so a later rate change never reaches this order
+            $commissionPolicy = app(\App\Services\Finance\Billing\CommissionPolicy::class);
+            $commissionChannel = $commissionPolicy->channelFor($store, $channel, (string) $payload['type']);
+            $commissionRate = $commissionPolicy->rateFor($store, $commissionChannel);
+            $commissionAmount = $totalPrice->percent($commissionRate);
 
             $paymentStatus = PaymentStatus::PENDING;
             if ($paymentMethod === 'keshbek') {
@@ -378,6 +390,8 @@ class CreateOrderAction
                 'discount' => $discount->toString(),
                 'promo_code_id' => $promoCodeId,
                 'commission_amount' => $commissionAmount->toString(),
+                'commission_channel' => $commissionChannel->value,
+                'commission_rate' => $commissionRate,
                 'status' => OrderStatus::NEW,
                 'order_type' => $payload['type'],
                 'payment_method' => $paymentMethod,

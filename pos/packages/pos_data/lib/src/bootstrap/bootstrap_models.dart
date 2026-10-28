@@ -1,5 +1,6 @@
 import 'package:pos_core/pos_core.dart';
 
+import '../entitlements/entitlements_models.dart';
 import '../json.dart';
 
 /// `GET /pos/bootstrap`: terminal ishga tushganda (PIN bilan kirilgandan keyin) kerak bo'ladigan hamma narsa
@@ -21,6 +22,7 @@ class PosBootstrap {
     required this.tables,
     required this.shift,
     this.quickItems = const <PosQuickItem>[],
+    this.entitlements,
     this.raw = const <String, Object?>{},
   });
 
@@ -45,6 +47,7 @@ class PosBootstrap {
         tables: j.objects('tables', PosTable.fromJson),
         shift: j.has('shift') ? PosShiftSummary.fromJson(j.obj('shift')) : null,
         quickItems: j.objects('quick_items', PosQuickItem.fromJson),
+        entitlements: _entitlementsOf(j),
         raw: j.map,
       );
 
@@ -78,6 +81,10 @@ class PosBootstrap {
   /// Bir bosishda qo'shiladigan taomlar (P3-26): menyuda "tez qo'shish" belgilanganlar, keyin filialning choy-non
   /// qatorlari. Bo'sh bo'lsa ilova nom bo'yicha taxmin qiladi (eski server).
   final List<PosQuickItem> quickItems;
+
+  /// Tarif nimaga yo'l qo'yadi (P4-21): "Asosiy tarifda bor" qulflari va to'lanmagan hisob-faktura xabari. `null` —
+  /// eski server yoki o'qib bo'lmadi: hamma narsa ochiq ([PosEntitlements.open]).
+  final PosEntitlements? entitlements;
   final Map<String, Object?> raw;
 
   /// Server soati qurilmanikidan qancha oldinda (manfiy — orqada). Vaqt hisoblarida (necha daqiqa ochiq) qo'shiladi.
@@ -99,6 +106,28 @@ class PosBootstrap {
     tables: tables,
     shift: next,
     quickItems: quickItems,
+    entitlements: entitlements,
+    raw: raw,
+  );
+
+  /// Tarif ma'lumoti yangilandi (`GET /owner/billing/entitlements`): bootstrapning qolgan qismi o'zgarmaydi.
+  PosBootstrap withEntitlements(PosEntitlements next) => PosBootstrap(
+    serverTime: serverTime,
+    receivedAt: receivedAt,
+    menuVersion: menuVersion,
+    store: store,
+    branch: branch,
+    device: device,
+    user: user,
+    stations: stations,
+    stationRoutes: stationRoutes,
+    printers: printers,
+    staff: staff,
+    halls: halls,
+    tables: tables,
+    shift: shift,
+    quickItems: quickItems,
+    entitlements: next,
     raw: raw,
   );
 
@@ -648,4 +677,15 @@ class PosShiftSummary {
   final String? deviceId;
 
   bool get isOpen => status == 'open';
+}
+
+/// `entitlements` bloki (yo'q yoki o'qib bo'lmasa — `null`: bootstrapni yiqitmaydi, ekranlar ochiq qoladi).
+PosEntitlements? _entitlementsOf(PosJson j) {
+  final PosJson? block = j.objOrNull('entitlements');
+  if (block == null) return null;
+  try {
+    return PosEntitlements.fromJson(block);
+  } on FormatException {
+    return null;
+  }
 }

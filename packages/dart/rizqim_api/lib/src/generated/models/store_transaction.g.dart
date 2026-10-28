@@ -25,6 +25,8 @@ StoreTransaction _$StoreTransactionFromJson(Map<String, dynamic> json) =>
       updatedAt: json['updated_at'] == null
           ? null
           : DateTime.parse(json['updated_at'] as String),
+      subscriptionInvoiceId: (json['subscription_invoice_id'] as num?)?.toInt(),
+      payoutRequestId: (json['payout_request_id'] as num?)?.toInt(),
     );
 
 Map<String, dynamic> _$StoreTransactionToJson(StoreTransaction instance) =>
@@ -42,4 +44,6 @@ Map<String, dynamic> _$StoreTransactionToJson(StoreTransaction instance) =>
       'notes': instance.notes,
       'created_at': instance.createdAt?.toIso8601String(),
       'updated_at': instance.updatedAt?.toIso8601String(),
+      'subscription_invoice_id': instance.subscriptionInvoiceId,
+      'payout_request_id': instance.payoutRequestId,
     };

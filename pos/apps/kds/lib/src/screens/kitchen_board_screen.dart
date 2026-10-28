@@ -5,6 +5,7 @@ import 'package:rizqim_api/rizqim_api.dart';
 import 'package:rizqim_core/rizqim_core.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
+import '../billing/kds_plan.dart';
 import '../board/board_view.dart';
 import '../board/kitchen_board_controller.dart';
 import '../board/skewer_groups.dart';
@@ -14,6 +15,7 @@ import '../stations/station_selection.dart';
 import '../widgets/connection_status.dart';
 import '../widgets/kazan_panel.dart';
 import '../widgets/mangal_card.dart';
+import '../widgets/plan_bar.dart';
 import '../widgets/preorder_queue.dart';
 import '../widgets/recent_strip.dart';
 import '../widgets/settings_dialog.dart';
@@ -33,6 +35,7 @@ class KitchenBoardScreen extends StatefulWidget {
     this.setup,
     this.realtime,
     this.clock,
+    this.plan,
   });
 
   final KitchenBoardController controller;
@@ -47,6 +50,9 @@ class KitchenBoardScreen extends StatefulWidget {
   final KitchenSetupService? setup;
   final BranchRealtime? realtime;
   final DateTime Function()? clock;
+
+  /// P4-21: tarif xabari (to'lanmagan hisob-faktura, tarifda KDS yo'q); `null` — lenta yo'q.
+  final KdsPlanController? plan;
 
   /// Bitta ustunning eng kichik kengligi.
   static const double minColumnWidth = 340;
@@ -179,6 +185,8 @@ class _KitchenBoardScreenState extends State<KitchenBoardScreen> {
                 actionLabel: 'Qayta urinish',
                 onAction: () => unawaited(board.refresh()),
               ),
+            if (widget.plan != null)
+              KdsPlanBar(controller: widget.plan!, now: _read),
             _TopBar(
               terminal: widget.terminal,
               staffName: widget.auth.staff?.userName ?? '',

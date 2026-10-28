@@ -29,7 +29,8 @@ Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->group(functi
             // P3 integration fix: the floor layout is the owner's and the manager's. tables.manage alone is held by
             // cashiers and waiters too (seat, move, merge on the POS), so changing halls and tables also needs the
             // owner or manager role: the owner always holds tables.manage, a manager unless the store took it away
-            Route::middleware('role:owner,manager')->group(function () {
+            // P4-21: a locked subscription changes no floor plan (billing.unlocked)
+            Route::middleware(['role:owner,manager', 'billing.unlocked'])->group(function () {
                 Route::post('/owner/halls', [HallController::class, 'store']);
                 Route::patch('/owner/halls/{id}', [HallController::class, 'update'])->where('id', RowId::ROUTE_PATTERN);
                 Route::delete('/owner/halls/{id}', [HallController::class, 'destroy'])->where('id', RowId::ROUTE_PATTERN);
@@ -41,7 +42,8 @@ Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->group(functi
             });
         });
 
-        Route::middleware('permission:settings.manage')->group(function () {
+        // P4-21: a locked subscription changes no hall fees, room tariffs or choy-non items (billing.unlocked: writes only)
+        Route::middleware(['permission:settings.manage', 'billing.unlocked'])->group(function () {
             Route::delete('/owner/service-fees/halls/{id}', [HallController::class, 'destroyServiceFee'])->where('id', RowId::ROUTE_PATTERN);
 
             Route::get('/owner/room-tariffs', [RoomTariffController::class, 'index']);

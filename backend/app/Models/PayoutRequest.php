@@ -17,6 +17,11 @@ class PayoutRequest extends Model
     protected $casts = [
         'processed_at' => 'datetime',
         'amount' => 'decimal:2',
+        // P4-23: the second approval and the netting (App\Services\Finance\Payouts\PayoutService)
+        'first_approved_at' => 'datetime',
+        'netted_amount' => 'decimal:2',
+        'transferred_amount' => 'decimal:2',
+        'netting' => 'array',
     ];
 
     protected static function booted()
@@ -41,33 +46,23 @@ class PayoutRequest extends Model
                     throw new \DomainException("Payout so'rovi allaqachon ko'rib chiqilgan.");
                 }
 
-                // Transitioning from pending -> completed
+                // Transitioning from pending -> completed: P4-23, the store's debt is netted first, the rest goes to the
+                // card (PayoutService::complete, the control center's path too). A payout that needs two members is
+                // only completed in the Boshqaruv markazi.
                 if ($newStatus === 'completed') {
-                    $store = Store::where('id', $payout->store_id)->lockForUpdate()->firstOrFail();
-
-                    $amount = Money::of($payout->amount);
-                    $balanceBefore = Money::of($store->wallet_balance);
-                    $balanceAfter = $balanceBefore->minus($amount);
-
-                    if ($balanceAfter->isNegative()) {
-                        throw new \DomainException("Hamyonda yetarli mablag' yo'q: " . number_format($balanceBefore->toFloat()) . " UZS.");
+                    $payouts = app(\App\Services\Finance\Payouts\PayoutService::class);
+                    if ($payouts->needsSecondApproval($payout)) {
+                        throw new \DomainException(\App\Services\Finance\Payouts\PayoutService::uzs(\App\Services\Finance\Payouts\PayoutService::threshold())
+                            . " va undan katta payoutni Boshqaruv markazida ikki xodim tasdiqlaydi.");
                     }
 
-                    // Update store wallet balance
-                    $store->forceFill([
-                        'wallet_balance' => $balanceAfter->toString(),
-                    ])->save();
+                    try {
+                        $payouts->complete(static::whereKey($payout->getKey())->firstOrFail(), auth()->id(), $payout->resolution_notes);
+                    } catch (\App\Services\Finance\Payouts\PayoutException $e) {
+                        throw new \DomainException($e->getMessage());
+                    }
 
-                    // Record wallet transaction
-                    StoreWalletTransaction::create([
-                        'store_id' => $store->id,
-                        'type' => \App\Enums\StoreTransactionType::PAYOUT->value,
-                        'amount' => $amount->negated()->toString(),
-                        'balance_before' => $balanceBefore->toString(),
-                        'balance_after' => $balanceAfter->toString(),
-                        'notes' => "Payout completed to card: {$payout->card_number}",
-                        'performed_by' => auth()->id(),
-                    ]);
+                    return;
                 }
 
                 // Persist the transition while the row lock is held, so a parallel approval sees it.
@@ -94,5 +89,15 @@ class PayoutRequest extends Model
     public function processedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'processed_by');
+    }
+
+    /**
+     * P4-23: the member who gave the first of two approvals (a payout of 1 000 000 so'm or more).
+     *
+     * @return BelongsTo<User, $this>
+     */
+    public function firstApprover(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'first_approved_by');
     }
 }

@@ -7,21 +7,47 @@ part of 'data149.dart';
 // **************************************************************************
 
 Data149 _$Data149FromJson(Map<String, dynamic> json) => Data149(
-  branchId: (json['branch_id'] as num).toInt(),
-  generatedAt: json['generated_at'] as String,
-  overdueAfterHours: (json['overdue_after_hours'] as num).toInt(),
-  halls: (json['halls'] as List<dynamic>)
-      .map((e) => Halls2.fromJson(e as Map<String, dynamic>))
+  uuid: json['uuid'] as String,
+  type: Type6.fromJson(json['type'] as String),
+  status: Status5.fromJson(json['status'] as String),
+  paymentForm: PaymentForm.fromJson(json['payment_form'] as String),
+  nonFiscal: json['non_fiscal'] as bool,
+  total: json['total'] as String,
+  vatTotal: json['vat_total'] as String,
+  fiscalSign: json['fiscal_sign'] as String?,
+  receiptNumber: json['receipt_number'] as String?,
+  qrUrl: json['qr_url'] as String?,
+  terminalId: json['terminal_id'] as String?,
+  error: json['error'] as String?,
+  issuedAt: json['issued_at'] as String?,
+  createdAt: json['created_at'] as String?,
+  branchId: (json['branch_id'] as num?)?.toInt(),
+  originalReceiptUuid: json['original_receipt_uuid'] as String?,
+  lines: (json['lines'] as List<dynamic>)
+      .map((e) => Lines14.fromJson(e as Map<String, dynamic>))
       .toList(),
-  untabledOrders: (json['untabled_orders'] as List<dynamic>)
-      .map((e) => UntabledOrders.fromJson(e as Map<String, dynamic>))
+  payments: (json['payments'] as List<dynamic>)
+      .map((e) => Payments27.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 
 Map<String, dynamic> _$Data149ToJson(Data149 instance) => <String, dynamic>{
+  'uuid': instance.uuid,
+  'type': instance.type,
+  'status': instance.status,
+  'payment_form': instance.paymentForm,
+  'non_fiscal': instance.nonFiscal,
+  'total': instance.total,
+  'vat_total': instance.vatTotal,
+  'fiscal_sign': instance.fiscalSign,
+  'receipt_number': instance.receiptNumber,
+  'qr_url': instance.qrUrl,
+  'terminal_id': instance.terminalId,
+  'error': instance.error,
+  'issued_at': instance.issuedAt,
+  'created_at': instance.createdAt,
   'branch_id': instance.branchId,
-  'generated_at': instance.generatedAt,
-  'overdue_after_hours': instance.overdueAfterHours,
-  'halls': instance.halls,
-  'untabled_orders': instance.untabledOrders,
+  'original_receipt_uuid': instance.originalReceiptUuid,
+  'lines': instance.lines,
+  'payments': instance.payments,
 };

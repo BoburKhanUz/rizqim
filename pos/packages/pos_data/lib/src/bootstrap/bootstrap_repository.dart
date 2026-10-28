@@ -1,3 +1,4 @@
+import '../entitlements/entitlements_models.dart';
 import '../http/pos_exceptions.dart';
 import '../http/pos_http.dart';
 import '../offline/pos_offline.dart';
@@ -41,6 +42,26 @@ class PosBootstrapRepository {
     if (o != null && branchId == null) await o.captureBootstrap(b.raw);
     _current = b;
     return b;
+  }
+
+  /// P4-21: tarif ma'lumotini bootstrapni qayta yuklamasdan yangilaydi (`GET /owner/billing/entitlements`: egasi to'lov
+  /// qildi, tarif o'zgardi, hisob-faktura muddati o'tdi). Javob kelmasa yoki o'qib bo'lmasa — `null`: oxirgi ma'lum
+  /// holat qoladi, hech narsa yopilmaydi.
+  Future<PosEntitlements?> loadEntitlements() async {
+    final PosEntitlements fresh;
+    try {
+      fresh = await _http.get(
+        '/v1/owner/billing/entitlements',
+        (Object? data) => PosEntitlements.fromJson(dataObject(data)),
+      );
+    } on PosException {
+      return null;
+    } on FormatException {
+      return null;
+    }
+    final PosBootstrap? now = _current;
+    if (now != null) _current = now.withEntitlements(fresh);
+    return fresh;
   }
 
   /// Xodim chiqqanda yoki terminal uzilganda.

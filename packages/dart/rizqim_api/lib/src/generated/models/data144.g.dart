@@ -7,31 +7,13 @@ part of 'data144.dart';
 // **************************************************************************
 
 Data144 _$Data144FromJson(Map<String, dynamic> json) => Data144(
-  uuid: json['uuid'] as String,
-  name: json['name'] as String,
-  phone: json['phone'] as String?,
-  groupName: json['group_name'] as String?,
-  branchId: (json['branch_id'] as num?)?.toInt(),
-  creditLimit: json['credit_limit'] as String?,
-  balance: json['balance'] as String,
-  availableCredit: json['available_credit'] as String?,
-  isBlocked: json['is_blocked'] as bool,
-  note: json['note'] as String?,
-  createdAt: json['created_at'] as String?,
-  updatedAt: json['updated_at'] as String?,
+  account: Account.fromJson(json['account'] as String),
+  entries: (json['entries'] as List<dynamic>)
+      .map((e) => Entries2.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data144ToJson(Data144 instance) => <String, dynamic>{
-  'uuid': instance.uuid,
-  'name': instance.name,
-  'phone': instance.phone,
-  'group_name': instance.groupName,
-  'branch_id': instance.branchId,
-  'credit_limit': instance.creditLimit,
-  'balance': instance.balance,
-  'available_credit': instance.availableCredit,
-  'is_blocked': instance.isBlocked,
-  'note': instance.note,
-  'created_at': instance.createdAt,
-  'updated_at': instance.updatedAt,
+  'account': instance.account,
+  'entries': instance.entries,
 };

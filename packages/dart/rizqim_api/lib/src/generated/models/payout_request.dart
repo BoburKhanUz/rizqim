@@ -5,6 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'store.dart';
+import 'user.dart';
 
 part 'payout_request.g.dart';
 
@@ -22,7 +23,14 @@ class PayoutRequest {
     required this.createdAt,
     required this.updatedAt,
     required this.resolutionNotes,
+    required this.firstApprovedBy,
+    required this.firstApprovedAt,
+    required this.firstApprovalNote,
+    required this.nettedAmount,
+    required this.transferredAmount,
+    required this.netting,
     this.store,
+    this.firstApprover,
   });
 
   factory PayoutRequest.fromJson(Map<String, Object?> json) =>
@@ -46,7 +54,20 @@ class PayoutRequest {
   final DateTime? updatedAt;
   @JsonKey(name: 'resolution_notes')
   final String? resolutionNotes;
+  @JsonKey(name: 'first_approved_by')
+  final int? firstApprovedBy;
+  @JsonKey(name: 'first_approved_at')
+  final DateTime? firstApprovedAt;
+  @JsonKey(name: 'first_approval_note')
+  final String? firstApprovalNote;
+  @JsonKey(name: 'netted_amount')
+  final String? nettedAmount;
+  @JsonKey(name: 'transferred_amount')
+  final String? transferredAmount;
+  final List<dynamic>? netting;
   final Store? store;
+  @JsonKey(name: 'first_approver')
+  final User? firstApprover;
 
   Map<String, Object?> toJson() => _$PayoutRequestToJson(this);
 }

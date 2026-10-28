@@ -24,6 +24,8 @@ class StoreTransaction {
     required this.notes,
     required this.createdAt,
     required this.updatedAt,
+    required this.subscriptionInvoiceId,
+    required this.payoutRequestId,
   });
 
   factory StoreTransaction.fromJson(Map<String, Object?> json) =>
@@ -51,6 +53,10 @@ class StoreTransaction {
   final DateTime? createdAt;
   @JsonKey(name: 'updated_at')
   final DateTime? updatedAt;
+  @JsonKey(name: 'subscription_invoice_id')
+  final int? subscriptionInvoiceId;
+  @JsonKey(name: 'payout_request_id')
+  final int? payoutRequestId;
 
   Map<String, Object?> toJson() => _$StoreTransactionToJson(this);
 }

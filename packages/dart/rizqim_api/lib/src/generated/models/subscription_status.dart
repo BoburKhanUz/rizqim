@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-/// A store subscription's state (docs/BILLING.md). Only `cancelled` rows are history; every other status is the store's current subscription, whose plan sets its commission and monthly fee.
+/// A store subscription's state (docs/BILLING.md). Only `cancelled` rows are history; every other status is the store's current subscription, whose plan sets its commission and monthly fee. P4-21: `locked` — an invoice is unpaid more than config('billing.dunning.lock_after_days') days after its due date: settings and features outside the plan close (App\Services\Finance\Billing\Entitlements); the till keeps taking payments and printing receipts. Paying unlocks at once.
 ///
 @JsonEnum()
 enum SubscriptionStatus {
@@ -14,6 +14,8 @@ enum SubscriptionStatus {
   active('active'),
   @JsonValue('past_due')
   pastDue('past_due'),
+  @JsonValue('locked')
+  locked('locked'),
   @JsonValue('cancelled')
   cancelled('cancelled'),
 

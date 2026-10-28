@@ -8,13 +8,35 @@ part 'data106.g.dart';
 
 @JsonSerializable()
 class Data106 {
-  const Data106({required this.hallId});
+  const Data106({
+    required this.branchId,
+    required this.hallId,
+    required this.serviceChargePercent,
+    required this.serviceChargeChannels,
+    required this.placeFeeAmount,
+    required this.placeFeeMode,
+    required this.placeFeeChannels,
+  });
 
   factory Data106.fromJson(Map<String, Object?> json) =>
       _$Data106FromJson(json);
 
+  @JsonKey(name: 'branch_id')
+  final int? branchId;
+
+  /// P3-12: a hall's own row (null: the branch's or the store's)
   @JsonKey(name: 'hall_id')
-  final int hallId;
+  final int? hallId;
+  @JsonKey(name: 'service_charge_percent')
+  final String serviceChargePercent;
+  @JsonKey(name: 'service_charge_channels')
+  final List<String>? serviceChargeChannels;
+  @JsonKey(name: 'place_fee_amount')
+  final String placeFeeAmount;
+  @JsonKey(name: 'place_fee_mode')
+  final String placeFeeMode;
+  @JsonKey(name: 'place_fee_channels')
+  final List<String>? placeFeeChannels;
 
   Map<String, Object?> toJson() => _$Data106ToJson(this);
 }

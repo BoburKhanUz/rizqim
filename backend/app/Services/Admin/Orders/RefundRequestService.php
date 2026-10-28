@@ -31,6 +31,10 @@ use Illuminate\Support\Facades\DB;
  *    cabinet or in cash — mode `balance` when all of it went to the balance, `manual` otherwise. No provider refund API
  *    is called: the code base has none (Payme's refunds arrive as its CancelTransaction webhook, Click and Uzum have
  *    no refund call here), see docs/API.md "Buyurtmalar".
+ * P4-23: a part of a delivered order also reverses the same share of the store's ledger booking (commission,
+ * settlement, debt payoff; LedgerService::reverseDeliveredOrderShare), recorded as `execution.ledger_reversal`. While
+ * delivery's booking has failed (settlement_failed_at) there is nothing to take back yet: the part is marked
+ * `execution.ledger_reversal_deferred` and the retry that books the order reverses it (SettlementRecoveryService).
  * Each approval records how it was spread (`execution.allocations`: payment, amount, kind). What is refundable
  * (balanceOf): paid = payments paid or refunded; refunded = the full amount of every refunded payment (keshbek
  * returned on cancel, a Payme cancel — whether or not an approval covered a part of it before) + the approved shares
@@ -52,6 +56,7 @@ class RefundRequestService
     public function __construct(
         private readonly OrderStatusService $orders,
         private readonly AdminPermissionService $permissions,
+        private readonly \App\Services\Finance\LedgerService $ledger,
     ) {}
 
     /**
@@ -237,6 +242,7 @@ class RefundRequestService
 
             $statusBefore = $order->status;
             $now = now();
+            $ledgerReversal = null;
 
             // The whole order and nothing of it given back yet: the order's own refund path (ledger reversal included)
             if ($order->status === OrderStatus::DELIVERED && $balance['refunded']->isZero() && $amount->equals($balance['paid'])) {
@@ -260,6 +266,13 @@ class RefundRequestService
             } else {
                 $shares = $this->spread($order, $payments, $balance['allocated'], $amount, $refund, $now);
                 $mode = collect($shares)->every(fn (array $share) => $share['kind'] === self::KIND_BALANCE) ? 'balance' : 'manual';
+
+                // P4-23: a part of a delivered order takes back the same share of the store's commission and settlement
+                // (pro-rata of what is given back in all; each request once, parts adding up to the whole reverse it all)
+                if ($statusBefore === OrderStatus::DELIVERED) {
+                    $reversed = $this->ledger->reverseDeliveredOrderShare($order, (int) $refund->id, $balance['refunded']->plus($amount), $balance['paid'], (int) $approver->id);
+                    $ledgerReversal = array_map(fn (Money $value) => $value->toString(), $reversed);
+                }
             }
 
             $automatic = Money::sum(...array_map(fn (array $share) => $share['amount'], array_filter($shares, fn (array $share) => $share['kind'] === self::KIND_BALANCE)));
@@ -296,6 +309,11 @@ class RefundRequestService
                     'manual_amount' => $manual->toString(),
                     // Provider refunds are not automated in this code base: the money is returned by hand
                     'provider_refund' => $manual->isPositive() ? 'manual' : 'none',
+                    // P4-23: what this part took back from the store (null: the order's own refund path did it all)
+                    'ledger_reversal' => $ledgerReversal ?? null,
+                    // Review W2: delivery's booking had failed, nothing was on the ledger to take back yet; the retry
+                    // that books the order reverses this part then (SettlementRecoveryService)
+                    'ledger_reversal_deferred' => $statusBefore === OrderStatus::DELIVERED && $order->settlement_failed_at !== null,
                     'allocations' => array_map(fn (array $share) => [
                         'payment_id' => (int) $share['payment']->id,
                         'provider' => (string) $share['payment']->provider,

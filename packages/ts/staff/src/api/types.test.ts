@@ -3,7 +3,6 @@ import type { Schema } from '@rizqim/api-client';
 import type { AssignableCourier, ActiveOrders } from './orders';
 import type { TopupProvider, OwnerFinance } from './payments';
 import type { Batch, StopListEntry, StopListInput } from './menu';
-import type { DashboardStats, CreateStoreInput } from './superadmin';
 import type { Order } from '../types';
 import type { OkData, JsonRequest } from './types';
 
@@ -20,10 +19,8 @@ describe('types from the generated schema', () => {
     expectTypeOf<OwnerFinance>().toHaveProperty('wallet_balance').toBeNumber();
     expectTypeOf<StopListEntry>().toHaveProperty('branch_id').toBeNumber();
     expectTypeOf<Batch>().toHaveProperty('quantity_left');
-    expectTypeOf<DashboardStats>().toHaveProperty('total_stores').toBeNumber();
     expectTypeOf<TopupProvider>().toEqualTypeOf<'click' | 'payme'>();
     expectTypeOf<StopListInput['type']>().toEqualTypeOf<'product' | 'variant' | 'modifier'>();
-    expectTypeOf<CreateStoreInput>().toHaveProperty('branch_lat').toBeNumber();
     expectTypeOf<OkData<'order.index'>>().not.toBeNever();
     expectTypeOf<JsonRequest<'order.updateStatus'>['status']>().not.toBeNever();
   });

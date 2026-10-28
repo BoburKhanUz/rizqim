@@ -316,6 +316,592 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/billing/plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Tariff catalog
+         * @description The v2 plans (Start, Asosiy, Pro) in catalog order; `all=1` adds the P1-23 plans (version 1: readable, for the
+         *     stores still on them). Money as decimal strings; `features`: App\Enums\PlanFeature values the plan has (base ones
+         *     included); `subscriptions`: current subscriptions on the plan. `feature_catalog`: every feature with its label
+         *     and whether it is a base one (never gated).
+         */
+        get: operations["admin.billing.plans"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/billing/plans/{code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Change a v2 plan
+         * @description Any of `name`, `description`, `is_active` (an inactive plan cannot be assigned; its stores keep it), `monthly_fee`,
+         *     `yearly_fee`, `included_pos`, `included_kds`, `extra_pos_fee`, `extra_kds_fee` (so'm, decimal strings or numbers,
+         *     up to 2 decimals), `trial_days` (0–90, for new subscriptions), `features` (the gated features it has: a list of
+         *     App\Enums\PlanFeature values; base ones are always on), `sort_order` (its place: higher is an upgrade); `reason`
+         *     required. P1-23 plans are not changed here (404). Answers the plan.
+         */
+        put: operations["admin.billing.plan_updated"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/billing/stores/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A store's billing
+         * @description `store`; `subscription` (the current one or null); `entitlements` (as GET /owner/billing/entitlements);
+         *     `debt` (debt_balance, subscription_debt — unpaid invoices, commission_debt — what the credit limit counts,
+         *     credit_limit, over_credit_limit); `commission` (`rates` per channel with `source` override | plan | flat |
+         *     default, `overrides`, `flat_rate`, `delivery_courier`); `history` (subscriptions, newest first); `invoices` (the
+         *     last 24 with their lines, paid and outstanding parts and `dunning` steps).
+         */
+        get: operations["admin.billing.store"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/billing/stores/{id}/commission": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Change the store's commission
+         * @description `overrides`: the store's own rate per channel ({"pickup": "3.00", "own_delivery": null, ...}; channels
+         *     rizqim_courier, own_delivery, pickup, pos, aggregator; a percent 0–100 with up to 2 decimals; null removes it
+         *     and the channel takes its default); `flat_rate` (present: the store's flat rate for every online channel, null
+         *     to move it to the channel rates); `delivery_courier` own | fleet (who delivers its Mini App delivery orders:
+         *     own delivery 10% or RIZQIM courier 15%); `reason`. Only new orders are affected: an order keeps the rate it was
+         *     placed with. Answers the commission block.
+         */
+        put: operations["admin.billing.commission_updated"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/billing/stores/{id}/subscription": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Assign or change the plan
+         * @description `plan` (an active plan's code), `period` (monthly | yearly; yearly only on a v2 plan; for a store without a
+         *     subscription, which starts now with the plan's trial when it is its first), `immediately` (default false: the
+         *     change waits for the end of the month or the yearly term; a higher v2 plan applied now is prorated, a lower one
+         *     always waits), `reason`. Answers the store's billing.
+         */
+        post: operations["admin.billing.subscription_assigned"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/billing/stores/{id}/subscription/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel the subscription
+         * @description `immediately` (true: it ends now and the month in progress is not billed; false: at the end of the month or of
+         *     the paid yearly term), `reason`. Months that already ended are billed first.
+         */
+        post: operations["admin.billing.subscription_cancelled"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/billing/stores/{id}/subscription/period": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Change the billing period
+         * @description `period` monthly | yearly (v2 plans only), `reason`. During the trial it applies at once; otherwise monthly →
+         *     yearly from the next month (the yearly invoice is issued then) and yearly → monthly when the paid term ends.
+         */
+        post: operations["admin.billing.period_changed"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/billing/stores/{id}/subscription/trial": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Extend the trial
+         * @description `trial_ends_at` (a later moment, at most 90 days from now) or `days` (added to the current trial end), `reason`.
+         *     Only a subscription in its trial. The months the trial touches are not billed.
+         */
+        post: operations["admin.billing.trial_extended"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/billing/subscriptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Subscriptions
+         * @description Current subscriptions, newest first, cursor pages (`cursor`, `per_page` 1–100, default 30). Filters: `status`
+         *     (trialing, active, past_due, locked, cancelled — cancelled lists ended rows), `plan` (code), `period` (monthly,
+         *     yearly), `trial_ends_within` (days: trials ending in that many days), `store_id`. Each row: the subscription and
+         *     its store's name.
+         */
+        get: operations["admin.billing.subscriptions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/finance/adjustments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Manual adjustments
+         * @description `status`: pending (waiting for a second approval), applied, rejected, all (the default); `store_id`; newest
+         *     first, cursor pages (`per_page` 1–100, default 30). `kinds` — what an adjustment can change, with labels;
+         *     `threshold` — from this amount a second member approves.
+         */
+        get: operations["admin.finance.adjustments"];
+        put?: never;
+        /**
+         * Make an adjustment
+         * @description Multipart or JSON: `store_id`, `kind` (debt_charge — debt up; debt_credit — commission debt down; debt_payment —
+         *     money received outside the top-up flow, pays the oldest invoices first; wallet_credit; wallet_debit — never
+         *     below zero, 422 `insufficient_wallet`), `amount` (so'm, more than 0, up to 2 decimals), `reason`, optional
+         *     `document` (pdf, jpg, png, webp; up to 10 MB). Under 1 000 000 so'm it is applied at once (`status: applied`);
+         *     from it, `pending` until another member approves it.
+         */
+        post: operations["admin.finance.adjustments.created"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/finance/adjustments/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * An adjustment
+         * @description With `transactions` — the ledger rows it wrote once applied.
+         */
+        get: operations["admin.finance.adjustments.adjustment"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/finance/adjustments/{id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve an adjustment
+         * @description A pending adjustment, by a member other than the one who made it (403 `four_eyes`, a superadmin too); its
+         *     ledger row is written now. `reason` required. Repeating it answers the same result; decided otherwise: 409
+         *     `adjustment_decided`.
+         */
+        post: operations["admin.finance.adjustments.approved"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/finance/adjustments/{id}/document": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The adjustment's document
+         * @description The file as it was uploaded (private storage). 404 when it has none.
+         */
+        get: operations["admin.finance.adjustments.document"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/finance/adjustments/{id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reject an adjustment
+         * @description A pending adjustment (the one who made it may withdraw it this way); nothing is booked. `reason` required.
+         */
+        post: operations["admin.finance.adjustments.rejected"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/finance/balances": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Store balances and debts
+         * @description `filter`: all (the default), debt (owes anything), over_limit (the commission debt is over the credit limit —
+         *     Mini App orders are refused), subscription_debt (unpaid invoices), wallet (RIZQIM holds money for it); `q` — the
+         *     store's name. Largest first (debt; the wallet for `wallet`), pages of `per_page` (1–100, default 50). `totals`
+         *     — over all stores. Amounts are decimal strings; the commission debt is debt − subscription debt.
+         */
+        get: operations["admin.finance.balances"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/finance/payouts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Payout queue
+         * @description `status`: open (the default: pending and awaiting_second), pending (no approval yet), awaiting_second (approved
+         *     once, waits for another member), completed, rejected, all; `store_id`. Oldest open first, else newest first;
+         *     cursor pages (`per_page` 1–100, default 30). `counts` — open requests and their amount.
+         */
+        get: operations["admin.finance.payouts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/finance/payouts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Payout card
+         * @description The row plus `breakdown` — "Hisoblangan — Ushlangan qarz — O'tkaziladi": `accrued` (asked for), `netted` (the
+         *     store's debt taken first) and `transfer` (to the card), `lines` (each invoice or the commission debt it closed,
+         *     with the ledger row). For an open payout it is what approving now would do (`preview: true`); `balances` —
+         *     the store's wallet and debt now; `actions`. The card number is full with admin.pii.view (audited), else masked.
+         */
+        get: operations["admin.finance.payouts.payout"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/finance/payouts/{id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve a payout
+         * @description `reason` required. Under 1 000 000 so'm: pays it out now. From 1 000 000 so'm: the first approval is recorded
+         *     (`status: awaiting_second`), a different member's approval pays it out (403 `four_eyes` for the first approver,
+         *     a superadmin too). Paying out nets the store's debt first, then transfers the rest; 422 `insufficient_wallet`
+         *     when the wallet cannot cover the amount (nothing is booked). A decided payout: 409 `payout_decided`; the same
+         *     member repeating the approval gets the same answer and nothing runs twice (also with the same Idempotency-Key).
+         */
+        post: operations["admin.finance.payouts.approved"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/finance/payouts/{id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reject a payout
+         * @description `reason` (why; the owner sees it as the resolution note) required. Open payouts only (409 `payout_decided`).
+         */
+        post: operations["admin.finance.payouts.rejected"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/finance/reports/monthly": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Monthly revenue report
+         * @description `period` — "YYYY-MM", an Asia/Tashkent month (default: the current one). Commission: the orders delivered in
+         *     the month that are still delivered, less what partial refunds took back; by channel (`unknown` — orders from
+         *     before the channel was recorded). Subscriptions: the month's invoices that are not void. Stores — largest total
+         *     first. Amounts are decimal strings.
+         */
+        get: operations["admin.finance.reports.monthly"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/finance/reports/monthly/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Monthly revenue report (Excel)
+         * @description The same report as an .xlsx workbook ("Umumiy" and "Ovqatxonalar" sheets). Needs admin.export as well; each
+         *     export is recorded in the audit log.
+         */
+        get: operations["admin.finance.reports.monthly_exported"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/finance/settlement-failures": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Settlement failures
+         * @description Delivered orders whose ledger booking (commission, the store's money, the referral reward) failed and is retried
+         *     every 10 minutes (RetryFailedSettlementsJob) until `max_attempts`; `gave_up` — the automatic retries stopped.
+         *     Oldest first.
+         */
+        get: operations["admin.finance.settlement_failures"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/finance/settlement-failures/{uuid}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retry a failed settlement
+         * @description Books the order again now through the same path as the automatic retries (also after they gave up). `reason`
+         *     required. `booked` — whether it is booked now; a failure stays on the list with its new error (its attempts
+         *     go up). An order booked or refunded meanwhile is cleared (`booked: false`, `order: null`). 404 for an order
+         *     without a failed booking.
+         */
+        post: operations["admin.finance.settlement_failures.retried"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/finance/stores/{id}/ledger": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A store's ledger
+         * @description `ledger`: debt (the debt ledger: commission, top-ups, netting, subscription invoices, refunds, adjustments; the
+         *     default) or wallet (settlements, payouts, refunds, adjustments). Newest first, cursor pages (`per_page` 1–100,
+         *     default 50). Card numbers in notes are masked. A netting row names what it closed (`subscription_invoice`),
+         *     a payout's rows carry `payout_request_id`.
+         */
+        get: operations["admin.finance.stores.ledger"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/finance/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Moliya summary
+         * @description The counts behind the tabs and the second-approval queue: open payouts (`pending` — no approval yet,
+         *     `awaiting_second`), adjustments waiting for a second approval, settlement failures (and how many gave up), stuck
+         *     top-ups, stores over their credit limit, the store totals; `threshold` — from this amount two members approve.
+         */
+        get: operations["admin.finance.summary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/finance/topups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Balance top-ups
+         * @description Owners' Click and Payme top-ups of their debt: `status` (pending, paid, cancelled, all — the default),
+         *     `provider` (click, payme), `store_id`, `stuck=1` — pending for more than 30 minutes in the last 3 days (the owner
+         *     left the payment page, or the provider's callback never came: check the provider's cabinet). Newest first,
+         *     cursor pages. `transaction_id` — the debt ledger row a paid one wrote.
+         */
+        get: operations["admin.finance.topups"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/me": {
         parameters: {
             query?: never;
@@ -751,6 +1337,363 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/pos/devices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Devices (all stores)
+         * @description Pages (`page`, `per_page` 1-100, default 30), the longest unseen first. Filters: `state` (online: seen in the last
+         *     10 minutes; offline; never: never seen; revoked; all; without it, every device that is not revoked), `type`
+         *     (pos, kds, partner_mobile, courier, ...), `terminal=1` (kassa and KDS only), `store_id`, `outdated=1` (an older app
+         *     version than the newest seen on an active device of the same type), `q` (device or store name, uuid start). Each row
+         *     has `state`, `latest_version`, `outdated` and the offline queue the till last reported. `counts` and
+         *     `latest_versions` ignore the filters.
+         */
+        get: operations["admin.pos.devices"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/pos/devices/{uuid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A device
+         * @description The same row as in the list, by the device's uuid (the Bugun links open it).
+         */
+        get: operations["admin.pos.device"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/pos/devices/{uuid}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke a device
+         * @description `reason`. The device and everything signed in on it stops working at once; a terminal has to be paired again with
+         *     a new code by the owner. Revoking a revoked device changes nothing. Answers the device.
+         */
+        post: operations["admin.pos.device_revoked"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/pos/fiscal-receipts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Fiscal receipts (all stores)
+         * @description Newest first, pages (`page`, `per_page` 1-100, default 30). Filters: `status` (open: failed or pending, the
+         *     default; failed; pending; issued; all), `driver` (the fiscal provider asked: sandbox, null, ..., external — a
+         *     receipt Payme/Click registered), `store_id`, `from` / `to` (dates in Asia/Tashkent), `q` (uuid start or receipt
+         *     number). `summary`: open failed and pending receipts in all and per provider (`by_driver`, with the latest error).
+         *     `error` is the provider's reason, cut to 300 characters.
+         */
+        get: operations["admin.pos.fiscal_receipts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/pos/fiscal-receipts/{uuid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A fiscal receipt
+         * @description The row, the whole error, the lines and payments as they were sent and the fiscal sign once registered. The
+         *     provider's raw answer is not shown.
+         */
+        get: operations["admin.pos.fiscal_receipt"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/pos/fiscal-receipts/{uuid}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retry a receipt now
+         * @description `reason`. A pending or failed receipt is sent to the provider at once (a failed one becomes pending first). The
+         *     answer is the receipt afterwards; it stays failed or pending when the provider still refuses (the message says
+         *     why). An issued receipt, or one recorded from Payme/Click: 422 `already_issued`.
+         */
+        post: operations["admin.pos.fiscal_receipt_retried"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/pos/invoices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Invoices (all stores)
+         * @description Newest first, pages (`page`, `per_page` 1-100, default 30). Filters: `status` (issued, paid, void, or `overdue`:
+         *     unpaid after the due date, Asia/Tashkent), `store_id`, `period` (YYYY-MM), `dunning` (the latest reminder step:
+         *     reminder_1, reminder_3, reminder_7, locked, unlocked), `q` (part of the number). Rows carry the days overdue and
+         *     the latest dunning step. `counts`: issued / overdue / paid / void invoices and the unpaid sum (not filtered).
+         */
+        get: operations["admin.pos.invoices"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/pos/invoices/{uuid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * An invoice
+         * @description The invoice with its lines, paid and outstanding parts and every dunning step, and the store's debt split
+         *     (subscription part and commission part).
+         */
+        get: operations["admin.pos.invoice"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/pos/invoices/{uuid}/paid": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark an invoice paid
+         * @description `reason` (where the money came from). Only an unpaid (issued) invoice; marking one paid again changes nothing.
+         *     The balance does not change: the payment itself is booked as a top-up, which pays the oldest invoices first;
+         *     what the ledger has not paid of the invoice stays in the store's subscription debt. Ends the dunning for it.
+         */
+        post: operations["admin.pos.invoice_paid"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/pos/invoices/{uuid}/void": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Void an invoice
+         * @description `reason`. Only an unpaid invoice: a paid or partly paid one is refused (422 `invoice_paid`; money goes back by a
+         *     manual adjustment). The invoice no longer counts as income and its amount comes off the store's debt (a reversal
+         *     row in the ledger). From 1 000 000 so'm (`config('finance.four_eyes_threshold')`) two members: the first call is a
+         *     request (the invoice stays `issued`, `invoice.void_request` shows who asked, audited as
+         *     `admin.pos.invoice_void_requested`), the same member again changes nothing, a different member's call voids it.
+         *     Voiding one again changes nothing.
+         */
+        post: operations["admin.pos.invoice_voided"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/pos/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * POS va obunalar: numbers
+         * @description `subscriptions` (current subscriptions per status, `trial_ending`: trials ending in 3 days), `invoices` (issued,
+         *     overdue, paid, void counts and the `outstanding` sum of the unpaid ones), `devices` (active devices: online,
+         *     offline, never seen, outdated, per type; revoked), `shifts` (the last 30 days: closed with a cash difference,
+         *     force-closed, open), `fiscal` (failed and pending receipts and `by_driver`: per fiscal provider) and
+         *     `sync_errors` (offline operations nobody resolved). A group the member may not see is null.
+         */
+        get: operations["admin.pos.overview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/pos/shifts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Shifts (all stores)
+         * @description Newest first, pages (`page`, `per_page` 1-100, default 30). Filters: `kind` (difference: closed with a cash
+         *     difference, counted minus expected, so a negative one is missing cash; force_closed; open), `store_id`, `from` /
+         *     `to` (business dates, YYYY-MM-DD). `counts` per kind under the other filters.
+         */
+        get: operations["admin.pos.shifts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/pos/shifts/{uuid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A shift
+         * @description The row, the banknotes counted, the Z report as kept at closing (`summary`), who forced the close and the cash
+         *     movements (in and out of the drawer).
+         */
+        get: operations["admin.pos.shift"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/pos/sync-errors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Offline sync errors (all stores)
+         * @description Newest first, pages (`page`, `per_page` 1-100, default 30). Filters: `state` (open: nobody resolved it, the
+         *     default; resolved; all), `status` (rejected: not applied; conflict: applied with a difference), `type` (the
+         *     operation, e.g. bill.pay), `store_id`, `device` (uuid), `from` / `to` (dates in Asia/Tashkent). Rows carry no
+         *     payload (the card has it). `counts`: open rejected / conflicting operations.
+         */
+        get: operations["admin.pos.sync_errors"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/pos/sync-errors/{opId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * An offline sync error
+         * @description The row, the payload the till sent (keys that look like a phone, card, PIN or secret are replaced by ***) and what
+         *     the server made of it (`refs`). By the operation's id.
+         */
+        get: operations["admin.pos.sync_error"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/pos/sync-errors/{opId}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resolve or dismiss an error
+         * @description `resolution`: `resolved` (somebody did what was needed by hand) or `dismissed` (nothing to do); `reason` is kept
+         *     as the resolution note. A resolved rejected operation no longer keeps its till's shift from closing. Resolving
+         *     one again changes nothing. Answers the card.
+         */
+        post: operations["admin.pos.sync_error_resolved"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/refund-requests": {
         parameters: {
             query?: never;
@@ -868,6 +1811,515 @@ export interface paths {
         get: operations["admin.search"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/store-applications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Applications (pipeline)
+         * @description Filters: `stage` (a stage, `open` — every stage but active and rejected — or `overdue`: open and past the due
+         *     date), `assignee_id` (or `me`), `source`, `q` (name, owner, the whole phone); pages (`page`, `per_page` 1–200,
+         *     default 50), the overdue first, then by due date. `stage_counts`: per stage under the same filters (but stage),
+         *     plus `overdue`. `stages`: the pipeline with labels.
+         */
+        get: operations["admin.stores.applications"];
+        put?: never;
+        /**
+         * Add an application (typed in by the team)
+         * @description The public form's fields (`name`, `format`, `region_id`, `city`, `owner_name`, `phone`, `tin`, `comment`) and
+         *     optionally `assignee_id` and `due_on`. Source `admin`. 201 with the card.
+         */
+        post: operations["admin.stores.applications.created"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/store-applications/{uuid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Application card
+         * @description The row fields and `phone` (masked unless admin.pii.view, reveals audited), `tin`, `comment`, the rejection,
+         *     `checklist` (every stage: items with `done`, `ticked` by hand, `detected` from the store), `crm` (notes, tasks),
+         *     `audit` and `actions`.
+         */
+        get: operations["admin.stores.application"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Edit an application
+         * @description Any of the fields, `assignee_id` (a team member with admin.stores.manage, or null), `due_on` (the current stage's
+         *     deadline). Answers the card.
+         */
+        patch: operations["admin.stores.applications.updated"];
+        trace?: never;
+    };
+    "/v1/admin/store-applications/{uuid}/checklist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Tick a checklist item
+         * @description `item` (a key of any stage's checklist), `done` (true / false). Detected items are done whatever is ticked.
+         *     Answers the card.
+         */
+        post: operations["admin.stores.applications.checklist_updated"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/store-applications/{uuid}/convert": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create the store from the application
+         * @description The store, its owner (a vouched SMS login phone and a Telegram invite) and the main branch, through the same
+         *     path as the Filament superadmin wizard. Store `pending` and hidden from the marketplace until the application
+         *     reaches `faol`. Fields: `branch_district_id`, `branch_address`, `branch_lat`, `branch_lng` (required);
+         *     `branch_region_id` (default: the application's region), `branch_radius` (5), `branch_phone`,
+         *     `branch_open_time`/`branch_close_time` (HH:MM), `name`, `owner_name`, `owner_phone` (+998XXXXXXXXX; default: the
+         *     application's), `phone`, `tin`, `legal_name`, `commission_rate` (a flat rate; none: the channel rates of Billing v2),
+         *     `payment_account_type`; `reason`. Step-up.
+         *     409 `already_converted`, 409 `owner_phone_taken` (another staff account has it), 422 `owner_phone_invalid`.
+         *     Answers the card and `invite_link` (only here).
+         */
+        post: operations["admin.stores.applications.converted"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/store-applications/{uuid}/notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add a note to an application
+         * @description `body` (1–2000 characters). 201 with the note.
+         */
+        post: operations["admin.stores.applications.note_added"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/store-applications/{uuid}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reject an application
+         * @description `reason` (the team sees it on the card). A converted application's store becomes `rejected` and hidden. Step-up.
+         *     409 `already_rejected`, 422 `already_active`. Answers the card.
+         */
+        post: operations["admin.stores.applications.rejected"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/store-applications/{uuid}/stage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Move to another stage
+         * @description `stage` (not `rejected`: use reject), `note` (optional), `due_on` (optional; default today + the stage's days).
+         *     Forward needs the required checklist items of every stage passed (422 `checklist_incomplete` with `stage` and
+         *     `missing`); `menu` and later need the store (422 `store_required`); `active` activates the store and needs a
+         *     step-up (403 `reauth_required`) and a `reason`. Backward is free (not from `active`, 422 `already_active`); a
+         *     rejected application reopens at `application` or `review` (422 `reopen_only`). Answers the card.
+         */
+        post: operations["admin.stores.applications.stage_changed"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/store-broadcasts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Announcements
+         * @description The last 50, newest first.
+         */
+        get: operations["admin.stores.broadcasts"];
+        put?: never;
+        /**
+         * Send an announcement
+         * @description The audience fields, `text` (1–2000 characters, plain text, sent as "📣 RIZQIM e'loni"), `recipients` (the
+         *     preview's count: a different count now is 409 `count_changed` with the new `preview`) and `reason`. Step-up;
+         *     429 when over 5 attempts an hour per member or the daily limit (`daily_limit`); 422 `no_recipient`; 503
+         *     `telegram_not_configured`. 201 with the broadcast; the messages are queued.
+         */
+        post: operations["admin.stores.broadcast_sent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/store-broadcasts/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview an announcement's audience
+         * @description `audience`: `all` (optionally `statuses[]` and `region_id`) or `selected` (`store_ids[]`, up to 500). Answers how
+         *     many stores, how many owners get it (`recipients`, owners who joined the bot, each once), how many stores have
+         *     no owner on Telegram, and up to 5 store names. Nothing is recorded.
+         */
+        post: operations["admin.stores.broadcasts.preview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/store-tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Tasks
+         * @description Open tasks by due date (`state`: overdue, today, upcoming), across stores and applications. `assignee_id` (or
+         *     `me`), `due` (`today`: due today or earlier), `done=1` for the last 50 done instead. Up to 200.
+         */
+        get: operations["admin.stores.tasks"];
+        put?: never;
+        /**
+         * Add a task
+         * @description `title`, `due_on` (Y-m-d, today or later), `assignee_id` (a member with admin.stores.view; default: me) and the
+         *     store (`store_id`) or the application (`application_uuid`). 201 with the task.
+         */
+        post: operations["admin.stores.tasks.created"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/store-tasks/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change a task
+         * @description Any of `title`, `due_on`, `assignee_id`, `done` (true: done now by me; false: open again). Answers the task.
+         */
+        patch: operations["admin.stores.tasks.updated"];
+        trace?: never;
+    };
+    "/v1/admin/stores": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stores
+         * @description Pages (`page`, `per_page` 1–100, default 30). Filters: `q` (name, STIR, the store's or owner's whole phone, uuid
+         *     start), `status`, `region_id` (any branch there), `health` (good, attention, churn_risk, none), `plan` (a tariff
+         *     code or none), `debt` (has_debt, over_limit: the commission debt over the credit limit), `next_contact=due`; `sort`: newest (default), name, debt, health.
+         *     `health_counts`: stores per level under the same filters (but health). Rows carry no phone. `credit_limit` is the
+         *     debt the store may have (a positive amount). Health is the hourly snapshot (the card recomputes it).
+         */
+        get: operations["admin.stores"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/stores/lookup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Store and region picker
+         * @description `q` (optional): up to 20 stores by name (or STIR, whole phone) and the active regions whose name matches; `ids[]`:
+         *     those stores (to show a chosen filter's name). Without both: the first 20 stores by name and every active region.
+         *     `districts_of` (a region id): its active districts too (else `districts` is empty). admin.stores.view or
+         *     admin.orders.view.
+         */
+        get: operations["admin.stores.lookup"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/stores/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Store card (360°)
+         * @description Everything about one store: `profile`, `application` (its onboarding, if it came through the pipeline),
+         *     `contacts` (owner and managers, the applicant; phones masked unless admin.pii.view, reveals audited),
+         *     `branches`, `status_history` (StoreStatusLog, who and why), `plan` (subscription overview; `source` says which
+         *     billing model answered: `billing_v2` — P4-21's store billing, as GET /admin/billing/stores/{id}: subscription,
+         *     entitlements, debt, commission per channel, history, invoices), `devices` (terminals online in the last 10 minutes), `fiscal`, `finance` (debt split into the
+         *     subscription and the commission part, wallet, credit limit, payouts with masked cards, the last ledger entries), `orders` (30-day quality as in
+         *     Buyurtmalar, per channel, the latest), `complaints`, `health` (computed now, with reasons), `crm` (next contact,
+         *     notes, tasks), `audit` (last 50 entries), `actions` (what this member may do) and `links`.
+         */
+        get: operations["admin.stores.store"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/stores/{id}/activate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Activate a store
+         * @description Back to `active` and visible, from suspended, pending, under review or rejected. 422 `finance_status` for
+         *     payment_required / finance_hold (the debt rules decide), 422 `use_pipeline` while its application is still in the
+         *     pipeline (move it to `faol`), 409 `already_active`. Answers the card.
+         */
+        post: operations["admin.stores.activated"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/stores/{id}/credit-limit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Change the credit limit
+         * @description `credit_limit`: the debt the store may have, 0–100 000 000 so'm (decimal string or number). Over the new limit an
+         *     active store becomes payment_required (no new Mini App orders); back within it a payment_required store becomes
+         *     active — the rule the ledger applies when the debt moves. Answers the card.
+         */
+        put: operations["admin.stores.credit_limit_changed"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/stores/{id}/display": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Change the display flags
+         * @description `is_premium`, `is_featured` (tavsiya etilgan) — either or both — and `reason`. Answers the card.
+         */
+        put: operations["admin.stores.display_changed"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/stores/{id}/message": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Message the owner
+         * @description `text` (1–1000 characters, plain text) to the owner's Telegram through the RIZQIM bot, queued; `reason`. 422
+         *     `no_recipient` when the owner has not joined the bot, 503 `telegram_not_configured`.
+         */
+        post: operations["admin.stores.owner_messaged"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/stores/{id}/next-contact": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set the next contact date
+         * @description `next_contact_on` (Y-m-d, or null to clear). From that day the store shows in "Diqqat talab qiladi" until a new
+         *     date is set.
+         */
+        put: operations["admin.stores.next_contact_set"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/stores/{id}/notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add a note to a store
+         * @description `body` (1–2000 characters). 201 with the note.
+         */
+        post: operations["admin.stores.note_added"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/stores/{id}/suspend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Suspend a store
+         * @description Status `suspended` and hidden from the marketplace (no new Mini App orders, gone from the catalog). The till keeps
+         *     taking payments and printing receipts. `reason` is required. Answers the card. 409 `already_suspended`.
+         */
+        post: operations["admin.stores.suspended"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/stores/{id}/telegram-link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * New Telegram link for the owner
+         * @description A new one-time bot link binding a Telegram account to the owner's account; the old link stops working. It is a
+         *     credential, so it goes to the owner's own phone by SMS (`delivered_via: "sms"`, `invite_link: null`). When no SMS
+         *     can be sent, the link comes back in `invite_link` only to a member with `stores.impersonate` (superadmin by
+         *     default); anyone else gets 422 `link_not_deliverable` and the old link stays. An owner already on Telegram is
+         *     never relinked: 409 `owner_already_linked`. `reason` is required. 422 `no_owner`.
+         */
+        post: operations["admin.stores.telegram_link_regenerated"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1112,6 +2564,9 @@ export interface paths {
          *     `web`, `partner_mobile` or `courier` is required: 403 `staff_account_not_found` when there is none; 409
          *     `account_selection_required` with `selection_token` and `accounts` when the phone holds several (the same person
          *     in two stores), and the client then calls POST /auth/phone/select-account.
+         *
+         *     P4-25: a phone that only a superadmin / RIZQIM team account holds never signs in here, in either mode: 403
+         *     `platform_account` ("Boshqaruv markazidan kiring"). A customer or staff account with the same phone signs in as usual.
          */
         post: operations["phoneLogin.verify"];
         delete?: never;
@@ -1855,6 +3310,34 @@ export interface paths {
          * @description A batch-tracked product is "tugadi" on the branch until a new batch opens. Closing a closed batch is a no-op.
          */
         post: operations["batch.close"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/billing/entitlements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What the plan lets the store use
+         * @description P4-21 (docs/BILLING.md, "Funksiyalar va cheklovlar"): `plan` (null without a subscription), `legacy` (true: every
+         *     feature, the store is not on a v2 plan yet), `period` monthly|yearly, `status` none|trialing|active|past_due|locked,
+         *     `trial_ends_at`, `current_period`, `term_ends_at` (yearly), `locked_since`, `lock_at` (when an overdue invoice locks
+         *     it), `settings_locked`, `features` (every App\Enums\PlanFeature: on or off), `required_plans` (the cheapest plan
+         *     with each gated feature: show "Asosiy tarifda bor"), `devices` (pos and kds: included, active, extra, extra_price
+         *     as a decimal string, can_add; waiter phones unlimited and free), `notice` (the overdue invoice reminder or the lock
+         *     message for a banner, null when none; its `invoice` — uuid, number, amounts — only for a member with finance.view on
+         *     their own sign-in, null for other staff and terminal PIN sessions, whose `message` does not name it either). Any
+         *     member of the store and the terminals read it.
+         */
+        get: operations["ownerBilling.entitlements"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3855,7 +5338,8 @@ export interface paths {
          *     fee and minimum spend per place, the choy-non items, its local number prefix and next number, the limits);
          *     P3-26: `quick_items`, the one-tap buttons (products marked `quick_add` in the menu, then the
          *     branch's per-guest "choy-non" items: `source` quick_add | auto_guest, `variant_uuid` to add as a line; prices and
-         *     availability from the POS catalog).
+         *     availability from the POS catalog); P4-21: `entitlements`, the store's plan, status, features and devices (the
+         *     same as GET /owner/billing/entitlements) for the "Asosiy tarifda bor" locks and the unpaid-invoice notice.
          */
         get: operations["posBootstrap.show"];
         put?: never;
@@ -4995,6 +6479,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/store-applications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Leave an application to join RIZQIM
+         * @description `name` (the place), `format` (restaurant, cafe, fast_food, canteen, coffee_shop, bakery, teahouse, catering,
+         *     other), `source` (website — default — or telegram), `region_id` (GET /locations: an active region) or `city`, `owner_name`, `phone` (+998 XX XXX XX XX, spaces
+         *     and dashes allowed), `tin` (STIR, 9 digits, optional), `comment` (optional, up to 1000). `website` must stay
+         *     empty (a hidden field for bots). The same phone within 24 hours is taken once. Limited to 5 an hour and 20 a day
+         *     per IP address (429); a phone is taken once a day, however many requests name it. Answers 201 without any data about the application.
+         */
+        post: operations["store_applications.store"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/stores": {
         parameters: {
             query?: never;
@@ -5052,58 +6560,6 @@ export interface paths {
         get: operations["deliveryZone.index"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/superadmin/dashboard": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get global dashboard stats for Super Admin */
-        get: operations["superadmin.dashboard"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/superadmin/locations": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get regions and districts for forms */
-        get: operations["superadmin.getLocations"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/superadmin/stores": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get all global stores */
-        get: operations["superadmin.stores"];
-        put?: never;
-        /** Create a new Global Store */
-        post: operations["superadmin.createStore"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5310,6 +6766,12 @@ export interface components {
          * @enum {string}
          */
         BillStatus: "open" | "printed" | "paid" | "void";
+        /**
+         * BillingPeriod
+         * @description P4-21: how often a subscription pays its base fee. Monthly: each month is billed when it ends. Yearly: 12 billing months are billed in advance when the term starts, for config('billing.yearly_months_charged') months' price; extra devices are still billed monthly when each month ends (docs/BILLING.md, "Yillik davr").
+         * @enum {string}
+         */
+        BillingPeriod: "monthly" | "yearly";
         /** Booking */
         Booking: {
             id: number;
@@ -5763,6 +7225,12 @@ export interface components {
             tables?: components["schemas"]["DiningTable"][];
         };
         /**
+         * InvoiceKind
+         * @description P4-21: what a subscription invoice bills. monthly: a month that ended (base fee, extra devices, discount; for a yearly subscription only its extra devices); yearly: a yearly term in advance; upgrade: the prorated difference of an immediate upgrade of a yearly subscription.
+         * @enum {string}
+         */
+        InvoiceKind: "monthly" | "yearly" | "upgrade";
+        /**
          * KitchenItemStatus
          * @description Where an order line is in the kitchen (order_items.kitchen_status, P2-11): `pending` until a cook bumps it on the kitchen display, then `ready`. P3-12 (docs/POS_SPEC.md §2.8, §10.3): a POS line is `pending` while it is only on the order (not sent yet, or held), `sent` once the POS sends it to the kitchen, then `ready`, and `served` when it reached the guests; `void` when it was taken off the order ("O'CHIRILDI"). An online (Telegram, mobile) line keeps the P2-11 meaning: `pending` is in the kitchen from the start (it has no sent_at and no fire_mode).
          * @enum {string}
@@ -5990,6 +7458,8 @@ export interface components {
             discount_value: string | null;
             discount_reason: string | null;
             discount_by: number | null;
+            commission_channel: string | null;
+            commission_rate: string | null;
             type: string;
             address: string | null;
             store?: components["schemas"]["Store"];
@@ -6194,6 +7664,11 @@ export interface components {
             shift?: components["schemas"]["PosShift"] | null;
         };
         /**
+         * PaymentAccountType
+         * @enum {string}
+         */
+        PaymentAccountType: "own_account" | "platform_account";
+        /**
          * PaymentStatus
          * @enum {string}
          */
@@ -6214,7 +7689,15 @@ export interface components {
             /** Format: date-time */
             updated_at: string | null;
             resolution_notes: string | null;
+            first_approved_by: number | null;
+            /** Format: date-time */
+            first_approved_at: string | null;
+            first_approval_note: string | null;
+            netted_amount: string | null;
+            transferred_amount: string | null;
+            netting: unknown[] | null;
             store?: components["schemas"]["Store"];
+            first_approver?: components["schemas"]["User"] | null;
         };
         /**
          * Permission
@@ -6267,6 +7750,12 @@ export interface components {
             device?: components["schemas"]["Device"] | null;
             cash_movements?: components["schemas"]["CashMovement"][];
         };
+        /**
+         * PosSyncOperationType
+         * @description What a till may do offline (docs/POS_SPEC.md §5.1), each applied through the POS domain services on sync: open a walk-in or room order, add a round, send lines to the kitchen, void an unsent line, mark a line served, make one bill, take cash or card for it, close the order.
+         * @enum {string}
+         */
+        PosSyncOperationType: "order.open" | "order.round" | "order.send" | "order.void" | "order.served" | "bill.create" | "bill.pay" | "order.close";
         /** Product */
         Product: {
             id: number;
@@ -6471,6 +7960,18 @@ export interface components {
             subscriptions?: components["schemas"]["StoreSubscription"][];
             subscription_invoices?: components["schemas"]["SubscriptionInvoice"][];
         };
+        /**
+         * StoreApplicationStage
+         * @description P4-22: the onboarding pipeline of a store application (docs/PHASE4_PLAN.md §4.3): ariza → tekshiruv → menyu → qurilmalar → o'qitish → sinov → faol, or rad etildi. Every stage has a checklist: an item is done when ticked by hand or, for the ones marked `detect`, when the store shows it (App\Services\Admin\Stores\ApplicationPipeline). Moving forward needs the required items of every stage passed; `menu` and later need the store created (convert).
+         * @enum {string}
+         */
+        StoreApplicationStage: "application" | "review" | "menu" | "devices" | "training" | "trial" | "active" | "rejected";
+        /**
+         * StoreFormat
+         * @description P4-22: what kind of food place a store application is (the public form's `format`).
+         * @enum {string}
+         */
+        StoreFormat: "restaurant" | "cafe" | "fast_food" | "canteen" | "coffee_shop" | "bakery" | "teahouse" | "catering" | "other";
         /** StoreRating */
         StoreRating: {
             id: number;
@@ -6515,9 +8016,21 @@ export interface components {
             created_at: string | null;
             /** Format: date-time */
             updated_at: string | null;
+            billing_period: components["schemas"]["BillingPeriod"];
+            next_billing_period: components["schemas"]["BillingPeriod"] | null;
+            /** Format: date-time */
+            term_ends_at: string | null;
+            prorate_from_plan_id: number | null;
+            price_lock_plan_id: number | null;
+            /** Format: date-time */
+            price_locked_until: string | null;
+            /** Format: date-time */
+            locked_at: string | null;
             store?: components["schemas"]["Store"];
             plan?: components["schemas"]["TariffPlan"];
             next_plan?: components["schemas"]["TariffPlan"] | null;
+            prorate_from_plan?: components["schemas"]["TariffPlan"] | null;
+            price_lock_plan?: components["schemas"]["TariffPlan"] | null;
             invoices?: components["schemas"]["SubscriptionInvoice"][];
         };
         /** StoreTransaction */
@@ -6537,6 +8050,8 @@ export interface components {
             created_at: string | null;
             /** Format: date-time */
             updated_at: string | null;
+            subscription_invoice_id: number | null;
+            payout_request_id: number | null;
         };
         /**
          * StoreTransactionType
@@ -6560,6 +8075,7 @@ export interface components {
             created_at: string | null;
             /** Format: date-time */
             updated_at: string | null;
+            payout_request_id: number | null;
             store?: components["schemas"]["Store"];
             order?: components["schemas"]["Order"] | null;
         };
@@ -6601,6 +8117,14 @@ export interface components {
             created_at: string | null;
             /** Format: date-time */
             updated_at: string | null;
+            kind: components["schemas"]["InvoiceKind"];
+            sequence: number;
+            paid_amount: string;
+            void_requested_by: number | null;
+            /** Format: date-time */
+            void_requested_at: string | null;
+            void_request_reason: string | null;
+            void_requester?: components["schemas"]["User"] | null;
             store?: components["schemas"]["Store"];
             subscription?: components["schemas"]["StoreSubscription"] | null;
             plan?: components["schemas"]["TariffPlan"] | null;
@@ -6612,10 +8136,10 @@ export interface components {
         SubscriptionInvoiceStatus: "issued" | "paid" | "void";
         /**
          * SubscriptionStatus
-         * @description A store subscription's state (docs/BILLING.md). Only `cancelled` rows are history; every other status is the store's current subscription, whose plan sets its commission and monthly fee.
+         * @description A store subscription's state (docs/BILLING.md). Only `cancelled` rows are history; every other status is the store's current subscription, whose plan sets its commission and monthly fee. P4-21: `locked` — an invoice is unpaid more than config('billing.dunning.lock_after_days') days after its due date: settings and features outside the plan close (App\Services\Finance\Billing\Entitlements); the till keeps taking payments and printing receipts. Paying unlocks at once.
          * @enum {string}
          */
-        SubscriptionStatus: "trialing" | "active" | "past_due" | "cancelled";
+        SubscriptionStatus: "trialing" | "active" | "past_due" | "locked" | "cancelled";
         /** TariffPlan */
         TariffPlan: {
             id: number;
@@ -6632,6 +8156,15 @@ export interface components {
             created_at: string | null;
             /** Format: date-time */
             updated_at: string | null;
+            version: number;
+            tier: string | null;
+            sort_order: number;
+            yearly_fee: string | null;
+            included_pos: number;
+            included_kds: number;
+            extra_pos_fee: string | null;
+            extra_kds_fee: string | null;
+            features: string[] | null;
             subscriptions?: components["schemas"]["StoreSubscription"][];
         };
         /** User */
@@ -6679,6 +8212,18 @@ export interface components {
     responses: {
         /** @description Unauthenticated */
         AuthenticationException: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": {
+                    /** @description Error overview. */
+                    message: string;
+                };
+            };
+        };
+        /** @description Not found */
+        ModelNotFoundException: {
             headers: {
                 [name: string]: unknown;
             };
@@ -7506,6 +9051,1977 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+        };
+    };
+    "admin.billing.plans": {
+        parameters: {
+            query?: {
+                all?: boolean | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            plans: {
+                                id: number;
+                                code: string;
+                                name: string;
+                                version: number;
+                                tier: string | null;
+                                is_active: boolean;
+                                sort_order: number;
+                                description: string | null;
+                                monthly_fee: string;
+                                yearly_fee: string;
+                                included_pos: number;
+                                included_kds: number;
+                                extra_pos_fee: string;
+                                extra_kds_fee: string;
+                                trial_days: number;
+                                features: string[];
+                                commission_percent: string | null;
+                                monthly_fee_per_terminal: string | null;
+                                included_terminals: number;
+                                subscriptions: number;
+                            }[];
+                            feature_catalog: {
+                                key: string;
+                                label: string;
+                                base: boolean;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.billing.plan_updated": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name?: string;
+                    description?: string | null;
+                    is_active?: boolean;
+                    monthly_fee?: number;
+                    yearly_fee?: number;
+                    included_pos?: number;
+                    included_kds?: number;
+                    extra_pos_fee?: number;
+                    extra_kds_fee?: number;
+                    trial_days?: number;
+                    sort_order?: number;
+                    features?: ("bookings" | "deposits" | "customer_accounts" | "kds" | "service_charge" | "multi_branch_reports" | "aggregator_orders" | "banquet")[];
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            code: string;
+                            name: string;
+                            version: number;
+                            tier: string | null;
+                            is_active: boolean;
+                            sort_order: number;
+                            description: string | null;
+                            monthly_fee: string;
+                            yearly_fee: string;
+                            included_pos: number;
+                            included_kds: number;
+                            extra_pos_fee: string;
+                            extra_kds_fee: string;
+                            trial_days: number;
+                            features: string[];
+                            commission_percent: string | null;
+                            monthly_fee_per_terminal: string | null;
+                            included_terminals: number;
+                            subscriptions: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description No such v2 plan (not_found) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.billing.store": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            store: {
+                                id: number;
+                                name: string;
+                                status: string;
+                            };
+                            subscription: {
+                                id: number;
+                                store_id: number;
+                                status: string;
+                                status_label: string;
+                                plan: {
+                                    code: string;
+                                    name: string;
+                                    version: number;
+                                };
+                                billing_period: string;
+                                next_billing_period: string | null;
+                                next_plan: {
+                                    code: string;
+                                    name: string;
+                                } | null;
+                                cancel_at_period_end: boolean;
+                                started_at: string;
+                                trial_ends_at: string | null;
+                                current_period: {
+                                    start: string;
+                                    end: string;
+                                };
+                                term_ends_at: string | null;
+                                changes_at: string;
+                                price_locked_until: string | null;
+                                locked_at: string | null;
+                                cancelled_at: string | null;
+                            } | null;
+                            entitlements: {
+                                [key: string]: unknown;
+                            };
+                            debt: {
+                                debt_balance: string;
+                                subscription_debt: string;
+                                commission_debt: string;
+                                credit_limit: string;
+                                over_credit_limit: boolean;
+                            };
+                            commission: {
+                                rates: {
+                                    [key: string]: {
+                                        rate: string;
+                                        source: string;
+                                        default: string;
+                                    };
+                                };
+                                overrides: {
+                                    [key: string]: string;
+                                };
+                                flat_rate: string | null;
+                                delivery_courier: string;
+                            };
+                            history: {
+                                id: number;
+                                store_id: number;
+                                status: string;
+                                status_label: string;
+                                plan: {
+                                    code: string;
+                                    name: string;
+                                    version: number;
+                                };
+                                billing_period: string;
+                                next_billing_period: string | null;
+                                next_plan: {
+                                    code: string;
+                                    name: string;
+                                } | null;
+                                cancel_at_period_end: boolean;
+                                started_at: string;
+                                trial_ends_at: string | null;
+                                current_period: {
+                                    start: string;
+                                    end: string;
+                                };
+                                term_ends_at: string | null;
+                                changes_at: string;
+                                price_locked_until: string | null;
+                                locked_at: string | null;
+                                cancelled_at: string | null;
+                            }[];
+                            invoices: {
+                                uuid: string;
+                                number: string;
+                                kind: string;
+                                period: string;
+                                period_start: string;
+                                period_end: string;
+                                plan: {
+                                    code: string;
+                                    name: string;
+                                } | null;
+                                lines: {
+                                    type: string;
+                                    label: string;
+                                    quantity: number;
+                                    unit_price: string;
+                                    amount: string;
+                                }[];
+                                amount: string;
+                                paid_amount: string;
+                                outstanding: string;
+                                status: string;
+                                due_date: string;
+                                issued_at: string;
+                                paid_at: string | null;
+                                voided_at: string | null;
+                                dunning: {
+                                    stage: string;
+                                    label: string;
+                                    notified: boolean;
+                                    recipients: number;
+                                    occurred_at: string;
+                                    invoice: string | null;
+                                }[];
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description No such store (not_found) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.billing.commission_updated": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    overrides?: (number | null)[];
+                    flat_rate?: number | null;
+                    delivery_courier?: components["schemas"]["CourierType"];
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            rates: {
+                                [key: string]: {
+                                    rate: string;
+                                    source: string;
+                                    default: string;
+                                };
+                            };
+                            overrides: {
+                                [key: string]: string;
+                            };
+                            flat_rate: string | null;
+                            delivery_courier: string;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.billing.subscription_assigned": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    plan: string;
+                    /** @enum {string|null} */
+                    period?: "monthly" | "yearly" | null;
+                    immediately?: boolean | null;
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not allowed (billing_rule) or invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.billing.subscription_cancelled": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    immediately: boolean;
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No subscription (no_subscription) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.billing.period_changed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    period: "monthly" | "yearly";
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No subscription or not allowed (billing_rule) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.billing.trial_extended": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: date-time */
+                    trial_ends_at?: string | null;
+                    days?: number | null;
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not in its trial, too far or not later (billing_rule) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.billing.subscriptions": {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["SubscriptionStatus"] | null;
+                plan?: string | null;
+                period?: "monthly" | "yearly" | null;
+                trial_ends_within?: number | null;
+                store_id?: number | null;
+                per_page?: number | null;
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            data: {
+                                subscription: {
+                                    id: number;
+                                    store_id: number;
+                                    status: string;
+                                    status_label: string;
+                                    plan: {
+                                        code: string;
+                                        name: string;
+                                        version: number;
+                                    };
+                                    billing_period: string;
+                                    next_billing_period: string | null;
+                                    next_plan: {
+                                        code: string;
+                                        name: string;
+                                    } | null;
+                                    cancel_at_period_end: boolean;
+                                    started_at: string;
+                                    trial_ends_at: string | null;
+                                    current_period: {
+                                        start: string;
+                                        end: string;
+                                    };
+                                    term_ends_at: string | null;
+                                    changes_at: string;
+                                    price_locked_until: string | null;
+                                    locked_at: string | null;
+                                    cancelled_at: string | null;
+                                };
+                                store: {
+                                    id: number;
+                                    name: string;
+                                };
+                            }[];
+                            next_cursor: string | null;
+                            per_page: number;
+                            counts: {
+                                [key: string]: number;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.finance.adjustments": {
+        parameters: {
+            query?: {
+                status?: "pending" | "applied" | "rejected" | "all" | null;
+                store_id?: number | null;
+                per_page?: number | null;
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            data: {
+                                id: number;
+                                uuid: string;
+                                store: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                kind: string;
+                                kind_label: string;
+                                ledger: string;
+                                amount: string;
+                                signed_amount: string;
+                                reason: string;
+                                status: string;
+                                status_label: string;
+                                needs_second_approval: boolean;
+                                requested_by: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                requested_at: string | null;
+                                approved_by: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                approved_at: string | null;
+                                rejected_by: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                rejected_at: string | null;
+                                decision_note: string | null;
+                                applied_at: string | null;
+                                document: {
+                                    name: string;
+                                    mime: string | null;
+                                    size: number | null;
+                                } | null;
+                                transactions: {
+                                    ledger: string;
+                                    id: number;
+                                    type: string;
+                                    amount: string;
+                                    balance_before: string;
+                                    balance_after: string;
+                                    notes: string | null;
+                                    subscription_invoice_id: number | null;
+                                }[];
+                                mine: boolean;
+                                can_approve: boolean;
+                                can_reject: boolean;
+                            }[];
+                            next_cursor: string | null;
+                            per_page: number;
+                            counts: {
+                                pending: number;
+                            };
+                            kinds: {
+                                value: string;
+                                label: string;
+                                ledger: string;
+                                sign: number;
+                            }[];
+                            threshold: string;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.finance.adjustments.created": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer. */
+                "Idempotency-Key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    store_id: number;
+                    /** @enum {string} */
+                    kind: "debt_charge" | "debt_credit" | "debt_payment" | "wallet_credit" | "wallet_debit";
+                    amount: number;
+                    reason: string;
+                    /**
+                     * Format: binary
+                     * @description Maximum file size: 10240 kilobytes.
+                     */
+                    document?: string | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string;
+                };
+            };
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            uuid: string;
+                            store: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            kind: string;
+                            kind_label: string;
+                            ledger: string;
+                            amount: string;
+                            signed_amount: string;
+                            reason: string;
+                            status: string;
+                            status_label: string;
+                            needs_second_approval: boolean;
+                            requested_by: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            requested_at: string | null;
+                            approved_by: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            approved_at: string | null;
+                            rejected_by: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            rejected_at: string | null;
+                            decision_note: string | null;
+                            applied_at: string | null;
+                            document: {
+                                name: string;
+                                mime: string | null;
+                                size: number | null;
+                            } | null;
+                            transactions: {
+                                ledger: string;
+                                id: number;
+                                type: string;
+                                amount: string;
+                                balance_before: string;
+                                balance_after: string;
+                                notes: string | null;
+                                subscription_invoice_id: number | null;
+                            }[];
+                            mine: boolean;
+                            can_approve: boolean;
+                            can_reject: boolean;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The wallet cannot cover a wallet_debit (insufficient_wallet) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.finance.adjustments.adjustment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            uuid: string;
+                            store: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            kind: string;
+                            kind_label: string;
+                            ledger: string;
+                            amount: string;
+                            signed_amount: string;
+                            reason: string;
+                            status: string;
+                            status_label: string;
+                            needs_second_approval: boolean;
+                            requested_by: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            requested_at: string | null;
+                            approved_by: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            approved_at: string | null;
+                            rejected_by: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            rejected_at: string | null;
+                            decision_note: string | null;
+                            applied_at: string | null;
+                            document: {
+                                name: string;
+                                mime: string | null;
+                                size: number | null;
+                            } | null;
+                            transactions: {
+                                ledger: string;
+                                id: number;
+                                type: string;
+                                amount: string;
+                                balance_before: string;
+                                balance_after: string;
+                                notes: string | null;
+                                subscription_invoice_id: number | null;
+                            }[];
+                            mine: boolean;
+                            can_approve: boolean;
+                            can_reject: boolean;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.finance.adjustments.approved": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            uuid: string;
+                            store: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            kind: string;
+                            kind_label: string;
+                            ledger: string;
+                            amount: string;
+                            signed_amount: string;
+                            reason: string;
+                            status: string;
+                            status_label: string;
+                            needs_second_approval: boolean;
+                            requested_by: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            requested_at: string | null;
+                            approved_by: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            approved_at: string | null;
+                            rejected_by: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            rejected_at: string | null;
+                            decision_note: string | null;
+                            applied_at: string | null;
+                            document: {
+                                name: string;
+                                mime: string | null;
+                                size: number | null;
+                            } | null;
+                            transactions: {
+                                ledger: string;
+                                id: number;
+                                type: string;
+                                amount: string;
+                                balance_before: string;
+                                balance_after: string;
+                                notes: string | null;
+                                subscription_invoice_id: number | null;
+                            }[];
+                            mine: boolean;
+                            can_approve: boolean;
+                            can_reject: boolean;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description The maker cannot approve it (four_eyes) or step-up needed (reauth_required) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Already decided (adjustment_decided) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.finance.adjustments.document": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    "Transfer-Encoding": "chunked";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.finance.adjustments.rejected": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            uuid: string;
+                            store: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            kind: string;
+                            kind_label: string;
+                            ledger: string;
+                            amount: string;
+                            signed_amount: string;
+                            reason: string;
+                            status: string;
+                            status_label: string;
+                            needs_second_approval: boolean;
+                            requested_by: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            requested_at: string | null;
+                            approved_by: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            approved_at: string | null;
+                            rejected_by: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            rejected_at: string | null;
+                            decision_note: string | null;
+                            applied_at: string | null;
+                            document: {
+                                name: string;
+                                mime: string | null;
+                                size: number | null;
+                            } | null;
+                            transactions: {
+                                ledger: string;
+                                id: number;
+                                type: string;
+                                amount: string;
+                                balance_before: string;
+                                balance_after: string;
+                                notes: string | null;
+                                subscription_invoice_id: number | null;
+                            }[];
+                            mine: boolean;
+                            can_approve: boolean;
+                            can_reject: boolean;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.finance.balances": {
+        parameters: {
+            query?: {
+                filter?: "all" | "debt" | "over_limit" | "subscription_debt" | "wallet" | null;
+                q?: string | null;
+                page?: number | null;
+                per_page?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            data: {
+                                store: {
+                                    id: number;
+                                    name: string;
+                                    status: string;
+                                    status_label: string;
+                                };
+                                wallet_balance: string;
+                                debt_balance: string;
+                                subscription_debt: string;
+                                commission_debt: string;
+                                credit_limit: string;
+                                over_limit: boolean;
+                                is_order_locked: boolean;
+                                pending_payouts: string;
+                            }[];
+                            page: number;
+                            per_page: number;
+                            total: number;
+                            totals: {
+                                over_limit: number;
+                                wallet_total: string;
+                                debt_total: string;
+                                subscription_debt_total: string;
+                                commission_debt_total: string;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.finance.payouts": {
+        parameters: {
+            query?: {
+                status?: "open" | "pending" | "awaiting_second" | "completed" | "rejected" | "all" | null;
+                store_id?: number | null;
+                per_page?: number | null;
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            data: {
+                                id: number;
+                                store: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                amount: string;
+                                card: string;
+                                status: string;
+                                status_label: string;
+                                needs_second_approval: boolean;
+                                first_approval: {
+                                    by: {
+                                        id: number;
+                                        name: string;
+                                    } | null;
+                                    at: string | null;
+                                    note: string | null;
+                                } | null;
+                                netted_amount: string | null;
+                                transferred_amount: string | null;
+                                created_at: string | null;
+                                processed_at: string | null;
+                            }[];
+                            next_cursor: string | null;
+                            per_page: number;
+                            counts: {
+                                pending: number;
+                                awaiting_second: number;
+                                open_amount: string;
+                            };
+                            threshold: string;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.finance.payouts.payout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            store: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            amount: string;
+                            card: string;
+                            status: string;
+                            status_label: string;
+                            needs_second_approval: boolean;
+                            threshold: string;
+                            first_approval: {
+                                by: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                at: string | null;
+                                note: string | null;
+                            } | null;
+                            notes: string | null;
+                            resolution_notes: string | null;
+                            processed_by: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            netted_amount: string | null;
+                            transferred_amount: string | null;
+                            created_at: string | null;
+                            processed_at: string | null;
+                            breakdown: {
+                                accrued: string;
+                                netted: string;
+                                transfer: string;
+                                preview: boolean;
+                                lines: {
+                                    kind: string;
+                                    label: string;
+                                    amount: string;
+                                    invoice: {
+                                        id: number;
+                                        uuid: string;
+                                        number: string;
+                                        period: string;
+                                    } | null;
+                                    transaction_id: number | null;
+                                }[];
+                            } | null;
+                            balances: {
+                                wallet: string;
+                                debt: string;
+                                subscription_debt: string;
+                                commission_debt: string;
+                                credit_limit: string;
+                            } | null;
+                            actions: {
+                                can_approve: boolean;
+                                can_reject: boolean;
+                                approve_completes: boolean;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.finance.payouts.approved": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            store: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            amount: string;
+                            card: string;
+                            status: string;
+                            status_label: string;
+                            needs_second_approval: boolean;
+                            threshold: string;
+                            first_approval: {
+                                by: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                at: string | null;
+                                note: string | null;
+                            } | null;
+                            notes: string | null;
+                            resolution_notes: string | null;
+                            processed_by: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            netted_amount: string | null;
+                            transferred_amount: string | null;
+                            created_at: string | null;
+                            processed_at: string | null;
+                            breakdown: {
+                                accrued: string;
+                                netted: string;
+                                transfer: string;
+                                preview: boolean;
+                                lines: {
+                                    kind: string;
+                                    label: string;
+                                    amount: string;
+                                    invoice: {
+                                        id: number;
+                                        uuid: string;
+                                        number: string;
+                                        period: string;
+                                    } | null;
+                                    transaction_id: number | null;
+                                }[];
+                            } | null;
+                            balances: {
+                                wallet: string;
+                                debt: string;
+                                subscription_debt: string;
+                                commission_debt: string;
+                                credit_limit: string;
+                            } | null;
+                            actions: {
+                                can_approve: boolean;
+                                can_reject: boolean;
+                                approve_completes: boolean;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description The first approver cannot complete it (four_eyes) or step-up needed (reauth_required) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Already decided (payout_decided) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The wallet cannot cover it (insufficient_wallet) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.finance.payouts.rejected": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            store: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            amount: string;
+                            card: string;
+                            status: string;
+                            status_label: string;
+                            needs_second_approval: boolean;
+                            threshold: string;
+                            first_approval: {
+                                by: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                at: string | null;
+                                note: string | null;
+                            } | null;
+                            notes: string | null;
+                            resolution_notes: string | null;
+                            processed_by: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            netted_amount: string | null;
+                            transferred_amount: string | null;
+                            created_at: string | null;
+                            processed_at: string | null;
+                            breakdown: {
+                                accrued: string;
+                                netted: string;
+                                transfer: string;
+                                preview: boolean;
+                                lines: {
+                                    kind: string;
+                                    label: string;
+                                    amount: string;
+                                    invoice: {
+                                        id: number;
+                                        uuid: string;
+                                        number: string;
+                                        period: string;
+                                    } | null;
+                                    transaction_id: number | null;
+                                }[];
+                            } | null;
+                            balances: {
+                                wallet: string;
+                                debt: string;
+                                subscription_debt: string;
+                                commission_debt: string;
+                                credit_limit: string;
+                            } | null;
+                            actions: {
+                                can_approve: boolean;
+                                can_reject: boolean;
+                                approve_completes: boolean;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.finance.reports.monthly": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            period: string;
+                            timezone: string;
+                            totals: {
+                                orders: number;
+                                gmv: string;
+                                commission: string;
+                                commission_refunded: string;
+                                subscription: string;
+                                total: string;
+                            };
+                            channels: {
+                                channel: string;
+                                label: string;
+                                orders: number;
+                                gmv: string;
+                                commission: string;
+                                commission_refunded: string;
+                            }[];
+                            subscriptions: {
+                                invoices: number;
+                                invoiced: string;
+                                paid: string;
+                                outstanding: string;
+                            };
+                            stores: {
+                                store: {
+                                    id: number;
+                                    name: string;
+                                };
+                                orders: number;
+                                gmv: string;
+                                commission: string;
+                                commission_by_channel: {
+                                    [key: string]: string;
+                                };
+                                subscription: string;
+                                total: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "admin.finance.reports.monthly_exported": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /** @example attachment */
+                    "Content-Disposition": string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": string;
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description An error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /**
+                         * @description Error overview.
+                         * @example Faylni tayyorlab bo'lmadi.
+                         */
+                        message: string;
+                    };
+                };
+            };
+        };
+    };
+    "admin.finance.settlement_failures": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            data: {
+                                uuid: string;
+                                short_code: string | null;
+                                store: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                total: string;
+                                commission: string;
+                                payment_method: string | null;
+                                payment_owner: string | null;
+                                failed_at: string | null;
+                                attempts: number;
+                                max_attempts: number;
+                                gave_up: boolean;
+                                error: string | null;
+                            }[];
+                            count: number;
+                            max_attempts: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "admin.finance.settlement_failures.retried": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            booked: boolean;
+                            order: {
+                                uuid: string;
+                                short_code: string | null;
+                                store: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                total: string;
+                                commission: string;
+                                payment_method: string | null;
+                                payment_owner: string | null;
+                                failed_at: string | null;
+                                attempts: number;
+                                max_attempts: number;
+                                gave_up: boolean;
+                                error: string | null;
+                            } | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.finance.stores.ledger": {
+        parameters: {
+            query?: {
+                ledger?: "debt" | "wallet" | null;
+                per_page?: number | null;
+                cursor?: string | null;
+            };
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            store: {
+                                id: number;
+                                name: string;
+                            };
+                            data: {
+                                id: number;
+                                type: string;
+                                amount: string;
+                                balance_before: string;
+                                balance_after: string;
+                                notes: string | null;
+                                order: {
+                                    uuid: string;
+                                    short_code: string | null;
+                                } | null;
+                                subscription_invoice: {
+                                    id: number;
+                                    number: string;
+                                    period: string;
+                                } | null;
+                                payout_request_id: number | null;
+                                reference_id: string | null;
+                                performed_by: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                created_at: string | null;
+                            }[];
+                            next_cursor: string | null;
+                            per_page: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.finance.summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            payouts: {
+                                pending: number;
+                                awaiting_second: number;
+                                open_amount: string;
+                            };
+                            adjustments: {
+                                pending: number;
+                            };
+                            settlement_failures: {
+                                count: number;
+                                gave_up: number;
+                            };
+                            topups: {
+                                stuck: number;
+                            };
+                            balances: {
+                                over_limit: number;
+                                wallet_total: string;
+                                debt_total: string;
+                                subscription_debt_total: string;
+                            };
+                            threshold: string;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "admin.finance.topups": {
+        parameters: {
+            query?: {
+                status?: "pending" | "paid" | "cancelled" | "all" | null;
+                provider?: "click" | "payme" | null;
+                store_id?: number | null;
+                stuck?: boolean | null;
+                per_page?: number | null;
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            data: {
+                                id: number;
+                                uuid: string;
+                                store: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                amount: string;
+                                provider: string;
+                                status: string;
+                                status_label: string;
+                                provider_transaction_id: string | null;
+                                stuck: boolean;
+                                transaction_id: number | null;
+                                created_at: string | null;
+                                paid_at: string | null;
+                            }[];
+                            next_cursor: string | null;
+                            per_page: number;
+                            counts: {
+                                pending: number;
+                                stuck: number;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
         };
     };
     "admin.me": {
@@ -8753,6 +12269,968 @@ export interface operations {
             };
         };
     };
+    "admin.pos.devices": {
+        parameters: {
+            query?: {
+                state?: "online" | "offline" | "never" | "revoked" | "all" | null;
+                type?: components["schemas"]["DeviceType"] | null;
+                terminal?: boolean | null;
+                store_id?: number | null;
+                outdated?: boolean | null;
+                q?: string | null;
+                per_page?: number | null;
+                page?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            data: {
+                                uuid: string;
+                                name: string;
+                                type: string;
+                                type_label: string;
+                                terminal: boolean;
+                                store: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                branch: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                platform: string | null;
+                                app_version: string | null;
+                                latest_version: string | null;
+                                outdated: boolean;
+                                state: string;
+                                last_seen_at: string | null;
+                                paired_at: string | null;
+                                revoked_at: string | null;
+                                sync: {
+                                    pending_ops: number;
+                                    oldest_op_at: string | null;
+                                    reported_at: string | null;
+                                    clock_skew_seconds: number | null;
+                                    clock_warning: boolean;
+                                };
+                            }[];
+                            current_page: number;
+                            last_page: number;
+                            per_page: number;
+                            total: number;
+                            counts: {
+                                total: number;
+                                online: number;
+                                offline: number;
+                                never: number;
+                                revoked: number;
+                                outdated: number;
+                                by_type: {
+                                    [key: string]: number;
+                                };
+                            };
+                            latest_versions: {
+                                [key: string]: string;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.pos.device": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            name: string;
+                            type: string;
+                            type_label: string;
+                            terminal: boolean;
+                            store: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            branch: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            platform: string | null;
+                            app_version: string | null;
+                            latest_version: string | null;
+                            outdated: boolean;
+                            state: string;
+                            last_seen_at: string | null;
+                            paired_at: string | null;
+                            revoked_at: string | null;
+                            sync: {
+                                pending_ops: number;
+                                oldest_op_at: string | null;
+                                reported_at: string | null;
+                                clock_skew_seconds: number | null;
+                                clock_warning: boolean;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description No such device (not_found) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.pos.device_revoked": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            name: string;
+                            type: string;
+                            type_label: string;
+                            terminal: boolean;
+                            store: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            branch: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            platform: string | null;
+                            app_version: string | null;
+                            latest_version: string | null;
+                            outdated: boolean;
+                            state: string;
+                            last_seen_at: string | null;
+                            paired_at: string | null;
+                            revoked_at: string | null;
+                            sync: {
+                                pending_ops: number;
+                                oldest_op_at: string | null;
+                                reported_at: string | null;
+                                clock_skew_seconds: number | null;
+                                clock_warning: boolean;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.pos.fiscal_receipts": {
+        parameters: {
+            query?: {
+                status?: "open" | "failed" | "pending" | "issued" | "all" | null;
+                driver?: string | null;
+                store_id?: number | null;
+                from?: string | null;
+                to?: string | null;
+                q?: string | null;
+                per_page?: number | null;
+                page?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            data: {
+                                uuid: string;
+                                type: string;
+                                status: string;
+                                driver: string;
+                                provider: string | null;
+                                non_fiscal: boolean;
+                                total: string;
+                                error: string | null;
+                                attempts: number;
+                                next_attempt_at: string | null;
+                                created_at: string;
+                                issued_at: string | null;
+                                store: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                branch: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                retryable: boolean;
+                                subject_type: string | null;
+                                subject_id: number | null;
+                            }[];
+                            current_page: number;
+                            last_page: number;
+                            per_page: number;
+                            total: number;
+                            summary: {
+                                failed: number;
+                                pending: number;
+                                by_driver: {
+                                    driver: string;
+                                    failed: number;
+                                    pending: number;
+                                    last_error: string | null;
+                                }[];
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.pos.fiscal_receipt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description No such receipt (not_found) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.pos.fiscal_receipt_retried": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Issued already (already_issued) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.pos.invoices": {
+        parameters: {
+            query?: {
+                status?: "issued" | "paid" | "void" | "overdue" | null;
+                store_id?: number | null;
+                period?: string | null;
+                dunning?: "reminder_1" | "reminder_3" | "reminder_7" | "locked" | "unlocked" | null;
+                q?: string | null;
+                per_page?: number | null;
+                page?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            data: {
+                                uuid: string;
+                                number: string;
+                                kind: string;
+                                period: string;
+                                store: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                plan: {
+                                    code: string;
+                                    name: string;
+                                } | null;
+                                amount: string;
+                                paid_amount: string;
+                                outstanding: string;
+                                status: string;
+                                status_label: string;
+                                due_date: string;
+                                issued_at: string;
+                                paid_at: string | null;
+                                voided_at: string | null;
+                                overdue: boolean;
+                                overdue_days: number;
+                                dunning_stage: string | null;
+                                dunning_label: string | null;
+                                dunning_at: string | null;
+                            }[];
+                            current_page: number;
+                            last_page: number;
+                            per_page: number;
+                            total: number;
+                            counts: {
+                                issued: number;
+                                overdue: number;
+                                paid: number;
+                                void: number;
+                                outstanding: string;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.pos.invoice": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            invoice: {
+                                [key: string]: unknown;
+                            };
+                            store: {
+                                id: number;
+                                name: string;
+                                status: string;
+                                debt_balance: string;
+                                subscription_debt: string;
+                                commission_debt: string;
+                            } | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description No such invoice (not_found) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.pos.invoice_paid": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            invoice: {
+                                [key: string]: unknown;
+                            };
+                            store: {
+                                [key: string]: unknown;
+                            } | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description A voided invoice (invoice_void) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.pos.invoice_voided": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            invoice: {
+                                [key: string]: unknown;
+                            };
+                            store: {
+                                [key: string]: unknown;
+                            } | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description A paid or partly paid invoice (invoice_paid) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.pos.overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            subscriptions: {
+                                counts: {
+                                    [key: string]: number;
+                                };
+                                trial_ending: number;
+                                trial_ending_days: number;
+                            } | null;
+                            invoices: {
+                                issued: number;
+                                overdue: number;
+                                paid: number;
+                                void: number;
+                                outstanding: string;
+                            } | null;
+                            devices: {
+                                total: number;
+                                online: number;
+                                offline: number;
+                                never: number;
+                                revoked: number;
+                                outdated: number;
+                                by_type: {
+                                    [key: string]: number;
+                                };
+                            } | null;
+                            shifts: {
+                                difference: number;
+                                force_closed: number;
+                                open: number;
+                                all: number;
+                            } | null;
+                            fiscal: {
+                                failed: number;
+                                pending: number;
+                                by_driver: {
+                                    driver: string;
+                                    failed: number;
+                                    pending: number;
+                                    last_error: string | null;
+                                }[];
+                            } | null;
+                            sync_errors: {
+                                rejected: number;
+                                conflict: number;
+                                open: number;
+                            } | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "admin.pos.shifts": {
+        parameters: {
+            query?: {
+                kind?: "difference" | "force_closed" | "open" | null;
+                store_id?: number | null;
+                from?: string | null;
+                to?: string | null;
+                per_page?: number | null;
+                page?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            data: {
+                                uuid: string;
+                                status: string;
+                                store: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                branch: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                device: {
+                                    uuid: string;
+                                    name: string | null;
+                                } | null;
+                                business_date: string;
+                                opened_at: string;
+                                opened_by: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                opening_cash: string;
+                                closed_at: string | null;
+                                closed_by: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                expected_cash: string | null;
+                                counted_cash: string | null;
+                                difference: string | null;
+                                has_difference: boolean;
+                                z_number: number | null;
+                                force_closed: boolean;
+                                close_note: string | null;
+                            }[];
+                            current_page: number;
+                            last_page: number;
+                            per_page: number;
+                            total: number;
+                            counts: {
+                                difference: number;
+                                force_closed: number;
+                                open: number;
+                                all: number;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.pos.shift": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description No such shift (not_found) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.pos.sync_errors": {
+        parameters: {
+            query?: {
+                state?: "open" | "resolved" | "all" | null;
+                status?: "rejected" | "conflict" | null;
+                type?: components["schemas"]["PosSyncOperationType"] | null;
+                store_id?: number | null;
+                device?: string | null;
+                from?: string | null;
+                to?: string | null;
+                per_page?: number | null;
+                page?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            data: {
+                                op_id: string;
+                                seq: number;
+                                type: string;
+                                type_label: string;
+                                status: string;
+                                reason: string | null;
+                                message: string | null;
+                                store: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                device: {
+                                    uuid: string;
+                                    name: string | null;
+                                } | null;
+                                staff: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                order: {
+                                    uuid: string;
+                                    local_number: string | null;
+                                    short_code: string | null;
+                                    table_ref: string | null;
+                                    status: string;
+                                } | null;
+                                occurred_at: string | null;
+                                received_at: string | null;
+                                clock_skew_seconds: number | null;
+                                resolved_at: string | null;
+                                resolved_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                resolution: string | null;
+                                resolution_note: string | null;
+                            }[];
+                            current_page: number;
+                            last_page: number;
+                            per_page: number;
+                            total: number;
+                            counts: {
+                                rejected: number;
+                                conflict: number;
+                                open: number;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.pos.sync_error": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                opId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description No such error (not_found) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.pos.sync_error_resolved": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                opId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    resolution: "resolved" | "dismissed";
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
     "admin.refund_requests": {
         parameters: {
             query?: {
@@ -9066,6 +13544,1367 @@ export interface operations {
             };
             401: components["responses"]["AuthenticationException"];
             422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.stores.applications": {
+        parameters: {
+            query?: {
+                stage?: "application" | "review" | "menu" | "devices" | "training" | "trial" | "active" | "rejected" | "open" | "overdue" | null;
+                assignee_id?: string | null;
+                source?: "website" | "telegram" | "admin" | null;
+                q?: string | null;
+                per_page?: number | null;
+                page?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            data: {
+                                id: number;
+                                uuid: string;
+                                name: string;
+                                format: string;
+                                format_label: string;
+                                region: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                city: string | null;
+                                owner_name: string;
+                                source: string;
+                                stage: string;
+                                stage_label: string;
+                                stage_changed_at: string | null;
+                                assignee: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                due_on: string | null;
+                                overdue: boolean;
+                                store: {
+                                    id: number;
+                                    name: string;
+                                    status: string;
+                                } | null;
+                                created_at: string | null;
+                            }[];
+                            current_page: number;
+                            last_page: number;
+                            per_page: number;
+                            total: number;
+                            stage_counts: {
+                                [key: string]: number;
+                            };
+                            stages: {
+                                key: string;
+                                label: string;
+                            }[];
+                            formats: {
+                                key: string;
+                                label: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.stores.applications.created": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    assignee_id?: number | null;
+                    /** Format: date */
+                    due_on?: string | null;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.stores.application": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.stores.applications.updated": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    assignee_id?: number | null;
+                    /** Format: date */
+                    due_on?: string | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.stores.applications.checklist_updated": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    item: string;
+                    done: boolean;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.stores.applications.converted": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name?: string | null;
+                    phone?: string | null;
+                    tin?: string | null;
+                    legal_name?: string | null;
+                    commission_rate?: number | null;
+                    payment_account_type?: components["schemas"]["PaymentAccountType"] | null;
+                    owner_name?: string | null;
+                    owner_phone?: string | null;
+                    branch_region_id?: number | null;
+                    branch_district_id: number;
+                    branch_address: string;
+                    branch_phone?: string | null;
+                    branch_lat: number;
+                    branch_lng: number;
+                    branch_radius?: number | null;
+                    branch_open_time?: string | null;
+                    branch_close_time?: string | null;
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string;
+                };
+            };
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            application: {
+                                [key: string]: unknown;
+                            };
+                            store_id: number;
+                            invite_link: string;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Already converted or the phone is taken (already_converted, owner_phone_taken) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.stores.applications.note_added": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    body: string;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            body: string;
+                            author: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            store_id: number | null;
+                            application_id: number | null;
+                            created_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.stores.applications.rejected": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.stores.applications.stage_changed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    stage: components["schemas"]["StoreApplicationStage"];
+                    note?: string | null;
+                    /** Format: date */
+                    due_on?: string | null;
+                    reason?: string | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not allowed (checklist_incomplete, store_required, already_active, reopen_only, use_reject) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.stores.broadcasts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            broadcasts: {
+                                uuid: string;
+                                audience: string;
+                                text: string;
+                                reason: string;
+                                stores: number;
+                                recipients: number;
+                                queued: number;
+                                status: string;
+                                created_by: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                created_at: string | null;
+                                finished_at: string | null;
+                            }[];
+                            limit_per_day: number;
+                            sent_today: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "admin.stores.broadcast_sent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    text: string;
+                    recipients: number;
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string;
+                };
+            };
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            recipients: number;
+                            stores: number;
+                            status: string;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description The audience changed since the preview (count_changed) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.stores.broadcasts.preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            stores: number;
+                            recipients: number;
+                            without_telegram: number;
+                            sample: string[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.stores.tasks": {
+        parameters: {
+            query?: {
+                assignee_id?: string | null;
+                due?: "today" | null;
+                done?: boolean | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            tasks: {
+                                id: number;
+                                title: string;
+                                due_on: string;
+                                state: string;
+                                assignee: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                created_by: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                store: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                application: {
+                                    uuid: string;
+                                    name: string;
+                                } | null;
+                                done_at: string | null;
+                                created_at: string | null;
+                            }[];
+                            counts: {
+                                overdue: number;
+                                today: number;
+                                upcoming: number;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.stores.tasks.created": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    title: string;
+                    /** Format: date */
+                    due_on: string;
+                    assignee_id?: number | null;
+                    store_id?: number | null;
+                    /** Format: uuid */
+                    application_uuid?: string | null;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            title: string;
+                            due_on: string;
+                            state: string;
+                            assignee: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            created_by: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            store: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            application: {
+                                uuid: string;
+                                name: string;
+                            } | null;
+                            done_at: string | null;
+                            created_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: components["responses"]["ModelNotFoundException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.stores.tasks.updated": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    title?: string;
+                    /** Format: date */
+                    due_on?: string;
+                    assignee_id?: number | null;
+                    done?: boolean;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            title: string;
+                            due_on: string;
+                            state: string;
+                            assignee: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            created_by: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            store: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            application: {
+                                uuid: string;
+                                name: string;
+                            } | null;
+                            done_at: string | null;
+                            created_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.stores": {
+        parameters: {
+            query?: {
+                q?: string | null;
+                status?: components["schemas"]["StoreStatus"] | null;
+                region_id?: number | null;
+                health?: "good" | "attention" | "churn_risk" | "none" | null;
+                plan?: string | null;
+                debt?: "has_debt" | "over_limit" | null;
+                next_contact?: "due" | null;
+                sort?: "newest" | "name" | "debt" | "health" | null;
+                per_page?: number | null;
+                page?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            data: {
+                                id: number;
+                                uuid: string;
+                                name: string;
+                                status: string;
+                                status_label: string;
+                                is_active: boolean;
+                                is_premium: boolean;
+                                is_featured: boolean;
+                                region: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                branches_count: number;
+                                owner: {
+                                    id: number;
+                                    name: string;
+                                    telegram_linked: boolean;
+                                } | null;
+                                plan: {
+                                    code: string;
+                                    name: string;
+                                    status: string;
+                                    status_label: string;
+                                } | null;
+                                debt_balance: string;
+                                subscription_debt: string;
+                                commission_debt: string;
+                                credit_limit: string;
+                                over_limit: boolean;
+                                health: {
+                                    level: string;
+                                    label: string;
+                                    score: number;
+                                    reasons: number;
+                                    top_reason: string | null;
+                                    computed_at: string | null;
+                                } | null;
+                                next_contact_on: string | null;
+                                created_at: string | null;
+                            }[];
+                            current_page: number;
+                            last_page: number;
+                            per_page: number;
+                            total: number;
+                            health_counts: {
+                                [key: string]: number;
+                            };
+                            statuses: {
+                                [key: string]: string;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.stores.lookup": {
+        parameters: {
+            query?: {
+                q?: string | null;
+                "ids[]"?: number[];
+                districts_of?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            stores: {
+                                id: number;
+                                name: string;
+                                status: string;
+                                region: string | null;
+                            }[];
+                            regions: {
+                                id: number;
+                                name: string;
+                            }[];
+                            districts: {
+                                id: number;
+                                name: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.stores.store": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description No such store */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.stores.activated": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not from this status (finance_status, use_pipeline) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.stores.credit_limit_changed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    credit_limit: number;
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.stores.display_changed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    is_premium?: boolean;
+                    is_featured?: boolean;
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.stores.owner_messaged": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    text: string;
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            recipients: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The owner has no Telegram (no_recipient) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.stores.next_contact_set": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: date */
+                    next_contact_on: string | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            next_contact_on: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.stores.note_added": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    body: string;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            body: string;
+                            author: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            store_id: number | null;
+                            application_id: number | null;
+                            created_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.stores.suspended": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Already suspended (already_suspended) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.stores.telegram_link_regenerated": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            invite_link: string | null;
+                            delivered_via: string | null;
+                            owner_linked: boolean;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The owner is already on Telegram (owner_already_linked) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No owner (no_owner) or the link cannot be delivered (link_not_deliverable) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     "admin.team": {
@@ -9802,7 +15641,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description No store staff account holds this phone (account: staff) */
+            /** @description No store staff account holds this phone (account: staff), or only a superadmin / platform account does (reason: platform_account) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -9952,6 +15791,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Superadmin yoki RIZQIM jamoasi hisobi: Telegram orqali kirish yopiq (`reason: platform_account`), yoki bu bot orqali kirib bo'lmaydi */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -11970,6 +17810,98 @@ export interface operations {
                 };
             };
             401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "ownerBilling.entitlements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            plan: {
+                                code: string;
+                                name: string;
+                                tier: string | null;
+                                version: number;
+                            } | null;
+                            legacy: boolean;
+                            period: string | null;
+                            status: string;
+                            trial_ends_at: string | null;
+                            current_period: {
+                                start: string;
+                                end: string;
+                            } | null;
+                            term_ends_at: string | null;
+                            locked_since: string | null;
+                            lock_at: string | null;
+                            settings_locked: boolean;
+                            features: {
+                                [key: string]: boolean;
+                            };
+                            required_plans: {
+                                [key: string]: string | null;
+                            };
+                            devices: {
+                                pos: {
+                                    included: number | null;
+                                    active: number;
+                                    extra: number;
+                                    extra_price: string | null;
+                                    can_add: boolean;
+                                };
+                                kds: {
+                                    included: number | null;
+                                    active: number;
+                                    extra: number;
+                                    extra_price: string | null;
+                                    can_add: boolean;
+                                };
+                                waiter: {
+                                    included: null;
+                                    unlimited: boolean;
+                                    extra_price: string;
+                                    can_add: boolean;
+                                };
+                            };
+                            notice: {
+                                level: string;
+                                message: string;
+                                days_overdue: number;
+                                lock_at: string | null;
+                                invoice: {
+                                    uuid: string;
+                                    number: string;
+                                    amount: string;
+                                    outstanding: string;
+                                    due_date: string;
+                                } | null;
+                            } | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     "branchProductVariant.index": {
@@ -14569,6 +20501,8 @@ export interface operations {
                                     amount: number;
                                 }[];
                                 amount: number;
+                                kind: string;
+                                paid_amount: string;
                                 status: string;
                                 due_date: string;
                                 issued_at: string;
@@ -17202,6 +23136,9 @@ export interface operations {
                                     trial_days: number;
                                 } | null;
                                 cancel_at_period_end: boolean;
+                                billing_period: string;
+                                next_billing_period: string | null;
+                                term_ends_at: string | null;
                             } | null;
                             commission_rate: number;
                             terminals: {
@@ -20345,6 +26282,40 @@ export interface operations {
                                     fiscal_limit_hours: number;
                                     clock_skew_warn_seconds: number;
                                 };
+                            };
+                            entitlements: {
+                                plan: {
+                                    code: string;
+                                    name: string;
+                                    tier: string | null;
+                                    version: number;
+                                } | null;
+                                legacy: boolean;
+                                period: string | null;
+                                status: string;
+                                trial_ends_at: string | null;
+                                current_period: {
+                                    start: string;
+                                    end: string;
+                                } | null;
+                                term_ends_at: string | null;
+                                locked_since: string | null;
+                                lock_at: string | null;
+                                settings_locked: boolean;
+                                features: {
+                                    [key: string]: boolean;
+                                };
+                                required_plans: {
+                                    [key: string]: string | null;
+                                };
+                                devices: {
+                                    [key: string]: {
+                                        [key: string]: unknown;
+                                    };
+                                };
+                                notice: {
+                                    [key: string]: unknown;
+                                } | null;
                             };
                         };
                     };
@@ -26942,6 +32913,48 @@ export interface operations {
             422: components["responses"]["ValidationException"];
         };
     };
+    "store_applications.store": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name: string;
+                    format: components["schemas"]["StoreFormat"];
+                    region_id?: number | null;
+                    city?: string | null;
+                    owner_name: string;
+                    phone: string;
+                    tin?: string | null;
+                    comment?: string | null;
+                    /** @enum {string|null} */
+                    source?: "website" | "telegram" | null;
+                    website?: string | null;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            received: boolean;
+                        };
+                    };
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
     "store.index": {
         parameters: {
             query?: {
@@ -27056,218 +33069,6 @@ export interface operations {
                 };
             };
             404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    "superadmin.dashboard": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        success: boolean;
-                        data: {
-                            total_stores: number;
-                            active_stores: number;
-                            payment_required_stores: number;
-                            total_users: number;
-                            total_gmv: string;
-                            total_commission: number;
-                            monthly_gmv: string;
-                            monthly_commission: number;
-                            last_30_days_gmv: string;
-                            last_30_days_commission: number;
-                            today_gmv: string;
-                            today_orders: number;
-                            today_commission: number;
-                            pending_payouts: number;
-                            total_store_debt: number;
-                            total_cashback_balance: number;
-                        };
-                    };
-                };
-            };
-            401: components["responses"]["AuthenticationException"];
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** @constant */
-                        error: "Unauthorized";
-                    };
-                };
-            };
-        };
-    };
-    "superadmin.getLocations": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        success: boolean;
-                        data: {
-                            regions: {
-                                id: number;
-                                name: string;
-                            }[];
-                            districts: {
-                                id: number;
-                                region_id: number;
-                                name: string;
-                            }[];
-                        };
-                    };
-                };
-            };
-            401: components["responses"]["AuthenticationException"];
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** @constant */
-                        error: "Unauthorized";
-                    };
-                };
-            };
-        };
-    };
-    "superadmin.stores": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        success: boolean;
-                        data: {
-                            id: number;
-                            uuid: string;
-                            name: string;
-                            phone: string | null;
-                            slug: string;
-                            is_active: boolean;
-                            commission_rate: string;
-                            branches_count: number | null;
-                            /** Format: date-time */
-                            created_at: string | null;
-                            owner: {
-                                name: string;
-                                phone: string | null;
-                                invite_link: string | null;
-                                has_joined: boolean;
-                            } | null;
-                        }[];
-                    };
-                };
-            };
-            401: components["responses"]["AuthenticationException"];
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** @constant */
-                        error: "Unauthorized";
-                    };
-                };
-            };
-        };
-    };
-    "superadmin.createStore": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    name: string;
-                    phone?: string | null;
-                    commission_rate: number;
-                    owner_name: string;
-                    owner_phone?: string | null;
-                    branch_region_id: number;
-                    branch_district_id: number;
-                    branch_address: string;
-                    branch_phone?: string | null;
-                    branch_lat: number;
-                    branch_lng: number;
-                    branch_radius: number;
-                    branch_open_time?: string | null;
-                    branch_close_time?: string | null;
-                };
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        success: boolean;
-                        message: string;
-                        data: {
-                            store_id: number;
-                            invite_link: string;
-                        };
-                    };
-                };
-            };
-            401: components["responses"]["AuthenticationException"];
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** @constant */
-                        error: "Unauthorized";
-                    };
-                };
-            };
-            422: components["responses"]["ValidationException"];
-            500: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -8,6 +8,7 @@ import { canOpen, homePath, sectionOf, visibleNav, type NavItem } from '@/lib/pe
 import { useAuth } from './AuthProvider';
 import { FullPageStatus } from './FullPageStatus';
 import { useT } from './I18nProvider';
+import { BillingBanner } from './billing/BillingBanner';
 import { Sidebar } from './Sidebar';
 import { BranchScopeProvider } from './shell/BranchScope';
 import { LiveOrdersProvider, useLiveOrders } from './shell/LiveOrders';
@@ -74,6 +75,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           nav={nav}
           userName={state.userName}
           role={state.access.role}
+          canPay={state.access.permissions.includes('finance.view')}
           menuOpen={menuOpen}
           onToggleMenu={() => setMenuOpen((open) => !open)}
           onLogout={() => void logout()}
@@ -89,13 +91,15 @@ interface ShellFrameProps {
   nav: NavItem[];
   userName: string;
   role: string;
+  // The person may open the plan and payment page (finance.view): the unpaid-invoice banner links to it
+  canPay: boolean;
   menuOpen: boolean;
   onToggleMenu: () => void;
   onLogout: () => void;
   children: ReactNode;
 }
 
-function ShellFrame({ nav, userName, role, menuOpen, onToggleMenu, onLogout, children }: ShellFrameProps) {
+function ShellFrame({ nav, userName, role, canPay, menuOpen, onToggleMenu, onLogout, children }: ShellFrameProps) {
   const t = useT();
   const { newCount } = useLiveOrders();
   return (
@@ -107,6 +111,7 @@ function ShellFrame({ nav, userName, role, menuOpen, onToggleMenu, onLogout, chi
       </header>
       <Sidebar items={nav} userName={userName} role={role} open={menuOpen} onLogout={onLogout} badges={{ orders: newCount }} />
       <main className="min-w-0 flex-1 p-4 md:p-6 lg:p-8 print:p-0">
+        <BillingBanner canPay={canPay} />
         <TopBar />
         {children}
       </main>

@@ -12,6 +12,7 @@ export const uz = {
   nav_staff: 'Xodimlar',
   nav_reports: 'Hisobotlar',
   nav_finance: 'Moliya',
+  nav_billing: "Tarif va to'lov",
   nav_settings: 'Sozlamalar',
   nav_zones: 'Yetkazish zonalari',
   nav_batches: 'Qozon',

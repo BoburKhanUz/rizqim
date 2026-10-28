@@ -1,6 +1,7 @@
 # 4-bosqich rejasi: RIZQIM boshqaruv markazi va yangi billing
 
-Holat: **taklif (3-tahrir: integratsiyalar va shaxsiy ma'lumotlar tuzatildi), egasining tasdig'ini kutmoqda** (25.10.2026).
+Holat: **tasdiqlangan** (27.10.2026). P4-01 tugadi (PR #14), **1-to'lqin tugadi** (PR #15); keyingisi — 2-to'lqin.
+Egasining qarorlari: 12-bo'lim.
 
 ## 1. Nima uchun
 
@@ -70,8 +71,9 @@ filtr va Excel'ga eksport, har bir amal sabab bilan jurnalga yoziladi.
   chastotasi asosida "yaxshi / e'tibor kerak / ketish xavfi". Xavfdagi mijozlar ro'yxati.
 - **CRM-lite:** izohlar, vazifalar va eslatmalar ("payshanba qo'ng'iroq qilish"), keyingi aloqa sanasi.
 - Amallar: to'xtatish yoki faollashtirish (sabab bilan), komissiya va kredit limiti, ko'rsatish sozlamalari
-  (premium, tavsiya etilgan), taklif havolasini yangilash, egasiga xabar yuborish, **egasi nomidan kirish**
-  (vaqt bilan cheklangan, sabab so'raladi, ekranda ogohlantirish chizig'i, jurnalga yoziladi).
+  (premium, tavsiya etilgan), taklif havolasini yangilash, egasiga xabar yuborish. **Egasi nomidan kirish yo'q**
+  (egasi qarori, 28.10.2026): yordam xodimi ovqatxona ma'lumotlarini 360° kartadan ko'radi, sozlashni egasi o'zi
+  qiladi.
 - Ommaviy e'lon: barcha yoki tanlangan ovqatxona egalariga Telegram xabar (texnik ishlar, yangilik).
 
 ### 4.4. POS va obunalar
@@ -86,7 +88,12 @@ filtr va Excel'ga eksport, har bir amal sabab bilan jurnalga yoziladi.
 ### 4.5. Moliya
 - GMV, komissiya (kanal bo'yicha), obuna daromadi, MRR va ARR grafiklari.
 - Ovqatxonalar balansi va qarzi, kredit limitidan oshganlar.
-- Payout so'rovlari navbati: tasdiqlash yoki rad etish; obuna to'lovini payoutdan ushlab qolish (netting).
+- Payout so'rovlari navbati: tasdiqlash yoki rad etish.
+- **Payoutdan ushlab qolish (netting, egasi qarori 28.10.2026):** RIZQIM yig'gan puldan (Payme, Click, keshbek)
+  ovqatxonaga pul o'tkazishdan oldin uning qarzi (obuna hisob-fakturalari va naqd buyurtmalar komissiyasi) avval
+  ushlab qolinadi, qolgani o'tkaziladi. Payout kartasida "Hisoblangan — Ushlab qolingan qarz — O'tkaziladi" qatorlari;
+  har bir ushlash ledger'da alohida yozuv (qaysi hisob-faktura yoki komissiya yopildi). 2-to'lqinda qurildi
+  (P4-23, `NettingService`): payoutda va har bir platforma to'lovida (keshbek, Click, Payme) qarz avval yopiladi.
 - Balans to'ldirishlar (Click, Payme), hisob-kitob xatolari va qayta urinish.
 - **Qo'lda tuzatish** (adjustment): sabab va hujjat bilan; belgilangan summadan katta tuzatishni ikkinchi xodim
   tasdiqlaydi.
@@ -152,8 +159,12 @@ jurnalga yoziladi.
 - Sinov 14 kun. Tarifda yo'q funksiya kassada va hamkor panelida "Asosiy tarifda bor" deb ko'rsatiladi.
 - Komissiya kanal bo'yicha: RIZQIM kuryeri 15%, ovqatxona o'zi yetkazsa 10%, olib ketish 5%, zal (POS) 0%.
 - O'tgan oyda 1 mln so'mdan ko'p komissiya to'lagan ovqatxonaga keyingi oy POS asosiy narxi 50% arzon.
-- Obuna to'lovi: ovqatxona balansidan yoki payoutdan ushlab qolinadi; to'lanmasa — eslatma, so'ng muhlat. **Kassa
-  hech qachon to'lov olish va chek chiqarishdan to'xtatilmaydi** — cheklov faqat yangi funksiyalarga va sozlamalarga.
+- Obuna to'lovi: hisob-faktura ovqatxona qarziga qo'shiladi (hozirgidek) va RIZQIM yig'gan puldan avtomatik
+  ushlab qolinadi (4.5, netting). Onlayn buyurtmasi yo'q, faqat POS ishlatadigan ovqatxona Click/Payme orqali
+  balansini to'ldiradi yoki hisob raqamiga o'tkazadi (moliya qo'lda belgilaydi).
+- To'lanmasa (taklif, egasi tasdiqlashi kerak — 12-bo'lim, 5): to'lov muddatidan keyin 1, 3 va 7-kunlari eslatma
+  (Telegram va hamkor paneli), 7 kundan keyin yangi sozlamalar va tarifda yo'q funksiyalar yopiladi. **Kassa hech
+  qachon to'lov olish va chek chiqarishdan to'xtatilmaydi.**
 - Mavjud do'konlar yangi tariflarga xavfsiz o'tkaziladi (hech kimning ishi to'xtamaydi).
 
 ## 7. Texnik yechim
@@ -203,26 +214,93 @@ Har to'lqin — **ishlatsa bo'ladigan tayyor qism** (backend va web birga), bitt
 keyingisi boshlanadi.
 
 ```
-Oldindan   P4-01 Ma'lum xatolar: Bronlar va Qurilmalar sahifalari, bron oynasi tugmalari, kassa zal xaritasidagi nomlar
+Oldindan   P4-01 Ma'lum xatolar                                                   — TUGADI (PR #14)
 
-To'lqin 1  "Kundalik nazorat" — operator har kuni ishlata boshlaydi
+To'lqin 1  "Kundalik nazorat"                                                     — TUGADI (PR #15)
            P4-11 Admin kirish, 2FA, jamoa rollari va ruxsatlari, jurnal; admin API asosi
-           P4-12 Umumiy UI paketi, admin ilova qobig'i, umumiy qidiruv
-           P4-13 Bugun: yig'ma ko'rsatkichlar, "Diqqat talab qiladi" ro'yxati, platform.ops kanali
-           P4-14 Buyurtmalar: jonli ro'yxat, SLA, karta, aralashish amallari
-           P4-15 Monitoring: tizim holati, yiqilgan vazifalar, ogohlantirish qoidalari va tarixi
+           P4-12 Admin ilova qobig'i (platform/admin), umumiy UI paketi, umumiy qidiruv
+           P4-13 Bugun · P4-14 Buyurtmalar · P4-15 Monitoring
 
 To'lqin 2  "B2B mijozlar va pul"
-           P4-21 Billing v2: tariflar, funksiya cheklovlari, qurilma narxlari, yillik davr, kanal komissiyasi, chegirma, eslatma tartibi
-           P4-22 Ovqatxonalar: ariza formasi, ulash jarayoni, 360° karta, sog'liq bahosi, CRM-lite, egasi nomidan kirish
-           P4-23 Moliya: payout navbati, netting, to'ldirishlar, hisob-kitob xatolari, qo'lda tuzatish (ikki kishi), oylik hisobot
-           P4-24 POS: obunalar, hisob-fakturalar, qurilmalar, smenalar, fiskal va sinxron xatolari
+           P4-21 Billing v2          P4-22 Ovqatxonalar (ulash va 360° karta)
+           P4-23 Moliya (netting)    P4-24 POS va obunalar
+           P4-25 Superadmin faqat boshqaruv markazi orqali
 
 To'lqin 3  "To'liq almashtirish"
-           P4-31 Mijozlar va yordam, Marketing, Tizim va Jamoa; MRR, churn va konversiya ko'rsatkichlari; eksportlar
-           P4-32 Moslik tekshiruvi (8-bo'lim jadvali), haqiqiy server bilan e2e, mustaqil review va tuzatishlar
-           P4-33 Jamoa uchun qo'llanma, eski Filament panellarni o'chirish (egasi tasdig'idan keyin)
+           P4-31 Mijozlar, yordam, marketing, tizim   P4-32 Moslik va e2e   P4-33 Qo'llanma, eski panellarni o'chirish
 ```
+
+### 2-to'lqin: "B2B mijozlar va pul" — batafsil
+
+Ish tartibi 1-to'lqindagidek: avval backend kelishuvi (endpointlar, ruxsatlar), keyin har bo'lim alohida agentda
+(backend + web birga), oxirida ikki mustaqil review (xavfsizlik va pul to'g'riligi), so'ng bitta PR.
+
+**P4-21 Billing v2** (backend asosi, qolganlar shunga tayanadi)
+- Tarif katalogi 6-bo'limdagi narxlar bilan: Start, Asosiy, Pro; oylik va yillik davr (yillik = 10 oy narxi), 14 kun
+  sinov; qo'shimcha kassa 59 000, qo'shimcha oshxona ekrani 29 000, ofitsiant telefonlari bepul.
+- **Funksiya cheklovlari** (tarif → funksiyalar ro'yxati): backend har so'rovda tekshiradi, kassa, ofitsiant, KDS va
+  hamkor paneli "Asosiy tarifda bor" deb ko'rsatadi. Kassa to'lov olish va chek chiqarish hech qachon yopilmaydi.
+- Qurilmalar soni hisob-fakturaga kiradi (tarifdagi terminallardan ortig'i qo'shimcha narx bilan).
+- Kanal komissiyasi: RIZQIM kuryeri 15%, o'z yetkazishi 10%, olib ketish 5%, zal 0% — buyurtma yaratilganda
+  `commission_amount` shu qoidadan; ovqatxonaga alohida stavka berish mumkin (jurnal bilan).
+- Chegirma qoidasi: o'tgan oyda 1 mln so'mdan ko'p komissiya → keyingi oy POS asosiy narxi 50% arzon (hisob-fakturada
+  alohida qator).
+- To'lanmagan hisob-faktura tartibi (dunning): 1, 3 va 7-kun eslatmalari (Telegram va hamkor paneli), keyin
+  yangi sozlamalar yopiladi; to'langanda darhol ochiladi.
+- Mavjud do'konlarni o'tkazish: hozirgi tarif → yangi tarif xaritasi, birinchi oy narxi o'zgarmaydi, buyruq
+  (`--dry-run` bilan) va hisobot.
+
+**P4-22 Ovqatxonalar**
+- Ariza formasi (sayt va Telegram bot orqali): nom, format, shahar, egasi, telefon, STIR; ariza markazga tushadi.
+- Ulash jarayoni (4.3): bosqichlar, mas'ul xodim, muddat, kechikkanlar ro'yxati; "ishga tushirish" ro'yxati
+  (menyu, qurilmalar, fiskal, o'qitish, birinchi buyurtma).
+- 360° karta: profil, filiallar, holat tarixi, aloqa shaxslari, tarif va obuna, qurilmalar, fiskal holat, balans va
+  qarz, payoutlar, buyurtmalar va sifat, shikoyatlar, jurnal. Egasi nomidan kirish yo'q.
+- Sog'liq bahosi va xavfdagi mijozlar ro'yxati; CRM-lite: izohlar, vazifalar, keyingi aloqa sanasi.
+- Amallar (sabab, step-up va jurnal bilan): to'xtatish, faollashtirish, komissiya va kredit limiti, tarif
+  biriktirish, egasiga xabar, ommaviy e'lon.
+- Buyurtmalar filtrlari uchun ovqatxona va viloyat tanlash ro'yxati (1-to'lqinda ID bilan qolgan).
+
+**P4-23 Moliya**
+- Payout navbati: tasdiqlash yoki rad etish (`payouts.approve`, step-up, katta summada ikki kishi).
+- **Netting** (4.5): payoutdan oldin qarz ushlanadi; Payme va Click pullari ham qarzni yopadi (hozir faqat keshbek).
+  Har ushlash ledger'da alohida yozuv; payout kartasida "Hisoblangan — Ushlangan — O'tkaziladi".
+- Balans to'ldirishlar (Click, Payme), hisob-kitob xatolari va qayta urinish.
+- Qo'lda tuzatish: sabab va hujjat bilan; 12-bo'lim, 6-banddagi summadan kattasini ikkinchi xodim tasdiqlaydi.
+- Oylik hisobot: RIZQIM daromadi (komissiya + obuna), ovqatxonalar bo'yicha; Excel eksport.
+- 1-to'lqindan qolganlar: yetkazilgan buyurtma qisman qaytarilganda komissiya va hisob-kitobni ham qaytarish;
+  Click qaytarish API'si (`payment/reversal`) bo'lsa — avtomatik qaytarish.
+
+**P4-25 Superadmin faqat boshqaruv markazi orqali** (egasi qarori, 28.10.2026)
+- Superadmin akkaunti Telegram yoki telefon orqali Mini App / hamkor paneli tokenini olmaydi; Mini App'dagi
+  superadmin ekranlari va eski `/superadmin/*` JSON endpointlari olib tashlanadi.
+
+**P4-24 POS va obunalar**
+- Obunalar ro'yxati (sinov, faol, qarzdor, bekor), sinovi tugayotganlar, tarif almashtirish va bekor qilish.
+- Hisob-fakturalar va to'lov holati, eslatmalar tarixi.
+- Qurilmalar: onlayn yoki oflayn, ilova versiyasi, turi; eski versiyadagilar ro'yxati; qurilmani bekor qilish.
+- Smenalar: kassa farqlari, majburan yopilganlar.
+- Fiskal cheklar: yiqilgan va kutilayotganlar, sababi, qayta yuborish; provayder bo'yicha xatolar.
+- Oflayn sinxron xatolari va ularni hal qilish.
+
+### 3-to'lqin: "To'liq almashtirish" — batafsil
+
+**P4-31 Qolgan bo'limlar**
+- Mijozlar va yordam (4.6): mijoz kartasi, bloklash va sessiyalarni yopish, shikoyatlar qutisi va tayyor javoblar,
+  shubhali holatlar.
+- Marketing (4.7): bannerlar va aksiyalar, promo-kodlar va ularning statistikasi, kategoriyalar tartibi.
+- Tizim (4.9): sozlamalar (maxfiy kalitlar to'liq ko'rsatilmaydi), viloyatlar va tumanlar, feature flag'lar.
+- Ko'rsatkichlar: MRR, churn, arizadan faol ovqatxonagacha konversiya; har ro'yxatda Excel eksport.
+- Integratsiyalar bo'limining joyi va ma'lumot modeli (5-bosqichga tayyorgarlik).
+
+**P4-32 Moslik va sinov**
+- 8-bo'lim jadvali bo'yicha eski panelning har imkoniyati yangi markazda borligini tekshirish.
+- Haqiqiy server bilan e2e (staging), skrinshotlar galereyasi, mustaqil review va tuzatishlar.
+
+**P4-33 O'tish**
+- Jamoa uchun qo'llanma (`docs/guides/boshqaruv-markazi.md` to'liq).
+- Egasi roziligi bilan ikkala eski Filament panelni o'chirish; Mini App'dagi superadmin ekranlari va eski
+  `/superadmin/*` JSON endpointlari olib tashlanadi (12-bo'lim, 1-band qaroriga ko'ra, ertaroq ham).
 
 ## 10. Tekshiruv
 
@@ -235,28 +313,34 @@ To'lqin 3  "To'liq almashtirish"
 
 ## 11. Bu bosqichga kirmaydi (keyin)
 
-- RIZQIM kuryerlari tarmog'i va dispetcherlik (15% stavka shundan keyin ishlaydi).
-- **5-bosqich: integratsiyalar** (tadqiqot: `docs/research/reports/POS va agregator integratsiyalari.md`).
-  Tartib: poydevor (umumiy model, jurnal, sog'liq) → Yandex protokoli paketi (bir marta yoziladi, ikki tomonga ishlaydi)
-  → RIZQIM buyurtmalari Alipos'ga, keyin iiko'ga → Yandex Eats va Uzum Tezkor buyurtmalari Rizqim POS'ga → boshqa
-  "Yandex rejimidagi" POS'lar (Mison, REGOS) → ochiq RIZQIM Partner API → R-Keeper (BUSOFT orqali), Clopos, Poster.
-  Muzokaralar (Alipos, Uzum, Yandex, iiko dasturchi portali, BUSOFT) hozirdan parallel boshlanadi.
-- Banket moduli.
+- **5-bosqich: integratsiyalar** — boshqa POS'lar va agregatorlar bilan: [PHASE5_PLAN.md](PHASE5_PLAN.md).
+- **6-bosqich: POS barcha formatlar uchun** (kafe, restoran, fast food, somsaxona, banket va boshqalar):
+  [PHASE6_PLAN.md](PHASE6_PLAN.md).
+- RIZQIM kuryerlari tarmog'i va dispetcherlik (15% stavka shundan keyin to'liq ishlaydi): [ROADMAP.md](ROADMAP.md).
 - Ombor va taom tannarxi.
 - Didox orqali elektron hisob-faktura (egasi kerak desa, 2-to'lqinga qo'shiladi).
 - Rus va ingliz tarjimasi.
 
-## 12. Egasidan kerak
+## 12. Egasining qarorlari va hali kerak bo'lganlar
 
-1. Admin manzili (masalan `admin.rizqim.uz`) va server (O'zbekistondagi server tavsiya: soliq API va Marketpleys talabi).
-2. 2FA usuli: telefon ilovasi (Google Authenticator) — tavsiya; yoki Telegram kodi.
-3. Jamoa rollari (5-bo'lim) to'g'rimi?
-4. Egasi nomidan kirish: faqat ko'rish (tavsiya) yoki o'zgartirish ham (jurnal bilan).
-5. Obuna to'lovi payoutdan ushlab qolinsinmi (tavsiya) va to'lanmasa necha kun muhlat?
-6. Qo'lda tuzatishda ikkinchi xodim tasdig'i qaysi summadan boshlanadi (taklif: 1 mln so'm)?
-7. Ovqatxonalar uchun Didox elektron hisob-faktura kerakmi?
-8. Yangi markaz tayyor bo'lgach, ikkala eski Filament panelni (`/superadmin` va `/admin`) o'chirishga rozilik.
-9. Integratsiyalar uchun muzokaralarni boshlash: Alipos (API kaliti, narxi), Uzum Tezkor (spetsifikatsiya, chekni kim
-   chiqaradi), Yandex Eats (O'zbekistonda uchinchi tomon POS ulanishi, chek), iiko dasturchi portalida ro'yxatdan
-   o'tish, BUSOFT (R-Keeper hub'i); soliq maslahatchisi bilan fiskal jadvalni tekshirish va Rizqim'ni "Marketpleys"
-   sifatida ro'yxatdan o'tkazish qarori.
+**Qabul qilingan:**
+- 2FA — telefon ilovasi (Google Authenticator) (27.10.2026). Bajarildi.
+- Jamoa rollari — 5-bo'limdagi oltita, har rol ruxsatini superadmin o'zgartiradi (27.10.2026). Bajarildi.
+- Egasi nomidan kirish — **kerak emas** (28.10.2026).
+- Obuna to'lovi — payoutdan avtomatik ushlab qolinadi (netting) (28.10.2026). 2-to'lqinda (P4-23).
+- Superadmin Telegram / Mini App orqali kirmaydi (2FA'siz kirish yopiladi); Mini App'dagi superadmin ekranlari va
+  eski `/superadmin/*` JSON endpointlari olib tashlanadi (28.10.2026). 2-to'lqinda (P4-25).
+- To'lanmagan obuna: to'lov muddatidan keyin 1, 3 va 7-kun eslatma, 7 kundan keyin yangi sozlamalar va tarifda yo'q
+  funksiyalar yopiladi; kassa hech qachon to'xtamaydi. Mini App buyurtmalarini to'xtatadigan qarz chegarasiga faqat
+  komissiya qarzi kiradi, obuna qarzi kirmaydi (28.10.2026).
+- Qo'lda tuzatishda ikkinchi xodim tasdig'i 1 000 000 so'mdan boshlab (28.10.2026).
+- Didox — hozircha yo'q (28.10.2026).
+- Ogohlantirishlar — guruh ochilguncha superadmin chatiga (28.10.2026).
+
+**Hali kerak:**
+1. Ogohlantirishlar uchun Telegram guruhi ("RIZQIM navbatchi") ochilsa — uning ID'si (`TELEGRAM_OPS_CHAT_ID`).
+2. Admin manzili (masalan `admin.rizqim.uz`) va server (O'zbekistondagi server tavsiya: soliq API va Marketpleys
+   talabi).
+3. Mavjud superadminlar uchun serverda `php artisan rizqim:admin:invite <email>` (birinchi kirish).
+4. Yangi markaz tayyor bo'lgach, ikkala eski Filament panelni (`/superadmin` va `/admin`) o'chirishga rozilik.
+5. Integratsiyalar bo'yicha muzokaralar: [PHASE5_PLAN.md](PHASE5_PLAN.md), "Egasidan kerak".

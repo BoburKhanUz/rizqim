@@ -8,16 +8,11 @@ part 'current_period.g.dart';
 
 @JsonSerializable()
 class CurrentPeriod {
-  const CurrentPeriod({
-    required this.period,
-    required this.start,
-    required this.end,
-  });
+  const CurrentPeriod({required this.start, required this.end});
 
   factory CurrentPeriod.fromJson(Map<String, Object?> json) =>
       _$CurrentPeriodFromJson(json);
 
-  final String period;
   final String start;
   final String end;
 

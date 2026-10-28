@@ -6,24 +6,9 @@ part of 'data190.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-Data190 _$Data190FromJson(Map<String, dynamic> json) => Data190(
-  id: (json['id'] as num).toInt(),
-  name: json['name'] as String,
-  polygon: Polygon5.fromJson(json['polygon'] as Map<String, dynamic>),
-  deliveryPrice: json['delivery_price'] as String,
-  minOrderAmount: json['min_order_amount'] as String,
-  freeDeliveryFrom: json['free_delivery_from'] as String?,
-  etaMinutes: (json['eta_minutes'] as num?)?.toInt(),
-  priority: (json['priority'] as num).toInt(),
-);
+Data190 _$Data190FromJson(Map<String, dynamic> json) =>
+    Data190(received: json['received'] as bool);
 
 Map<String, dynamic> _$Data190ToJson(Data190 instance) => <String, dynamic>{
-  'id': instance.id,
-  'name': instance.name,
-  'polygon': instance.polygon,
-  'delivery_price': instance.deliveryPrice,
-  'min_order_amount': instance.minOrderAmount,
-  'free_delivery_from': instance.freeDeliveryFrom,
-  'eta_minutes': instance.etaMinutes,
-  'priority': instance.priority,
+  'received': instance.received,
 };

@@ -4,54 +4,32 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'customer6.dart';
-import 'delivery9.dart';
-import 'courier6.dart';
-import 'items47.dart';
-import 'status_history2.dart';
+import 'items46.dart';
 
 part 'data188.g.dart';
 
 @JsonSerializable()
 class Data188 {
   const Data188({
-    required this.discount,
+    required this.uuid,
     required this.shortCode,
     required this.status,
-    required this.statusLabel,
     required this.type,
     required this.channel,
-    required this.storeId,
     required this.branchId,
-    required this.branchName,
-    required this.paymentMethod,
-    required this.paymentStatus,
-    required this.subtotal,
-    required this.uuid,
-    required this.deliveryPrice,
-    required this.serviceChargeAmount,
-    required this.placeFeeAmount,
-    required this.totalPrice,
-    required this.notes,
-    required this.guestsCount,
     required this.hallRef,
     required this.tableRef,
-    required this.cancelReason,
-    required this.cancelNote,
-    required this.customer,
-    required this.statusHistory,
-    required this.courier,
+    required this.guestsCount,
+    required this.notes,
     required this.itemsTotal,
     required this.itemsReady,
     required this.items,
     required this.createdAt,
-    required this.updatedAt,
     required this.acceptedAt,
     required this.preparingAt,
     required this.readyAt,
-    required this.closedAt,
+    required this.canceledAt,
     required this.waitingSeconds,
-    required this.delivery,
   });
 
   factory Data188.fromJson(Map<String, Object?> json) =>
@@ -61,65 +39,34 @@ class Data188 {
   @JsonKey(name: 'short_code')
   final String? shortCode;
   final String status;
-  @JsonKey(name: 'status_label')
-  final String statusLabel;
   final String type;
   final String channel;
-  @JsonKey(name: 'store_id')
-  final int storeId;
   @JsonKey(name: 'branch_id')
   final int? branchId;
-  @JsonKey(name: 'branch_name')
-  final String? branchName;
-  @JsonKey(name: 'payment_method')
-  final String paymentMethod;
-  @JsonKey(name: 'payment_status')
-  final String paymentStatus;
-  final String subtotal;
-  final String discount;
-  @JsonKey(name: 'delivery_price')
-  final String deliveryPrice;
-  @JsonKey(name: 'service_charge_amount')
-  final String serviceChargeAmount;
-  @JsonKey(name: 'place_fee_amount')
-  final String placeFeeAmount;
-  @JsonKey(name: 'total_price')
-  final String totalPrice;
-  final String? notes;
-  @JsonKey(name: 'guests_count')
-  final int? guestsCount;
   @JsonKey(name: 'hall_ref')
   final String? hallRef;
   @JsonKey(name: 'table_ref')
   final String? tableRef;
-  @JsonKey(name: 'cancel_reason')
-  final String? cancelReason;
-  @JsonKey(name: 'cancel_note')
-  final String? cancelNote;
-  final Customer6? customer;
-  final Delivery9? delivery;
-  final Courier6? courier;
+  @JsonKey(name: 'guests_count')
+  final int? guestsCount;
+  final String? notes;
   @JsonKey(name: 'items_total')
   final int itemsTotal;
   @JsonKey(name: 'items_ready')
   final int itemsReady;
-  final List<Items47> items;
+  final List<Items46> items;
   @JsonKey(name: 'created_at')
   final String? createdAt;
-  @JsonKey(name: 'updated_at')
-  final String? updatedAt;
   @JsonKey(name: 'accepted_at')
   final String? acceptedAt;
   @JsonKey(name: 'preparing_at')
   final String? preparingAt;
   @JsonKey(name: 'ready_at')
   final String? readyAt;
-  @JsonKey(name: 'closed_at')
-  final String? closedAt;
+  @JsonKey(name: 'canceled_at')
+  final String? canceledAt;
   @JsonKey(name: 'waiting_seconds')
   final int waitingSeconds;
-  @JsonKey(name: 'status_history')
-  final List<StatusHistory2> statusHistory;
 
   Map<String, Object?> toJson() => _$Data188ToJson(this);
 }

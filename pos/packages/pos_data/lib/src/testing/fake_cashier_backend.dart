@@ -156,6 +156,11 @@ class FakeCashierBackend {
       return _shiftAction(m, x.group(1)!, x.group(2), r);
     }
 
+    // P4-21: a new booking, a new deposit and a new nasiya account need the plan's feature (403 plan_feature_missing);
+    // nothing else here asks the plan: payments, bills, receipts, shifts and refunds always go through
+    final FakeResponse? planRefusal = _planRefusal(m, p);
+    if (planRefusal != null) return planRefusal;
+
     // Bron
     if (p.startsWith('/v1/pos/bookings')) return _bookings(r);
 
@@ -169,6 +174,44 @@ class FakeCashierBackend {
       return _staffStatus(x!.group(1)!, r);
     }
     return null;
+  }
+
+  /// Tarifda yo'q funksiyaning yangi yozuvi (real backend'dagi `plan.feature:<feature>` middleware).
+  FakeResponse? _planRefusal(String m, String p) {
+    if (m != 'POST') return null;
+    final String? feature = switch (p) {
+      '/v1/pos/bookings' => 'bookings',
+      '/v1/pos/customer-accounts' => 'customer_accounts',
+      _ when RegExp(r'^/v1/pos/bookings/[^/]+/deposits$').hasMatch(p) =>
+        'deposits',
+      _ => null,
+    };
+    if (feature == null) return null;
+    final Map<String, Object?>? plan = state.entitlements;
+    if (plan == null || plan['legacy'] == true) return null;
+    final Object? features = plan['features'];
+    if (features is! Map || features[feature] != false) return null;
+    final Object? required = plan['required_plans'] is Map
+        ? (plan['required_plans']! as Map)[feature]
+        : null;
+    final String? name = required is String && required.isNotEmpty
+        ? required[0].toUpperCase() + required.substring(1)
+        : null;
+    return FakeResponse(403, <String, Object?>{
+      'success': false,
+      'message': name == null
+          ? 'Bu imkoniyat tarifingizda yo\'q.'
+          : 'Bu imkoniyat ($feature) $name tarifida bor.',
+      'code': 'plan_feature_missing',
+      'feature': feature,
+      'required_plan': required,
+      'data': <String, Object?>{
+        'reason': 'plan_feature_missing',
+        'feature': feature,
+        'required_plan': required,
+        'required_plan_name': name,
+      },
+    });
   }
 
   static RegExpMatch? _match(String pattern, String path) =>

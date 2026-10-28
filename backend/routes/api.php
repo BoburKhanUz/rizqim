@@ -137,14 +137,6 @@ Route::prefix('v1')->group(function () {
 
         // Feature flags (Pennant) of the user's store; toggled in Superadmin > Feature flaglar
         Route::get('/features', [\App\Http\Controllers\Api\V1\FeatureController::class, 'index']);
-
-        // Super Admin Routes
-        Route::middleware('role:super_admin')->group(function () {
-            Route::get('/superadmin/dashboard', [\App\Http\Controllers\Api\V1\Superadmin\SuperadminController::class, 'dashboard']);
-            Route::get('/superadmin/locations', [\App\Http\Controllers\Api\V1\Superadmin\SuperadminController::class, 'getLocations']);
-            Route::get('/superadmin/stores', [\App\Http\Controllers\Api\V1\Superadmin\SuperadminController::class, 'stores']);
-            Route::post('/superadmin/stores', [\App\Http\Controllers\Api\V1\Superadmin\SuperadminController::class, 'createStore']);
-        });
     });
 
     // Decoupled Billing Webhooks (server-to-server: no auth, no throttle)

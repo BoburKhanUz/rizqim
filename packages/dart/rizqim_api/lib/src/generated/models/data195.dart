@@ -4,29 +4,26 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'device24.dart';
-import 'store3.dart';
-import 'branch13.dart';
-import 'branches2.dart';
+import 'user.dart';
+import 'store.dart';
 
 part 'data195.g.dart';
 
 @JsonSerializable()
 class Data195 {
   const Data195({
-    required this.device,
+    required this.user,
     required this.store,
-    required this.branch,
-    required this.branches,
+    required this.smsVerificationRequired,
   });
 
   factory Data195.fromJson(Map<String, Object?> json) =>
       _$Data195FromJson(json);
 
-  final Device24 device;
-  final Store3? store;
-  final Branch13? branch;
-  final List<Branches2> branches;
+  final User user;
+  final Store? store;
+  @JsonKey(name: 'sms_verification_required')
+  final bool smsVerificationRequired;
 
   Map<String, Object?> toJson() => _$Data195ToJson(this);
 }

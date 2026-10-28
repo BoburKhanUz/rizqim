@@ -108,6 +108,9 @@ class FakeKitchenState {
   /// Kirgan xodimning ruxsatlari.
   List<String> permissions = <String>['orders.view', 'kitchen.manage'];
 
+  /// P4-21: `GET /owner/billing/entitlements` javobi (`data`); `null` — eski server (404).
+  Map<String, Object?>? entitlements;
+
   /// `GET /pos/bootstrap` dagi sexlar. `null` — endpoint yo'q (fazа 2 serveri): 404.
   List<Map<String, Object?>>? stations;
 
@@ -626,6 +629,13 @@ class FakeKitchenState {
         return _ok(null);
       }
       return _signIn(data);
+    }
+
+    // P4-21: the plan (`entitlements`); `null` — an old server without the endpoint (404)
+    if (p == '/v1/owner/billing/entitlements') {
+      if (bearer == null || bearer != _staffToken) return _unauthenticated();
+      final Map<String, Object?>? plan = entitlements;
+      return plan == null ? _notFound('Topilmadi.') : _ok(plan);
     }
 
     if (p == '/v1/pos/bootstrap' ||

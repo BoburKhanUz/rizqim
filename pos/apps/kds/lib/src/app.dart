@@ -5,6 +5,7 @@ import 'package:rizqim_api/rizqim_api.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
 import 'app_config.dart';
+import 'billing/kds_plan.dart';
 import 'board/kitchen_board_controller.dart';
 import 'realtime/branch_realtime.dart';
 import 'screens/kitchen_board_screen.dart';
@@ -45,6 +46,13 @@ class KdsServices {
   late final KitchenSetupService setup = KitchenSetupService(
     client.dio,
     clock: clock,
+  );
+
+  /// P4-21: tarif (tarifda KDS bormi, to'lanmagan hisob-faktura xabari). Xodim kirganda ishga tushadi.
+  late final KdsPlanController plan = KdsPlanController(
+    () async =>
+        ((await client.dio.get<Object?>('/v1/owner/billing/entitlements')).data
+            as Map<Object?, Object?>?)?['data'],
   );
   final RealtimeFactory? realtimeFactory;
   final DateTime Function()? clock;
@@ -254,6 +262,7 @@ class _TerminalHomeState extends State<TerminalHome> {
 
   @override
   void dispose() {
+    _s.plan.stop();
     unawaited(_authSub.cancel());
     unawaited(_eventSub?.cancel());
     _board?.dispose();
@@ -270,6 +279,7 @@ class _TerminalHomeState extends State<TerminalHome> {
         _waiting.value = 0;
         _openBoard();
       case AuthEventKind.staffSignedOut:
+        _s.plan.stop();
         _board?.dispose();
         _board = null;
         _notice = switch (e.reason) {
@@ -301,6 +311,8 @@ class _TerminalHomeState extends State<TerminalHome> {
       pollInterval: _s.pollInterval,
       livePollInterval: _s.livePollInterval,
     )..start();
+    // P4-21: the plan notice (an unpaid invoice, KDS not in the plan); the board never stops for it
+    _s.plan.start();
   }
 
   /// PIN ekranida (doska yopiq) oshxonaga yangi buyurtma kelsa ovoz chalinadi va son ko'rsatiladi. Hodisada faqat
@@ -330,6 +342,7 @@ class _TerminalHomeState extends State<TerminalHome> {
         setup: _s.setup,
         realtime: _realtime,
         clock: _s.clock,
+        plan: _s.plan,
       );
     }
     return StaffSignInScreen(

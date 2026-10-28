@@ -4,21 +4,20 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'bill3.dart';
-import 'order6.dart';
+import 'bill2.dart';
+import 'order5.dart';
 
 part 'data120.g.dart';
 
 @JsonSerializable()
 class Data120 {
-  const Data120({required this.bill, required this.copy, required this.order});
+  const Data120({required this.bill, required this.order});
 
   factory Data120.fromJson(Map<String, Object?> json) =>
       _$Data120FromJson(json);
 
-  final Bill3 bill;
-  final bool copy;
-  final Order6 order;
+  final Bill2 bill;
+  final Order5 order;
 
   Map<String, Object?> toJson() => _$Data120ToJson(this);
 }

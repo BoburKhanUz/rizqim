@@ -8,12 +8,19 @@ part 'plan.g.dart';
 
 @JsonSerializable()
 class Plan {
-  const Plan({required this.code, required this.name});
+  const Plan({
+    required this.code,
+    required this.name,
+    required this.tier,
+    required this.version,
+  });
 
   factory Plan.fromJson(Map<String, Object?> json) => _$PlanFromJson(json);
 
   final String code;
   final String name;
+  final String? tier;
+  final int version;
 
   Map<String, Object?> toJson() => _$PlanToJson(this);
 }

@@ -19,12 +19,12 @@ Data82 _$Data82FromJson(Map<String, dynamic> json) => Data82(
   sortOrder: (json['sort_order'] as num).toInt(),
   isActive: json['is_active'] as bool,
   modifiers: (json['modifiers'] as List<dynamic>)
-      .map((e) => Modifiers2.fromJson(e as Map<String, dynamic>))
+      .map((e) => Modifiers.fromJson(e as Map<String, dynamic>))
       .toList(),
   productIds: (json['product_ids'] as List<dynamic>)
       .map((e) => (e as num).toInt())
       .toList(),
-  productRules: ProductRules2.fromJson(
+  productRules: ProductRules.fromJson(
     json['product_rules'] as Map<String, dynamic>,
   ),
 );

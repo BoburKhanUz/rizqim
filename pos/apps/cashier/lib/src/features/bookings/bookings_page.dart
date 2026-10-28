@@ -5,6 +5,7 @@ import 'package:pos_data/pos_data.dart';
 import 'package:rizqim_core/rizqim_core.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
+import '../../shell/plan_gate.dart';
 import '../../shell/pos_scope.dart';
 import '../../shell/routes.dart';
 import '../billing/cashier_ui.dart';
@@ -104,6 +105,7 @@ class _BookingsPageState extends State<BookingsPage> with RefreshingState {
       _calendar?.rooms ?? const <PosCalendarRoom>[];
 
   Future<void> _create({int? roomId, DateTime? start}) async {
+    if (!ensurePlan(context, PosFeature.bookings)) return;
     final PosBooking? b = await CashierRoutes.push<PosBooking>(
       context,
       BookingFormPage(
@@ -199,8 +201,10 @@ class _BookingsPageState extends State<BookingsPage> with RefreshingState {
               onSubmitted: (_) => unawaited(_search()),
             ),
           ),
-          RzButton(
+          // P4-21: a new booking is the plan's bookings; the calendar and the bookings that exist stay open
+          PlanButton(
             key: const ValueKey<String>('booking-new'),
+            feature: PosFeature.bookings,
             label: 'Yangi bron',
             icon: Icons.add_rounded,
             onPressed: _calendar == null ? null : () => _create(),

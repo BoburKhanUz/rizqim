@@ -23,6 +23,15 @@ class TariffPlan {
     required this.description,
     required this.createdAt,
     required this.updatedAt,
+    required this.version,
+    required this.tier,
+    required this.sortOrder,
+    required this.yearlyFee,
+    required this.includedPos,
+    required this.includedKds,
+    required this.extraPosFee,
+    required this.extraKdsFee,
+    required this.features,
     this.subscriptions,
   });
 
@@ -49,6 +58,21 @@ class TariffPlan {
   final DateTime? createdAt;
   @JsonKey(name: 'updated_at')
   final DateTime? updatedAt;
+  final int version;
+  final String? tier;
+  @JsonKey(name: 'sort_order')
+  final int sortOrder;
+  @JsonKey(name: 'yearly_fee')
+  final String? yearlyFee;
+  @JsonKey(name: 'included_pos')
+  final int includedPos;
+  @JsonKey(name: 'included_kds')
+  final int includedKds;
+  @JsonKey(name: 'extra_pos_fee')
+  final String? extraPosFee;
+  @JsonKey(name: 'extra_kds_fee')
+  final String? extraKdsFee;
+  final List<String>? features;
   final List<StoreSubscription>? subscriptions;
 
   Map<String, Object?> toJson() => _$TariffPlanToJson(this);

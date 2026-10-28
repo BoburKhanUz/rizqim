@@ -112,13 +112,14 @@ class OrderLifecycleRefundTest extends TestCase
     public function test_refund_takes_a_platform_settlement_back_and_flags_the_click_payment_for_a_manual_refund(): void
     {
         $order = $this->paidPlatformClickOrder();
-        $this->assertSame(['5000.00', '50000.00'], $this->storeBalances());
+        // P4-23 (netting): the 5k commission (debt) was paid from the 50k collected, 45k reached the wallet
+        $this->assertSame(['0.00', '45000.00'], $this->storeBalances());
 
         $result = app(OrderStatusService::class)->refund($order, $this->admin, 'Mijoz shikoyati');
 
         $this->assertTrue($result->manualRefundRequired);
         $this->assertSame(['0.00', '0.00'], $this->storeBalances());
-        $this->assertSame(['debt' => ['-5000.00'], 'wallet' => ['-50000.00']], $this->refundRows($order));
+        $this->assertSame(['debt' => ['-5000.00', '5000.00'], 'wallet' => ['-45000.00']], $this->refundRows($order));
 
         // The money is with the platform until someone returns it through Click
         $payment = $order->payments()->sole();
@@ -136,13 +137,14 @@ class OrderLifecycleRefundTest extends TestCase
         PayoutRequest::create(['store_id' => $this->store->id, 'amount' => 30000, 'card_number' => '8600123456789012', 'status' => 'pending'])
             ->update(['status' => 'completed']);
         $this->store->forceFill(['credit_limit' => -25000])->save();
-        $this->assertSame(['5000.00', '20000.00'], $this->storeBalances());
+        // P4-23 (netting): 45k reached the wallet (the 5k commission was paid from the settlement), 30k paid out
+        $this->assertSame(['0.00', '15000.00'], $this->storeBalances());
 
         app(OrderStatusService::class)->refund($order, $this->admin, 'Buyurtma yetib kelmadi');
 
-        // 20k comes out of the wallet, the 30k already paid out becomes debt; the 5k commission is reversed
+        // 15k comes out of the wallet, the 30k already paid out becomes debt; the commission and its payoff cancel out
         $this->assertSame(['30000.00', '0.00'], $this->storeBalances());
-        $this->assertSame(['debt' => ['-5000.00', '30000.00'], 'wallet' => ['-20000.00']], $this->refundRows($order));
+        $this->assertSame(['debt' => ['-5000.00', '5000.00', '30000.00'], 'wallet' => ['-15000.00']], $this->refundRows($order));
         $this->assertSame(StoreStatus::PAYMENT_REQUIRED, $this->store->fresh()->status);
         Event::assertDispatchedTimes(StoreBalanceLow::class, 1);
     }

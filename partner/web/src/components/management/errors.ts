@@ -1,5 +1,6 @@
 import { getApiErrorMessage, getApiErrorStatus, isStaffApiError, StaffApiError } from '@rizqim/staff';
 import type { Translate } from '@/i18n';
+import { billingRefusalText } from '../billing/refusal';
 
 // The first validation message of any field of a 422 (Laravel: errors.<field>[0]), in the server's own words (Uzbek).
 export function firstFieldError(err: unknown): string | undefined {
@@ -15,6 +16,9 @@ export function firstFieldError(err: unknown): string | undefined {
 // best explanation there is ("Filialda buyurtmalar bor ..."): it is shown as it comes. Without one: a line per status;
 // a request that never got an answer is the network.
 export function errorText(err: unknown, t: Translate): string {
+  // P4-21: the plan or the unpaid-invoice lock said no: the same plain words everywhere, in the panel's language
+  const refusal = billingRefusalText(err, t);
+  if (refusal) return refusal;
   const field = firstFieldError(err);
   if (field) return field;
   const message = getApiErrorMessage(err);

@@ -11,6 +11,7 @@ use App\Services\Auth\AccountLinkConflictException;
 use App\Services\Auth\AccountLinkingService;
 use App\Services\Auth\DeviceService;
 use App\Services\Auth\PhoneOtpService;
+use App\Services\Auth\PlatformAccountSignInException;
 use App\Services\Auth\StaffPhoneLoginService;
 use App\Services\Auth\TokenService;
 use App\Services\Audit\AuditLogger;
@@ -70,9 +71,12 @@ class PhoneLoginController extends Controller
      * `web`, `partner_mobile` or `courier` is required: 403 `staff_account_not_found` when there is none; 409
      * `account_selection_required` with `selection_token` and `accounts` when the phone holds several (the same person
      * in two stores), and the client then calls POST /auth/phone/select-account.
+     *
+     * P4-25: a phone that only a superadmin / RIZQIM team account holds never signs in here, in either mode: 403
+     * `platform_account` ("Boshqaruv markazidan kiring"). A customer or staff account with the same phone signs in as usual.
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{token: string, user: User, store: Store|null, sms_verification_required: bool, is_new_user: bool, token_expires_at?: string, refresh_token?: string, refresh_token_expires_at?: string, device?: array{uuid: string, type: string, name: string, platform: string|null, app_version: string|null, store_id: int|null, branch_id: int|null, user: array{id: int, name: string, role: string}|null, has_push_token: bool, last_seen_at: string|null, revoked_at: string|null, created_at: string|null}}}')]
-    #[ApiDocResponse(403, 'No store staff account holds this phone (account: staff)', type: 'array{success: false, message: string, data: array{reason: string}}')]
+    #[ApiDocResponse(403, 'No store staff account holds this phone (account: staff), or only a superadmin / platform account does (reason: platform_account)', type: 'array{success: false, message: string, data: array{reason: string}}')]
     #[ApiDocResponse(409, 'Several accounts: customers sharing the phone, or (account: staff) several staff accounts to pick from with POST /auth/phone/select-account', type: 'array{success: false, message: string, data: array{reason: string, selection_token?: string, selection_expires_in?: int, accounts?: list<array{user_id: int, name: string, role: string, role_label: string, store: array{id: int, name: string}, branch: array{id: int, name: string}|null}>}}')]
     public function verify(Request $request): JsonResponse
     {
@@ -97,6 +101,8 @@ class PhoneLoginController extends Controller
             ['user' => $user, 'created' => $created] = $this->linking->customerForVerifiedPhone($request->phone);
         } catch (AccountLinkConflictException $e) {
             return $this->error($e->getMessage(), ['reason' => 'phone_linked_to_several_accounts'], 409);
+        } catch (PlatformAccountSignInException $e) {
+            return $this->error($e->getMessage(), ['reason' => PlatformAccountSignInException::REASON], 403);
         }
 
         [$payload] = $this->signIn($user, $request, $created);
@@ -135,6 +141,11 @@ class PhoneLoginController extends Controller
         $accounts = $this->staff->accountsFor($request->phone);
 
         if ($accounts->isEmpty()) {
+            // P4-25: a superadmin / platform number is no staff account either; it signs in through the control center
+            if ($this->linking->platformAccountHoldsPhone($request->phone)) {
+                return $this->error((new PlatformAccountSignInException())->getMessage(), ['reason' => PlatformAccountSignInException::REASON], 403);
+            }
+
             return $this->error("Bu raqam hech qaysi do'kon xodimiga biriktirilmagan. Do'kon egasidan raqamingizni xodimlar ro'yxatiga kiritishni so'rang.", ['reason' => 'staff_account_not_found'], 403);
         }
 

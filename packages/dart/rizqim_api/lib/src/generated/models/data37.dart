@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'working_hours2.dart';
+import 'working_hours.dart';
 
 part 'data37.g.dart';
 
@@ -46,7 +46,7 @@ class Data37 {
   @JsonKey(name: 'is_active')
   final bool isActive;
   @JsonKey(name: 'working_hours')
-  final WorkingHours2 workingHours;
+  final WorkingHours workingHours;
   @JsonKey(name: 'is_open_now')
   final bool isOpenNow;
   @JsonKey(name: 'created_at')

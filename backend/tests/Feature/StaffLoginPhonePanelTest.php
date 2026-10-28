@@ -171,28 +171,4 @@ class StaffLoginPhonePanelTest extends TestCase
         $this->assertNotNull($this->owner->fresh()->phone_verified_at);
         $this->assertNull($this->customer->fresh()->phone_verified_at);
     }
-
-    public function test_the_mini_app_store_creation_vouches_for_a_proper_owner_phone_only(): void
-    {
-        $region = Region::create(['name_uz' => 'Toshkent shahri', 'is_active' => true]);
-        $district = District::create(['region_id' => $region->id, 'name_uz' => 'Chilonzor tumani', 'is_active' => true]);
-        $store = fn (string $name, string $phone) => $this->actingAs($this->admin, 'sanctum')->postJson('/api/v1/superadmin/stores', [
-            'name' => $name,
-            'commission_rate' => 10,
-            'owner_name' => "{$name} Owner",
-            'owner_phone' => $phone,
-            'branch_region_id' => $region->id,
-            'branch_district_id' => $district->id,
-            'branch_address' => 'Chilonzor 1-kvartal',
-            'branch_lat' => 41.285,
-            'branch_lng' => 69.204,
-            'branch_radius' => 5,
-        ])->assertOk();
-
-        $store('Osh Markazi', '+998901230009');
-        $store('Somsa Uyi', '90 123 00 10');
-
-        $this->assertNotNull(User::where('name', 'Osh Markazi Owner')->sole()->phone_verified_at);
-        $this->assertNull(User::where('name', 'Somsa Uyi Owner')->sole()->phone_verified_at);
-    }
 }

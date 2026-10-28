@@ -17,7 +17,9 @@ Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->prefix('pos'
     Route::middleware('permission:bookings.manage')->group(function () {
         Route::get('/bookings/calendar', [BookingController::class, 'calendar']);
         Route::get('/bookings', [BookingController::class, 'index']);
-        Route::post('/bookings', [BookingController::class, 'store'])->middleware(EnsureIdempotency::class);
+        // P4-21: a new booking and a new deposit need the plan's bookings / deposits (403 plan_feature_missing); the
+        // existing ones go on (confirm, arrive, cancel, refund or retain a deposit) whatever the plan
+        Route::post('/bookings', [BookingController::class, 'store'])->middleware(['plan.feature:bookings', EnsureIdempotency::class]);
         Route::get('/bookings/{uuid}', [BookingController::class, 'show'])->whereUuid('uuid');
         Route::patch('/bookings/{uuid}', [BookingController::class, 'update'])->whereUuid('uuid')->middleware(EnsureIdempotency::class);
         Route::post('/bookings/{uuid}/confirm', [BookingController::class, 'confirm'])->whereUuid('uuid')->middleware(EnsureIdempotency::class);
@@ -32,7 +34,7 @@ Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->prefix('pos'
         Route::patch('/bookings/{uuid}/items/{item}', [BookingController::class, 'updateItem'])->whereUuid('uuid')->where('item', RowId::ROUTE_PATTERN)->middleware(EnsureIdempotency::class);
         Route::delete('/bookings/{uuid}/items/{item}', [BookingController::class, 'removeItem'])->whereUuid('uuid')->where('item', RowId::ROUTE_PATTERN)->middleware(EnsureIdempotency::class);
 
-        Route::post('/bookings/{uuid}/deposits', [BookingController::class, 'takeDeposit'])->whereUuid('uuid')->middleware(EnsureIdempotency::class . ':pos.bookings.deposit');
+        Route::post('/bookings/{uuid}/deposits', [BookingController::class, 'takeDeposit'])->whereUuid('uuid')->middleware(['plan.feature:deposits', EnsureIdempotency::class . ':pos.bookings.deposit']);
         Route::post('/bookings/{uuid}/deposits/{payment}/refund', [BookingController::class, 'refundDeposit'])->whereUuid(['uuid', 'payment'])->middleware(EnsureIdempotency::class);
         Route::post('/bookings/{uuid}/deposits/{payment}/retain', [BookingController::class, 'retainDeposit'])->whereUuid(['uuid', 'payment'])->middleware(EnsureIdempotency::class);
     });
@@ -46,7 +48,9 @@ Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->prefix('pos'
         Route::post('/customer-accounts/{uuid}/repayments', [CustomerAccountController::class, 'repay'])->whereUuid('uuid')->middleware(EnsureIdempotency::class . ':pos.accounts.repay');
         // P3-26: opening or changing an account at the till: customer_accounts.manage, or a cashier with a manager's
         // approval token for it (checked in the controller, ApprovalGate)
-        Route::post('/customer-accounts', [CustomerAccountController::class, 'store'])->middleware(EnsureIdempotency::class);
+        // P4-21: opening a nasiya account needs the plan's customer_accounts; repayments and paying a bill to an existing
+        // account never depend on the plan
+        Route::post('/customer-accounts', [CustomerAccountController::class, 'store'])->middleware(['plan.feature:customer_accounts', EnsureIdempotency::class]);
         Route::patch('/customer-accounts/{uuid}', [CustomerAccountController::class, 'update'])->whereUuid('uuid')->middleware(EnsureIdempotency::class);
     });
 

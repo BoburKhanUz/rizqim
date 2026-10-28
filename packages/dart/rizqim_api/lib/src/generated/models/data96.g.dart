@@ -8,10 +8,12 @@ part of 'data96.dart';
 
 Data96 _$Data96FromJson(Map<String, dynamic> json) => Data96(
   productId: (json['product_id'] as num).toInt(),
-  modifierGroups: json['modifier_groups'] as String,
+  prices: (json['prices'] as List<dynamic>)
+      .map((e) => Prices2.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data96ToJson(Data96 instance) => <String, dynamic>{
   'product_id': instance.productId,
-  'modifier_groups': instance.modifierGroups,
+  'prices': instance.prices,
 };

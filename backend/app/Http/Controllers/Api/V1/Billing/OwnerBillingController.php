@@ -25,13 +25,40 @@ class OwnerBillingController extends Controller
 
     public function __construct(
         protected SubscriptionService $subscriptions,
+        protected \App\Services\Finance\Billing\Entitlements $entitlements,
     ) {}
+
+    /**
+     * What the plan lets the store use
+     *
+     * P4-21 (docs/BILLING.md, "Funksiyalar va cheklovlar"): `plan` (null without a subscription), `legacy` (true: every
+     * feature, the store is not on a v2 plan yet), `period` monthly|yearly, `status` none|trialing|active|past_due|locked,
+     * `trial_ends_at`, `current_period`, `term_ends_at` (yearly), `locked_since`, `lock_at` (when an overdue invoice locks
+     * it), `settings_locked`, `features` (every App\Enums\PlanFeature: on or off), `required_plans` (the cheapest plan
+     * with each gated feature: show "Asosiy tarifda bor"), `devices` (pos and kds: included, active, extra, extra_price
+     * as a decimal string, can_add; waiter phones unlimited and free), `notice` (the overdue invoice reminder or the lock
+     * message for a banner, null when none; its `invoice` — uuid, number, amounts — only for a member with finance.view on
+     * their own sign-in, null for other staff and terminal PIN sessions, whose `message` does not name it either). Any
+     * member of the store and the terminals read it.
+     */
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{plan: array{code: string, name: string, tier: string|null, version: int}|null, legacy: bool, period: string|null, status: string, trial_ends_at: string|null, current_period: array{start: string, end: string}|null, term_ends_at: string|null, locked_since: string|null, lock_at: string|null, settings_locked: bool, features: array<string, bool>, required_plans: array<string, string|null>, devices: array{pos: array{included: int|null, active: int, extra: int, extra_price: string|null, can_add: bool}, kds: array{included: int|null, active: int, extra: int, extra_price: string|null, can_add: bool}, waiter: array{included: null, unlimited: bool, extra_price: string, can_add: bool}}, notice: array{level: string, message: string, days_overdue: int, lock_at: string|null, invoice: array{uuid: string, number: string, amount: string, outstanding: string, due_date: string}|null}|null}}')]
+    public function entitlements(Request $request): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        if (!$user->store_id) {
+            return $this->error('Do\'kon topilmadi.', [], 404);
+        }
+
+        return $this->success($this->entitlements->toArray((int) $user->store_id, null, $this->entitlements->showsInvoiceTo($user)));
+    }
 
     /**
      * The current plan and period, the terminals counted so far and an estimate of the period's invoice.
      * `subscription` is null for a store on no plan (commission at the store's own rate, no monthly fee).
      */
-    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{subscription: array{status: string, status_label: string, plan: array{code: string, name: string, description: string|null, summary: string, commission_percent: float|null, monthly_base_fee: float, monthly_fee_per_terminal: float, included_terminals: int, trial_days: int}, started_at: string, trial_ends_at: string|null, current_period: array{period: string, start: string, end: string}, next_plan: array{code: string, name: string, description: string|null, summary: string, commission_percent: float|null, monthly_base_fee: float, monthly_fee_per_terminal: float, included_terminals: int, trial_days: int}|null, cancel_at_period_end: bool}|null, commission_rate: float, terminals: array{active_now: int, counted: int|null}, next_invoice: array{period: string, issued_on: string, trial: bool, amount: float, lines: list<array{type: string, label: string, quantity: int, unit_price: float, amount: float}>}|null}}')]
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{subscription: array{status: string, status_label: string, plan: array{code: string, name: string, description: string|null, summary: string, commission_percent: float|null, monthly_base_fee: float, monthly_fee_per_terminal: float, included_terminals: int, trial_days: int}, started_at: string, trial_ends_at: string|null, current_period: array{period: string, start: string, end: string}, next_plan: array{code: string, name: string, description: string|null, summary: string, commission_percent: float|null, monthly_base_fee: float, monthly_fee_per_terminal: float, included_terminals: int, trial_days: int}|null, cancel_at_period_end: bool, billing_period: string, next_billing_period: string|null, term_ends_at: string|null}|null, commission_rate: float, terminals: array{active_now: int, counted: int|null}, next_invoice: array{period: string, issued_on: string, trial: bool, amount: float, lines: list<array{type: string, label: string, quantity: int, unit_price: float, amount: float}>}|null}}')]
     public function subscription(Request $request): JsonResponse
     {
         /** @var User $user */
@@ -48,7 +75,7 @@ class OwnerBillingController extends Controller
     /**
      * The store's subscription invoices, newest month first.
      */
-    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{current_page: int, data: list<array{uuid: string, number: string, period: string, period_start: string, period_end: string, plan: array{code: string, name: string}|null, terminals_count: int, included_terminals: int, base_fee: float, fee_per_terminal: float, lines: list<array{type: string, label: string, quantity: int, unit_price: float, amount: float}>, amount: float, status: string, due_date: string, issued_at: string, paid_at: string|null, voided_at: string|null}>, per_page: int, total: int, last_page: int}}')]
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{current_page: int, data: list<array{uuid: string, number: string, period: string, period_start: string, period_end: string, plan: array{code: string, name: string}|null, terminals_count: int, included_terminals: int, base_fee: float, fee_per_terminal: float, lines: list<array{type: string, label: string, quantity: int, unit_price: float, amount: float}>, amount: float, kind: string, paid_amount: string, status: string, due_date: string, issued_at: string, paid_at: string|null, voided_at: string|null}>, per_page: int, total: int, last_page: int}}')]
     public function invoices(Request $request): JsonResponse
     {
         $request->validate([

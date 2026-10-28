@@ -23,6 +23,7 @@ import 'owner_analytics/owner_analytics_api.dart';
 import 'owner_audit_log/owner_audit_log_api.dart';
 import 'owner_auto_guest_items/owner_auto_guest_items_api.dart';
 import 'owner_batches/owner_batches_api.dart';
+import 'owner_billing/owner_billing_api.dart';
 import 'owner_branch_availability/owner_branch_availability_api.dart';
 import 'owner_branches/owner_branches_api.dart';
 import 'owner_pos_settings/owner_pos_settings_api.dart';
@@ -34,7 +35,6 @@ import 'owner_employees/owner_employees_api.dart';
 import 'owner_finance/owner_finance_api.dart';
 import 'owner_finance_history/owner_finance_history_api.dart';
 import 'owner_fiscal/owner_fiscal_api.dart';
-import 'owner_billing/owner_billing_api.dart';
 import 'owner_kitchen_stations/owner_kitchen_stations_api.dart';
 import 'owner_menu_modifiers/owner_menu_modifiers_api.dart';
 import 'owner_staff_access/owner_staff_access_api.dart';
@@ -56,8 +56,8 @@ import 'promo_codes/promo_codes_api.dart';
 import 'reports/reports_api.dart';
 import 'kitchen/kitchen_api.dart';
 import 'staff_orders/staff_orders_api.dart';
+import 'ovqatxona_arizasi/ovqatxona_arizasi_api.dart';
 import 'stores/stores_api.dart';
-import 'superadmin/superadmin_api.dart';
 import 'fallback/fallback_api.dart';
 
 /// Rizqim API `v1.0.0`.
@@ -97,6 +97,7 @@ class RizqimApi {
   OwnerAuditLogApi? _ownerAuditLog;
   OwnerAutoGuestItemsApi? _ownerAutoGuestItems;
   OwnerBatchesApi? _ownerBatches;
+  OwnerBillingApi? _ownerBilling;
   OwnerBranchAvailabilityApi? _ownerBranchAvailability;
   OwnerBranchesApi? _ownerBranches;
   OwnerPosSettingsApi? _ownerPosSettings;
@@ -108,7 +109,6 @@ class RizqimApi {
   OwnerFinanceApi? _ownerFinance;
   OwnerFinanceHistoryApi? _ownerFinanceHistory;
   OwnerFiscalApi? _ownerFiscal;
-  OwnerBillingApi? _ownerBilling;
   OwnerKitchenStationsApi? _ownerKitchenStations;
   OwnerMenuModifiersApi? _ownerMenuModifiers;
   OwnerStaffAccessApi? _ownerStaffAccess;
@@ -130,8 +130,8 @@ class RizqimApi {
   ReportsApi? _reports;
   KitchenApi? _kitchen;
   StaffOrdersApi? _staffOrders;
+  OvqatxonaArizasiApi? _ovqatxonaArizasi;
   StoresApi? _stores;
-  SuperadminApi? _superadmin;
   FallbackApi? _fallback;
 
   BroadcastApi get broadcast =>
@@ -186,6 +186,9 @@ class RizqimApi {
   OwnerBatchesApi get ownerBatches =>
       _ownerBatches ??= OwnerBatchesApi(_dio, baseUrl: _baseUrl);
 
+  OwnerBillingApi get ownerBilling =>
+      _ownerBilling ??= OwnerBillingApi(_dio, baseUrl: _baseUrl);
+
   OwnerBranchAvailabilityApi get ownerBranchAvailability =>
       _ownerBranchAvailability ??= OwnerBranchAvailabilityApi(
         _dio,
@@ -221,9 +224,6 @@ class RizqimApi {
 
   OwnerFiscalApi get ownerFiscal =>
       _ownerFiscal ??= OwnerFiscalApi(_dio, baseUrl: _baseUrl);
-
-  OwnerBillingApi get ownerBilling =>
-      _ownerBilling ??= OwnerBillingApi(_dio, baseUrl: _baseUrl);
 
   OwnerKitchenStationsApi get ownerKitchenStations => _ownerKitchenStations ??=
       OwnerKitchenStationsApi(_dio, baseUrl: _baseUrl);
@@ -285,10 +285,10 @@ class RizqimApi {
   StaffOrdersApi get staffOrders =>
       _staffOrders ??= StaffOrdersApi(_dio, baseUrl: _baseUrl);
 
-  StoresApi get stores => _stores ??= StoresApi(_dio, baseUrl: _baseUrl);
+  OvqatxonaArizasiApi get ovqatxonaArizasi =>
+      _ovqatxonaArizasi ??= OvqatxonaArizasiApi(_dio, baseUrl: _baseUrl);
 
-  SuperadminApi get superadmin =>
-      _superadmin ??= SuperadminApi(_dio, baseUrl: _baseUrl);
+  StoresApi get stores => _stores ??= StoresApi(_dio, baseUrl: _baseUrl);
 
   FallbackApi get fallback =>
       _fallback ??= FallbackApi(_dio, baseUrl: _baseUrl);

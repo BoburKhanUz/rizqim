@@ -25,9 +25,20 @@ PayoutRequest _$PayoutRequestFromJson(Map<String, dynamic> json) =>
           ? null
           : DateTime.parse(json['updated_at'] as String),
       resolutionNotes: json['resolution_notes'] as String?,
+      firstApprovedBy: (json['first_approved_by'] as num?)?.toInt(),
+      firstApprovedAt: json['first_approved_at'] == null
+          ? null
+          : DateTime.parse(json['first_approved_at'] as String),
+      firstApprovalNote: json['first_approval_note'] as String?,
+      nettedAmount: json['netted_amount'] as String?,
+      transferredAmount: json['transferred_amount'] as String?,
+      netting: json['netting'] as List<dynamic>?,
       store: json['store'] == null
           ? null
           : Store.fromJson(json['store'] as Map<String, dynamic>),
+      firstApprover: json['first_approver'] == null
+          ? null
+          : User.fromJson(json['first_approver'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$PayoutRequestToJson(PayoutRequest instance) =>
@@ -43,5 +54,12 @@ Map<String, dynamic> _$PayoutRequestToJson(PayoutRequest instance) =>
       'created_at': instance.createdAt?.toIso8601String(),
       'updated_at': instance.updatedAt?.toIso8601String(),
       'resolution_notes': instance.resolutionNotes,
+      'first_approved_by': instance.firstApprovedBy,
+      'first_approved_at': instance.firstApprovedAt?.toIso8601String(),
+      'first_approval_note': instance.firstApprovalNote,
+      'netted_amount': instance.nettedAmount,
+      'transferred_amount': instance.transferredAmount,
+      'netting': instance.netting,
       'store': instance.store,
+      'first_approver': instance.firstApprover,
     };

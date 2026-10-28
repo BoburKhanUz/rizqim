@@ -137,4 +137,24 @@ describe('OrdersView', () => {
     await user.click(screen.getByRole('button', { name: 'Qayta urinish' }));
     expect(await screen.findByRole('list', { name: "Buyurtmalar ro'yxati" })).toBeInTheDocument();
   });
+
+  // P4-22: the store and region filters are pickers by name; the store card's link opens the list filtered
+  it('opens filtered by a store from the address bar and shows its name, regions by name', async () => {
+    setPlatformOps(createPlatformOps({ loadConfig: async () => null, createEcho: async () => echo }));
+    const { callsTo } = mockFetch({
+      'GET /auth/me': () => json(meBody({ permissions: PERMS })),
+      'GET /orders': () => ok(page([row()])),
+      'GET /orders/sla': () => ok(SLA),
+      'GET /refund-requests': () => ok({ data: [], next_cursor: null }),
+      'GET /orders/store-quality': () => ok({ period: { from: '', to: '', days: 30 }, stores: [] }),
+      'GET /stores/lookup': () => ok({ stores: [{ id: 12, name: 'Lazzat Oshxona', status: 'active', region: null }], regions: [{ id: 1, name: 'Toshkent shahri' }], districts: [] }),
+    });
+    renderPage(<OrdersView initial={{ store_id: '12' }} />);
+    await screen.findByRole('list', { name: "Buyurtmalar ro'yxati" });
+    expect(callsTo('GET', '/orders')[0]?.query.get('store_id')).toBe('12');
+    expect(await screen.findByDisplayValue('Lazzat Oshxona')).toBeInTheDocument();
+    expect(await screen.findByRole('option', { name: 'Toshkent shahri' })).toBeInTheDocument();
+    await userEvent.setup().selectOptions(screen.getByLabelText('Viloyat'), 'Toshkent shahri');
+    await vi.waitFor(() => expect(callsTo('GET', '/orders').at(-1)?.query.get('region_id')).toBe('1'));
+  });
 });

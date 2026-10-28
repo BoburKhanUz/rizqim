@@ -4,7 +4,6 @@ import { exportReport, fetchOwnerAnalytics, getCustomRangeProblem, MAX_CUSTOM_DA
 import { getApiFieldError } from './errors';
 import { fetchInvoices, fetchOwnerFinance, fetchSubscription, initiateTopup, requestPayout } from './payments';
 import { fetchOwnerSettings, saveOwnerSettings, uploadSettingsFile } from './settings';
-import { createStore, fetchLocations, fetchSuperadminDashboard, fetchSuperadminStores } from './superadmin';
 import { fetchEmployees, fetchMyPermissions, inviteEmployee, removeEmployee, resetStaffPin, setStaffPin, transferEmployee, updateStaffRole } from './team';
 
 afterEach(() => vi.unstubAllGlobals());
@@ -180,38 +179,5 @@ describe('analytics', () => {
     const { calls } = mockFetch({ 'POST /api/v1/reports/export': () => json({ success: true, message: 'Yuborildi', data: null }) });
     expect(await exportReport(testApi(), { timeframe: 'custom', start_date: '2026-10-01', end_date: '2026-10-07' })).toBe('Yuborildi');
     expect(await calls[0]!.json()).toEqual({ timeframe: 'custom', start_date: '2026-10-01', end_date: '2026-10-07' });
-  });
-});
-
-describe('superadmin', () => {
-  it('reads the dashboard, the stores and the locations (regions carry `name`)', async () => {
-    mockFetch({
-      'GET /api/v1/superadmin/dashboard': () => ok({ total_stores: 3 }),
-      'GET /api/v1/superadmin/stores': () => ok([{ id: 1, name: 'A' }]),
-      'GET /api/v1/superadmin/locations': () => ok({ regions: [{ id: 1, name: 'Toshkent' }], districts: [{ id: 2, region_id: 1, name: 'Chilonzor' }] }),
-    });
-    const api = testApi();
-    expect((await fetchSuperadminDashboard(api)).total_stores).toBe(3);
-    expect(await fetchSuperadminStores(api)).toHaveLength(1);
-    const locations = await fetchLocations(api);
-    expect(locations.regions[0]!.name).toBe('Toshkent');
-    expect(locations.districts[0]!.region_id).toBe(1);
-  });
-
-  it('creates a store', async () => {
-    const { calls } = mockFetch({ 'POST /api/v1/superadmin/stores': () => ok({ store_id: 9, invite_link: 'https://t.me/x' }) });
-    const created = await createStore(testApi(), {
-      name: 'Yangi',
-      commission_rate: 10,
-      owner_name: 'Ega',
-      branch_region_id: 1,
-      branch_district_id: 2,
-      branch_address: 'Ko\'cha',
-      branch_lat: 41.3,
-      branch_lng: 69.2,
-      branch_radius: 5,
-    });
-    expect(created.store_id).toBe(9);
-    expect((await calls[0]!.json()).branch_region_id).toBe(1);
   });
 });

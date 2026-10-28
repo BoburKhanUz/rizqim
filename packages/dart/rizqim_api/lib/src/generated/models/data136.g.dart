@@ -32,7 +32,7 @@ Data136 _$Data136FromJson(Map<String, dynamic> json) => Data136(
   depositUnsettled: json['deposit_unsettled'] as bool,
   itemsCount: (json['items_count'] as num).toInt(),
   payments: (json['payments'] as List<dynamic>)
-      .map((e) => Payments24.fromJson(e as Map<String, dynamic>))
+      .map((e) => Payments23.fromJson(e as Map<String, dynamic>))
       .toList(),
   version: (json['version'] as num).toInt(),
   createdBy: (json['created_by'] as num?)?.toInt(),
@@ -45,7 +45,7 @@ Data136 _$Data136FromJson(Map<String, dynamic> json) => Data136(
   createdAt: json['created_at'] as String?,
   updatedAt: json['updated_at'] as String?,
   items: (json['items'] as List<dynamic>)
-      .map((e) => Items17.fromJson(e as Map<String, dynamic>))
+      .map((e) => Items16.fromJson(e as Map<String, dynamic>))
       .toList(),
   cancelReason: json['cancel_reason'] as String?,
 );
