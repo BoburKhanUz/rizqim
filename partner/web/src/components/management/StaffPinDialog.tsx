@@ -10,7 +10,19 @@ import { errorText } from './errors';
 // PUT /owner/staff/{id}/pin sets (or replaces) the 4 to 6 digit PIN a terminal login uses; DELETE clears it. The backend
 // refuses PINs that are too easy (0000, 1234 ...) with a message in Uzbek, shown under the field. The first PIN gives the
 // member a four digit staff code, shown after saving.
-export function StaffPinDialog({ member, onClose, onChanged }: { member: StaffMember; onClose: () => void; onChanged: (message: string) => void }) {
+// P4-32: `self` is the signed-in owner's or manager's own PIN (the old store panel's "Mening PIN kodim"; they are not in
+// their own staff list): the same endpoint with their own id, never cleared from here.
+export function StaffPinDialog({
+  member,
+  self = false,
+  onClose,
+  onChanged,
+}: {
+  member: Pick<StaffMember, 'id' | 'name' | 'has_pin' | 'staff_code'>;
+  self?: boolean;
+  onClose: () => void;
+  onChanged: (message: string) => void;
+}) {
   const { t } = useI18n();
   const [pin, setPin] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -56,11 +68,11 @@ export function StaffPinDialog({ member, onClose, onChanged }: { member: StaffMe
         open
         variant="center"
         title={t('staff_pinSaved')}
-        description={t('staff_pinSavedText', { name: member.name })}
+        description={self ? t('staff_myPinSavedText') : t('staff_pinSavedText', { name: member.name })}
         closeLabel={t('mgmt_close')}
-        onClose={() => onChanged(t('staff_pinSavedNotice', { name: member.name }))}
+        onClose={() => onChanged(self ? t('staff_myPinSaved') : t('staff_pinSavedNotice', { name: member.name }))}
         footer={
-          <Button onClick={() => onChanged(t('staff_pinSavedNotice', { name: member.name }))} data-autofocus>
+          <Button onClick={() => onChanged(self ? t('staff_myPinSaved') : t('staff_pinSavedNotice', { name: member.name }))} data-autofocus>
             {t('mgmt_done')}
           </Button>
         }
@@ -76,7 +88,14 @@ export function StaffPinDialog({ member, onClose, onChanged }: { member: StaffMe
   }
 
   return (
-    <Dialog open title={t('staff_pinTitle', { name: member.name })} description={member.has_pin ? t('staff_pinHas') : t('staff_pinNone')} busy={busy} closeLabel={t('mgmt_close')} onClose={onClose}>
+    <Dialog
+      open
+      title={self ? t('staff_myPinTitle') : t('staff_pinTitle', { name: member.name })}
+      description={self ? t('staff_myPinText') : member.has_pin ? t('staff_pinHas') : t('staff_pinNone')}
+      busy={busy}
+      closeLabel={t('mgmt_close')}
+      onClose={onClose}
+    >
       <form onSubmit={submit} noValidate className="flex flex-col gap-4">
         {member.has_pin && member.staff_code && (
           <p className="text-footnote text-fg-muted">
@@ -107,7 +126,7 @@ export function StaffPinDialog({ member, onClose, onChanged }: { member: StaffMe
             {member.has_pin ? t('staff_changePin') : t('staff_setPin')}
           </Button>
         </div>
-        {member.has_pin && (
+        {member.has_pin && !self && (
           <div className="border-t border-line pt-3">
             {confirmClear ? (
               <div className="flex flex-col gap-2">

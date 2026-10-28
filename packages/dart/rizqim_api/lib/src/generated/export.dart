@@ -608,6 +608,7 @@ export 'models/data107.dart';
 export 'models/delete_v1_owner_service_fees_halls_id_response.dart';
 export 'models/working_hours5.dart';
 export 'models/payment_settings.dart';
+export 'models/telegram.dart';
 export 'models/charges4.dart';
 export 'models/sandbox4.dart';
 export 'models/fiscal_settings4.dart';

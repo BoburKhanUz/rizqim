@@ -175,26 +175,51 @@ class Store extends Model
     {
         $settings = [];
         foreach (self::PAYMENT_PROVIDERS as $provider) {
-            $settings[$provider] = ['enabled' => in_array($provider, $enabledMethods, true) && static::isPaymentMethodAvailable($provider)];
+            // Not isPaymentMethodAvailable(): a provider the team switched off for a while still starts on
+            $settings[$provider] = ['enabled' => in_array($provider, $enabledMethods, true) && static::isPaymentMethodIntegrated($provider)];
         }
 
         return $settings + ['delivery_enabled' => true, 'pickup_enabled' => true];
     }
 
     /**
-     * Payment methods not offered yet (config orders.unavailable_payment_methods): checkout refuses them and clients
-     * see them switched off, whatever a store saved for them (which is kept).
+     * Payment methods not offered now: not integrated yet (config orders.unavailable_payment_methods) or, P4-32, a
+     * platform provider the team switched off (payment_providers.is_active, PaymentProviderSwitch). Checkout refuses
+     * them and clients see them switched off, whatever a store saved for them (which is kept).
      *
      * @return list<string>
      */
     public static function unavailablePaymentMethods(): array
     {
-        return array_values((array) config('orders.unavailable_payment_methods', []));
+        $switch = app(\App\Services\Payment\PaymentProviderSwitch::class);
+        $off = array_filter(self::PAYMENT_PROVIDERS, fn (string $method) => static::isPaymentMethodIntegrated($method) && !$switch->isActive($method));
+
+        return array_values(array_unique([...(array) config('orders.unavailable_payment_methods', []), ...$off]));
     }
 
     public static function isPaymentMethodAvailable(string $method): bool
     {
         return !in_array($method, static::unavailablePaymentMethods(), true);
+    }
+
+    /**
+     * Whether the platform can process the method at all (it has a webhook), whatever the team's switch says.
+     */
+    public static function isPaymentMethodIntegrated(string $method): bool
+    {
+        return !in_array($method, (array) config('orders.unavailable_payment_methods', []), true);
+    }
+
+    /**
+     * Why a method is not offered: `not_integrated`, `switched_off` (the team's switch), null when it is.
+     */
+    public static function paymentMethodUnavailableReason(string $method): ?string
+    {
+        if (!static::isPaymentMethodIntegrated($method)) {
+            return 'not_integrated';
+        }
+
+        return static::isPaymentMethodAvailable($method) ? null : 'switched_off';
     }
 
     /**

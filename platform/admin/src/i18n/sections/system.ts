@@ -75,7 +75,7 @@ export const system = defineSection({
     system_source_none: 'Hech qayerda kiritilmagan.',
 
     // To'lov tizimlari
-    system_pay_intro: "RIZQIM'ning o'z merchant hisoblari. To'lov havolalari va webhooklar kalitni avval shu yerdan, bo'lmasa serverdagi .env dan oladi. «Faol» va rejim hozircha jamoa uchun belgi: to'lov oqimi ularni hali tekshirmaydi.",
+    system_pay_intro: "RIZQIM'ning o'z merchant hisoblari. To'lov havolalari va webhooklar kalitni avval shu yerdan, bo'lmasa serverdagi .env dan oladi. O'chirilgan tizim Mini App'da ko'rsatilmaydi va u bilan yangi to'lov (buyurtma yoki balans to'ldirish) qabul qilinmaydi; boshlangan to'lovlar odatdagidek yakunlanadi. «Sinov» rejimida Payme sinov sahifasi (checkout.test.paycom.uz) ochiladi, kalitlar shu yerdagilar — sinov paytida sinov kalitlarini kiriting. Click'da sinov uchun alohida manzil yo'q.",
     system_pay_empty: "To'lov tizimlari yo'q",
     system_pay_listLabel: "To'lov tizimlari",
     system_pay_active: 'Faol',

@@ -3117,6 +3117,56 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/stores/{id}/owner-login-phone": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set the owner's login phone
+         * @description P4-32 (the old superadmin panel's "SMS bilan kirishni yoqish"): for an owner who lost the number they sign in
+         *     with. `phone` (+998XXXXXXXXX) becomes the owner's login phone, vouched for by the platform: its holder signs in to
+         *     the partner panel and the apps by SMS code, and every app session of the old number ends (audited in the store's
+         *     log too, the phone masked). Needs `stores.impersonate` (superadmin by default): the number takes over the store.
+         *     `reason` is required. 409 `owner_phone_taken` (another staff account has it), 422 `owner_phone_invalid`,
+         *     `no_owner`. Answers the card.
+         */
+        put: operations["admin.stores.owner_login_phone_set"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/stores/{id}/payment-account": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Change the store's payment account
+         * @description P4-32 (the old superadmin store form's money settings). `payment_account_type`: `platform_account` (Click and
+         *     Payme pay the platform, which settles the store's wallet) or `own_account` (the store's own merchant cashbox; the
+         *     owner enters its keys in the partner panel, until then the platform collects); `min_payout_reserve`: what must
+         *     stay in the wallet after a payout, 0–100 000 000 so'm. Either or both, and `reason`. 409 `payments_in_flight`
+         *     while an online order of the store waits for its payment (its callbacks are verified with the account it was
+         *     placed with). Answers the card.
+         */
+        put: operations["admin.stores.payment_account_changed"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/stores/{id}/suspend": {
         parameters: {
             query?: never;
@@ -4425,6 +4475,10 @@ export interface paths {
          *     branch must serve a zone covering the point. 422 with `data.reason`: `outside_zone`, `branch_outside_zone`,
          *     `branch_closed`, or `below_minimum_order` (with `data.min_order_amount` and `data.subtotal`). Stores without
          *     zones keep the branch radius rule and the store's delivery fee.
+         *
+         *     P4-32: a payment provider the RIZQIM team switched off (Tizim → To'lov tizimlari) is a 422 with `code` and
+         *     `data.reason` `payment_provider_inactive` (and `errors.payment_method`); the store's payment settings already
+         *     show it `{enabled: false, available: false}`. In test mode a Payme `payment_url` opens Payme's sandbox checkout.
          */
         post: operations["order.store"];
         delete?: never;
@@ -5157,7 +5211,12 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Initiate a store balance top-up payment */
+        /**
+         * Initiate a store balance top-up payment
+         * @description P4-32: 422 with `code` payment_provider_inactive when the RIZQIM team switched the provider off (Tizim → To'lov
+         *     tizimlari). In test mode Payme opens its sandbox checkout. The payment returns to the partner panel's Moliya page
+         *     (PARTNER_WEB_URL).
+         */
         post: operations["ownerFinance.initiateTopup"];
         delete?: never;
         options?: never;
@@ -5990,7 +6049,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get store settings */
+        /**
+         * Get store settings
+         * @description A provider not offered now is `{enabled: false, available: false, unavailable_reason}`: `not_integrated` (Uzum,
+         *     Paynet) or, P4-32, `switched_off` (the RIZQIM team switched it off for a while). `telegram.group_link`: the bot
+         *     link that routes the store's orders and notices to a Telegram group (null while the bot has no username);
+         *     `group_linked`: whether a group is linked.
+         */
         get: operations["ownerSettings.index"];
         put?: never;
         /**
@@ -18689,6 +18754,121 @@ export interface operations {
             422: components["responses"]["ValidationException"];
         };
     };
+    "admin.stores.owner_login_phone_set": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    phone: string;
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Another staff account has the phone (owner_phone_taken) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not a phone (owner_phone_invalid) or no owner (no_owner) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.stores.payment_account_changed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    payment_account_type?: components["schemas"]["PaymentAccountType"];
+                    min_payout_reserve?: number;
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description An online payment is still on its way (payments_in_flight) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
     "admin.stores.suspended": {
         parameters: {
             query?: never;
@@ -27954,6 +28134,8 @@ export interface operations {
                                     merchant_id?: string | null;
                                     service_id?: string | null;
                                     available?: boolean;
+                                    /** @enum {string} */
+                                    unavailable_reason?: "not_integrated" | "switched_off";
                                     has_secret_key?: boolean;
                                 };
                                 click?: boolean | {
@@ -27961,6 +28143,8 @@ export interface operations {
                                     merchant_id?: string | null;
                                     service_id?: string | null;
                                     available?: boolean;
+                                    /** @enum {string} */
+                                    unavailable_reason?: "not_integrated" | "switched_off";
                                     has_secret_key?: boolean;
                                 };
                                 payme?: boolean | {
@@ -27968,6 +28152,8 @@ export interface operations {
                                     merchant_id?: string | null;
                                     service_id?: string | null;
                                     available?: boolean;
+                                    /** @enum {string} */
+                                    unavailable_reason?: "not_integrated" | "switched_off";
                                     has_secret_key?: boolean;
                                 };
                                 uzum?: boolean | {
@@ -27975,6 +28161,8 @@ export interface operations {
                                     merchant_id?: string | null;
                                     service_id?: string | null;
                                     available?: boolean;
+                                    /** @enum {string} */
+                                    unavailable_reason?: "not_integrated" | "switched_off";
                                     has_secret_key?: boolean;
                                 };
                                 paynet?: boolean | {
@@ -27982,6 +28170,8 @@ export interface operations {
                                     merchant_id?: string | null;
                                     service_id?: string | null;
                                     available?: boolean;
+                                    /** @enum {string} */
+                                    unavailable_reason?: "not_integrated" | "switched_off";
                                     has_secret_key?: boolean;
                                 };
                                 delivery_fee?: number | string;
@@ -28001,6 +28191,10 @@ export interface operations {
                             tin: string | null;
                             /** @enum {string|null} */
                             tax_regime: "vat" | "vat_simplified" | "turnover" | null;
+                            telegram: {
+                                group_link: string | null;
+                                group_linked: boolean;
+                            };
                             fiscal_settings: {
                                 enabled: boolean;
                                 driver: string;

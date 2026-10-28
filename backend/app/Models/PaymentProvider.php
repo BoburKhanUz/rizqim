@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
  * Cast attributes, declared because Larastan does not read casts from the casts() method:
  *
  * @property bool $is_active
+ * @property string $mode test | production (P4-31; read by App\Services\Payment\PaymentProviderSwitch)
  * @property array<string, mixed>|null $credentials
  */
 class PaymentProvider extends Model
@@ -17,8 +18,16 @@ class PaymentProvider extends Model
         'slug',
         'icon',
         'is_active',
+        'mode',
         'credentials',
     ];
+
+    protected static function booted(): void
+    {
+        // The order flow reads the switches through a cache (PaymentProviderSwitch)
+        static::saved(fn () => \App\Services\Payment\PaymentProviderSwitch::forget());
+        static::deleted(fn () => \App\Services\Payment\PaymentProviderSwitch::forget());
+    }
 
     protected function casts(): array
     {

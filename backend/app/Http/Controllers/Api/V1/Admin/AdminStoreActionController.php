@@ -101,6 +101,70 @@ class AdminStoreActionController extends AdminController
     }
 
     /**
+     * Change the store's payment account
+     *
+     * P4-32 (the old superadmin store form's money settings). `payment_account_type`: `platform_account` (Click and
+     * Payme pay the platform, which settles the store's wallet) or `own_account` (the store's own merchant cashbox; the
+     * owner enters its keys in the partner panel, until then the platform collects); `min_payout_reserve`: what must
+     * stay in the wallet after a payout, 0–100 000 000 so'm. Either or both, and `reason`. 409 `payments_in_flight`
+     * while an online order of the store waits for its payment (its callbacks are verified with the account it was
+     * placed with). Answers the card.
+     */
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array<string, mixed>}')]
+    #[ApiDocResponse(409, 'An online payment is still on its way (payments_in_flight)', type: self::ERROR)]
+    public function paymentAccount(Request $request, int $id): JsonResponse
+    {
+        $data = $request->validate([
+            'payment_account_type' => ['required_without:min_payout_reserve', 'string', \Illuminate\Validation\Rule::enum(\App\Enums\PaymentAccountType::class)],
+            'min_payout_reserve' => 'required_without:payment_account_type|numeric|min:0|max:100000000|decimal:0,2',
+            'reason' => AdminRules::reason(),
+        ], UzValidation::messages());
+
+        $change = array_map('strval', array_intersect_key($data, array_flip(['payment_account_type', 'min_payout_reserve'])));
+
+        return $this->act($request, $id, fn (Store $store) => $this->actions->setPaymentAccount($store, $change), "To'lov hisobi sozlamalari saqlandi.");
+    }
+
+    /**
+     * Set the owner's login phone
+     *
+     * P4-32 (the old superadmin panel's "SMS bilan kirishni yoqish"): for an owner who lost the number they sign in
+     * with. `phone` (+998XXXXXXXXX) becomes the owner's login phone, vouched for by the platform: its holder signs in to
+     * the partner panel and the apps by SMS code, and every app session of the old number ends (audited in the store's
+     * log too, the phone masked). Needs `stores.impersonate` (superadmin by default): the number takes over the store.
+     * `reason` is required. 409 `owner_phone_taken` (another staff account has it), 422 `owner_phone_invalid`,
+     * `no_owner`. Answers the card.
+     */
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array<string, mixed>}')]
+    #[ApiDocResponse(409, 'Another staff account has the phone (owner_phone_taken)', type: self::ERROR)]
+    #[ApiDocResponse(422, 'Not a phone (owner_phone_invalid) or no owner (no_owner)', type: self::ERROR)]
+    public function ownerLoginPhone(Request $request, int $id): JsonResponse
+    {
+        $data = $request->validate([
+            'phone' => 'required|string|max:20',
+            'reason' => AdminRules::reason(),
+        ], UzValidation::messages());
+        $store = Store::query()->find($id);
+        if ($store === null) {
+            return $this->refuse('Ovqatxona topilmadi.', 'not_found', 404);
+        }
+
+        try {
+            $change = $this->actions->setOwnerLoginPhone($store, $data['phone']);
+        } catch (StoreAdminException $e) {
+            return $this->refuse($e->getMessage(), $e->reason, $e->status, $e->data);
+        }
+
+        // The phones are masked in the log (AuditRedactor)
+        $audit = AdminAudit::for($request)->subject($change['owner'])->store((int) $store->id)->changes($change['before'], $change['after'])->meta(['owner_id' => (int) $change['owner']->id]);
+        if ($change['before'] === $change['after']) {
+            $audit->skip();
+        }
+
+        return $this->success($this->presenter->card($store->refresh(), $this->member($request)), "Egasining kirish raqami saqlandi. U endi shu raqamga keladigan SMS kod bilan kiradi.");
+    }
+
+    /**
      * New Telegram link for the owner
      *
      * A new one-time bot link binding a Telegram account to the owner's account; the old link stops working. It is a

@@ -23,6 +23,7 @@ export const en: Messages = {
   nav_shifts: 'Shifts',
   nav_possetup: 'POS setup',
   nav_permissions: 'Permissions',
+  nav_audit: 'Audit log',
   nav_fiscal: 'Fiscal',
   navAria: 'Main menu',
   openMenu: 'Open menu',

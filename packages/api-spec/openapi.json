@@ -28333,6 +28333,224 @@
                 ]
             }
         },
+        "/v1/admin/stores/{id}/owner-login-phone": {
+            "put": {
+                "operationId": "admin.stores.owner_login_phone_set",
+                "description": "P4-32 (the old superadmin panel's \"SMS bilan kirishni yoqish\"): for an owner who lost the number they sign in\nwith. `phone` (+998XXXXXXXXX) becomes the owner's login phone, vouched for by the platform: its holder signs in to\nthe partner panel and the apps by SMS code, and every app session of the old number ends (audited in the store's\nlog too, the phone masked). Needs `stores.impersonate` (superadmin by default): the number takes over the store.\n`reason` is required. 409 `owner_phone_taken` (another staff account has it), 422 `owner_phone_invalid`,\n`no_owner`. Answers the card.",
+                "summary": "Set the owner's login phone",
+                "tags": [
+                    "Admin"
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "phone": {
+                                        "type": "string",
+                                        "maxLength": 20
+                                    },
+                                    "reason": {
+                                        "type": "string",
+                                        "minLength": 3,
+                                        "maxLength": 500
+                                    }
+                                },
+                                "required": [
+                                    "phone",
+                                    "reason"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": {}
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Not a phone (owner_phone_invalid) or no owner (no_owner)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "409": {
+                        "description": "Another staff account has the phone (owner_phone_taken)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "admin": []
+                    }
+                ]
+            }
+        },
+        "/v1/admin/stores/{id}/payment-account": {
+            "put": {
+                "operationId": "admin.stores.payment_account_changed",
+                "description": "P4-32 (the old superadmin store form's money settings). `payment_account_type`: `platform_account` (Click and\nPayme pay the platform, which settles the store's wallet) or `own_account` (the store's own merchant cashbox; the\nowner enters its keys in the partner panel, until then the platform collects); `min_payout_reserve`: what must\nstay in the wallet after a payout, 0–100 000 000 so'm. Either or both, and `reason`. 409 `payments_in_flight`\nwhile an online order of the store waits for its payment (its callbacks are verified with the account it was\nplaced with). Answers the card.",
+                "summary": "Change the store's payment account",
+                "tags": [
+                    "Admin"
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "payment_account_type": {
+                                        "$ref": "#/components/schemas/PaymentAccountType"
+                                    },
+                                    "min_payout_reserve": {
+                                        "type": "number"
+                                    },
+                                    "reason": {
+                                        "type": "string",
+                                        "minLength": 3,
+                                        "maxLength": 500
+                                    }
+                                },
+                                "required": [
+                                    "reason"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": {}
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "409": {
+                        "description": "An online payment is still on its way (payments_in_flight)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "admin": []
+                    }
+                ]
+            }
+        },
         "/v1/admin/stores/{id}/suspend": {
             "post": {
                 "operationId": "admin.stores.suspended",
@@ -38907,7 +39125,7 @@
             },
             "post": {
                 "operationId": "order.store",
-                "description": "Prices, stock, the promo code and the delivery fee are checked on the server. `payment_url` is set for online\npayment methods (Click, Payme): open it to pay; the order is cancelled when it stays unpaid. 400 with the reason\nwhen the order cannot be placed (store closed, item unavailable, minimum not reached...).\n\nP1-21 (docs/MENU.md): `items.*.quantity` may be a fraction for items sold by weight (kg/l, at least\n`min_quantity`, in `quantity_step` steps); `items.*.modifiers` lists the chosen modifiers as uuids or\n`{id: uuid, quantity}`; prices always come from the server. 422 when a modifier rule is broken, the item is on\nthe branch's stop-list, its batch is sold out (\"tugadi\") or it is hidden on the channel. The channel is decided by\nthe server from the sign-in (P1-34): `mobile` for a token of a customer mobile app device, else `telegram`; a\n`channel` in the body is accepted for older apps but ignored. `type=dine_in` is refused with 422 (hall orders\nare taken by staff on the POS). An `Idempotency-Key` header makes retries safe: the same key with the same body\nwithin 24 hours returns the first response (header `Idempotent-Replayed: true`), with another body 409.\n\nP1-32 (docs/ZONES.md): when the store has delivery zones, a `delivery` order is routed and priced by the zone\nthat covers `latitude`/`longitude`, exactly as `GET /delivery/quote` prices it: the zone's fee (free past its\nthreshold) and minimum order replace the store-wide ones, any fee the client sends is ignored. Without\n`branch_id` the branch is picked automatically (the zone's branch, else the nearest open one); with it, that\nbranch must serve a zone covering the point. 422 with `data.reason`: `outside_zone`, `branch_outside_zone`,\n`branch_closed`, or `below_minimum_order` (with `data.min_order_amount` and `data.subtotal`). Stores without\nzones keep the branch radius rule and the store's delivery fee.",
+                "description": "Prices, stock, the promo code and the delivery fee are checked on the server. `payment_url` is set for online\npayment methods (Click, Payme): open it to pay; the order is cancelled when it stays unpaid. 400 with the reason\nwhen the order cannot be placed (store closed, item unavailable, minimum not reached...).\n\nP1-21 (docs/MENU.md): `items.*.quantity` may be a fraction for items sold by weight (kg/l, at least\n`min_quantity`, in `quantity_step` steps); `items.*.modifiers` lists the chosen modifiers as uuids or\n`{id: uuid, quantity}`; prices always come from the server. 422 when a modifier rule is broken, the item is on\nthe branch's stop-list, its batch is sold out (\"tugadi\") or it is hidden on the channel. The channel is decided by\nthe server from the sign-in (P1-34): `mobile` for a token of a customer mobile app device, else `telegram`; a\n`channel` in the body is accepted for older apps but ignored. `type=dine_in` is refused with 422 (hall orders\nare taken by staff on the POS). An `Idempotency-Key` header makes retries safe: the same key with the same body\nwithin 24 hours returns the first response (header `Idempotent-Replayed: true`), with another body 409.\n\nP1-32 (docs/ZONES.md): when the store has delivery zones, a `delivery` order is routed and priced by the zone\nthat covers `latitude`/`longitude`, exactly as `GET /delivery/quote` prices it: the zone's fee (free past its\nthreshold) and minimum order replace the store-wide ones, any fee the client sends is ignored. Without\n`branch_id` the branch is picked automatically (the zone's branch, else the nearest open one); with it, that\nbranch must serve a zone covering the point. 422 with `data.reason`: `outside_zone`, `branch_outside_zone`,\n`branch_closed`, or `below_minimum_order` (with `data.min_order_amount` and `data.subtotal`). Stores without\nzones keep the branch radius rule and the store's delivery fee.\n\nP4-32: a payment provider the RIZQIM team switched off (Tizim → To'lov tizimlari) is a 422 with `code` and\n`data.reason` `payment_provider_inactive` (and `errors.payment_method`); the store's payment settings already\nshow it `{enabled: false, available: false}`. In test mode a Payme `payment_url` opens Payme's sandbox checkout.",
                 "summary": "Place an order (checkout)",
                 "tags": [
                     "Orders"
@@ -46664,6 +46882,7 @@
         "/v1/owner/finance/top-up": {
             "post": {
                 "operationId": "ownerFinance.initiateTopup",
+                "description": "P4-32: 422 with `code` payment_provider_inactive when the RIZQIM team switched the provider off (Tizim → To'lov\ntizimlari). In test mode Payme opens its sandbox checkout. The payment returns to the partner panel's Moliya page\n(PARTNER_WEB_URL).",
                 "summary": "Initiate a store balance top-up payment",
                 "tags": [
                     "Owner: finance"
@@ -46734,6 +46953,9 @@
                             }
                         }
                     },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
                     "404": {
                         "description": "",
                         "content": {
@@ -46753,9 +46975,6 @@
                                 }
                             }
                         }
-                    },
-                    "422": {
-                        "$ref": "#/components/responses/ValidationException"
                     },
                     "401": {
                         "$ref": "#/components/responses/AuthenticationException"
@@ -55579,6 +55798,7 @@
         "/v1/owner/settings": {
             "get": {
                 "operationId": "ownerSettings.index",
+                "description": "A provider not offered now is `{enabled: false, available: false, unavailable_reason}`: `not_integrated` (Uzum,\nPaynet) or, P4-32, `switched_off` (the RIZQIM team switched it off for a while). `telegram.group_link`: the bot\nlink that routes the store's orders and notices to a Telegram group (null while the bot has no username);\n`group_linked`: whether a group is linked.",
                 "summary": "Get store settings",
                 "tags": [
                     "Owner: settings"
@@ -55692,6 +55912,13 @@
                                                                         "available": {
                                                                             "type": "boolean"
                                                                         },
+                                                                        "unavailable_reason": {
+                                                                            "type": "string",
+                                                                            "enum": [
+                                                                                "not_integrated",
+                                                                                "switched_off"
+                                                                            ]
+                                                                        },
                                                                         "has_secret_key": {
                                                                             "type": "boolean"
                                                                         }
@@ -55724,6 +55951,13 @@
                                                                         },
                                                                         "available": {
                                                                             "type": "boolean"
+                                                                        },
+                                                                        "unavailable_reason": {
+                                                                            "type": "string",
+                                                                            "enum": [
+                                                                                "not_integrated",
+                                                                                "switched_off"
+                                                                            ]
                                                                         },
                                                                         "has_secret_key": {
                                                                             "type": "boolean"
@@ -55758,6 +55992,13 @@
                                                                         "available": {
                                                                             "type": "boolean"
                                                                         },
+                                                                        "unavailable_reason": {
+                                                                            "type": "string",
+                                                                            "enum": [
+                                                                                "not_integrated",
+                                                                                "switched_off"
+                                                                            ]
+                                                                        },
                                                                         "has_secret_key": {
                                                                             "type": "boolean"
                                                                         }
@@ -55791,6 +56032,13 @@
                                                                         "available": {
                                                                             "type": "boolean"
                                                                         },
+                                                                        "unavailable_reason": {
+                                                                            "type": "string",
+                                                                            "enum": [
+                                                                                "not_integrated",
+                                                                                "switched_off"
+                                                                            ]
+                                                                        },
                                                                         "has_secret_key": {
                                                                             "type": "boolean"
                                                                         }
@@ -55823,6 +56071,13 @@
                                                                         },
                                                                         "available": {
                                                                             "type": "boolean"
+                                                                        },
+                                                                        "unavailable_reason": {
+                                                                            "type": "string",
+                                                                            "enum": [
+                                                                                "not_integrated",
+                                                                                "switched_off"
+                                                                            ]
                                                                         },
                                                                         "has_secret_key": {
                                                                             "type": "boolean"
@@ -55903,6 +56158,24 @@
                                                         "vat_simplified",
                                                         "turnover",
                                                         null
+                                                    ]
+                                                },
+                                                "telegram": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "group_link": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "group_linked": {
+                                                            "type": "boolean"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "group_link",
+                                                        "group_linked"
                                                     ]
                                                 },
                                                 "fiscal_settings": {
@@ -56017,6 +56290,7 @@
                                                 "allowed_methods",
                                                 "tin",
                                                 "tax_regime",
+                                                "telegram",
                                                 "fiscal_settings"
                                             ]
                                         }

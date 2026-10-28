@@ -35,6 +35,8 @@ export const PERMISSIONS: Array<{ key: string; label: string; group: string }> =
   { key: 'admin.orders.refund_approve', label: 'Pulni qaytarishni tasdiqlash', group: 'Moliya' },
   { key: 'admin.stores.view', label: "Ovqatxonalarni ko'rish", group: 'Ovqatxonalar' },
   { key: 'admin.stores.manage', label: 'Ovqatxonalarni boshqarish', group: 'Ovqatxonalar' },
+  // Superadmin only by default: sees an undelivered owner link, sets an owner's login phone (P4-32)
+  { key: 'admin.stores.impersonate', label: 'Ovqatxona egasi sifatida kirish', group: 'Ovqatxonalar' },
   { key: 'admin.finance.view', label: "Moliyani ko'rish", group: 'Moliya' },
   { key: 'admin.finance.manage', label: "Moliya: qo'lda tuzatish va hisobotlar", group: 'Moliya' },
   { key: 'admin.payouts.approve', label: 'Payoutni tasdiqlash', group: 'Moliya' },

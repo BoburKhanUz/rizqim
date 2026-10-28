@@ -6,6 +6,7 @@ import {
   CookingPot,
   ClipboardList,
   HandCoins,
+  History,
   LayoutDashboard,
   Map,
   PackageX,
@@ -37,6 +38,7 @@ import type { MessageKey } from '@/i18n';
 //   shifts     shifts with X and Z reports (pos.close_shift or reports.view)
 //   possetup   kitchen stations, routes, printers, branch POS settings (settings.manage)
 //   permissions what each role may do alone, the "Huquqlar" page (permissions.manage, the owner)
+//   audit      the store's harakatlar jurnali (audit.view, the owner by default; P4-32, the old store panel's log)
 //   billing    the plan, devices, invoices and how to pay, "Tarif va to'lov" (finance.view)
 //   fiscal     MXIK readiness (menu.view / settings.manage), fiscal settings (settings.manage), receipts (finance.view / reports.view);
 //              the section opens for menu.manage (not every menu.view: cooks and waiters have it), settings.manage, finance.view, reports.view
@@ -56,6 +58,7 @@ export type NavKey =
   | 'settings'
   | 'possetup'
   | 'permissions'
+  | 'audit'
   | 'fiscal'
   | 'reports'
   | 'finance'
@@ -85,6 +88,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { key: 'settings', href: '/settings', label: 'nav_settings', anyOf: ['settings.manage'], icon: Settings },
   { key: 'possetup', href: '/pos-setup', label: 'nav_possetup', anyOf: ['settings.manage'], icon: Printer },
   { key: 'permissions', href: '/permissions', label: 'nav_permissions', anyOf: ['permissions.manage'], icon: ShieldCheck },
+  { key: 'audit', href: '/audit', label: 'nav_audit', anyOf: ['audit.view'], icon: History },
   { key: 'fiscal', href: '/fiscal', label: 'nav_fiscal', anyOf: ['settings.manage', 'menu.manage', 'finance.view', 'reports.view'], icon: ReceiptText },
   { key: 'reports', href: '/reports', label: 'nav_reports', anyOf: ['reports.view'], icon: ChartColumn },
   { key: 'finance', href: '/finance', label: 'nav_finance', anyOf: ['finance.view'], icon: Wallet },

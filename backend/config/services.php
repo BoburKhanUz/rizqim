@@ -29,6 +29,11 @@ return [
         'ops_chat_id' => env('TELEGRAM_OPS_CHAT_ID'),
     ],
 
+    // P4-32: the partner web panel (partner/web), where a store's top-up payment returns to; APP_URL when unset
+    'partner_web' => [
+        'url' => env('PARTNER_WEB_URL'),
+    ],
+
     'resend' => [
         'key' => env('RESEND_API_KEY'),
     ],

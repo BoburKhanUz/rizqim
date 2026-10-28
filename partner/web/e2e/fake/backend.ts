@@ -24,6 +24,8 @@ export const OWNER_PERMISSIONS = [
   'reports.view', 'finance.view',
   // P3-37: the "Huquqlar" page
   'permissions.manage',
+  // P4-32: the store's audit log
+  'audit.view',
   // P3-23: the POS sections (halls and tables, bookings, nasiya, shifts)
   'tables.manage', 'bookings.manage', 'customer_accounts.manage', 'pos.close_shift',
 ]

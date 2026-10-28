@@ -104,6 +104,10 @@ export * from './hooks/business';
 export * from './api/reports';
 export * from './hooks/reports';
 
+// P4-32: the store's audit log (the old store panel's "Harakatlar jurnali")
+export * from './api/audit';
+export * from './hooks/audit';
+
 // P2-22: modifier groups, channel prices, branch overrides and the branch list of the partner web menu screens
 export * from './api/menuAdmin';
 export * from './hooks/menuAdmin';

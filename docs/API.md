@@ -556,6 +556,16 @@ xil (`StaffAccountService`): ega — hamma xodimni, menejer — o'z filialidagi 
 o'zgarmaydi. `GET /owner/settings` javobida `timezone`. `payment_settings` — obyekt (provayder bo'yicha, yetkazish
 narxi va kalitlari, ish vaqti), OpenAPI'da shunday yozilgan (P2-30).
 
+**P4-32 (eski `/admin` panelidan).** `GET /owner/settings` javobida `telegram: {group_link, group_linked}` — buyurtmalar va
+bildirishnomalar keladigan Telegram guruhini ulash havolasi (`https://t.me/<bot>?start=store_<uuid>`; bot nomi sozlanmagan
+bo'lsa `null`) va guruh ulanganmi (chat ID'ning o'zi qaytmaydi). Taklif qilinmaydigan to'lov tizimi
+`{enabled: false, available: false, unavailable_reason}`: `not_integrated` (Uzum, Paynet) yoki `switched_off` (RIZQIM
+vaqtincha o'chirgan); `POST` uni yoqishga urinsa 422. `own_account` ovqatxona Click (`service_id`, `merchant_id`,
+`secret_key`) va Payme (`merchant_id`, `secret_key`) kalitlarini `payment_settings.<tizim>` ichida yuboradi; maxfiy kalit
+hech qachon qaytmaydi (`has_secret_key`), bo'sh yoki yulduzchali qiymat saqlanganini qoldiradi. Hamkor panelida: «Sozlamalar»
+(Telegram guruhi, o'z kassa kalitlari), «Harakatlar jurnali» (`/audit`, `GET /owner/audit-logs`), «Xodimlar» → «Mening PIN
+kodim» (`PUT /owner/staff/{o'z id}/pin`).
+
 **Do'kon vaqt mintaqasi xodimlar uchun (P2-30).** `GET /me/permissions` javobida `timezone` — do'konning vaqt mintaqasi
 (`orders.view` yoki `reports.view` ruxsati bor xodimga; boshqalarga `null`). Doska "bugun"ni, hisobotlar kunlarni shu
 bo'yicha sanaydi.
@@ -2561,6 +2571,17 @@ Buyurtma trendi va faollik faqat ulash jarayonidan o'tgan ovqatxonaga (`active`,
   `actions.telegram_link` ulangan egada `false`. 422 `no_owner`.
 - `POST .../message {text}` — egasining Telegramiga (navbat orqali, oddiy matn). 422 `no_recipient`, 503
   `telegram_not_configured`.
+- P4-32: `PUT .../payment-account {payment_account_type?, min_payout_reserve?}` — onlayn to'lov qayerga tushadi
+  (`platform_account`: RIZQIM yig'adi va hamyonga o'tkazadi; `own_account`: ovqatxonaning o'z Click/Payme kassasi, kalitlarni
+  egasi hamkor panelida kiritadi, kiritilmaguncha RIZQIM yig'adi) va payoutdan keyin hamyonda qoladigan zaxira (0–100 000 000
+  so'm). Kamida bittasi. To'lovi kutilayotgan onlayn buyurtma bo'lsa hisob turi o'zgarmaydi: 409 `payments_in_flight`
+  (callback o'sha buyurtma yaratilgan hisob kaliti bilan tekshiriladi). Karta: `actions.payment_account`.
+- P4-32: `PUT .../owner-login-phone {phone}` — raqamini yo'qotgan ega uchun yangi kirish raqami (+998XXXXXXXXX). Platforma
+  kafolatlaydi (`vouched`): shu raqamga kelgan SMS kod bilan hamkor paneli va ilovalarga ega sifatida kiriladi, eski raqamdagi
+  barcha ilova sessiyalari yopiladi, ovqatxona jurnaliga `staff.login_phone_changed` yoziladi (raqam yashirilgan). Raqam
+  do'konni egallashga teng, shuning uchun qo'shimcha `admin.stores.impersonate` kerak (standart: faqat superadmin). 409
+  `owner_phone_taken` (boshqa xodim hisobida bor), 422 `owner_phone_invalid`, `no_owner`. Karta: `profile.owner_login_phone
+  {set, via}`, `actions.owner_login_phone`.
 
 ### CRM-lite
 
@@ -3198,12 +3219,33 @@ Qoidalar va izohlar:
   superadmin chati, navbatchi guruhi) va Umumiy (ilova nomi, manzili, muhit, vaqt mintaqasi) qatorlari `.env` dan olinadi
   va faqat ko'rsatiladi (`editable: false`).
 - To'lov kaliti `PaymentProvider::platformCredential()` kabi aniqlanadi: shu yerda saqlangani, bo'lmasa
-  `config/services.php`. `is_active` va `mode` hozircha **faqat jamoa uchun belgi**: buyurtma oqimi ularni hali
-  tekshirmaydi (Click va Payme kalit bor bo'lsa ishlaydi). Yangi `payment_providers.mode` ustuni eski `test_mode`
-  kalitidan to'ldirildi. «Ulanishni tekshirish» yo'q: hech bir provayderda kalitni yon ta'sirsiz tekshiradigan so'rov yo'q.
+  `config/services.php`. Yangi `payment_providers.mode` ustuni eski `test_mode` kalitidan to'ldirildi. P4-32 dan
+  `is_active` va `mode` buyurtma oqimida ishlaydi — pastdagi «To'lov tizimini o'chirish va sinov rejimi» bo'limiga qarang. «Ulanishni tekshirish» yo'q: hech bir provayderda kalitni yon ta'sirsiz tekshiradigan so'rov yo'q.
 - Viloyatlar va tumanlar tartibi Mini App'ning `GET /locations` javobiga ham ta'sir qiladi (`sort_order`, keyin nom).
 - Eski paneldagi to'lov tizimi yaratish/o'chirish va ikonka yuklash ko'chirilmadi: yangi provayder kodsiz ishlamaydi,
   ikonka hech qayerda ko'rsatilmaydi.
+
+### To'lov tizimini o'chirish va sinov rejimi (P4-32, egasi qarori)
+
+`payment_providers.is_active` va `mode` endi buyurtma oqimida ishlaydi (`App\Services\Payment\PaymentProviderSwitch`,
+qatorlar keshda, saqlanganda kesh tozalanadi):
+
+- **O'chirilgan** tizim barcha ovqatxonalar uchun o'chadi (o'z hisobiga yig'adiganlar ham). Mini App uni taklif qilmaydi:
+  do'kon ma'lumotida `payment_settings.<tizim> = {enabled: false, available: false}`; hamkor panelida
+  `unavailable_reason: "switched_off"` (Uzum/Paynet uchun `not_integrated`) va «RIZQIM vaqtincha o'chirgan» belgisi. Yangi
+  to'lov rad etiladi: `POST /orders` va `POST /owner/finance/top-up` — 422, `code` va `data.reason`
+  `payment_provider_inactive` (`errors.payment_method` / `errors.provider` da o'zbekcha matn). Ovqatxonalar saqlagan
+  sozlama saqlanib qoladi: tizim qayta yoqilsa hamma narsa avvalgidek. Yangi ovqatxona o'chirilgan tizimni yoqilgan holda
+  boshlaydi.
+- **Boshlangan to'lovlar** hech qachon rad etilmaydi: Payme va Click webhooklari kalitni tekshiradi, kalitni emas —
+  `is_active`ni hech qachon so'ramaydi (mavjud buyurtma yoki to'ldirish yakunlanadi, bekor qilinadi, qaytariladi).
+- **Sinov rejimi** (`mode: test`) platforma hisobi orqali Payme to'lovini Payme sinov sahifasiga (`checkout.test.paycom.uz`)
+  yo'naltiradi; ishchi rejim — `checkout.paycom.uz`. Click'da alohida sinov manzili yo'q (`my.click.uz`). Kalitlar rejimdan
+  qat'i nazar shu yerda saqlangani (yoki `.env`) — eski `test_mode` belgisi ham kalitlar yonida turgan edi: sinov paytida
+  sinov kalitlarini kiriting. O'z hisobiga yig'adigan ovqatxona har doim ishchi manzilda.
+- Satr yo'q (kalitlar faqat `.env`da) — tizim yoqilgan va ishchi rejimda.
+- To'lovdan qaytish manzili endi eski `/admin` panel emas: buyurtma — Mini App (`TELEGRAM_WEBAPP_URL`), balans to'ldirish —
+  hamkor panelining `/finance` sahifasi (`PARTNER_WEB_URL`; bo'sh bo'lsa `APP_URL`).
 
 ### Migratsiyalar va testlar (Tizim)
 

@@ -22,6 +22,7 @@ export const uz = {
   nav_shifts: 'Smenalar',
   nav_possetup: 'Kassa sozlamalari',
   nav_permissions: 'Huquqlar',
+  nav_audit: 'Harakatlar jurnali',
   nav_fiscal: 'Fiskal',
   navAria: 'Asosiy menyu',
   openMenu: 'Menyuni ochish',

@@ -33,6 +33,9 @@ export interface FakeStore {
   credit_limit: string
   health: { level: 'good' | 'attention' | 'churn_risk'; score: number; reasons: Array<{ key: string; level: 'attention' | 'churn_risk'; points: number; label: string }> }
   owner: { name: string; phone: string; telegram: boolean } | null
+  // P4-32
+  payment_account_type?: 'platform_account' | 'own_account'
+  min_payout_reserve?: string
   history: Array<{ from: string | null; to: string; by: string | null; comment: string; at: string }>
   next_contact_on: string | null
   notes: Array<{ id: number; body: string; author: string; at: string }>
@@ -156,6 +159,18 @@ export class FakeStores {
       if (req.method === 'PUT' && sub === 'display') {
         if (typeof body.is_premium === 'boolean') store.is_premium = body.is_premium
         if (typeof body.is_featured === 'boolean') store.is_featured = body.is_featured
+        return ok(this.card(store, can))
+      }
+      if (req.method === 'PUT' && sub === 'payment-account') {
+        if (body.payment_account_type === 'own_account' || body.payment_account_type === 'platform_account') store.payment_account_type = body.payment_account_type
+        if (body.min_payout_reserve !== undefined) store.min_payout_reserve = Number(body.min_payout_reserve).toFixed(2)
+        return ok(this.card(store, can))
+      }
+      if (req.method === 'PUT' && sub === 'owner-login-phone') {
+        if (!can('admin.stores.impersonate')) return forbidden
+        if (!store.owner) return fail(422, 'Ovqatxonaning egasi topilmadi.', { reason: 'no_owner' })
+        if (!/^\+998\d{9}$/.test(String(body.phone))) return fail(422, "Telefon +998XXXXXXXXX ko'rinishida bo'lsin.", { reason: 'owner_phone_invalid' })
+        store.owner.phone = String(body.phone)
         return ok(this.card(store, can))
       }
       if (req.method === 'POST' && sub === 'telegram-link') {
@@ -342,8 +357,9 @@ export class FakeStores {
     return {
       profile: {
         id: store.id, uuid: `uuid-${store.id}`, name: store.name, status: store.status, status_label: STATUS_LABEL[store.status] ?? store.status, is_active: store.is_active, is_open: true, is_premium: store.is_premium, is_featured: store.is_featured,
-        is_order_locked: over(store), phone: null, address: 'Chilonzor 1', description: null, logo_url: null, tin: '305000111', legal_name: null, tax_regime: null, payment_account_type: 'platform_account',
+        is_order_locked: over(store), phone: null, address: 'Chilonzor 1', description: null, logo_url: null, tin: '305000111', legal_name: null, tax_regime: null, payment_account_type: store.payment_account_type ?? 'platform_account',
         commission_rate: '10', rating: '4.50', review_count: 12, created_at: iso(60 * 24 * 60), telegram: { store_chat_linked: true, owner_linked: store.owner?.telegram ?? false, owner_invite_pending: !store.owner?.telegram },
+        owner_login_phone: { set: store.owner !== null, via: store.owner ? 'vouched' : null },
       },
       application: application ? this.applicationRow(application) : null,
       contacts: store.owner ? [{ kind: 'staff', user_id: store.id + 1000, name: store.owner.name, role: 'owner', role_label: 'Ega', phone: mask(store.owner.phone), telegram_linked: store.owner.telegram, branch_id: null }] : [],
@@ -363,7 +379,7 @@ export class FakeStores {
       },
       devices: { terminals: 1, terminals_online: store.health.reasons.some((r) => r.key === 'devices_silent') ? 0 : 1, by_type: { pos: 1, kds: 0 }, items: [{ uuid: `d-${store.id}`, name: 'Kassa 1', type: 'pos', type_label: 'Kassa', terminal: true, branch: null, platform: 'android', app_version: '1.4.0', last_seen_at: iso(store.health.reasons.some((r) => r.key === 'devices_silent') ? 60 * 24 * 4 : 1), online: !store.health.reasons.some((r) => r.key === 'devices_silent'), paired_at: null }] },
       fiscal: { enabled: false, driver: null, tax_regime: null, failed_7d: 0, pending: 0, missing_mxik: 0, last_failed: [] },
-      finance: { debt_balance: store.debt, subscription_debt: '0.00', commission_debt: store.debt, wallet_balance: '0.00', credit_limit: store.credit_limit, over_limit: over(store), min_payout_reserve: '100000.00', available_for_payout: '0.00', payouts: [], ledger: [] },
+      finance: { debt_balance: store.debt, subscription_debt: '0.00', commission_debt: store.debt, wallet_balance: '0.00', credit_limit: store.credit_limit, over_limit: over(store), min_payout_reserve: store.min_payout_reserve ?? '100000.00', available_for_payout: '0.00', payouts: [], ledger: [] },
       orders: { quality: null, last_30_days: [], recent: [] },
       complaints: { open: 0, last_30_days: 0, items: [] },
       health: { level: store.health.level, label: LEVEL_LABEL[store.health.level], score: store.health.score, reasons: store.health.reasons, metrics: {}, computed_at: iso() },
@@ -376,6 +392,7 @@ export class FakeStores {
       actions: {
         manage, suspend: manage && store.status !== 'suspended', activate: manage && store.status !== 'active' && application === null, credit_limit: manage, display: manage,
         telegram_link: manage && store.owner !== null && !store.owner.telegram, message_owner: manage && Boolean(store.owner?.telegram), commission_override: can('admin.subscriptions.manage'),
+        payment_account: manage, owner_login_phone: manage && store.owner !== null && can('admin.stores.impersonate'),
       },
       links: { orders: `/orders?store_id=${store.id}`, audit: `/audit?store_id=${store.id}`, subscription: `/pos?store=${store.id}` },
     }

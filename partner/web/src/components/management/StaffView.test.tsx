@@ -299,6 +299,20 @@ describe('StaffView: role, PIN, remove', () => {
     expect(await calls.filter((call) => call.method === 'PUT')[1]!.json()).toEqual({ pin: '4821' });
   });
 
+  it("sets the signed-in owner's own PIN (they are not in their own list)", async () => {
+    const { calls } = routes({ 'PUT /api/v1/owner/staff/7/pin': () => ok({ user_id: 7, staff_code: '5120', pin_set_at: '2026-10-28T10:00:00+05:00' }) });
+    const typing = userEvent.setup();
+    renderPage(<StaffView />);
+    await ready();
+    await typing.click(screen.getByRole('button', { name: 'Mening PIN kodim' }));
+    const dialog = within(await screen.findByRole('dialog', { name: 'Mening PIN kodim' }));
+    expect(dialog.queryByRole('button', { name: "PINni o'chirish" })).not.toBeInTheDocument();
+    await typing.type(dialog.getByLabelText('PIN kod'), '4827');
+    await typing.click(dialog.getByRole('button', { name: "PIN o'rnatish" }));
+    expect(await screen.findByText('5120', { selector: 'p' })).toBeInTheDocument();
+    expect(await calls.filter((call) => call.method === 'PUT')[0]!.json()).toEqual({ pin: '4827' });
+  });
+
   it('clears the PIN after a second click', async () => {
     const { calls } = routes({ 'DELETE /api/v1/owner/staff/1/pin': () => ok(null) });
     const typing = userEvent.setup();

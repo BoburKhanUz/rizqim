@@ -126,6 +126,88 @@ class StoreActions
     }
 
     /**
+     * P4-32 (was the old superadmin store form): where the store's online payments go and the reserve a payout must
+     * leave in the wallet.
+     *
+     *  - `payment_account_type`: platform_account (Click/Payme pay the platform, the ledger settles the store's wallet)
+     *    or own_account (the store's own merchant cashbox, once the owner entered its keys in the partner panel). Not
+     *    while the store has an online order waiting for its payment: its callbacks are verified with the key of the
+     *    account it was placed with (409 payments_in_flight);
+     *  - `min_payout_reserve`: what stays in the wallet after a payout (LedgerService::availableForPayout).
+     *
+     * @param  array{payment_account_type?: string, min_payout_reserve?: string}  $change
+     * @return array{before: array<string, mixed>, after: array<string, mixed>}
+     *
+     * @throws StoreAdminException
+     */
+    public function setPaymentAccount(Store $store, array $change): array
+    {
+        return DB::transaction(function () use ($store, $change) {
+            $store = $this->lock($store);
+            $before = ['payment_account_type' => (string) $store->payment_account_type, 'min_payout_reserve' => Money::of($store->min_payout_reserve ?? 0)->toString()];
+
+            $fill = [];
+            if (array_key_exists('payment_account_type', $change) && $change['payment_account_type'] !== $before['payment_account_type']) {
+                $waiting = \App\Models\Order::query()
+                    ->where('store_id', $store->id)
+                    ->where('status', \App\Enums\OrderStatus::NEW->value)
+                    ->whereIn('payment_method', (array) config('orders.online_payment_methods', []))
+                    ->where('payment_status', '!=', \App\Enums\PaymentStatus::PAID->value)
+                    ->exists();
+                if ($waiting) {
+                    throw new StoreAdminException(
+                        "Ovqatxonada to'lovi kutilayotgan onlayn buyurtma bor: to'lov hisobini u yakunlangach (yoki bekor bo'lgach) o'zgartiring.",
+                        'payments_in_flight',
+                        409,
+                    );
+                }
+                $fill['payment_account_type'] = $change['payment_account_type'];
+            }
+            if (array_key_exists('min_payout_reserve', $change)) {
+                $fill['min_payout_reserve'] = Money::of($change['min_payout_reserve'])->toString();
+            }
+            if ($fill !== []) {
+                $store->forceFill($fill)->save();
+            }
+
+            return ['before' => $before, 'after' => ['payment_account_type' => (string) $store->payment_account_type, 'min_payout_reserve' => Money::of($store->min_payout_reserve ?? 0)->toString()]];
+        });
+    }
+
+    /**
+     * P4-32 (was "SMS bilan kirishni yoqish" and the phone field of the old superadmin user form): the owner's login
+     * phone, for an owner who lost the old number. The platform vouches for it (StaffPhoneLoginService::vouch, audited
+     * as staff.login_phone_*), so its holder signs in to the partner panel and the apps by SMS code; every app session
+     * of the old number ends. A phone another staff account already has is refused (409 owner_phone_taken), as when
+     * the store was created. Who may do it: stores.impersonate (it hands the store to whoever holds the number).
+     *
+     * @return array{before: array{phone: string|null}, after: array{phone: string|null}, owner: User}
+     *
+     * @throws StoreAdminException
+     */
+    public function setOwnerLoginPhone(Store $store, string $phone): array
+    {
+        $owner = self::owner($store);
+        if ($owner === null) {
+            throw new StoreAdminException("Ovqatxonaning egasi topilmadi.", 'no_owner');
+        }
+
+        $phone = trim($phone);
+        if (!preg_match(\App\Services\Auth\StaffPhoneLoginService::PHONE_PATTERN, $phone)) {
+            throw new StoreAdminException("Telefon +998XXXXXXXXX ko'rinishida bo'lsin.", 'owner_phone_invalid');
+        }
+        if (StoreProvisioner::phoneTaken($phone, (int) $owner->id)) {
+            throw new StoreAdminException("Bu telefon raqami boshqa xodim hisobida bor.", 'owner_phone_taken', 409);
+        }
+
+        $before = \App\Services\Auth\StaffPhoneLoginService::loginPhone($owner);
+        app(\App\Services\Auth\StaffPhoneLoginService::class)->vouch($owner, $phone);
+        $owner->refresh();
+
+        return ['before' => ['phone' => $before], 'after' => ['phone' => \App\Services\Auth\StaffPhoneLoginService::loginPhone($owner)], 'owner' => $owner];
+    }
+
+    /**
      * A new one-time invite link for the owner's Telegram; the old link stops working.
      *
      * Review F3-1: whoever opens the link binds their Telegram to the owner's account, so it is a credential:

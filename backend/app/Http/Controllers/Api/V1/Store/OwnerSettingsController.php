@@ -21,7 +21,7 @@ class OwnerSettingsController extends Controller
     use ApiResponse;
 
     /** A payment provider as the owner sees it: secrets never, only whether one is set (has_secret_key...). */
-    private const PROVIDER_OUT = 'array{enabled?: bool, merchant_id?: string|null, service_id?: string|null, available?: bool, has_secret_key?: bool}';
+    private const PROVIDER_OUT = 'array{enabled?: bool, merchant_id?: string|null, service_id?: string|null, available?: bool, unavailable_reason?: \'not_integrated\'|\'switched_off\', has_secret_key?: bool}';
 
     /** The store's payment_settings JSON as GET /owner/settings sends it (a legacy provider may be a bare boolean). */
     private const SETTINGS_OUT = 'array{cash?: bool|' . self::PROVIDER_OUT . ', click?: bool|' . self::PROVIDER_OUT . ', payme?: bool|' . self::PROVIDER_OUT . ', uzum?: bool|' . self::PROVIDER_OUT . ', paynet?: bool|' . self::PROVIDER_OUT . ', delivery_fee?: float|int|string, delivery_enabled?: bool, pickup_enabled?: bool, working_hours?: array{open?: string|null, close?: string|null}, allowed_methods?: list<string>}';
@@ -32,8 +32,13 @@ class OwnerSettingsController extends Controller
 
     /**
      * Get store settings.
+     *
+     * A provider not offered now is `{enabled: false, available: false, unavailable_reason}`: `not_integrated` (Uzum,
+     * Paynet) or, P4-32, `switched_off` (the RIZQIM team switched it off for a while). `telegram.group_link`: the bot
+     * link that routes the store's orders and notices to a Telegram group (null while the bot has no username);
+     * `group_linked`: whether a group is linked.
      */
-    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{id: int, name: string, timezone: string, logo: string|null, logo_url: string|null, banner: string|null, banner_url: string|null, description: string|null, phone: string|null, address: string|null, location_url: string|null, is_open: bool, min_order_amount: float, payment_settings: ' . self::SETTINGS_OUT . ', payment_account_type: \'own_account\'|\'platform_account\', status: StoreStatus, is_order_locked: bool, allowed_methods: list<string>, tin: string|null, tax_regime: \'vat\'|\'vat_simplified\'|\'turnover\'|null, fiscal_settings: array{enabled: bool, driver: string, active_driver: string, charges: array<string, ' . \App\Http\Controllers\Api\V1\Fiscal\FiscalSettingsController::CHARGE . '>, sandbox: array{latency_ms: int, fail_attempts: int, failure_rate: int, reject: bool}, deposit_refund_receipt: bool|null, retained_deposit_receipt: bool|null}}}')]
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{id: int, name: string, timezone: string, logo: string|null, logo_url: string|null, banner: string|null, banner_url: string|null, description: string|null, phone: string|null, address: string|null, location_url: string|null, is_open: bool, min_order_amount: float, payment_settings: ' . self::SETTINGS_OUT . ', payment_account_type: \'own_account\'|\'platform_account\', status: StoreStatus, is_order_locked: bool, allowed_methods: list<string>, tin: string|null, tax_regime: \'vat\'|\'vat_simplified\'|\'turnover\'|null, telegram: array{group_link: string|null, group_linked: bool}, fiscal_settings: array{enabled: bool, driver: string, active_driver: string, charges: array<string, ' . \App\Http\Controllers\Api\V1\Fiscal\FiscalSettingsController::CHARGE . '>, sandbox: array{latency_ms: int, fail_attempts: int, failure_rate: int, reject: bool}, deposit_refund_receipt: bool|null, retained_deposit_receipt: bool|null}}}')]
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -49,8 +54,9 @@ class OwnerSettingsController extends Controller
         }
 
         $paymentSettings = $this->settingsForOwner($store->payment_settings ?? []);
+        // P4-32: `unavailable_reason` tells "not integrated yet" from "switched off by the RIZQIM team for a while"
         foreach (Store::unavailablePaymentMethods() as $method) {
-            $paymentSettings[$method] = ['enabled' => false, 'available' => false];
+            $paymentSettings[$method] = ['enabled' => false, 'available' => false, 'unavailable_reason' => Store::paymentMethodUnavailableReason($method) ?? 'not_integrated'];
         }
 
         return $this->success([
@@ -78,6 +84,14 @@ class OwnerSettingsController extends Controller
             // P3-11: the store as a taxpayer and its fiscal settings (also GET /owner/fiscal/settings)
             'tin' => $store->tin,
             'tax_regime' => $store->tax_regime,
+            // P4-32 (was the old store panel's Telegram tab): the bot link that routes the store's orders and notices to a
+            // Telegram group; the owner or a store-wide manager opens it in the group (TelegramMessageHandler)
+            'telegram' => [
+                'group_link' => filled(config('services.telegram.bot_username'))
+                    ? 'https://t.me/' . config('services.telegram.bot_username') . '?start=store_' . $store->uuid
+                    : null,
+                'group_linked' => filled($store->telegram_admin_chat_id),
+            ],
             'fiscal_settings' => \App\Domain\Fiscal\FiscalSettings::of($store)->toArray(),
         ]);
     }
@@ -158,7 +172,9 @@ class OwnerSettingsController extends Controller
             $requested = $newSettings[$method] ?? null;
             if ((bool) (is_array($requested) ? ($requested['enabled'] ?? false) : $requested)) {
                 throw ValidationException::withMessages([
-                    'payment_settings' => ucfirst($method) . " orqali to'lov hozircha mavjud emas, uni yoqib bo'lmaydi.",
+                    'payment_settings' => Store::paymentMethodUnavailableReason($method) === 'switched_off'
+                        ? ucfirst($method) . " orqali to'lovni RIZQIM vaqtincha o'chirgan, uni yoqib bo'lmaydi."
+                        : ucfirst($method) . " orqali to'lov hozircha mavjud emas, uni yoqib bo'lmaydi.",
                 ]);
             }
         }

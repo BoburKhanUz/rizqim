@@ -23,6 +23,7 @@ export const ru: Messages = {
   nav_shifts: 'Смены',
   nav_possetup: 'Настройки кассы',
   nav_permissions: 'Права',
+  nav_audit: 'Журнал действий',
   nav_fiscal: 'Фискализация',
   navAria: 'Главное меню',
   openMenu: 'Открыть меню',

@@ -29,16 +29,18 @@ class OrderPaymentLinkTest extends TestCase
         $links = app(PaymentLinkService::class);
         $click = $this->makeOrder(OrderStatus::NEW, ['payment_method' => 'click', 'total_price' => 52500]);
         $payme = $this->makeOrder(OrderStatus::NEW, ['payment_method' => 'payme', 'total_price' => 52500]);
+        config(['services.telegram.webapp_url' => null]);
 
+        // P4-32: the customer comes back to the Mini App (TELEGRAM_WEBAPP_URL), else the site; no longer the old /admin panel
         $this->assertSame(
-            "https://my.click.uz/services/pay?service_id=click-service&merchant_id=click-merchant&amount=52500&transaction_param={$click->uuid}&return_url=" . urlencode(url('/admin')),
+            "https://my.click.uz/services/pay?service_id=click-service&merchant_id=click-merchant&amount=52500&transaction_param={$click->uuid}&return_url=" . urlencode(url('/')),
             $links->forOrder($click)
         );
 
         $paymeUrl = $links->forOrder($payme);
         $this->assertStringStartsWith('https://checkout.paycom.uz/', $paymeUrl);
         $this->assertSame(
-            "m=payme-merchant;ac.order_id={$payme->uuid};a=5250000;c=" . urlencode(url('/admin')),
+            "m=payme-merchant;ac.order_id={$payme->uuid};a=5250000;c=" . urlencode(url('/')),
             base64_decode(substr($paymeUrl, strlen('https://checkout.paycom.uz/')))
         );
     }

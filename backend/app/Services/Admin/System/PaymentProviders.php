@@ -10,8 +10,9 @@ use App\Models\PaymentProvider;
  * PaymentProvider::platformCredential(): the value stored here, else config/services.php (.env). This service shows that
  * resolution without the values (SecretMask) and changes the stored ones one key at a time.
  *
- * `is_active` and `mode` (test / production) are the team's switches; the order flow does not read them yet (it pays
- * through Click and Payme whenever their keys are set) — the screen says so.
+ * `is_active` and `mode` (test / production) are the team's switches; P4-32: the order flow reads them through
+ * App\Services\Payment\PaymentProviderSwitch (an inactive provider is not offered and takes no new payment; the mode
+ * picks Payme's sandbox checkout).
  */
 final class PaymentProviders
 {

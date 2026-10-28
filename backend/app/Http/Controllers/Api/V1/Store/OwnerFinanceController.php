@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use App\Traits\ApiResponse;
 use App\Models\PaymentProvider;
+use App\Services\Payment\PaymentProviderSwitch;
 use App\Models\StoreTransaction;
 use App\Models\StoreWalletTransaction;
 use App\Models\PayoutRequest;
@@ -117,6 +118,10 @@ class OwnerFinanceController extends Controller
 
     /**
      * Initiate a store balance top-up payment.
+     *
+     * P4-32: 422 with `code` payment_provider_inactive when the RIZQIM team switched the provider off (Tizim → To'lov
+     * tizimlari). In test mode Payme opens its sandbox checkout. The payment returns to the partner panel's Moliya page
+     * (PARTNER_WEB_URL).
      */
     public function initiateTopup(Request $request): JsonResponse
     {
@@ -140,6 +145,20 @@ class OwnerFinanceController extends Controller
         $amount = Money::of($data['amount']);
         $provider = $data['provider'];
 
+        // P4-32: a provider the RIZQIM team switched off takes no new top-ups (one already started is still confirmed)
+        $providers = app(PaymentProviderSwitch::class);
+        if (!$providers->isActive($provider)) {
+            $message = PaymentProviderSwitch::inactiveMessage($provider);
+
+            return response()->json([
+                'success' => false,
+                'message' => $message,
+                'code' => PaymentProviderSwitch::INACTIVE_CODE,
+                'errors' => ['provider' => [$message]],
+                'data' => ['reason' => PaymentProviderSwitch::INACTIVE_CODE, 'payment_method' => $provider, 'errors' => ['provider' => [$message]]],
+            ], 422);
+        }
+
         // Create a pending top-up request
         $topupRequest = \App\Models\StoreTopupRequest::create([
             'store_id' => $store->id,
@@ -148,29 +167,17 @@ class OwnerFinanceController extends Controller
             'status' => 'pending',
         ]);
 
-        // Generate payment URL using platform credentials
-        $paymentUrl = '';
-        $returnUrl = url('/admin'); // Return to platform admin/app dashboard
-
-        if ($provider === 'click') {
-            // Platform click credentials (top-ups are always paid to the platform)
-            $serviceId = PaymentProvider::platformCredential('click', 'service_id');
-            $merchantId = PaymentProvider::platformCredential('click', 'merchant_id');
-
-            $paymentUrl = "https://my.click.uz/services/pay" .
-                   "?service_id={$serviceId}" .
-                   "&merchant_id={$merchantId}" .
-                   "&amount={$amount->toFloat()}" .
-                   "&transaction_param=topup_{$topupRequest->uuid}" .
-                   "&return_url=" . urlencode($returnUrl);
-        } elseif ($provider === 'payme') {
-            // Platform payme credentials (top-ups are always paid to the platform)
-            $merchantId = PaymentProvider::platformCredential('payme', 'merchant_id');
-
-            $tiyinAmount = $amount->toTiyin();
-            $params = "m={$merchantId};ac.order_id=topup_{$topupRequest->uuid};a={$tiyinAmount};c=" . urlencode($returnUrl);
-            $paymentUrl = "https://checkout.paycom.uz/" . base64_encode($params);
-        }
+        // Paid to the platform merchant (top-ups are always the platform's), back to the partner panel's Moliya page
+        $returnUrl = PaymentProviderSwitch::topupReturnUrl();
+        $paymentUrl = $provider === 'click'
+            ? $providers->clickUrl(
+                PaymentProvider::platformCredential('click', 'service_id'),
+                PaymentProvider::platformCredential('click', 'merchant_id'),
+                (string) $amount->toFloat(),
+                "topup_{$topupRequest->uuid}",
+                $returnUrl,
+            )
+            : $providers->paymeUrl(PaymentProvider::platformCredential('payme', 'merchant_id'), $amount->toTiyin(), "topup_{$topupRequest->uuid}", $returnUrl);
 
         return $this->success([
             'topup_uuid' => $topupRequest->uuid,

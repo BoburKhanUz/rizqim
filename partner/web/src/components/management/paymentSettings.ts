@@ -1,8 +1,9 @@
 import type { OwnerPaymentSettings, PaymentProviderSettings, StoreSettings, StoreSettingsInput } from '@rizqim/staff';
 
 // How the stored payment_settings are read back into a form, and written again. A provider is either a bare boolean (older data)
-// or an object; the API adds `available: false` to one the platform cannot process yet (Uzum, Paynet), which can be shown but
-// not switched on (the server refuses it with 422 on payment_settings).
+// or an object; the API adds `available: false` to one the platform cannot process now (Uzum, Paynet not integrated yet; P4-32: a
+// provider RIZQIM switched off, `unavailable_reason: switched_off`), which can be shown but not switched on (the server refuses it
+// with 422 on payment_settings and keeps what the store saved for it).
 type ProviderSetting = boolean | PaymentProviderSettings | null | undefined;
 
 // Cash is on unless the store switched it off
@@ -19,6 +20,31 @@ export function onlineOn(setting: ProviderSetting): boolean {
 
 export function providerAvailable(setting: ProviderSetting): boolean {
   return typeof setting === 'object' && setting !== null ? setting.available !== false : true;
+}
+
+// P4-32: why a provider cannot be switched on: not integrated yet (Uzum, Paynet) or switched off by RIZQIM for a while
+export function unavailableReason(setting: ProviderSetting): 'not_integrated' | 'switched_off' | null {
+  if (providerAvailable(setting)) return null;
+  return typeof setting === 'object' && setting !== null && setting.unavailable_reason === 'switched_off' ? 'switched_off' : 'not_integrated';
+}
+
+// P4-32 (the old store panel's merchant fields): a store collecting into its own Click / Payme cashbox enters the keys the
+// payment link and the webhooks use. The secret is write-only: the API says only whether one is stored (has_secret_key); an
+// empty field keeps it.
+export const MERCHANT_PROVIDERS = ['click', 'payme'] as const;
+export type MerchantProvider = (typeof MERCHANT_PROVIDERS)[number];
+export const MERCHANT_FIELDS: Record<MerchantProvider, readonly ('merchant_id' | 'service_id')[]> = { click: ['service_id', 'merchant_id'], payme: ['merchant_id'] };
+
+export interface MerchantDraft {
+  merchant_id: string;
+  service_id: string;
+  secret_key: string;
+  hasSecret: boolean;
+}
+
+function merchantDraft(setting: ProviderSetting): MerchantDraft {
+  const section = typeof setting === 'object' && setting !== null ? setting : {};
+  return { merchant_id: section.merchant_id ?? '', service_id: section.service_id ?? '', secret_key: '', hasSecret: section.has_secret_key === true };
 }
 
 export const PROVIDERS = ['cash', 'click', 'payme', 'uzum', 'paynet'] as const;
@@ -39,6 +65,7 @@ export interface SettingsDraft {
   openTime: string;
   closeTime: string;
   providers: Record<Provider, boolean>;
+  merchant: Record<MerchantProvider, MerchantDraft>;
 }
 
 export function draftFromSettings(settings: StoreSettings): SettingsDraft {
@@ -66,7 +93,16 @@ export function draftFromSettings(settings: StoreSettings): SettingsDraft {
       uzum: providerAvailable(payment.uzum) && onlineOn(payment.uzum),
       paynet: providerAvailable(payment.paynet) && onlineOn(payment.paynet),
     },
+    merchant: { click: merchantDraft(payment.click), payme: merchantDraft(payment.payme) },
   };
+}
+
+// The merchant keys sent for a provider (own account only): ids as typed (empty: none), the secret only when a new one was typed
+function merchantInput(provider: MerchantProvider, draft: MerchantDraft): Record<string, string | null> {
+  const input: Record<string, string | null> = {};
+  for (const field of MERCHANT_FIELDS[provider]) input[field] = draft[field].trim() || null;
+  if (draft.secret_key.trim() !== '') input.secret_key = draft.secret_key.trim();
+  return input;
 }
 
 // The request. POST /owner/settings overwrites logo, banner, description, address, location_url, is_open and the minimum
@@ -74,6 +110,8 @@ export function draftFromSettings(settings: StoreSettings): SettingsDraft {
 export function inputFromDraft(settings: StoreSettings, draft: SettingsDraft, numbers: { minOrder: number; deliveryFee: number }): StoreSettingsInput {
   const payment: OwnerPaymentSettings = settings.payment_settings ?? {};
   const unavailable = (provider: Provider) => !providerAvailable(payment[provider]);
+  const own = settings.payment_account_type === 'own_account';
+  const merchant = (provider: MerchantProvider) => (own && !unavailable(provider) ? merchantInput(provider, draft.merchant[provider]) : {});
   return {
     name: draft.name.trim(),
     timezone: draft.timezone.trim(),
@@ -91,8 +129,8 @@ export function inputFromDraft(settings: StoreSettings, draft: SettingsDraft, nu
       pickup_enabled: draft.pickupEnabled,
       working_hours: { open: draft.openTime, close: draft.closeTime },
       cash: { enabled: draft.providers.cash },
-      click: { enabled: draft.providers.click },
-      payme: { enabled: draft.providers.payme },
+      click: { enabled: draft.providers.click, ...merchant('click') },
+      payme: { enabled: draft.providers.payme, ...merchant('payme') },
       // Never switched on from here while the provider is not integrated (the server refuses it)
       uzum: { enabled: !unavailable('uzum') && draft.providers.uzum },
       paynet: { enabled: !unavailable('paynet') && draft.providers.paynet },

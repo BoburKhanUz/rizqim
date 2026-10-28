@@ -43,6 +43,7 @@ const SETTINGS = {
   status: 'active',
   is_order_locked: false,
   allowed_methods: ['cash', 'click', 'payme'],
+  telegram: { group_link: 'https://t.me/rizqim_bot?start=store_abc', group_linked: false },
 };
 
 const base = (over: Parameters<typeof mockFetch>[0] = {}, keys?: string[]) =>
@@ -115,6 +116,39 @@ describe('SettingsView: the store tab', () => {
     expect(await screen.findByText("Vaqt mintaqasi noto'g'ri (masalan Asia/Tashkent).")).toBeInTheDocument();
     const body = (await calls.find((call) => call.method === 'POST')!.json()) as { payment_settings: Record<string, unknown> };
     expect(body.payment_settings).toMatchObject({ payme: { enabled: true }, click: { enabled: false }, uzum: { enabled: false }, paynet: { enabled: false } });
+  });
+
+  it("P4-32: says when RIZQIM switched a provider off, and shows the store's Telegram group link", async () => {
+    base({ 'GET /api/v1/owner/settings': () => ok({ ...SETTINGS, payment_settings: { ...SETTINGS.payment_settings, payme: { enabled: false, available: false, unavailable_reason: 'switched_off' } } }) });
+    renderPage(<SettingsView />);
+    await screen.findByLabelText("Do'kon nomi");
+    expect(screen.getByRole('checkbox', { name: 'Payme' })).toBeDisabled();
+    expect(screen.getByText("RIZQIM vaqtincha o'chirgan")).toBeInTheDocument();
+    expect(screen.getAllByText('Tez orada')).toHaveLength(2);
+    expect(screen.getByText('Guruh ulanmagan')).toBeInTheDocument();
+    expect(screen.getByLabelText('Guruhni ulash havolasi')).toHaveValue('https://t.me/rizqim_bot?start=store_abc');
+    expect(screen.getByRole('link', { name: 'Telegramda ochish' })).toHaveAttribute('href', 'https://t.me/rizqim_bot?start=store_abc');
+  });
+
+  it('P4-32: a store on its own account enters its merchant keys; the stored secret is never shown and an empty one is kept', async () => {
+    const own = {
+      ...SETTINGS,
+      payment_account_type: 'own_account',
+      payment_settings: { ...SETTINGS.payment_settings, click: { enabled: true, service_id: '111', merchant_id: '222', has_secret_key: true }, payme: { enabled: true, has_secret_key: false } },
+    };
+    const { calls } = base({ 'GET /api/v1/owner/settings': () => ok(own), 'POST /api/v1/owner/settings': () => ok(null) });
+    const typing = userEvent.setup();
+    renderPage(<SettingsView />);
+    expect(await screen.findByLabelText('Click Service ID')).toHaveValue('111');
+    expect(screen.getByLabelText('Click maxfiy kaliti')).toHaveValue('');
+    expect(screen.getByText('Saqlangan. Almashtirish uchun yangisini yozing.')).toBeInTheDocument();
+    await typing.type(screen.getByLabelText('Payme Merchant ID'), 'pm-1');
+    await typing.type(screen.getByLabelText('Payme maxfiy kaliti'), 'secret-pm');
+    await typing.click(screen.getByRole('button', { name: 'Saqlash' }));
+    await screen.findByRole('status');
+    const body = (await calls.find((call) => call.method === 'POST')!.json()) as { payment_settings: Record<string, unknown> };
+    expect(body.payment_settings.click).toEqual({ enabled: true, service_id: '111', merchant_id: '222' });
+    expect(body.payment_settings.payme).toEqual({ enabled: true, merchant_id: 'pm-1', secret_key: 'secret-pm' });
   });
 
   it('checks the name and the numbers before saving', async () => {

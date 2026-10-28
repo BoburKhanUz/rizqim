@@ -17,10 +17,11 @@ class PaymentProviderSeeder extends Seeder
                 'name' => 'Payme',
                 'slug' => 'payme',
                 'is_active' => true,
+                // P4-32: the mode is its own column (Tizim → To'lov tizimlari), no longer a `test_mode` credential
+                'mode' => 'production',
                 'credentials' => [
                     'merchant_id' => '',
                     'secret_key' => '',
-                    'test_mode' => 'true',
                 ]
             ],
             [

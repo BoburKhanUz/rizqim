@@ -19,7 +19,12 @@ part 'owner_settings_api.g.dart';
 abstract class OwnerSettingsApi {
   factory OwnerSettingsApi(Dio dio, {String? baseUrl}) = _OwnerSettingsApi;
 
-  /// Get store settings
+  /// Get store settings.
+  ///
+  /// A provider not offered now is `{enabled: false, available: false, unavailable_reason}`: `not_integrated` (Uzum,.
+  /// Paynet) or, P4-32, `switched_off` (the RIZQIM team switched it off for a while). `telegram.group_link`: the bot.
+  /// link that routes the store's orders and notices to a Telegram group (null while the bot has no username);.
+  /// `group_linked`: whether a group is linked.
   @GET('/v1/owner/settings')
   Future<GetV1OwnerSettingsResponse> ownerSettingsIndex();
 

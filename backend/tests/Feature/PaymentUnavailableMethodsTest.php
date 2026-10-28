@@ -86,8 +86,8 @@ class PaymentUnavailableMethodsTest extends TestCase
     public function test_owner_settings_show_them_unavailable_and_refuse_to_enable_them(): void
     {
         $this->actingAs($this->owner)->getJson('/api/v1/owner/settings')->assertOk()
-            ->assertJsonPath('data.payment_settings.uzum', ['enabled' => false, 'available' => false])
-            ->assertJsonPath('data.payment_settings.paynet', ['enabled' => false, 'available' => false])
+            ->assertJsonPath('data.payment_settings.uzum', ['enabled' => false, 'available' => false, 'unavailable_reason' => 'not_integrated'])
+            ->assertJsonPath('data.payment_settings.paynet', ['enabled' => false, 'available' => false, 'unavailable_reason' => 'not_integrated'])
             ->assertJsonPath('data.payment_settings.payme.enabled', true)
             ->assertJsonPath('data.allowed_methods', ['cash', 'click', 'payme']);
 

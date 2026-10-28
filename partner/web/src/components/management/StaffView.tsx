@@ -5,6 +5,8 @@ import { KeyRound, Pencil, Search, ShieldCheck, Trash2, UserCog, UserPlus, Users
 import { Button, Card, CardSkeletons, EmptyState, IconButton, InlineError, cx, fieldClass, PageHeader, Notice, Pill } from '@rizqim/ui';
 import { useMenuBranches, useManagedStaff, useRemoveManagedStaff, type CreatedStaff, type StaffMember } from '@rizqim/staff';
 import { roleLabel } from '@/lib/labels';
+import { getSession } from '@/lib/session/client';
+import { useAccess, useOptionalAuth } from '../AuthProvider';
 import { useI18n } from '../I18nProvider';
 import { useCan } from './access';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -20,6 +22,7 @@ type Dialog =
   | { kind: 'role'; member: StaffMember }
   | { kind: 'pin'; member: StaffMember }
   | { kind: 'remove'; member: StaffMember }
+  | { kind: 'myPin' }
   | { kind: 'invite'; created: CreatedStaff };
 
 // GET /owner/staff: the staff the signed-in person manages, with role, branch, the login phone and the PIN. What each
@@ -36,6 +39,11 @@ export function StaffView() {
   const [roleFilter, setRoleFilter] = useState('');
   const remove = useRemoveManagedStaff();
   const [removeError, setRemoveError] = useState<string | null>(null);
+  // P4-32: the owner's or manager's own terminal PIN (they are not in their own list)
+  const auth = useOptionalAuth();
+  const myId = useAccess()?.userId ?? getSession()?.user?.id ?? null;
+  const myName = (auth?.state.status === 'ready' ? auth.state.userName : '') || getSession()?.user?.name || '';
+  const canMyPin = access.can('staff.pin') && (access.role === 'owner' || access.role === 'manager') && myId !== null;
 
   const members = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -71,9 +79,16 @@ export function StaffView() {
         title={t('nav_staff')}
         subtitle={t('staff_subtitle')}
         action={
-          <Button icon={UserPlus} onClick={() => setDialog({ kind: 'add' })} disabled={!staff.isSuccess}>
-            {t('staff_add')}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {canMyPin && (
+              <Button variant="secondary" icon={KeyRound} onClick={() => setDialog({ kind: 'myPin' })}>
+                {t('staff_myPin')}
+              </Button>
+            )}
+            <Button icon={UserPlus} onClick={() => setDialog({ kind: 'add' })} disabled={!staff.isSuccess}>
+              {t('staff_add')}
+            </Button>
+          </div>
         }
       />
       <Notice message={notice} />
@@ -130,6 +145,7 @@ export function StaffView() {
       {dialog?.kind === 'invite' && <InviteDialog name={dialog.created.staff.name} link={dialog.created.invite_link} phoneSet={dialog.created.staff.login_phone_enabled} onClose={close} />}
       {dialog?.kind === 'role' && <StaffRoleDialog member={dialog.member} branches={branches.data ?? []} onClose={close} onSaved={() => done(t('staff_roleSaved', { name: dialog.member.name }))} />}
       {dialog?.kind === 'pin' && <StaffPinDialog member={dialog.member} onClose={close} onChanged={done} />}
+      {dialog?.kind === 'myPin' && myId !== null && <StaffPinDialog self member={{ id: myId, name: myName, has_pin: false, staff_code: null }} onClose={close} onChanged={done} />}
       {dialog?.kind === 'remove' && (
         <ConfirmDialog
           title={t('staff_removeTitle', { name: dialog.member.name })}

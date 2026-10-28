@@ -6,7 +6,8 @@ import { getApiFieldError, useSaveStoreSettings, type StoreSettings } from '@riz
 import { useI18n } from '../I18nProvider';
 import { errorText } from './errors';
 import { Check, NumberField, PhoneField, parseDecimal, phoneToInput } from './fields';
-import { draftFromSettings, inputFromDraft, providerAvailable, PROVIDERS, type Provider, type SettingsDraft } from './paymentSettings';
+import { draftFromSettings, inputFromDraft, MERCHANT_FIELDS, MERCHANT_PROVIDERS, providerAvailable, PROVIDERS, unavailableReason, type MerchantProvider, type Provider, type SettingsDraft } from './paymentSettings';
+import { TelegramGroupCard } from './TelegramGroupCard';
 
 const COMMON_TIMEZONES = ['Asia/Tashkent', 'Asia/Samarkand'];
 
@@ -135,14 +136,20 @@ export function StoreSettingsForm({ settings }: { settings: StoreSettings }) {
                   disabled={!available || (!permitted && !draft.providers[provider])}
                   label={t(`settings_provider_${provider}`)}
                 />
-                {!available && <Pill tone="warning">{t('settings_comingSoon')}</Pill>}
+                {!available && <Pill tone="warning">{unavailableReason(settings.payment_settings?.[provider]) === 'switched_off' ? t('settings_switchedOff') : t('settings_comingSoon')}</Pill>}
                 {available && !permitted && <Pill tone="neutral">{t('settings_notAllowed')}</Pill>}
               </div>
             );
           })}
           {errors.payment_settings && <p role="alert" className="text-footnote font-bold text-danger-soft-fg">{errors.payment_settings}</p>}
         </Card>
+        {settings.payment_account_type === 'own_account' &&
+          MERCHANT_PROVIDERS.filter((provider) => providerAvailable(settings.payment_settings?.[provider])).map((provider) => (
+            <MerchantFields key={provider} provider={provider} draft={draft} onChange={(field, value) => setDraft((previous) => ({ ...previous, merchant: { ...previous.merchant, [provider]: { ...previous.merchant[provider], [field]: value } } }))} />
+          ))}
       </Section>
+
+      <TelegramGroupCard settings={settings} />
 
       <FormError message={formError} />
       <div>
@@ -151,5 +158,29 @@ export function StoreSettingsForm({ settings }: { settings: StoreSettings }) {
         </Button>
       </div>
     </form>
+  );
+}
+
+// P4-32: the store's own merchant keys of one provider (own account only). The secret is never shown: an empty field keeps the
+// stored one, a typed one replaces it.
+function MerchantFields({ provider, draft, onChange }: { provider: MerchantProvider; draft: SettingsDraft; onChange: (field: 'merchant_id' | 'service_id' | 'secret_key', value: string) => void }) {
+  const { t } = useI18n();
+  const keys = draft.merchant[provider];
+  const name = t(`settings_provider_${provider}`);
+  return (
+    <Card className="mt-3 flex flex-col gap-3">
+      <p className="text-body font-bold text-fg">{t('settings_merchantTitle', { name })}</p>
+      <p className="text-footnote text-fg-muted">{t('settings_merchantHint')}</p>
+      <div className="grid gap-4 sm:grid-cols-2">
+        {MERCHANT_FIELDS[provider].map((field) => (
+          <Field key={field} label={t(field === 'service_id' ? 'settings_serviceId' : 'settings_merchantId', { name })}>
+            {(props) => <input {...props} type="text" autoComplete="off" spellCheck={false} maxLength={255} value={keys[field]} onChange={(event) => onChange(field, event.target.value)} className={fieldClass} />}
+          </Field>
+        ))}
+        <Field label={t('settings_secretKey', { name })} hint={keys.hasSecret ? t('settings_secretKeyStored') : t('settings_secretKeyMissing')}>
+          {(props) => <input {...props} type="password" autoComplete="new-password" spellCheck={false} maxLength={255} value={keys.secret_key} onChange={(event) => onChange('secret_key', event.target.value)} className={fieldClass} />}
+        </Field>
+      </div>
+    </Card>
   );
 }

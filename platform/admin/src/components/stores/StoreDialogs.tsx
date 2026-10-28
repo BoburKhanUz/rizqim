@@ -4,7 +4,7 @@ import { useState, type FormEvent, type ReactNode } from 'react';
 import { Check, Copy } from 'lucide-react';
 import { Button, Dialog, Field, fieldClass, FormError, Notice, Switch } from '@rizqim/ui';
 import { copyText } from '@/lib/clipboard';
-import { useMessageOwner, useStoreAction, useTelegramLink, type StoreCard } from '@/lib/api/stores';
+import { useMessageOwner, useStoreAction, useTelegramLink, type PaymentAccountType, type StoreCard } from '@/lib/api/stores';
 import { errorText, fieldError } from '@/lib/errors';
 import { useT } from '../I18nProvider';
 
@@ -65,7 +65,7 @@ export function ReasonForm({
   );
 }
 
-export type CardDialog = 'suspend' | 'activate' | 'credit_limit' | 'display' | 'telegram_link' | 'message_owner';
+export type CardDialog = 'suspend' | 'activate' | 'credit_limit' | 'display' | 'telegram_link' | 'message_owner' | 'payment_account' | 'owner_login_phone';
 
 export function StoreActionDialog({ kind, store, onDone, onClose }: { kind: CardDialog; store: StoreCard; onDone: (message: string) => void; onClose: () => void }) {
   switch (kind) {
@@ -80,6 +80,10 @@ export function StoreActionDialog({ kind, store, onDone, onClose }: { kind: Card
       return <TelegramLinkDialog store={store} onClose={onClose} />;
     case 'message_owner':
       return <MessageOwnerDialog store={store} onDone={onDone} onClose={onClose} />;
+    case 'payment_account':
+      return <PaymentAccountDialog store={store} onDone={onDone} onClose={onClose} />;
+    case 'owner_login_phone':
+      return <OwnerLoginPhoneDialog store={store} onDone={onDone} onClose={onClose} />;
   }
 }
 
@@ -216,6 +220,72 @@ function MessageOwnerDialog({ store, onDone, onClose }: { store: StoreCard; onDo
     >
       <Field label={t('stores_messageLabel')} error={fieldError(send.error, 'text')}>
         {(control) => <textarea {...control} data-autofocus rows={4} maxLength={1000} className={fieldClass} value={text} onChange={(event) => setText(event.target.value)} />}
+      </Field>
+    </ReasonForm>
+  );
+}
+
+// P4-32 (the old superadmin store form's money settings): where Click and Payme pay, and what a payout leaves in the wallet
+function PaymentAccountDialog({ store, onDone, onClose }: { store: StoreCard; onDone: (message: string) => void; onClose: () => void }) {
+  const t = useT();
+  const action = useStoreAction(store.profile.id);
+  const current = (store.profile.payment_account_type === 'own_account' ? 'own_account' : 'platform_account') as PaymentAccountType;
+  const [account, setAccount] = useState<PaymentAccountType>(current);
+  const [reserve, setReserve] = useState(String(Math.round(Number(store.finance.min_payout_reserve))));
+  const amount = reserve.replace(/\s+/g, '').replace(',', '.');
+  const valid = /^\d{1,9}(\.\d{1,2})?$/.test(amount);
+  const change: { payment_account_type?: PaymentAccountType; min_payout_reserve?: string } = {};
+  if (account !== current) change.payment_account_type = account;
+  if (valid && Number(amount) !== Number(store.finance.min_payout_reserve)) change.min_payout_reserve = amount;
+  return (
+    <ReasonForm
+      title={t('stores_accountTitle')}
+      text={t('stores_accountText')}
+      submitLabel={t('save')}
+      busy={action.isPending}
+      error={action.error ? errorText(action.error, t) : null}
+      reasonError={fieldError(action.error, 'reason')}
+      canSubmit={valid && Object.keys(change).length > 0}
+      onClose={onClose}
+      onSubmit={(reason) => action.mutate({ kind: 'payment_account', ...change, reason }, { onSuccess: () => onDone(t('stores_accountDone')) })}
+    >
+      <Field label={t('stores_accountType')} hint={account === 'own_account' ? t('stores_accountOwnHint') : t('stores_accountPlatformHint')} error={fieldError(action.error, 'payment_account_type')}>
+        {(control) => (
+          <select {...control} data-autofocus className={fieldClass} value={account} onChange={(event) => setAccount(event.target.value as PaymentAccountType)}>
+            <option value="platform_account">{t('stores_accountPlatform')}</option>
+            <option value="own_account">{t('stores_accountOwn')}</option>
+          </select>
+        )}
+      </Field>
+      <Field label={t('stores_reserveLabel')} hint={t('stores_reserveHint')} error={!valid && reserve !== '' ? t('stores_creditInvalid') : fieldError(action.error, 'min_payout_reserve')}>
+        {(control) => <input {...control} type="text" inputMode="decimal" className={fieldClass} value={reserve} onChange={(event) => setReserve(event.target.value)} />}
+      </Field>
+    </ReasonForm>
+  );
+}
+
+// P4-32 (the old superadmin panel's "SMS bilan kirishni yoqish"): a new login phone for an owner who lost the old number
+function OwnerLoginPhoneDialog({ store, onDone, onClose }: { store: StoreCard; onDone: (message: string) => void; onClose: () => void }) {
+  const t = useT();
+  const action = useStoreAction(store.profile.id);
+  const [phone, setPhone] = useState('+998');
+  const normalized = phone.replace(/[\s()-]+/g, '');
+  const valid = /^\+998\d{9}$/.test(normalized);
+  return (
+    <ReasonForm
+      title={t('stores_loginPhoneTitle')}
+      text={t('stores_loginPhoneText')}
+      submitLabel={t('save')}
+      tone="danger"
+      busy={action.isPending}
+      error={action.error ? errorText(action.error, t) : null}
+      reasonError={fieldError(action.error, 'reason')}
+      canSubmit={valid}
+      onClose={onClose}
+      onSubmit={(reason) => action.mutate({ kind: 'owner_login_phone', phone: normalized, reason }, { onSuccess: () => onDone(t('stores_loginPhoneDone')) })}
+    >
+      <Field label={t('stores_loginPhoneLabel')} hint={t('stores_loginPhoneHint')} error={!valid && normalized.length > 4 ? t('stores_loginPhoneInvalid') : fieldError(action.error, 'phone')}>
+        {(control) => <input {...control} data-autofocus type="tel" inputMode="tel" autoComplete="off" className={fieldClass} value={phone} onChange={(event) => setPhone(event.target.value)} />}
       </Field>
     </ReasonForm>
   );

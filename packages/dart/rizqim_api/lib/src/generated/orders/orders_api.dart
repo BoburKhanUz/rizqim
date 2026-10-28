@@ -65,6 +65,10 @@ abstract class OrdersApi {
   /// `branch_closed`, or `below_minimum_order` (with `data.min_order_amount` and `data.subtotal`). Stores without.
   /// zones keep the branch radius rule and the store's delivery fee.
   ///
+  /// P4-32: a payment provider the RIZQIM team switched off (Tizim → To'lov tizimlari) is a 422 with `code` and.
+  /// `data.reason` `payment_provider_inactive` (and `errors.payment_method`); the store's payment settings already.
+  /// show it `{enabled: false, available: false}`. In test mode a Payme `payment_url` opens Payme's sandbox checkout.
+  ///
   /// [idempotencyKey] - Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer.
   @POST('/v1/orders')
   Future<PostV1OrdersResponse> orderStore({

@@ -104,6 +104,17 @@ return Application::configure(basePath: dirname(__DIR__))
                 return null;
             }
 
+            // P4-32: a payment provider switched off by the team keeps this shape with its own reason
+            if ($e instanceof \App\Services\Payment\PaymentProviderInactiveException) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                    'code' => $e->reason,
+                    'errors' => $e->errors(),
+                    'data' => ['reason' => $e->reason, 'payment_method' => $e->method, 'errors' => $e->errors()],
+                ], $e->status);
+            }
+
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage(),
